@@ -5,6 +5,27 @@ from api_client import GeminiClient
 from memory_manager import MemoryManager
 from executor import Executor
 
+import logging
+import os
+
+# ここでログ設定を一括初期化！
+logs_dir = os.path.join(os.getcwd(), "logs")
+os.makedirs(logs_dir, exist_ok=True)
+
+log_file_path = os.path.join(logs_dir, "system.log")
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler(log_file_path, encoding="utf-8"),
+        logging.StreamHandler()  # コンソールにも出力
+    ]
+)
+
+# これでmain.py以降、どのファイルからlogging.info()を呼んでも必ずlogs/system.logに記録される！
+
+
 def main():
     gemini = GeminiClient()
     memory = MemoryManager()
@@ -16,6 +37,8 @@ def main():
         user_input = input("\nあなたの指示> ").strip()
         if user_input.lower() == "exit":
             print("終了します。")
+            import logging
+            logging.shutdown()  # 追加：ログを確実にflushする
             sys.exit()
 
         # 履歴と現在の指示を組み合わせたプロンプト生成
@@ -28,7 +51,7 @@ def main():
         content, actions = gemini.parse_response(response)
 
         # 本文出力
-        print(f"\n【本文】\n{content}")
+        print(f"\nエージェント> \n{content}")
 
         # 実行枠が存在すれば実行
         if actions:
@@ -36,6 +59,7 @@ def main():
 
         # メモリ更新
         memory.update(user_input, content, actions)
+
 
 if __name__ == "__main__":
     main()

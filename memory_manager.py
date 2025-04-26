@@ -73,14 +73,19 @@ class MemoryManager:
         """
         入力・出力ログを保存
         """
-        timestamp = datetime.now().strftime("%y%m%d_%H:%M")
+        timestamp = datetime.now().strftime("%y%m%d_%H%M")
 
         # 入力保存
         with open(os.path.join(self.inputs_dir, f"{timestamp}_input.txt"), "w", encoding="utf-8") as f:
             f.write(user_input)
 
         # 出力保存
+        output_text = model_output
+        if actions:
+            output_text += "\n\n【実行】\n" + actions
+
         with open(os.path.join(self.outputs_dir, f"{timestamp}_output.txt"), "w", encoding="utf-8") as f:
-            f.write(model_output)
+            f.write(output_text)
+
 
         # (Optional) 実行ログ保存も後で組み込める

@@ -1,8 +1,8 @@
 # config.yaml
 
 model:
-  name: gemini-1.5-pro
-  temperature: 0.7
+  name: gemini-2.5-pro-exp-03-25
+  temperature: 0.2
 
 memory:
   max_tokens: 100000  # 文脈保持できる最大トークン量（後で調整可能）

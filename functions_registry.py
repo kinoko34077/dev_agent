@@ -6,12 +6,11 @@ def add_log(message: str):
     """
     ログにメッセージを追加する関数
     """
-    from utils.logger import logging  # 必要に応じてlogger使う
     logging.info(f"【add_log実行】: {message}")
 
 def run_script(path: str):
     """
-    指定されたPythonスクリプトを実行する（将来sandbox限定予定）
+    指定されたPythonスクリプトを実行する
     """
     import subprocess
     try:
