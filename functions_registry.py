@@ -1,5 +1,7 @@
 # functions_registry.py
 
+import logging
+
 def add_log(message: str):
     """
     ログにメッセージを追加する関数
