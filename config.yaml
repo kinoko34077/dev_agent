@@ -1,0 +1,13 @@
+# config.yaml
+
+model:
+  name: gemini-1.5-pro
+  temperature: 0.7
+
+memory:
+  max_tokens: 100000  # 文脈保持できる最大トークン量（後で調整可能）
+  recent_turns: 3     # フルで積み込む直近ターン数
+
+execution:
+  safe_mode: true     # run_scriptなどは厳格管理するモード
+  sandbox_path: sandbox/  # 実行許可フォルダ
