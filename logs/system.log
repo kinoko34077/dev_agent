@@ -1,0 +1,17 @@
+2025-04-27 01:49:30,899 - INFO - GeminiClient 初期化完了：使用モデル = gemini-2.5-pro-exp-03-25, 温度 = 0.2
+2025-04-27 01:49:30,902 - INFO - Executor初期化完了
+2025-04-27 01:49:39,872 - INFO - 【add_log実行】: テスト成功
+2025-04-27 01:49:39,872 - INFO - 関数 add_log 実行成功
+2025-04-28 19:31:56,392 - INFO - キャッシュファイルが存在しません。新規作成します。
+2025-04-28 19:31:56,393 - INFO - 新規キャッシュ作成中...
+2025-04-28 19:31:56,453 - ERROR - キャッシュ作成エラー: GenerativeServiceClient.generate_content() got an unexpected keyword argument 'caching_config'
+2025-04-28 20:24:03,779 - INFO - キャッシュファイルが存在しません。新規作成します。
+2025-04-28 20:24:03,780 - INFO - 新規キャッシュ作成中...
+2025-04-28 20:24:03,810 - ERROR - キャッシュ作成エラー: GenerativeServiceClient.generate_content() got an unexpected keyword argument 'caching_config'
+2025-04-28 20:24:52,419 - INFO - キャッシュファイルが存在しません。新規作成します。
+2025-04-28 20:24:52,419 - INFO - 新規キャッシュ作成中...
+2025-04-28 20:24:52,443 - ERROR - キャッシュ作成エラー: GenerativeServiceClient.generate_content() got an unexpected keyword argument 'caching_config'
+2025-04-28 20:26:01,670 - INFO - GeminiClient 初期化完了：使用モデル = gemini-2.5-pro-exp-03-25, 温度 = 0.2
+2025-04-28 20:26:01,672 - INFO - Executor初期化完了
+2025-04-28 21:21:42,056 - INFO - GeminiClient 初期化完了：使用モデル = gemini-2.5-pro-exp-03-25, 温度 = 0.2
+2025-04-28 21:21:42,059 - INFO - Executor初期化完了

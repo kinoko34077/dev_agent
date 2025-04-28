@@ -1,0 +1,6 @@
+私が主体的に自己拡張し、より忠実かつ柔軟なサポートを提供するために役立つと考えられる関数を以下に提案します。
+
+【提案】
+search_web(query: str) -> str
+summarize_conversation(conversation_history: list) -> str
+request_feedback(response: str, question: str = "この応答は役に立ちましたか？") -> str
