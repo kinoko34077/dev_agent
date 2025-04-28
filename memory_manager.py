@@ -22,8 +22,15 @@ class MemoryManager:
         with open(config_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
 
+        self.model_name = config.get("model", {}).get("name", "gemini-2.5-pro-exp-03-25")
+        self.temperature = config.get("model", {}).get("temperature", 0.2)
+        self.prompt_base_path = config.get("model", {}).get("prompt_base_path", "templates/prompt_base.md")
+
         self.recent_turns = config.get("memory", {}).get("recent_turns", 3)
         self.max_tokens = config.get("memory", {}).get("max_tokens", 100000)
+
+        self.safe_mode = config.get("execution", {}).get("safe_mode", True)
+        self.sandbox_path = config.get("execution", {}).get("sandbox_path", "sandbox/")
 
         self._ensure_dirs()
 
@@ -34,6 +41,34 @@ class MemoryManager:
         if not os.path.exists(self.summary_combined_path):
             with open(self.summary_combined_path, "w", encoding="utf-8") as f:
                 f.write("")
+
+    def _build_system_context(self) -> str:
+        """ 現状の自己仕様＋長期記憶要約をまとめる """
+        try:
+            from functions_registry import FUNCTIONS
+            function_names = ", ".join(FUNCTIONS.keys())
+
+            if os.path.exists(self.summary_combined_path):
+                with open(self.summary_combined_path, "r", encoding="utf-8") as f:
+                    summary_text = f.read().strip()
+            else:
+                summary_text = "（まだ長期記憶はありません）"
+
+            system_prompt = f"""【エージェント仕様】
+- モデル: {self.model_name}
+- 温度設定: {self.temperature}
+- 使用可能関数: {function_names}
+- メモリ: 最大トークン{self.max_tokens}, 直近履歴{self.recent_turns}ターン
+- 実行モード: セーフモード({self.safe_mode}), sandbox_path={self.sandbox_path}
+
+【長期記憶要約】
+{summary_text}
+"""
+            return system_prompt
+
+        except Exception as e:
+            logging.error(f"自己仕様プロンプト生成エラー: {str(e)}")
+            return "【エージェント仕様取得失敗】"
 
     def get_all_history(self):
         """ 過去のinputs/outputsをまとめて読み込み、履歴リスト化する """
@@ -58,9 +93,14 @@ class MemoryManager:
 
     def build_prompt(self, user_input: str) -> str:
         """ 現在の履歴＋新規指示を組み合わせたプロンプトを構築 """
+        system_context = self._build_system_context()
         history = self.get_all_history()
-        prompt_parts = []
+        prompt_parts = [system_context]
 
+        # --- 履歴区切り線 ---
+        prompt_parts.append("\n\n【履歴開始】\n" + "━━━━━━━━━━━━━━━━━━\n")
+
+        # --- 過去の履歴追加 ---
         for h in history:
             role = h["role"]
             text = h["parts"][0]["text"]
@@ -68,14 +108,16 @@ class MemoryManager:
                 prompt_parts.append(f"あなたの指示> {text}")
             else:
                 prompt_parts.append(f"エージェント> {text}")
+            prompt_parts.append("────────────")  # 各ターンの間に区切り線
 
+        # --- 新しい指示開始 ---
+        prompt_parts.append("\n【現在ターン】\n" + "━━━━━━━━━━━━━━━━━━\n")
         prompt_parts.append(f"あなたの指示> {user_input}")
 
         full_prompt = "\n".join(prompt_parts)
 
-        # (後続) トークン数確認＆制御はここに追加可能
-
         return full_prompt
+
 
     def update(self, user_input: str, model_output: str, actions: str = None):
         """ 入力・出力ログを保存 """
@@ -100,7 +142,7 @@ class MemoryManager:
             logging.error(f"履歴保存エラー: {str(e)}")
 
     def save_summary(self, summary_text: str):
-        """ 将来的に: 要約をまとめ保存 (現状ダミー) """
+        """ 要約を追記保存 """
         try:
             with open(self.summary_combined_path, "a", encoding="utf-8") as f:
                 f.write(summary_text + "\n")

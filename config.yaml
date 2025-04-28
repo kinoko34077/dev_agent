@@ -1,8 +1,9 @@
 # config.yaml
 
 model:
-  name: gemini-2.5-pro-exp-03-25
-  temperature: 0.2
+  name: gemini-1.5-flash #gemini-2.5-pro-exp-03-25は保留
+  temperature: 0.5
+  prompt_base_path: templates/prompt_base.md
 
 memory:
   max_tokens: 100000  # 文脈保持できる最大トークン量（後で調整可能）

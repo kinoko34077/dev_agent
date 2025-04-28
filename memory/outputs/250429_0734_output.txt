@@ -1,0 +1,5 @@
+【本文】
+`run_script`関数は、指定されたPythonスクリプトを実行するための関数です。
+
+【実行】
+add_log(message="run_script関数の機能について説明しました。")

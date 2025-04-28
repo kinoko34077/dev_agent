@@ -1,0 +1,5 @@
+【本文】
+私が実行できる関数は `add_log` と `run_script` です。`add_log` は指定されたメッセージをログに記録します。`run_script` は指定されたパスのPythonスクリプトを実行します。
+
+【実行】
+add_log(message="実行可能な関数について説明しました: add_log, run_script")

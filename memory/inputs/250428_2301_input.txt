@@ -1,0 +1,1 @@
+& C:/Users/kinok/AppData/Local/Programs/Python/Python310/python.exe f:/AI/KiNoTch/dev_agent/test_dev_agent.py
