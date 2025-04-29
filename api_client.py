@@ -1,10 +1,9 @@
-# api_client.py
-
 import os
 import yaml
 import google.generativeai as genai
 from dotenv import load_dotenv
 import logging
+from memory_manager import MemoryManager
 
 # 環境変数読み込み (.env対応)
 load_dotenv()
@@ -28,7 +27,8 @@ class GeminiClient:
 
         self.model_name = config.get("model", {}).get("name", os.getenv("MODEL_NAME", "gemini-1.5-pro"))
         self.temperature = config.get("model", {}).get("temperature", 0.7)
-        
+        self.recent_turns = config.get("memory", {}).get("recent_turns", 3)
+
         prompt_base_path = config.get("model", {}).get("prompt_base_path", "prompt_base.md")
         if not os.path.exists(prompt_base_path):
             raise FileNotFoundError(f"{prompt_base_path}が存在しません。")
@@ -37,7 +37,7 @@ class GeminiClient:
         with open(prompt_base_path, "r", encoding="utf-8") as f:
             self.system_instruction = f.read()
 
-        # モデル初期化
+        # モデル初期化（チャットモード）
         self.model = genai.GenerativeModel(
             model_name=self.model_name,
             system_instruction=self.system_instruction,
@@ -46,16 +46,18 @@ class GeminiClient:
             }
         )
 
+        # 過去の履歴を読み込み
+        memory = MemoryManager()
+        history = memory.get_recent_history(self.recent_turns)
+
+        self.chat = self.model.start_chat(history=history)
+
         logging.info(f"GeminiClient 初期化完了：使用モデル = {self.model_name}, 温度 = {self.temperature}")
 
     def ask(self, prompt: str) -> object:
-        """ ユーザー指示を送信して応答を得る """
+        """ ユーザー指示をチャット形式で送信して応答を得る """
         try:
-            response = self.model.generate_content(
-                contents=[
-                    {"role": "user", "parts": [{"text": prompt}]}
-                ]
-            )
+            response = self.chat.send_message(prompt)
             return response
         except Exception as e:
             logging.error(f"Gemini API呼び出しエラー: {str(e)}")

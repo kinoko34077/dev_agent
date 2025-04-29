@@ -90,6 +90,14 @@ class MemoryManager:
                 continue
 
         return history[-(self.recent_turns*2):]  # ユーザー・モデルセットで数える
+    
+    def get_recent_history(self, recent_turns: int):
+        """
+        直近の履歴だけをhistory形式で返す
+        """
+        history = self.get_all_history()  # 全履歴を取る
+        return history[-recent_turns * 2:]  # 直近nターン分だけ (user→modelでセットなので2倍)
+
 
     def build_prompt(self, user_input: str) -> str:
         """ 現在の履歴＋新規指示を組み合わせたプロンプトを構築 """

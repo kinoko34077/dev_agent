@@ -34,7 +34,7 @@ class RecursionManager:
             time.sleep(self.recursion_delay)
 
             try:
-                self.main_func(recurse=True)  # main側で再帰ターンと認識できるよう引数渡す
+                self.main_func()  # main側で再帰ターンと認識できるよう引数渡す
             except Exception as e:
                 logging.error(f"再帰ターン中エラー発生: {str(e)}")
                 break

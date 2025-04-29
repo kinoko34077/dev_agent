@@ -25,6 +25,7 @@ def trigger_recursion():
     """
     自己ターンを延長するための再帰トリガ
     """
+    from functions_registry import recursion_flag
     logging.info("自己ターン延長トリガーを受信")
     recursion_flag["triggered"] = True
 
