@@ -2,6 +2,9 @@
 
 import logging
 
+# 再帰トリガ用フラグ
+recursion_flag = {"triggered": False}
+
 def add_log(message: str):
     """
     ログにメッセージを追加する関数
@@ -18,8 +21,16 @@ def run_script(path: str):
     except Exception as e:
         logging.error(f"スクリプト実行エラー: {str(e)}")
 
-# 実行可能な関数マッピング
+def trigger_recursion():
+    """
+    自己ターンを延長するための再帰トリガ
+    """
+    logging.info("自己ターン延長トリガーを受信")
+    recursion_flag["triggered"] = True
+
+# 実行可能関数マッピング
 FUNCTIONS = {
     "add_log": add_log,
-    "run_script": run_script
+    "run_script": run_script,
+    "trigger_recursion": trigger_recursion,
 }

@@ -12,3 +12,7 @@ memory:
 execution:
   safe_mode: true     # run_scriptなどは厳格管理するモード
   sandbox_path: sandbox/  # 実行許可フォルダ
+
+recursion:
+  max_recursions: 3     # 再帰ターン最大回数
+  recursion_delay: 2.0  # 再帰ターン間の待機秒数（秒単位）
