@@ -3,7 +3,10 @@
 import logging
 
 # 再帰トリガ用フラグ
-recursion_flag = {"triggered": False}
+recursion_flag = {
+    "triggered": False,
+    "injected_input": None  # Phase1: 疑似入力を保存
+}
 
 def add_log(message: str):
     """
@@ -28,10 +31,11 @@ def trigger_recursion():
     from functions_registry import recursion_flag
     logging.info("自己ターン延長トリガーを受信")
     recursion_flag["triggered"] = True
+    recursion_flag["injected_input"] = "[再帰モード] 自己改善のための追加提案をお願いします。"
 
 # 実行可能関数マッピング
 FUNCTIONS = {
     "add_log": add_log,
     "run_script": run_script,
-    "trigger_recursion": trigger_recursion,
+    "trigger_recursion": trigger_recursion
 }
