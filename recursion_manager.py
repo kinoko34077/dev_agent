@@ -24,18 +24,15 @@ class RecursionManager:
 
         while recursion_count < self.max_recursions:
             if recursion_flag["triggered"]:
-                recursion_count += 1
-                logging.info(f"自己ターン再帰 {recursion_count}/{self.max_recursions}回目 実行中...")
+                logging.info(f"自己ターン再帰 {recursion_count + 1}/{self.max_recursions}回目 実行中...")
                 time.sleep(self.recursion_delay)
 
                 try:
+                    recursion_flag["triggered"] = False  # 再帰直前にリセット（次ターンで再設定可）
                     self.main_func(recurse=True)
+                    recursion_count += 1
                 except Exception as e:
                     logging.error(f"再帰ターン中エラー発生: {str(e)}")
-                    break
-
-                # 一回の自己ターンの実行後に再度フラグが立っていなければ終了
-                if not recursion_flag["triggered"]:
                     break
 
             else:
