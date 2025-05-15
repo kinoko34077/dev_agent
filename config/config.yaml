@@ -1,0 +1,29 @@
+# config/config.yaml
+
+# ----------------------------------------
+# dev_agent 設定ファイル（環境別に差替も可能）
+# モデル選択、記憶管理、実行制御、再帰動作などを一元管理
+# ----------------------------------------
+
+model:
+  name: gemini-1.5-flash             # 使用するモデル名（例：gemini-1.5-pro, gpt-4）
+  FunctionClient: gemini-2.0-flash # 関数呼出用モデル名（例：gemini-1.5-pro, gpt-4）
+  temperature: 0.5                   # 出力の創造性（0.0〜1.0）
+  prompt_base_path: prompts/prompt_base.md  # ベースプロンプト（system指示文）
+
+memory:
+  max_tokens: 100000                 # メモリに積める最大トークン（approximate）
+  recent_turns: 4                    # 直近の履歴ターン数（user→agentで1セット）
+
+execution:
+  safe_mode: true                    # True = ファイル実行や関数呼び出しを厳格に制御
+  sandbox_path: sandbox/            # run_scriptなどで実行を許可するディレクトリ
+
+recursion:
+  max_recursions: 3                 # trigger_recursionによる最大再帰回数
+  recursion_delay: 2.0              # 再帰ターン間のsleep時間（秒単位）
+
+# ※将来的なセクション追加案
+# api:
+#   provider_priority: [gemini, gpt-4, claude]
+#   failover: true
