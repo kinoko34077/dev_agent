@@ -5,11 +5,30 @@
 # モデル選択、記憶管理、実行制御、再帰動作などを一元管理
 # ----------------------------------------
 
-model:
-  name: gemini-1.5-flash             # 使用するモデル名（例：gemini-1.5-pro, gpt-4）
-  FunctionClient: gemini-2.0-flash # 関数呼出用モデル名（例：gemini-1.5-pro, gpt-4）
+model:  #デフォルト値
+  name: gemini-2.0-flash             # 使用するモデル名（例：gemini-1.5-pro, gpt-4）
+  api_key: GEMINI_API_KEY
+  FunctionClient: gemini-2.0-flash 
   temperature: 0.5                   # 出力の創造性（0.0〜1.0）
   prompt_base_path: prompts/prompt_base.md  # ベースプロンプト（system指示文）
+
+clients:
+  thinker:
+    api_key: GEMINI_API_KEY
+    model_name: gemini-1.5-flash
+    temperature: 0.7
+    recent_turns: 4
+  function:          # 関数呼出用
+    api_key: GEMINI_API_KEY2
+    model_name: gemini-2.0-flash
+    temperature: 0.0
+    tools: functions_schema
+  recur:
+    api_key: GEMINI_API_KEY
+    model_name: gemini-1.5-flash
+    temperature: 0.4
+    recent_turns: 6
+
 
 memory:
   max_tokens: 100000                 # メモリに積める最大トークン（approximate）

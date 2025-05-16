@@ -36,9 +36,12 @@ class GeminiClient:
         genai.configure(api_key=api_key)
 
         # config.yaml を読み込み（モデル名や温度設定、履歴数を取得）
-        config_path = os.path.join(os.getcwd(), "config/config.yaml")
+        base_dir = os.path.dirname(os.path.abspath(__file__))  # ← core/main2.py の場所
+        config_path = os.path.join(base_dir, "..", "config", "config.yaml")
+        config_path = os.path.normpath(config_path)  # Windows用に正規化
+
         if not os.path.exists(config_path):
-            raise FileNotFoundError("config.yamlが存在しません。プロジェクト直下に配置してください。")
+            raise FileNotFoundError(f"config.yamlが存在しません：{config_path}")
 
         with open(config_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)

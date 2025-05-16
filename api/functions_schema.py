@@ -1,5 +1,3 @@
-# api/functions_schema.py
-
 FUNCTION_SCHEMA = [
     {
         "name": "add_log",
@@ -7,10 +5,7 @@ FUNCTION_SCHEMA = [
         "parameters": {
             "type": "object",
             "properties": {
-                "message": {
-                    "type": "string",
-                    "description": "ログに記録するメッセージ"
-                }
+                "message": {"type": "string", "description": "ログに記録する内容"}
             },
             "required": ["message"]
         }
@@ -21,12 +16,21 @@ FUNCTION_SCHEMA = [
         "parameters": {
             "type": "object",
             "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "実行するスクリプトのパス"
-                }
+                "path": {"type": "string", "description": "実行するスクリプトへのパス"}
             },
             "required": ["path"]
+        }
+    },
+    {
+        "name": "notify_user",
+        "description": "指定ユーザーに通知を送信します。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "user": {"type": "string", "description": "通知対象ユーザー名"},
+                "message": {"type": "string", "description": "送るメッセージ"}
+            },
+            "required": ["user", "message"]
         }
     }
 ]

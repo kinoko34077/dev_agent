@@ -4,10 +4,7 @@ import logging
 import subprocess
 
 # ----------------------------------------
-# functions_registry.py
-# - dev_agent から呼び出されるユーザー定義関数群
-# - 【実行】ブロックで呼び出された関数名に対応する処理をここに登録
-# - 登録関数は `FUNCTIONS` マッピングに格納され、Executor から呼び出される
+# 関数レジストリ：Function Callingで実行される関数群
 # ----------------------------------------
 
 # ✅ Phase 1: 再帰処理用の状態フラグ（mainで参照される）
@@ -16,14 +13,25 @@ recursion_flag = {
     "injected_input": None                 # 疑似入力（GPTへ再帰的に与える内容）
 }
 
+# ✅ 関数レジストリ本体
+FUNCTIONS = {}
 
-def add_log(message: str):
+def register(name=None):
     """
-    ログにメッセージを記録するシンプルな関数。
+    関数を FUNCTIONS に登録するためのデコレーター。
+    """
+    def wrapper(func):
+        func_name = name or func.__name__
+        FUNCTIONS[func_name] = func
+        return func
+    return wrapper
 
-    Args:
-        message (str): 記録したいログメッセージ
-    """
+# -------------------------------
+# 🔧 登録関数一覧
+# -------------------------------
+
+@register()
+def add_log(message: str) -> dict:
     logging.info(f"【add_log実行】: {message}")
     return {
         "status": "success",
@@ -31,41 +39,26 @@ def add_log(message: str):
         "message": message
     }
 
-def run_script(path: str):
-    """
-    指定されたPythonスクリプトをサブプロセスとして実行。
-
-    Args:
-        path (str): 実行するスクリプトファイルのパス
-
-    Notes:
-        実行結果の標準出力はログには記録されないため、別途stdoutが必要な場合は拡張可。
-    """
+@register()
+def run_script(path: str) -> dict:
     try:
-        subprocess.run(["python", path], check=True)
+        result = subprocess.check_output(["python", path], stderr=subprocess.STDOUT)
+        output = result.decode()
         logging.info(f"スクリプト実行成功: {path}")
+        return {"status": "success", "output": output}
     except Exception as e:
         logging.error(f"スクリプト実行エラー: {str(e)}")
+        return {"status": "error", "message": str(e)}
 
-
-def trigger_recursion():
-    """
-    自己ターン（再帰）を継続するためのトリガ関数。
-
-    Notes:
-        - `recursion_flag["triggered"]` をTrueに設定し、
-          main側で次ターンの自己呼び出しを許可する。
-        - `injected_input` はGPTへ与える追加プロンプト。
-    """
-    # ※ここでのimportは循環参照を避けるためmodule内参照に留める
+@register()
+def trigger_recursion() -> dict:
     logging.info("自己ターン延長トリガーを受信")
     recursion_flag["triggered"] = True
     recursion_flag["injected_input"] = "[再帰モード] 自己改善のための追加提案をお願いします。"
+    return {"status": "recursion_triggered"}
 
-
-# 🔧 実行可能関数のレジストリ（Executorから動的に呼び出される）
-FUNCTIONS = {
-    "add_log": add_log,
-    "run_script": run_script,
-    "trigger_recursion": trigger_recursion,
-}
+@register()
+def notify_user(user: str, message: str) -> dict:
+    # 実際にはUI・Webhook・LINE通知などに拡張可能
+    logging.info(f"通知: {user}へ → {message}")
+    return {"status": "notified", "user": user, "message": message}
