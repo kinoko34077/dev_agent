@@ -1,50 +1,34 @@
 # api/client.py
 
-import os
-import yaml
 import logging
+from google.generativeai.types import Content, Part
 from dotenv import load_dotenv
 import google.generativeai as genai
 
+from utils.config_loader import load_config, get_env_key, get_prompt_base
 from memory.memory_manager import MemoryManager
-from api.functions_schema import FUNCTION_SCHEMA  # 必要に応じて
-
+from api.functions_schema import FUNCTION_SCHEMA
 
 class LLMClient:
     def __init__(self, role: str = "thinker"):
         load_dotenv()
+        config = load_config()
 
-        config_path = os.path.join(os.getcwd(), "config", "config.yaml")
-        if not os.path.exists(config_path):
-            raise FileNotFoundError("config.yamlが存在しません")
-
-        with open(config_path, "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f)
-
-        # クライアントごとの設定（無ければmodel設定とデフォルト）
+        # 各種設定値取得
         client_conf = config.get("clients", {}).get(role, {})
-        default_model = config.get("model", {}).get("name", "gemini-1.5-flash")
+        model_conf = config.get("model", {})
 
-        api_key_name = client_conf.get("api_key", config.get("model", {}).get("api_key", "GEMINI_API_KEY"))
-        api_key = os.getenv(api_key_name)
-        if not api_key:
-            raise ValueError(f"{role}用APIキー({api_key_name})が未設定です")
-
+        api_key_name = client_conf.get("api_key", model_conf.get("api_key", "GEMINI_API_KEY"))
+        api_key = get_env_key(api_key_name)
         genai.configure(api_key=api_key)
 
-        self.model_name = client_conf.get("model_name", default_model)
-        self.temperature = client_conf.get("temperature", config.get("model", {}).get("temperature", 0.7))
+        self.model_name = client_conf.get("model_name", model_conf.get("name", "gemini-1.5-flash"))
+        self.temperature = client_conf.get("temperature", model_conf.get("temperature", 0.7))
         self.recent_turns = client_conf.get("recent_turns", config.get("memory", {}).get("recent_turns", 3))
+        self.system_instruction = get_prompt_base()
         self.role = role
 
-        # プロンプト読み込み
-        prompt_path = config.get("model", {}).get("prompt_base_path", "prompts/prompt_base.md")
-        self.system_instruction = "あなたは有能なアシスタントです。"
-        if os.path.exists(prompt_path):
-            with open(prompt_path, "r", encoding="utf-8") as f:
-                self.system_instruction = f.read()
-
-        # Function用ツール指定
+        # Function用ツール設定
         tools = None
         if role == "function":
             tools = [{"function_declarations": FUNCTION_SCHEMA}]
@@ -56,7 +40,6 @@ class LLMClient:
             generation_config={"temperature": self.temperature}
         )
 
-        # チャット履歴
         if role in {"thinker", "recur"}:
             history = MemoryManager().get_recent_history(self.recent_turns)
             self.chat = self.model.start_chat(history=history)
@@ -66,7 +49,6 @@ class LLMClient:
         logging.info(f"{role}クライアント初期化完了：{self.model_name}")
 
     def ask(self, prompt: str) -> str:
-        """通常の自然文応答を返す"""
         try:
             response = self.chat.send_message(prompt)
             return response.text
@@ -75,7 +57,6 @@ class LLMClient:
             return "❌ 応答生成に失敗しました"
 
     def invoke(self, prompt: str) -> dict:
-        """Function Calling: 関数呼び出し構造を抽出"""
         try:
             response = self.chat.send_message(prompt)
             for part in response.candidates[0].content.parts:
@@ -87,7 +68,6 @@ class LLMClient:
             return None
 
     def respond_with_result(self, function_name: str, result: dict) -> str:
-        from google.generativeai.types import Content, Part
         try:
             response_part = Part.from_function_response(name=function_name, response=result)
             response = self.chat.send_message(Content(role="user", parts=[response_part]))

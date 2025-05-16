@@ -1,12 +1,12 @@
 # memory/memory_manager.py
 
 import os
-import json
 import logging
 from datetime import datetime
 
 from core.functions_registry import FUNCTIONS
 from utils.config_loader import load_config
+from utils.fileio import write_file
 
 class MemoryManager:
     def __init__(self):
@@ -21,10 +21,8 @@ class MemoryManager:
         self.model_name = config.get("model", {}).get("name", "gemini-2.5-pro-exp-03-25")
         self.temperature = config.get("model", {}).get("temperature", 0.2)
         self.prompt_base_path = config.get("model", {}).get("prompt_base_path", "templates/prompt_base.md")
-
         self.recent_turns = config.get("memory", {}).get("recent_turns", 3)
         self.max_tokens = config.get("memory", {}).get("max_tokens", 100000)
-
         self.safe_mode = config.get("execution", {}).get("safe_mode", True)
         self.sandbox_path = config.get("execution", {}).get("sandbox_path", "sandbox/")
 
@@ -35,8 +33,7 @@ class MemoryManager:
             os.makedirs(d, exist_ok=True)
 
         if not os.path.exists(self.summary_combined_path):
-            with open(self.summary_combined_path, "w", encoding="utf-8") as f:
-                f.write("")
+            write_file(self.summary_combined_path, "", "txt")
 
     def _build_system_context(self) -> str:
         try:
@@ -48,7 +45,7 @@ class MemoryManager:
             else:
                 summary_text = "（まだ長期記憶はありません）"
 
-            system_prompt = f"""【エージェント仕様】
+            return f"""【エージェント仕様】
 - モデル: {self.model_name}
 - 温度設定: {self.temperature}
 - 使用可能関数: {function_names}
@@ -58,8 +55,6 @@ class MemoryManager:
 【長期記憶要約】
 {summary_text}
 """
-            return system_prompt
-
         except Exception as e:
             logging.error(f"自己仕様プロンプト生成エラー: {str(e)}")
             return "【エージェント仕様取得失敗】"
@@ -85,45 +80,36 @@ class MemoryManager:
         return history[-(self.recent_turns * 2):]
 
     def get_recent_history(self, recent_turns: int):
-        history = self.get_all_history()
-        return history[-recent_turns * 2:]
+        return self.get_all_history()[-recent_turns * 2:]
 
     def build_prompt(self, user_input: str) -> str:
         system_context = self._build_system_context()
         history = self.get_all_history()
-        prompt_parts = [system_context]
+        prompt_parts = [system_context, "\n\n【履歴開始】\n━━━━━━━━━━━━━━━━━━"]
 
-        prompt_parts.append("\n\n【履歴開始】\n" + "━━━━━━━━━━━━━━━━━━\n")
         for h in history:
             role = h["role"]
             text = h["parts"][0]["text"]
-            if role == "user":
-                prompt_parts.append(f"あなたの指示> {text}")
-            else:
-                prompt_parts.append(f"エージェント> {text}")
+            prompt_parts.append(f"{'あなたの指示' if role == 'user' else 'エージェント'}> {text}")
             prompt_parts.append("────────────")
 
-        prompt_parts.append("\n【現在ターン】\n" + "━━━━━━━━━━━━━━━━━━\n")
+        prompt_parts.append("\n【現在ターン】\n━━━━━━━━━━━━━━━━━━")
         prompt_parts.append(f"あなたの指示> {user_input}")
 
         return "\n".join(prompt_parts)
 
     def update(self, user_input: str, model_output: str, actions: str = None):
         timestamp = datetime.now().strftime("%y%m%d_%H%M")
-
         try:
-            with open(os.path.join(self.inputs_dir, f"{timestamp}_input.txt"), "w", encoding="utf-8") as f:
-                f.write(user_input)
+            write_file(os.path.join(self.inputs_dir, f"{timestamp}_input.txt"), user_input, "txt")
 
             output_text = model_output
             if actions:
                 output_text += "\n\n【実行】\n" + actions
 
-            with open(os.path.join(self.outputs_dir, f"{timestamp}_output.txt"), "w", encoding="utf-8") as f:
-                f.write(output_text)
+            write_file(os.path.join(self.outputs_dir, f"{timestamp}_output.txt"), output_text, "txt")
 
             logging.info(f"履歴保存成功: {timestamp}")
-
         except Exception as e:
             logging.error(f"履歴保存エラー: {str(e)}")
 
