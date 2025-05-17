@@ -12,7 +12,7 @@
 # from . import api_router
 
 __all__ = [
-    "api_client",
+    "client",
     # "client_gemini",
     # "client_openai",
     # "api_router"

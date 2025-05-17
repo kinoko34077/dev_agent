@@ -1,7 +1,6 @@
 # api/client.py
 
 import logging
-from google.generativeai.types import Content, Part
 from dotenv import load_dotenv
 import google.generativeai as genai
 
@@ -69,8 +68,8 @@ class LLMClient:
 
     def respond_with_result(self, function_name: str, result: dict) -> str:
         try:
-            response_part = Part.from_function_response(name=function_name, response=result)
-            response = self.chat.send_message(Content(role="user", parts=[response_part]))
+            response_part = genai.glm.Part.from_function_response(name=function_name, response=result)
+            response = self.chat.send_message(genai.glm.Content(role="user", parts=[response_part]))
             return response.text
         except Exception as e:
             logging.error(f"LLMClient.respond_with_result エラー: {str(e)}")

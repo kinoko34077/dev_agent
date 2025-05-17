@@ -1,10 +1,10 @@
 # tests/test_function_call_flow.py
 
-from api.client_functioner import GeminiFunctionClient
+from Archive.client_functioner import GeminiFunctionClient
 from core.function_executor import execute_function_call
 from pprint import pprint
 
-from utils.logger import setup_logger
+from utils.helpers import setup_logger
 setup_logger(force=True)  # テストでも logs/system.log に出力
 
 def test_function_call_add_log():

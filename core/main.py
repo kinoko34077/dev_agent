@@ -3,11 +3,10 @@
 import os
 import sys
 import logging
-from utils.logger import setup_logger
 from api.client import LLMClient
 from core.executor import Executor
 from core.function_executor import execute_function_call
-from utils.helpers import safe_mkdir
+from utils.helpers import safe_mkdir, setup_logger
 from core.functions_registry import recursion_flag
 
 

@@ -1,6 +1,6 @@
 # memory/memory_loader.py
 
-import logging
+import os, logging
 from utils.fileio import read_file
 
 # ----------------------------------------

@@ -2,7 +2,7 @@
 
 import os
 from api.api_router import process_input
-from utils.logger import setup_logger
+from utils.helpers import setup_logger
 
 def main():
     os.makedirs("logs", exist_ok=True)

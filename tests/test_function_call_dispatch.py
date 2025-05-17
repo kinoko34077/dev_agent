@@ -1,6 +1,6 @@
 # test_function_call_dispatch.py
 
-from api.client_functioner import GeminiFunctionClient
+from Archive.client_functioner import GeminiFunctionClient
 from core.function_executor import execute_function_call
 
 client = GeminiFunctionClient()
