@@ -4,7 +4,7 @@ import os
 import logging
 from datetime import datetime
 
-from core.functions_registry import FUNCTIONS
+from core.functions_registry import REGISTERED_FUNCTIONS
 from utils.config_loader import load_config
 from utils.fileio import write_file
 
@@ -37,7 +37,7 @@ class MemoryManager:
 
     def _build_system_context(self) -> str:
         try:
-            function_names = ", ".join(FUNCTIONS.keys())
+            function_names = ", ".join(REGISTERED_FUNCTIONS.keys())
 
             if os.path.exists(self.summary_combined_path):
                 with open(self.summary_combined_path, "r", encoding="utf-8") as f:
