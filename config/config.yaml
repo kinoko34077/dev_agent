@@ -23,12 +23,11 @@ clients:
     model_name: gemini-2.0-flash
     temperature: 0.0
     tools: functions_schema
-  recur:
+  recur:            # 再帰処理・内的対話用
     api_key: GEMINI_API_KEY
-    model_name: gemini-1.5-flash
+    model_name: gemini-2.0-flash
     temperature: 0.4
     recent_turns: 6
-
 
 memory:
   max_tokens: 100000                 # メモリに積める最大トークン（approximate）
@@ -38,9 +37,18 @@ execution:
   safe_mode: true                    # True = ファイル実行や関数呼び出しを厳格に制御
   sandbox_path: sandbox/            # run_scriptなどで実行を許可するディレクトリ
 
+# 再帰処理・内的対話設定
 recursion:
-  max_recursions: 3                 # trigger_recursionによる最大再帰回数
-  recursion_delay: 2.0              # 再帰ターン間のsleep時間（秒単位）
+  enabled: true                      # 再帰処理の有効/無効
+  max_recursions: 3                  # 最大再帰回数
+  recursion_delay: 2.0               # 再帰ターン間のsleep時間（秒単位）
+  internal_dialogue:                 # 内的対話設定
+    enabled: true
+    max_history: 3                   # 保持する対話履歴の最大数
+    client: "recur"                  # 使用するクライアント設定（clientsセクションのキー）
+    roles:
+      internal: "recur"              # 内部インスタンスのロール
+      agent: "assistant"             # エージェントのロール
 
 # ※将来的なセクション追加案
 # api:
