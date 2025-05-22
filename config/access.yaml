@@ -1,0 +1,63 @@
+# ディレクトリごとのアクセス権限ルール
+# パスはワークスペースルートからの相対パス
+
+access_rules:
+  # サンドボックス環境 - 読み書き可能
+  sandbox:
+    read: true
+    write: true
+    description: "GPTが生成した関数を安全に実行するための環境"
+
+  # メモリ管理 - 読み書き可能
+  memory:
+    read: true
+    write: true
+    description: "セッション状態や履歴を保存する領域"
+
+  # コア機能 - 読み取り専用
+  core:
+    read: true
+    write: false
+    description: "システムの基本機能を提供する領域"
+
+  # 設定ファイル - 読み取り専用
+  config:
+    read: true
+    write: false
+    description: "システム設定を管理する領域"
+
+  # API関連 - 読み取り専用
+  api:
+    read: true
+    write: false
+    description: "外部APIとの通信を管理する領域"
+
+  # ユーティリティ - 読み取り専用
+  utils:
+    read: true
+    write: false
+    description: "共通ユーティリティ関数を提供する領域"
+
+  # ログ - 読み書き可能
+  logs:
+    read: true
+    write: true
+    description: "システムログを保存する領域"
+
+  # プロンプト - 読み取り専用
+  prompts:
+    read: true
+    write: false
+    description: "プロンプトテンプレートを管理する領域"
+
+  # テスト - 読み取り専用
+  tests:
+    read: true
+    write: false
+    description: "テストコードを管理する領域"
+
+# デフォルトルール（明示的に指定されていないディレクトリ用）
+default_rule:
+  read: false
+  write: false
+  description: "デフォルトでは全てのアクセスを拒否" 

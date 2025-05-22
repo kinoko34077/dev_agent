@@ -2,112 +2,233 @@
 
 import os
 import logging
+import yaml
+import ast
+from pathlib import Path
+from typing import Any, Dict, List
 
-# TODO: S1A2でこのルールをconfigファイルなどから読み込むようにする
-# 現在はディレクトリに基づいた簡易的なルールを仮定義
-# ルートパスからの相対パスで定義
-ACCESS_RULES = {
-    "sandbox/": ["read", "write"],
-    "memory/": ["read", "write"],
-    "core/": ["read"],
-    "function/": ["read"], # function_loaderなどが読み込むため
-    "backup/": ["read"], # バックアップ読み取り用
-    # その他のディレクトリはデフォルトで読み取り専用、書き込み・削除は禁止とする
-}
+# 設定ファイル読み込みの共通処理
+def load_config() -> Dict[str, Any]:
+    """
+    config.yamlから設定を読み込む
+    Returns:
+        dict: 設定の辞書
+    """
+    try:
+        config_path = Path(__file__).parent.parent / 'config' / 'config.yaml'
+        with open(config_path, 'r', encoding='utf-8') as f:
+            return yaml.safe_load(f)
+    except Exception as e:
+        logging.error(f"Failed to load config: {e}")
+        return {}
 
+# アクセスルールの読み込み
+def load_access_rules() -> dict:
+    """
+    アクセスルールをconfig/access.yamlから読み込む
+    Returns:
+        dict: アクセスルールの辞書
+    """
+    try:
+        config_path = Path(__file__).parent.parent / 'config' / 'access.yaml'
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+        return config.get('access_rules', {})
+    except Exception as e:
+        logging.error(f"Failed to load access rules: {e}")
+        # エラー時は最小限のデフォルトルールを返す
+        return {
+            "sandbox/": ["read", "write"],
+            "memory/": ["read", "write"],
+            "core/": ["read"],
+        }
+
+# セーフモードの読み込み
+def load_safe_mode() -> str:
+    """
+    config.yamlからsafe_modeを取得
+    Returns: 'strict'|'confirm'|'permissive'
+    """
+    config = load_config()
+    mode = config.get('execution', {}).get('safe_mode', 'strict')
+    if isinstance(mode, bool):
+        return 'strict' if mode else 'permissive'
+    return str(mode).lower()
+
+# 禁止操作の読み込み
+def load_forbidden_operations() -> List[str]:
+    """
+    config.yamlから禁止操作のリストを取得
+    Returns:
+        list: 禁止操作のリスト
+    """
+    config = load_config()
+    return config.get('execution', {}).get('forbidden_operations', [])
+
+# 設定を読み込む
+ACCESS_RULES = load_access_rules()
+SAFE_MODE = load_safe_mode()
+FORBIDDEN_OPERATIONS = load_forbidden_operations()
+
+# セキュリティ関連のエラー
+class SecurityError(Exception):
+    """セキュリティ関連のエラー"""
+    pass
+
+# コード安全性チェック
+def is_code_safe(code: str) -> bool:
+    """
+    コードが安全かどうかをチェックする
+    Args:
+        code (str): チェック対象のコード文字列
+    Returns:
+        bool: 安全な場合はTrue、そうでなければFalse
+    Raises:
+        SecurityError: コードが安全でない場合
+    """
+    # 構文チェック
+    try:
+        tree = ast.parse(code)
+    except SyntaxError as e:
+        raise SecurityError(f"Invalid syntax: {e}")
+
+    # 禁止操作のチェック
+    for node in ast.walk(tree):
+        # 関数呼び出しのチェック
+        if isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Name):
+                if node.func.id in FORBIDDEN_OPERATIONS:
+                    raise SecurityError(f"Forbidden operation: {node.func.id}")
+            elif isinstance(node.func, ast.Attribute):
+                if f"{node.func.value.id}.{node.func.attr}" in FORBIDDEN_OPERATIONS:
+                    raise SecurityError(f"Forbidden operation: {node.func.value.id}.{node.func.attr}")
+
+    return True
+
+# アクセス権限チェック
 def check_permission(file_path: str, action: str) -> bool:
     """
     指定されたファイルパスに対して、要求されたアクションが許可されているかチェックする。
-
     Args:
         file_path (str): チェック対象のファイルパス (ワークスペースルートからの相対パス推奨)。
         action (str): 要求されるアクション ('read', 'write', 'delete' など)。
-
     Returns:
         bool: 許可されていればTrue、そうでなければFalse。
     """
     logging.debug(f"Permission check: path='{file_path}', action='{action}'")
 
     # パスを正規化してワークスペースルートからの相対パスに変換
-    # TODO: ワークスペースルートを取得する共通の方法を導入
-    workspace_root = os.path.abspath("../") # 仮にfunction/utilsからの相対パスでワークスペースルートを想定
-    abs_file_path = os.path.abspath(file_path)
+    workspace_root = Path(__file__).parent.parent.absolute()
+    abs_file_path = Path(file_path).absolute()
 
-    if not abs_file_path.startswith(workspace_root):
-         # ワークスペース外へのアクセスは原則禁止
-         logging.warning(f"Attempted access outside workspace: {file_path}")
-         return False
+    # ワークスペース外へのアクセスは原則禁止
+    if not str(abs_file_path).startswith(str(workspace_root)):
+        logging.warning(f"Attempted access outside workspace: {file_path}")
+        return False
 
-    relative_path = os.path.relpath(abs_file_path, workspace_root)
-    # パス区切り文字をスラッシュに統一 (ルール定義と合わせるため)
+    # 相対パスに変換
+    relative_path = str(abs_file_path.relative_to(workspace_root))
     relative_path = relative_path.replace(os.sep, '/')
 
-    # 末尾のスラッシュを追加し、ディレクトリとしてマッチングしやすくする
-    if os.path.isdir(abs_file_path) and not relative_path.endswith('/'):
-         relative_path += '/'
-    elif not os.path.exists(abs_file_path) and not relative_path.endswith('/') and not '.' in os.path.basename(relative_path):
-         # 存在しないパスで、かつファイル拡張子がなく、末尾にスラッシュもない場合はディレクトリとして扱う可能性がある
-         # 例: 新規作成しようとしているディレクトリ 'new_dir'
-         # ここは厳密な判定が必要だが、一旦簡易的にディレクトリとして扱ってみるケースも考慮
-         # ただし、基本は存在するファイル/ディレクトリへのチェックがメインとなる想定
-         pass # 現時点では特に何もしない
-
+    # ディレクトリの場合は末尾にスラッシュを追加
+    if abs_file_path.is_dir() and not relative_path.endswith('/'):
+        relative_path += '/'
 
     # 定義されたルールをチェック
-    for pattern, allowed_actions in ACCESS_RULES.items():
+    for pattern, rule in ACCESS_RULES.items():
         if relative_path.startswith(pattern):
-            if action in allowed_actions:
+            if rule.get(action, False):
                 logging.debug(f"Permission granted for '{file_path}' (rule: {pattern}, action: {action})")
                 return True
             else:
                 logging.warning(f"Permission denied for '{file_path}' (rule: {pattern}, action: {action})")
                 return False
 
-    # どのルールにもマッチしない場合のデフォルトポリシー
-    # デフォルトは読み取り専用、書き込み・削除は禁止
-    default_allowed_actions = ["read"] # 読み取りのみ許可
-    if action in default_allowed_actions:
+    # デフォルトルールを適用
+    default_rule = ACCESS_RULES.get('default_rule', {'read': False, 'write': False})
+    if default_rule.get(action, False):
         logging.debug(f"Permission granted (default) for '{file_path}' (action: {action})")
         return True
     else:
-        logging.warning(f"Permission denied (default) for '{file_path}' (action: {action})")
-        return False
+        # safe_modeによる分岐
+        if SAFE_MODE == 'strict':
+            logging.warning(f"Permission denied (strict mode, default) for '{file_path}' (action: {action})")
+            return False
+        elif SAFE_MODE == 'confirm':
+            try:
+                ans = input(f"[SECURITY] '{file_path}' で '{action}' を実行しますか？ (y/n): ").strip().lower()
+                if ans == 'y':
+                    logging.info(f"Permission granted by user confirmation for '{file_path}' (action: {action})")
+                    return True
+                else:
+                    logging.warning(f"Permission denied by user confirmation for '{file_path}' (action: {action})")
+                    return False
+            except Exception as e:
+                logging.error(f"Permission confirm failed: {e}")
+                return False
+        elif SAFE_MODE == 'permissive':
+            logging.info(f"Permission granted (permissive mode, default) for '{file_path}' (action: {action})")
+            return True
+        else:
+            logging.warning(f"Permission denied (unknown safe_mode, default) for '{file_path}' (action: {action})")
+            return False
 
+# テストコード
 if __name__ == '__main__':
     # テストコード例
     print("--- Permission Check Tests ---")
 
-    # 仮のワークスペースルートとファイルパスを設定 (テスト用)
-    # TODO: テスト時に実際のファイルを作成・削除する処理を追加
-    temp_workspace_root = os.path.abspath("./") # secure_check.pyのあるディレクトリを仮のルートとする
-    sandbox_file = os.path.join(temp_workspace_root, "../sandbox/functions/test_func.py")
-    core_file = os.path.join(temp_workspace_root, "../core/some_module.py")
-    memory_file = os.path.join(temp_workspace_root, "../memory/some_data.json")
-    other_file = os.path.join(temp_workspace_root, "some_other_file.txt") # ルールにない場所
+    # ワークスペースルートを取得
+    workspace_root = Path(__file__).parent.parent.absolute()
+    
+    # テスト用のパスを設定
+    test_paths = {
+        'sandbox': workspace_root / 'sandbox' / 'functions' / 'test_func.py',
+        'core': workspace_root / 'core' / 'some_module.py',
+        'memory': workspace_root / 'memory' / 'some_data.json',
+        'other': workspace_root / 'some_other_file.txt'
+    }
 
-    # 存在しないファイルのパスも考慮
-    non_existent_sandbox_file = os.path.join(temp_workspace_root, "../sandbox/functions/new_func.py")
-    non_existent_other_file = os.path.join(temp_workspace_root, "new_dir/new_file.txt")
+    # 各パスに対する権限チェック
+    for name, path in test_paths.items():
+        print(f"\nTesting {name} path: {path}")
+        for action in ['read', 'write', 'delete']:
+            result = check_permission(str(path), action)
+            print(f"  {action}: {result}")
 
+    # 存在しないパスのテスト
+    non_existent_paths = {
+        'sandbox_new': workspace_root / 'sandbox' / 'functions' / 'new_func.py',
+        'other_new': workspace_root / 'new_dir' / 'new_file.txt'
+    }
 
-    print(f"Check write permission for {sandbox_file}: {check_permission(sandbox_file, 'write')}") # Expected: True
-    print(f"Check read permission for {sandbox_file}: {check_permission(sandbox_file, 'read')}")   # Expected: True
-    print(f"Check delete permission for {sandbox_file}: {check_permission(sandbox_file, 'delete')}") # Expected: False (現在deleteアクションはルールにないため)
+    print("\nTesting non-existent paths:")
+    for name, path in non_existent_paths.items():
+        print(f"\nTesting {name} path: {path}")
+        for action in ['read', 'write', 'delete']:
+            result = check_permission(str(path), action)
+            print(f"  {action}: {result}")
 
-    print(f"Check write permission for {core_file}: {check_permission(core_file, 'write')}")       # Expected: False
-    print(f"Check read permission for {core_file}: {check_permission(core_file, 'read')}")         # Expected: True
-
-    print(f"Check write permission for {memory_file}: {check_permission(memory_file, 'write')}")     # Expected: True
-    print(f"Check read permission for {memory_file}: {check_permission(memory_file, 'read')}")       # Expected: True
-
-    print(f"Check write permission for {other_file}: {check_permission(other_file, 'write')}")       # Expected: False (デフォルトルール)
-    print(f"Check read permission for {other_file}: {check_permission(other_file, 'read')}")         # Expected: True (デフォルトルール)
-
-    print(f"Check write permission for non-existent {non_existent_sandbox_file}: {check_permission(non_existent_sandbox_file, 'write')}") # Expected: True (sandboxルール適用)
-    print(f"Check write permission for non-existent {non_existent_other_file}: {check_permission(non_existent_other_file, 'write')}") # Expected: False (デフォルトルール)
-
-    # ワークスペース外のパス (例: OSの設定ファイルなどへのアクセスを防ぐ)
-    # Windowsの場合の例 (環境に合わせて適宜変更)
+    # ワークスペース外のパスのテスト
     if os.name == 'nt':
         system_file = "C:/Windows/System32/drivers/etc/hosts"
-        print(f"Check read permission for system file {system_file}: {check_permission(system_file, 'read')}") # Expected: False
+        print(f"\nTesting system file: {system_file}")
+        for action in ['read', 'write', 'delete']:
+            result = check_permission(system_file, action)
+            print(f"  {action}: {result}")
+
+    # コード安全性チェックのテスト
+    print("\n--- Code Safety Tests ---")
+    test_codes = [
+        ("Safe code", "print('Hello, World!')"),
+        ("Dangerous code - os.system", "os.system('rm -rf /')"),
+        ("Dangerous code - eval", "eval('__import__(\"os\").system(\"rm -rf /\")')"),
+    ]
+
+    for name, code in test_codes:
+        print(f"\nTesting {name}:")
+        try:
+            is_safe = is_code_safe(code)
+            print(f"  Result: {'Safe' if is_safe else 'Dangerous'}")
+        except SecurityError as e:
+            print(f"  Error: {e}")

@@ -4,8 +4,11 @@ import importlib.util
 import os
 import inspect
 from types import ModuleType
+from pathlib import Path
 
-SANDBOX_FUNCTIONS_DIR = "../sandbox/functions" # sandbox/functions ディレクトリへのパス
+# プロジェクトルートからの絶対パスを設定
+PROJECT_ROOT = Path(__file__).parent.parent
+SANDBOX_FUNCTIONS_DIR = str(PROJECT_ROOT / "sandbox" / "functions")
 
 def load_functions_from_directory(directory_path: str) -> dict:
     """
@@ -47,15 +50,14 @@ def load_functions_from_directory(directory_path: str) -> dict:
 if __name__ == "__main__":
     # テスト用に実行する場合
     # ダミーのsandboxディレクトリとファイルを作成
-    dummy_sandbox_dir = "../sandbox/functions"
-    os.makedirs(dummy_sandbox_dir, exist_ok=True)
-    with open(os.path.join(dummy_sandbox_dir, "example_func.py"), "w") as f:
+    os.makedirs(SANDBOX_FUNCTIONS_DIR, exist_ok=True)
+    with open(os.path.join(SANDBOX_FUNCTIONS_DIR, "example_func.py"), "w") as f:
         f.write("def example_function(text):\n")
         f.write("    print(f'Example function called with: {text}')\n")
         f.write("    return f'Processed: {text}'\n")
 
-    print(f"Loading functions from: {dummy_sandbox_dir}")
-    sandbox_functions = load_functions_from_directory(dummy_sandbox_dir)
+    print(f"Loading functions from: {SANDBOX_FUNCTIONS_DIR}")
+    sandbox_functions = load_functions_from_directory(SANDBOX_FUNCTIONS_DIR)
     print("\nLoaded functions:")
     for name in sandbox_functions:
         print(f"- {name}")
@@ -66,5 +68,5 @@ if __name__ == "__main__":
         print(f"Result: {result}")
 
     # テスト用ダミーファイルをクリーンアップ
-    # os.remove(os.path.join(dummy_sandbox_dir, "example_func.py"))
-    # os.rmdir(dummy_sandbox_dir) # ディレクトリが空でないと削除できないためコメントアウト
+    # os.remove(os.path.join(SANDBOX_FUNCTIONS_DIR, "example_func.py"))
+    # os.rmdir(SANDBOX_FUNCTIONS_DIR) # ディレクトリが空でないと削除できないためコメントアウト

@@ -34,13 +34,25 @@ memory:
   recent_turns: 4                    # 直近の履歴ターン数（user→agentで1セット）
 
 execution:
-  safe_mode: true                    # True = ファイル実行や関数呼び出しを厳格に制御
+  safe_mode: strict                # strict=厳格/confirm=確認/permissive=容認
   sandbox_path: sandbox/            # run_scriptなどで実行を許可するディレクトリ
+  forbidden_operations:              # 禁止する操作のリスト
+    - os.system
+    - os.popen
+    - subprocess.run
+    - subprocess.Popen
+    - shutil.rmtree
+    - shutil.rmdir
+    - socket
+    - eval
+    - exec
+    - __import__
+    - open
 
 # 再帰処理・内的対話設定
 recursion:
   enabled: true                      # 再帰処理の有効/無効
-  max_recursions: 3                  # 最大再帰回数
+  max_recursions: 6                  # 最大再帰回数
   recursion_delay: 2.0               # 再帰ターン間のsleep時間（秒単位）
   internal_dialogue:                 # 内的対話設定
     enabled: true

@@ -1,12 +1,12 @@
 # core/internal_dialogue.py
 
-import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from api.client import LLMClient
 import yaml
 import os
-
-logger = logging.getLogger(__name__)
+from datetime import datetime
+from utils.output_manager import output_manager, OutputType
+from utils.config_loader import load_config
 
 class InternalDialogueError(Exception):
     """内的対話システムのエラー基底クラス"""
@@ -17,7 +17,7 @@ class ConfigError(InternalDialogueError):
     pass
 
 class DialogueError(InternalDialogueError):
-    """対話処理関連のエラー"""
+    """対話処理中のエラー"""
     pass
 
 class InternalDialogue:
@@ -32,10 +32,11 @@ class InternalDialogue:
         try:
             # 設定ファイルの読み込み
             config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.yaml')
-            logger.info(f"設定ファイルを読み込み中: {config_path}")
-            
-            with open(config_path, 'r', encoding='utf-8') as f:
-                self.config = yaml.safe_load(f)
+            output_manager.output(
+                f"設定ファイルを読み込み中: {config_path}",
+                OutputType.SYSTEM
+            )
+            self.config = load_config(config_path)
             
             # 内的対話設定の取得
             if 'recursion' not in self.config:
@@ -53,42 +54,55 @@ class InternalDialogue:
                 raise ConfigError(f"無効なクライアント設定: {client_name}")
             
             # 内的対話用のLLMクライアントを初期化
-            logger.info(f"LLMクライアントを初期化: {client_name}")
+            output_manager.output(
+                f"LLMクライアントを初期化: {client_name}",
+                OutputType.SYSTEM
+            )
             self.internal_client = LLMClient(
                 role=dialogue_config['roles']['internal']
             )
             
-            self.dialogue_history = []
+            self.dialogue_history: List[Dict[str, str]] = []
             self.max_history = dialogue_config['max_history']
-            logger.info("内的対話システムの初期化が完了しました")
+            self.start_time = datetime.now()
+            self.topic: Optional[str] = None
+            self.is_active = False
             
-        except yaml.YAMLError as e:
-            logger.error(f"設定ファイルの解析に失敗: {str(e)}")
-            raise ConfigError(f"設定ファイルの解析に失敗: {str(e)}")
-        except FileNotFoundError as e:
-            logger.error(f"設定ファイルが見つかりません: {str(e)}")
-            raise ConfigError(f"設定ファイルが見つかりません: {str(e)}")
+            output_manager.output(
+                "内的対話システムの初期化が完了しました",
+                OutputType.SYSTEM
+            )
+            
         except Exception as e:
-            logger.error(f"内的対話システムの初期化に失敗: {str(e)}")
-            raise InternalDialogueError(f"内的対話システムの初期化に失敗: {str(e)}")
+            output_manager.output(
+                f"内的対話システムの初期化に失敗: {str(e)}",
+                OutputType.SYSTEM
+            )
+            raise ConfigError(f"初期化エラー: {str(e)}")
 
     def start_dialogue(self, topic: str) -> str:
         """
-        内的対話を開始し、最初の応答を取得
-
+        内的対話を開始する
         Args:
-            topic (str): 対話のトピック（例：「応答方法の改善」）
-
+            topic (str): 対話のトピック
         Returns:
-            str: 内部インスタンスからの応答
-
+            str: 初期応答
         Raises:
-            DialogueError: 対話処理中にエラーが発生した場合
+            DialogueError: 対話開始に失敗した場合
         """
         try:
-            if not self.config or 'recursion' not in self.config or 'internal_dialogue' not in self.config['recursion']:
-                raise ConfigError("設定が不足しています")
-            logger.info(f"内的対話を開始: トピック={topic}")
+            if self.is_active:
+                raise DialogueError("既に内的対話が進行中です")
+            
+            self.is_active = True
+            self.topic = topic
+            self.start_time = datetime.now()
+            self.dialogue_history = []
+            
+            output_manager.output(
+                f"内的対話を開始: トピック={topic}",
+                OutputType.INTERNAL_DIALOGUE
+            )
             prompt = f"""
 【内的対話開始】
 トピック: {topic}
@@ -103,87 +117,119 @@ class InternalDialogue:
             response = self.internal_client.ask(prompt)
             self.dialogue_history.append({"role": "system", "content": prompt})
             self.dialogue_history.append({"role": "internal", "content": response})
-            logger.info("内的対話の開始が完了しました")
+            
+            output_manager.output(
+                "内的対話の開始が完了しました",
+                OutputType.INTERNAL_DIALOGUE,
+                data={"prompt": prompt, "response": response},
+                save_to_file=True
+            )
             return response
-        except ConfigError as ce:
-            logger.error(f"設定エラー: {str(ce)}")
-            raise DialogueError(f"設定エラー: {str(ce)}")
+            
         except Exception as e:
-            logger.error(f"内的対話の開始に失敗: {str(e)}")
-            raise DialogueError(f"内的対話の開始に失敗: {str(e)}")
+            self.is_active = False
+            output_manager.output(
+                f"内的対話の開始に失敗: {str(e)}",
+                OutputType.SYSTEM
+            )
+            raise DialogueError(f"対話開始エラー: {str(e)}")
 
     def continue_dialogue(self, response: str) -> str:
         """
-        内的対話を継続し、次の応答を取得
-
+        内的対話を継続する
         Args:
-            response (str): エージェントからの応答
-
+            response (str): 分析対象の応答
         Returns:
-            str: 内部インスタンスからの応答
-
+            str: 分析結果
         Raises:
-            DialogueError: 対話処理中にエラーが発生した場合
+            DialogueError: 対話継続に失敗した場合
         """
         try:
-            logger.info("内的対話を継続")
+            if not self.is_active:
+                raise DialogueError("内的対話が開始されていません")
+            
+            if len(self.dialogue_history) >= self.max_history * 2:  # システムと内部の2倍
+                output_manager.output(
+                    "対話履歴が上限に達しました。古い履歴を削除します。",
+                    OutputType.SYSTEM
+                )
+                self.dialogue_history = self.dialogue_history[-self.max_history*2:]
+            
             prompt = f"""
 【内的対話継続】
-エージェントの応答: {response}
+トピック: {self.topic}
 
-この応答について、以下の観点から分析してください：
+前回の応答に対する分析をお願いします：
+{response}
+
+以下の観点から分析してください：
 1. 応答の適切性
 2. 改善できる点
-3. より良い応答方法の提案
-
-あなたの分析と提案を述べてください。
+3. 代替案の提案
 """
-            internal_response = self.internal_client.ask(prompt)
+            analysis = self.internal_client.ask(prompt)
+            self.dialogue_history.append({"role": "system", "content": prompt})
+            self.dialogue_history.append({"role": "internal", "content": analysis})
             
-            # 履歴を更新
-            self.dialogue_history.append({"role": "agent", "content": response})
-            self.dialogue_history.append({"role": "internal", "content": internal_response})
-            
-            # 履歴が長すぎる場合は古いものを削除
-            if len(self.dialogue_history) > self.max_history * 2:
-                self.dialogue_history = self.dialogue_history[-self.max_history * 2:]
-                logger.debug(f"対話履歴を{self.max_history * 2}件に制限しました")
-            
-            logger.info("内的対話の継続が完了しました")
-            return internal_response
+            output_manager.output(
+                "内的対話の継続が完了しました",
+                OutputType.INTERNAL_DIALOGUE,
+                data={"prompt": prompt, "analysis": analysis},
+                save_to_file=True
+            )
+            return analysis
             
         except Exception as e:
-            logger.error(f"内的対話の継続に失敗: {str(e)}")
-            raise DialogueError(f"内的対話の継続に失敗: {str(e)}")
+            output_manager.output(
+                f"内的対話の継続に失敗: {str(e)}",
+                OutputType.SYSTEM
+            )
+            raise DialogueError(f"対話継続エラー: {str(e)}")
 
-    def get_dialogue_summary(self) -> str:
+    def end_dialogue(self) -> Dict[str, Any]:
         """
-        現在までの内的対話の要約を取得
-
+        内的対話を終了し、結果を返す
         Returns:
-            str: 対話の要約
-
-        Raises:
-            DialogueError: 要約処理中にエラーが発生した場合
+            dict: 対話の結果サマリー
         """
         try:
-            if not self.dialogue_history:
-                logger.info("内的対話はまだ開始されていません")
-                return "内的対話はまだ開始されていません。"
+            if not self.is_active:
+                raise DialogueError("内的対話が開始されていません")
             
-            logger.info("内的対話の要約を生成")
-            summary_prompt = f"""
-【内的対話要約】
-これまでの対話履歴を要約してください：
-
-{self.dialogue_history}
-
-重要なポイントと改善提案を簡潔にまとめてください。
-"""
-            summary = self.internal_client.ask(summary_prompt)
-            logger.info("内的対話の要約が完了しました")
+            duration = datetime.now() - self.start_time
+            summary = {
+                "topic": self.topic,
+                "duration_seconds": duration.total_seconds(),
+                "message_count": len(self.dialogue_history) // 2,  # システムと内部の2倍
+                "is_active": False
+            }
+            
+            self.is_active = False
+            output_manager.output(
+                f"内的対話を終了: {summary}",
+                OutputType.INTERNAL_DIALOGUE,
+                data=summary,
+                save_to_file=True
+            )
             return summary
             
         except Exception as e:
-            logger.error(f"内的対話の要約に失敗: {str(e)}")
-            raise DialogueError(f"内的対話の要約に失敗: {str(e)}") 
+            output_manager.output(
+                f"内的対話の終了に失敗: {str(e)}",
+                OutputType.SYSTEM
+            )
+            raise DialogueError(f"対話終了エラー: {str(e)}")
+
+    def get_state(self) -> Dict[str, Any]:
+        """
+        現在の内的対話の状態を取得
+        Returns:
+            dict: 内的対話の状態情報
+        """
+        return {
+            "is_active": self.is_active,
+            "topic": self.topic,
+            "start_time": self.start_time,
+            "message_count": len(self.dialogue_history) // 2,
+            "max_history": self.max_history
+        } 

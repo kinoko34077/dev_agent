@@ -1,107 +1,136 @@
 # tests/test_internal_dialogue.py
 
 import unittest
+from unittest.mock import Mock, patch
+from datetime import datetime
 import os
-import yaml
-from unittest.mock import patch, MagicMock
-from core.internal_dialogue import InternalDialogue, ConfigError, DialogueError
-from core.functions_registry import start_internal_dialogue, continue_internal_dialogue
+import json
+from pathlib import Path
+
+from core.internal_dialogue import InternalDialogue, InternalDialogueError, ConfigError, DialogueError
+from utils.output_manager import OutputType
+from tests.utils import TestConfig, MockUtils, TestData, AssertionUtils
 
 class TestInternalDialogue(unittest.TestCase):
+    """内的対話システムのテスト"""
+    
     def setUp(self):
-        # テスト用の設定ファイルパスを設定し、InternalDialogueの初期化をモック
-        with patch('core.internal_dialogue.InternalDialogue.__init__') as mock_init:
-            mock_init.return_value = None
-            self.dialogue = InternalDialogue()
-            self.dialogue.config = {
-                'recursion': {
-                    'internal_dialogue': {
-                        'enabled': True,
-                        'max_history': 3,
-                        'roles': {
-                            'internal': 'internal',
-                            'agent': 'agent'
-                        }
-                    }
-                }
-            }
-            self.dialogue.internal_client = MagicMock()
-            self.dialogue.dialogue_history = []
-            self.dialogue.max_history = 3
+        """テストの前準備"""
+        self.config = TestConfig()
+        self.mock_utils = MockUtils()
+        self.test_data = TestData()
+        self.assertion_utils = AssertionUtils()
+        
+        # テスト環境のセットアップ
+        self.config.setup_test_environment()
+        
+        # モックの設定
+        self.mock_client = self.mock_utils.create_mock_llm_client()
+        self.config_patcher = self.mock_utils.patch_config_loader()
+        self.client_patcher = patch("core.internal_dialogue.LLMClient", return_value=self.mock_client)
+        
+        # パッチの開始
+        self.config_patcher.start()
+        self.client_patcher.start()
 
     def tearDown(self):
         """テストの後処理"""
-        pass
+        # パッチの解除
+        self.config_patcher.stop()
+        self.client_patcher.stop()
+        
+        # テスト用の出力ファイルを削除
+        for file in self.config.output_dir.glob("dialogue_*.json"):
+            file.unlink()
+
+    def test_initialization(self):
+        """初期化のテスト"""
+        dialogue = InternalDialogue()
+        self.assertTrue(dialogue.is_active)
+        self.assertEqual(dialogue.max_history, self.config.get_config("internal_dialogue")["max_history"])
+        self.assertEqual(len(dialogue.dialogue_history), 0)
 
     def test_start_dialogue(self):
-        """内的対話開始のテスト"""
-        self.dialogue.internal_client.ask.return_value = "テスト応答"
-        response = self.dialogue.start_dialogue("テストトピック")
-        self.assertIsNotNone(response)
-        self.assertEqual(len(self.dialogue.dialogue_history), 2)
+        """対話開始のテスト"""
+        dialogue = InternalDialogue()
+        response = dialogue.start_dialogue("テストトピック")
+        
+        # 応答の検証
+        self.assertEqual(response, "テスト応答")
+        self.assertTrue(dialogue.is_active)
+        
+        # 対話履歴の検証
+        self.assertion_utils.assert_dialogue_history(dialogue.dialogue_history, 1)
+        
+        # 出力ファイルの検証
+        self.assertion_utils.assert_output_file(self.config.output_dir, 1)
 
     def test_continue_dialogue(self):
-        """内的対話継続のテスト"""
-        self.dialogue.internal_client.ask.return_value = "分析結果"
-        response = self.dialogue.continue_dialogue("エージェントの応答")
-        self.assertIsNotNone(response)
-        self.assertEqual(len(self.dialogue.dialogue_history), 2)
+        """対話継続のテスト"""
+        dialogue = InternalDialogue()
+        dialogue.start_dialogue("テストトピック")
+        analysis = dialogue.continue_dialogue("テスト応答")
+        
+        # 分析結果の検証
+        self.assertEqual(analysis, "テスト応答")
+        
+        # 対話履歴の検証
+        self.assertion_utils.assert_dialogue_history(dialogue.dialogue_history, 2)
+        
+        # 出力ファイルの検証
+        self.assertion_utils.assert_output_file(self.config.output_dir, 1)
 
-    def test_dialogue_summary(self):
-        """対話要約のテスト"""
-        self.dialogue.dialogue_history = [
-            {"role": "system", "content": "開始"},
-            {"role": "internal", "content": "応答1"},
-            {"role": "agent", "content": "応答2"},
-            {"role": "internal", "content": "応答3"}
-        ]
-        self.dialogue.internal_client.ask.return_value = "要約結果"
-        summary = self.dialogue.get_dialogue_summary()
-        self.assertIsNotNone(summary)
+    def test_end_dialogue(self):
+        """対話終了のテスト"""
+        dialogue = InternalDialogue()
+        dialogue.start_dialogue("テストトピック")
+        summary = dialogue.end_dialogue()
+        
+        # サマリーの検証
+        self.assertion_utils.assert_dialogue_summary(summary)
+        self.assertFalse(dialogue.is_active)
+        
+        # 出力ファイルの検証
+        self.assertion_utils.assert_output_file(self.config.output_dir, 1)
 
-    def test_history_limit(self):
-        """履歴制限のテスト"""
-        for i in range(self.dialogue.max_history + 1):
-            self.dialogue.dialogue_history.append({"role": "test", "content": f"test{i}"})
-        self.assertLessEqual(len(self.dialogue.dialogue_history), self.dialogue.max_history * 2)
+    def test_error_handling(self):
+        """エラーハンドリングのテスト"""
+        # 無効化された設定でのテスト
+        self.config.update_config("internal_dialogue", {"enabled": False})
+        with self.assertRaises(ConfigError):
+            InternalDialogue()
+        
+        # 不正な設定ファイルでのテスト
+        with patch("core.internal_dialogue.load_config", side_effect=FileNotFoundError):
+            with self.assertRaises(ConfigError):
+                InternalDialogue()
 
-    def test_missing_config(self):
-        """設定が不足している場合のテスト"""
-        with patch('core.internal_dialogue.InternalDialogue.__init__') as mock_init:
-            mock_init.return_value = None
-            dialogue = InternalDialogue()
-            dialogue.config = {'recursion': {}}
-            dialogue.internal_client = MagicMock()
-            dialogue.dialogue_history = []
-            # 設定が不足している状態でstart_dialogueを呼び出し、DialogueErrorが発生することを確認
-            with self.assertRaises(DialogueError):
-                dialogue.start_dialogue("テストトピック")
+    def test_history_management(self):
+        """履歴管理のテスト"""
+        dialogue = InternalDialogue()
+        max_history = self.config.get_config("internal_dialogue")["max_history"]
+        
+        # 履歴上限を超える対話を生成
+        for i in range(max_history + 1):
+            dialogue.start_dialogue(f"テストトピック{i}")
+            dialogue.continue_dialogue(f"テスト応答{i}")
+        
+        # 履歴数の検証
+        self.assertLessEqual(len(dialogue.dialogue_history), max_history * 2)
+        
+        # 出力ファイルの検証
+        self.assertion_utils.assert_output_file(self.config.output_dir, 1)
 
-    def test_config_loading_error(self):
-        """設定ファイル読み込みエラーのテスト"""
-        with patch('core.internal_dialogue.InternalDialogue.__init__') as mock_init:
-            mock_init.return_value = None
-            dialogue = InternalDialogue()
-            dialogue.config = None
-            dialogue.internal_client = MagicMock()
-            dialogue.dialogue_history = []
-            # 設定がNoneの状態でstart_dialogueを呼び出し、DialogueErrorが発生することを確認
-            with self.assertRaises(DialogueError):
-                dialogue.start_dialogue("テストトピック")
-
-    def test_registered_functions(self):
-        """登録された関数のテスト"""
-        from core.functions_registry import REGISTERED_FUNCTIONS
-        self.assertIn('start_internal_dialogue', REGISTERED_FUNCTIONS)
-        self.assertIn('continue_internal_dialogue', REGISTERED_FUNCTIONS)
-        with patch('core.internal_dialogue.InternalDialogue') as mock_dialogue:
-            mock_instance = mock_dialogue.return_value
-            mock_instance.start_dialogue.return_value = "テスト応答"
-            mock_instance.continue_dialogue.return_value = "分析結果"
-            result = REGISTERED_FUNCTIONS['start_internal_dialogue'].callable("テストトピック")
-            self.assertEqual(result["response"], "テスト応答")
-            result = REGISTERED_FUNCTIONS['continue_internal_dialogue'].callable("エージェントの応答")
-            self.assertEqual(result["analysis"], "分析結果")
+    def test_state_management(self):
+        """状態管理のテスト"""
+        dialogue = InternalDialogue()
+        self.assertFalse(dialogue.is_active)
+        
+        dialogue.start_dialogue("テストトピック")
+        self.assertTrue(dialogue.is_active)
+        
+        dialogue.end_dialogue()
+        self.assertFalse(dialogue.is_active)
 
 if __name__ == '__main__':
     unittest.main() 

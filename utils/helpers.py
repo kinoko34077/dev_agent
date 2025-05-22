@@ -3,6 +3,7 @@
 import logging
 import os
 from datetime import datetime
+import yaml
 
 def get_timestamp(fmt: str = "%y%m%d_%H%M") -> str:
     """現在時刻を指定形式で取得（デフォルトは YYMMDD_HHMM）"""
@@ -55,3 +56,8 @@ def setup_logger(mode="static", force=False):
             logging.StreamHandler()
         ]
     )
+
+def load_config(path="config/config.yaml"):
+    """YAML形式の設定ファイルを読み込んで辞書として返す"""
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
