@@ -1,7 +1,9 @@
 # core/function_executor.py
 
-from core.functions_registry import FUNCTIONS
+from core.functions_registry import REGISTERED_FUNCTIONS
 import logging
+from typing import Tuple, Any, Dict
+from utils.output_manager import output_manager, OutputType
 
 def parse_function_args(args_obj) -> dict:
     """
@@ -21,28 +23,47 @@ def parse_function_args(args_obj) -> dict:
             parsed[k] = str(v)  # fallback
     return parsed
 
-def execute_function_call(function_call: dict) -> tuple:
+def execute_function_call(function_call: Dict[str, Any]) -> Tuple[Any, str]:
     """
-    Geminiのfunction_callオブジェクトを受け取り、該当関数を実行する。
-
+    関数呼び出しを実行する
+    
     Args:
-        function_call (dict): {"name": ..., "args": {...}}
-
+        function_call: 関数呼び出し情報
+        
     Returns:
-        tuple: (成功時: 実行結果dict, エラー時: None, error message)
+        Tuple[Any, str]: (実行結果, エラーメッセージ)
     """
     try:
-        name = function_call.name
-
-        # Geminiは args を protobuf的に返すため、dictに変換
-        args = parse_function_args(function_call.args)
-
-        if name not in FUNCTIONS:
-            raise ValueError(f"未登録の関数名: {name}")
-
-        result = FUNCTIONS[name](**args)
+        # 関数名の取得
+        function_name = function_call.get("name")
+        if not function_name:
+            return None, "関数名が指定されていません"
+            
+        # 関数の取得
+        function = REGISTERED_FUNCTIONS.get(function_name)
+        if not function:
+            return None, f"関数 '{function_name}' が見つかりません"
+            
+        # 引数の取得
+        args = function_call.get("arguments", {})
+        
+        # 関数の実行
+        output_manager.output(
+            f"関数 '{function_name}' を実行中...",
+            OutputType.SYSTEM
+        )
+        result = function(**args)
+        
+        output_manager.output(
+            f"関数 '{function_name}' の実行が完了しました",
+            OutputType.SYSTEM
+        )
         return result, None
-
+        
     except Exception as e:
-        logging.error(f"Function実行エラー: {str(e)}")
-        return None, str(e)
+        error_msg = f"関数実行エラー: {str(e)}"
+        output_manager.output(
+            error_msg,
+            OutputType.SYSTEM
+        )
+        return None, error_msg

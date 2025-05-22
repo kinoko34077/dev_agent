@@ -83,142 +83,193 @@ class InternalDialogue:
     def start_dialogue(self, topic: str) -> str:
         """
         内的対話を開始する
+        
         Args:
-            topic (str): 対話のトピック
+            topic: 対話のトピック
+            
         Returns:
             str: 初期応答
-        Raises:
-            DialogueError: 対話開始に失敗した場合
         """
-        try:
-            if self.is_active:
-                raise DialogueError("既に内的対話が進行中です")
-            
-            self.is_active = True
-            self.topic = topic
-            self.start_time = datetime.now()
-            self.dialogue_history = []
-            
-            output_manager.output(
-                f"内的対話を開始: トピック={topic}",
-                OutputType.INTERNAL_DIALOGUE
-            )
-            prompt = f"""
-【内的対話開始】
+        output_manager.output(
+            f"\n=== 内的対話: 開始 ===",
+            OutputType.INTERNAL_DIALOGUE
+        )
+        output_manager.output(
+            f"トピック: {topic}",
+            OutputType.INTERNAL_DIALOGUE
+        )
+        
+        # 初期プロンプトの構築
+        prompt = f"""
+以下のトピックについて、自己改善と応答の最適化のための内的対話を開始します：
+
 トピック: {topic}
 
-あなたは、このエージェントの内部インスタンスとして、以下の役割を担います：
-1. エージェントの応答や行動を客観的に分析
-2. 改善点や代替案を提案
-3. より良い応答方法を模索
+あなたは、エージェントの応答方法を分析し、改善点を提案する役割を担っています。
+以下の点について詳細に分析してください：
 
-まず、このトピックについて、あなたの見解を述べてください。
+1. 機能と制約の理解
+   - 利用可能な関数とその仕様の理解度
+   - 各関数の使用制限と適切な使用場面
+   - セーフモードやsandbox_pathなどの制約への対応
+
+2. 応答の質と構造
+   - 応答の明確さと正確性
+   - 情報の構造化と整理
+   - ユーザーへの配慮と共感
+
+3. 自己改善の可能性
+   - 内的対話システムの活用方法
+   - 再帰処理の効果的な使用
+   - 長期記憶の活用
+
+4. 具体的な改善提案
+   - 現在の応答方法の問題点
+   - より効果的な応答方法の提案
+   - 自己認識の向上方法
+
+分析結果は具体的かつ実践的な提案を含めてください。
 """
-            response = self.internal_client.ask(prompt)
-            self.dialogue_history.append({"role": "system", "content": prompt})
-            self.dialogue_history.append({"role": "internal", "content": response})
-            
-            output_manager.output(
-                "内的対話の開始が完了しました",
-                OutputType.INTERNAL_DIALOGUE,
-                data={"prompt": prompt, "response": response},
-                save_to_file=True
-            )
-            return response
-            
-        except Exception as e:
-            self.is_active = False
-            output_manager.output(
-                f"内的対話の開始に失敗: {str(e)}",
-                OutputType.SYSTEM
-            )
-            raise DialogueError(f"対話開始エラー: {str(e)}")
+        output_manager.output(
+            "初期プロンプトを送信...",
+            OutputType.INTERNAL_DIALOGUE
+        )
+        
+        response = self.internal_client.ask(prompt)
+        output_manager.output(
+            f"初期応答: {response}",
+            OutputType.INTERNAL_DIALOGUE
+        )
+        
+        # 対話履歴に追加
+        self.dialogue_history.append({
+            "role": "internal",
+            "content": response,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        return response
 
     def continue_dialogue(self, response: str) -> str:
         """
         内的対話を継続する
+        
         Args:
-            response (str): 分析対象の応答
+            response: 前回の応答
+            
         Returns:
             str: 分析結果
-        Raises:
-            DialogueError: 対話継続に失敗した場合
         """
-        try:
-            if not self.is_active:
-                raise DialogueError("内的対話が開始されていません")
-            
-            if len(self.dialogue_history) >= self.max_history * 2:  # システムと内部の2倍
-                output_manager.output(
-                    "対話履歴が上限に達しました。古い履歴を削除します。",
-                    OutputType.SYSTEM
-                )
-                self.dialogue_history = self.dialogue_history[-self.max_history*2:]
-            
-            prompt = f"""
-【内的対話継続】
-トピック: {self.topic}
+        output_manager.output(
+            f"\n=== 内的対話: 継続 ===",
+            OutputType.INTERNAL_DIALOGUE
+        )
+        output_manager.output(
+            f"前回の応答: {response}",
+            OutputType.INTERNAL_DIALOGUE
+        )
+        
+        # 継続プロンプトの構築
+        prompt = f"""
+前回の応答に対する分析を続けます：
 
-前回の応答に対する分析をお願いします：
-{response}
+応答: {response}
 
-以下の観点から分析してください：
-1. 応答の適切性
-2. 改善できる点
-3. 代替案の提案
+以下の観点から、この応答を分析し、具体的な改善提案をしてください：
+
+1. 応答の質と適切性
+2. ユーザー体験の向上点
+3. コミュニケーションの改善点
+4. 技術的な改善提案
+
+分析結果を具体的に示してください。
 """
-            analysis = self.internal_client.ask(prompt)
-            self.dialogue_history.append({"role": "system", "content": prompt})
-            self.dialogue_history.append({"role": "internal", "content": analysis})
-            
-            output_manager.output(
-                "内的対話の継続が完了しました",
-                OutputType.INTERNAL_DIALOGUE,
-                data={"prompt": prompt, "analysis": analysis},
-                save_to_file=True
-            )
-            return analysis
-            
-        except Exception as e:
-            output_manager.output(
-                f"内的対話の継続に失敗: {str(e)}",
-                OutputType.SYSTEM
-            )
-            raise DialogueError(f"対話継続エラー: {str(e)}")
+        output_manager.output(
+            "分析プロンプトを送信...",
+            OutputType.INTERNAL_DIALOGUE
+        )
+        
+        analysis = self.internal_client.ask(prompt)
+        output_manager.output(
+            f"分析結果: {analysis}",
+            OutputType.INTERNAL_DIALOGUE
+        )
+        
+        # 対話履歴に追加
+        self.dialogue_history.append({
+            "role": "internal",
+            "content": analysis,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        return analysis
 
     def end_dialogue(self) -> Dict[str, Any]:
         """
-        内的対話を終了し、結果を返す
+        内的対話を終了し、サマリーを生成する
+        
         Returns:
-            dict: 対話の結果サマリー
+            Dict[str, Any]: 対話のサマリー
         """
-        try:
-            if not self.is_active:
-                raise DialogueError("内的対話が開始されていません")
-            
-            duration = datetime.now() - self.start_time
-            summary = {
-                "topic": self.topic,
-                "duration_seconds": duration.total_seconds(),
-                "message_count": len(self.dialogue_history) // 2,  # システムと内部の2倍
-                "is_active": False
-            }
-            
-            self.is_active = False
-            output_manager.output(
-                f"内的対話を終了: {summary}",
-                OutputType.INTERNAL_DIALOGUE,
-                data=summary,
-                save_to_file=True
-            )
-            return summary
-            
-        except Exception as e:
-            output_manager.output(
-                f"内的対話の終了に失敗: {str(e)}",
-                OutputType.SYSTEM
-            )
-            raise DialogueError(f"対話終了エラー: {str(e)}")
+        output_manager.output(
+            f"\n=== 内的対話: 終了 ===",
+            OutputType.INTERNAL_DIALOGUE
+        )
+        
+        # サマリープロンプトの構築
+        dialogue_text = "\n".join([
+            f"{entry['role']}: {entry['content']}"
+            for entry in self.dialogue_history
+        ])
+        
+        prompt = f"""
+以下の内的対話のサマリーを生成してください：
+
+{dialogue_text}
+
+以下の項目を含むサマリーを生成してください：
+
+1. 主な分析結果
+2. 重要な改善提案
+3. 全体的な評価
+4. 今後の推奨事項
+
+サマリーは簡潔かつ具体的に示してください。
+"""
+        output_manager.output(
+            "サマリー生成プロンプトを送信...",
+            OutputType.INTERNAL_DIALOGUE
+        )
+        
+        summary = self.internal_client.ask(prompt)
+        output_manager.output(
+            f"対話サマリー: {summary}",
+            OutputType.INTERNAL_DIALOGUE
+        )
+        
+        # サマリー情報の構築
+        summary_info = {
+            "topic": "自己改善と応答の最適化",
+            "duration_seconds": (datetime.now() - self.dialogue_history[0]["timestamp"]).total_seconds(),
+            "message_count": len(self.dialogue_history),
+            "summary": summary,
+            "is_active": False
+        }
+        
+        output_manager.output(
+            f"対話統計:",
+            OutputType.INTERNAL_DIALOGUE
+        )
+        output_manager.output(
+            f"- メッセージ数: {summary_info['message_count']}",
+            OutputType.INTERNAL_DIALOGUE
+        )
+        output_manager.output(
+            f"- 所要時間: {summary_info['duration_seconds']:.1f}秒",
+            OutputType.INTERNAL_DIALOGUE
+        )
+        
+        return summary_info
 
     def get_state(self) -> Dict[str, Any]:
         """

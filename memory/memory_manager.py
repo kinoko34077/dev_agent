@@ -37,7 +37,17 @@ class MemoryManager:
 
     def _build_system_context(self) -> str:
         try:
-            function_names = ", ".join(REGISTERED_FUNCTIONS.keys())
+            # 関数情報の詳細な収集
+            function_details = []
+            for name, func_info in REGISTERED_FUNCTIONS.items():
+                metadata = func_info.metadata
+                schema = func_info.schema
+                function_details.append(
+                    f"- {name}: {metadata.description}\n"
+                    f"  タグ: {', '.join(metadata.tags)}\n"
+                    f"  引数: {schema}\n"
+                    f"  GPT呼び出し: {'許可' if metadata.allow_gpt_call else '禁止'}"
+                )
 
             if os.path.exists(self.summary_combined_path):
                 with open(self.summary_combined_path, "r", encoding="utf-8") as f:
@@ -48,12 +58,19 @@ class MemoryManager:
             return f"""【エージェント仕様】
 - モデル: {self.model_name}
 - 温度設定: {self.temperature}
-- 使用可能関数: {function_names}
 - メモリ: 最大トークン{self.max_tokens}, 直近履歴{self.recent_turns}ターン
 - 実行モード: セーフモード({self.safe_mode}), sandbox_path={self.sandbox_path}
 
+【利用可能な関数】
+{chr(10).join(function_details)}
+
 【長期記憶要約】
 {summary_text}
+
+【自己認識の注意点】
+- 私は自律型エージェントとして、上記の関数を使用してタスクを実行します
+- 各関数の仕様と制約を理解し、適切に使用する必要があります
+- 内的対話システムを通じて自己改善を行うことができます
 """
         except Exception as e:
             logging.error(f"自己仕様プロンプト生成エラー: {str(e)}")

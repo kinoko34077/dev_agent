@@ -111,9 +111,18 @@ class RecursionManager:
             
             # 内的対話を開始
             topic = "自己改善と応答の最適化"
+            output_manager.output(
+                f"\n=== 内的対話開始 ===",
+                OutputType.INTERNAL_DIALOGUE
+            )
+            output_manager.output(
+                f"トピック: {topic}",
+                OutputType.INTERNAL_DIALOGUE
+            )
+            
             response = self.dialogue.start_dialogue(topic)
             output_manager.output(
-                f"内的対話を開始: {topic}",
+                f"初期応答: {response}",
                 OutputType.INTERNAL_DIALOGUE,
                 data={"topic": topic, "response": response},
                 save_to_file=True
@@ -124,13 +133,22 @@ class RecursionManager:
                 time.sleep(self.recursion_delay)
 
                 try:
+                    output_manager.output(
+                        f"\n=== 再帰処理 {self.state.count + 1}/{self.max_recursions} ===",
+                        OutputType.INTERNAL_DIALOGUE
+                    )
+                    
                     # main() を再帰的に呼び出す（引数で recurse=True を明示）
                     self.main_func(recurse=True)
                     
                     # 内的対話を継続
+                    output_manager.output(
+                        "前回の応答に対する分析を開始...",
+                        OutputType.INTERNAL_DIALOGUE
+                    )
                     analysis = self.dialogue.continue_dialogue(response)
                     output_manager.output(
-                        "内的対話を継続: 分析結果を取得",
+                        f"分析結果: {analysis}",
                         OutputType.INTERNAL_DIALOGUE,
                         data={"response": response, "analysis": analysis},
                         save_to_file=True
@@ -138,11 +156,16 @@ class RecursionManager:
                     
                     self.state.count += 1
                     self.state.last_error = None
+                    
+                    output_manager.output(
+                        f"再帰処理 {self.state.count}/{self.max_recursions} 完了",
+                        OutputType.INTERNAL_DIALOGUE
+                    )
 
                 except Exception as e:
                     error_msg = f"再帰ターン中エラー発生: {str(e)}"
                     output_manager.output(
-                        error_msg,
+                        f"\n❌ {error_msg}",
                         OutputType.SYSTEM
                     )
                     self.state.last_error = error_msg
@@ -159,14 +182,14 @@ class RecursionManager:
         except DialogueError as e:
             error_msg = f"内的対話エラー: {str(e)}"
             output_manager.output(
-                error_msg,
+                f"\n❌ {error_msg}",
                 OutputType.SYSTEM
             )
             self.state.last_error = error_msg
         except Exception as e:
             error_msg = f"予期せぬエラー: {str(e)}"
             output_manager.output(
-                error_msg,
+                f"\n❌ {error_msg}",
                 OutputType.SYSTEM
             )
             self.state.last_error = error_msg
@@ -174,20 +197,38 @@ class RecursionManager:
             self.state.is_active = False
             if self.dialogue:
                 try:
+                    output_manager.output(
+                        "\n=== 内的対話終了 ===",
+                        OutputType.INTERNAL_DIALOGUE
+                    )
                     summary = self.dialogue.end_dialogue()
                     output_manager.output(
-                        f"内的対話を終了: {summary}",
+                        f"対話サマリー: {summary}",
                         OutputType.INTERNAL_DIALOGUE,
                         data={"summary": summary},
                         save_to_file=True
                     )
                 except Exception as e:
                     output_manager.output(
-                        f"内的対話の終了に失敗: {str(e)}",
+                        f"\n❌ 内的対話の終了に失敗: {str(e)}",
                         OutputType.SYSTEM
                     )
+            
+            # 最終状態の出力
             output_manager.output(
-                f"再帰処理終了: 実行回数={self.state.count}, 最終エラー={self.state.last_error}",
+                f"\n=== 再帰処理の最終状態 ===",
+                OutputType.SYSTEM
+            )
+            output_manager.output(
+                f"実行回数: {self.state.count}/{self.max_recursions}",
+                OutputType.SYSTEM
+            )
+            output_manager.output(
+                f"最終エラー: {self.state.last_error or 'なし'}",
+                OutputType.SYSTEM
+            )
+            output_manager.output(
+                f"対話履歴: {len(self.state.dialogue_history)}件",
                 OutputType.SYSTEM
             )
 

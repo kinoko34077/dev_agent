@@ -58,7 +58,7 @@ class MockUtils:
         return mock_manager
     
     @staticmethod
-    def patch_config_loader() -> patch:
+    def patch_config_loader() -> Any:
         """
         設定ローダーのパッチを作成
         
