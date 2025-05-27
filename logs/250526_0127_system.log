@@ -1,0 +1,55 @@
+2025-05-26 01:27:37 - INFO - ロガー設定完了: logs\250526_0127_system.log
+2025-05-26 01:27:37 - INFO - ロガー設定完了: logs\250526_0127_system.log
+2025-05-26 01:27:37 - INFO - === dev_agent 起動 ===
+2025-05-26 01:27:37 - SYSTEM - === 🤖 dev_agent 起動 ===
+2025-05-26 01:27:37 - SYSTEM - ヒント: 'exit' または 'quit' で終了します。
+2025-05-26 01:27:37 - INFO - Executorの初期化を開始
+2025-05-26 01:27:37 - INFO - Executor初期化完了
+2025-05-26 01:27:37 - INFO - Function Callingスキーマをロードしました (5個)
+2025-05-26 01:27:37 - INFO - functionクライアント初期化完了：gemini-2.0-flash
+2025-05-26 01:27:37 - INFO - コア関数 5個 と Sandbox関数 0個 を統合しました。合計 5個の関数が利用可能です。
+2025-05-26 01:27:37 - INFO - Executorの初期化が完了
+2025-05-26 01:27:42 - INFO - ユーザー入力: あなたについて考察して
+2025-05-26 01:27:42 - USER - あなたについて考察して
+2025-05-26 01:27:42 - INFO - === ask_with_functions 開始 ===
+2025-05-26 01:27:42 - INFO - プロンプト: あなたについて考察して
+2025-05-26 01:27:43 - INFO - === レスポンス詳細 ===
+2025-05-26 01:27:43 - INFO - レスポンス型: <class 'google.generativeai.types.generation_types.GenerateContentResponse'>
+2025-05-26 01:27:43 - INFO - レスポンス内容: response:
+GenerateContentResponse(
+    done=True,
+    iterator=None,
+    result=protos.GenerateContentResponse({
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              {
+                "function_call": {
+                  "name": "start_internal_dialogue",
+                  "args": {
+                    "topic": "\u81ea\u5206\u81ea\u8eab\u306b\u3064\u3044\u3066"
+                  }
+                }
+              }
+            ],
+            "role": "model"
+          },
+          "finish_reason": "STOP"
+        }
+      ],
+      "usage_metadata": {
+        "prompt_token_count": 1127,
+        "candidates_token_count": 9,
+        "total_token_count": 1136
+      }
+    }),
+)
+2025-05-26 01:27:43 - INFO - レスポンスの属性: ['__class__', '__delattr__', '__dict__', '__dir__', '__doc__', '__eq__', '__format__', '__ge__', '__getattribute__', '__gt__', '__hash__', '__init__', '__init_subclass__', '__iter__', '__le__', '__lt__', '__module__', '__ne__', '__new__', '__reduce__', '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__', '__subclasshook__', '__weakref__', '_chunks', '_done', '_error', '_iterator', '_result', 'candidates', 'from_iterator', 'from_response', 'parts', 'prompt_feedback', 'resolve', 'text', 'to_dict', 'usage_metadata']
+2025-05-26 01:27:43 - ERROR - LLMClient.ask_with_functions エラー: whichOneof
+2025-05-26 01:27:43 - ERROR - エラーの詳細: AttributeError: whichOneof
+2025-05-26 01:27:43 - ERROR - エラーの発生箇所: 138
+2025-05-26 01:27:43 - ERROR - LLMからの応答生成に失敗: whichOneof
+2025-05-26 01:27:43 - INFO - エージェント応答: 【本文】
+応答の生成に失敗しました。
+エラー内容: whichOneof

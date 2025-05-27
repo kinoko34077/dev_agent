@@ -22,40 +22,52 @@ def abs_path(*parts) -> str:
     """ルートからの絶対パス構築（OS正規化あり）"""
     return os.path.normpath(os.path.join(os.getcwd(), *parts))
 
-def setup_logger(mode="static", force=False):
+def setup_logger(mode="timestamp", force=False):
     """
-    ログ出力設定（重複初期化防止付き + 強制再初期化オプション）
-
+    ロガーの設定を行う
+    
     Args:
-        mode (str): 'static' or 'timestamp'
-        force (bool): Trueにすると既存ハンドラを全て削除して再構成する
+        mode: ログファイルの命名モード（"timestamp" または "system"）
+        force: 既存のロガーを強制的に再設定するかどうか
     """
-    logger = logging.getLogger()
-    if logger.hasHandlers():
-        if not force:
-            return
-        # 既存のハンドラを削除（上書き再設定）
-        for handler in logger.handlers[:]:
-            logger.removeHandler(handler)
+    if not force and logging.getLogger().handlers:
+        return
 
-    logs_dir = os.path.join(os.getcwd(), "logs")
-    os.makedirs(logs_dir, exist_ok=True)
+    # ログディレクトリの作成
+    os.makedirs("logs", exist_ok=True)
 
-    if mode == "timestamp":
-        log_filename = f"{get_tokyo_timestamp()}_system.log"
-    else:
-        log_filename = "system.log"
+    # ルートロガーの設定
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
 
-    log_path = os.path.join(logs_dir, log_filename)
+    # 既存のハンドラをクリア
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-        handlers=[
-            logging.FileHandler(log_path, encoding="utf-8"),
-            logging.StreamHandler()
-        ]
+    # フォーマッタの設定
+    formatter = logging.Formatter(
+        '%(asctime)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
     )
+
+    # タイムスタンプ付きのログファイル
+    if mode == "timestamp":
+        timestamp = datetime.now().strftime("%y%m%d_%H%M")
+        log_file = os.path.join("logs", f"{timestamp}_system.log")
+    else:
+        log_file = os.path.join("logs", "system.log")
+
+    # ファイルハンドラの設定
+    file_handler = logging.FileHandler(log_file, encoding='utf-8')
+    file_handler.setFormatter(formatter)
+    root_logger.addHandler(file_handler)
+
+    # コンソールハンドラの設定
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    root_logger.addHandler(console_handler)
+
+    logging.info(f"ロガー設定完了: {log_file}")
 
 def load_config(path="config/config.yaml"):
     """YAML形式の設定ファイルを読み込んで辞書として返す"""

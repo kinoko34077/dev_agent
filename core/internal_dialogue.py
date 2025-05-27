@@ -7,6 +7,8 @@ import os
 from datetime import datetime
 from utils.output_manager import output_manager, OutputType
 from utils.config_loader import load_config
+from memory.memory_manager import MemoryManager
+import logging
 
 class InternalDialogueError(Exception):
     """内的対話システムのエラー基底クラス"""
@@ -29,56 +31,77 @@ class InternalDialogue:
     """
 
     def __init__(self):
+        self.output_manager = output_manager
+        self.memory = MemoryManager()
+        
+        # 設定の読み込み
         try:
-            # 設定ファイルの読み込み
-            config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.yaml')
-            output_manager.output(
+            # プロジェクトのルートディレクトリを取得
+            root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            config_path = os.path.join(root_dir, "config", "config.yaml")
+            
+            self.output_manager.output(
                 f"設定ファイルを読み込み中: {config_path}",
                 OutputType.SYSTEM
             )
-            self.config = load_config(config_path)
             
-            # 内的対話設定の取得
-            if 'recursion' not in self.config:
+            with open(config_path, "r", encoding="utf-8") as f:
+                self.config = yaml.safe_load(f)
+                
+            # 設定の検証
+            if not isinstance(self.config, dict):
+                raise ConfigError("設定ファイルの形式が不正です")
+                
+            if "recursion" not in self.config:
                 raise ConfigError("recursionセクションが見つかりません")
-            
-            dialogue_config = self.config['recursion'].get('internal_dialogue')
+                
+            dialogue_config = self.config["recursion"].get("internal_dialogue", {})
             if not dialogue_config:
                 raise ConfigError("internal_dialogue設定が見つかりません")
+                
+            # 必要な設定の取得
+            self.max_iterations = dialogue_config.get("max_iterations", 3)
+            self.temperature = dialogue_config.get("temperature", 0.7)
+            self.topics = dialogue_config.get("topics", [])
             
-            if not dialogue_config.get('enabled', False):
-                raise ConfigError("内的対話が無効化されています")
-            
-            client_name = dialogue_config.get('client')
-            if not client_name or client_name not in self.config.get('clients', {}):
-                raise ConfigError(f"無効なクライアント設定: {client_name}")
-            
-            # 内的対話用のLLMクライアントを初期化
-            output_manager.output(
-                f"LLMクライアントを初期化: {client_name}",
-                OutputType.SYSTEM
-            )
+            # LLMクライアントの初期化
+            client_config = self.config.get("clients", {}).get("recur", {})
+            if not client_config:
+                raise ConfigError("recurクライアント設定が見つかりません")
+                
             self.internal_client = LLMClient(
-                role=dialogue_config['roles']['internal']
-            )
-            
-            self.dialogue_history: List[Dict[str, str]] = []
-            self.max_history = dialogue_config['max_history']
-            self.start_time = datetime.now()
-            self.topic: Optional[str] = None
-            self.is_active = False
-            
-            output_manager.output(
-                "内的対話システムの初期化が完了しました",
-                OutputType.SYSTEM
+                role="recur"  # roleパラメータを使用
             )
             
         except Exception as e:
-            output_manager.output(
-                f"内的対話システムの初期化に失敗: {str(e)}",
-                OutputType.SYSTEM
+            self.output_manager.output(
+                f"設定ファイルの読み込みに失敗: {str(e)}",
+                OutputType.ERROR
             )
-            raise ConfigError(f"初期化エラー: {str(e)}")
+            # デフォルト設定を使用
+            self.config = {
+                "internal_dialogue": {
+                    "max_iterations": 3,
+                    "temperature": 0.7,
+                    "topics": ["自己改善", "問題解決", "最適化", "分析", "検証"]
+                }
+            }
+            self.max_iterations = 3
+            self.temperature = 0.7
+            self.topics = ["自己改善", "問題解決", "最適化", "分析", "検証"]
+            
+            # デフォルトのLLMクライアントを初期化
+            self.internal_client = LLMClient(
+                role="recur"  # roleパラメータを使用
+            )
+        
+        # 内的対話の履歴
+        self.dialogue_history = []
+        
+        self.output_manager.output(
+            "内的対話システムを初期化しました",
+            OutputType.SYSTEM
+        )
 
     def start_dialogue(self, topic: str) -> str:
         """
@@ -90,17 +113,12 @@ class InternalDialogue:
         Returns:
             str: 初期応答
         """
-        output_manager.output(
-            f"\n=== 内的対話: 開始 ===",
-            OutputType.INTERNAL_DIALOGUE
-        )
-        output_manager.output(
-            f"トピック: {topic}",
-            OutputType.INTERNAL_DIALOGUE
-        )
+        # 内的対話の開始を記録
+        self.output_manager.output(f"\n=== 内的対話: 開始 ===\nトピック: {topic}", OutputType.INTERNAL_DIALOGUE)
+        self.output_manager.output("初期プロンプトを送信...", OutputType.INTERNAL_DIALOGUE)
         
-        # 初期プロンプトの構築
-        prompt = f"""
+        # 応答の取得
+        response = self.internal_client.ask(f"""
 以下のトピックについて、自己改善と応答の最適化のための内的対話を開始します：
 
 トピック: {topic}
@@ -108,10 +126,10 @@ class InternalDialogue:
 あなたは、エージェントの応答方法を分析し、改善点を提案する役割を担っています。
 以下の点について詳細に分析してください：
 
-1. 機能と制約の理解
-   - 利用可能な関数とその仕様の理解度
-   - 各関数の使用制限と適切な使用場面
-   - セーフモードやsandbox_pathなどの制約への対応
+1. 自己認識の深さ
+   - 自身の機能と制約の理解度
+   - 利用可能な関数の使用方法の把握
+   - セーフモードなどの制約への対応
 
 2. 応答の質と構造
    - 応答の明確さと正確性
@@ -128,18 +146,14 @@ class InternalDialogue:
    - より効果的な応答方法の提案
    - 自己認識の向上方法
 
+特に以下の点に注意して分析してください：
+- 自身の機能と制約を正確に理解しているか
+- 各関数の使用方法を適切に把握しているか
+- 制約条件を考慮した応答ができているか
+- 自己改善のための内的対話を効果的に活用できているか
+
 分析結果は具体的かつ実践的な提案を含めてください。
-"""
-        output_manager.output(
-            "初期プロンプトを送信...",
-            OutputType.INTERNAL_DIALOGUE
-        )
-        
-        response = self.internal_client.ask(prompt)
-        output_manager.output(
-            f"初期応答: {response}",
-            OutputType.INTERNAL_DIALOGUE
-        )
+""")
         
         # 対話履歴に追加
         self.dialogue_history.append({
@@ -148,7 +162,11 @@ class InternalDialogue:
             "timestamp": datetime.now().isoformat()
         })
         
-        return response
+        # 応答を整形して返す
+        formatted_response = f"【内的対話の分析結果】\n{response}"
+        # 内容はINFOログに記録
+        logging.info(f"内的対話応答: {formatted_response}")
+        return formatted_response
 
     def continue_dialogue(self, response: str) -> str:
         """

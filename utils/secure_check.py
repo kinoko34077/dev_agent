@@ -32,15 +32,16 @@ def load_access_rules() -> dict:
     try:
         config_path = Path(__file__).parent.parent / 'config' / 'access.yaml'
         with open(config_path, 'r', encoding='utf-8') as f:
-            config = yaml.safe_load(f)
-        return config.get('access_rules', {})
+            return yaml.safe_load(f)
     except Exception as e:
         logging.error(f"Failed to load access rules: {e}")
         # エラー時は最小限のデフォルトルールを返す
         return {
-            "sandbox/": ["read", "write"],
-            "memory/": ["read", "write"],
-            "core/": ["read"],
+            "access_rules": {
+                "sandbox/": {"read": True, "write": True},
+                "memory/": {"read": True, "write": True},
+                "core/": {"read": True, "write": False}
+            }
         }
 
 # セーフモードの読み込み
@@ -106,72 +107,79 @@ def is_code_safe(code: str) -> bool:
     return True
 
 # アクセス権限チェック
-def check_permission(file_path: str, action: str) -> bool:
+def check_permission(path: str, operation: str) -> bool:
     """
-    指定されたファイルパスに対して、要求されたアクションが許可されているかチェックする。
+    指定されたパスと操作に対する権限をチェックします。
+
     Args:
-        file_path (str): チェック対象のファイルパス (ワークスペースルートからの相対パス推奨)。
-        action (str): 要求されるアクション ('read', 'write', 'delete' など)。
+        path: チェック対象のパス
+        operation: 操作タイプ（'read' または 'write'）
+
     Returns:
-        bool: 許可されていればTrue、そうでなければFalse。
+        bool: 権限がある場合はTrue、ない場合はFalse
     """
-    logging.debug(f"Permission check: path='{file_path}', action='{action}'")
-
-    # パスを正規化してワークスペースルートからの相対パスに変換
-    workspace_root = Path(__file__).parent.parent.absolute()
-    abs_file_path = Path(file_path).absolute()
-
-    # ワークスペース外へのアクセスは原則禁止
-    if not str(abs_file_path).startswith(str(workspace_root)):
-        logging.warning(f"Attempted access outside workspace: {file_path}")
-        return False
-
-    # 相対パスに変換
-    relative_path = str(abs_file_path.relative_to(workspace_root))
-    relative_path = relative_path.replace(os.sep, '/')
-
-    # ディレクトリの場合は末尾にスラッシュを追加
-    if abs_file_path.is_dir() and not relative_path.endswith('/'):
-        relative_path += '/'
-
-    # 定義されたルールをチェック
-    for pattern, rule in ACCESS_RULES.items():
-        if relative_path.startswith(pattern):
-            if rule.get(action, False):
-                logging.debug(f"Permission granted for '{file_path}' (rule: {pattern}, action: {action})")
+    try:
+        # パスを正規化
+        path_obj = Path(path)
+        normalized_path = str(path_obj).replace('\\', '/')
+        
+        # ディレクトリの場合は末尾に/を追加
+        if path_obj.is_dir() or path.endswith('/'):
+            normalized_path = normalized_path.rstrip('/') + '/'
+            
+        # ワークスペースルートからの相対パスに変換
+        workspace_root = Path(__file__).parent.parent
+        try:
+            relative_path = str(path_obj.relative_to(workspace_root)).replace('\\', '/')
+            if path_obj.is_dir() or path.endswith('/'):
+                relative_path = relative_path.rstrip('/') + '/'
+        except ValueError:
+            # ワークスペース外のパスの場合は絶対パスを使用
+            relative_path = normalized_path
+            
+        logging.debug(f"Checking permission for path: {relative_path}, operation: {operation}")
+        logging.debug(f"Workspace root: {workspace_root}")
+        logging.debug(f"Original path: {path}")
+        logging.debug(f"Normalized path: {normalized_path}")
+        
+        # 設定を読み込み
+        config = load_config()
+        access_rules = load_access_rules()
+        
+        # safe_modeの設定を取得
+        safe_mode = config.get('execution', {}).get('safe_mode', 'strict')
+        logging.debug(f"Safe mode: {safe_mode}")
+        
+        # パスがどのルールにマッチするか確認
+        matched_rule = None
+        for rule_path, rule in access_rules.get('access_rules', {}).items():
+            if relative_path.startswith(rule_path):
+                matched_rule = rule
+                logging.debug(f"Matched rule: {rule_path} -> {rule}")
+                break
+        
+        # ルールが見つからない場合はデフォルトルールを使用
+        if matched_rule is None:
+            logging.debug(f"No matching rule found for {relative_path}")
+            # safe_modeに基づいてデフォルトルールを設定
+            if safe_mode == 'permissive':
                 return True
-            else:
-                logging.warning(f"Permission denied for '{file_path}' (rule: {pattern}, action: {action})")
+            elif safe_mode == 'confirm':
+                # ユーザーに確認
+                response = input(f"この操作を許可しますか？ ({operation} {relative_path}) [y/N]: ")
+                return response.lower() == 'y'
+            else:  # strict
+                logging.warning(f"Permission denied ({safe_mode} mode, default) for '{relative_path}' (action: {operation})")
                 return False
 
-    # デフォルトルールを適用
-    default_rule = ACCESS_RULES.get('default_rule', {'read': False, 'write': False})
-    if default_rule.get(action, False):
-        logging.debug(f"Permission granted (default) for '{file_path}' (action: {action})")
-        return True
-    else:
-        # safe_modeによる分岐
-        if SAFE_MODE == 'strict':
-            logging.warning(f"Permission denied (strict mode, default) for '{file_path}' (action: {action})")
-            return False
-        elif SAFE_MODE == 'confirm':
-            try:
-                ans = input(f"[SECURITY] '{file_path}' で '{action}' を実行しますか？ (y/n): ").strip().lower()
-                if ans == 'y':
-                    logging.info(f"Permission granted by user confirmation for '{file_path}' (action: {action})")
-                    return True
-                else:
-                    logging.warning(f"Permission denied by user confirmation for '{file_path}' (action: {action})")
-                    return False
-            except Exception as e:
-                logging.error(f"Permission confirm failed: {e}")
-                return False
-        elif SAFE_MODE == 'permissive':
-            logging.info(f"Permission granted (permissive mode, default) for '{file_path}' (action: {action})")
-            return True
-        else:
-            logging.warning(f"Permission denied (unknown safe_mode, default) for '{file_path}' (action: {action})")
-            return False
+        # マッチしたルールの権限をチェック
+        has_permission = matched_rule.get(operation, False)
+        logging.debug(f"Permission check result: {has_permission}")
+        return has_permission
+        
+    except Exception as e:
+        logging.error(f"権限チェック中にエラーが発生: {str(e)}")
+        return False
 
 # テストコード
 if __name__ == '__main__':

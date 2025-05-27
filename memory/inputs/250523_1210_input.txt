@@ -1,0 +1,50 @@
+あなたについて解説して
+おにぎりについて内的対話をして考察して
+q
+mkdir -p sandbox/functions
+う
+q
+New-Item -ItemType Directory -Force -Path "sandbox/functions"
+う
+q
+$env:PYTHONPATH = "."; python core/main.py
+あなたは？
+おにぎりについて考察して
+内的対話をして
+q
+$env:PYTHONPATH = "."; python core/main.py
+こんにちは
+ベニヤ板について考察して
+内的対話をして､更に深めて
+q
+$env:PYTHONPATH = "."; python core/main.py
+こんにちは
+ナルトについて考察して
+内的対話を通して自分自身について考えて
+q
+$env:PYTHONPATH = "."; python core/main.py
+を
+ナルトについて考察して
+あなたの生きる意味は？
+q
+$env:PYTHONPATH = "."; python core/main.py
+ども
+あなたについて考察して
+エージェントとしての在り方について
+q
+$env:PYTHONPATH = "."; python core/main.py
+やあ
+オカルトについて考察して
+q
+$env:PYTHONPATH = "."; python core/main.py
+こんにちは
+オカルトについて考察して
+
+q
+$env:PYTHONPATH = "."; python core/main.py
+こんにちは
+オカルトについて考察して
+q
+$env:PYTHONPATH = "."; python core/main.py
+あ
+コミュニケーションについて考察して

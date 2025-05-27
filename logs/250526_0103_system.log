@@ -1,0 +1,303 @@
+2025-05-26 01:03:40 - INFO - ロガー設定完了: logs\250526_0103_system.log
+2025-05-26 01:03:40 - INFO - ロガー設定完了: logs\250526_0103_system.log
+2025-05-26 01:03:40 - INFO - === dev_agent 起動 ===
+2025-05-26 01:03:40 - SYSTEM - === 🤖 dev_agent 起動 ===
+2025-05-26 01:03:40 - SYSTEM - ヒント: 'exit' または 'quit' で終了します。
+2025-05-26 01:03:40 - INFO - Executorの初期化を開始
+2025-05-26 01:03:40 - INFO - Executor初期化完了
+2025-05-26 01:03:40 - INFO - Function Callingスキーマをロードしました (5個)
+2025-05-26 01:03:40 - INFO - functionクライアント初期化完了：gemini-2.0-flash
+2025-05-26 01:03:40 - INFO - コア関数 5個 と Sandbox関数 0個 を統合しました。合計 5個の関数が利用可能です。
+2025-05-26 01:03:40 - INFO - Executorの初期化が完了
+2025-05-26 01:03:46 - INFO - ユーザー入力: こんにちは
+2025-05-26 01:03:46 - USER - こんにちは
+2025-05-26 01:03:46 - INFO - === ask_with_functions 開始 ===
+2025-05-26 01:03:46 - INFO - プロンプト: こんにちは
+2025-05-26 01:03:47 - INFO - === レスポンス詳細 ===
+2025-05-26 01:03:47 - INFO - レスポンス型: <class 'google.generativeai.types.generation_types.GenerateContentResponse'>
+2025-05-26 01:03:47 - INFO - レスポンス内容: response:
+GenerateContentResponse(
+    done=True,
+    iterator=None,
+    result=protos.GenerateContentResponse({
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              {
+                "text": "\u3053\u3093\u306b\u3061\u306f\u3002\u4f55\u304b\u304a\u624b\u4f1d\u3044\u3067\u304d\u308b\u3053\u3068\u306f\u3042\u308a\u307e\u3059\u304b\uff1f\n"
+              }
+            ],
+            "role": "model"
+          },
+          "finish_reason": "STOP"
+        }
+      ],
+      "usage_metadata": {
+        "prompt_token_count": 1124,
+        "candidates_token_count": 11,
+        "total_token_count": 1135
+      }
+    }),
+)
+2025-05-26 01:03:47 - INFO - === candidate詳細 ===
+2025-05-26 01:03:47 - INFO - candidate: content {
+  parts {
+    text: "こんにちは。何かお手伝いできることはありますか？\n"
+  }
+  role: "model"
+}
+finish_reason: STOP
+
+2025-05-26 01:03:47 - INFO - === content詳細 ===
+2025-05-26 01:03:47 - INFO - content: parts {
+  text: "こんにちは。何かお手伝いできることはありますか？\n"
+}
+role: "model"
+
+2025-05-26 01:03:47 - INFO - === part詳細 ===
+2025-05-26 01:03:47 - INFO - part: text: "こんにちは。何かお手伝いできることはありますか？\n"
+
+2025-05-26 01:03:47 - INFO - === ask_with_functions 終了 ===
+2025-05-26 01:03:47 - INFO - エージェント応答: こんにちは。何かお手伝いできることはありますか？
+
+2025-05-26 01:03:55 - INFO - ユーザー入力: あなたについて考察して
+2025-05-26 01:03:55 - USER - あなたについて考察して
+2025-05-26 01:03:55 - INFO - === ask_with_functions 開始 ===
+2025-05-26 01:03:55 - INFO - プロンプト: あなたについて考察して
+2025-05-26 01:03:56 - INFO - === レスポンス詳細 ===
+2025-05-26 01:03:56 - INFO - レスポンス型: <class 'google.generativeai.types.generation_types.GenerateContentResponse'>
+2025-05-26 01:03:56 - INFO - レスポンス内容: response:
+GenerateContentResponse(
+    done=True,
+    iterator=None,
+    result=protos.GenerateContentResponse({
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              {
+                "function_call": {
+                  "name": "start_internal_dialogue",
+                  "args": {
+                    "topic": "\u81ea\u5206\u81ea\u8eab\u306b\u3064\u3044\u3066"
+                  }
+                }
+              }
+            ],
+            "role": "model"
+          },
+          "finish_reason": "STOP"
+        }
+      ],
+      "usage_metadata": {
+        "prompt_token_count": 1139,
+        "candidates_token_count": 9,
+        "total_token_count": 1148
+      }
+    }),
+)
+2025-05-26 01:03:56 - ERROR - LLMClient.ask_with_functions エラー: whichOneof
+2025-05-26 01:03:56 - ERROR - エラーの詳細: AttributeError: whichOneof
+2025-05-26 01:03:56 - ERROR - LLMからの応答生成に失敗: whichOneof
+2025-05-26 01:03:56 - INFO - エージェント応答: 【本文】
+応答の生成に失敗しました。
+エラー内容: whichOneof
+2025-05-26 01:04:14 - INFO - ユーザー入力: q
+2025-05-26 01:04:14 - USER - q
+2025-05-26 01:04:14 - INFO - === ask_with_functions 開始 ===
+2025-05-26 01:04:14 - INFO - プロンプト: q
+2025-05-26 01:04:15 - INFO - === レスポンス詳細 ===
+2025-05-26 01:04:15 - INFO - レスポンス型: <class 'google.generativeai.types.generation_types.GenerateContentResponse'>
+2025-05-26 01:04:15 - INFO - レスポンス内容: response:
+GenerateContentResponse(
+    done=True,
+    iterator=None,
+    result=protos.GenerateContentResponse({
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              {
+                "text": "\u7533\u3057\u8a33\u3042\u308a\u307e\u305b\u3093\u3002\u3046\u307e\u304f\u805e\u304d\u53d6\u308c\u307e\u305b\u3093\u3067\u3057\u305f\u3002\u3082\u3046\u4e00\u5ea6\u304a\u9858\u3044\u3057\u307e\u3059\u3002\n"
+              }
+            ],
+            "role": "model"
+          },
+          "finish_reason": "STOP"
+        }
+      ],
+      "usage_metadata": {
+        "prompt_token_count": 1151,
+        "candidates_token_count": 13,
+        "total_token_count": 1164
+      }
+    }),
+)
+2025-05-26 01:04:15 - INFO - === candidate詳細 ===
+2025-05-26 01:04:15 - INFO - candidate: content {
+  parts {
+    text: "申し訳ありません。うまく聞き取れませんでした。もう一度お願いします。\n"
+  }
+  role: "model"
+}
+finish_reason: STOP
+
+2025-05-26 01:04:15 - INFO - === content詳細 ===
+2025-05-26 01:04:15 - INFO - content: parts {
+  text: "申し訳ありません。うまく聞き取れませんでした。もう一度お願いします。\n"
+}
+role: "model"
+
+2025-05-26 01:04:15 - INFO - === part詳細 ===
+2025-05-26 01:04:15 - INFO - part: text: "申し訳ありません。うまく聞き取れませんでした。もう一度お願いします。\n"
+
+2025-05-26 01:04:15 - INFO - === ask_with_functions 終了 ===
+2025-05-26 01:04:15 - INFO - エージェント応答: 申し訳ありません。うまく聞き取れませんでした。もう一度お願いします。
+
+2025-05-26 01:10:42 - INFO - ユーザー入力: $env:PYTHONPATH = "."; python core/main.py
+2025-05-26 01:10:42 - USER - $env:PYTHONPATH = "."; python core/main.py
+2025-05-26 01:10:42 - INFO - === ask_with_functions 開始 ===
+2025-05-26 01:10:42 - INFO - プロンプト: $env:PYTHONPATH = "."; python core/main.py
+2025-05-26 01:10:43 - INFO - === レスポンス詳細 ===
+2025-05-26 01:10:43 - INFO - レスポンス型: <class 'google.generativeai.types.generation_types.GenerateContentResponse'>
+2025-05-26 01:10:43 - INFO - レスポンス内容: response:
+GenerateContentResponse(
+    done=True,
+    iterator=None,
+    result=protos.GenerateContentResponse({
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              {
+                "text": "\u7533\u3057\u8a33\u3042\u308a\u307e\u305b\u3093\u3002\u305d\u306e\u30b3\u30de\u30f3\u30c9\u306b\u3064\u3044\u3066\u306f\u5bfe\u5fdc\u3067\u304d\u307e\u305b\u3093\u3002\u5225\u306e\u8cea\u554f\u3092\u304a\u9858\u3044\u3057\u307e\u3059\u3002\n"
+              }
+            ],
+            "role": "model"
+          },
+          "finish_reason": "STOP"
+        }
+      ],
+      "usage_metadata": {
+        "prompt_token_count": 1177,
+        "candidates_token_count": 15,
+        "total_token_count": 1192
+      }
+    }),
+)
+2025-05-26 01:10:43 - INFO - === candidate詳細 ===
+2025-05-26 01:10:43 - INFO - candidate: content {
+  parts {
+    text: "申し訳ありません。そのコマンドについては対応できません。別の質問をお願いします。\n"
+  }
+  role: "model"
+}
+finish_reason: STOP
+
+2025-05-26 01:10:43 - INFO - === content詳細 ===
+2025-05-26 01:10:43 - INFO - content: parts {
+  text: "申し訳ありません。そのコマンドについては対応できません。別の質問をお願いします。\n"
+}
+role: "model"
+
+2025-05-26 01:10:43 - INFO - === part詳細 ===
+2025-05-26 01:10:43 - INFO - part: text: "申し訳ありません。そのコマンドについては対応できません。別の質問をお願いします。\n"
+
+2025-05-26 01:10:43 - INFO - === ask_with_functions 終了 ===
+2025-05-26 01:10:43 - INFO - エージェント応答: 申し訳ありません。そのコマンドについては対応できません。別の質問をお願いします。
+
+2025-05-26 01:10:49 - INFO - ユーザー入力: こんにちは
+2025-05-26 01:10:49 - USER - こんにちは
+2025-05-26 01:10:49 - INFO - === ask_with_functions 開始 ===
+2025-05-26 01:10:49 - INFO - プロンプト: こんにちは
+2025-05-26 01:10:49 - INFO - === レスポンス詳細 ===
+2025-05-26 01:10:49 - INFO - レスポンス型: <class 'google.generativeai.types.generation_types.GenerateContentResponse'>
+2025-05-26 01:10:49 - INFO - レスポンス内容: response:
+GenerateContentResponse(
+    done=True,
+    iterator=None,
+    result=protos.GenerateContentResponse({
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              {
+                "text": "\u3053\u3093\u306b\u3061\u306f\u3002\u4f55\u304b\u304a\u624b\u4f1d\u3044\u3067\u304d\u308b\u3053\u3068\u306f\u3042\u308a\u307e\u3059\u304b\uff1f\n"
+              }
+            ],
+            "role": "model"
+          },
+          "finish_reason": "STOP"
+        }
+      ],
+      "usage_metadata": {
+        "prompt_token_count": 1193,
+        "candidates_token_count": 11,
+        "total_token_count": 1204
+      }
+    }),
+)
+2025-05-26 01:10:49 - INFO - === candidate詳細 ===
+2025-05-26 01:10:49 - INFO - candidate: content {
+  parts {
+    text: "こんにちは。何かお手伝いできることはありますか？\n"
+  }
+  role: "model"
+}
+finish_reason: STOP
+
+2025-05-26 01:10:49 - INFO - === content詳細 ===
+2025-05-26 01:10:49 - INFO - content: parts {
+  text: "こんにちは。何かお手伝いできることはありますか？\n"
+}
+role: "model"
+
+2025-05-26 01:10:49 - INFO - === part詳細 ===
+2025-05-26 01:10:49 - INFO - part: text: "こんにちは。何かお手伝いできることはありますか？\n"
+
+2025-05-26 01:10:49 - INFO - === ask_with_functions 終了 ===
+2025-05-26 01:10:49 - INFO - エージェント応答: こんにちは。何かお手伝いできることはありますか？
+
+2025-05-26 01:10:54 - INFO - ユーザー入力: あなたについて考察して
+2025-05-26 01:10:54 - USER - あなたについて考察して
+2025-05-26 01:10:54 - INFO - === ask_with_functions 開始 ===
+2025-05-26 01:10:54 - INFO - プロンプト: あなたについて考察して
+2025-05-26 01:10:54 - INFO - === レスポンス詳細 ===
+2025-05-26 01:10:54 - INFO - レスポンス型: <class 'google.generativeai.types.generation_types.GenerateContentResponse'>
+2025-05-26 01:10:54 - INFO - レスポンス内容: response:
+GenerateContentResponse(
+    done=True,
+    iterator=None,
+    result=protos.GenerateContentResponse({
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              {
+                "function_call": {
+                  "name": "start_internal_dialogue",
+                  "args": {
+                    "topic": "\u81ea\u5206\u81ea\u8eab\u306b\u3064\u3044\u3066"
+                  }
+                }
+              }
+            ],
+            "role": "model"
+          },
+          "finish_reason": "STOP"
+        }
+      ],
+      "usage_metadata": {
+        "prompt_token_count": 1208,
+        "candidates_token_count": 9,
+        "total_token_count": 1217
+      }
+    }),
+)
+2025-05-26 01:10:54 - ERROR - LLMClient.ask_with_functions エラー: whichOneof
+2025-05-26 01:10:54 - ERROR - エラーの詳細: AttributeError: whichOneof
+2025-05-26 01:10:54 - ERROR - LLMからの応答生成に失敗: whichOneof
+2025-05-26 01:10:54 - INFO - エージェント応答: 【本文】
+応答の生成に失敗しました。
+エラー内容: whichOneof

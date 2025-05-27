@@ -5,6 +5,7 @@ import subprocess
 import inspect
 from typing import List, Dict, Any, Callable, Optional
 from dataclasses import dataclass
+import typing
 
 # ----------------------------------------
 # 関数レジストリ：Function Callingで実行される関数群
@@ -24,6 +25,75 @@ REGISTERED_FUNCTIONS: Dict[str, Any] = {}
 # 再帰フラグ（非推奨：内的対話システムに移行）
 recursion_flag = {"triggered": False}
 
+# 型名→JSONスキーマ型名のマッピング
+TYPE_MAPPING = {
+    'str': 'string',
+    'STR': 'string',
+    'int': 'integer',
+    'INT': 'integer',
+    'float': 'number',
+    'FLOAT': 'number',
+    'bool': 'boolean',
+    'BOOL': 'boolean',
+    'list': 'array',
+    'LIST': 'array',
+    'dict': 'object',
+    'DICT': 'object',
+    'None': 'null',
+    'NONE': 'null',
+    'Any': 'object',
+    'ANY': 'object'
+}
+
+def signature_to_json_schema(sig: inspect.Signature) -> dict:
+    """
+    関数のシグネチャをGoogle公式Function Calling仕様に合わせてJSONスキーマに厳密変換
+    """
+    properties = {}
+    required = []
+    for name, param in sig.parameters.items():
+        if name == 'self':
+            continue
+        param_info = {}
+        # 型ヒントがあればtype情報に追加
+        if param.annotation != inspect.Parameter.empty:
+            ann = param.annotation
+            # typing.Literalの場合はenum化
+            if getattr(ann, '__origin__', None) is typing.Literal:
+                param_info['type'] = 'string'
+                param_info['enum'] = list(ann.__args__)
+            # bool型はboolean, intはinteger, floatはnumber, strはstring
+            elif ann is bool:
+                param_info['type'] = 'boolean'
+            elif ann is int:
+                param_info['type'] = 'integer'
+            elif ann is float:
+                param_info['type'] = 'number'
+            elif ann is str:
+                param_info['type'] = 'string'
+            elif ann is dict:
+                param_info['type'] = 'object'
+            elif ann is list:
+                param_info['type'] = 'array'
+            else:
+                # その他は型名でマッピング
+                type_name = ann.__name__ if hasattr(ann, '__name__') else str(ann)
+                param_info['type'] = TYPE_MAPPING.get(type_name, 'string')
+        else:
+            param_info['type'] = 'string'
+        # descriptionもdocstringから抽出できれば付与
+        param_info['description'] = f"{name}パラメータ"
+        properties[name] = param_info
+        if param.default == inspect.Parameter.empty:
+            required.append(name)
+    schema = {
+        "type": "object",
+        "properties": properties
+    }
+    if required:
+        schema["required"] = required
+    return schema
+
 def register(tags: List[str] = None, allow_gpt_call: bool = True, allow_edit: bool = False, description: str = ""):
     """
     関数をレジストリに登録するデコレータ
@@ -35,6 +105,8 @@ def register(tags: List[str] = None, allow_gpt_call: bool = True, allow_edit: bo
     """
     def decorator(func: Callable):
         name = func.__name__
+        sig = inspect.signature(func)
+        json_schema = signature_to_json_schema(sig)
         REGISTERED_FUNCTIONS[name] = type('FunctionInfo', (), {
             'callable': func,
             'metadata': FunctionMetadata(
@@ -43,22 +115,44 @@ def register(tags: List[str] = None, allow_gpt_call: bool = True, allow_edit: bo
                 allow_edit=allow_edit,
                 description=description
             ),
-            'schema': inspect.signature(func)
+            'schema': json_schema
         })
         return func
     return decorator
 
 @register(
+    tags=["logging", "core"],
+    allow_gpt_call=True,
+    description="指定されたメッセージをログに追加します"
+)
+def add_log(message: str) -> dict:
+    """
+    指定されたメッセージをログに追加する
+
+    Args:
+        message (str): ログに記録する内容
+
+    Returns:
+        dict: 実行結果
+    """
+    try:
+        logging.info(f"【add_log実行】: {message}")
+        return {"status": "success", "message": message}
+    except Exception as e:
+        logging.error(f"add_log実行エラー: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
+@register(
     tags=["internal", "core"],
     allow_gpt_call=True,
-    description="内的対話を開始し、自己改善のための分析と提案を行います"
+    description="指定されたトピックに基づいて、内的対話（自己分析・思考）を開始します。曖昧な表現も解釈を試みます。"
 )
 def start_internal_dialogue(topic: str) -> dict:
     """
     内的対話を開始し、自己改善のための分析と提案を行う
 
     Args:
-        topic (str): 対話のトピック（例：「応答方法の改善」）
+        topic (str): 内的対話を行いたい主題。自然な表現（例：「この問題について深く考えて」「応答方法の改善」など）も受け付けます。
 
     Returns:
         dict: 対話結果を含む辞書
@@ -83,14 +177,14 @@ def start_internal_dialogue(topic: str) -> dict:
 @register(
     tags=["internal", "core"],
     allow_gpt_call=True,
-    description="内的対話を継続し、応答に対する分析と提案を行います"
+    description="内的対話を継続し、応答に対する分析と提案を行います。前回の対話の文脈を考慮します。"
 )
 def continue_internal_dialogue(response: str) -> dict:
     """
     内的対話を継続し、応答に対する分析と提案を行う
 
     Args:
-        response (str): 分析対象の応答
+        response (str): 分析対象の応答。自然な表現や質問形式も受け付けます。
 
     Returns:
         dict: 分析結果を含む辞書

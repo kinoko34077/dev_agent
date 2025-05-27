@@ -1,0 +1,7 @@
+あ
+q
+$env:PYTHONPATH = "."; python core/main.py
+あ
+こんにちは
+あなたについて考察して
+q

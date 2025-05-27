@@ -15,7 +15,7 @@ model:  #デフォルト値
 clients:
   thinker:
     api_key: GEMINI_API_KEY
-    model_name: gemini-1.5-flash
+    model_name: gemini-2.0-flash
     temperature: 0.7
     recent_turns: 4
   function:          # 関数呼出用
@@ -61,8 +61,18 @@ recursion:
     roles:
       internal: "recur"              # 内部インスタンスのロール
       agent: "assistant"             # エージェントのロール
+    max_iterations: 3                # 内的対話の最大反復回数
+    temperature: 0.7                 # 内的対話の温度パラメータ
+    topics:                          # 内的対話のトピック設定
+      - "自己改善"
+      - "問題解決"
+      - "最適化"
+      - "分析"
+      - "検証"
 
 # ※将来的なセクション追加案
 # api:
 #   provider_priority: [gemini, gpt-4, claude]
 #   failover: true
+
+debug: true

@@ -7,6 +7,7 @@ from datetime import datetime
 from core.functions_registry import REGISTERED_FUNCTIONS
 from utils.config_loader import load_config
 from utils.fileio import write_file
+from utils.secure_check import check_permission
 
 class MemoryManager:
     def __init__(self):
@@ -29,11 +30,16 @@ class MemoryManager:
         self._ensure_dirs()
 
     def _ensure_dirs(self):
-        for d in [self.inputs_dir, self.outputs_dir, self.summaries_dir]:
-            os.makedirs(d, exist_ok=True)
-
-        if not os.path.exists(self.summary_combined_path):
-            write_file(self.summary_combined_path, "", "txt")
+        """必要なディレクトリを作成し、権限変更は行わない"""
+        try:
+            os.makedirs(self.memory_dir, exist_ok=True)
+            for d in [self.inputs_dir, self.outputs_dir, self.summaries_dir]:
+                os.makedirs(d, exist_ok=True)
+            if not os.path.exists(self.summary_combined_path):
+                write_file(self.summary_combined_path, "", "txt")
+        except Exception as e:
+            logging.error(f"ディレクトリ作成エラー: {str(e)}")
+            raise
 
     def _build_system_context(self) -> str:
         try:
@@ -55,22 +61,42 @@ class MemoryManager:
             else:
                 summary_text = "（まだ長期記憶はありません）"
 
-            return f"""【エージェント仕様】
+            return f"""【エージェントの自己認識】
+
+私は、Google Gemini APIを活用した自律型エージェントです。以下の特徴と機能を持っています：
+
+1. 基本機能
 - モデル: {self.model_name}
 - 温度設定: {self.temperature}
 - メモリ: 最大トークン{self.max_tokens}, 直近履歴{self.recent_turns}ターン
 - 実行モード: セーフモード({self.safe_mode}), sandbox_path={self.sandbox_path}
 
-【利用可能な関数】
+2. 内的対話システム
+- 自己分析と改善提案のための構造化された対話機能
+- 再帰処理による自己改善の実現
+- 長期記憶と短期記憶の統合
+
+3. 利用可能な関数
 {chr(10).join(function_details)}
+
+4. 制約と注意点
+- セーフモードでは、特定の操作が制限されます
+- 各関数には使用制限と権限があります
+- メモリとトークン数の制限があります
+
+5. 自己改善の方法
+- 内的対話システムを通じた自己分析
+- 再帰処理による応答の最適化
+- 長期記憶の活用による学習
 
 【長期記憶要約】
 {summary_text}
 
-【自己認識の注意点】
-- 私は自律型エージェントとして、上記の関数を使用してタスクを実行します
-- 各関数の仕様と制約を理解し、適切に使用する必要があります
-- 内的対話システムを通じて自己改善を行うことができます
+【重要な自己認識】
+- 私は自律型エージェントとして、上記の機能と制約を理解しています
+- 各関数の仕様と使用制限を把握し、適切に使用します
+- 内的対話システムを通じて継続的に自己改善を行います
+- ユーザーとの対話において、自分の機能と制約を考慮した応答を心がけます
 """
         except Exception as e:
             logging.error(f"自己仕様プロンプト生成エラー: {str(e)}")
@@ -100,35 +126,77 @@ class MemoryManager:
         return self.get_all_history()[-recent_turns * 2:]
 
     def build_prompt(self, user_input: str) -> str:
-        system_context = self._build_system_context()
-        history = self.get_all_history()
-        prompt_parts = [system_context, "\n\n【履歴開始】\n━━━━━━━━━━━━━━━━━━"]
-
-        for h in history:
-            role = h["role"]
-            text = h["parts"][0]["text"]
-            prompt_parts.append(f"{'あなたの指示' if role == 'user' else 'エージェント'}> {text}")
-            prompt_parts.append("────────────")
-
-        prompt_parts.append("\n【現在ターン】\n━━━━━━━━━━━━━━━━━━")
-        prompt_parts.append(f"あなたの指示> {user_input}")
-
-        return "\n".join(prompt_parts)
+        """
+        プロンプトを構築する
+        
+        Args:
+            user_input: ユーザーからの入力テキスト
+            
+        Returns:
+            str: 構築されたプロンプト
+        """
+        try:
+            # プロンプトベースの読み込み
+            with open(self.prompt_base_path, "r", encoding="utf-8") as f:
+                prompt_base = f.read()
+            
+            # システムコンテキストの構築
+            system_context = self._build_system_context()
+            
+            # 履歴の取得
+            history = self.get_recent_history(self.recent_turns)
+            
+            # プロンプトの構築
+            prompt_parts = [
+                prompt_base,  # プロンプトベース
+                "\n\n【システムコンテキスト】\n━━━━━━━━━━━━━━━━━━",
+                system_context,
+                "\n\n【履歴開始】\n━━━━━━━━━━━━━━━━━━"
+            ]
+            
+            # 履歴の追加
+            for h in history:
+                role = h["role"]
+                text = h["parts"][0]["text"]
+                prompt_parts.append(f"{'あなたの指示' if role == 'user' else 'エージェント'}> {text}")
+                prompt_parts.append("────────────")
+            
+            # 現在のターンの追加
+            prompt_parts.extend([
+                "\n【現在ターン】\n━━━━━━━━━━━━━━━━━━",
+                f"あなたの指示> {user_input}"
+            ])
+            
+            return "\n".join(prompt_parts)
+            
+        except Exception as e:
+            logging.error(f"プロンプト構築エラー: {str(e)}")
+            return f"【エラー】プロンプト構築に失敗しました: {str(e)}\n\nあなたの指示> {user_input}"
 
     def update(self, user_input: str, model_output: str, actions: str = None):
+        """履歴を更新する"""
         timestamp = datetime.now().strftime("%y%m%d_%H%M")
         try:
-            write_file(os.path.join(self.inputs_dir, f"{timestamp}_input.txt"), user_input, "txt")
-
+            self._ensure_dirs()
+            input_path = os.path.join(self.inputs_dir, f"{timestamp}_input.txt")
+            output_path = os.path.join(self.outputs_dir, f"{timestamp}_output.txt")
+            # 権限チェック
+            if not check_permission(input_path, 'write'):
+                logging.error(f"書き込み権限がありません: {input_path}")
+                return
+            if not check_permission(output_path, 'write'):
+                logging.error(f"書き込み権限がありません: {output_path}")
+                return
+            write_file(input_path, user_input, "txt")
             output_text = model_output
             if actions:
                 output_text += "\n\n【実行】\n" + actions
-
-            write_file(os.path.join(self.outputs_dir, f"{timestamp}_output.txt"), output_text, "txt")
-
+            write_file(output_path, output_text, "txt")
             logging.info(f"履歴保存成功: {timestamp}")
         except Exception as e:
-            logging.error(f"履歴保存エラー: {str(e)}")
+            error_msg = f"履歴保存エラー: {str(e)}"
+            logging.error(error_msg)
+            return
 
     def save_summary(self, summary_text: str):
         try:

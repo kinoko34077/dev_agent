@@ -10,7 +10,7 @@ load_dotenv()
 
 CONFIG_CACHE = None  # グローバルキャッシュ
 
-def load_config() -> dict:
+def load_config(config_path: str = "config/config.yaml") -> dict:
     """
     config/config.yaml を読み込む（キャッシュ付き）
 
@@ -21,7 +21,6 @@ def load_config() -> dict:
     if CONFIG_CACHE:
         return CONFIG_CACHE
 
-    config_path = os.path.join(os.getcwd(), "config", "config.yaml")
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"config.yaml が見つかりません: {config_path}")
 
@@ -58,3 +57,15 @@ def get_env_key(key_name: str) -> str:
     if not val:
         raise ValueError(f"環境変数 {key_name} が未設定です。")
     return val
+
+def get_debug_mode(config_path: str = "config/config.yaml") -> bool:
+    """
+    config.yamlからdebugフラグを取得する
+    Returns:
+        bool: debugモードが有効ならTrue
+    """
+    try:
+        config = load_config(config_path)
+        return bool(config.get("debug", False))
+    except Exception:
+        return False
