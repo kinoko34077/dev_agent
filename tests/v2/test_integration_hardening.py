@@ -271,9 +271,12 @@ def test_resume_does_not_repeat_terminal_transition_after_checkpoint_crash(tmp_p
             Controller(provider, ToolRuntime(ToolRegistry()), store).run(task)
     with SQLiteStateStore(path) as reopened:
         resumed = Controller(provider, ToolRuntime(ToolRegistry()), reopened).resume(task.task_id)
+        events = [event for event in reopened.snapshot()["events"] if event["task_id"] == task.task_id]
     expected = TaskStatus.COMPLETED if phase == "after_model" else TaskStatus.FAILED
     assert resumed.status == expected
     assert len(provider.requests) <= 1
+    terminal_type = "task.completed" if phase == "after_model" else "task.failed"
+    assert sum(event["event_type"] == terminal_type for event in events) == 1
 
 
 class FailingProvider(ModelProvider):

@@ -54,10 +54,14 @@ class Controller:
         if checkpoint and checkpoint["phase"] == "after_model":
             task.status = TaskStatus.COMPLETED
             self.store.save_task(task)
+            if not any(event["event_type"] == "task.completed" and event["task_id"] == task.task_id for event in self.store.snapshot()["events"]):
+                self._event(task, "task.completed", {"recovered": True}, step_id=checkpoint["step_id"])
             return task
         if checkpoint and checkpoint["phase"] == "failure":
             task.status = TaskStatus.FAILED
             self.store.save_task(task)
+            if not any(event["event_type"] == "task.failed" and event["task_id"] == task.task_id for event in self.store.snapshot()["events"]):
+                self._event(task, "task.failed", {"recovered": True, "category": "recovered_failure"}, step_id=checkpoint["step_id"])
             return task
         return self.run(task, state=checkpoint["state"] if checkpoint else None)
 
