@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from urllib.error import HTTPError, URLError
 
 import pytest
 
@@ -74,6 +75,26 @@ def test_gemini_http_provider_decodes_mocked_generate_content(monkeypatch):
     assert response.text_segments == ["ok"]
     assert captured["body"]["generationConfig"]["maxOutputTokens"] == 9
     assert "key=test-key" in captured["url"]
+
+
+@pytest.mark.parametrize(
+    ("kind", "category"),
+    [
+        ("unauthorized", "authentication"),
+        ("rate_limit", "rate_limit"),
+        ("transport", "transport"),
+    ],
+)
+def test_gemini_http_provider_classifies_transport_failures(monkeypatch, kind, category):
+    error = HTTPError("https://example.test", 401 if kind == "unauthorized" else 429, kind, {}, None) if kind != "transport" else URLError("timed out")
+
+    def failing_urlopen(*_args, **_kwargs):
+        raise error
+
+    monkeypatch.setattr(gemini_provider_module, "urlopen", failing_urlopen)
+    request = ModelRequest(task_id=_id(), messages=[{"role": "user", "content": "x"}])
+    with pytest.raises(ProviderError, match=category):
+        GeminiHttpProvider(model="gemini-test", api_key="test-key").request(request)
 
 
 def _id():

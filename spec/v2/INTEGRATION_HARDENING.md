@@ -16,13 +16,14 @@ Status: in progress. This gate precedes Phase 6.
 - A crash-injection integration test interrupts immediately after the first durable result of two side-effecting ToolCalls; resume executes each handler exactly once and forwards both normalized results to the following model request.
 - Crash-injection tests cover terminal `after_model` and `failure` checkpoints; resume finalizes the persisted terminal transition without repeating the provider call.
 - The Ollama adapter is exercised against the local `/api/chat` endpoint and maps `max_output_tokens` to the provider runtime output bound (`options.num_predict`).
+- Gemini HTTP failure classification is covered for missing credentials, authentication (401/403), rate limiting (429), transport errors, and malformed provider responses.
 
 ## Still required before Phase 6
 
 - Crash injection at the remaining pre-model and model-response event boundaries.
 - Controller-facing approval IDs and human actor records need a dedicated approval-wait/resume API; the low-level boolean compatibility path remains only in `ApprovalPolicy` tests.
 - Local-model qualification that verifies visible response quality as well as the hard output bound; the installed `qwen3:0.6b` failed this narrow probe because it spent the small output budget on a thinking trace.
-- Real Gemini / independent Provider response decoding and live contract probes.
+- Real Gemini live contract probe (the current process still has no visible `GEMINI_API_KEY`).
 - Expanded contract harness: multi-tool, sequential result, malformed response, timeout, rate-limit, quota, and limits.
 - Recovery tools that inspect SQLite state, configuration, Git health, and test results.
 
