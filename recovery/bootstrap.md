@@ -7,6 +7,7 @@ uses only the Python standard library. From the repository root:
 python recovery/diagnose.py
 python recovery/diagnose.py --json
 python recovery/validate_state.py path/to/task-state.json
+python recovery/validate_sqlite_state.py path/to/runtime.sqlite3
 ```
 
 These commands are read-only. They do not contact a Provider, import the v1

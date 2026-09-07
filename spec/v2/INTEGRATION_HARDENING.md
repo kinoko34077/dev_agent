@@ -21,3 +21,8 @@ Status: in progress. This gate precedes Phase 6.
 - Real Gemini / independent Provider response decoding and live contract probes.
 - Expanded contract harness: multi-tool, sequential result, malformed response, timeout, rate-limit, quota, and limits.
 - Recovery tools that inspect SQLite state, configuration, Git health, and test results.
+
+## Recovery progress
+
+- SQLite schema and task payload validation is now available through the independent `recovery/validate_sqlite_state.py` CLI.
+- Configuration, Git health, last-known-good state, rollback, and repair-branch checks remain required before Phase 6.
