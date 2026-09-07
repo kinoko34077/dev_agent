@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from ..domain.protocol import ToolCall, ToolResult, ToolResultStatus
-from ..policy.approvals import ApprovalPolicy
+from ..policy.approvals import ApprovalPolicy, canonical_arguments_hash
 from ..policy.permissions import PathPolicy
 from .registry import ToolRegistry
 
@@ -37,7 +37,7 @@ class ToolRuntime:
                 status=ToolResultStatus.DENIED,
                 error={"category": "policy_denied", "message": f"tool is not enabled: {call.tool_name}"},
             )
-        if self.approvals.requires_approval(spec.side_effect_level) and not self.approvals.authorize(spec.side_effect_level, approval_id=approval_id, task_id=task_id or call.originating_request_id, store=self.result_store):
+        if self.approvals.requires_approval(spec.side_effect_level) and not self.approvals.authorize(spec.side_effect_level, approval_id=approval_id, task_id=task_id or call.originating_request_id, call_id=call.call_id, arguments_hash=canonical_arguments_hash(call.arguments), store=self.result_store):
             return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.DENIED, error={"category": "approval_required", "message": "human approval is required"})
         if spec.side_effect_level in self.IDEMPOTENCY_REQUIRED and not call.idempotency_key:
             return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.DENIED, error={"category": "policy_denied", "message": "idempotency key is required for this side effect"})

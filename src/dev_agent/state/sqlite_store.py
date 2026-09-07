@@ -26,7 +26,7 @@ class SQLiteStateStore:
             CREATE TABLE IF NOT EXISTS events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, event_id TEXT UNIQUE NOT NULL, payload TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS checkpoints (sequence INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL, step_id TEXT NOT NULL, phase TEXT NOT NULL, state_payload TEXT NOT NULL DEFAULT '{}');
             CREATE TABLE IF NOT EXISTS idempotency (idempotency_key TEXT PRIMARY KEY, result_payload TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS approvals (approval_id TEXT PRIMARY KEY, task_id TEXT NOT NULL, side_effect_level TEXT NOT NULL, actor TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS approvals (approval_id TEXT PRIMARY KEY, task_id TEXT NOT NULL, side_effect_level TEXT NOT NULL, actor TEXT NOT NULL, call_id TEXT NOT NULL, arguments_hash TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS effect_intents (idempotency_key TEXT PRIMARY KEY, task_id TEXT NOT NULL, tool_name TEXT NOT NULL, arguments_payload TEXT NOT NULL, status TEXT NOT NULL, result_payload TEXT);
             CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             """
@@ -34,6 +34,10 @@ class SQLiteStateStore:
         columns = {row[1] for row in self.connection.execute("PRAGMA table_info(checkpoints)")}
         if "state_payload" not in columns:
             self.connection.execute("ALTER TABLE checkpoints ADD COLUMN state_payload TEXT NOT NULL DEFAULT '{}'")
+        approval_columns = {row[1] for row in self.connection.execute("PRAGMA table_info(approvals)")}
+        for name in ("call_id", "arguments_hash"):
+            if name not in approval_columns:
+                self.connection.execute(f"ALTER TABLE approvals ADD COLUMN {name} TEXT NOT NULL DEFAULT ''")
         self.connection.execute("INSERT OR IGNORE INTO schema_meta(key, value) VALUES ('schema_version', '2')")
         current = int(self.connection.execute("SELECT value FROM schema_meta WHERE key = 'schema_version'").fetchone()[0])
         if current > self.SCHEMA_VERSION:
@@ -89,12 +93,12 @@ class SQLiteStateStore:
         self.connection.execute("INSERT OR IGNORE INTO idempotency VALUES (?, ?)", (key, json.dumps(result.to_dict(), ensure_ascii=False)))
         self.connection.commit()
 
-    def save_approval(self, approval_id: str, *, task_id: str, side_effect_level: str, actor: str) -> None:
-        self.connection.execute("INSERT OR REPLACE INTO approvals VALUES (?, ?, ?, ?)", (approval_id, task_id, side_effect_level, actor))
+    def save_approval(self, approval_id: str, *, task_id: str, side_effect_level: str, actor: str, call_id: str, arguments_hash: str) -> None:
+        self.connection.execute("INSERT INTO approvals(approval_id, task_id, side_effect_level, actor, call_id, arguments_hash) VALUES (?, ?, ?, ?, ?, ?)", (approval_id, task_id, side_effect_level, actor, call_id, arguments_hash))
         self.connection.commit()
 
-    def has_approval(self, approval_id: str, *, task_id: str, side_effect_level: str) -> bool:
-        row = self.connection.execute("SELECT 1 FROM approvals WHERE approval_id = ? AND task_id = ? AND side_effect_level = ?", (approval_id, task_id, side_effect_level)).fetchone()
+    def has_approval(self, approval_id: str, *, task_id: str, side_effect_level: str, call_id: str, arguments_hash: str) -> bool:
+        row = self.connection.execute("SELECT 1 FROM approvals WHERE approval_id = ? AND task_id = ? AND side_effect_level = ? AND call_id = ? AND arguments_hash = ?", (approval_id, task_id, side_effect_level, call_id, arguments_hash)).fetchone()
         return row is not None
 
     def get_effect_intent(self, key: str) -> dict[str, Any] | None:

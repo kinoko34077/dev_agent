@@ -91,12 +91,14 @@ class JsonStateStore:
         self._flush()
 
     def save_approval(self, approval_id: str, *, task_id: str, side_effect_level: str, actor: str) -> None:
-        self._data.setdefault("approvals", {})[approval_id] = {"task_id": task_id, "side_effect_level": side_effect_level, "actor": actor}
+        if approval_id in self._data.setdefault("approvals", {}):
+            raise ValueError(f"approval already exists: {approval_id}")
+        self._data["approvals"][approval_id] = {"task_id": task_id, "side_effect_level": side_effect_level, "actor": actor, "call_id": call_id, "arguments_hash": arguments_hash}
         self._flush()
 
-    def has_approval(self, approval_id: str, *, task_id: str, side_effect_level: str) -> bool:
+    def has_approval(self, approval_id: str, *, task_id: str, side_effect_level: str, call_id: str, arguments_hash: str) -> bool:
         item = self._data.get("approvals", {}).get(approval_id)
-        return bool(item and item.get("task_id") == task_id and item.get("side_effect_level") == side_effect_level)
+        return bool(item and item.get("task_id") == task_id and item.get("side_effect_level") == side_effect_level and item.get("call_id") == call_id and item.get("arguments_hash") == arguments_hash)
 
     def get_effect_intent(self, key: str) -> dict[str, Any] | None:
         return self._data.get("effect_intents", {}).get(key)

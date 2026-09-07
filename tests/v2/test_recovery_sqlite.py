@@ -32,7 +32,7 @@ def test_recovery_rejects_state_without_approval_table(tmp_path):
 def test_recovery_rejects_malformed_approval_record(tmp_path):
     database = tmp_path / "bad-approval.sqlite3"
     with SQLiteStateStore(database) as store:
-        store.connection.execute("INSERT INTO approvals VALUES ('approval-1', 'task-1', 'financial', '')")
+        store.connection.execute("INSERT INTO approvals(approval_id, task_id, side_effect_level, actor, call_id, arguments_hash) VALUES ('approval-1', 'task-1', 'financial', '', 'call-1', 'hash')")
         store.connection.commit()
     ok, message = validate_sqlite_state(database)
     assert not ok

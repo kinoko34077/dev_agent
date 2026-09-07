@@ -10,6 +10,7 @@ from typing import Any
 
 from ..domain.protocol import Event, ModelRequest, ModelResponse, Step, StepStatus, Task, TaskStatus, ToolCall, ToolResultStatus
 from ..providers.base import ModelProvider
+from ..policy.approvals import canonical_arguments_hash
 from ..state.store import StateStore
 from ..tools.runtime import ToolRuntime
 

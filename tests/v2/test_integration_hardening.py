@@ -6,6 +6,7 @@ import sys
 
 from src.dev_agent.domain.protocol import ExecutionLimits, ModelResponse, Step, Task, TaskStatus, ToolCall
 from src.dev_agent.policy import PathPolicy
+from src.dev_agent.policy.approvals import canonical_arguments_hash
 from src.dev_agent.providers.base import ModelProvider
 from src.dev_agent.runtime import Controller, RuntimeFailure
 from src.dev_agent.state import SQLiteStateStore
@@ -133,7 +134,8 @@ def test_controller_waiting_approval_can_resume_with_persisted_record(tmp_path):
     controller = Controller(provider, ToolRuntime(registry), store)
     task = Task(objective="publish")
     assert controller.run(task).status == TaskStatus.WAITING_APPROVAL
-    store.save_approval("approval-1", task_id=task.task_id, side_effect_level="external_write", actor="human")
+    pending = store.load_latest_checkpoint(task.task_id)["state"]["pending_tool_calls"][0]
+    store.save_approval("approval-1", task_id=task.task_id, side_effect_level="external_write", actor="human", call_id=pending["call_id"], arguments_hash=canonical_arguments_hash(pending["arguments"]))
     assert controller.resume(task.task_id, approval_id="approval-1").status == TaskStatus.COMPLETED
     assert calls == [{"value": "x"}]
     store.close()
@@ -159,14 +161,14 @@ def test_persisted_approval_is_task_and_level_scoped(tmp_path):
     registry.register(ToolSpec(name="publish", description="external", side_effect_level="external_write", handler=lambda args: calls.append(args) or {"ok": True}))
     call = ToolCall(tool_name="publish", idempotency_key="publish-1")
     with SQLiteStateStore(tmp_path / "approval.sqlite3") as store:
-        store.save_approval("approval-1", task_id=task.task_id, side_effect_level="external_write", actor="human")
+        store.save_approval("approval-1", task_id=task.task_id, side_effect_level="external_write", actor="human", call_id=call.call_id, arguments_hash=canonical_arguments_hash(call.arguments))
         runtime = ToolRuntime(registry).with_result_store(store)
         denied = runtime.execute(call, task_id=task.task_id, approval_id="wrong-id")
         assert denied.status.value == "denied"
         allowed = runtime.execute(call, task_id=task.task_id, approval_id="approval-1")
         assert allowed.status.value == "succeeded"
         assert calls == [{}]
-        assert not store.has_approval("approval-1", task_id=str(Task(objective="other").task_id), side_effect_level="external_write")
+        assert not store.has_approval("approval-1", task_id=str(Task(objective="other").task_id), side_effect_level="external_write", call_id=call.call_id, arguments_hash=canonical_arguments_hash(call.arguments))
 
 
 def test_external_effect_pending_intent_blocks_unsafe_retry(tmp_path):
@@ -182,7 +184,7 @@ def test_external_effect_pending_intent_blocks_unsafe_retry(tmp_path):
     call = ToolCall(tool_name="publish", arguments={"value": "x"}, idempotency_key="publish-1")
     with SQLiteStateStore(path) as store:
         runtime = ToolRuntime(registry).with_result_store(store)
-        store.save_approval("approval-1", task_id="11111111-1111-4111-8111-111111111111", side_effect_level="external_write", actor="human")
+        store.save_approval("approval-1", task_id="11111111-1111-4111-8111-111111111111", side_effect_level="external_write", actor="human", call_id=call.call_id, arguments_hash=canonical_arguments_hash(call.arguments))
         with pytest.raises(SystemExit, match="external acceptance"):
             runtime.execute(call, task_id="11111111-1111-4111-8111-111111111111", approval_id="approval-1")
     with SQLiteStateStore(path) as reopened:

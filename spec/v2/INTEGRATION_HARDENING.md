@@ -11,6 +11,7 @@ Status: in progress. This gate precedes Phase 6.
 - Financial / credential / destructive / external-write tools are denied without an explicit, persisted approval record.
 - SQLite and JSON stores persist approvals scoped to task and side-effect level; a record from another task or level cannot authorize a tool call.
 - High-risk ToolCalls transition the Task to `WAITING_APPROVAL`; a human actor can persist an approval record and resume by approval ID without re-requesting the model or losing the pending call.
+- Approval authorization is exact-call scoped by internal call ID and canonical argument hash; a different pending call or mutated arguments cannot reuse the record.
 - Internal ToolCall / ToolResult UUIDs are separate from optional Provider call IDs and preserve both across adapter and tool-result boundaries.
 - Side-effecting tools require an idempotency key and durable result store.
 - External-write / financial / credential / destructive tools create a durable effect intent before handler execution; a pending intent blocks automatic retry as `reconciliation_required`.
