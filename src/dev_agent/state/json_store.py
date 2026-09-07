@@ -21,6 +21,7 @@ class JsonStateStore:
             "tool_results": {},
             "events": [],
             "checkpoints": [],
+            "approvals": {},
         }
         self._load()
 
@@ -82,3 +83,11 @@ class JsonStateStore:
     def save_idempotent(self, key: str, result: ToolResult) -> None:
         self._data.setdefault("idempotency", {})[key] = result.to_dict()
         self._flush()
+
+    def save_approval(self, approval_id: str, *, task_id: str, side_effect_level: str, actor: str) -> None:
+        self._data.setdefault("approvals", {})[approval_id] = {"task_id": task_id, "side_effect_level": side_effect_level, "actor": actor}
+        self._flush()
+
+    def has_approval(self, approval_id: str, *, task_id: str, side_effect_level: str) -> bool:
+        item = self._data.get("approvals", {}).get(approval_id)
+        return bool(item and item.get("task_id") == task_id and item.get("side_effect_level") == side_effect_level)

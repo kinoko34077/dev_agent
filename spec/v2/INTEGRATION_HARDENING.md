@@ -8,7 +8,8 @@ Status: in progress. This gate precedes Phase 6.
 - Resume consumes checkpointed pending ToolCalls before making another model request.
 - Tool results retain `call_id`, `tool_name`, and status in the next `ModelRequest`.
 - Controller always attaches its durable StateStore to ToolRuntime.
-- Financial / credential / destructive / external-write tools are denied without explicit approval.
+- Financial / credential / destructive / external-write tools are denied without an explicit, persisted approval record.
+- SQLite and JSON stores persist approvals scoped to task and side-effect level; a record from another task or level cannot authorize a tool call.
 - Side-effecting tools require an idempotency key and durable result store.
 - Tools that declare a path capability use `PathPolicy` before their handler runs.
 - Terminal failures use one Controller transition that persists the Step (when present), checkpoint, Task, and `task.failed` event.
@@ -18,7 +19,7 @@ Status: in progress. This gate precedes Phase 6.
 ## Still required before Phase 6
 
 - Crash injection at the remaining persistence boundaries (before/after model response and failure transitions).
-- Explicit persisted approval records; no caller-supplied approval boolean at a public Runtime boundary.
+- Controller-facing approval IDs and human actor records need a dedicated approval-wait/resume API; the low-level boolean compatibility path remains only in `ApprovalPolicy` tests.
 - Local-model qualification that verifies visible response quality as well as the hard output bound; the installed `qwen3:0.6b` failed this narrow probe because it spent the small output budget on a thinking trace.
 - Real Gemini / independent Provider response decoding and live contract probes.
 - Expanded contract harness: multi-tool, sequential result, malformed response, timeout, rate-limit, quota, and limits.

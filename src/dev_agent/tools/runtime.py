@@ -22,7 +22,7 @@ class ToolRuntime:
         self.result_store = result_store
         return self
 
-    def execute(self, call: ToolCall, *, approval_granted: bool = False) -> ToolResult:
+    def execute(self, call: ToolCall, *, approval_id: str | None = None, task_id: str | None = None) -> ToolResult:
         if call.idempotency_key and self.result_store is not None:
             previous = self.result_store.get_idempotent(call.idempotency_key)
             if previous is not None:
@@ -35,7 +35,7 @@ class ToolRuntime:
                 status=ToolResultStatus.DENIED,
                 error={"category": "policy_denied", "message": f"tool is not enabled: {call.tool_name}"},
             )
-        if self.approvals.requires_approval(spec.side_effect_level) and not approval_granted:
+        if self.approvals.requires_approval(spec.side_effect_level) and not self.approvals.authorize(spec.side_effect_level, approval_id=approval_id, task_id=task_id or call.originating_request_id, store=self.result_store):
             return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.DENIED, error={"category": "approval_required", "message": "human approval is required"})
         if spec.side_effect_level in self.IDEMPOTENCY_REQUIRED and not call.idempotency_key:
             return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.DENIED, error={"category": "policy_denied", "message": "idempotency key is required for this side effect"})

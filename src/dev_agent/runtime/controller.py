@@ -52,7 +52,7 @@ class Controller:
     def _execute_pending(self, task: Task, state: dict[str, Any]) -> None:
         step = Step.from_dict(state["active_step"])
         for call in [ToolCall.from_dict(item) for item in state["pending_tool_calls"]]:
-            result = self.tools.execute(call)
+            result = self.tools.execute(call, task_id=task.task_id)
             self.store.save_tool_result(result)
             self._event(task, "tool.completed", {"result": result.to_dict()}, step_id=step.step_id)
             if result.status != ToolResultStatus.SUCCEEDED:

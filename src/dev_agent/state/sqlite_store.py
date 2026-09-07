@@ -24,6 +24,7 @@ class SQLiteStateStore:
             CREATE TABLE IF NOT EXISTS events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, event_id TEXT UNIQUE NOT NULL, payload TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS checkpoints (sequence INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL, step_id TEXT NOT NULL, phase TEXT NOT NULL, state_payload TEXT NOT NULL DEFAULT '{}');
             CREATE TABLE IF NOT EXISTS idempotency (idempotency_key TEXT PRIMARY KEY, result_payload TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS approvals (approval_id TEXT PRIMARY KEY, task_id TEXT NOT NULL, side_effect_level TEXT NOT NULL, actor TEXT NOT NULL);
             """
         )
         columns = {row[1] for row in self.connection.execute("PRAGMA table_info(checkpoints)")}
@@ -77,6 +78,14 @@ class SQLiteStateStore:
     def save_idempotent(self, key: str, result: ToolResult) -> None:
         self.connection.execute("INSERT OR IGNORE INTO idempotency VALUES (?, ?)", (key, json.dumps(result.to_dict(), ensure_ascii=False)))
         self.connection.commit()
+
+    def save_approval(self, approval_id: str, *, task_id: str, side_effect_level: str, actor: str) -> None:
+        self.connection.execute("INSERT OR REPLACE INTO approvals VALUES (?, ?, ?, ?)", (approval_id, task_id, side_effect_level, actor))
+        self.connection.commit()
+
+    def has_approval(self, approval_id: str, *, task_id: str, side_effect_level: str) -> bool:
+        row = self.connection.execute("SELECT 1 FROM approvals WHERE approval_id = ? AND task_id = ? AND side_effect_level = ?", (approval_id, task_id, side_effect_level)).fetchone()
+        return row is not None
 
     def _rows(self, table: str, column: str = "payload") -> list[dict[str, Any]]:
         return [json.loads(row[column]) for row in self.connection.execute(f"SELECT {column} FROM {table}").fetchall()]

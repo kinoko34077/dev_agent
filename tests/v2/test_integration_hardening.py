@@ -107,6 +107,23 @@ def test_controller_enforces_path_policy_before_handler(tmp_path):
     assert calls == []
 
 
+def test_persisted_approval_is_task_and_level_scoped(tmp_path):
+    task = Task(objective="approved write")
+    calls = []
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="publish", description="external", side_effect_level="external_write", handler=lambda args: calls.append(args) or {"ok": True}))
+    call = ToolCall(tool_name="publish", idempotency_key="publish-1")
+    with SQLiteStateStore(tmp_path / "approval.sqlite3") as store:
+        store.save_approval("approval-1", task_id=task.task_id, side_effect_level="external_write", actor="human")
+        runtime = ToolRuntime(registry).with_result_store(store)
+        denied = runtime.execute(call, task_id=task.task_id, approval_id="wrong-id")
+        assert denied.status.value == "denied"
+        allowed = runtime.execute(call, task_id=task.task_id, approval_id="approval-1")
+        assert allowed.status.value == "succeeded"
+        assert calls == [{}]
+        assert not store.has_approval("approval-1", task_id=str(Task(objective="other").task_id), side_effect_level="external_write")
+
+
 def test_resume_after_crash_between_multiple_side_effect_tools_runs_each_handler_once(tmp_path):
     path = tmp_path / "crash.sqlite3"
     effects = []
