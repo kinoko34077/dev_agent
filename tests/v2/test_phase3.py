@@ -66,6 +66,23 @@ def test_path_policy_denies_escape_and_symlink(tmp_path):
     assert not policy.check(link / "secret.txt", "read")
 
 
+def test_path_policy_rejects_a_path_that_resolves_outside(monkeypatch, tmp_path):
+    workspace = tmp_path / "workspace"
+    (workspace / "sandbox").mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    policy = PathPolicy(workspace, {"sandbox": {"read", "write"}})
+    original_resolve = Path.resolve
+
+    def resolve_with_virtual_link(path, strict=False):
+        if "virtual-link" in path.parts:
+            return outside / "secret.txt"
+        return original_resolve(path, strict=strict)
+
+    monkeypatch.setattr(Path, "resolve", resolve_with_virtual_link)
+    assert not policy.check(workspace / "sandbox" / "virtual-link" / "secret.txt", "read")
+
+
 def test_idempotency_prevents_duplicate_handler_after_reopen(tmp_path):
     path = tmp_path / "state.sqlite3"
     calls = []

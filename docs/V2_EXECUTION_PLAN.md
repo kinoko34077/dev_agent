@@ -80,7 +80,7 @@ Phase 1〜2 の追加 Gate:
 - [x] canonical path、workspace 外逸脱、symlink 先の deny-by-default policy。
 - [x] SQLite idempotency key による副作用の重複防止。
 
-検証留保: 現在の Windows 環境では symlink 作成権限がなく、symlink 実体を使うテストは skip された。canonical `resolve(strict=False)` による実装は済んでいるが、Promotion Gate 前に symlink を作成できる環境で再実行する。
+検証留保: 現在の Windows 環境では symlink 作成権限がなく、symlink 実体を使うテストは skip された。canonical `resolve(strict=False)` による実装と、解決先が workspace 外になる仮想パス試験は確認済み。Promotion Gate 前に実 symlink を作成できる環境でも再実行する。
 
 ## 5. alpha0 の最小スコープ
 
