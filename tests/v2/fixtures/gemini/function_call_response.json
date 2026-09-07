@@ -1,0 +1,9 @@
+{
+  "candidates": [{
+    "content": {"parts": [
+      {"functionCall": {"id": "b9913466-2d8b-4da3-a665-47fd8ddf5819", "name": "echo", "args": {"value": "fixture"}}}
+    ]},
+    "finishReason": "STOP"
+  }],
+  "usageMetadata": {"promptTokenCount": 12, "candidatesTokenCount": 5}
+}

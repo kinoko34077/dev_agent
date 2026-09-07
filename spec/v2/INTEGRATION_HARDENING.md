@@ -12,12 +12,14 @@ Status: in progress. This gate precedes Phase 6.
 - Side-effecting tools require an idempotency key and durable result store.
 - Tools that declare a path capability use `PathPolicy` before their handler runs.
 - Terminal failures use one Controller transition that persists the Step (when present), checkpoint, Task, and `task.failed` event.
+- A crash-injection integration test interrupts immediately after the first durable result of two side-effecting ToolCalls; resume executes each handler exactly once and forwards both normalized results to the following model request.
+- The Ollama adapter is exercised against the local `/api/chat` endpoint and maps `max_output_tokens` to the provider runtime output bound (`options.num_predict`).
 
 ## Still required before Phase 6
 
-- Crash injection at each persistence boundary, including process interruption after one of several ToolCalls.
+- Crash injection at the remaining persistence boundaries (before/after model response and failure transitions).
 - Explicit persisted approval records; no caller-supplied approval boolean at a public Runtime boundary.
-- Actual local model endpoint E2E.
+- Local-model qualification that verifies visible response quality as well as the hard output bound; the installed `qwen3:0.6b` failed this narrow probe because it spent the small output budget on a thinking trace.
 - Real Gemini / independent Provider response decoding and live contract probes.
 - Expanded contract harness: multi-tool, sequential result, malformed response, timeout, rate-limit, quota, and limits.
 - Recovery tools that inspect SQLite state, configuration, Git health, and test results.

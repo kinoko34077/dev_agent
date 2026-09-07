@@ -29,6 +29,34 @@ class SingleCallProvider(ModelProvider):
         return ModelResponse(provider="single", model="test", tool_calls=[self.call], finish_reason="tool_call")
 
 
+class MultiCallThenFinalProvider(ModelProvider):
+    provider_id = "multi"
+
+    def __init__(self, calls):
+        self.calls = calls
+        self.requests = []
+
+    def request(self, request):
+        self.requests.append(request)
+        if len(self.requests) == 1:
+            return ModelResponse(provider="multi", model="test", tool_calls=self.calls, finish_reason="tool_call")
+        return ModelResponse(provider="multi", model="test", text_segments=["done"])
+
+
+class CrashAfterFirstToolCheckpointStore(SQLiteStateStore):
+    """Simulate process death after durable tool state, exactly once."""
+
+    def __init__(self, path):
+        super().__init__(path)
+        self.crashed = False
+
+    def checkpoint(self, **kwargs):
+        super().checkpoint(**kwargs)
+        if kwargs["phase"] == "after_tool_result" and not self.crashed:
+            self.crashed = True
+            raise SystemExit("simulated process death")
+
+
 def test_resume_executes_checkpointed_pending_tool_once_and_preserves_tool_identity(tmp_path):
     path = tmp_path / "runtime.sqlite3"
     task = Task(objective="resume after tool")
@@ -77,3 +105,25 @@ def test_controller_enforces_path_policy_before_handler(tmp_path):
     with pytest.raises(RuntimeFailure, match="policy_denied"):
         controller.run(Task(objective="escape"))
     assert calls == []
+
+
+def test_resume_after_crash_between_multiple_side_effect_tools_runs_each_handler_once(tmp_path):
+    path = tmp_path / "crash.sqlite3"
+    effects = []
+    calls = [
+        ToolCall(tool_name="write", arguments={"ordinal": 1}, idempotency_key="write-1"),
+        ToolCall(tool_name="write", arguments={"ordinal": 2}, idempotency_key="write-2"),
+    ]
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="write", description="side effect", side_effect_level="local_write", handler=lambda args: effects.append(args["ordinal"]) or {"ordinal": args["ordinal"]}))
+    task = Task(objective="resume multi tool")
+    provider = MultiCallThenFinalProvider(calls)
+    with CrashAfterFirstToolCheckpointStore(path) as crash_store:
+        with pytest.raises(SystemExit, match="simulated process death"):
+            Controller(provider, ToolRuntime(registry), crash_store).run(task)
+    with SQLiteStateStore(path) as reopened:
+        result = Controller(provider, ToolRuntime(registry), reopened).resume(task.task_id)
+    assert result.status == TaskStatus.COMPLETED
+    assert effects == [1, 2]
+    assert len(provider.requests) == 2
+    assert {item.call_id for item in provider.requests[1].tool_results} == {call.call_id for call in calls}
