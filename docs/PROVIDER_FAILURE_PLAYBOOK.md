@@ -34,6 +34,13 @@ The adapter uses `POST /api/chat`, `stream: false`, and converts the response `m
 
 The v2 `GeminiHttpProvider` now reads `GEMINI_API_KEY` from the process environment at request time, sends `generationConfig.maxOutputTokens`, and decodes the documented `generateContent` response. It fails closed when the variable is absent; a `.env` file is not loaded implicitly.
 
+### Gemini live probe — network reached, HTTP 403
+
+- Observation: with the key present and network permission granted, the minimal `gemini-2.5-flash` request reached Google and returned HTTP 403.
+- Meaning: this is no longer a local transport failure. The key may be invalid, restricted from the Generative Language API, attached to a project where the API is disabled, or not permitted to use the selected model.
+- Safe remedy: in Google AI Studio / Cloud, verify the key belongs to the intended project, enable the Generative Language API, review application/API restrictions, and confirm the model is available to that key. Then repeat the same minimal probe; never paste the key into source, chat, or logs.
+- Current gate: live Gemini completion remains unverified until that probe returns a normalized text response and bounded usage. The adapter correctly classifies 401/403 as `authentication` and does not retry automatically.
+
 ## Failure classification
 
 - Connection refused / DNS / timeout: `transport`.

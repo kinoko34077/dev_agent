@@ -23,7 +23,7 @@ Status: in progress. This gate precedes Phase 6.
 - Crash injection at the remaining pre-model and model-response event boundaries.
 - Controller-facing approval IDs and human actor records need a dedicated approval-wait/resume API; the low-level boolean compatibility path remains only in `ApprovalPolicy` tests.
 - Local-model qualification that verifies visible response quality as well as the hard output bound; the installed `qwen3:0.6b` failed this narrow probe because it spent the small output budget on a thinking trace.
-- Real Gemini live contract probe (the current process still has no visible `GEMINI_API_KEY`).
+- Real Gemini live contract probe (network reached, but current key/model combination returned HTTP 403; credential/project restriction must be corrected before promotion).
 - Expanded contract harness: multi-tool, sequential result, malformed response, timeout, rate-limit, quota, and limits.
 - Recovery tools that inspect SQLite state, configuration, Git health, and test results.
 
