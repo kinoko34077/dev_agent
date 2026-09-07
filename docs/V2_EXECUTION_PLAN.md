@@ -35,11 +35,11 @@ v1 は移植元ではなく、知見・ログ・失敗の回帰資料である�
 
 ### 現在フェーズ
 
-**Phase 5 — Provider 多重化（未着手）**
+**Phase 6 — 資源・生存・外部復旧（未着手）**
 
-Phase 0〜4 は完了。次の作業: Gemini adapter と独立 Provider adapter、observed Contract Probe を追加する。認証情報や live API がない場合は offline adapter contract を先に固める。
+Phase 0〜5 は完了（offline contract 範囲）。次の作業: resource ledger、budget governor、survival modes、Rescue CLI / MCP、復旧 drill に進む。Provider の live probe と failover は、この基盤上で別途実施する。
 
-進行判定: Provider の追加で Core を変更せず、各 adapter の応答が normalized protocol へ変換されること。
+進行判定: 支払上限を呼出前に遮断し、通常 router を壊しても外部 Agent が診断・修復できること。
 
 ## 3. フェーズ別ロードマップ
 
@@ -50,7 +50,7 @@ Phase 0〜4 は完了。次の作業: Gemini adapter と独立 Provider adapter�
 | 2. 最小決定的 Kernel | FakeProvider、単一 Task の反復 Controller、イベント / checkpoint、無害な Tool registry | Model request → ToolCall → ToolResult → final response → completed が全履歴付きで通る。上限超過と不正応答が定義済み失敗になる | 完了（`v2-kernel-alpha0` 相当） |
 | 3. Task・Policy・永続化 | Task Graph、DAG/cycle/depth 制限、SQLite resume、正規化パス、権限 / approval、idempotency | 強制終了後 resume、cycle / traversal / symlink / 無許可操作 / 重複副作用を試験で防止できる | 完了（alpha1 前半） |
 | 4. ローカル実行基盤 | Local Provider adapter、provider contract harness、v1 ログ / 入出力 fixture の整備 | クラウドなしで代表タスクが完了し、v1 の既知 failure input が Kernel を落とさない | 完了 |
-| 5. Provider 多重化 | Gemini adapter、新しい独立 Provider、ライブ Contract Probe、capability matrix | Provider の追加で Core を変更せず、停止した Provider から有効な代替へ切替できる | 次（`v2-provider-alpha`） |
+| 5. Provider 多重化 | Gemini adapter、新しい独立 Provider、ライブ Contract Probe、capability matrix | Provider の追加で Core を変更せず、各 adapter の offline contract が通る。live probe は実環境で確認する | 実装完了（live probe 留保） |
 | 6. 資源・生存・外部復旧 | 資源 ledger、budget governor、NORMAL / CONSERVE / SURVIVAL、Rescue CLI / MCP、復旧 drill | 支払上限を呼出前に遮断し、通常 router を壊しても外部 Agent が診断・修復できる | `v2-survival-alpha` |
 | 7. 安全な拡張 | evaluator / critic workflow、自己修復候補、Tool / Skill 生成、Workflow library と昇格 | main を直接変更せず、候補生成 → 検証 → rollback を証明。繰返し作業を tested workflow 候補へ昇格できる | 拡張基盤 |
 | 8. 複数役割・事業検証 | manifest-defined roles、bounded handoff、AI Company benchmark、収益 ledger / 再投資規則 | 一 Provider 停止下で、実タスクの artifact・検証・状態保存・approval handoff が完了する | 統合検証 |
@@ -78,6 +78,13 @@ Phase 1〜2 の追加 Gate:
 - [x] TaskGraph の depth / child 数 / cycle 検証。
 - [x] canonical path、workspace 外逸脱、symlink 先の deny-by-default policy。
 - [x] SQLite idempotency key による副作用の重複防止。
+
+Phase 4〜5 の追加 Gate:
+
+- [x] Local Provider が cloud なしで text / tool-call contract を通る。
+- [x] v1 `whichOneof` failure fixture を adapter 境界で分類できる。
+- [x] Gemini adapter と独立 OpenAI-compatible adapter が同じ Core protocol を返す。
+- [ ] 認証済み実 Provider の live Contract Probe と capability matrix（endpoint / credential 準備後）。
 
 検証留保: 現在の Windows 環境では symlink 作成権限がなく、symlink 実体を使うテストは skip された。canonical `resolve(strict=False)` による実装と、解決先が workspace 外になる仮想パス試験は確認済み。Promotion Gate 前に実 symlink を作成できる環境でも再実行する。
 

@@ -1,0 +1,12 @@
+{
+  "provider": "gemini",
+  "raw_error": "whichOneof",
+  "parts": [
+    {
+      "function_call": {
+        "name": "start_internal_dialogue",
+        "args": {"topic": "sanitized fixture"}
+      }
+    }
+  ]
+}

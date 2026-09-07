@@ -1,6 +1,13 @@
+import json
+from pathlib import Path
+
+import pytest
+
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
+from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.harness import ContractHarness
 from src.dev_agent.providers.local import LocalProvider
+from src.dev_agent.providers.gemini import GeminiProvider
 
 
 def test_local_provider_completes_contract_without_cloud():
@@ -24,3 +31,10 @@ def _task_id():
     from uuid import uuid4
 
     return str(uuid4())
+
+
+def test_v1_whichoneof_fixture_becomes_classified_adapter_failure():
+    fixture = Path(__file__).parent / "fixtures" / "v1" / "gemini_whichoneof_error.json"
+    raw = json.loads(fixture.read_text(encoding="utf-8"))
+    with pytest.raises(ProviderError, match="raw response error"):
+        GeminiProvider(lambda request: raw).request(ModelRequest(task_id=_task_id(), messages=[{"role": "user", "content": "fixture"}]))
