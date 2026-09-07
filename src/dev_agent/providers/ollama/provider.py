@@ -45,7 +45,7 @@ class OllamaProvider(ModelProvider):
             calls = []
             for item in message.get("tool_calls", []):
                 function = item["function"]
-                calls.append(ToolCall(tool_name=function["name"], arguments=function.get("arguments", {}), originating_request_id=request.request_id))
+                calls.append(ToolCall(tool_name=function["name"], arguments=function.get("arguments", {}), provider_call_id=item.get("id"), originating_request_id=request.request_id))
             text = message.get("content", "")
             usage = {key: raw[key] for key in ("prompt_eval_count", "eval_count", "total_duration") if key in raw}
             return ModelResponse(provider=self.provider_id, model=raw.get("model", self.model), finish_reason=raw.get("done_reason", "stop"), text_segments=[text] if text else [], tool_calls=calls, usage=usage)

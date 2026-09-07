@@ -40,13 +40,15 @@ class Controller:
     def _initial_state(task: Task) -> dict[str, Any]:
         return {"messages": [{"role": "user", "content": task.objective}], "tool_results": [], "model_calls": 0, "tool_calls": 0, "next_step_order": 0, "pending_tool_calls": [], "active_step": None}
 
-    def resume(self, task_id: str) -> Task:
+    def resume(self, task_id: str, *, approval_id: str | None = None) -> Task:
         task = self.store.load_task(task_id)
         if task is None:
             raise RuntimeFailure(f"task not found: {task_id}")
         if task.status in {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED}:
             return task
         checkpoint = self.store.load_latest_checkpoint(task_id)
+        if checkpoint and approval_id:
+            checkpoint["state"]["approval_id"] = approval_id
         if checkpoint and checkpoint["phase"] == "after_model":
             task.status = TaskStatus.COMPLETED
             self.store.save_task(task)
@@ -60,11 +62,18 @@ class Controller:
     def _execute_pending(self, task: Task, state: dict[str, Any]) -> None:
         step = Step.from_dict(state["active_step"])
         for call in [ToolCall.from_dict(item) for item in state["pending_tool_calls"]]:
-            result = self.tools.execute(call, task_id=task.task_id)
+            result = self.tools.execute(call, task_id=task.task_id, approval_id=state.get("approval_id"))
+            result.provider_call_id = call.provider_call_id
             self.store.save_tool_result(result)
             self._event(task, "tool.completed", {"result": result.to_dict()}, step_id=step.step_id)
             if result.status != ToolResultStatus.SUCCEEDED:
                 error = result.error or {"category": "tool_execution", "message": "tool failed"}
+                if error.get("category") == "approval_required":
+                    task.status = TaskStatus.WAITING_APPROVAL
+                    self.store.save_task(task)
+                    self._checkpoint(task, step, "waiting_approval", state)
+                    self._event(task, "task.waiting_approval", {"tool_call_id": call.call_id, "tool_name": call.tool_name}, step_id=step.step_id)
+                    return
                 self._fail(task, state, error["category"], error["message"], step=step)
             state["tool_results"].append(result.to_dict())
             state["pending_tool_calls"] = [item for item in state["pending_tool_calls"] if item["call_id"] != call.call_id]

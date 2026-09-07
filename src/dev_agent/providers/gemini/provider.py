@@ -56,7 +56,7 @@ class GeminiHttpProvider(ModelProvider):
     def _contents(request: ModelRequest) -> list[dict[str, Any]]:
         contents = [{"role": "model" if item["role"] == "assistant" else "user", "parts": [{"text": item["content"]}]} for item in request.messages]
         for result in request.tool_results:
-            contents.append({"role": "user", "parts": [{"functionResponse": {"name": result.tool_name or "unknown", "response": {"call_id": result.call_id, "status": result.status.value, "result": result.structured_result, "error": result.error}}}]})
+            contents.append({"role": "user", "parts": [{"functionResponse": {"name": result.tool_name or "unknown", "response": {"call_id": result.call_id, "provider_call_id": result.provider_call_id, "status": result.status.value, "result": result.structured_result, "error": result.error}}}]})
         return contents
 
     def _payload(self, request: ModelRequest) -> dict[str, Any]:

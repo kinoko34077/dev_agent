@@ -6,13 +6,15 @@
 
 ### 現在の到達点（2026-09-08 JST）
 
-- v2 の全テストが `40 passed`。
+- v2 の全テストが `41 passed`。
 - Windows の実 symlink を使った workspace 外逸脱拒否テストが `passed`。
 - Ollama のローカル `/api/chat` 実機接続を確認。
 - Gemini の実HTTP経路は接続まで確認したが、モデル一覧・最小生成とも HTTP 403。実 Provider 完走は未達。
 - 作業ツリーは clean。v2 の変更は `v2/bootstrap` に確定済み。
 
 ### 2026-09-08
+
+- 作業継続（未コミット時点）: 承認待機→永続承認→`resume(approval_id=...)` の実行経路、Provider固有 call ID と内部UUIDの分離を追加。全41テスト通過後に次コミットへ確定。
 
 - `3c4f453` `fix: use Gemini API key header authentication`
   - Gemini API キー送信を URL クエリから公式の `x-goog-api-key` ヘッダーへ変更。

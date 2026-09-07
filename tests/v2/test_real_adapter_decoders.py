@@ -17,6 +17,8 @@ def test_gemini_rest_function_call_fixture_decodes_to_normalized_tool_call():
     response = decode_generate_content(raw, model="gemini-test", request_id="b9913466-2d8b-4da3-a665-47fd8ddf5819")
     assert response.tool_calls[0].tool_name == "echo"
     assert response.tool_calls[0].arguments == {"value": "fixture"}
+    assert response.tool_calls[0].provider_call_id == "b9913466-2d8b-4da3-a665-47fd8ddf5819"
+    assert response.tool_calls[0].call_id != response.tool_calls[0].provider_call_id
 
 
 def test_gemini_rest_malformed_response_is_classified():
@@ -42,12 +44,13 @@ def test_gemini_http_provider_fails_closed_without_key(monkeypatch):
 
 def test_gemini_http_payload_preserves_bound_and_tool_result_identity():
     provider = GeminiHttpProvider(model="gemini-test", api_key="test-key")
-    request = ModelRequest(task_id=_id(), messages=[{"role": "user", "content": "x"}], max_output_tokens=7, tool_results=[ToolResult(call_id=_id(), tool_name="echo", structured_result={"value": "ok"})])
+    request = ModelRequest(task_id=_id(), messages=[{"role": "user", "content": "x"}], max_output_tokens=7, tool_results=[ToolResult(call_id=_id(), tool_name="echo", provider_call_id="provider-1", structured_result={"value": "ok"})])
     payload = provider._payload(request)
     assert payload["generationConfig"]["maxOutputTokens"] == 7
     function_response = payload["contents"][-1]["parts"][0]["functionResponse"]
     assert function_response["name"] == "echo"
     assert function_response["response"]["call_id"] == request.tool_results[0].call_id
+    assert function_response["response"]["provider_call_id"] == "provider-1"
 
 
 def test_gemini_http_provider_decodes_mocked_generate_content(monkeypatch):

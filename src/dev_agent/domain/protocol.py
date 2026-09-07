@@ -253,6 +253,7 @@ class Step:
 @dataclass
 class ToolCall:
     call_id: str = field(default_factory=lambda: str(uuid4()))
+    provider_call_id: str | None = None
     tool_name: str = ""
     arguments: dict[str, Any] = field(default_factory=dict)
     originating_request_id: str | None = None
@@ -261,6 +262,8 @@ class ToolCall:
 
     def __post_init__(self) -> None:
         self.call_id = _id(self.call_id, "call_id")
+        if self.provider_call_id is not None:
+            self.provider_call_id = _text(self.provider_call_id, "provider_call_id")
         self.tool_name = _text(self.tool_name, "tool_name")
         self.arguments = _mapping(self.arguments, "arguments")
         if self.originating_request_id:
@@ -374,6 +377,7 @@ class ModelResponse:
 class ToolResult:
     call_id: str = ""
     tool_name: str | None = None
+    provider_call_id: str | None = None
     status: ToolResultStatus = ToolResultStatus.SUCCEEDED
     structured_result: dict[str, Any] = field(default_factory=dict)
     stdout_ref: str | None = None
@@ -385,6 +389,8 @@ class ToolResult:
         self.call_id = _id(self.call_id, "call_id")
         if self.tool_name is not None:
             self.tool_name = _text(self.tool_name, "tool_name")
+        if self.provider_call_id is not None:
+            self.provider_call_id = _text(self.provider_call_id, "provider_call_id")
         self.status = _enum(self.status, ToolResultStatus, "status")  # type: ignore[assignment]
         self.structured_result = _mapping(self.structured_result, "structured_result")
         self.side_effects = _mapping(self.side_effects, "side_effects")

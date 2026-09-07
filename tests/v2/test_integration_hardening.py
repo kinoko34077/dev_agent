@@ -29,6 +29,19 @@ class SingleCallProvider(ModelProvider):
         return ModelResponse(provider="single", model="test", tool_calls=[self.call], finish_reason="tool_call")
 
 
+class ApprovalCallProvider(ModelProvider):
+    provider_id = "approval"
+
+    def __init__(self):
+        self.requests = []
+
+    def request(self, request):
+        self.requests.append(request)
+        if len(self.requests) == 1:
+            return ModelResponse(provider="approval", model="test", tool_calls=[ToolCall(tool_name="publish", arguments={"value": "x"}, idempotency_key="publish-once")], finish_reason="tool_call")
+        return ModelResponse(provider="approval", model="test", text_segments=["done"])
+
+
 class MultiCallThenFinalProvider(ModelProvider):
     provider_id = "multi"
 
@@ -101,10 +114,25 @@ def test_controller_denies_financial_tool_without_human_approval(tmp_path):
     from src.dev_agent.providers.fake import FakeProvider
 
     controller = Controller(FakeProvider(tool_name="charge", tool_arguments={"amount": 1}), ToolRuntime(registry), SQLiteStateStore(tmp_path / "state.sqlite3"))
-    with pytest.raises(RuntimeFailure, match="approval_required"):
-        controller.run(Task(objective="charge"))
+    task = Task(objective="charge")
+    assert controller.run(task).status == TaskStatus.WAITING_APPROVAL
     assert calls == []
-    assert any(event["payload"].get("category") == "approval_required" for event in controller.store.snapshot()["events"] if event["event_type"] == "task.failed")
+    assert any(event["event_type"] == "task.waiting_approval" for event in controller.store.snapshot()["events"])
+
+
+def test_controller_waiting_approval_can_resume_with_persisted_record(tmp_path):
+    calls = []
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="publish", description="external", side_effect_level="external_write", handler=lambda args: calls.append(args) or {"ok": True}))
+    provider = ApprovalCallProvider()
+    store = SQLiteStateStore(tmp_path / "approval-resume.sqlite3")
+    controller = Controller(provider, ToolRuntime(registry), store)
+    task = Task(objective="publish")
+    assert controller.run(task).status == TaskStatus.WAITING_APPROVAL
+    store.save_approval("approval-1", task_id=task.task_id, side_effect_level="external_write", actor="human")
+    assert controller.resume(task.task_id, approval_id="approval-1").status == TaskStatus.COMPLETED
+    assert calls == [{"value": "x"}]
+    store.close()
 
 
 def test_controller_enforces_path_policy_before_handler(tmp_path):

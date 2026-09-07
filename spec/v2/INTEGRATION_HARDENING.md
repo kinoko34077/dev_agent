@@ -10,6 +10,8 @@ Status: in progress. This gate precedes Phase 6.
 - Controller always attaches its durable StateStore to ToolRuntime.
 - Financial / credential / destructive / external-write tools are denied without an explicit, persisted approval record.
 - SQLite and JSON stores persist approvals scoped to task and side-effect level; a record from another task or level cannot authorize a tool call.
+- High-risk ToolCalls transition the Task to `WAITING_APPROVAL`; a human actor can persist an approval record and resume by approval ID without re-requesting the model or losing the pending call.
+- Internal ToolCall / ToolResult UUIDs are separate from optional Provider call IDs and preserve both across adapter and tool-result boundaries.
 - Side-effecting tools require an idempotency key and durable result store.
 - Tools that declare a path capability use `PathPolicy` before their handler runs.
 - Terminal failures use one Controller transition that persists the Step (when present), checkpoint, Task, and `task.failed` event.
@@ -21,7 +23,7 @@ Status: in progress. This gate precedes Phase 6.
 ## Still required before Phase 6
 
 - Crash injection at the remaining pre-model and model-response event boundaries.
-- Controller-facing approval IDs and human actor records need a dedicated approval-wait/resume API; the low-level boolean compatibility path remains only in `ApprovalPolicy` tests.
+- Approval-wait/resume is now available through `Controller.resume(task_id, approval_id=...)`; a higher-level UI/API for presenting pending approvals remains required.
 - Local-model qualification that verifies visible response quality as well as the hard output bound; the installed `qwen3:0.6b` failed this narrow probe because it spent the small output budget on a thinking trace.
 - Real Gemini live contract probe (network reached, but current key/model combination returned HTTP 403; credential/project restriction must be corrected before promotion).
 - Expanded contract harness: multi-tool, sequential result, malformed response, timeout, rate-limit, quota, and limits.

@@ -23,7 +23,7 @@ def decode_generate_content(raw: Mapping[str, Any], *, model: str, request_id: s
                 text_segments.append(part["text"])
             elif "functionCall" in part:
                 function = part["functionCall"]
-                calls.append(ToolCall(call_id=function.get("id") or None, tool_name=function["name"], arguments=function.get("args", {}), originating_request_id=request_id))
+                calls.append(ToolCall(tool_name=function["name"], arguments=function.get("args", {}), provider_call_id=function.get("id"), originating_request_id=request_id))
     except (KeyError, TypeError, ValueError) as exc:
         raise ProviderError(f"gemini response decode failed: invalid part: {exc}") from exc
     if not text_segments and not calls:
