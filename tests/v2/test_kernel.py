@@ -26,7 +26,7 @@ def test_fake_provider_completes_one_tool_task_with_full_trace(tmp_path):
     assert snapshot["tasks"][task.task_id]["status"] == "completed"
     assert len(snapshot["tool_results"]) == 1
     assert {event["event_type"] for event in snapshot["events"]} >= {"model.requested", "model.responded", "tool.completed", "task.completed"}
-    assert len(snapshot["checkpoints"]) == 4
+    assert {checkpoint["phase"] for checkpoint in snapshot["checkpoints"]} >= {"before_model", "pending_tools", "after_tool_result", "after_tools", "after_model"}
 
 
 def test_step_limit_stops_before_unbounded_provider_calls(tmp_path):

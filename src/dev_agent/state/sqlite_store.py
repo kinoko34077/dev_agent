@@ -22,10 +22,13 @@ class SQLiteStateStore:
             CREATE TABLE IF NOT EXISTS steps (step_id TEXT PRIMARY KEY, payload TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS tool_results (call_id TEXT PRIMARY KEY, payload TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, event_id TEXT UNIQUE NOT NULL, payload TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS checkpoints (sequence INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL, step_id TEXT NOT NULL, phase TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS checkpoints (sequence INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL, step_id TEXT NOT NULL, phase TEXT NOT NULL, state_payload TEXT NOT NULL DEFAULT '{}');
             CREATE TABLE IF NOT EXISTS idempotency (idempotency_key TEXT PRIMARY KEY, result_payload TEXT NOT NULL);
             """
         )
+        columns = {row[1] for row in self.connection.execute("PRAGMA table_info(checkpoints)")}
+        if "state_payload" not in columns:
+            self.connection.execute("ALTER TABLE checkpoints ADD COLUMN state_payload TEXT NOT NULL DEFAULT '{}'")
         self.connection.commit()
 
     def close(self) -> None:
@@ -53,9 +56,15 @@ class SQLiteStateStore:
         self.connection.execute("INSERT OR REPLACE INTO events(event_id, payload) VALUES (?, ?)", (event.event_id, json.dumps(event.to_dict(), ensure_ascii=False)))
         self.connection.commit()
 
-    def checkpoint(self, *, task_id: str, step_id: str, phase: str) -> None:
-        self.connection.execute("INSERT INTO checkpoints(task_id, step_id, phase) VALUES (?, ?, ?)", (task_id, step_id, phase))
+    def checkpoint(self, *, task_id: str, step_id: str, phase: str, state: dict[str, Any]) -> None:
+        self.connection.execute("INSERT INTO checkpoints(task_id, step_id, phase, state_payload) VALUES (?, ?, ?, ?)", (task_id, step_id, phase, json.dumps(state, ensure_ascii=False)))
         self.connection.commit()
+
+    def load_latest_checkpoint(self, task_id: str) -> dict[str, Any] | None:
+        row = self.connection.execute("SELECT task_id, step_id, phase, state_payload FROM checkpoints WHERE task_id = ? ORDER BY sequence DESC LIMIT 1", (task_id,)).fetchone()
+        if row is None:
+            return None
+        return {"task_id": row["task_id"], "step_id": row["step_id"], "phase": row["phase"], "state": json.loads(row["state_payload"])}
 
     def load_task(self, task_id: str) -> Task | None:
         row = self.connection.execute("SELECT payload FROM tasks WHERE task_id = ?", (task_id,)).fetchone()
@@ -77,5 +86,5 @@ class SQLiteStateStore:
         steps = {item["step_id"]: item for item in self._rows("steps")}
         results = {item["call_id"]: item for item in self._rows("tool_results")}
         events = self._rows("events")
-        checkpoints = [dict(row) for row in self.connection.execute("SELECT task_id, step_id, phase FROM checkpoints ORDER BY sequence").fetchall()]
+        checkpoints = [dict(row) | {"state": json.loads(row["state_payload"])} for row in self.connection.execute("SELECT task_id, step_id, phase, state_payload FROM checkpoints ORDER BY sequence").fetchall()]
         return {"tasks": tasks, "steps": steps, "tool_results": results, "events": events, "checkpoints": checkpoints}

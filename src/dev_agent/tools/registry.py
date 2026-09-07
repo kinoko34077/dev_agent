@@ -13,6 +13,8 @@ class ToolSpec:
     handler: Callable[[dict[str, Any]], dict[str, Any]]
     required_arguments: frozenset[str] = field(default_factory=frozenset)
     side_effect_level: str = "none"
+    path_argument: str | None = None
+    path_operation: str | None = None
     enabled: bool = True
 
 

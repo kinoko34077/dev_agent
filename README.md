@@ -1,5 +1,9 @@
 # 📦 dev_agent
 
+> ## V2 DEVELOPMENT BRANCH
+>
+> この `v2/bootstrap` は新しい Provider-neutral Kernel の開発ブランチです。v2 の起点・実装状態は [`docs/V2_EXECUTION_PLAN.md`](docs/V2_EXECUTION_PLAN.md) と [`spec/v2/INTEGRATION_HARDENING.md`](spec/v2/INTEGRATION_HARDENING.md) を正とします。以下の Gemini / `core/main.py` 手順は legacy v1 の記録であり、v2 Runtime の起動手順ではありません。
+
 ## 🧠 概要
 
 `dev_agent` は、Google Gemini などの LLM API を用いた **自律型エージェント**の開発プロジェクトです。

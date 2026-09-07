@@ -58,9 +58,15 @@ class JsonStateStore:
         self._data["events"].append(event.to_dict())
         self._flush()
 
-    def checkpoint(self, *, task_id: str, step_id: str, phase: str) -> None:
-        self._data["checkpoints"].append({"task_id": task_id, "step_id": step_id, "phase": phase})
+    def checkpoint(self, *, task_id: str, step_id: str, phase: str, state: dict[str, Any]) -> None:
+        self._data["checkpoints"].append({"task_id": task_id, "step_id": step_id, "phase": phase, "state": state})
         self._flush()
+
+    def load_latest_checkpoint(self, task_id: str) -> dict[str, Any] | None:
+        for checkpoint in reversed(self._data["checkpoints"]):
+            if checkpoint["task_id"] == task_id:
+                return dict(checkpoint)
+        return None
 
     def snapshot(self) -> dict[str, Any]:
         return json.loads(json.dumps(self._data))

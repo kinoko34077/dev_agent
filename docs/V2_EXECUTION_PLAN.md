@@ -35,22 +35,23 @@ v1 は移植元ではなく、知見・ログ・失敗の回帰資料である�
 
 ### 現在フェーズ
 
-**Phase 6 — 資源・生存・外部復旧（未着手）**
+**Phase 3.5 — Kernel integration hardening（進行中）**
 
-Phase 0〜5 は完了（offline contract 範囲）。次の作業: resource ledger、budget governor、survival modes、Rescue CLI / MCP、復旧 drill に進む。Provider の live probe と failover は、この基盤上で別途実施する。
+Phase 0〜2 は基礎実装済み。Phase 3〜5 は primitive / offline adapter の段階であり、system-level Gate は未達。次の作業は checkpoint resume、Tool policy、ToolResult protocol、failure transition、実 Provider / recovery の統合を hardening gate として固める。
 
-進行判定: 支払上限を呼出前に遮断し、通常 router を壊しても外部 Agent が診断・修復できること。
+進行判定: mid-execution resume、idempotency、approval、path policy、failure audit が Controller 経路で証明され、実 Local Provider / live contract / recovery state inspection の不足点が解消されること。
 
 ## 3. フェーズ別ロードマップ
 
 | Phase | 目的 / 主な成果物 | Gate（次へ進む条件） | 対応マイルストーン |
 | --- | --- | --- | --- |
-| 0. Baseline・仕様基盤 | `legacy/v1-final`、`v2/bootstrap`、v1 資産棚卸し、`spec/v2/`、追跡表、ADR-001〜010 | baseline を再現でき、v2 の不変条件・最初の受入試験・保留事項が文書化済み | 完了 |
-| 1. Recovery / Protocol | 独立 Recovery skeleton、Task / Step / ModelRequest / ModelResponse / ToolCall / ToolResult の型と直列化 | Provider 非依存の型検証・直列化・診断 CLI がネットワークなしで通る | 完了 |
+| 0. Baseline・仕様基盤 | `legacy/v1-final`、`v2/bootstrap`、v1 資産棚卸し、`spec/v2/`、追跡表、ADR-001〜010 | baseline を再現でき、v2 の不変条件・最初の受入試験・保留事項が文書化済み | local branch 完了、remote publication 未確認 |
+| 1. Recovery / Protocol | 独立 Recovery skeleton、Task / Step / ModelRequest / ModelResponse / ToolCall / ToolResult の型と直列化 | Provider 非依存の型検証・直列化・診断 CLI がネットワークなしで通る | protocol 完了、Recovery は skeleton |
 | 2. 最小決定的 Kernel | FakeProvider、単一 Task の反復 Controller、イベント / checkpoint、無害な Tool registry | Model request → ToolCall → ToolResult → final response → completed が全履歴付きで通る。上限超過と不正応答が定義済み失敗になる | 完了（`v2-kernel-alpha0` 相当） |
-| 3. Task・Policy・永続化 | Task Graph、DAG/cycle/depth 制限、SQLite resume、正規化パス、権限 / approval、idempotency | 強制終了後 resume、cycle / traversal / symlink / 無許可操作 / 重複副作用を試験で防止できる | 完了（alpha1 前半） |
-| 4. ローカル実行基盤 | Local Provider adapter、provider contract harness、v1 ログ / 入出力 fixture の整備 | クラウドなしで代表タスクが完了し、v1 の既知 failure input が Kernel を落とさない | 完了 |
-| 5. Provider 多重化 | Gemini adapter、新しい独立 Provider、ライブ Contract Probe、capability matrix | Provider の追加で Core を変更せず、各 adapter の offline contract が通る。live probe は実環境で確認する | 実装完了（live probe 留保） |
+| 3. Task・Policy・永続化 | Task Graph、DAG/cycle/depth 制限、SQLite resume、正規化パス、権限 / approval、idempotency | 強制終了後 resume、cycle / traversal / symlink / 無許可操作 / 重複副作用を試験で防止できる | primitive 完了、Controller integration hardening 中 |
+| 3.5 Kernel integration hardening | checkpoint execution state、ToolResult protocol、policy/idempotency integration、failure transition | integration Gate と crash injection を満たす | 進行中 |
+| 4. ローカル実行基盤 | Local Provider adapter、provider contract harness、v1 ログ / 入出力 fixture の整備 | クラウドなしで実 Local Provider が代表タスクを完了する | adapter shell / offline contract |
+| 5. Provider 多重化 | Gemini adapter、新しい独立 Provider、ライブ Contract Probe、capability matrix | Provider の追加で Core を変更せず、実 response を normalize し live probe を記録する | transport shell / minimal offline harness |
 | 6. 資源・生存・外部復旧 | 資源 ledger、budget governor、NORMAL / CONSERVE / SURVIVAL、Rescue CLI / MCP、復旧 drill | 支払上限を呼出前に遮断し、通常 router を壊しても外部 Agent が診断・修復できる | `v2-survival-alpha` |
 | 7. 安全な拡張 | evaluator / critic workflow、自己修復候補、Tool / Skill 生成、Workflow library と昇格 | main を直接変更せず、候補生成 → 検証 → rollback を証明。繰返し作業を tested workflow 候補へ昇格できる | 拡張基盤 |
 | 8. 複数役割・事業検証 | manifest-defined roles、bounded handoff、AI Company benchmark、収益 ledger / 再投資規則 | 一 Provider 停止下で、実タスクの artifact・検証・状態保存・approval handoff が完了する | 統合検証 |
@@ -74,16 +75,16 @@ Phase 1〜2 の追加 Gate:
 - [x] FakeProvider の ToolCall → ToolResult → final response 成功経路。
 - [x] `max_steps` / `max_model_calls` / `max_tool_calls` の有限停止。
 - [x] Tool registry 経由の schema / enabled 検証と Event / checkpoint trace。
-- [x] SQLite の再オープン後に Task を読み込み、Controller を `resume()` できる。
+- [x] SQLite の再オープン後に Task を読み込み、checkpoint の pending ToolCall から Controller を `resume()` できる。
 - [x] TaskGraph の depth / child 数 / cycle 検証。
-- [x] canonical path、workspace 外逸脱、symlink 先の deny-by-default policy。
-- [x] SQLite idempotency key による副作用の重複防止。
+- [x] canonical path、workspace 外逸脱、symlink 先の deny-by-default policy を ToolRuntime 経路で確認。
+- [x] SQLite idempotency key による副作用の重複防止を Controller 経路で強制。
 
 Phase 4〜5 の追加 Gate:
 
-- [x] Local Provider が cloud なしで text / tool-call contract を通る。
+- [x] Local Provider shell が cloud なしで text / tool-call contract を通る。
 - [x] v1 `whichOneof` failure fixture を adapter 境界で分類できる。
-- [x] Gemini adapter と独立 OpenAI-compatible adapter が同じ Core protocol を返す。
+- [x] Gemini transport shell と独立 OpenAI-compatible shell が同じ Core protocol を返す。
 - [ ] 認証済み実 Provider の live Contract Probe と capability matrix（endpoint / credential 準備後）。
 
 検証留保: 現在の Windows 環境では symlink 作成権限がなく、symlink 実体を使うテストは skip された。canonical `resolve(strict=False)` による実装と、解決先が workspace 外になる仮想パス試験は確認済み。Promotion Gate 前に実 symlink を作成できる環境でも再実行する。

@@ -286,6 +286,7 @@ class ModelRequest:
     messages: list[dict[str, str]] = field(default_factory=list)
     requested_capabilities: list[str] = field(default_factory=list)
     allowed_tools: list[str] = field(default_factory=list)
+    tool_results: list["ToolResult"] = field(default_factory=list)
     response_schema: dict[str, Any] | None = None
     max_output_tokens: int = 2_048
     sensitivity: str = "normal"
@@ -307,6 +308,7 @@ class ModelRequest:
         self.allowed_tools = list(self.allowed_tools)
         if any(not isinstance(item, str) or not item.strip() for item in self.requested_capabilities + self.allowed_tools):
             raise ProtocolError("capabilities and tools must be non-empty strings")
+        self.tool_results = [item if isinstance(item, ToolResult) else ToolResult.from_dict(item) for item in self.tool_results]
         if self.response_schema is not None:
             self.response_schema = _mapping(self.response_schema, "response_schema")
         self.max_output_tokens = _positive_int(self.max_output_tokens, "max_output_tokens")
@@ -319,8 +321,10 @@ class ModelRequest:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "ModelRequest":
+        values = dict(data)
+        values["tool_results"] = [ToolResult.from_dict(item) for item in values.get("tool_results", [])]
         try:
-            return cls(**dict(data))
+            return cls(**values)
         except TypeError as exc:
             raise ProtocolError(f"invalid model request: {exc}") from exc
 
@@ -369,6 +373,7 @@ class ModelResponse:
 @dataclass
 class ToolResult:
     call_id: str = ""
+    tool_name: str | None = None
     status: ToolResultStatus = ToolResultStatus.SUCCEEDED
     structured_result: dict[str, Any] = field(default_factory=dict)
     stdout_ref: str | None = None
@@ -378,6 +383,8 @@ class ToolResult:
 
     def __post_init__(self) -> None:
         self.call_id = _id(self.call_id, "call_id")
+        if self.tool_name is not None:
+            self.tool_name = _text(self.tool_name, "tool_name")
         self.status = _enum(self.status, ToolResultStatus, "status")  # type: ignore[assignment]
         self.structured_result = _mapping(self.structured_result, "structured_result")
         self.side_effects = _mapping(self.side_effects, "side_effects")
