@@ -20,6 +20,7 @@ Status: in progress. This gate precedes Phase 6.
 - Crash-injection tests cover terminal `after_model` and `failure` checkpoints; resume finalizes the persisted terminal transition without repeating the provider call.
 - The Ollama adapter is exercised against the local `/api/chat` endpoint and maps `max_output_tokens` to the provider runtime output bound (`options.num_predict`).
 - Gemini HTTP failure classification is covered for missing credentials, authentication (401/403), rate limiting (429), transport errors, and malformed provider responses.
+- Independent Recovery validation rejects orphan steps/checkpoints, malformed tool results, unknown effect-intent states, and unsupported schema versions.
 - ToolSpec input schemas are carried as Provider-neutral `tool_definitions` and emitted as Gemini function declarations / Ollama function tools; payload contract tests cover this boundary.
 
 ## Still required before Phase 6

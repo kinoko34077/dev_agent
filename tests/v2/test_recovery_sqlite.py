@@ -54,3 +54,25 @@ def test_recovery_rejects_unsupported_schema_version(tmp_path):
     ok, message = validate_sqlite_state(database)
     assert not ok
     assert "schema version" in message
+
+
+def test_recovery_rejects_orphan_step(tmp_path):
+    database = tmp_path / "orphan-step.sqlite3"
+    with SQLiteStateStore(database) as store:
+        store.connection.execute("INSERT INTO steps VALUES ('step-1', '{\"step_id\":\"step-1\",\"task_id\":\"11111111-1111-4111-8111-111111111111\",\"kind\":\"model\"}')")
+        store.connection.commit()
+    ok, message = validate_sqlite_state(database)
+    assert not ok
+    assert "orphan" in message
+
+
+def test_recovery_rejects_unknown_effect_intent_status(tmp_path):
+    database = tmp_path / "bad-intent.sqlite3"
+    task = Task(objective="intent")
+    with SQLiteStateStore(database) as store:
+        store.save_task(task)
+        store.connection.execute("INSERT INTO effect_intents VALUES ('k', ?, 'publish', '{}', 'mystery', NULL)", (task.task_id,))
+        store.connection.commit()
+    ok, message = validate_sqlite_state(database)
+    assert not ok
+    assert "effect intent" in message

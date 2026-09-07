@@ -12,6 +12,8 @@
 
 失敗時の扱い: 状態を修復・上書きせず `FAIL` と診断し、バックアップからの再検査へ回す。
 
+進捗: 必須テーブル・schema version・task payload・approval・effect intent に加え、orphan Step / checkpoint、壊れた ToolResult、未知の intent status を独立 validator で検出する。Gate A のローカル検査条件は達成。
+
 ## Gate B — crash / resume matrix（ローカル完結）
 
 合格条件:
