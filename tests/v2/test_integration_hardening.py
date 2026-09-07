@@ -165,6 +165,28 @@ def test_persisted_approval_is_task_and_level_scoped(tmp_path):
         assert not store.has_approval("approval-1", task_id=str(Task(objective="other").task_id), side_effect_level="external_write")
 
 
+def test_external_effect_pending_intent_blocks_unsafe_retry(tmp_path):
+    path = tmp_path / "outbox.sqlite3"
+    effects = []
+
+    def external_handler(args):
+        effects.append(args)
+        raise SystemExit("crash after external acceptance")
+
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="publish", description="external", side_effect_level="external_write", handler=external_handler))
+    call = ToolCall(tool_name="publish", arguments={"value": "x"}, idempotency_key="publish-1")
+    with SQLiteStateStore(path) as store:
+        runtime = ToolRuntime(registry).with_result_store(store)
+        store.save_approval("approval-1", task_id="11111111-1111-4111-8111-111111111111", side_effect_level="external_write", actor="human")
+        with pytest.raises(SystemExit, match="external acceptance"):
+            runtime.execute(call, task_id="11111111-1111-4111-8111-111111111111", approval_id="approval-1")
+    with SQLiteStateStore(path) as reopened:
+        result = ToolRuntime(registry).with_result_store(reopened).execute(call, task_id="11111111-1111-4111-8111-111111111111", approval_id="approval-1")
+        assert result.error["category"] == "reconciliation_required"
+    assert len(effects) == 1
+
+
 def test_resume_after_crash_between_multiple_side_effect_tools_runs_each_handler_once(tmp_path):
     path = tmp_path / "crash.sqlite3"
     effects = []

@@ -30,6 +30,8 @@
 
 外部 API が必要な試験は mock provider で先行し、live 試験は credential / quota 待ちとして保留できる。
 
+進捗: SQLite / JSON の effect intent と、外部処理後のローカル保存前停止を `reconciliation_required` として再実行禁止にする基礎契約を実装済み。実外部APIの照合処理は未実装。
+
 ## Gate D — Provider contract
 
 合格条件:

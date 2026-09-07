@@ -25,6 +25,7 @@ class SQLiteStateStore:
             CREATE TABLE IF NOT EXISTS checkpoints (sequence INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL, step_id TEXT NOT NULL, phase TEXT NOT NULL, state_payload TEXT NOT NULL DEFAULT '{}');
             CREATE TABLE IF NOT EXISTS idempotency (idempotency_key TEXT PRIMARY KEY, result_payload TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS approvals (approval_id TEXT PRIMARY KEY, task_id TEXT NOT NULL, side_effect_level TEXT NOT NULL, actor TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS effect_intents (idempotency_key TEXT PRIMARY KEY, task_id TEXT NOT NULL, tool_name TEXT NOT NULL, arguments_payload TEXT NOT NULL, status TEXT NOT NULL, result_payload TEXT);
             """
         )
         columns = {row[1] for row in self.connection.execute("PRAGMA table_info(checkpoints)")}
@@ -86,6 +87,23 @@ class SQLiteStateStore:
     def has_approval(self, approval_id: str, *, task_id: str, side_effect_level: str) -> bool:
         row = self.connection.execute("SELECT 1 FROM approvals WHERE approval_id = ? AND task_id = ? AND side_effect_level = ?", (approval_id, task_id, side_effect_level)).fetchone()
         return row is not None
+
+    def get_effect_intent(self, key: str) -> dict[str, Any] | None:
+        row = self.connection.execute("SELECT * FROM effect_intents WHERE idempotency_key = ?", (key,)).fetchone()
+        if row is None:
+            return None
+        return {"idempotency_key": row["idempotency_key"], "task_id": row["task_id"], "tool_name": row["tool_name"], "arguments": json.loads(row["arguments_payload"]), "status": row["status"], "result": json.loads(row["result_payload"]) if row["result_payload"] else None}
+
+    def create_effect_intent(self, key: str, *, task_id: str, tool_name: str, arguments: dict[str, Any]) -> bool:
+        cursor = self.connection.execute("INSERT OR IGNORE INTO effect_intents(idempotency_key, task_id, tool_name, arguments_payload, status) VALUES (?, ?, ?, ?, 'pending')", (key, task_id, tool_name, json.dumps(arguments, ensure_ascii=False)))
+        self.connection.commit()
+        return cursor.rowcount == 1
+
+    def complete_effect_intent(self, key: str, result: ToolResult) -> None:
+        cursor = self.connection.execute("UPDATE effect_intents SET status = 'succeeded', result_payload = ? WHERE idempotency_key = ?", (json.dumps(result.to_dict(), ensure_ascii=False), key))
+        self.connection.commit()
+        if cursor.rowcount != 1:
+            raise ValueError(f"effect intent not found: {key}")
 
     def _rows(self, table: str, column: str = "payload") -> list[dict[str, Any]]:
         return [json.loads(row[column]) for row in self.connection.execute(f"SELECT {column} FROM {table}").fetchall()]

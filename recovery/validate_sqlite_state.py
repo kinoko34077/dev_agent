@@ -9,7 +9,7 @@ import sqlite3
 import sys
 
 
-REQUIRED_TABLES = frozenset({"tasks", "steps", "tool_results", "events", "checkpoints", "idempotency", "approvals"})
+REQUIRED_TABLES = frozenset({"tasks", "steps", "tool_results", "events", "checkpoints", "idempotency", "approvals", "effect_intents"})
 
 
 def validate_sqlite_state(path: str | Path) -> tuple[bool, str]:
@@ -35,6 +35,9 @@ def validate_sqlite_state(path: str | Path) -> tuple[bool, str]:
         for approval_id, task_id, level, actor in connection.execute("SELECT approval_id, task_id, side_effect_level, actor FROM approvals"):
             if not all(isinstance(value, str) and value.strip() for value in (approval_id, task_id, level, actor)):
                 return False, f"invalid approval record: {approval_id}"
+        intent_columns = {row[1] for row in connection.execute("PRAGMA table_info(effect_intents)")}
+        if not {"idempotency_key", "task_id", "tool_name", "arguments_payload", "status"} <= intent_columns:
+            return False, "invalid effect_intents schema"
         return True, "SQLite state schema and task payloads are readable"
     except (sqlite3.Error, json.JSONDecodeError) as exc:
         return False, f"cannot validate SQLite state: {exc}"
