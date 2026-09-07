@@ -53,6 +53,13 @@ def test_gemini_http_payload_preserves_bound_and_tool_result_identity():
     assert function_response["response"]["provider_call_id"] == "provider-1"
 
 
+def test_gemini_http_payload_includes_function_declarations():
+    provider = GeminiHttpProvider(model="gemini-test", api_key="test-key")
+    request = ModelRequest(task_id=_id(), messages=[{"role": "user", "content": "x"}], tool_definitions=[{"name": "echo", "description": "Echo", "parameters": {"type": "object", "properties": {"value": {"type": "string"}}}}])
+    assert request.to_dict()["tool_definitions"][0]["name"] == "echo"
+    assert provider._payload(request)["tools"][0]["functionDeclarations"][0]["parameters"]["type"] == "object"
+
+
 def test_gemini_http_provider_decodes_mocked_generate_content(monkeypatch):
     class Response:
         def __enter__(self):

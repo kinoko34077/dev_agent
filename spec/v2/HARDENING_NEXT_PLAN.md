@@ -39,6 +39,8 @@
 - text、multi-tool、sequential result、malformed、timeout、401/403、429、quota、output limit を共通 harness で検査する。
 - live probe は capability matrix へモデル名・時刻・結果・失敗分類を記録する。
 
+進捗: ToolSpec の input schema を Provider-neutral `tool_definitions` として ModelRequest に渡し、Gemini `functionDeclarations` / Ollama `tools` payload へ変換する offline 契約を実装済み。実モデルが選択・実行する live E2E は未達。
+
 ## Gate E — promotion / deferred work
 
 Gate A〜D の未達を一覧化し、外部依存項目は保留理由と再開条件を残す。Gate を満たすまで Phase 6（resource / survival / rescue）へ進まない。

@@ -30,6 +30,7 @@ class OllamaProvider(ModelProvider):
             "messages": messages,
             "stream": False,
             "options": {"num_predict": request.max_output_tokens},
+            "tools": [{"type": "function", "function": definition} for definition in request.tool_definitions],
         }
 
     def request(self, request: ModelRequest) -> ModelResponse:

@@ -289,6 +289,7 @@ class ModelRequest:
     messages: list[dict[str, str]] = field(default_factory=list)
     requested_capabilities: list[str] = field(default_factory=list)
     allowed_tools: list[str] = field(default_factory=list)
+    tool_definitions: list[dict[str, Any]] = field(default_factory=list)
     tool_results: list["ToolResult"] = field(default_factory=list)
     response_schema: dict[str, Any] | None = None
     max_output_tokens: int = 2_048
@@ -309,6 +310,9 @@ class ModelRequest:
         self.messages = [dict(item) for item in self.messages]
         self.requested_capabilities = list(self.requested_capabilities)
         self.allowed_tools = list(self.allowed_tools)
+        if not isinstance(self.tool_definitions, list) or any(not isinstance(item, Mapping) for item in self.tool_definitions):
+            raise ProtocolError("tool_definitions must be a list of objects")
+        self.tool_definitions = [dict(item) for item in self.tool_definitions]
         if any(not isinstance(item, str) or not item.strip() for item in self.requested_capabilities + self.allowed_tools):
             raise ProtocolError("capabilities and tools must be non-empty strings")
         self.tool_results = [item if isinstance(item, ToolResult) else ToolResult.from_dict(item) for item in self.tool_results]

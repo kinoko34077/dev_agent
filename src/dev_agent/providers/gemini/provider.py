@@ -60,7 +60,10 @@ class GeminiHttpProvider(ModelProvider):
         return contents
 
     def _payload(self, request: ModelRequest) -> dict[str, Any]:
-        return {"contents": self._contents(request), "generationConfig": {"maxOutputTokens": request.max_output_tokens}}
+        payload = {"contents": self._contents(request), "generationConfig": {"maxOutputTokens": request.max_output_tokens}}
+        if request.tool_definitions:
+            payload["tools"] = [{"functionDeclarations": request.tool_definitions}]
+        return payload
 
     def request(self, request: ModelRequest) -> ModelResponse:
         key = self._key()

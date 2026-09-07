@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import math
 from typing import Any, Callable
 
 
@@ -12,10 +13,25 @@ class ToolSpec:
     description: str
     handler: Callable[[dict[str, Any]], dict[str, Any]]
     required_arguments: frozenset[str] = field(default_factory=frozenset)
+    input_schema: dict[str, Any] = field(default_factory=dict)
     side_effect_level: str = "none"
     path_argument: str | None = None
     path_operation: str | None = None
+    timeout_seconds: float = 30.0
     enabled: bool = True
+
+    def __post_init__(self) -> None:
+        if isinstance(self.timeout_seconds, bool) or not isinstance(self.timeout_seconds, (int, float)) or not math.isfinite(self.timeout_seconds) or self.timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be a finite positive number")
+        if not isinstance(self.input_schema, dict):
+            raise ValueError("input_schema must be an object")
+
+    def provider_definition(self) -> dict[str, Any]:
+        schema = dict(self.input_schema)
+        if self.required_arguments:
+            schema.setdefault("required", sorted(self.required_arguments))
+        schema.setdefault("type", "object")
+        return {"name": self.name, "description": self.description, "parameters": schema}
 
 
 class ToolRegistry:
@@ -33,3 +49,6 @@ class ToolRegistry:
 
     def names(self) -> list[str]:
         return sorted(name for name, spec in self._tools.items() if spec.enabled)
+
+    def definitions(self) -> list[dict[str, Any]]:
+        return [self._tools[name].provider_definition() for name in self.names()]

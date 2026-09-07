@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from time import monotonic
 from typing import Any
 
 from ..domain.protocol import Event, ModelRequest, ModelResponse, Step, StepStatus, Task, TaskStatus, ToolCall, ToolResultStatus
@@ -85,10 +87,13 @@ class Controller:
         self._checkpoint(task, step, "after_tools", state)
 
     def run(self, task: Task, *, state: dict[str, Any] | None = None) -> Task:
+        started_at = monotonic()
         task.status = TaskStatus.RUNNING
         self.store.save_task(task)
         state = state or self._initial_state(task)
         while task.status == TaskStatus.RUNNING:
+            if monotonic() - started_at >= task.limits.max_wall_time_seconds:
+                self._fail(task, state, "timeout", "task wall-clock limit exceeded")
             if state["pending_tool_calls"]:
                 self._execute_pending(task, state)
                 continue
@@ -98,13 +103,21 @@ class Controller:
             state["active_step"] = step.to_dict()
             self.store.save_step(step)
             self._checkpoint(task, step, "before_model", state)
-            request = ModelRequest(task_id=task.task_id, messages=state["messages"], allowed_tools=self.tools.registry.names(), tool_results=state["tool_results"], max_output_tokens=task.limits.max_output_tokens, cost_ceiling=task.limits.max_cost)
+            request = ModelRequest(task_id=task.task_id, messages=state["messages"], allowed_tools=self.tools.registry.names(), tool_definitions=self.tools.registry.definitions(), tool_results=state["tool_results"], max_output_tokens=task.limits.max_output_tokens, cost_ceiling=task.limits.max_cost)
             self._event(task, "model.requested", {"request": request.to_dict()}, step_id=step.step_id, request_id=request.request_id)
             state["model_calls"] += 1
             try:
-                response = self.provider.request(request)
+                remaining = max(0.001, task.limits.max_wall_time_seconds - (monotonic() - started_at))
+                executor = ThreadPoolExecutor(max_workers=1)
+                future = executor.submit(self.provider.request, request)
+                try:
+                    response = future.result(timeout=remaining)
+                finally:
+                    executor.shutdown(wait=False, cancel_futures=True)
                 if not isinstance(response, ModelResponse):
                     raise TypeError("provider must return ModelResponse")
+            except FutureTimeoutError:
+                self._fail(task, state, "timeout", "model request timed out", step=step, request_id=request.request_id)
             except Exception as exc:
                 self._fail(task, state, "provider_decode", str(exc), step=step, request_id=request.request_id)
             self._event(task, "model.responded", {"response": response.to_dict()}, step_id=step.step_id, request_id=request.request_id)
