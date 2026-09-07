@@ -35,11 +35,11 @@ v1 は移植元ではなく、知見・ログ・失敗の回帰資料である�
 
 ### 現在フェーズ
 
-**Phase 4 — ローカル実行基盤（未着手）**
+**Phase 5 — Provider 多重化（未着手）**
 
-Phase 0〜3 は完了。次の作業: Local Provider adapter、provider contract harness、v1 ログ / 入出力 fixture の replay 整備に進む。
+Phase 0〜4 は完了。次の作業: Gemini adapter と独立 Provider adapter、observed Contract Probe を追加する。認証情報や live API がない場合は offline adapter contract を先に固める。
 
-進行判定: クラウドなしで代表タスクが完了し、v1 の既知 failure input が Kernel を落とさないこと。
+進行判定: Provider の追加で Core を変更せず、各 adapter の応答が normalized protocol へ変換されること。
 
 ## 3. フェーズ別ロードマップ
 
@@ -49,9 +49,8 @@ Phase 0〜3 は完了。次の作業: Local Provider adapter、provider contract
 | 1. Recovery / Protocol | 独立 Recovery skeleton、Task / Step / ModelRequest / ModelResponse / ToolCall / ToolResult の型と直列化 | Provider 非依存の型検証・直列化・診断 CLI がネットワークなしで通る | 完了 |
 | 2. 最小決定的 Kernel | FakeProvider、単一 Task の反復 Controller、イベント / checkpoint、無害な Tool registry | Model request → ToolCall → ToolResult → final response → completed が全履歴付きで通る。上限超過と不正応答が定義済み失敗になる | 完了（`v2-kernel-alpha0` 相当） |
 | 3. Task・Policy・永続化 | Task Graph、DAG/cycle/depth 制限、SQLite resume、正規化パス、権限 / approval、idempotency | 強制終了後 resume、cycle / traversal / symlink / 無許可操作 / 重複副作用を試験で防止できる | 完了（alpha1 前半） |
-| 4. ローカル実行基盤 | Local Provider adapter、provider contract harness、v1 ログ / 入出力 fixture の整備 | クラウドなしで代表タスクが完了し、v1 の既知 failure input が Kernel を落とさない | 次 |
-| 4. ローカル実行基盤 | Local Provider adapter、provider contract harness、v1 ログ / 入出力 fixture の整備 | クラウドなしで代表タスクが完了し、v1 の既知 failure input が Kernel を落とさない | `v2-kernel-alpha1` |
-| 5. Provider 多重化 | Gemini adapter、新しい独立 Provider、ライブ Contract Probe、capability matrix | Provider の追加で Core を変更せず、停止した Provider から有効な代替へ切替できる | `v2-provider-alpha` |
+| 4. ローカル実行基盤 | Local Provider adapter、provider contract harness、v1 ログ / 入出力 fixture の整備 | クラウドなしで代表タスクが完了し、v1 の既知 failure input が Kernel を落とさない | 完了 |
+| 5. Provider 多重化 | Gemini adapter、新しい独立 Provider、ライブ Contract Probe、capability matrix | Provider の追加で Core を変更せず、停止した Provider から有効な代替へ切替できる | 次（`v2-provider-alpha`） |
 | 6. 資源・生存・外部復旧 | 資源 ledger、budget governor、NORMAL / CONSERVE / SURVIVAL、Rescue CLI / MCP、復旧 drill | 支払上限を呼出前に遮断し、通常 router を壊しても外部 Agent が診断・修復できる | `v2-survival-alpha` |
 | 7. 安全な拡張 | evaluator / critic workflow、自己修復候補、Tool / Skill 生成、Workflow library と昇格 | main を直接変更せず、候補生成 → 検証 → rollback を証明。繰返し作業を tested workflow 候補へ昇格できる | 拡張基盤 |
 | 8. 複数役割・事業検証 | manifest-defined roles、bounded handoff、AI Company benchmark、収益 ledger / 再投資規則 | 一 Provider 停止下で、実タスクの artifact・検証・状態保存・approval handoff が完了する | 統合検証 |
