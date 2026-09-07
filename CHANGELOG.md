@@ -1,0 +1,118 @@
+# Changelog
+
+このファイルは、`dev_agent` の v1 保全と v2 再構築について、チャット上で確認した方針・実施結果と、リポジトリに確定した変更を時系列で記録する。
+
+## [Unreleased] — v2/bootstrap
+
+### 現在の到達点（2026-09-08 JST）
+
+- v2 の全テストが `40 passed`。
+- Windows の実 symlink を使った workspace 外逸脱拒否テストが `passed`。
+- Ollama のローカル `/api/chat` 実機接続を確認。
+- Gemini の実HTTP経路は接続まで確認したが、モデル一覧・最小生成とも HTTP 403。実 Provider 完走は未達。
+- 作業ツリーは clean。v2 の変更は `v2/bootstrap` に確定済み。
+
+### 2026-09-08
+
+- `3c4f453` `fix: use Gemini API key header authentication`
+  - Gemini API キー送信を URL クエリから公式の `x-goog-api-key` ヘッダーへ変更。
+  - API キーを URL やログへ露出しない境界を追加。
+  - ヘッダー方式でもモデル一覧・生成が 403 になることを確認し、クエリ／ヘッダー方式だけが原因ではないと記録。
+- `ab1ea10` `docs: record Gemini live probe authorization failure`
+  - Gemini 403 の観測、原因候補、Google 側で確認すべき設定、再試行条件を記録。
+  - 実通信を成功扱いにせず、認証・プロジェクト設定待ちとして Phase Gate に反映。
+- `0b029ce` `test: classify Gemini provider failures`
+  - Gemini の missing key、401/403、429、通信エラー、malformed response の分類テストを追加。
+- `2714eb6` `test: close terminal checkpoint crash gaps`
+  - `after_model` / `failure` checkpoint の永続化直後に停止した場合の resume を修正。
+  - 終端状態を再確定し、provider や副作用処理を重複実行しないテストを追加。
+  - symlink 検証済みの結果を実行計画へ反映。
+- `7c59027` `feat: persist task-scoped approval records`
+  - SQLite / JSON に承認記録を保存。
+  - 承認を `task_id` と side-effect level にスコープし、別タスク・別用途の流用を拒否。
+  - Controller から task ID を渡して承認照合する経路を追加。
+- `2714eb6` で追加したクラッシュ境界、`7c59027` の承認境界、Provider failure tests を統合し、全 40 テスト通過を確認。
+- `b493334` `feat: add guarded Gemini REST provider`
+  - 標準ライブラリのみの `GeminiHttpProvider` を追加。
+  - `GEMINI_API_KEY` をリクエスト時に読み、未設定時は fail-closed。
+  - `generateContent` の `maxOutputTokens`、tool result の `functionResponse`、REST 応答の正規化を実装。
+  - 実応答 fixture、payload、認証なしの安全な失敗テストを追加。
+- `15c1d36` `feat: harden provider and crash recovery contracts`
+  - Ollama `/api/chat` アダプタを追加。
+  - Ollama の `options.num_predict` に内部の `max_output_tokens` を伝播。
+  - Gemini REST 関数呼出しデコーダと sanitized fixture を追加。
+  - 複数副作用 ToolCall の一部実行直後クラッシュからの idempotent resume を追加。
+  - Ollama 実機で、未修正時の出力上限無視（`eval_count: 336`）を検出し、修正後 `eval_count: 16` を確認。
+  - `qwen3:0.6b` が小さい上限を思考出力で使い切る事象を記録。`think:false` が環境・モデル依存で効かないため、モデル適格性試験を別 Gate とした。
+
+### 2026-09-07〜08: v2 基盤・統合 hardening
+
+- `5601db6` `feat: validate durable state from recovery path`
+  - SQLite スキーマと task JSON を runtime import なしで検査する recovery CLI を追加。
+  - GitHub Actions の v2 test workflow を追加。
+- `28b99af` `feat: harden resumable kernel integration`
+  - Controller checkpoint に messages、ToolResult、各種カウンタ、active step、pending ToolCall を保存。
+  - resume が pending ToolCall を先に消化し、次の ModelRequest へ ToolResult の call ID / tool 名 / status を渡すよう修正。
+  - Controller に StateStore を強制接続。
+  - approval、idempotency、PathPolicy、failure transition を実行経路へ統合。
+  - README と integration hardening 仕様を整理。
+- `636dcb3` `feat: add provider adapters and contract probes`
+  - Gemini transport shell、OpenAI-compatible adapter、v1 `whichOneof` failure fixture を追加。
+  - Core protocol を変更せず Provider 応答を normalize する契約テストを追加。
+- `7f98107` `feat: add local provider contract harness`
+  - Local Provider shell、共通 normalize 処理、Provider contract harness を追加。
+  - text / tool-call の offline 契約テストを追加。
+- `3bc0277` `test: cover resolved symlink escape without OS privilege`
+  - OS の symlink 作成権限がない場合でも、resolved path の workspace 外逸脱を検査する仮想リンク試験を追加。
+- `7c98ff2` `docs: record phase 3 symlink verification caveat`
+  - Windows 権限不足時の symlink 実体テスト skip と、Promotion Gate 前の再試験条件を記録。
+- `833437e` `feat: add durable state graph and policy boundaries`
+  - TaskGraph の depth / child 数 / cycle 制限を追加。
+  - SQLite StateStore、PathPolicy、ApprovalPolicy、idempotency 永続化を追加。
+  - path traversal、symlink、無許可操作、重複副作用の Phase 3 テストを追加。
+- `424b472` `feat: implement v2 alpha0 deterministic kernel`
+  - FakeProvider、反復型 Controller、JSON state store、Tool registry / runtime を追加。
+  - Model request → ToolCall → ToolResult → final response の最小完走経路を追加。
+  - step / model call / tool call の有限上限を実装。
+- `de71ec3` `feat: add v2 recovery and protocol foundation`
+  - Task、Step、ModelRequest、ModelResponse、ToolCall、ToolResult 等の provider-neutral protocol を追加。
+  - protocol validation / serialization tests を追加。
+  - 独立 Recovery の bootstrap、diagnose、state validation skeleton を追加。
+- `8624638` `docs: establish v2 phase 0 baseline`
+  - `spec/v2/` の requirements、behavior、data、API、implementation、test spec を追加。
+  - invariants、traceability、migration matrix、ADR-001〜010 を追加。
+  - `docs/V2_DEPENDENCIES.md`、`docs/V2_EXECUTION_PLAN.md`、pytest 起動設定を追加。
+  - v1 を移植元ではなく failure fixture / concept archive として扱う方針を明文化。
+
+### v2 の既知の未達・保留
+
+- Gemini は現在のキーでモデル一覧・最小生成が HTTP 403。Google 側の API 有効化、プロジェクト、キー制限、モデル利用権限の確認が必要。
+- 認証済み Provider の live contract 完走、Provider failover、quota / budget、Recovery の Git health / rollback / repair drill は未完了。
+- 残りの crash boundary（pre-model、model response event 等）の追加試験が必要。
+- Controller-facing の approval-wait / approval-resume 公開 API は未実装。
+- qwen3 のような reasoning model について、visible response quality を含むモデル適格性 Gate が必要。
+- Phase 6（resource / survival / external rescue）は、上記 Gate 完了まで開始しない。
+
+## v1 保全履歴
+
+`legacy/v1-final` / `main` は `4dfc3b2` を保全基準とする。v1 の過去コミットは移植対象ではなく、実障害・設計判断・回帰 fixture の資料として保持する。
+
+主な v1 履歴:
+
+- `d5854b0`〜`cf0a39c`: 初期構築、ローカル除外、事前準備、初版。
+- `567b55c`、`5d930d4`、`6df4fce`: メモリ保存、内部エラー自己改善、再帰処理基盤。
+- `7388ed2`: Gemini チャットモードと履歴仕様。
+- `9c795a7`〜`257bf02`: 依存整理、関数呼出し組込、main2 統合、冗長処理整理。
+- `a10cb7f`: ファイル整理と Archive への隔離。
+- `268c8af`: 関数処理の改善とセキュアな権限チェック。
+- `1ed9dbe`: 再帰テスト済みの状態。
+- `424aebe`: OpenInterpreter 検討時の構成ファイル準備。
+- `ebfefad`: 再帰・内部対話の設計と実装。
+- `bdd73f9`: v1 全体調整。
+- `4dfc3b2`: v1 保全対象の最終 baseline。
+
+## 変更記録の読み方
+
+- コミット済みの実装・テスト結果と、外部設定待ちの未達を分離して記載する。
+- 「確認済み」は実行したテストまたは実機プローブの結果を指し、fixture のみの確認は実通信成功とは扱わない。
+- API キー、個人情報、秘密値はこのファイルへ記録しない。
