@@ -9,7 +9,7 @@ import sqlite3
 import sys
 
 
-REQUIRED_TABLES = frozenset({"tasks", "steps", "tool_results", "events", "checkpoints", "idempotency"})
+REQUIRED_TABLES = frozenset({"tasks", "steps", "tool_results", "events", "checkpoints", "idempotency", "approvals"})
 
 
 def validate_sqlite_state(path: str | Path) -> tuple[bool, str]:
@@ -28,6 +28,13 @@ def validate_sqlite_state(path: str | Path) -> tuple[bool, str]:
             value = json.loads(payload)
             if not isinstance(value, dict) or value.get("task_id") != task_id or "status" not in value:
                 return False, f"invalid task payload: {task_id}"
+        approval_columns = {row[1] for row in connection.execute("PRAGMA table_info(approvals)")}
+        required_approval_columns = {"approval_id", "task_id", "side_effect_level", "actor"}
+        if not required_approval_columns <= approval_columns:
+            return False, "invalid approvals schema"
+        for approval_id, task_id, level, actor in connection.execute("SELECT approval_id, task_id, side_effect_level, actor FROM approvals"):
+            if not all(isinstance(value, str) and value.strip() for value in (approval_id, task_id, level, actor)):
+                return False, f"invalid approval record: {approval_id}"
         return True, "SQLite state schema and task payloads are readable"
     except (sqlite3.Error, json.JSONDecodeError) as exc:
         return False, f"cannot validate SQLite state: {exc}"

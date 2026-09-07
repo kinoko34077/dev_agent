@@ -17,3 +17,23 @@ def test_recovery_rejects_non_database(tmp_path):
     ok, message = validate_sqlite_state(invalid)
     assert not ok
     assert "SQLite" in message or "validate" in message
+
+
+def test_recovery_rejects_state_without_approval_table(tmp_path):
+    database = tmp_path / "missing-approvals.sqlite3"
+    with SQLiteStateStore(database) as store:
+        store.connection.execute("DROP TABLE approvals")
+        store.connection.commit()
+    ok, message = validate_sqlite_state(database)
+    assert not ok
+    assert "approvals" in message
+
+
+def test_recovery_rejects_malformed_approval_record(tmp_path):
+    database = tmp_path / "bad-approval.sqlite3"
+    with SQLiteStateStore(database) as store:
+        store.connection.execute("INSERT INTO approvals VALUES ('approval-1', 'task-1', 'financial', '')")
+        store.connection.commit()
+    ok, message = validate_sqlite_state(database)
+    assert not ok
+    assert "approval" in message
