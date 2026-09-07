@@ -80,6 +80,8 @@ Phase 1〜2 の追加 Gate:
 - [x] canonical path、workspace 外逸脱、symlink 先の deny-by-default policy。
 - [x] SQLite idempotency key による副作用の重複防止。
 
+検証留保: 現在の Windows 環境では symlink 作成権限がなく、symlink 実体を使うテストは skip された。canonical `resolve(strict=False)` による実装は済んでいるが、Promotion Gate 前に symlink を作成できる環境で再実行する。
+
 ## 5. alpha0 の最小スコープ
 
 alpha0 は「賢い Agent」ではない。決定的な Controller が、FakeProvider から返る一つの ToolCall を安全に処理できることを示す。
