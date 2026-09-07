@@ -35,11 +35,11 @@ v1 は移植元ではなく、知見・ログ・失敗の回帰資料である�
 
 ### 現在フェーズ
 
-**Phase 3 — Task・Policy・永続化（未着手）**
+**Phase 4 — ローカル実行基盤（未着手）**
 
-Phase 0〜2 は完了。次の作業: SQLite StateStore、Task Graph の cycle / depth / child 制限、正規化パスと capability policy、approval、idempotency を実装する。
+Phase 0〜3 は完了。次の作業: Local Provider adapter、provider contract harness、v1 ログ / 入出力 fixture の replay 整備に進む。
 
-進行判定: 強制終了後 resume、cycle / traversal / symlink / 無許可操作 / 重複副作用を試験で防止できること。
+進行判定: クラウドなしで代表タスクが完了し、v1 の既知 failure input が Kernel を落とさないこと。
 
 ## 3. フェーズ別ロードマップ
 
@@ -48,7 +48,8 @@ Phase 0〜2 は完了。次の作業: SQLite StateStore、Task Graph の cycle /
 | 0. Baseline・仕様基盤 | `legacy/v1-final`、`v2/bootstrap`、v1 資産棚卸し、`spec/v2/`、追跡表、ADR-001〜010 | baseline を再現でき、v2 の不変条件・最初の受入試験・保留事項が文書化済み | 完了 |
 | 1. Recovery / Protocol | 独立 Recovery skeleton、Task / Step / ModelRequest / ModelResponse / ToolCall / ToolResult の型と直列化 | Provider 非依存の型検証・直列化・診断 CLI がネットワークなしで通る | 完了 |
 | 2. 最小決定的 Kernel | FakeProvider、単一 Task の反復 Controller、イベント / checkpoint、無害な Tool registry | Model request → ToolCall → ToolResult → final response → completed が全履歴付きで通る。上限超過と不正応答が定義済み失敗になる | 完了（`v2-kernel-alpha0` 相当） |
-| 3. Task・Policy・永続化 | Task Graph、DAG/cycle/depth 制限、SQLite resume、正規化パス、権限 / approval、idempotency | 強制終了後 resume、cycle / traversal / symlink / 無許可操作 / 重複副作用を試験で防止できる | 次 |
+| 3. Task・Policy・永続化 | Task Graph、DAG/cycle/depth 制限、SQLite resume、正規化パス、権限 / approval、idempotency | 強制終了後 resume、cycle / traversal / symlink / 無許可操作 / 重複副作用を試験で防止できる | 完了（alpha1 前半） |
+| 4. ローカル実行基盤 | Local Provider adapter、provider contract harness、v1 ログ / 入出力 fixture の整備 | クラウドなしで代表タスクが完了し、v1 の既知 failure input が Kernel を落とさない | 次 |
 | 4. ローカル実行基盤 | Local Provider adapter、provider contract harness、v1 ログ / 入出力 fixture の整備 | クラウドなしで代表タスクが完了し、v1 の既知 failure input が Kernel を落とさない | `v2-kernel-alpha1` |
 | 5. Provider 多重化 | Gemini adapter、新しい独立 Provider、ライブ Contract Probe、capability matrix | Provider の追加で Core を変更せず、停止した Provider から有効な代替へ切替できる | `v2-provider-alpha` |
 | 6. 資源・生存・外部復旧 | 資源 ledger、budget governor、NORMAL / CONSERVE / SURVIVAL、Rescue CLI / MCP、復旧 drill | 支払上限を呼出前に遮断し、通常 router を壊しても外部 Agent が診断・修復できる | `v2-survival-alpha` |
@@ -74,6 +75,10 @@ Phase 1〜2 の追加 Gate:
 - [x] FakeProvider の ToolCall → ToolResult → final response 成功経路。
 - [x] `max_steps` / `max_model_calls` / `max_tool_calls` の有限停止。
 - [x] Tool registry 経由の schema / enabled 検証と Event / checkpoint trace。
+- [x] SQLite の再オープン後に Task を読み込み、Controller を `resume()` できる。
+- [x] TaskGraph の depth / child 数 / cycle 検証。
+- [x] canonical path、workspace 外逸脱、symlink 先の deny-by-default policy。
+- [x] SQLite idempotency key による副作用の重複防止。
 
 ## 5. alpha0 の最小スコープ
 

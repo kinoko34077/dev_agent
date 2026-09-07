@@ -23,6 +23,15 @@ class Controller:
     def _event(self, task: Task, event_type: str, payload: dict, *, step_id: str | None = None, request_id: str | None = None) -> None:
         self.store.append_event(Event(event_type=event_type, task_id=task.task_id, step_id=step_id, request_id=request_id, provider=self.provider.provider_id, payload=payload))
 
+    def resume(self, task_id: str) -> Task:
+        """Load a non-terminal task from a durable store and continue it."""
+        task = self.store.load_task(task_id)
+        if task is None:
+            raise RuntimeFailure(f"task not found: {task_id}")
+        if task.status in {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED}:
+            return task
+        return self.run(task)
+
     def run(self, task: Task) -> Task:
         task.status = TaskStatus.RUNNING
         self.store.save_task(task)
