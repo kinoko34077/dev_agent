@@ -5,8 +5,10 @@ import pytest
 
 from src.dev_agent.domain.protocol import ModelRequest, ToolResult
 from src.dev_agent.providers.base import ProviderError
+from src.dev_agent.providers.gemini import GeminiHttpProvider
 from src.dev_agent.providers.gemini.decoder import decode_generate_content
 from src.dev_agent.providers.ollama.provider import OllamaProvider
+import src.dev_agent.providers.gemini.provider as gemini_provider_module
 
 
 def test_gemini_rest_function_call_fixture_decodes_to_normalized_tool_call():
@@ -29,6 +31,49 @@ def test_ollama_payload_preserves_normalized_tool_result_identity():
     tool_message = payload["messages"][-1]
     assert tool_message["tool_name"] == "echo"
     assert json.loads(tool_message["content"])["call_id"] == request.tool_results[0].call_id
+
+
+def test_gemini_http_provider_fails_closed_without_key(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    with pytest.raises(ProviderError, match="GEMINI_API_KEY is not configured"):
+        GeminiHttpProvider(model="gemini-test").request(ModelRequest(task_id=_id(), messages=[{"role": "user", "content": "x"}]))
+
+
+def test_gemini_http_payload_preserves_bound_and_tool_result_identity():
+    provider = GeminiHttpProvider(model="gemini-test", api_key="test-key")
+    request = ModelRequest(task_id=_id(), messages=[{"role": "user", "content": "x"}], max_output_tokens=7, tool_results=[ToolResult(call_id=_id(), tool_name="echo", structured_result={"value": "ok"})])
+    payload = provider._payload(request)
+    assert payload["generationConfig"]["maxOutputTokens"] == 7
+    function_response = payload["contents"][-1]["parts"][0]["functionResponse"]
+    assert function_response["name"] == "echo"
+    assert function_response["response"]["call_id"] == request.tool_results[0].call_id
+
+
+def test_gemini_http_provider_decodes_mocked_generate_content(monkeypatch):
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def read(self):
+            return b'{"candidates":[{"content":{"parts":[{"text":"ok"}]},"finishReason":"STOP"}]}'
+
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["body"] = json.loads(request.data)
+        captured["timeout"] = timeout
+        return Response()
+
+    monkeypatch.setattr(gemini_provider_module, "urlopen", fake_urlopen)
+    request = ModelRequest(task_id=_id(), messages=[{"role": "user", "content": "x"}], max_output_tokens=9)
+    response = GeminiHttpProvider(model="gemini-test", api_key="test-key").request(request)
+    assert response.text_segments == ["ok"]
+    assert captured["body"]["generationConfig"]["maxOutputTokens"] == 9
+    assert "key=test-key" in captured["url"]
 
 
 def _id():

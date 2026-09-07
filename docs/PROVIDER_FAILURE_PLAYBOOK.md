@@ -32,6 +32,8 @@ The adapter uses `POST /api/chat`, `stream: false`, and converts the response `m
 - Safe retry: provide the key through the environment only, run the probe against a selected model with the smallest bounded request, record model/version/time/result, and redact raw credentials from all events.
 - Until then, the Gemini adapter is verified against sanitized REST response fixtures only.
 
+The v2 `GeminiHttpProvider` now reads `GEMINI_API_KEY` from the process environment at request time, sends `generationConfig.maxOutputTokens`, and decodes the documented `generateContent` response. It fails closed when the variable is absent; a `.env` file is not loaded implicitly.
+
 ## Failure classification
 
 - Connection refused / DNS / timeout: `transport`.
