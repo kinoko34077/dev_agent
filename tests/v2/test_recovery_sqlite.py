@@ -37,3 +37,20 @@ def test_recovery_rejects_malformed_approval_record(tmp_path):
     ok, message = validate_sqlite_state(database)
     assert not ok
     assert "approval" in message
+
+
+def test_sqlite_store_records_schema_version(tmp_path):
+    database = tmp_path / "versioned.sqlite3"
+    with SQLiteStateStore(database) as store:
+        version = store.connection.execute("SELECT value FROM schema_meta WHERE key = 'schema_version'").fetchone()[0]
+    assert version == "2"
+
+
+def test_recovery_rejects_unsupported_schema_version(tmp_path):
+    database = tmp_path / "future.sqlite3"
+    with SQLiteStateStore(database) as store:
+        store.connection.execute("UPDATE schema_meta SET value = '99' WHERE key = 'schema_version'")
+        store.connection.commit()
+    ok, message = validate_sqlite_state(database)
+    assert not ok
+    assert "schema version" in message

@@ -9,7 +9,7 @@ import sqlite3
 import sys
 
 
-REQUIRED_TABLES = frozenset({"tasks", "steps", "tool_results", "events", "checkpoints", "idempotency", "approvals", "effect_intents"})
+REQUIRED_TABLES = frozenset({"tasks", "steps", "tool_results", "events", "checkpoints", "idempotency", "approvals", "effect_intents", "schema_meta"})
 
 
 def validate_sqlite_state(path: str | Path) -> tuple[bool, str]:
@@ -23,6 +23,9 @@ def validate_sqlite_state(path: str | Path) -> tuple[bool, str]:
         missing = sorted(REQUIRED_TABLES - tables)
         if missing:
             return False, f"missing tables: {', '.join(missing)}"
+        version_row = connection.execute("SELECT value FROM schema_meta WHERE key = 'schema_version'").fetchone()
+        if version_row is None or version_row[0] != "2":
+            return False, "unsupported or missing schema version"
         invalid = connection.execute("SELECT task_id, payload FROM tasks").fetchall()
         for task_id, payload in invalid:
             value = json.loads(payload)

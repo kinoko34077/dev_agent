@@ -1,6 +1,7 @@
 import pytest
+from time import sleep
 
-from src.dev_agent.domain.protocol import ModelResponse, Step, Task, TaskStatus, ToolCall
+from src.dev_agent.domain.protocol import ExecutionLimits, ModelResponse, Step, Task, TaskStatus, ToolCall
 from src.dev_agent.policy import PathPolicy
 from src.dev_agent.providers.base import ModelProvider
 from src.dev_agent.runtime import Controller, RuntimeFailure
@@ -185,6 +186,29 @@ def test_external_effect_pending_intent_blocks_unsafe_retry(tmp_path):
         result = ToolRuntime(registry).with_result_store(reopened).execute(call, task_id="11111111-1111-4111-8111-111111111111", approval_id="approval-1")
         assert result.error["category"] == "reconciliation_required"
     assert len(effects) == 1
+
+
+def test_tool_timeout_returns_timeout_without_waiting_for_handler(tmp_path):
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="slow", description="slow", side_effect_level="none", timeout_seconds=0.01, handler=lambda args: sleep(0.2) or {"ok": True}))
+    with SQLiteStateStore(tmp_path / "timeout.sqlite3") as store:
+        result = ToolRuntime(registry).with_result_store(store).execute(ToolCall(tool_name="slow"))
+    assert result.status.value == "timeout"
+    assert result.error["category"] == "timeout"
+
+
+def test_controller_enforces_whole_task_wall_clock_limit(tmp_path):
+    class SlowProvider(ModelProvider):
+        provider_id = "slow"
+
+        def request(self, request):
+            sleep(0.2)
+            return ModelResponse(provider="slow", model="test", text_segments=["late"])
+
+    task = Task(objective="deadline", limits=ExecutionLimits(max_wall_time_seconds=0.01, max_model_calls=1))
+    with SQLiteStateStore(tmp_path / "deadline.sqlite3") as store:
+        with pytest.raises(RuntimeFailure, match="timeout"):
+            Controller(SlowProvider(), ToolRuntime(ToolRegistry()), store).run(task)
 
 
 def test_resume_after_crash_between_multiple_side_effect_tools_runs_each_handler_once(tmp_path):

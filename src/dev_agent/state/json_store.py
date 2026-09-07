@@ -16,6 +16,7 @@ class JsonStateStore:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._data: dict[str, Any] = {
+            "schema_version": 2,
             "tasks": {},
             "steps": {},
             "tool_results": {},
@@ -35,6 +36,10 @@ class JsonStateStore:
             raise ValueError(f"state store cannot be read: {exc}") from exc
         if not isinstance(value, dict):
             raise ValueError("state store root must be an object")
+        version = value.get("schema_version", 1)
+        if not isinstance(version, int) or version > 2:
+            raise ValueError(f"unsupported state schema version: {version}")
+        self._data["schema_version"] = 2
         for key in self._data:
             if key in value:
                 self._data[key] = value[key]

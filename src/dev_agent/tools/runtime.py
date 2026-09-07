@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from ..domain.protocol import ToolCall, ToolResult, ToolResultStatus
 from ..policy.approvals import ApprovalPolicy
 from ..policy.permissions import PathPolicy
@@ -63,7 +64,15 @@ class ToolRuntime:
                 if self.paths is None or not spec.path_operation or spec.path_argument not in arguments:
                     return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.DENIED, error={"category": "policy_denied", "message": "path policy is required"})
                 arguments[spec.path_argument] = str(self.paths.require(arguments[spec.path_argument], spec.path_operation))
-            value = spec.handler(arguments)
+            executor = ThreadPoolExecutor(max_workers=1)
+            future = executor.submit(spec.handler, arguments)
+            try:
+                value = future.result(timeout=spec.timeout_seconds)
+            except FutureTimeoutError:
+                future.cancel()
+                return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.TIMEOUT, error={"category": "timeout", "message": "tool execution timed out"})
+            finally:
+                executor.shutdown(wait=False, cancel_futures=True)
             if not isinstance(value, dict):
                 raise TypeError("tool handler must return a dict")
             result = ToolResult(call_id=call.call_id, tool_name=call.tool_name, structured_result=value)

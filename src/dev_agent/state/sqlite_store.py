@@ -11,6 +11,8 @@ from ..domain.protocol import Event, Step, Task, ToolResult
 
 
 class SQLiteStateStore:
+    SCHEMA_VERSION = 2
+
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -26,11 +28,18 @@ class SQLiteStateStore:
             CREATE TABLE IF NOT EXISTS idempotency (idempotency_key TEXT PRIMARY KEY, result_payload TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS approvals (approval_id TEXT PRIMARY KEY, task_id TEXT NOT NULL, side_effect_level TEXT NOT NULL, actor TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS effect_intents (idempotency_key TEXT PRIMARY KEY, task_id TEXT NOT NULL, tool_name TEXT NOT NULL, arguments_payload TEXT NOT NULL, status TEXT NOT NULL, result_payload TEXT);
+            CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             """
         )
         columns = {row[1] for row in self.connection.execute("PRAGMA table_info(checkpoints)")}
         if "state_payload" not in columns:
             self.connection.execute("ALTER TABLE checkpoints ADD COLUMN state_payload TEXT NOT NULL DEFAULT '{}'")
+        self.connection.execute("INSERT OR IGNORE INTO schema_meta(key, value) VALUES ('schema_version', '2')")
+        current = int(self.connection.execute("SELECT value FROM schema_meta WHERE key = 'schema_version'").fetchone()[0])
+        if current > self.SCHEMA_VERSION:
+            raise ValueError(f"unsupported state schema version: {current}")
+        if current < self.SCHEMA_VERSION:
+            self.connection.execute("UPDATE schema_meta SET value = ? WHERE key = 'schema_version'", (str(self.SCHEMA_VERSION),))
         self.connection.commit()
 
     def close(self) -> None:
