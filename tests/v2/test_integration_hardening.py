@@ -261,6 +261,17 @@ def test_resume_after_crash_between_multiple_side_effect_tools_runs_each_handler
     assert {item.call_id for item in provider.requests[1].tool_results} == {call.call_id for call in calls}
 
 
+def test_controller_replaces_provider_idempotency_hint_with_kernel_operation_key(tmp_path):
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="write", description="write", side_effect_level="local_write", handler=lambda args: {"ok": True}))
+    provider = SingleCallProvider(ToolCall(tool_name="write", arguments={"value": "x"}, idempotency_key="model-chosen"))
+    task = Task(objective="kernel operation")
+    step = Step(task_id=task.task_id, order=0, kind="model")
+    key = Controller._kernel_operation_key(task, step, provider.call, 0)
+    assert key.startswith(f"op:{task.task_id}:0:0:")
+    assert key != "model-chosen"
+
+
 @pytest.mark.parametrize("phase", ["after_model", "failure"])
 def test_resume_does_not_repeat_terminal_transition_after_checkpoint_crash(tmp_path, phase):
     path = tmp_path / f"{phase}.sqlite3"

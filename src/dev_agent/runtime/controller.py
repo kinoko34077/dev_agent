@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+import hashlib
+import json
 from time import monotonic
 from typing import Any
 
@@ -27,6 +29,12 @@ class Controller:
 
     def _checkpoint(self, task: Task, step: Step, phase: str, state: dict[str, Any]) -> None:
         self.store.checkpoint(task_id=task.task_id, step_id=step.step_id, phase=phase, state=state)
+
+    @staticmethod
+    def _kernel_operation_key(task: Task, step: Step, call: ToolCall, index: int) -> str:
+        canonical = json.dumps({"tool_name": call.tool_name, "arguments": call.arguments}, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:24]
+        return f"op:{task.task_id}:{step.order}:{index}:{digest}"
 
     def _fail(self, task: Task, state: dict[str, Any], category: str, message: str, *, step: Step | None = None, request_id: str | None = None) -> None:
         if step is not None:
@@ -129,7 +137,12 @@ class Controller:
                 state["tool_calls"] += len(response.tool_calls)
                 if state["tool_calls"] > task.limits.max_tool_calls:
                     self._fail(task, state, "limits_exceeded", "tool call limit exceeded", step=step, request_id=request.request_id)
-                state["pending_tool_calls"] = [call.to_dict() for call in response.tool_calls]
+                state["pending_tool_calls"] = []
+                for index, call in enumerate(response.tool_calls):
+                    # Provider/LLM supplied replay keys are hints only.  The
+                    # Kernel owns operation identity after validation.
+                    call.idempotency_key = self._kernel_operation_key(task, step, call, index)
+                    state["pending_tool_calls"].append(call.to_dict())
                 self._checkpoint(task, step, "pending_tools", state)
                 continue
             step.status = StepStatus.COMPLETED
