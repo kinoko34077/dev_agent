@@ -14,11 +14,12 @@ Status: in progress. This gate precedes Phase 6.
 - Tools that declare a path capability use `PathPolicy` before their handler runs.
 - Terminal failures use one Controller transition that persists the Step (when present), checkpoint, Task, and `task.failed` event.
 - A crash-injection integration test interrupts immediately after the first durable result of two side-effecting ToolCalls; resume executes each handler exactly once and forwards both normalized results to the following model request.
+- Crash-injection tests cover terminal `after_model` and `failure` checkpoints; resume finalizes the persisted terminal transition without repeating the provider call.
 - The Ollama adapter is exercised against the local `/api/chat` endpoint and maps `max_output_tokens` to the provider runtime output bound (`options.num_predict`).
 
 ## Still required before Phase 6
 
-- Crash injection at the remaining persistence boundaries (before/after model response and failure transitions).
+- Crash injection at the remaining pre-model and model-response event boundaries.
 - Controller-facing approval IDs and human actor records need a dedicated approval-wait/resume API; the low-level boolean compatibility path remains only in `ApprovalPolicy` tests.
 - Local-model qualification that verifies visible response quality as well as the hard output bound; the installed `qwen3:0.6b` failed this narrow probe because it spent the small output budget on a thinking trace.
 - Real Gemini / independent Provider response decoding and live contract probes.

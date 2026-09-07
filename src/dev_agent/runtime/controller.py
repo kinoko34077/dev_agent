@@ -47,6 +47,14 @@ class Controller:
         if task.status in {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED}:
             return task
         checkpoint = self.store.load_latest_checkpoint(task_id)
+        if checkpoint and checkpoint["phase"] == "after_model":
+            task.status = TaskStatus.COMPLETED
+            self.store.save_task(task)
+            return task
+        if checkpoint and checkpoint["phase"] == "failure":
+            task.status = TaskStatus.FAILED
+            self.store.save_task(task)
+            return task
         return self.run(task, state=checkpoint["state"] if checkpoint else None)
 
     def _execute_pending(self, task: Task, state: dict[str, Any]) -> None:

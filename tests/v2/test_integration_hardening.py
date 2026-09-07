@@ -57,6 +57,19 @@ class CrashAfterFirstToolCheckpointStore(SQLiteStateStore):
             raise SystemExit("simulated process death")
 
 
+class CrashAtCheckpointStore(SQLiteStateStore):
+    def __init__(self, path, phase):
+        super().__init__(path)
+        self.phase = phase
+        self.crashed = False
+
+    def checkpoint(self, **kwargs):
+        super().checkpoint(**kwargs)
+        if kwargs["phase"] == self.phase and not self.crashed:
+            self.crashed = True
+            raise SystemExit(f"simulated process death at {self.phase}")
+
+
 def test_resume_executes_checkpointed_pending_tool_once_and_preserves_tool_identity(tmp_path):
     path = tmp_path / "runtime.sqlite3"
     task = Task(objective="resume after tool")
@@ -144,3 +157,29 @@ def test_resume_after_crash_between_multiple_side_effect_tools_runs_each_handler
     assert effects == [1, 2]
     assert len(provider.requests) == 2
     assert {item.call_id for item in provider.requests[1].tool_results} == {call.call_id for call in calls}
+
+
+@pytest.mark.parametrize("phase", ["after_model", "failure"])
+def test_resume_does_not_repeat_terminal_transition_after_checkpoint_crash(tmp_path, phase):
+    path = tmp_path / f"{phase}.sqlite3"
+    task = Task(objective=f"crash {phase}")
+    provider = FinalProvider() if phase == "after_model" else FailingProvider()
+    with CrashAtCheckpointStore(path, phase) as store:
+        with pytest.raises((SystemExit, RuntimeFailure)):
+            Controller(provider, ToolRuntime(ToolRegistry()), store).run(task)
+    with SQLiteStateStore(path) as reopened:
+        resumed = Controller(provider, ToolRuntime(ToolRegistry()), reopened).resume(task.task_id)
+    expected = TaskStatus.COMPLETED if phase == "after_model" else TaskStatus.FAILED
+    assert resumed.status == expected
+    assert len(provider.requests) <= 1
+
+
+class FailingProvider(ModelProvider):
+    provider_id = "failing"
+
+    def __init__(self):
+        self.requests = []
+
+    def request(self, request):
+        self.requests.append(request)
+        raise RuntimeError("provider unavailable")

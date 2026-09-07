@@ -87,7 +87,7 @@ Phase 4〜5 の追加 Gate:
 - [x] Gemini transport shell と独立 OpenAI-compatible shell が同じ Core protocol を返す。
 - [ ] 認証済み実 Provider の live Contract Probe と capability matrix（endpoint / credential 準備後）。
 
-検証留保: 現在の Windows 環境では symlink 作成権限がなく、symlink 実体を使うテストは skip された。canonical `resolve(strict=False)` による実装と、解決先が workspace 外になる仮想パス試験は確認済み。Promotion Gate 前に実 symlink を作成できる環境でも再実行する。
+検証済み: Windows の symlink 作成権限を有効化した環境で、実 symlink の workspace 外逸脱拒否テストが `passed` になった。権限のない環境では同じテストが安全に skip されるため、Promotion Gate では権限付き実行結果を証跡として要求する。
 
 ## 5. alpha0 の最小スコープ
 
