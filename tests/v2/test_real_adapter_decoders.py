@@ -74,7 +74,8 @@ def test_gemini_http_provider_decodes_mocked_generate_content(monkeypatch):
     response = GeminiHttpProvider(model="gemini-test", api_key="test-key").request(request)
     assert response.text_segments == ["ok"]
     assert captured["body"]["generationConfig"]["maxOutputTokens"] == 9
-    assert "key=test-key" in captured["url"]
+    assert "key=" not in captured["url"]
+    assert captured["timeout"] == 30.0
 
 
 @pytest.mark.parametrize(

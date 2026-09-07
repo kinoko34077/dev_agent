@@ -64,9 +64,9 @@ class GeminiHttpProvider(ModelProvider):
 
     def request(self, request: ModelRequest) -> ModelResponse:
         key = self._key()
-        url = f"{self.base_url}/models/{quote(self.model, safe='')}:generateContent?key={quote(key, safe='')}"
+        url = f"{self.base_url}/models/{quote(self.model, safe='')}:generateContent"
         body = json.dumps(self._payload(request), ensure_ascii=False).encode("utf-8")
-        http_request = Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
+        http_request = Request(url, data=body, headers={"Content-Type": "application/json", "x-goog-api-key": key}, method="POST")
         try:
             with urlopen(http_request, timeout=self.timeout_seconds) as response:
                 raw = json.loads(response.read().decode("utf-8"))

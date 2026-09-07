@@ -32,7 +32,7 @@ The adapter uses `POST /api/chat`, `stream: false`, and converts the response `m
 - Safe retry: provide the key through the environment only, run the probe against a selected model with the smallest bounded request, record model/version/time/result, and redact raw credentials from all events.
 - Until then, the Gemini adapter is verified against sanitized REST response fixtures only.
 
-The v2 `GeminiHttpProvider` now reads `GEMINI_API_KEY` from the process environment at request time, sends `generationConfig.maxOutputTokens`, and decodes the documented `generateContent` response. It fails closed when the variable is absent; a `.env` file is not loaded implicitly.
+The v2 `GeminiHttpProvider` now reads `GEMINI_API_KEY` from the process environment at request time, sends it via the documented `x-goog-api-key` header, sends `generationConfig.maxOutputTokens`, and decodes the documented `generateContent` response. It fails closed when the variable is absent; a `.env` file is not loaded implicitly.
 
 ### Gemini live probe — network reached, HTTP 403
 
@@ -40,6 +40,7 @@ The v2 `GeminiHttpProvider` now reads `GEMINI_API_KEY` from the process environm
 - Meaning: this is no longer a local transport failure. The key may be invalid, restricted from the Generative Language API, attached to a project where the API is disabled, or not permitted to use the selected model.
 - Safe remedy: in Google AI Studio / Cloud, verify the key belongs to the intended project, enable the Generative Language API, review application/API restrictions, and confirm the model is available to that key. Then repeat the same minimal probe; never paste the key into source, chat, or logs.
 - Current gate: live Gemini completion remains unverified until that probe returns a normalized text response and bounded usage. The adapter correctly classifies 401/403 as `authentication` and does not retry automatically.
+- Follow-up: switching from URL query authentication to the official `x-goog-api-key` header still returned HTTP 403 for both the model-list request and the minimal completion. This rules out the original query-vs-header choice as the sole cause; credential/project restrictions remain the active blocker.
 
 ## Failure classification
 
