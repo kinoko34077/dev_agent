@@ -1,5 +1,8 @@
 import pytest
 from time import sleep
+import os
+import subprocess
+import sys
 
 from src.dev_agent.domain.protocol import ExecutionLimits, ModelResponse, Step, Task, TaskStatus, ToolCall
 from src.dev_agent.policy import PathPolicy
@@ -209,6 +212,31 @@ def test_controller_enforces_whole_task_wall_clock_limit(tmp_path):
     with SQLiteStateStore(tmp_path / "deadline.sqlite3") as store:
         with pytest.raises(RuntimeFailure, match="timeout"):
             Controller(SlowProvider(), ToolRuntime(ToolRegistry()), store).run(task)
+
+
+def test_real_subprocess_death_resumes_pending_tool_without_duplicate_handler(tmp_path):
+    database = tmp_path / "process.sqlite3"
+    marker = tmp_path / "effects.log"
+    environment = dict(os.environ)
+    environment["PYTHONPATH"] = str(__import__("pathlib").Path.cwd())
+    worker = str(__import__("pathlib").Path.cwd() / "tests" / "v2" / "process_crash_worker.py")
+    completed = subprocess.run([sys.executable, worker, str(database), str(marker)], env=environment, timeout=20)
+    assert completed.returncode == 17
+    registry = ToolRegistry()
+    effects = []
+    registry.register(ToolSpec(name="write", description="write", side_effect_level="local_write", handler=lambda args: effects.append(args["ordinal"]) or {"ordinal": args["ordinal"]}))
+    class FinalProvider(ModelProvider):
+        provider_id = "process-crash"
+
+        def request(self, request):
+            return ModelResponse(provider=self.provider_id, model="test", text_segments=["done"])
+
+    with SQLiteStateStore(database) as store:
+        task_id = next(iter(store.snapshot()["tasks"]))
+        task = Controller(FinalProvider(), ToolRuntime(registry), store).resume(task_id)
+    assert task.status == TaskStatus.COMPLETED
+    assert effects == [2]
+    assert marker.read_text(encoding="utf-8").splitlines() == ["1"]
 
 
 def test_resume_after_crash_between_multiple_side_effect_tools_runs_each_handler_once(tmp_path):
