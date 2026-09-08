@@ -4,6 +4,7 @@ import pytest
 
 from recovery.phase6_recovery import RecoveryOperator
 from recovery.validate_resources import validate_resource_ledger
+from src.dev_agent.resources.budget import BudgetGovernor, BudgetPolicy
 from src.dev_agent.resources.ledger import ResourceLedger
 
 
@@ -41,6 +42,22 @@ def test_recovery_rejects_orphan_native_resource_reservation(tmp_path):
     ledger.connection.execute(
         "INSERT INTO resource_reservations(reservation_id, resource_id, native_units, status) VALUES ('orphan', 'local', 1, 'reserved')"
     )
+    ledger.connection.commit()
+
+    ok, detail = validate_resource_ledger(ledger_path)
+
+    assert not ok
+    assert "resource reservation" in detail
+
+
+def test_recovery_rejects_budget_native_reservation_status_mismatch(tmp_path):
+    ledger_path = tmp_path / "resources.sqlite3"
+    ledger = ResourceLedger(ledger_path)
+    ledger.configure_budget(hard_cap_minor=100, recovery_reserve_minor=20, currency="JPY")
+    ledger.register_resource("paid", provider_id="remote", native_unit="request", capacity=1, capabilities=["text"], cost_minor=10)
+    ledger.observe("paid", available=1, health="healthy")
+    reservation = BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20)).reserve("task", "paid", estimated_cost_minor=10)
+    ledger.connection.execute("UPDATE resource_reservations SET status='released' WHERE reservation_id=?", (reservation.reservation_id,))
     ledger.connection.commit()
 
     ok, detail = validate_resource_ledger(ledger_path)
