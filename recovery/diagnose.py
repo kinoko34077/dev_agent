@@ -12,9 +12,11 @@ import sys
 try:
     from .test_results import validate_junit_report
     from .validate_artifacts import validate_artifact_root
+    from .validate_resources import validate_resource_ledger
 except ImportError:  # direct ``python recovery/diagnose.py`` execution
     from test_results import validate_junit_report
     from validate_artifacts import validate_artifact_root
+    from validate_resources import validate_resource_ledger
 
 
 @dataclass(frozen=True)
@@ -62,7 +64,7 @@ def _git_health(root: Path) -> Diagnostic:
         return Diagnostic("git_health", False, f"git health check unavailable: {exc}")
 
 
-def run_diagnostics(root: str | Path, *, test_report: str | Path | None = None, artifact_root: str | Path | None = None) -> list[Diagnostic]:
+def run_diagnostics(root: str | Path, *, test_report: str | Path | None = None, artifact_root: str | Path | None = None, resource_ledger: str | Path | None = None) -> list[Diagnostic]:
     """Inspect repository prerequisites without network or provider access."""
     path = Path(root).expanduser().resolve()
     checks = (
@@ -82,6 +84,9 @@ def run_diagnostics(root: str | Path, *, test_report: str | Path | None = None, 
     if artifact_root is not None:
         ok, detail = validate_artifact_root(artifact_root)
         diagnostics.append(Diagnostic("event_artifact_root", ok, detail))
+    if resource_ledger is not None:
+        ok, detail = validate_resource_ledger(resource_ledger)
+        diagnostics.append(Diagnostic("resource_ledger", ok, detail))
     if path.is_dir() and (path / ".git").exists():
         diagnostics.append(_git_health(path))
     return diagnostics
@@ -92,9 +97,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent)
     parser.add_argument("--test-report", type=Path, help="validate a persisted JUnit XML report")
     parser.add_argument("--artifact-root", type=Path, help="validate an event artifact root")
+    parser.add_argument("--resource-ledger", type=Path, help="validate the Phase 6 resource ledger")
     parser.add_argument("--json", action="store_true", dest="as_json")
     args = parser.parse_args(argv)
-    diagnostics = run_diagnostics(args.root, test_report=args.test_report, artifact_root=args.artifact_root)
+    diagnostics = run_diagnostics(args.root, test_report=args.test_report, artifact_root=args.artifact_root, resource_ledger=args.resource_ledger)
     if args.as_json:
         print(json.dumps([asdict(item) for item in diagnostics], ensure_ascii=False, indent=2))
     else:

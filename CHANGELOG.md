@@ -6,15 +6,17 @@
 
 ### 現在の到達点（2026-09-08 JST）
 
-- v2 の全テストが `116 passed`（2026-09-08 JST のローカル実行）。
+- Phase 6A〜6Eを実装。Native-unit Resource Ledger、fail-closed Budget Governor、privacy-first Router、NORMAL / CONSERVE / SURVIVAL、独立Recovery Operator、durable lease queue、Controller dispatch reservationを追加し、Stage Fへ証拠を登録した。
+
+- v2 の全テストが `131 passed`（2026-09-08 JST のローカル実行）。
 - 外部副作用の曖昧状態を `waiting_reconciliation` としてタスクに永続化し、照合確定後の再開を統合テストで検証（全64件）。
 - Windows の実 symlink を使った workspace 外逸脱拒否テストが `passed`。
-- Ollama のローカル `/api/chat` は現環境で接続拒否を確認し、実 Tool-call E2E は未達のまま Gate D23 に保留。
-- Gemini `gemini-2.5-flash` は実HTTPの text + model-generated ToolCall + ToolResult + final response を完走し、Phase 5の live capability matrix へ記録した。Ollama は現環境で接続拒否のため Phase 4 は未達。
+- Ollama `qwen3:8b` のローカル `/api/chat` とController Tool-call E2Eは検証済み。`qwen3:0.6b` の thinking traceは別の出力品質quirkとして保留。
+- Gemini `gemini-2.5-flash` は実HTTPの text + model-generated ToolCall + ToolResult + final response を完走し、Phase 5の live capability matrix へ記録した。Phase 4/5のcurrent acceptanceは完了。
 - `d660ec8` の GitHub Actions `v2-core` / `v2 tests` は exact-head check、pytest、JUnit artifact upload を含めて両方 `success`（run `34224800598` / `34224800634`）。
 - Ollama `qwen3:8b` の実Controller E2E（ToolCall、ToolResult、final response、task completion）を確認し、D23/D24を`VERIFIED`へ昇格。`<think>` traceは既知quirkとして記録。
 - A7/B14/C15/C18/C19は現行Phase 3.5 acceptanceをVERIFIEDへ再判定し、Phase 6/7の後段要件は`deferred_requirements`へ分離。Phase 6入口条件はcurrent gatesについて解禁した。
-- 今回の検証対象開始HEADは `7ebc3c7b99656adc6db8edd5395473a435c0eae9`。Gate evidence と計画checkboxはこの実HEADを基準に同期し、追加された `dev_agent_codex_4docs/` はユーザー提供資料として保持する。
+- Phase 3.5〜5の受入完了HEADは `ea575d8785f2dbbdc953a0e2b4d3ee021a83ea01`。追加された `dev_agent_codex_4docs/` はユーザー提供資料として保持し、Phase 6のcurrent evidenceはStage Fと `docs/PHASE6_PLAN.md`で管理する。
 
 ### 2026-09-08
 
@@ -142,7 +144,7 @@
 - 残りの crash boundary（pre-model、model response event 等）の追加試験が必要。
 - Controller-facing の approval-wait / approval-resume 公開 API は未実装。
 - qwen3 のような reasoning model について、visible response quality を含むモデル適格性 Gate が必要。
-- Phase 6（resource / survival / external rescue）は、上記 Gate 完了まで開始しない。
+- Phase 6A〜6Eは開始・実装済み。live rollback / repair drill、automatic retry policy、generated Tool lifecycleは明示的な後段要件。
 
 ## v1 保全履歴
 

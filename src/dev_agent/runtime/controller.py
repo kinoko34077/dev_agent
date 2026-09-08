@@ -56,11 +56,12 @@ class Controller:
         re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----"),
     )
 
-    def __init__(self, provider: ModelProvider, tools: ToolRuntime, store: StateStore, *, event_artifacts: EventArtifactStore | None = None) -> None:
+    def __init__(self, provider: ModelProvider, tools: ToolRuntime, store: StateStore, *, event_artifacts: EventArtifactStore | None = None, resource_policy: Any | None = None) -> None:
         self.provider = provider
         self.tools = tools.with_result_store(store)
         self.store = store
         self.event_artifacts = event_artifacts
+        self.resource_policy = resource_policy
         self._cancellation_events: dict[str, Event] = {}
         self._cancellation_reasons: dict[str, str] = {}
         self._active_tasks: set[str] = set()
@@ -182,6 +183,13 @@ class Controller:
             step_id=step.step_id,
         )
         self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "waiting_reconciliation", state), events=[event])
+
+    def _block_budget(self, task: Task, state: dict[str, Any], *, step: Step, message: str) -> None:
+        step.status = StepStatus.WAITING
+        state["active_step"] = step.to_dict()
+        task.status = TaskStatus.BLOCKED_BUDGET
+        event = self._event_record(task, "task.blocked_budget", {"category": "budget", "message": message}, step_id=step.step_id)
+        self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "blocked_budget", state), events=[event])
 
     @staticmethod
     def _initial_state(task: Task) -> dict[str, Any]:
@@ -401,22 +409,45 @@ class Controller:
                 state["model_calls"] += 1
                 request_event = self._event_record(task, "model.requested", {"request": request.to_dict()}, step_id=step.step_id, request_id=request.request_id)
                 self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "before_model", state), events=[request_event])
+                reservation = None
+                if self.resource_policy is not None:
+                    try:
+                        reservation = self.resource_policy.reserve_for_provider(task.task_id, self.provider.provider_id, request)
+                    except Exception as exc:
+                        self._block_budget(task, state, step=step, message=str(exc))
+                        return task
                 try:
                     response = self._provider_request(request, state["deadline_epoch"], cancel_event)
                     if not isinstance(response, ModelResponse):
                         raise TypeError("provider must return ModelResponse")
                 except _ProviderCancelled as exc:
+                    if reservation is not None:
+                        if exc.unable_to_confirm:
+                            self.resource_policy.uncertain(reservation)
+                        else:
+                            self.resource_policy.release(reservation)
                     if exc.unable_to_confirm:
                         self._cancel_unable_to_confirm(task, state, step=step, message="provider request cancellation could not be confirmed")
                     else:
                         self._cancel(task, state, step=step, message="provider request was cancelled")
                     return task
                 except FutureTimeoutError:
+                    if reservation is not None:
+                        self.resource_policy.uncertain(reservation)
                     self._fail(task, state, "timeout", "model request timed out", step=step, request_id=request.request_id)
                 except ProviderError as exc:
+                    if reservation is not None:
+                        self.resource_policy.release(reservation)
                     self._fail(task, state, exc.category, str(exc), step=step, request_id=request.request_id)
                 except Exception as exc:
+                    if reservation is not None:
+                        self.resource_policy.release(reservation)
                     self._fail(task, state, "provider_decode", str(exc), step=step, request_id=request.request_id)
+                if reservation is not None:
+                    try:
+                        self.resource_policy.reconcile_response(reservation, response)
+                    except Exception as exc:
+                        self._fail(task, state, "budget_reconciliation", str(exc), step=step, request_id=request.request_id)
                 if cancel_event.is_set():
                     self._cancel(task, state, step=step, message="provider request completed after cancellation")
                     return task
