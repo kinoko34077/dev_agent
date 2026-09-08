@@ -4,9 +4,12 @@ import subprocess
 
 from recovery.diagnose import run_diagnostics
 from recovery.git_recovery import inspect_git, load_last_known_good, plan_rollback, record_last_known_good, rollback_to_last_known_good, create_repair_branch
+from recovery.phase6_recovery import RecoveryOperator
 from recovery.test_results import parse_junit_report, validate_junit_report
 from recovery.validate_state import validate_state
 import pytest
+from src.dev_agent.domain.protocol import Task
+from src.dev_agent.state.sqlite_store import SQLiteStateStore
 
 
 def test_recovery_diagnostics_are_read_only_and_network_free():
@@ -111,3 +114,40 @@ def test_git_recovery_refuses_dirty_reset_then_applies_explicit_opt_in(tmp_path)
     assert not restored.dirty
     assert tracked.read_text(encoding="utf-8") == "first\n"
     assert create_repair_branch(root, metadata, "repair/from-lkg", allow_write=True) == "repair/from-lkg"
+
+
+def test_phase6_recovery_operator_drill_runs_restore_lkg_rollback_and_repair(tmp_path):
+    repo = tmp_path / "drill-repo"
+    repo.mkdir()
+
+    def git(*args):
+        return subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True, check=True).stdout.strip()
+
+    git("init")
+    git("config", "user.email", "drill@example.invalid")
+    git("config", "user.name", "Recovery Drill")
+    tracked = repo / "tracked.txt"
+    tracked.write_text("known-good\n", encoding="utf-8")
+    git("add", "tracked.txt")
+    git("commit", "-m", "known good")
+    first = git("rev-parse", "HEAD")
+    tracked.write_text("current\n", encoding="utf-8")
+    git("add", "tracked.txt")
+    git("commit", "-m", "current")
+
+    source = tmp_path / "runtime.sqlite3"
+    restored = tmp_path / "restored.sqlite3"
+    with SQLiteStateStore(source) as store:
+        store.save_task(Task(objective="recovery drill"))
+    operator = RecoveryOperator(repo)
+    assert operator.restore_state(source, restored, allow_write=True).is_file()
+    assert operator.validate_state(restored)[0]
+
+    metadata = tmp_path / "last-known-good.json"
+    operator.record_lkg(metadata, commit=first, require_clean=True, test_report="drill-junit.xml")
+    plan = operator.rollback_plan(metadata)
+    assert plan.target_commit == first
+    rolled_back = rollback_to_last_known_good(repo, metadata, allow_destructive=True)
+    assert rolled_back.commit == first
+    assert operator.create_repair_branch(metadata, "repair/drill", allow_write=True) == "repair/drill"
+    assert (tmp_path / "last-known-good.json").is_file()

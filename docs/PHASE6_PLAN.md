@@ -19,6 +19,10 @@ Implemented in `src/dev_agent/resources/ledger.py` and `budget.py`.
 - Unknown price fails closed.
 - Provider timeout/cancellation ambiguity keeps a reservation in `unknown`
   until reconciliation.
+- Budget policy is configured only through the explicit `BudgetAuthority`; the
+  runtime `BudgetGovernor` reads persisted policy and cannot raise the hard cap.
+- Reservation state is durable as `prepared -> dispatching -> reconciled`,
+  `unknown`, or `confirmed_no_charge`.
 
 ## 6B — Router and Survival Modes
 
@@ -49,6 +53,8 @@ Implemented in `src/dev_agent/scheduler/queue.py`.
 - Claims are exclusive through an atomic transaction.
 - `lease_owner`, `lease_until`, `state_version`, and `attempts` fence stale
   workers and support expiry/reclaim after restart.
+- Total attempts are finite: WorkerRunner uses `max_retries + 1`, while the
+  Queue API defaults to three attempts when no task-specific bound is supplied.
 - Tasks that return `waiting_approval`, `waiting_reconciliation`, or a
   budget/dependency block are parked as `waiting`; they are not retried until
   an explicit `DurableQueue.wake()` event.
@@ -62,11 +68,16 @@ observed usage, and preserves uncertain reservations on timeout/cancellation.
 Provider timeout/transport checkpoints remain fail-closed on `resume()` until
 an explicit provider reconciliation path clears the marker; cancellation of an
 already ambiguous task cannot terminalize it as ordinary `cancelled`.
+ProviderDispatcher and Controller-managed direct Providers also persist a
+provider effect intent containing selected provider/resource and normalized
+outcome before entering the external call; succeeded intents are replayed
+without sending a duplicate request.
 
 The machine-readable evidence is maintained in
 `spec/v2/GATE_STATUS.json` under Stage F (`F6A`–`F6E`). Stage G records the
 remaining operational integration: money-safe dispatch, real provider routing,
 survival enforcement, lease-fenced workers, independent concurrency proof, and
 recovery drills. It must be VERIFIED before Phase 6 is considered complete.
-Explicitly deferred Phase 6/7 work includes live rollback/repair execution, artifact-root retention
-integration, automatic retry policy, and generated Tool lifecycle.
+Explicitly deferred Phase 6/7 work includes qualification against a real paid
+Provider, artifact-root retention integration, production-environment recovery
+drills, and generated Tool lifecycle.

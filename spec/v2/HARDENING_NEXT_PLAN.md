@@ -2,8 +2,8 @@
 
 目的は、外部サービスが停止してもローカルで検証可能な境界を先に完了し、外部依存の項目を明確な保留として後回しにできる状態を作ること。
 
-Current State sync: Phase 3.5〜5 acceptance was closed at `ea575d8`; Phase 6A〜6E
-implementation evidence is `396c784`. Phase 6 is documented separately in `docs/PHASE6_PLAN.md`; this document is the
+Current State sync: Phase 3.5〜5 acceptance remains closed; the current Phase 6
+code evidence baseline is `3591588`. Phase 6 is documented separately in `docs/PHASE6_PLAN.md`; this document is the
 historical hardening record. Gate evidence distinguishes local, CI, and live
 Provider evidence.
 
@@ -57,7 +57,7 @@ Phase 6 着手条件は満たされ、`GATE_STATUS.json` の `phase6_entry` は
 
 進捗: SQLite / JSON の effect intent と、全ローカル precondition 後の作成、原子的 claim、外部処理後のローカル保存前停止を `reconciliation_required` として再実行禁止にする基礎契約を実装済み。timeout、connection failure、response decode、result byte limit、output schema failure も同じ契約へ統一した。曖昧な外部状態は Task の `waiting_reconciliation` として永続化し、照合で intent を succeeded に確定した後に安全再開できる。実外部APIの照合アダプタ自体は未実装。
 
-Execution progress: task wall-clock deadline is now persisted in checkpoint state and survives resume; expired resumed work fails closed. Input token estimates, provider-reported output/cost usage, and TaskGraph limits are enforced. Trusted in-process handlers retain a documented soft timeout; untrusted/generated/process handlers use a subprocess boundary with process-tree termination. `max_retries` remains explicitly deferred because v2 has no automatic retry engine.
+Execution progress: task wall-clock deadline is now persisted in checkpoint state and survives resume; expired resumed work fails closed. Input token estimates, provider-reported output/cost usage, and TaskGraph limits are enforced. Trusted in-process handlers retain a documented soft timeout; untrusted/generated/process handlers use a subprocess boundary with process-tree termination. Scheduler retries are now finite: WorkerRunner derives total attempts from `max_retries + 1`, and DurableQueue applies a default cap when callers omit a limit.
 
 Cancellation progress: `Controller.cancel()` is cooperative and durable at the next runtime boundary. In-flight trusted Python handlers and Provider request threads cannot be force-killed; both now persist `unable_to_confirm` and remain reconciliation-gated, while cancellation before execution persists `terminated`.
 
@@ -78,6 +78,11 @@ Recovery progress: `recovery/validate_artifacts.py` and
 digests, metadata, byte lengths, and missing payloads. The artifact root remains
 an explicit operator backup/retention input rather than an implicit database
 sidecar.
+
+Phase 6 recovery progress: ResourceLedger and DurableQueue now use ordered schema
+migrations. The RecoveryOperator drill exercises validated SQLite restore, LKG
+recording, rollback, and repair-branch creation in an isolated temporary Git
+checkout; production mutations remain explicit operator actions.
 
 Approval progress: approval records bind to one exact internal call ID and canonical hash of the effective arguments after path canonicalization. Broad task/level reuse is rejected. One-shot consumption, expiry, revoke, and duplicate-insert rejection are enforced; SQLite consumption now uses `BEGIN IMMEDIATE` so validation, expiry/revoke check, and consumption commit are one transaction. Reconciliation audit insertion and intent transition are also one transaction. Reconciliation inspection remains available for an already-claimed side effect.
 
