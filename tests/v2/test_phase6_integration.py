@@ -15,6 +15,7 @@ from src.dev_agent.tools.registry import ToolRegistry, ToolSpec
 from src.dev_agent.tools.runtime import ToolRuntime
 from src.dev_agent.runtime.controller import Controller
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
+from src.dev_agent.scheduler.queue import DurableQueue
 
 
 def _governor(ledger, policy):
@@ -459,6 +460,41 @@ def test_dispatcher_rejects_stale_lease_before_provider_call(tmp_path):
         intent = store.get_effect_intent(key)
 
     assert intent["status"] == "confirmed_failed"
+    assert calls == []
+    assert ledger.reservation_totals()["active_reservations"] == 0
+
+
+def test_dispatch_intent_transition_fences_reclaimed_queue_lease(tmp_path):
+    ledger = ResourceLedger(tmp_path / "provider-lease-proof-resources.sqlite3")
+    ledger.register_resource("paid", provider_id="paid", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
+    ledger.observe("paid", available=10, health="healthy")
+    control = ResourceControlPlane(ResourceRouter(ledger), _governor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)))
+    calls = []
+
+    class PaidProvider(FakeProvider):
+        provider_id = "paid"
+
+        def request(self, request):
+            calls.append(request.request_id)
+            return ModelResponse(provider="paid", model="test", text_segments=["must not run"], usage={"cost_minor": 10})
+
+    queue_path = tmp_path / "shared-queue-state.sqlite3"
+    queue = DurableQueue(queue_path)
+    task = Task(objective="reclaimed lease")
+    queue.enqueue(task.task_id)
+    first = queue.claim("worker-a", lease_seconds=1)
+    dispatcher = ProviderDispatcher(ProviderRegistry([PaidProvider()]), control)
+    with SQLiteStateStore(queue_path) as store:
+        store.save_task(task)
+        queue.claim("worker-b", now=first.lease_until.timestamp() + 1, lease_seconds=30)
+        dispatcher.bind_runtime(state_store=store, lease_proof=lambda: first.lease_proof)
+        request = ModelRequest(task_id=task.task_id, messages=[{"role": "user", "content": "hello"}])
+        with pytest.raises(ProviderError, match="stale lease") as exc_info:
+            dispatcher.request(request)
+        assert exc_info.value.category == "lease_lost"
+        key = store.connection.execute("SELECT idempotency_key FROM effect_intents").fetchone()[0]
+        assert store.get_effect_intent(key)["status"] == "confirmed_failed"
+
     assert calls == []
     assert ledger.reservation_totals()["active_reservations"] == 0
 

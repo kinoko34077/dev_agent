@@ -54,7 +54,7 @@ class Controller:
         self._running_tasks: dict[str, Task] = {}
         binder = getattr(provider, "bind_runtime", None)
         if callable(binder):
-            binder(state_store=store, lease_guard=lambda: self.lease_guard() if self.lease_guard is not None else None)
+            binder(state_store=store, lease_guard=lambda: self.lease_guard() if self.lease_guard is not None else None, lease_proof=lambda: self.lease_proof)
 
     def _event_record(self, task: Task, event_type: str, payload: dict[str, Any], *, step_id: str | None = None, request_id: str | None = None) -> ProtocolEvent:
         return ProtocolEvent(event_type=event_type, task_id=task.task_id, step_id=step_id, request_id=request_id, provider=self.provider.provider_id, payload=AuditRecorder.sanitize_payload(payload, artifact_store=self.event_artifacts))
@@ -103,7 +103,7 @@ class Controller:
 
     def _provider_intent(self, key: str | None, *, status: str, result: dict[str, Any]) -> None:
         if key is not None:
-            self.store.transition_effect_intent(key, to_status=status, result=result)
+            self.store.transition_effect_intent(key, to_status=status, result=result, lease_proof=self.lease_proof if status == "dispatching" else None)
 
     def _fail(self, task: Task, state: dict[str, Any], category: str, message: str, *, step: Step | None = None, request_id: str | None = None, tool_result: ToolResult | None = None, extra_events: list[ProtocolEvent] | None = None) -> None:
         if step is not None:

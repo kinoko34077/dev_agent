@@ -16,7 +16,7 @@ class JsonStateStore:
 
     _EFFECT_TRANSITIONS = {
         "pending": {"prepared", "dispatching", "unknown", "succeeded", "reconciling"},
-        "prepared": {"dispatching", "unknown", "reconciling"},
+        "prepared": {"dispatching", "unknown", "confirmed_failed", "reconciling"},
         "dispatching": {"unknown", "succeeded", "confirmed_failed", "reconciling"},
         "unknown": {"reconciling", "succeeded", "confirmed_failed", "reconciled"},
         "reconciling": {"unknown", "succeeded", "confirmed_failed", "reconciled"},
@@ -152,7 +152,7 @@ class JsonStateStore:
     def mark_effect_unknown(self, key: str, *, reason: str) -> None:
         self.transition_effect_intent(key, to_status="unknown", result={"unknown": True, "reason": reason})
 
-    def transition_effect_intent(self, key: str, *, to_status: str, result: dict[str, Any] | None = None) -> None:
+    def transition_effect_intent(self, key: str, *, to_status: str, result: dict[str, Any] | None = None, lease_proof: Any | None = None) -> None:
         allowed = {"prepared", "dispatching", "unknown", "succeeded", "confirmed_failed", "reconciling", "reconciled"}
         if to_status not in allowed:
             raise ValueError(f"invalid effect intent status: {to_status}")

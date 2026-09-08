@@ -148,7 +148,7 @@ class ResourceLedger:
         id INTEGER PRIMARY KEY CHECK (id = 1),
         maintenance INTEGER NOT NULL DEFAULT 0
     );
-    CREATE TABLE IF NOT EXISTS schema_meta (
+    CREATE TABLE IF NOT EXISTS resource_schema_meta (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
     );
@@ -164,11 +164,11 @@ class ResourceLedger:
         try:
             self.connection.executescript(self._SCHEMA)
             if not existing_tables:
-                self.connection.execute("INSERT OR REPLACE INTO schema_meta(key, value) VALUES ('schema_version', ?)", (str(self.SCHEMA_VERSION),))
+                self.connection.execute("INSERT OR REPLACE INTO resource_schema_meta(key, value) VALUES ('schema_version', ?)", (str(self.SCHEMA_VERSION),))
                 self.connection.commit()
                 return
-            self.connection.execute("INSERT OR IGNORE INTO schema_meta(key, value) VALUES ('schema_version', '1')")
-            current = int(self.connection.execute("SELECT value FROM schema_meta WHERE key='schema_version'").fetchone()[0])
+            self.connection.execute("INSERT OR IGNORE INTO resource_schema_meta(key, value) VALUES ('schema_version', '1')")
+            current = int(self.connection.execute("SELECT value FROM resource_schema_meta WHERE key='schema_version'").fetchone()[0])
             if current > self.SCHEMA_VERSION:
                 raise ValueError(f"unsupported resource schema version: {current}")
             self.connection.commit()
@@ -180,7 +180,7 @@ class ResourceLedger:
                 self._ensure_column("budget_config", "period_ends_at", "TEXT NOT NULL DEFAULT ''")
                 self._ensure_column("budget_reservations", "period_id", "TEXT NOT NULL DEFAULT 'legacy'")
                 self._ensure_column("budget_reservations", "currency", "TEXT NOT NULL DEFAULT 'JPY'")
-                self.connection.execute("UPDATE schema_meta SET value='2' WHERE key='schema_version'")
+                self.connection.execute("UPDATE resource_schema_meta SET value='2' WHERE key='schema_version'")
                 current = 2
             if current < 3:
                 config = self.connection.execute("SELECT currency, period_id, period_starts_at, period_ends_at FROM budget_config WHERE id=1").fetchone()
@@ -192,7 +192,7 @@ class ResourceLedger:
                     self.connection.execute("UPDATE budget_config SET period_id=?, period_starts_at=?, period_ends_at=? WHERE id=1", (period_id, start.isoformat(), end.isoformat()))
                     self.connection.execute("UPDATE budget_reservations SET period_id=?, currency=? WHERE period_id='legacy'", (period_id, config["currency"]))
                 self.connection.execute("UPDATE budget_reservations SET status='prepared' WHERE status='reserved'")
-                self.connection.execute("UPDATE schema_meta SET value='3' WHERE key='schema_version'")
+                self.connection.execute("UPDATE resource_schema_meta SET value='3' WHERE key='schema_version'")
             self.connection.commit()
         except Exception:
             self.connection.rollback()

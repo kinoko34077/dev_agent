@@ -74,7 +74,7 @@ class DurableQueue:
         attempts INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS scheduler_control (id INTEGER PRIMARY KEY CHECK (id=1), maintenance INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS scheduler_schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     """
 
     def __init__(self, path: str | Path) -> None:
@@ -87,11 +87,11 @@ class DurableQueue:
         try:
             self.connection.executescript(self._SCHEMA)
             if not existing_tables:
-                self.connection.execute("INSERT OR REPLACE INTO schema_meta(key, value) VALUES ('schema_version', ?)", (str(self.SCHEMA_VERSION),))
+                self.connection.execute("INSERT OR REPLACE INTO scheduler_schema_meta(key, value) VALUES ('schema_version', ?)", (str(self.SCHEMA_VERSION),))
                 self.connection.commit()
             else:
-                self.connection.execute("INSERT OR IGNORE INTO schema_meta(key, value) VALUES ('schema_version', '1')")
-                current = int(self.connection.execute("SELECT value FROM schema_meta WHERE key='schema_version'").fetchone()[0])
+                self.connection.execute("INSERT OR IGNORE INTO scheduler_schema_meta(key, value) VALUES ('schema_version', '1')")
+                current = int(self.connection.execute("SELECT value FROM scheduler_schema_meta WHERE key='schema_version'").fetchone()[0])
                 if current > self.SCHEMA_VERSION:
                     raise ValueError(f"unsupported queue schema version: {current}")
                 self.connection.commit()
@@ -100,7 +100,7 @@ class DurableQueue:
                     columns = {row[1] for row in self.connection.execute("PRAGMA table_info(queue_items)")}
                     if "lease_token" not in columns:
                         self.connection.execute("ALTER TABLE queue_items ADD COLUMN lease_token TEXT")
-                    self.connection.execute("UPDATE schema_meta SET value='2' WHERE key='schema_version'")
+                    self.connection.execute("UPDATE scheduler_schema_meta SET value='2' WHERE key='schema_version'")
                 self.connection.commit()
         except Exception:
             self.connection.rollback()

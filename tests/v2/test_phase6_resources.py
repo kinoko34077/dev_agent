@@ -28,7 +28,7 @@ def test_resource_ledger_runs_ordered_migrations_for_legacy_database(tmp_path):
     ledger = ResourceLedger(path)
     columns = {row[1] for row in ledger.connection.execute("PRAGMA table_info(resources)")}
     config = ledger.budget_config()
-    version = ledger.connection.execute("SELECT value FROM schema_meta WHERE key='schema_version'").fetchone()[0]
+    version = ledger.connection.execute("SELECT value FROM resource_schema_meta WHERE key='schema_version'").fetchone()[0]
 
     assert "price_currency" in columns
     assert config["period_id"] != "legacy"

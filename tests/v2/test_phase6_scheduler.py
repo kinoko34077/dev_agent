@@ -29,7 +29,7 @@ def test_queue_runs_ordered_migration_for_legacy_lease_schema(tmp_path):
 
     queue = DurableQueue(path)
     columns = {row[1] for row in queue.connection.execute("PRAGMA table_info(queue_items)")}
-    version = queue.connection.execute("SELECT value FROM schema_meta WHERE key='schema_version'").fetchone()[0]
+    version = queue.connection.execute("SELECT value FROM scheduler_schema_meta WHERE key='schema_version'").fetchone()[0]
 
     assert "lease_token" in columns
     assert version == "2"

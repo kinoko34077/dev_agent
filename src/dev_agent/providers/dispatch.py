@@ -55,8 +55,9 @@ class ProviderDispatcher(ModelProvider):
         self.audits: list[DispatchAudit] = []
         self._state_store: StateStore | None = None
         self._lease_guard: Callable[[], None] | None = None
+        self._lease_proof: Callable[[], Any | None] | None = None
 
-    def bind_runtime(self, *, state_store: StateStore, lease_guard: Callable[[], None] | None = None) -> None:
+    def bind_runtime(self, *, state_store: StateStore, lease_guard: Callable[[], None] | None = None, lease_proof: Callable[[], Any | None] | None = None) -> None:
         """Attach the durable runtime boundary used by Controller.
 
         Provider dispatches may be constructed independently for adapter tests,
@@ -66,6 +67,7 @@ class ProviderDispatcher(ModelProvider):
         """
         self._state_store = state_store
         self._lease_guard = lease_guard
+        self._lease_proof = lease_proof
 
     @staticmethod
     def _intent_key(request: ModelRequest, selection: RouteSelection) -> str:
@@ -102,7 +104,8 @@ class ProviderDispatcher(ModelProvider):
 
     def _intent(self, key: str | None, *, status: str, result: dict[str, Any]) -> None:
         if key is not None:
-            self._state_store.transition_effect_intent(key, to_status=status, result=result)
+            proof = self._lease_proof() if self._lease_proof is not None and status == "dispatching" else None
+            self._state_store.transition_effect_intent(key, to_status=status, result=result, lease_proof=proof)
 
     def _intent_result(self, key: str | None) -> ModelResponse | None:
         if key is None or self._state_store is None:
@@ -156,7 +159,13 @@ class ProviderDispatcher(ModelProvider):
                 return cached
             reservation = self.control.reserve_selection(request.task_id, selection)
             self.control.mark_dispatching(reservation)
-            self._intent(intent_key, status="dispatching", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id})
+            try:
+                self._intent(intent_key, status="dispatching", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id})
+            except Exception as exc:
+                self.control.release(reservation)
+                self._intent(intent_key, status="confirmed_failed", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id, "error_category": "lease_lost", "message": str(exc)})
+                self.audits.append(DispatchAudit(selection.provider_id, selection.resource_id, "lease_lost"))
+                raise ProviderError("provider dispatch rejected by stale lease", category="lease_lost", retryable=True) from exc
             try:
                 if self._lease_guard is not None:
                     self._lease_guard()

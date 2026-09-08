@@ -26,7 +26,7 @@ class SQLiteStateStore:
     SCHEMA_VERSION = 4
     _EFFECT_TRANSITIONS = {
         "pending": {"prepared", "dispatching", "unknown", "succeeded", "reconciling"},
-        "prepared": {"dispatching", "unknown", "reconciling"},
+        "prepared": {"dispatching", "unknown", "confirmed_failed", "reconciling"},
         "dispatching": {"unknown", "succeeded", "confirmed_failed", "reconciling"},
         "unknown": {"reconciling", "succeeded", "confirmed_failed", "reconciled"},
         "reconciling": {"unknown", "succeeded", "confirmed_failed", "reconciled"},
@@ -229,19 +229,29 @@ class SQLiteStateStore:
         self.transition_effect_intent(key, to_status="unknown", result={"unknown": True, "reason": reason})
 
     @_serialized
-    def transition_effect_intent(self, key: str, *, to_status: str, result: dict[str, Any] | None = None) -> None:
+    def transition_effect_intent(self, key: str, *, to_status: str, result: dict[str, Any] | None = None, lease_proof: Any | None = None) -> None:
         allowed = {"prepared", "dispatching", "unknown", "succeeded", "confirmed_failed", "reconciling", "reconciled"}
         if to_status not in allowed:
             raise ValueError(f"invalid effect intent status: {to_status}")
-        row = self.connection.execute("SELECT status FROM effect_intents WHERE idempotency_key = ?", (key,)).fetchone()
-        if row is None:
-            raise ValueError(f"effect intent not found: {key}")
-        current = row["status"]
-        if to_status != current and to_status not in self._EFFECT_TRANSITIONS.get(current, set()):
-            raise ValueError(f"invalid effect intent transition: {current} -> {to_status}")
-        payload = json.dumps(result, ensure_ascii=False) if result is not None else None
-        self.connection.execute("UPDATE effect_intents SET status = ?, result_payload = COALESCE(?, result_payload) WHERE idempotency_key = ?", (to_status, payload, key))
-        self.connection.commit()
+        try:
+            self.connection.execute("BEGIN IMMEDIATE")
+            if lease_proof is not None and self.connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='queue_items'").fetchone() is not None:
+                row = self.connection.execute("SELECT 1 FROM queue_items WHERE task_id=? AND state='leased' AND lease_owner=? AND lease_token=? AND state_version=? AND lease_until > ?", (lease_proof.task_id, lease_proof.worker_id, lease_proof.lease_token, lease_proof.state_version, time.time())).fetchone()
+                if row is None:
+                    from ..scheduler.queue import StaleLease
+                    raise StaleLease(lease_proof.task_id)
+            row = self.connection.execute("SELECT status FROM effect_intents WHERE idempotency_key = ?", (key,)).fetchone()
+            if row is None:
+                raise ValueError(f"effect intent not found: {key}")
+            current = row["status"]
+            if to_status != current and to_status not in self._EFFECT_TRANSITIONS.get(current, set()):
+                raise ValueError(f"invalid effect intent transition: {current} -> {to_status}")
+            payload = json.dumps(result, ensure_ascii=False) if result is not None else None
+            self.connection.execute("UPDATE effect_intents SET status = ?, result_payload = COALESCE(?, result_payload) WHERE idempotency_key = ?", (to_status, payload, key))
+            self.connection.commit()
+        except BaseException:
+            self.connection.rollback()
+            raise
 
     @_serialized
     def commit_transition(self, *, task: Task | None = None, step: Step | None = None, checkpoint: dict[str, Any] | None = None, event: Event | None = None, events: list[Event] | None = None, tool_result: ToolResult | None = None, lease_proof: Any | None = None) -> None:
