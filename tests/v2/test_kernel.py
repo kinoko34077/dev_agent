@@ -7,6 +7,20 @@ from src.dev_agent.state import JsonStateStore
 from src.dev_agent.tools import ToolRegistry, ToolRuntime, ToolSpec
 
 
+def test_tool_runtime_binding_returns_independent_instances():
+    registry = ToolRegistry()
+    runtime = ToolRuntime(registry)
+    first_store = object()
+    second_store = object()
+    first = runtime.bound_to(first_store)
+    second = runtime.bound_to(second_store)
+    assert first is not runtime
+    assert second is not runtime and second is not first
+    assert runtime.result_store is None
+    assert first.result_store is first_store
+    assert second.result_store is second_store
+
+
 def make_controller(tmp_path, provider=None, *, max_steps=20):
     registry = ToolRegistry()
     registry.register(ToolSpec(name="echo", description="echo a value", required_arguments=frozenset({"value"}), handler=lambda args: {"echo": args["value"]}))

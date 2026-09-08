@@ -147,9 +147,14 @@ class ToolRuntime:
         self.paths = paths
 
     def with_result_store(self, result_store):
-        """Attach a durable idempotency store without coupling registry to state."""
-        self.result_store = result_store
-        return self
+        """Compatibility alias for the immutable ``bound_to`` binding."""
+        return self.bound_to(result_store)
+
+    def bound_to(self, result_store) -> "ToolRuntime":
+        """Return a new runtime bound to one durable result store."""
+        bound = ToolRuntime(self.registry, approvals=self.approvals, paths=self.paths)
+        bound.result_store = result_store
+        return bound
 
     def effective_arguments(self, call: ToolCall) -> dict[str, Any]:
         """Return the deterministic argument payload used for tool identity.
