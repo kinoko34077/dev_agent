@@ -53,6 +53,13 @@ def test_resource_ledger_persists_native_unit_observations(tmp_path):
     assert resource["confidence"] == pytest.approx(0.8)
 
 
+def test_resource_observation_cannot_exceed_registered_capacity(tmp_path):
+    ledger = ResourceLedger(tmp_path / "resources.sqlite3")
+    ledger.register_resource("small", provider_id="local", native_unit="request", capacity=1, capabilities=["text"])
+    with pytest.raises(ValueError, match="exceeds resource capacity"):
+        ledger.observe("small", available=2, health="healthy")
+
+
 def test_budget_reservation_is_atomic_under_concurrency(tmp_path):
     ledger = _ledger(tmp_path)
     governor = BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20))

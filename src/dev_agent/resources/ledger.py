@@ -233,8 +233,11 @@ class ResourceLedger:
             raise ValueError("invalid resource health")
         timestamp = observed_at or _now()
         with self._lock:
-            if self.connection.execute("SELECT 1 FROM resources WHERE resource_id = ?", (resource_id,)).fetchone() is None:
+            resource = self.connection.execute("SELECT capacity FROM resources WHERE resource_id = ?", (resource_id,)).fetchone()
+            if resource is None:
                 raise KeyError(resource_id)
+            if available > resource[0]:
+                raise ValueError(f"available capacity exceeds resource capacity: {resource_id}")
             self.connection.execute("UPDATE resources SET available=?, health=?, confidence=?, observed_at=? WHERE resource_id=?", (available, health, confidence, timestamp, resource_id))
             self.connection.execute("INSERT INTO resource_observations VALUES (?, ?, ?, ?, ?, ?)", (str(uuid4()), resource_id, available, health, confidence, timestamp))
             self.connection.commit()
