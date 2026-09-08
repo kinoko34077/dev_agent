@@ -47,6 +47,20 @@ class BudgetPeriod:
 
 
 @dataclass(frozen=True)
+class ResourcePrice:
+    currency: str
+    worst_case: MoneyAmount | None
+
+    def __post_init__(self) -> None:
+        normalized = self.currency.upper()
+        if len(normalized) != 3 or not normalized.isalpha():
+            raise ValueError("currency must be a three-letter code")
+        if self.worst_case is not None and self.worst_case.currency != normalized:
+            raise ValueError("resource price currency must match worst_case currency")
+        object.__setattr__(self, "currency", normalized)
+
+
+@dataclass(frozen=True)
 class ResourceSpec:
     resource_id: str
     provider_id: str

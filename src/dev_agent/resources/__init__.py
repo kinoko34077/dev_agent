@@ -2,7 +2,7 @@
 
 from .budget import BudgetExceeded, BudgetGovernor, BudgetPolicy, BudgetReservation, UnknownPrice
 from .control import DispatchDenied, DispatchReservation, ResourceControlPlane
-from .ledger import BudgetPeriod, MoneyAmount, ResourceLedger, ResourceSpec
+from .ledger import BudgetPeriod, MoneyAmount, ResourceLedger, ResourcePrice, ResourceSpec
 from .router import NoRoute, ResourceRouter, RouteRequest, RouteSelection
 from .survival import SurvivalGovernor, SurvivalMode, SurvivalSnapshot, SurvivalState
 
@@ -18,6 +18,7 @@ __all__ = [
     "ResourceControlPlane",
     "NoRoute",
     "MoneyAmount",
+    "ResourcePrice",
     "ResourceLedger",
     "ResourceRouter",
     "ResourceSpec",

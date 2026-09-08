@@ -5,7 +5,7 @@ import multiprocessing
 import pytest
 
 from src.dev_agent.resources.budget import BudgetExceeded, BudgetGovernor, BudgetPolicy, UnknownPrice
-from src.dev_agent.resources.ledger import BudgetPeriod, MoneyAmount, ResourceLedger
+from src.dev_agent.resources.ledger import BudgetPeriod, MoneyAmount, ResourceLedger, ResourcePrice
 
 
 def _ledger(tmp_path):
@@ -159,3 +159,10 @@ def test_budget_governor_uses_ledger_transaction_api_not_private_sqlite_state():
     source = inspect.getsource(BudgetGovernor)
     assert "ledger.connection" not in source
     assert "ledger._lock" not in source
+
+
+def test_resource_price_is_currency_bound_and_explicitly_unknown_when_unbounded():
+    assert ResourcePrice("JPY", MoneyAmount("JPY", 50)).worst_case == MoneyAmount("JPY", 50)
+    assert ResourcePrice("JPY", None).worst_case is None
+    with pytest.raises(ValueError):
+        ResourcePrice("USD", MoneyAmount("JPY", 50))
