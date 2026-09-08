@@ -52,6 +52,9 @@ class Controller:
         self._cancellation_reasons: dict[str, str] = {}
         self._active_tasks: set[str] = set()
         self._running_tasks: dict[str, Task] = {}
+        binder = getattr(provider, "bind_runtime", None)
+        if callable(binder):
+            binder(state_store=store, lease_guard=lambda: self.lease_guard() if self.lease_guard is not None else None)
 
     def _event_record(self, task: Task, event_type: str, payload: dict[str, Any], *, step_id: str | None = None, request_id: str | None = None) -> ProtocolEvent:
         return ProtocolEvent(event_type=event_type, task_id=task.task_id, step_id=step_id, request_id=request_id, provider=self.provider.provider_id, payload=AuditRecorder.sanitize_payload(payload, artifact_store=self.event_artifacts))
@@ -381,6 +384,7 @@ class Controller:
                 if self.resource_policy is not None and not getattr(self.provider, "handles_resource_policy", False):
                     try:
                         reservation = self.resource_policy.reserve_for_provider(task.task_id, self.provider.provider_id, request)
+                        self.resource_policy.mark_dispatching(reservation)
                     except Exception as exc:
                         self._block_budget(task, state, step=step, message=str(exc))
                         return task
@@ -418,13 +422,10 @@ class Controller:
                     self._fail(task, state, "timeout", "model request timed out", step=step, request_id=request.request_id)
                 except ProviderError as exc:
                     if reservation is not None:
-                        if exc.category == "reconciliation_required":
+                        if exc.category in {"reconciliation_required", "transport", "provider_decode"}:
                             self.resource_policy.uncertain(reservation)
-                            self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="budget_reconciliation", message=str(exc))
-                            return task
-                        if exc.category == "transport":
-                            self.resource_policy.uncertain(reservation)
-                            self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause=exc.category, message=str(exc))
+                            cause = "budget_reconciliation" if exc.category == "reconciliation_required" else exc.category
+                            self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause=cause, message=str(exc))
                             return task
                         self.resource_policy.release(reservation)
                     elif getattr(self.provider, "handles_resource_policy", False) and exc.category == "transport":
@@ -444,7 +445,15 @@ class Controller:
                     self._fail(task, state, exc.category, str(exc), step=step, request_id=request.request_id)
                 except Exception as exc:
                     if reservation is not None:
-                        self.resource_policy.release(reservation)
+                        # Once the guarded provider call has started, an
+                        # untyped exception cannot prove that no external
+                        # effect occurred.  Preserve the dispatching budget
+                        # reservation and require reconciliation instead of
+                        # incorrectly recording a terminal local decode
+                        # failure.
+                        self.resource_policy.uncertain(reservation)
+                        self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="provider_decode", message=str(exc))
+                        return task
                     self._fail(task, state, "provider_decode", str(exc), step=step, request_id=request.request_id)
                 if reservation is not None:
                     try:

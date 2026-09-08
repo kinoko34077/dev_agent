@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any, Callable, TYPE_CHECKING
 
 from ..domain.protocol import ModelRequest, ModelResponse
 from ..resources.budget import BudgetExceeded
@@ -10,6 +11,9 @@ from ..resources.control import DispatchDenied, DispatchReservation, ResourceCon
 from ..resources.router import NoRoute, RouteRequest, RouteSelection
 from ..resources.survival import SurvivalGovernor, SurvivalMode, SurvivalSnapshot
 from .base import ModelProvider, ProviderError
+
+if TYPE_CHECKING:
+    from ..state.store import StateStore
 
 
 class ProviderRegistry:
@@ -49,6 +53,68 @@ class ProviderDispatcher(ModelProvider):
         self.control = control
         self.survival = survival
         self.audits: list[DispatchAudit] = []
+        self._state_store: StateStore | None = None
+        self._lease_guard: Callable[[], None] | None = None
+
+    def bind_runtime(self, *, state_store: StateStore, lease_guard: Callable[[], None] | None = None) -> None:
+        """Attach the durable runtime boundary used by Controller.
+
+        Provider dispatches may be constructed independently for adapter tests,
+        so the state store is optional.  When Controller owns this dispatcher,
+        every concrete provider attempt gets a durable effect intent before the
+        provider call starts.
+        """
+        self._state_store = state_store
+        self._lease_guard = lease_guard
+
+    @staticmethod
+    def _intent_key(request: ModelRequest, selection: RouteSelection) -> str:
+        return f"provider:{request.request_id}:{selection.resource_id}"
+
+    def _prepare_intent(self, request: ModelRequest, selection: RouteSelection) -> str | None:
+        if self._state_store is None:
+            return None
+        key = self._intent_key(request, selection)
+        intent = self._state_store.get_effect_intent(key)
+        if intent is None:
+            self._state_store.create_effect_intent(
+                key,
+                task_id=request.task_id,
+                tool_name=f"provider:{selection.provider_id}",
+                arguments={
+                    "request_id": request.request_id,
+                    "task_id": request.task_id,
+                    "provider_id": selection.provider_id,
+                    "resource_id": selection.resource_id,
+                    "max_output_tokens": request.max_output_tokens,
+                },
+            )
+            self._state_store.transition_effect_intent(key, to_status="prepared")
+            return key
+        status = intent["status"]
+        if status == "succeeded":
+            return key
+        if status in {"dispatching", "unknown", "reconciling"}:
+            raise ProviderError("provider dispatch requires reconciliation", category="reconciliation_required", retryable=False)
+        if status in {"confirmed_failed", "reconciled"}:
+            raise ProviderError("provider dispatch was already finalized", category="reconciliation_required", retryable=False)
+        return key
+
+    def _intent(self, key: str | None, *, status: str, result: dict[str, Any]) -> None:
+        if key is not None:
+            self._state_store.transition_effect_intent(key, to_status=status, result=result)
+
+    def _intent_result(self, key: str | None) -> ModelResponse | None:
+        if key is None or self._state_store is None:
+            return None
+        intent = self._state_store.get_effect_intent(key)
+        if intent is None or intent["status"] != "succeeded":
+            return None
+        result = intent.get("result") or {}
+        response = result.get("response")
+        if not isinstance(response, dict):
+            raise ProviderError("durable provider result is malformed", category="provider_decode", retryable=False)
+        return ModelResponse.from_dict(response)
 
     def request(self, request_or_task_id: ModelRequest | str, explicit_request: ModelRequest | None = None) -> ModelResponse:
         """Dispatch one request, accepting both canonical and legacy call shapes.
@@ -78,14 +144,38 @@ class ProviderDispatcher(ModelProvider):
                     raise last_error
                 raise DispatchDenied("no_route", str(exc)) from exc
             provider = self.registry.get(selection.provider_id)
-            # Resolve the concrete provider before acquiring a budget/capacity
-            # reservation.  A stale resource observation must not strand a
-            # reservation when registry and ledger contents diverge.
+            # Resolve the concrete provider and durable intent before
+            # acquiring a budget/capacity reservation.  A replayed succeeded
+            # intent must not create a fresh reservation, and a stale
+            # resource observation must not strand one when registry and
+            # ledger contents diverge.
+            intent_key = self._prepare_intent(request, selection)
+            cached = self._intent_result(intent_key)
+            if cached is not None:
+                self.audits.append(DispatchAudit(selection.provider_id, selection.resource_id, "durable_replay"))
+                return cached
             reservation = self.control.reserve_selection(request.task_id, selection)
+            self.control.mark_dispatching(reservation)
+            self._intent(intent_key, status="dispatching", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id})
+            try:
+                if self._lease_guard is not None:
+                    self._lease_guard()
+            except Exception as exc:
+                # The durable intent proves the boundary was prepared, while
+                # this fencing check proves the concrete provider was not
+                # entered by this worker.  Close the reservation as a
+                # confirmed no-charge outcome and leave an auditable terminal
+                # intent instead of reporting an external ambiguity.
+                self.control.release(reservation)
+                self._intent(intent_key, status="confirmed_failed", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id, "error_category": "lease_lost", "message": str(exc)})
+                self.audits.append(DispatchAudit(selection.provider_id, selection.resource_id, "lease_lost"))
+                raise ProviderError("provider dispatch rejected by stale lease", category="lease_lost", retryable=True) from exc
             try:
                 response = provider.request(request)
             except ProviderError as exc:
                 self.control.record_provider_error(selection.provider_id, reservation, exc)
+                outcome = "unknown" if exc.category in {"transport", "provider_decode", "reconciliation_required"} else "confirmed_failed"
+                self._intent(intent_key, status=outcome, result={"provider_id": selection.provider_id, "resource_id": selection.resource_id, "error_category": exc.category, "message": str(exc)})
                 self.audits.append(DispatchAudit(selection.provider_id, selection.resource_id, exc.category))
                 # A transport failure occurs after the concrete provider was
                 # invoked.  Its external outcome is therefore ambiguous even
@@ -102,11 +192,14 @@ class ProviderDispatcher(ModelProvider):
             except Exception as exc:
                 self.control.uncertain(reservation)
                 self.control.router.ledger.record_provider_failure(selection.provider_id)
+                self._intent(intent_key, status="unknown", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id, "error_category": "transport", "message": str(exc)})
                 # Once a concrete provider has been invoked, an untyped
                 # exception still leaves the external outcome ambiguous. Do
                 # not let Controller classify it as a local decode failure.
                 raise ProviderError(f"provider transport failed: {exc}", category="transport", retryable=True) from exc
             try:
+                if not isinstance(response, ModelResponse):
+                    raise TypeError("provider must return ModelResponse")
                 self.control.reconcile_response(reservation, response)
             except BudgetExceeded as exc:
                 # The provider already returned an external result, but the
@@ -114,8 +207,16 @@ class ProviderDispatcher(ModelProvider):
                 # ResourceControlPlane keeps the reservation unknown; expose
                 # that ambiguity to Controller instead of misclassifying it
                 # as a provider decode failure or retrying the request.
+                self._intent(intent_key, status="unknown", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id, "error_category": "reconciliation_required", "message": str(exc)})
                 self.audits.append(DispatchAudit(selection.provider_id, selection.resource_id, "budget_reconciliation"))
                 raise ProviderError(str(exc), category="reconciliation_required", retryable=False) from exc
+            except Exception as exc:
+                self.control.uncertain(reservation)
+                self.control.router.ledger.record_provider_failure(selection.provider_id)
+                self._intent(intent_key, status="unknown", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id, "error_category": "provider_decode", "message": str(exc)})
+                self.audits.append(DispatchAudit(selection.provider_id, selection.resource_id, "provider_decode"))
+                raise ProviderError(f"provider response could not be decoded: {exc}", category="provider_decode", retryable=False) from exc
+            self._intent(intent_key, status="succeeded", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id, "outcome": "succeeded", "response": response.to_dict()})
             self.control.router.ledger.record_provider_success(selection.provider_id)
             self.audits.append(DispatchAudit(selection.provider_id, selection.resource_id, "succeeded"))
             return response

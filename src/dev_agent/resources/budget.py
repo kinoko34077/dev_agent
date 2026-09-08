@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import math
 from typing import Any
 
-from .ledger import BudgetPeriod, MoneyAmount, ResourceLedger
+from .ledger import _BUDGET_ADMIN_TOKEN, BudgetPeriod, MoneyAmount, ResourceLedger
 
 
 class BudgetExceeded(RuntimeError):
@@ -34,6 +34,39 @@ class BudgetPolicy:
     period: BudgetPeriod | None = None
 
 
+def _current_month() -> BudgetPeriod:
+    now = datetime.now(timezone.utc)
+    start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    end = start.replace(year=start.year + 1, month=1) if start.month == 12 else start.replace(month=start.month + 1)
+    return BudgetPeriod(start.strftime("%Y-%m"), start.isoformat(), end.isoformat())
+
+
+def _validate_policy(policy: BudgetPolicy) -> None:
+    if isinstance(policy.hard_cap_minor, bool) or not isinstance(policy.hard_cap_minor, int) or policy.hard_cap_minor < 0:
+        raise ValueError("invalid budget policy")
+    if isinstance(policy.recovery_reserve_minor, bool) or not isinstance(policy.recovery_reserve_minor, int) or policy.recovery_reserve_minor < 0 or policy.recovery_reserve_minor > policy.hard_cap_minor:
+        raise ValueError("invalid budget policy")
+    MoneyAmount(policy.currency, 0)
+    if policy.period is not None and not isinstance(policy.period, BudgetPeriod):
+        raise ValueError("invalid budget period")
+
+
+class BudgetAuthority:
+    """Explicit administrative boundary for changing persisted budget policy."""
+
+    @staticmethod
+    def configure(ledger: ResourceLedger, policy: BudgetPolicy) -> None:
+        _validate_policy(policy)
+        period = policy.period or _current_month()
+        ledger.configure_budget(
+            hard_cap_minor=policy.hard_cap_minor,
+            recovery_reserve_minor=policy.recovery_reserve_minor,
+            currency=MoneyAmount(policy.currency, 0).currency,
+            period=period,
+            _authority=_BUDGET_ADMIN_TOKEN,
+        )
+
+
 @dataclass(frozen=True)
 class BudgetReservation:
     reservation_id: str
@@ -50,24 +83,28 @@ class BudgetReservation:
 
 
 class BudgetGovernor:
-    def __init__(self, ledger: ResourceLedger, policy: BudgetPolicy) -> None:
+    def __init__(self, ledger: ResourceLedger, policy: BudgetPolicy | None = None) -> None:
         self.ledger = ledger
-        if policy.hard_cap_minor < 0 or policy.recovery_reserve_minor < 0 or policy.recovery_reserve_minor > policy.hard_cap_minor:
-            raise ValueError("invalid budget policy")
-        self.policy = policy
-        self.period = policy.period or self._current_month()
-        # Validate and normalize the policy currency before it reaches the
-        # durable ledger; otherwise an invalid code would fail only on the
-        # first reservation (or be persisted by direct ledger callers).
-        self.currency = MoneyAmount(policy.currency, 0).currency
-        self.ledger.configure_budget(hard_cap_minor=policy.hard_cap_minor, recovery_reserve_minor=policy.recovery_reserve_minor, currency=self.currency, period=self.period)
+        config = ledger.budget_config()
+        period = BudgetPeriod(config["period_id"], config["period_starts_at"], config["period_ends_at"])
+        persisted = BudgetPolicy(
+            hard_cap_minor=int(config["hard_cap_minor"]),
+            recovery_reserve_minor=int(config["recovery_reserve_minor"]),
+            currency=str(config["currency"]),
+            period=period,
+        )
+        if policy is not None:
+            _validate_policy(policy)
+            expected = BudgetPolicy(policy.hard_cap_minor, policy.recovery_reserve_minor, policy.currency, policy.period or period)
+            if expected != persisted:
+                raise ValueError("provided policy does not match persisted budget")
+        self.policy = persisted
+        self.period = period
+        self.currency = persisted.currency.upper()
 
     @staticmethod
     def _current_month() -> BudgetPeriod:
-        now = datetime.now(timezone.utc)
-        start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        end = start.replace(year=start.year + 1, month=1) if start.month == 12 else start.replace(month=start.month + 1)
-        return BudgetPeriod(start.strftime("%Y-%m"), start.isoformat(), end.isoformat())
+        return _current_month()
 
     def reserve(self, task_id: str, resource_id: str, *, estimated_cost: MoneyAmount | None = None, estimated_cost_minor: int | None = None, recovery: bool = False, native_units: int | float = 1) -> BudgetReservation:
         if not task_id.strip():
@@ -116,6 +153,14 @@ class BudgetGovernor:
 
     def release(self, reservation_id: str) -> None:
         self.ledger.release_budget(reservation_id)
+
+    def mark_dispatching(self, reservation_id: str) -> None:
+        """Persist that the external dispatch boundary is being entered."""
+        self.ledger.transition_budget(reservation_id, to_status="dispatching")
+
+    def confirm_no_charge(self, reservation_id: str) -> None:
+        """Close a reservation only when the provider outcome proves no charge."""
+        self.ledger.transition_budget(reservation_id, to_status="confirmed_no_charge")
 
     def mark_unknown(self, reservation_id: str) -> None:
         """Hold an uncertain charge until an operator/provider reconciles it."""

@@ -24,7 +24,7 @@ def validate_resource_ledger(path: str | Path) -> tuple[bool, str]:
                 if not all(math.isfinite(float(value)) for value in (capacity, available, confidence)) or capacity < 0 or available < 0 or available > capacity or confidence < 0 or confidence > 1 or health not in {"healthy", "degraded", "unhealthy", "unknown"}:
                     return False, f"resource record is invalid: {resource_id}"
             reservations = connection.execute("SELECT reservation_id, estimated_minor, actual_minor, recovery, status FROM budget_reservations").fetchall()
-            valid_statuses = {"reserved", "unknown", "reconciled", "released"}
+            valid_statuses = {"prepared", "dispatching", "unknown", "reconciled", "confirmed_no_charge", "released"}
             budget_records = {row[0]: row for row in reservations}
             for reservation_id, estimated, actual, recovery, status in reservations:
                 if estimated < 0 or (actual is not None and actual < 0) or recovery not in {0, 1} or status not in valid_statuses:
@@ -40,7 +40,7 @@ def validate_resource_ledger(path: str | Path) -> tuple[bool, str]:
                 return False, "budget and native resource reservation records are inconsistent"
             for reservation_id, resource_id, native_units, status in native_reservations:
                 budget_status = budget_records[reservation_id][4]
-                expected_status = "reserved" if budget_status in {"reserved", "unknown"} else "released"
+                expected_status = "reserved" if budget_status in {"prepared", "dispatching", "unknown", "reserved"} else "released"
                 if resource_id not in resource_ids or not math.isfinite(float(native_units)) or native_units <= 0 or status not in native_statuses or status != expected_status:
                     return False, f"resource reservation is invalid: {reservation_id}"
     except (OSError, sqlite3.DatabaseError) as exc:

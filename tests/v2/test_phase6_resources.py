@@ -4,7 +4,7 @@ import multiprocessing
 
 import pytest
 
-from src.dev_agent.resources.budget import BudgetExceeded, BudgetGovernor, BudgetPolicy, ResourceUnavailable, UnknownPrice
+from src.dev_agent.resources.budget import BudgetAuthority, BudgetExceeded, BudgetGovernor, BudgetPolicy, ResourceUnavailable, UnknownPrice
 from src.dev_agent.resources.ledger import BudgetPeriod, MoneyAmount, ResourceLedger, ResourcePrice
 
 
@@ -33,9 +33,14 @@ def _ledger(tmp_path):
     return ledger
 
 
+def _governor(ledger, policy):
+    BudgetAuthority.configure(ledger, policy)
+    return BudgetGovernor(ledger, policy)
+
+
 def _reserve_in_process(path, task_id, result_queue):
     ledger = ResourceLedger(path)
-    governor = BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20))
+    governor = _governor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20))
     try:
         result_queue.put(governor.reserve(task_id, "remote-gemini", estimated_cost=MoneyAmount("JPY", 50)).reservation_id)
     except BudgetExceeded:
@@ -62,7 +67,7 @@ def test_resource_observation_cannot_exceed_registered_capacity(tmp_path):
 
 def test_budget_reservation_is_atomic_under_concurrency(tmp_path):
     ledger = _ledger(tmp_path)
-    governor = BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20))
+    governor = _governor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20))
 
     def reserve(index):
         try:
@@ -78,7 +83,7 @@ def test_budget_reservation_is_atomic_under_concurrency(tmp_path):
 def test_budget_reservation_is_atomic_across_independent_ledger_connections(tmp_path):
     first = _ledger(tmp_path)
     second = ResourceLedger(tmp_path / "resources.sqlite3")
-    first_governor = BudgetGovernor(first, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20))
+    first_governor = _governor(first, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20))
     second_governor = BudgetGovernor(second, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20))
 
     def reserve(governor, index):
@@ -94,6 +99,7 @@ def test_budget_reservation_is_atomic_across_independent_ledger_connections(tmp_
 
 def test_budget_reservation_is_atomic_across_independent_processes(tmp_path):
     ledger = _ledger(tmp_path)
+    BudgetAuthority.configure(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20))
     path = str(tmp_path / "resources.sqlite3")
     context = multiprocessing.get_context("spawn")
     result_queue = context.Queue()
@@ -108,7 +114,7 @@ def test_budget_reservation_is_atomic_across_independent_processes(tmp_path):
 
 def test_budget_rejects_unknown_price_and_preserves_recovery_reserve(tmp_path):
     ledger = _ledger(tmp_path)
-    governor = BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=30))
+    governor = _governor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=30))
     with pytest.raises(UnknownPrice):
         governor.reserve("task-unknown", "local-qwen", estimated_cost_minor=None)
     reservation = governor.reserve("task-normal", "remote-gemini", estimated_cost_minor=70)
@@ -121,7 +127,7 @@ def test_budget_rejects_unknown_price_and_preserves_recovery_reserve(tmp_path):
 
 def test_budget_reconciliation_persists_actual_usage(tmp_path):
     ledger = _ledger(tmp_path)
-    governor = BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20))
+    governor = _governor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20))
     reservation = governor.reserve("task-1", "remote-gemini", estimated_cost_minor=40)
     governor.reconcile(reservation.reservation_id, actual_cost_minor=25)
     snapshot = governor.snapshot()
@@ -131,7 +137,7 @@ def test_budget_reconciliation_persists_actual_usage(tmp_path):
 
 def test_unknown_provider_charge_remains_reserved_until_reconciliation(tmp_path):
     ledger = _ledger(tmp_path)
-    governor = BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20))
+    governor = _governor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20))
     reservation = governor.reserve("task-1", "remote-gemini", estimated_cost_minor=40)
     governor.mark_unknown(reservation.reservation_id)
     assert governor.snapshot()["active_reservations"] == 1
@@ -139,10 +145,24 @@ def test_unknown_provider_charge_remains_reserved_until_reconciliation(tmp_path)
     assert governor.snapshot()["active_reservations"] == 0
 
 
+def test_budget_reservation_persists_dispatch_lifecycle(tmp_path):
+    ledger = _ledger(tmp_path)
+    governor = _governor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20))
+    reservation = governor.reserve("task-1", "remote-gemini", estimated_cost_minor=40)
+    assert ledger.reservation_row(reservation.reservation_id)["status"] == "prepared"
+
+    governor.mark_dispatching(reservation.reservation_id)
+    assert ledger.reservation_row(reservation.reservation_id)["status"] == "dispatching"
+
+    governor.confirm_no_charge(reservation.reservation_id)
+    assert ledger.reservation_row(reservation.reservation_id)["status"] == "confirmed_no_charge"
+    assert governor.snapshot()["active_reservations"] == 0
+
+
 def test_budget_reservations_are_currency_and_period_bound(tmp_path):
     ledger = _ledger(tmp_path)
     period = BudgetPeriod("2026-09", "2026-09-01T00:00:00+00:00", "2026-10-01T00:00:00+00:00")
-    governor = BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=0, currency="JPY", period=period))
+    governor = _governor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=0, currency="JPY", period=period))
     reservation = governor.reserve("task-1", "remote-gemini", estimated_cost=MoneyAmount("JPY", 40))
     assert reservation.estimated_cost == MoneyAmount("JPY", 40)
     assert ledger.reservation_row(reservation.reservation_id)["period_id"] == "2026-09"
@@ -154,12 +174,24 @@ def test_budget_policy_rejects_invalid_currency_at_initialization(tmp_path):
     ledger = _ledger(tmp_path)
 
     with pytest.raises(ValueError, match="currency"):
-        BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=0, currency="JP"))
+        _governor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=0, currency="JP"))
+
+
+def test_budget_governor_cannot_overwrite_persisted_hard_cap(tmp_path):
+    ledger = _ledger(tmp_path)
+    policy = BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20)
+    BudgetAuthority.configure(ledger, policy)
+    BudgetGovernor(ledger, policy)
+
+    with pytest.raises(ValueError, match="persisted budget"):
+        BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=999999, recovery_reserve_minor=0))
+
+    assert ledger.budget_config()["hard_cap_minor"] == 100
 
 
 def test_missing_actual_cost_is_held_unknown_not_estimated(tmp_path):
     ledger = _ledger(tmp_path)
-    governor = BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=0))
+    governor = _governor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=0))
     reservation = governor.reserve("task-1", "remote-gemini", estimated_cost=MoneyAmount("JPY", 40))
     governor.mark_unknown(reservation.reservation_id)
     row = ledger.reservation_row(reservation.reservation_id)
@@ -185,7 +217,7 @@ def test_resource_price_is_currency_bound_and_explicitly_unknown_when_unbounded(
 def test_native_units_are_reserved_and_released_with_budget_lifecycle(tmp_path):
     ledger = _ledger(tmp_path)
     ledger.observe("remote-gemini", available=1, health="healthy")
-    governor = BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=0))
+    governor = _governor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=0))
     first = governor.reserve("task-1", "remote-gemini", estimated_cost=MoneyAmount("JPY", 10), native_units=1)
     with pytest.raises(ResourceUnavailable):
         governor.reserve("task-2", "remote-gemini", estimated_cost=MoneyAmount("JPY", 10), native_units=1)
@@ -196,6 +228,6 @@ def test_native_units_are_reserved_and_released_with_budget_lifecycle(tmp_path):
 @pytest.mark.parametrize("native_units", [float("nan"), float("inf")])
 def test_budget_rejects_non_finite_native_units(tmp_path, native_units):
     ledger = _ledger(tmp_path)
-    governor = BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=0))
+    governor = _governor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=0))
     with pytest.raises(ValueError, match="native_units"):
         governor.reserve("task-invalid", "remote-gemini", estimated_cost=MoneyAmount("JPY", 10), native_units=native_units)

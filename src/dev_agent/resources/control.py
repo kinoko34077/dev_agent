@@ -27,6 +27,7 @@ class DispatchReservation:
 
 class ResourcePolicy(Protocol):
     def reserve_for_provider(self, task_id: str, provider_id: str, request: ModelRequest) -> DispatchReservation: ...
+    def mark_dispatching(self, reservation: DispatchReservation) -> None: ...
     def reconcile_response(self, reservation: DispatchReservation, response: ModelResponse) -> None: ...
     def release(self, reservation: DispatchReservation) -> None: ...
     def uncertain(self, reservation: DispatchReservation) -> None: ...
@@ -96,6 +97,9 @@ class ResourceControlPlane:
             self.governor.mark_unknown(reservation.budget.reservation_id)
             raise
 
+    def mark_dispatching(self, reservation: DispatchReservation) -> None:
+        self.governor.mark_dispatching(reservation.budget.reservation_id)
+
     def release(self, reservation: DispatchReservation) -> None:
         self.governor.release(reservation.budget.reservation_id)
 
@@ -106,10 +110,10 @@ class ResourceControlPlane:
         category = getattr(error, "category", "provider_error")
         if category in {"transport", "rate_limit", "quota"}:
             self.router.ledger.record_provider_failure(provider_id)
-        if category == "transport":
+        if category in {"transport", "provider_decode", "reconciliation_required"}:
             self.uncertain(reservation)
         else:
-            self.release(reservation)
+            self.governor.confirm_no_charge(reservation.budget.reservation_id)
 
 
 __all__ = ["DispatchDenied", "DispatchReservation", "ResourceControlPlane", "ResourcePolicy"]
