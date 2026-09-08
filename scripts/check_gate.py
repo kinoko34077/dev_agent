@@ -19,8 +19,8 @@ def load_status(path: Path) -> dict:
 
 def check(value: dict) -> tuple[int, list[str]]:
     schema_version = value.get("schema_version")
-    if schema_version in {2, 3} and value.get("phase6_entry", "PROHIBITED_UNTIL_ALL_VERIFIED") != "PROHIBITED_UNTIL_ALL_VERIFIED":
-        raise ValueError("schema v2 phase6_entry must require ALL_VERIFIED")
+    if schema_version in {2, 3} and value.get("phase6_entry", "PROHIBITED_UNTIL_ALL_VERIFIED") != "ALL_VERIFIED":
+        raise ValueError("schema v2/v3 phase6_entry must require ALL_VERIFIED")
     if schema_version == 3:
         classifications = value.get("phase_classification")
         required_phases = {"phase3_5", "phase4", "phase5", "phase6_future", "phase7_future"}

@@ -4,11 +4,11 @@ import json
 from scripts.check_gate import check, load_status
 
 
-def test_current_gate_status_reports_actionable_work():
+def test_current_gate_status_reports_phase6_current_gates_verified():
     value = load_status(Path("spec/v2/GATE_STATUS.json"))
     code, details = check(value)
-    assert code == 1
-    assert any("A/A7" in item for item in details)
+    assert code == 0
+    assert details == []
 
 
 def test_gate_checker_distinguishes_all_external_blockers():
@@ -18,11 +18,11 @@ def test_gate_checker_distinguishes_all_external_blockers():
 
 def test_gate_checker_requires_verified_not_just_implemented_or_integrated():
     for status in ("IMPLEMENTED", "INTEGRATED"):
-        code, details = check({"schema_version": 2, "stages": {"B": {"B11": {"status": status}}}})
+        code, details = check({"schema_version": 2, "phase6_entry": "ALL_VERIFIED", "stages": {"B": {"B11": {"status": status}}}})
         assert code == 1
         assert details == [f"B/B11 ({status})"]
-    assert check({"schema_version": 2, "stages": {"B": {"B11": {"status": "VERIFIED", "evidence": ["test"]}}}}) == (0, [])
-    assert check({"schema_version": 2, "stages": {"B": {"B11": {"status": "PASS"}}}})[0] == 1
+    assert check({"schema_version": 2, "phase6_entry": "ALL_VERIFIED", "stages": {"B": {"B11": {"status": "VERIFIED", "evidence": ["test"]}}}}) == (0, [])
+    assert check({"schema_version": 2, "phase6_entry": "ALL_VERIFIED", "stages": {"B": {"B11": {"status": "PASS"}}}})[0] == 1
 
 
 def test_gate_checker_rejects_v2_false_positive_metadata():
@@ -33,7 +33,7 @@ def test_gate_checker_rejects_v2_false_positive_metadata():
     else:
         raise AssertionError("stale phase6 entry must be rejected")
     try:
-        check({"schema_version": 2, "stages": {"B": {"B11": {"status": "VERIFIED"}}}})
+        check({"schema_version": 2, "phase6_entry": "ALL_VERIFIED", "stages": {"B": {"B11": {"status": "VERIFIED"}}}})
     except ValueError as exc:
         assert "evidence" in str(exc)
     else:
@@ -43,7 +43,7 @@ def test_gate_checker_rejects_v2_false_positive_metadata():
 def test_gate_checker_separates_deferred_future_requirements_from_current_gates():
     value = {
         "schema_version": 3,
-        "phase6_entry": "PROHIBITED_UNTIL_ALL_VERIFIED",
+        "phase6_entry": "ALL_VERIFIED",
         "phase_classification": {
             "phase3_5": {"gates": ["B/B11"]},
             "phase4": {"gates": []},

@@ -8,7 +8,7 @@ Current State sync: verification target is
 
 ## 現在の実行範囲（2026-09-08 JST）
 
-追加された v2 roadmap / foundation 要件に合わせ、当面は Phase 3.5
+追加された v2 roadmap / foundation 要件に合わせ、Phase 3.5
 （Kernel Trust Boundary Closure）だけを対象にする。Phase 6 の Resource / Budget /
 Router / Survival / Scheduler 実装は開始せず、Phase 3.5 の Gate が全項目
 `VERIFIED` になり、正常系・異常系・再開系・exact HEAD の証跡が揃うまで入口を
@@ -81,7 +81,7 @@ sidecar.
 
 Approval progress: approval records bind to one exact internal call ID and canonical hash of the effective arguments after path canonicalization. Broad task/level reuse is rejected. One-shot consumption, expiry, revoke, and duplicate-insert rejection are enforced; SQLite consumption now uses `BEGIN IMMEDIATE` so validation, expiry/revoke check, and consumption commit are one transaction. Reconciliation audit insertion and intent transition are also one transaction. Reconciliation inspection remains available for an already-claimed side effect.
 
-Gate governance progress: `spec/v2/GATE_STATUS.json` schema v3 uses `IMPLEMENTED`, `INTEGRATED`, and `VERIFIED`; only `VERIFIED` is accepted as complete. B11 runtime transition evidence and E31 exact-head CI evidence are tracked separately; both are now verified on the recorded evidence head.
+Gate governance progress: `spec/v2/GATE_STATUS.json` schema v3 uses `IMPLEMENTED`, `INTEGRATED`, and `VERIFIED`; only `VERIFIED` is accepted as complete. B11 runtime transition evidence and E31 exact-head CI evidence are tracked separately; current Phase 3.5/4/5 acceptance gates are now all verified, with Phase 6/7 deferred requirements listed separately.
 
 Responsibility boundary: B11 is the runtime guarantee that critical Controller
 state transitions use `commit_transition()` with crash/restart coverage. E31 is
