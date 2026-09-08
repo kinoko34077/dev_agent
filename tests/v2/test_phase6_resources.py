@@ -127,6 +127,17 @@ def test_budget_configuration_cannot_drop_below_committed_or_abandon_unknown_res
         BudgetAuthority.configure(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20, period=next_period))
 
 
+def test_budget_configuration_cannot_reinterpret_committed_amounts_in_another_currency(tmp_path):
+    ledger = _ledger(tmp_path)
+    policy = BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20, currency="JPY")
+    governor = _governor(ledger, policy)
+    reservation = governor.reserve("task", "remote-gemini", estimated_cost_minor=40)
+    governor.reconcile(reservation.reservation_id, actual_cost_minor=30)
+
+    with pytest.raises(ValueError, match="currency"):
+        BudgetAuthority.configure(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20, currency="USD", period=governor.period))
+
+
 def test_budget_reservation_is_atomic_under_concurrency(tmp_path):
     ledger = _ledger(tmp_path)
     governor = _governor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20))

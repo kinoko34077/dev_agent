@@ -325,12 +325,14 @@ class ResourceLedger:
             end = start.replace(year=start.year + 1, month=1) if start.month == 12 else start.replace(month=start.month + 1)
             period = BudgetPeriod(start.strftime("%Y-%m"), start.isoformat(), end.isoformat())
         with self._lock:
-            existing = self.connection.execute("SELECT period_id FROM budget_config WHERE id=1").fetchone()
+            existing = self.connection.execute("SELECT period_id, currency FROM budget_config WHERE id=1").fetchone()
             if existing is not None:
                 active = self.connection.execute("SELECT period_id, recovery, status, COALESCE(actual_minor, estimated_minor) AS amount FROM budget_reservations WHERE status IN ('prepared', 'dispatching', 'unknown')").fetchall()
                 if any(row["period_id"] != period.period_id for row in active):
                     raise ValueError("cannot change budget period while reservations are active")
                 committed = self.connection.execute("SELECT recovery, COALESCE(actual_minor, estimated_minor) AS amount FROM budget_reservations WHERE period_id=? AND status IN ('prepared', 'dispatching', 'unknown', 'reconciled')", (period.period_id,)).fetchall()
+                if existing["period_id"] == period.period_id and existing["currency"] != normalized_currency and committed:
+                    raise ValueError("cannot change budget currency while reservations are committed")
                 normal_committed = sum(int(row["amount"]) for row in committed if not row["recovery"])
                 recovery_committed = sum(int(row["amount"]) for row in committed if row["recovery"])
                 if normal_committed > hard_cap_minor - recovery_reserve_minor or recovery_committed > recovery_reserve_minor:
