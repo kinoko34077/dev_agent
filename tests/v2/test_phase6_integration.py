@@ -142,6 +142,25 @@ def test_controller_runs_through_provider_dispatcher_and_records_selected_provid
     assert dispatcher.audits[-1].provider_id == "secondary"
 
 
+def test_controller_paid_dispatch_reserves_and_reconciles_actual_cost(tmp_path):
+    ledger = ResourceLedger(tmp_path / "paid-controller.sqlite3")
+    ledger.register_resource("paid", provider_id="paid", native_unit="request", capacity=10, capabilities=["text"], cost_minor=20)
+    ledger.observe("paid", available=10, health="healthy")
+
+    class PaidProvider(FakeProvider):
+        provider_id = "paid"
+
+        def request(self, request):
+            return ModelResponse(provider="paid", model="test", text_segments=["paid"], usage={"cost_minor": 20})
+
+    governor = BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=30, recovery_reserve_minor=0))
+    dispatcher = ProviderDispatcher(ProviderRegistry([PaidProvider()]), ResourceControlPlane(ResourceRouter(ledger), governor))
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        result = Controller(dispatcher, ToolRuntime(ToolRegistry()), store).run(Task(objective="paid e2e"))
+    assert result.status.value == "completed"
+    assert governor.snapshot()["normal_committed_minor"] == 20
+
+
 def test_paid_provider_timeout_waits_for_reconciliation_instead_of_failing(tmp_path):
     ledger = ResourceLedger(tmp_path / "provider-timeout.sqlite3")
     ledger.register_resource("paid", provider_id="slow", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
