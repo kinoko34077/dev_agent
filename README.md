@@ -6,6 +6,38 @@
 
 このブランチでの現在の実行境界は `src/dev_agent`、v2 の運用設定は [`config/v2.yaml`](config/v2.yaml)、復旧操作は `python -m recovery.rescue diagnose --json` です。Phase 6 foundation は検証済みですが、operational Gate は実運用 drill と Provider E2E 証跡が揃うまで未完了です。
 
+## v2 quickstart（現行）
+
+v2 の開発・検証では、legacy v1 の依存関係や起動経路を使用しません。
+
+```bash
+python -m venv .venv
+# Windows PowerShell: .\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements-v2-dev.txt
+python -m pytest tests/v2 -q
+python -m scripts.check_gate
+python -m recovery.rescue diagnose --root . --json
+```
+
+主要な現行コードは次の境界に分かれています。
+
+```text
+src/dev_agent/
+├── runtime/      # Controller、checkpoint、RuntimeState
+├── state/        # SQLite/JSON durable StateStore
+├── providers/    # Provider-neutral contract、dispatch、audit
+├── resources/    # ResourceLedger、Budget、router、survival
+├── scheduler/    # durable queue、lease、worker
+├── tools/        # schema、approval、process isolation
+└── security/     # audit sanitizer、event artifact
+```
+
+Phase 6 の現在地と未完了の外部証跡は [`docs/PHASE6_PLAN.md`](docs/PHASE6_PLAN.md) と [`spec/v2/GATE_STATUS.json`](spec/v2/GATE_STATUS.json) を参照してください。現時点では Phase 7 は開始していません。
+
+以下は v1 の履歴・互換運用情報です。
+
+## legacy v1（履歴）
+
 ## 🧠 概要
 
 `dev_agent` は、Google Gemini などの LLM API を用いた **自律型エージェント**の開発プロジェクトです。
