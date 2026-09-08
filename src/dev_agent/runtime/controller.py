@@ -16,7 +16,7 @@ from ..providers.base import ModelProvider, ProviderError
 from ..security.event_artifacts import EventArtifactStore
 from ..security.audit import AuditRecorder
 from ..resources.control import DispatchDenied, ResourcePolicy
-from ..resources.budget import BudgetExceeded
+from ..resources.budget import BudgetExceeded, BudgetReconciliationRequired
 from ..state.store import StateStore
 from ..tools.runtime import ToolRuntime
 from .state import RuntimeState
@@ -460,6 +460,9 @@ class Controller:
                             self.resource_policy.mark_dispatching(reservation)
                             self._provider_intent(provider_intent_key, status="dispatching", result={"provider_id": self.provider.provider_id, "resource_id": reservation.budget.resource_id})
                             self._record_provider_audit(request, reservation, "dispatching", provider_intent_key)
+                    except BudgetReconciliationRequired as exc:
+                        self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="budget_reconciliation", message=str(exc))
+                        return task
                     except Exception as exc:
                         self._block_budget(task, state, step=step, message=str(exc))
                         return task

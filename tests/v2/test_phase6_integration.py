@@ -310,6 +310,41 @@ def test_dispatcher_persists_dispatching_before_provider_call(tmp_path):
     assert ledger.reservation_totals()["active_reservations"] == 0
 
 
+def test_dispatcher_converts_unknown_budget_replay_into_reconciliation_required(tmp_path):
+    ledger = ResourceLedger(tmp_path / "dispatch-unknown-budget.sqlite3")
+    ledger.register_resource("paid", provider_id="paid", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
+    ledger.observe("paid", available=10, health="healthy")
+    policy = BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)
+    governor = _governor(ledger, policy)
+    control = ResourceControlPlane(ResourceRouter(ledger), governor)
+    calls = []
+
+    class PaidProvider(FakeProvider):
+        provider_id = "paid"
+
+        def request(self, request):
+            calls.append(request.request_id)
+            return ModelResponse(provider="paid", model="test", text_segments=["must not retry"], usage={"cost_minor": 10})
+
+    request = ModelRequest(task_id="00000000-0000-0000-0000-000000000012", messages=[{"role": "user", "content": "unknown budget"}])
+    intent_key = f"provider:{request.request_id}:paid"
+    with SQLiteStateStore(tmp_path / "dispatch-unknown-state.sqlite3") as store:
+        store.create_effect_intent(intent_key, task_id=request.task_id, tool_name="provider:paid", arguments={"request_id": request.request_id})
+        store.transition_effect_intent(intent_key, to_status="prepared")
+        reservation = governor.reserve(request.task_id, "paid", estimated_cost_minor=10, intent_key=intent_key)
+        governor.mark_unknown(reservation.reservation_id)
+
+        dispatcher = ProviderDispatcher(ProviderRegistry([PaidProvider()]), control)
+        dispatcher.bind_runtime(state_store=store)
+        with pytest.raises(ProviderError) as exc:
+            dispatcher.request(request)
+
+        assert exc.value.category == "reconciliation_required"
+        assert calls == []
+        assert store.get_effect_intent(intent_key)["status"] == "unknown"
+        assert ledger.reservation_row(reservation.reservation_id)["status"] == "unknown"
+
+
 def test_dispatcher_reuses_budget_reservation_after_crash_between_budget_and_intent_dispatch(tmp_path):
     ledger = ResourceLedger(tmp_path / "dispatch-crash-restart.sqlite3")
     ledger.register_resource("paid", provider_id="paid", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)

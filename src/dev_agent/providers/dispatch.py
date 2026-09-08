@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, TYPE_CHECKING
 
 from ..domain.protocol import ModelRequest, ModelResponse
-from ..resources.budget import BudgetExceeded
+from ..resources.budget import BudgetExceeded, BudgetReconciliationRequired
 from ..resources.control import DispatchDenied, DispatchReservation, ResourceControlPlane
 from ..resources.router import NoRoute, RouteRequest, RouteSelection
 from ..resources.survival import SurvivalGovernor, SurvivalMode, SurvivalSnapshot
@@ -178,7 +178,12 @@ class ProviderDispatcher(ModelProvider):
                 self._record_audit(request, selection, "durable_replay", intent_key)
                 return cached
             reservation = self.control.reserve_selection(request.task_id, selection, intent_key=intent_key)
-            self.control.mark_dispatching(reservation)
+            try:
+                self.control.mark_dispatching(reservation)
+            except BudgetReconciliationRequired as exc:
+                self._intent(intent_key, status="unknown", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id, "error_category": "reconciliation_required", "message": str(exc)})
+                self._record_audit(request, selection, "budget_reconciliation", intent_key, details={"category": "reconciliation_required"})
+                raise ProviderError(str(exc), category="reconciliation_required", retryable=False) from exc
             try:
                 self._intent(intent_key, status="dispatching", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id})
             except Exception as exc:

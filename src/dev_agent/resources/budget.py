@@ -14,6 +14,10 @@ class BudgetExceeded(RuntimeError):
     pass
 
 
+class BudgetReconciliationRequired(BudgetExceeded):
+    """A prior dispatch left a charge-bearing reservation unresolved."""
+
+
 class UnknownPrice(BudgetExceeded):
     pass
 
@@ -159,6 +163,8 @@ class BudgetGovernor:
         current = self.ledger.reservation_row(reservation_id)["status"]
         if current == "dispatching":
             return
+        if current == "unknown":
+            raise BudgetReconciliationRequired("budget reservation requires reconciliation before dispatch")
         self.ledger.transition_budget(reservation_id, to_status="dispatching", expected_from={"prepared"})
 
     def confirm_no_charge(self, reservation_id: str) -> None:
