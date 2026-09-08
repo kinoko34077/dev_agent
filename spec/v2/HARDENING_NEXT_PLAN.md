@@ -36,7 +36,7 @@
 
 Execution progress: task wall-clock deadline is now persisted in checkpoint state and survives resume; expired resumed work fails closed. Remaining execution gaps are hard process containment for arbitrary handlers and enforcement/deferral of every decorative limit field.
 
-Approval progress: approval records bind to one exact internal call ID and canonical argument hash; broad task/level reuse is rejected. One-shot consumption, expiry, revoke, and duplicate-insert rejection (immutable history) are enforced in SQLite and JSON stores. Reconciliation inspection remains available for an already-claimed external intent.
+Approval progress: approval records bind to one exact internal call ID and canonical argument hash; broad task/level reuse is rejected. One-shot consumption, expiry, revoke, and duplicate-insert rejection are enforced; SQLite consumption now uses `BEGIN IMMEDIATE` so validation, expiry/revoke check, and consumption commit are one transaction. Reconciliation inspection remains available for an already-claimed external intent.
 
 ## Gate D — Provider contract
 
