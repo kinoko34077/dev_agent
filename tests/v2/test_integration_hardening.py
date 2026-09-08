@@ -74,6 +74,22 @@ def test_event_artifact_store_rejects_path_traversal_and_secret_payloads(tmp_pat
         store.put(b"api_key=raw-secret", content_type="text/plain", retention_seconds=60)
 
 
+def test_event_artifact_store_enforces_expiry_and_content_integrity(tmp_path, monkeypatch):
+    import src.dev_agent.security.event_artifacts as artifact_module
+
+    store = artifact_module.EventArtifactStore(tmp_path / "artifacts")
+    reference = store.put(b'{"message":"safe"}', content_type="application/json", retention_seconds=60)
+    monkeypatch.setattr(artifact_module.time, "time", lambda: reference["expires_at"] + 1)
+    with pytest.raises(FileNotFoundError):
+        store.read(reference["uri"])
+    monkeypatch.undo()
+
+    payload_path, _ = store._paths(reference["uri"])
+    payload_path.write_bytes(b"tampered")
+    with pytest.raises(ValueError, match="integrity"):
+        store.read(reference["uri"])
+
+
 def test_controller_writes_sanitized_oversized_event_to_artifact_store(tmp_path):
     from src.dev_agent.providers.fake import FakeProvider
     from src.dev_agent.security.event_artifacts import EventArtifactStore

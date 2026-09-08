@@ -93,7 +93,21 @@ class EventArtifactStore:
         payload_path, metadata_path = self._paths(reference)
         if not payload_path.exists() or not metadata_path.exists():
             raise FileNotFoundError(reference)
-        return payload_path.read_bytes()
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            if metadata.get("uri") != reference or float(metadata["expires_at"]) <= time.time():
+                raise FileNotFoundError(reference)
+            payload = payload_path.read_bytes()
+            if int(metadata["byte_length"]) != len(payload):
+                raise ValueError("artifact integrity check failed")
+            digest = reference.rsplit(":", 1)[1]
+            if hashlib.sha256(payload).hexdigest() != digest:
+                raise ValueError("artifact integrity check failed")
+            return payload
+        except FileNotFoundError:
+            raise
+        except (OSError, TypeError, ValueError, KeyError, json.JSONDecodeError) as exc:
+            raise ValueError("artifact integrity check failed") from exc
 
     def purge(self, *, now: float | None = None) -> int:
         current = time.time() if now is None else now
