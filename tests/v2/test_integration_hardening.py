@@ -555,7 +555,17 @@ def test_resume_after_reconciliation_wait_commit_crash_reconciles_without_duplic
 def test_process_isolated_tool_is_killed_at_timeout(tmp_path):
     marker = tmp_path / "late-marker.txt"
     registry = ToolRegistry()
-    registry.register(ToolSpec(name="process", description="isolated", side_effect_level="process", isolation="subprocess", timeout_seconds=0.05, handler=isolated_slow_handler))
+    registry.register(
+        ToolSpec(
+            name="process",
+            description="isolated",
+            side_effect_level="process",
+            isolation="subprocess",
+            timeout_seconds=0.05,
+            handler=isolated_slow_handler,
+            handler_ref="tests.v2.test_integration_hardening:isolated_slow_handler",
+        )
+    )
     call = ToolCall(tool_name="process", arguments={"marker": str(marker)}, idempotency_key="process-timeout")
     with SQLiteStateStore(tmp_path / "process-timeout.sqlite3") as store:
         result = ToolRuntime(registry).with_result_store(store).execute(call)
@@ -590,7 +600,17 @@ def test_generated_tool_uses_subprocess_boundary_for_normal_execution(tmp_path):
 def test_process_timeout_terminates_descendant_processes(tmp_path):
     marker = tmp_path / "child-marker.txt"
     registry = ToolRegistry()
-    registry.register(ToolSpec(name="process_tree", description="isolated", side_effect_level="process", isolation="subprocess", timeout_seconds=0.2, handler=isolated_child_handler))
+    registry.register(
+        ToolSpec(
+            name="process_tree",
+            description="isolated",
+            side_effect_level="process",
+            isolation="subprocess",
+            timeout_seconds=0.2,
+            handler=isolated_child_handler,
+            handler_ref="tests.v2.test_integration_hardening:isolated_child_handler",
+        )
+    )
     call = ToolCall(tool_name="process_tree", arguments={"child_marker": str(marker)}, idempotency_key="process-tree-timeout")
     with SQLiteStateStore(tmp_path / "process-tree-timeout.sqlite3") as store:
         result = ToolRuntime(registry).with_result_store(store).execute(call)
