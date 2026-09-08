@@ -98,6 +98,38 @@ def test_dispatcher_routes_to_secondary_provider_after_retryable_primary_failure
     assert [(entry.provider_id, entry.outcome) for entry in dispatcher.audits] == [("primary", "rate_limit"), ("secondary", "succeeded")]
 
 
+def test_dispatcher_does_not_retry_transport_after_external_dispatch(tmp_path):
+    ledger = ResourceLedger(tmp_path / "dispatch-transport-no-retry.sqlite3")
+    for resource_id, provider_id in (("primary", "primary"), ("secondary", "secondary")):
+        ledger.register_resource(resource_id, provider_id=provider_id, native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
+        ledger.observe(resource_id, available=10, health="healthy")
+    calls = []
+
+    class TransportProvider(FakeProvider):
+        provider_id = "primary"
+
+        def request(self, request):
+            calls.append("primary")
+            raise ProviderError("connection lost", category="transport", retryable=True)
+
+    class SecondaryProvider(FakeProvider):
+        provider_id = "secondary"
+
+        def request(self, request):
+            calls.append("secondary")
+            return ModelResponse(provider="secondary", model="test", text_segments=["must not retry"])
+
+    control = ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=0)))
+    dispatcher = ProviderDispatcher(ProviderRegistry([TransportProvider(), SecondaryProvider()]), control)
+    request = ModelRequest(task_id="00000000-0000-0000-0000-000000000009", messages=[{"role": "user", "content": "x"}])
+
+    with pytest.raises(ProviderError, match="connection lost") as exc:
+        dispatcher.request(request)
+    assert exc.value.category == "transport"
+    assert calls == ["primary"]
+    assert ledger.reservation_totals()["active_reservations"] == 1
+
+
 def test_dispatcher_accepts_explicit_task_id_compatibility_entrypoint(tmp_path):
     ledger = ResourceLedger(tmp_path / "dispatcher-task-id.sqlite3")
     ledger.register_resource(

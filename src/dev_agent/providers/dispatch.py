@@ -86,6 +86,13 @@ class ProviderDispatcher(ModelProvider):
             except ProviderError as exc:
                 self.control.record_provider_error(selection.provider_id, reservation, exc)
                 self.audits.append(DispatchAudit(selection.provider_id, selection.resource_id, exc.category))
+                # A transport failure occurs after the concrete provider was
+                # invoked.  Its external outcome is therefore ambiguous even
+                # when the provider labels the error retryable; fail closed
+                # and require reconciliation instead of sending a duplicate
+                # request through another route.
+                if exc.category == "transport":
+                    raise
                 last_error = exc
                 excluded.add(selection.resource_id)
                 if not exc.retryable:
