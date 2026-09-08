@@ -134,6 +134,22 @@ def test_event_payload_redacts_secrets_and_caps_large_strings():
     assert len(safe["blob"]) == 4096 + len("...[TRUNCATED]")
 
 
+def test_approval_binds_to_effective_canonical_path_arguments(tmp_path):
+    workspace = tmp_path / "workspace"
+    sandbox = workspace / "sandbox"
+    sandbox.mkdir(parents=True)
+    calls = []
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="publish_file", description="external", side_effect_level="external_write", path_argument="path", path_operation="write", handler=lambda args: calls.append(args) or {"ok": True}))
+    call = ToolCall(tool_name="publish_file", arguments={"path": "sandbox/out.txt"}, idempotency_key="effective-path")
+    with SQLiteStateStore(tmp_path / "effective.sqlite3") as store:
+        effective = str((sandbox / "out.txt").resolve())
+        store.save_approval("a", task_id="t", side_effect_level="external_write", actor="human", call_id=call.call_id, arguments_hash=canonical_arguments_hash({"path": effective}))
+        result = ToolRuntime(registry, paths=PathPolicy(workspace, {"sandbox": {"write"}})).with_result_store(store).execute(call, task_id="t", approval_id="a")
+        assert result.status == ToolResultStatus.SUCCEEDED
+        assert calls == [{"path": effective}]
+
+
 def test_controller_waiting_approval_can_resume_with_persisted_record(tmp_path):
     calls = []
     registry = ToolRegistry()
