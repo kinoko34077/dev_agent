@@ -20,6 +20,8 @@ class LocalProvider(ModelProvider):
     def request(self, request: ModelRequest) -> ModelResponse:
         try:
             raw = self.backend(request.to_dict())
+        except ProviderError:
+            raise
         except Exception as exc:
             raise ProviderError(f"local provider backend failed: {exc}", category="transport", retryable=False) from exc
         return normalize_response(raw, provider=self.provider_id, default_model=self.model)
