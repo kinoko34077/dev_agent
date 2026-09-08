@@ -4,6 +4,15 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-09 JST — Phase 6 operational hardening continued
+
+- Dispatcherの明示 `task_id` 互換入口と公開モジュール境界を追加し、Registry不整合時の予約リークを防止。
+- 実測請求が保護予算を超えた場合の予約を `unknown` として保持し、監査・照合なしの解放を禁止。
+- Schedulerのmaintenance判定をclaimトランザクション内へ移し、待機Taskを `waiting` にparkして明示 `wake()` まで再実行しない契約を追加。
+- Provider timeout/transport後の `resume()` 再送と、照合待ちTaskのterminal cancellationを抑止。
+- resource-ledgerのnative reservation整合性をRecovery validatorで検査。
+- Phase 6 operational Gateは引き続き `IN_PROGRESS`。実Providerのpaid dispatch、独立queue/state authority、operator recovery drill、exact-head CIの最新証跡を継続取得する。
+
 ### 現在の到達点（2026-09-08 JST）
 
 - Phase 6A〜6Eを実装。Native-unit Resource Ledger、fail-closed Budget Governor、privacy-first Router、NORMAL / CONSERVE / SURVIVAL、独立Recovery Operator、durable lease queue、Controller dispatch reservationを追加し、Stage Fへ証拠を登録した。

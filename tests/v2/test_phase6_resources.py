@@ -143,6 +143,13 @@ def test_budget_reservations_are_currency_and_period_bound(tmp_path):
         governor.reserve("task-2", "remote-gemini", estimated_cost=MoneyAmount("USD", 1))
 
 
+def test_budget_policy_rejects_invalid_currency_at_initialization(tmp_path):
+    ledger = _ledger(tmp_path)
+
+    with pytest.raises(ValueError, match="currency"):
+        BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=0, currency="JP"))
+
+
 def test_missing_actual_cost_is_held_unknown_not_estimated(tmp_path):
     ledger = _ledger(tmp_path)
     governor = BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=0))

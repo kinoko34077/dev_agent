@@ -51,7 +51,10 @@ class BudgetGovernor:
             raise ValueError("invalid budget policy")
         self.policy = policy
         self.period = policy.period or self._current_month()
-        self.currency = policy.currency.upper()
+        # Validate and normalize the policy currency before it reaches the
+        # durable ledger; otherwise an invalid code would fail only on the
+        # first reservation (or be persisted by direct ledger callers).
+        self.currency = MoneyAmount(policy.currency, 0).currency
         self.ledger.configure_budget(hard_cap_minor=policy.hard_cap_minor, recovery_reserve_minor=policy.recovery_reserve_minor, currency=self.currency, period=self.period)
 
     @staticmethod

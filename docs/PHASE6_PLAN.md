@@ -49,6 +49,9 @@ Implemented in `src/dev_agent/scheduler/queue.py`.
 - Claims are exclusive through an atomic transaction.
 - `lease_owner`, `lease_until`, `state_version`, and `attempts` fence stale
   workers and support expiry/reclaim after restart.
+- Tasks that return `waiting_approval`, `waiting_reconciliation`, or a
+  budget/dependency block are parked as `waiting`; they are not retried until
+  an explicit `DurableQueue.wake()` event.
 
 ## 6E — Kernel integration and evidence
 
@@ -56,6 +59,9 @@ The optional `ResourceControlPlane` is connected to Controller provider
 dispatch. Existing callers remain backward-compatible when no policy is
 provided. The integration reserves before every provider request, reconciles
 observed usage, and preserves uncertain reservations on timeout/cancellation.
+Provider timeout/transport checkpoints remain fail-closed on `resume()` until
+an explicit provider reconciliation path clears the marker; cancellation of an
+already ambiguous task cannot terminalize it as ordinary `cancelled`.
 
 The machine-readable evidence is maintained in
 `spec/v2/GATE_STATUS.json` under Stage F (`F6A`–`F6E`). Stage G records the

@@ -37,7 +37,7 @@ v1 は移植元ではなく、知見・ログ・失敗の回帰資料である�
 
 **Phase 6 — Resource / Survival / Recovery（foundation verified・運用統合を実施中）**
 
-Phase 0〜5 は current acceptance verified。Phase 6A〜6Eで resource ledger、budget reservation、privacy-first router、survival modes、独立Recovery運用、durable scheduler ownershipの基礎を実装し、Stage Fとして検証している。Stage Gでは、実Provider dispatch、通貨・period安全な予算、survival policy、lease-fenced worker、独立接続の競合証明、recovery drill を統合検証する。
+Phase 0〜5 は current acceptance verified。Phase 3.5の後段要件、Phase 4 local実Provider、Phase 5 remote実Providerの証跡は `spec/v2/GATE_STATUS.json` を正とする。Phase 6A〜6Eで resource ledger、budget reservation、privacy-first router、survival modes、独立Recovery運用、durable scheduler ownershipの基礎を実装し、Stage Fとして検証している。Stage Gでは、実Provider dispatch、通貨・period安全な予算、survival policy、lease-fenced worker、独立接続の競合証明、recovery drill を統合検証する。
 
 進行判定: Stage F foundation と Stage G operational を別々に自動判定し、Stage Gの通常系・独立競合系・fail-closed系・exact HEAD CI証跡が揃うこと。
 
@@ -49,9 +49,9 @@ Phase 0〜5 は current acceptance verified。Phase 6A〜6Eで resource ledger�
 | 1. Recovery / Protocol | 独立 Recovery skeleton、Task / Step / ModelRequest / ModelResponse / ToolCall / ToolResult の型と直列化 | Provider 非依存の型検証・直列化・診断 CLI がネットワークなしで通る | protocol 完了、Recovery は skeleton |
 | 2. 最小決定的 Kernel | FakeProvider、単一 Task の反復 Controller、イベント / checkpoint、無害な Tool registry | Model request → ToolCall → ToolResult → final response → completed が全履歴付きで通る。上限超過と不正応答が定義済み失敗になる | 完了（`v2-kernel-alpha0` 相当） |
 | 3. Task・Policy・永続化 | Task Graph、DAG/cycle/depth 制限、SQLite resume、正規化パス、権限 / approval、idempotency | 強制終了後 resume、cycle / traversal / symlink / 無許可操作 / 重複副作用を試験で防止できる | primitive 完了、Controller integration hardening 中 |
-| 3.5 Kernel integration hardening | checkpoint execution state、ToolResult protocol、policy/idempotency integration、failure transition | integration Gate と crash injection を満たす | 進行中 |
-| 4. ローカル実行基盤 | Local Provider adapter、provider contract harness、v1 ログ / 入出力 fixture の整備 | クラウドなしで実 Local Provider が代表タスクを完了する | adapter shell / offline contract |
-| 5. Provider 多重化 | Gemini adapter、新しい独立 Provider、ライブ Contract Probe、capability matrix | Provider の追加で Core を変更せず、実 response を normalize し live probe を記録する | transport shell / minimal offline harness |
+| 3.5 Kernel integration hardening | checkpoint execution state、ToolResult protocol、policy/idempotency integration、failure transition | integration Gate と crash injection を満たす | current acceptance 完了。後段要件は Phase 6/7へ分離 |
+| 4. ローカル実行基盤 | Local Provider adapter、provider contract harness、v1 ログ / 入出力 fixture の整備 | クラウドなしで実 Local Provider が代表タスクを完了する | Ollama `qwen3:8b` real text/tool E2E verified |
+| 5. Provider 多重化 | Gemini adapter、新しい独立 Provider、ライブ Contract Probe、capability matrix | Provider の追加で Core を変更せず、実 response を normalize し live probe を記録する | Gemini `gemini-2.5-flash` real text/tool E2E verified |
 | 6. 資源・生存・外部復旧 | 資源 ledger、budget governor、NORMAL / CONSERVE / SURVIVAL、Rescue CLI / MCP、復旧 drill | 支払上限を呼出前に遮断し、通常 router を壊しても外部 Agent が診断・修復できる | `v2-survival-alpha` |
 | 7. 安全な拡張 | evaluator / critic workflow、自己修復候補、Tool / Skill 生成、Workflow library と昇格 | main を直接変更せず、候補生成 → 検証 → rollback を証明。繰返し作業を tested workflow 候補へ昇格できる | 拡張基盤 |
 | 8. 複数役割・事業検証 | manifest-defined roles、bounded handoff、AI Company benchmark、収益 ledger / 再投資規則 | 一 Provider 停止下で、実タスクの artifact・検証・状態保存・approval handoff が完了する | 統合検証 |
@@ -85,7 +85,7 @@ Phase 4〜5 の追加 Gate:
 - [x] Local Provider shell が cloud なしで text / tool-call contract を通る。
 - [x] v1 `whichOneof` failure fixture を adapter 境界で分類できる。
 - [x] Gemini transport shell と独立 OpenAI-compatible shell が同じ Core protocol を返す。
-- [ ] 認証済み実 Provider の live Contract Probe と capability matrix（endpoint / credential 準備後）。
+- [x] 認証済み実 Provider の live Contract Probe と capability matrix（Ollama / Gemini の observed evidenceを記録済み）。
 
 検証済み: Windows の symlink 作成権限を有効化した環境で、実 symlink の workspace 外逸脱拒否テストが `passed` になった。権限のない環境では同じテストが安全に skip されるため、Promotion Gate では権限付き実行結果を証跡として要求する。
 

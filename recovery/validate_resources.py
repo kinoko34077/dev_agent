@@ -11,7 +11,7 @@ def validate_resource_ledger(path: str | Path) -> tuple[bool, str]:
     try:
         with sqlite3.connect(database) as connection:
             tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-            required = {"resources", "resource_observations", "budget_config", "budget_reservations"}
+            required = {"resources", "resource_observations", "budget_config", "budget_reservations", "resource_reservations"}
             missing = required - tables
             if missing:
                 return False, f"resource ledger missing tables: {', '.join(sorted(missing))}"
@@ -27,10 +27,18 @@ def validate_resource_ledger(path: str | Path) -> tuple[bool, str]:
             for reservation_id, estimated, actual, recovery, status in reservations:
                 if estimated < 0 or (actual is not None and actual < 0) or recovery not in {0, 1} or status not in valid_statuses:
                     return False, f"budget reservation is invalid: {reservation_id}"
+            native_reservations = connection.execute(
+                "SELECT reservation_id, resource_id, native_units, status FROM resource_reservations"
+            ).fetchall()
+            native_statuses = {"reserved", "released"}
+            budget_ids = {row[0] for row in reservations}
+            resource_ids = {row[0] for row in resources}
+            for reservation_id, resource_id, native_units, status in native_reservations:
+                if reservation_id not in budget_ids or resource_id not in resource_ids or native_units <= 0 or status not in native_statuses:
+                    return False, f"resource reservation is invalid: {reservation_id}"
     except (OSError, sqlite3.DatabaseError) as exc:
         return False, f"resource ledger validation failed: {exc}"
     return True, "Phase 6 resource ledger is readable"
 
 
 __all__ = ["validate_resource_ledger"]
-

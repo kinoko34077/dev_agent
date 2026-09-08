@@ -31,3 +31,19 @@ def test_recovery_validates_resource_ledger_without_runtime_import(tmp_path):
     ledger.configure_budget(hard_cap_minor=100, recovery_reserve_minor=20, currency="JPY")
     ledger.register_resource("local", provider_id="ollama", native_unit="request", capacity=1, capabilities=["text"])
     assert validate_resource_ledger(ledger_path) == (True, "Phase 6 resource ledger is readable")
+
+
+def test_recovery_rejects_orphan_native_resource_reservation(tmp_path):
+    ledger_path = tmp_path / "resources.sqlite3"
+    ledger = ResourceLedger(ledger_path)
+    ledger.configure_budget(hard_cap_minor=100, recovery_reserve_minor=20, currency="JPY")
+    ledger.register_resource("local", provider_id="ollama", native_unit="request", capacity=1, capabilities=["text"])
+    ledger.connection.execute(
+        "INSERT INTO resource_reservations(reservation_id, resource_id, native_units, status) VALUES ('orphan', 'local', 1, 'reserved')"
+    )
+    ledger.connection.commit()
+
+    ok, detail = validate_resource_ledger(ledger_path)
+
+    assert not ok
+    assert "resource reservation" in detail
