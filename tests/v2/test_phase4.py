@@ -30,6 +30,14 @@ def test_local_provider_normalizes_model_response_directly():
     assert response.text_segments == ["ok"]
 
 
+def test_contract_harness_preserves_typed_provider_failures():
+    def backend(_request):
+        raise ProviderError("quota exhausted", category="quota", retryable=True, http_status=429)
+    report = ContractHarness().probe(LocalProvider(backend, model="test"))
+    assert {item["category"] for item in report.errors} == {"quota"}
+    assert report.confidence == "observed"
+
+
 def _task_id():
     from uuid import uuid4
 

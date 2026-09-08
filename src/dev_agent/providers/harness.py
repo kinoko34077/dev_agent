@@ -15,6 +15,10 @@ class ContractReport:
     model: str | None = None
     adapter_version: str = "v2"
     tested_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    expires_at: str | None = None
+    confidence: str = "observed"
+    api_version: str | None = None
+    known_quirks: list[str] = field(default_factory=list)
     capabilities: set[str] = field(default_factory=set)
     errors: list[dict[str, str]] = field(default_factory=list)
 
