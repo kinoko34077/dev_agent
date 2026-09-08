@@ -6,7 +6,7 @@
 
 ### 現在の到達点（2026-09-08 JST）
 
-- v2 の全テストが `115 passed`（2026-09-08 JST のローカル実行）。
+- v2 の全テストが `116 passed`（2026-09-08 JST のローカル実行）。
 - 外部副作用の曖昧状態を `waiting_reconciliation` としてタスクに永続化し、照合確定後の再開を統合テストで検証（全64件）。
 - Windows の実 symlink を使った workspace 外逸脱拒否テストが `passed`。
 - Ollama のローカル `/api/chat` は現環境で接続拒否を確認し、実 Tool-call E2E は未達のまま Gate D23 に保留。
@@ -37,6 +37,8 @@
   cancelled commit直後のcrash復帰でcancel eventが重複しないことを検証。
 - cancellation後にguarded effectの結果を確認できない場合、checkpoint/eventへ
   `unable_to_confirm` を記録し、通常の `terminated` と区別する経路を追加。
+- 実行中のProvider requestをcancelした場合も、threadを停止できないため
+  `WAITING_RECONCILIATION` と `unable_to_confirm` を永続化する経路を追加。
 - Controller の completion / failure / approval wait /
   reconciliation wait / ToolResult の critical transition を
   `commit_transition()` へ統合。Gate の状態を

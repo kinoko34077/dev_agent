@@ -53,6 +53,9 @@ Status: in progress. This gate precedes Phase 6.
 - Input token estimates, provider-reported output/cost usage, task
   cancellation, and graph limits are enforced or explicitly represented as
   deferred contracts in the hardening plan.
+- Cancellation of an in-flight Provider request is persisted as
+  `WAITING_RECONCILIATION` with `unable_to_confirm`; only a request that has
+  not started can be durably marked `terminated`.
 - Recovery now supports validated atomic backup and restore, non-destructive
   Git diagnostics, last-known-good recording, rollback planning, and explicit
   permission gates for rollback/repair-branch mutation.

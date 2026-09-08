@@ -24,7 +24,9 @@ class RuntimeFailure(RuntimeError):
 
 
 class _ProviderCancelled(Exception):
-    pass
+    def __init__(self, *, unable_to_confirm: bool) -> None:
+        super().__init__("provider request cancellation")
+        self.unable_to_confirm = unable_to_confirm
 
 
 class Controller:
@@ -157,6 +159,30 @@ class Controller:
         checkpoint = self._checkpoint_payload(task, step, "cancelled", state) if step is not None else None
         self._commit(task=task, step=step, checkpoint=checkpoint, events=events, tool_result=tool_result)
 
+    def _cancel_unable_to_confirm(self, task: Task, state: dict[str, Any], *, step: Step, message: str) -> None:
+        """Persist an ambiguous cancellation while a provider may still run."""
+        step.status = StepStatus.WAITING
+        state["active_step"] = step.to_dict()
+        state["cancellation"] = {
+            "state": "unable_to_confirm",
+            "reason": self._cancellation_reasons.get(task.task_id, message),
+            "requested": True,
+            "source": "provider_request",
+        }
+        task.status = TaskStatus.WAITING_RECONCILIATION
+        event = self._event_record(
+            task,
+            "task.waiting_reconciliation",
+            {
+                "category": "cancelled",
+                "message": message,
+                "source": "provider_request",
+                "cancellation_state": "unable_to_confirm",
+            },
+            step_id=step.step_id,
+        )
+        self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "waiting_reconciliation", state), events=[event])
+
     @staticmethod
     def _initial_state(task: Task) -> dict[str, Any]:
         return {
@@ -218,8 +244,10 @@ class Controller:
                     return response
                 except FutureTimeoutError:
                     if cancel_event.is_set():
-                        future.cancel()
-                        raise _ProviderCancelled()
+                        if future.done():
+                            return future.result(timeout=0)
+                        cancelled = future.cancel()
+                        raise _ProviderCancelled(unable_to_confirm=not cancelled)
         finally:
             executor.shutdown(wait=False, cancel_futures=True)
 
@@ -377,8 +405,11 @@ class Controller:
                     response = self._provider_request(request, state["deadline_epoch"], cancel_event)
                     if not isinstance(response, ModelResponse):
                         raise TypeError("provider must return ModelResponse")
-                except _ProviderCancelled:
-                    self._cancel(task, state, step=step, message="provider request was cancelled")
+                except _ProviderCancelled as exc:
+                    if exc.unable_to_confirm:
+                        self._cancel_unable_to_confirm(task, state, step=step, message="provider request cancellation could not be confirmed")
+                    else:
+                        self._cancel(task, state, step=step, message="provider request was cancelled")
                     return task
                 except FutureTimeoutError:
                     self._fail(task, state, "timeout", "model request timed out", step=step, request_id=request.request_id)

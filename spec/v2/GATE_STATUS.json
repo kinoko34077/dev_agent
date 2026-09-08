@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "evidence_head": "d660ec874beaa5060cb01e1635cd98a33e796d18",
+  "evidence_head": "6ed814e3ab938d4635e225992c1087dbfe3243f4",
   "phase6_entry": "PROHIBITED_UNTIL_ALL_VERIFIED",
   "phase6_entry_rule": "Phase 3.5, Phase 4, and Phase 5 current acceptance gates must be VERIFIED; future recovery drills and Phase 7 lifecycle requirements are tracked separately.",
   "phase_classification": {
@@ -46,7 +46,7 @@
       "C15": {"status": "INTEGRATED", "phase": "phase3_5", "evidence": ["src/dev_agent/runtime/controller.py:input/output/cost enforcement", "src/dev_agent/runtime/task_graph.py:from_limits", "tests/v2/test_integration_hardening.py::test_controller_enforces_input_output_and_observed_cost_limits"], "verification_gap": "Phase 3.5 records max_retries as deferred; automatic retry and resource budget policy belong to Phase 6."},
       "C16": {"status": "VERIFIED", "evidence": ["src/dev_agent/runtime/task_graph.py:max_total_tasks_per_root", "src/dev_agent/runtime/task_graph.py:from_limits"]},
       "C17": {"status": "VERIFIED", "evidence": ["tests/v2/test_integration_hardening.py::test_tool_argument_and_result_byte_limits_are_enforced"]},
-      "C18": {"status": "INTEGRATED", "phase": "phase3_5", "evidence": ["src/dev_agent/runtime/controller.py:cancel", "tests/v2/test_integration_hardening.py::test_controller_cancellation_is_cooperative_and_durable", "tests/v2/test_integration_hardening.py::test_cancellation_during_guarded_effect_requires_reconciliation", "tests/v2/test_integration_hardening.py::test_controller_marks_guarded_cancellation_unable_to_confirm"], "verification_gap": "Cancellation is cooperative at runtime boundaries; an already-running trusted in-process handler cannot be force-killed."},
+      "C18": {"status": "INTEGRATED", "phase": "phase3_5", "evidence": ["src/dev_agent/runtime/controller.py:cancel and _cancel_unable_to_confirm", "tests/v2/test_integration_hardening.py::test_controller_cancellation_is_cooperative_and_durable", "tests/v2/test_integration_hardening.py::test_provider_cancellation_during_request_requires_reconciliation", "tests/v2/test_integration_hardening.py::test_cancellation_during_guarded_effect_requires_reconciliation", "tests/v2/test_integration_hardening.py::test_controller_marks_guarded_cancellation_unable_to_confirm"], "verification_gap": "Cancellation is cooperative at runtime boundaries; an already-running trusted in-process handler or Provider request cannot be force-killed."},
       "C19": {"status": "INTEGRATED", "phase": "phase3_5", "evidence": ["src/dev_agent/tools/registry.py:trust_level/isolation", "src/dev_agent/tools/process_worker.py", "tests/v2/test_integration_hardening.py::test_generated_tool_uses_subprocess_boundary_for_normal_execution", "tests/v2/test_integration_hardening.py::test_process_isolated_tool_is_killed_at_timeout"], "verification_gap": "Phase 3.5 closes the isolation boundary; full generated-tool lifecycle is deferred to Phase 7 and remote descendant-process evidence remains separate."}
     },
     "D": {

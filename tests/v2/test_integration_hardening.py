@@ -648,12 +648,40 @@ def test_controller_cancellation_is_cooperative_and_durable(tmp_path):
     controller.cancel(task.task_id)
     runner.join(2)
     assert not runner.is_alive()
-    assert task.status == TaskStatus.CANCELLED
-    assert store.load_task(task.task_id).status == TaskStatus.CANCELLED
-    cancelled = [event for event in store.snapshot()["events"] if event["event_type"] == "task.cancelled"]
-    assert cancelled and cancelled[-1]["payload"]["cancellation_state"] == "terminated"
+    assert task.status == TaskStatus.WAITING_RECONCILIATION
+    assert store.load_task(task.task_id).status == TaskStatus.WAITING_RECONCILIATION
+    waiting = [event for event in store.snapshot()["events"] if event["event_type"] == "task.waiting_reconciliation"]
+    assert waiting and waiting[-1]["payload"]["cancellation_state"] == "unable_to_confirm"
     checkpoint = store.load_latest_checkpoint(task.task_id)
-    assert checkpoint["state"]["cancellation"]["state"] == "terminated"
+    assert checkpoint["state"]["cancellation"]["state"] == "unable_to_confirm"
+
+
+def test_provider_cancellation_during_request_requires_reconciliation(tmp_path):
+    started = ThreadEvent()
+
+    class SlowProvider(ModelProvider):
+        provider_id = "provider-cancellable"
+
+        def request(self, request):
+            started.set()
+            sleep(0.2)
+            return ModelResponse(provider=self.provider_id, model="test", text_segments=["late"])
+
+    store = JsonStateStore(tmp_path / "provider-cancel-uncertain.json")
+    controller = Controller(SlowProvider(), ToolRuntime(ToolRegistry()), store)
+    task = Task(objective="cancel provider request")
+    result_box = []
+    runner = Thread(target=lambda: result_box.append(controller.run(task)), daemon=True)
+    runner.start()
+    assert started.wait(2)
+    controller.cancel(task.task_id, reason="operator cancelled during provider request")
+    runner.join(2)
+    assert not runner.is_alive()
+    assert result_box[0].status == TaskStatus.WAITING_RECONCILIATION
+    checkpoint = store.load_latest_checkpoint(task.task_id)
+    assert checkpoint["state"]["cancellation"]["state"] == "unable_to_confirm"
+    waiting = [event for event in store.snapshot()["events"] if event["event_type"] == "task.waiting_reconciliation"]
+    assert waiting[-1]["payload"]["cancellation_state"] == "unable_to_confirm"
 
 
 def test_cancellation_during_guarded_effect_requires_reconciliation(tmp_path):

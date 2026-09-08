@@ -3,8 +3,8 @@
 目的は、外部サービスが停止してもローカルで検証可能な境界を先に完了し、外部依存の項目を明確な保留として後回しにできる状態を作ること。
 
 Current State sync: verification target is
-`d660ec874beaa5060cb01e1635cd98a33e796d18`; the latest local full suite is
-`115 passed`. Gate evidence distinguishes local, CI, and live Provider evidence.
+`6ed814e3ab938d4635e225992c1087dbfe3243f4`; the latest local full suite is
+`116 passed`. Gate evidence distinguishes local, CI, and live Provider evidence.
 
 ## 現在の実行範囲（2026-09-08 JST）
 
@@ -59,7 +59,7 @@ Phase 6 の実装に着手する条件は、Gate checker の actionable 項目�
 
 Execution progress: task wall-clock deadline is now persisted in checkpoint state and survives resume; expired resumed work fails closed. Input token estimates, provider-reported output/cost usage, and TaskGraph limits are enforced. Trusted in-process handlers retain a documented soft timeout; untrusted/generated/process handlers use a subprocess boundary with process-tree termination. `max_retries` remains explicitly deferred because v2 has no automatic retry engine.
 
-Cancellation progress: `Controller.cancel()` is cooperative and durable at the next runtime boundary. In-flight trusted Python handlers cannot be force-killed; process-isolated handlers are terminated and ambiguous side effects remain reconciliation-gated.
+Cancellation progress: `Controller.cancel()` is cooperative and durable at the next runtime boundary. In-flight trusted Python handlers and Provider request threads cannot be force-killed; both now persist `unable_to_confirm` and remain reconciliation-gated, while cancellation before execution persists `terminated`.
 
 Event security progress: oversized sanitized payloads can be written through an
 explicit `EventArtifactStore` with content-addressed references, root-bound reads,
