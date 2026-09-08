@@ -230,17 +230,25 @@ def test_paid_provider_timeout_waits_for_reconciliation_instead_of_failing(tmp_p
     ledger.observe("paid", available=10, health="healthy")
     control = ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)))
 
+    calls = []
+
     class SlowProvider(FakeProvider):
         provider_id = "slow"
 
         def request(self, request):
             import time
+            calls.append(request.request_id)
             time.sleep(0.2)
             return ModelResponse(provider="slow", model="test", text_segments=["late"])
 
     with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
-        result = Controller(SlowProvider(), ToolRuntime(ToolRegistry()), store, resource_policy=control).run(Task(objective="timeout", limits={"max_wall_time_seconds": 0.03}))
-    assert result.status.value == "waiting_reconciliation"
+        controller = Controller(SlowProvider(), ToolRuntime(ToolRegistry()), store, resource_policy=control)
+        task = Task(objective="timeout", limits={"max_wall_time_seconds": 0.03})
+        result = controller.run(task)
+        assert result.status.value == "waiting_reconciliation"
+        resumed = controller.resume(task.task_id)
+    assert resumed.status.value == "waiting_reconciliation"
+    assert len(calls) == 1
 
 
 def test_paid_provider_transport_error_waits_for_reconciliation(tmp_path):

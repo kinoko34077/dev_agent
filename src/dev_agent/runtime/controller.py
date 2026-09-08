@@ -225,7 +225,7 @@ class Controller:
         task = self.store.load_task(task_id)
         if task is None:
             raise RuntimeFailure(f"task not found: {task_id}")
-        if task.status in {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED}:
+        if task.status in {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED, TaskStatus.WAITING_RECONCILIATION}:
             return task
         task.status = TaskStatus.CANCELLED
         self._commit(task=task, events=[self._event_record(task, "task.cancelled", {"category": "cancelled", "message": reason, "cancellation_state": "terminated"})])
@@ -257,6 +257,13 @@ class Controller:
         if checkpoint and checkpoint["phase"] == "cancelled":
             task.status = TaskStatus.CANCELLED
             self._commit(task=task)
+            return task
+        if checkpoint and checkpoint["phase"] == "waiting_reconciliation" and checkpoint.get("state", {}).get("provider_reconciliation"):
+            # A provider request may have reached the external service even
+            # though its local result was lost.  Do not spend a second
+            # external request until an explicit reconciliation path clears
+            # this marker.
+            task.status = TaskStatus.WAITING_RECONCILIATION
             return task
         return self.run(task, state=checkpoint["state"] if checkpoint else None)
 

@@ -10,6 +10,7 @@ from src.dev_agent.policy import PathPolicy
 from src.dev_agent.policy.approvals import canonical_arguments_hash
 from src.dev_agent.providers.base import ModelProvider
 from src.dev_agent.providers.base import ProviderError
+from src.dev_agent.providers.fake.provider import FakeProvider
 from src.dev_agent.runtime import Controller, RuntimeFailure
 from src.dev_agent.state import JsonStateStore, SQLiteStateStore
 from src.dev_agent.tools import ToolRegistry, ToolRuntime, ToolSpec
@@ -656,6 +657,20 @@ def test_controller_cancellation_is_cooperative_and_durable(tmp_path):
     assert checkpoint["state"]["cancellation"]["state"] == "unable_to_confirm"
 
 
+def test_cancel_does_not_terminalize_task_already_waiting_reconciliation(tmp_path):
+    from src.dev_agent.state import JsonStateStore
+
+    store = JsonStateStore(tmp_path / "cancel-waiting.json")
+    task = Task(objective="already waiting", status=TaskStatus.WAITING_RECONCILIATION)
+    store.save_task(task)
+    controller = Controller(FakeProvider(), ToolRuntime(ToolRegistry()), store)
+
+    result = controller.cancel(task.task_id, reason="operator cancelled after ambiguous effect")
+
+    assert result.status == TaskStatus.WAITING_RECONCILIATION
+    assert store.load_task(task.task_id).status == TaskStatus.WAITING_RECONCILIATION
+
+
 def test_provider_cancellation_during_request_requires_reconciliation(tmp_path):
     started = ThreadEvent()
 
@@ -709,7 +724,11 @@ def test_cancellation_during_guarded_effect_requires_reconciliation(tmp_path):
         runner.join(2)
         assert result_box[0].error["category"] == "reconciliation_required"
         assert store.get_effect_intent(call.idempotency_key)["status"] == "unknown"
-    assert calls == []
+    # A trusted in-process handler cannot be killed by thread cancellation;
+    # the unknown effect state is what makes this late side effect safe to
+    # reason about and prevents an unsafe automatic retry.
+    sleep(0.25)
+    assert calls == [{"value": "x"}]
 
 
 def test_controller_marks_guarded_cancellation_unable_to_confirm(tmp_path):
