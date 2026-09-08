@@ -34,6 +34,36 @@ def test_recovery_validates_resource_ledger_without_runtime_import(tmp_path):
     assert validate_resource_ledger(ledger_path) == (True, "Phase 6 resource ledger is readable")
 
 
+def test_recovery_rejects_stale_resource_schema_version(tmp_path):
+    ledger_path = tmp_path / "resources.sqlite3"
+    ledger = ResourceLedger(ledger_path)
+    BudgetAuthority.configure(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20))
+    ledger.connection.execute("UPDATE resource_schema_meta SET value='3' WHERE key='schema_version'")
+    ledger.connection.commit()
+
+    ok, detail = validate_resource_ledger(ledger_path)
+
+    assert not ok
+    assert "schema version" in detail
+
+
+def test_recovery_rejects_invalid_budget_intent_binding(tmp_path):
+    ledger_path = tmp_path / "resources.sqlite3"
+    ledger = ResourceLedger(ledger_path)
+    policy = BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20)
+    BudgetAuthority.configure(ledger, policy)
+    ledger.register_resource("paid", provider_id="remote", native_unit="request", capacity=1, capabilities=["text"], cost_minor=10)
+    ledger.observe("paid", available=1, health="healthy")
+    reservation = BudgetGovernor(ledger, policy).reserve("task", "paid", estimated_cost_minor=10, intent_key="provider:request:paid")
+    ledger.connection.execute("UPDATE budget_reservations SET intent_key='' WHERE reservation_id=?", (reservation.reservation_id,))
+    ledger.connection.commit()
+
+    ok, detail = validate_resource_ledger(ledger_path)
+
+    assert not ok
+    assert "intent binding" in detail
+
+
 def test_recovery_rejects_orphan_native_resource_reservation(tmp_path):
     ledger_path = tmp_path / "resources.sqlite3"
     ledger = ResourceLedger(ledger_path)
