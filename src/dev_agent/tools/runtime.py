@@ -92,6 +92,12 @@ def _run_subprocess(handler_ref: str, arguments: dict[str, Any], timeout_seconds
             result_box["output"] = process.communicate(input=payload)
         except BaseException as exc:  # pragma: no cover - OS-level failures vary
             result_box["exception"] = exc
+        finally:
+            # Record when the worker actually finished.  On a busy CI runner
+            # the reader thread can observe a short-lived worker just after
+            # the parent deadline; classifying that late completion as a
+            # generic process failure would violate the hard timeout contract.
+            result_box["finished_at"] = monotonic()
 
     reader = Thread(target=communicate, name="dev-agent-tool-worker-io", daemon=True)
     reader.start()
@@ -108,6 +114,8 @@ def _run_subprocess(handler_ref: str, arguments: dict[str, Any], timeout_seconds
             raise _ToolTimedOut()
         reader.join(timeout=min(0.05, remaining))
     reader.join()
+    if result_box.get("finished_at", monotonic()) > deadline:
+        raise _ToolTimedOut()
     if "exception" in result_box:
         raise _ToolProcessError("isolated tool process communication failed") from result_box["exception"]
     stdout, _stderr = result_box.get("output", ("", ""))
