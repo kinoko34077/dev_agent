@@ -336,6 +336,17 @@ def test_tool_output_schema_rejects_untrusted_handler_output(tmp_path):
     assert result.error["category"] == "schema_validation"
 
 
+def test_tool_argument_and_result_byte_limits_are_enforced(tmp_path):
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="bounded", description="bounded", max_argument_bytes=20, handler=lambda args: {"blob": "x" * 100}, max_result_bytes=20))
+    with SQLiteStateStore(tmp_path / "limits.sqlite3") as store:
+        runtime = ToolRuntime(registry).with_result_store(store)
+        too_large = runtime.execute(ToolCall(tool_name="bounded", arguments={"blob": "x" * 100}, idempotency_key="arg-limit"))
+        assert too_large.error["category"] == "limits_exceeded"
+        small = runtime.execute(ToolCall(tool_name="bounded", arguments={}, idempotency_key="result-limit"))
+        assert small.error["category"] == "limits_exceeded"
+
+
 def test_tool_timeout_returns_timeout_without_waiting_for_handler(tmp_path):
     registry = ToolRegistry()
     registry.register(ToolSpec(name="slow", description="slow", side_effect_level="none", timeout_seconds=0.01, handler=lambda args: sleep(0.2) or {"ok": True}))

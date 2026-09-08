@@ -19,11 +19,17 @@ class ToolSpec:
     path_argument: str | None = None
     path_operation: str | None = None
     timeout_seconds: float = 30.0
+    max_argument_bytes: int = 65536
+    max_result_bytes: int = 131072
     enabled: bool = True
 
     def __post_init__(self) -> None:
         if isinstance(self.timeout_seconds, bool) or not isinstance(self.timeout_seconds, (int, float)) or not math.isfinite(self.timeout_seconds) or self.timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be a finite positive number")
+        for name in ("max_argument_bytes", "max_result_bytes"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise ValueError(f"{name} must be a positive integer")
         if not isinstance(self.input_schema, dict):
             raise ValueError("input_schema must be an object")
         if not isinstance(self.output_schema, dict):

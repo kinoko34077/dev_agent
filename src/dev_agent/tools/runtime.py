@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+import json
 from ..domain.protocol import ToolCall, ToolResult, ToolResultStatus
 from ..policy.approvals import ApprovalPolicy, canonical_arguments_hash
 from ..policy.permissions import PathPolicy
@@ -57,6 +58,8 @@ class ToolRuntime:
             return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.FAILED, error={"category": "schema_validation", "message": str(exc)})
         try:
             arguments = dict(call.arguments)
+            if len(json.dumps(arguments, ensure_ascii=False, separators=(",", ":")).encode("utf-8")) > spec.max_argument_bytes:
+                return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.DENIED, error={"category": "limits_exceeded", "message": "tool arguments exceed configured byte limit"})
             if spec.path_argument:
                 if self.paths is None or not spec.path_operation or spec.path_argument not in arguments:
                     return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.DENIED, error={"category": "policy_denied", "message": "path policy is required"})
@@ -86,6 +89,11 @@ class ToolRuntime:
                 executor.shutdown(wait=False, cancel_futures=True)
             if not isinstance(value, dict):
                 raise TypeError("tool handler must return a dict")
+            if len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")) > spec.max_result_bytes:
+                if spec.side_effect_level in self.EXTERNAL_GUARDED:
+                    self.result_store.mark_effect_unknown(call.idempotency_key, reason="result exceeded byte limit after dispatch")
+                    return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.DENIED, error={"category": "reconciliation_required", "message": "external effect result exceeds configured byte limit"})
+                return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.FAILED, error={"category": "limits_exceeded", "message": "tool result exceeds configured byte limit"})
             if spec.output_schema:
                 try:
                     validate(value, spec.output_schema)
