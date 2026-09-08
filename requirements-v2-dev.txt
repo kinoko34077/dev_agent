@@ -1,0 +1,2 @@
+# Provider-neutral v2 kernel test dependencies.
+pytest>=8,<9

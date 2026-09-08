@@ -52,3 +52,5 @@ Provider error progress: `ProviderError` now carries category, retryable, and op
 ## Gate E — promotion / deferred work
 
 Gate A〜D の未達を一覧化し、外部依存項目は保留理由と再開条件を残す。Gate を満たすまで Phase 6（resource / survival / rescue）へ進まない。
+
+Dependency boundary: v2 development installs `requirements-v2-dev.txt` only; legacy v1 replay dependencies are isolated in `requirements-v1-legacy.txt` and are not prerequisites for the kernel test job.

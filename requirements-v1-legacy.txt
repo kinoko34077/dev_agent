@@ -1,0 +1,4 @@
+# Legacy v1 replay/provider dependencies. Not required by the v2 kernel.
+google-generativeai
+python-dotenv
+pyyaml

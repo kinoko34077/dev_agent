@@ -1,6 +1,5 @@
-# Development and test dependencies.
-# Keep v1 runtime dependencies available while the migration corpus is replayed.
--r requirements.txt
+# v2 kernel development/test dependencies. Legacy replay uses requirements-v1-legacy.txt.
+-r requirements-v2-dev.txt
 
 # Test collection and execution (Python 3.10+).
 pytest>=8,<9
