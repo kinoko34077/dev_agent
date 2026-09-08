@@ -32,11 +32,15 @@
 
 外部 API が必要な試験は mock provider で先行し、live 試験は credential / quota 待ちとして保留できる。
 
-進捗: SQLite / JSON の effect intent と、全ローカル precondition 後の作成、原子的 claim、外部処理後のローカル保存前停止を `reconciliation_required` として再実行禁止にする基礎契約を実装済み。曖昧な外部状態は Task の `waiting_reconciliation` として永続化し、照合で intent を succeeded に確定した後に安全再開できる。実外部APIの照合アダプタ自体は未実装。
+進捗: SQLite / JSON の effect intent と、全ローカル precondition 後の作成、原子的 claim、外部処理後のローカル保存前停止を `reconciliation_required` として再実行禁止にする基礎契約を実装済み。timeout、connection failure、response decode、result byte limit、output schema failure も同じ契約へ統一した。曖昧な外部状態は Task の `waiting_reconciliation` として永続化し、照合で intent を succeeded に確定した後に安全再開できる。実外部APIの照合アダプタ自体は未実装。
 
-Execution progress: task wall-clock deadline is now persisted in checkpoint state and survives resume; expired resumed work fails closed. Remaining execution gaps are hard process containment for arbitrary handlers and enforcement/deferral of every decorative limit field.
+Execution progress: task wall-clock deadline is now persisted in checkpoint state and survives resume; expired resumed work fails closed. Input token estimates, provider-reported output/cost usage, and TaskGraph limits are enforced. Trusted in-process handlers retain a documented soft timeout; untrusted/generated/process handlers use a subprocess boundary with process-tree termination. `max_retries` remains explicitly deferred because v2 has no automatic retry engine.
 
-Approval progress: approval records bind to one exact internal call ID and canonical hash of the effective arguments after path canonicalization. Broad task/level reuse is rejected. One-shot consumption, expiry, revoke, and duplicate-insert rejection are enforced; SQLite consumption now uses `BEGIN IMMEDIATE` so validation, expiry/revoke check, and consumption commit are one transaction. Reconciliation inspection remains available for an already-claimed external intent.
+Cancellation progress: `Controller.cancel()` is cooperative and durable at the next runtime boundary. In-flight trusted Python handlers cannot be force-killed; process-isolated handlers are terminated and ambiguous side effects remain reconciliation-gated.
+
+Approval progress: approval records bind to one exact internal call ID and canonical hash of the effective arguments after path canonicalization. Broad task/level reuse is rejected. One-shot consumption, expiry, revoke, and duplicate-insert rejection are enforced; SQLite consumption now uses `BEGIN IMMEDIATE` so validation, expiry/revoke check, and consumption commit are one transaction. Reconciliation audit insertion and intent transition are also one transaction. Reconciliation inspection remains available for an already-claimed side effect.
+
+Gate governance progress: `spec/v2/GATE_STATUS.json` schema v2 uses `IMPLEMENTED`, `INTEGRATED`, and `VERIFIED`; only `VERIFIED` is accepted as complete. Existing false positives for Controller transaction integration and recovery restore were downgraded to `INTEGRATED` with an explicit verification gap.
 
 ## Gate D — Provider contract
 

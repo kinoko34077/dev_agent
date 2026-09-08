@@ -1,6 +1,6 @@
 """Machine-readable Stage A-E gate checker.
 
-Exit 0: every item PASS. Exit 1: actionable work remains. Exit 2: only
+Exit 0: every item is VERIFIED. Exit 1: actionable work remains. Exit 2: only
 external blockers remain (and no TODO/actionable item exists).
 """
 from __future__ import annotations
@@ -12,23 +12,34 @@ import sys
 
 def load_status(path: Path) -> dict:
     value = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(value, dict) or value.get("schema_version") != 1:
+    if not isinstance(value, dict) or value.get("schema_version") not in {1, 2}:
         raise ValueError("invalid gate status schema")
     return value
 
 
 def check(value: dict) -> tuple[int, list[str]]:
+    if value.get("schema_version") == 2 and value.get("phase6_entry", "PROHIBITED_UNTIL_ALL_VERIFIED") != "PROHIBITED_UNTIL_ALL_VERIFIED":
+        raise ValueError("schema v2 phase6_entry must require ALL_VERIFIED")
     pending: list[str] = []
     blockers: list[str] = []
     for stage, items in value.get("stages", {}).items():
+        if not isinstance(items, dict):
+            raise ValueError(f"invalid stage: {stage}")
         for item_id, record in items.items():
+            if not isinstance(record, dict):
+                raise ValueError(f"invalid gate record: {stage}/{item_id}")
             status = record.get("status")
-            if status == "PASS":
+            # Schema v1 used PASS.  It is accepted only for old callers; the
+            # v2 status file uses VERIFIED so existence is never mistaken for
+            # integration or verification.
+            if status == "VERIFIED" or (status == "PASS" and value.get("schema_version") == 1):
+                if value.get("schema_version") == 2 and not record.get("evidence"):
+                    raise ValueError(f"verified gate has no evidence: {stage}/{item_id}")
                 continue
             if status == "BLOCKED" and not record.get("actionable", False):
                 blockers.append(f"{stage}/{item_id}: {record.get('blocker', 'external blocker')}")
             else:
-                pending.append(f"{stage}/{item_id}")
+                pending.append(f"{stage}/{item_id} ({status or 'MISSING_STATUS'})")
     if pending:
         return 1, pending + (["external blockers: " + "; ".join(blockers)] if blockers else [])
     if blockers:

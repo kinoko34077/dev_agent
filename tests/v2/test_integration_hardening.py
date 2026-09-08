@@ -1,17 +1,63 @@
 import pytest
+from threading import Event as ThreadEvent, Thread
 from time import sleep, time
 import os
 import subprocess
 import sys
 
-from src.dev_agent.domain.protocol import Event, ExecutionLimits, ModelResponse, Step, Task, TaskStatus, ToolCall, ToolResult, ToolResultStatus
+from src.dev_agent.domain.protocol import Event, ExecutionLimits, ModelResponse, Step, StepStatus, Task, TaskStatus, ToolCall, ToolResult, ToolResultStatus
 from src.dev_agent.policy import PathPolicy
 from src.dev_agent.policy.approvals import canonical_arguments_hash
 from src.dev_agent.providers.base import ModelProvider
 from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.runtime import Controller, RuntimeFailure
-from src.dev_agent.state import SQLiteStateStore
+from src.dev_agent.state import JsonStateStore, SQLiteStateStore
 from src.dev_agent.tools import ToolRegistry, ToolRuntime, ToolSpec
+
+
+def slow_external_handler(args):
+    sleep(0.2)
+    return {"ok": True}
+
+
+def invalid_external_output_handler(args):
+    return {"ok": "not-a-boolean"}
+
+
+def isolated_slow_handler(args):
+    sleep(0.4)
+    __import__("pathlib").Path(args["marker"]).write_text("late", encoding="utf-8")
+    return {"ok": True}
+
+
+def isolated_child_handler(args):
+    child_code = "import time; from pathlib import Path; time.sleep(0.4); Path(r'" + args["child_marker"] + "').write_text('child', encoding='utf-8')"
+    subprocess.Popen([sys.executable, "-c", child_code])
+    sleep(0.4)
+    return {"ok": True}
+
+
+def test_event_payload_detects_secret_values_and_total_byte_cap():
+    safe = Controller._safe_event_payload({"content": "bearer abcdefghijklmnop", "large": ["x" * 4096] * 20})
+    assert safe["_truncated"] is True
+    assert safe["payload_ref"].startswith("event-sha256:")
+    assert "abcdefghijklmnop" not in str(safe)
+
+
+def test_json_commit_transition_restores_memory_when_flush_fails(tmp_path, monkeypatch):
+    store = JsonStateStore(tmp_path / "atomic.json")
+    before = store.snapshot()
+    task = Task(objective="flush failure")
+
+    def fail_flush():
+        raise OSError("simulated persistence failure")
+
+    monkeypatch.setattr(store, "_flush", fail_flush)
+    with pytest.raises(OSError, match="simulated persistence failure"):
+        store.commit_transition(task=task)
+
+    assert store.snapshot() == before
+    assert not (tmp_path / "atomic.json").exists()
 
 
 class FinalProvider(ModelProvider):
@@ -89,6 +135,73 @@ class CrashAtCheckpointStore(SQLiteStateStore):
             raise SystemExit(f"simulated process death at {self.phase}")
 
 
+class CommitOnlyStore(SQLiteStateStore):
+    """Reject legacy per-record writes so Controller integration is observable."""
+
+    def __init__(self, path):
+        super().__init__(path)
+        self.transitions = []
+
+    def commit_transition(self, **kwargs):
+        checkpoint = kwargs.get("checkpoint") or {}
+        self.transitions.append({"phase": checkpoint.get("phase"), "events": [event.event_type for event in kwargs.get("events") or []], "tool_result": kwargs.get("tool_result") is not None})
+        return super().commit_transition(**kwargs)
+
+    def save_task(self, task):
+        raise AssertionError("Controller must use commit_transition")
+
+    def save_step(self, step):
+        raise AssertionError("Controller must use commit_transition")
+
+    def save_tool_result(self, result):
+        raise AssertionError("Controller must use commit_transition")
+
+    def append_event(self, event):
+        raise AssertionError("Controller must use commit_transition")
+
+
+class CrashAfterCommitStore(SQLiteStateStore):
+    def __init__(self, path, phase):
+        super().__init__(path)
+        self.phase = phase
+        self.crashed = False
+
+    def commit_transition(self, **kwargs):
+        result = super().commit_transition(**kwargs)
+        checkpoint = kwargs.get("checkpoint") or {}
+        if checkpoint.get("phase") == self.phase and not self.crashed:
+            self.crashed = True
+            raise SystemExit(f"simulated process death after {self.phase}")
+        return result
+
+
+@pytest.mark.parametrize("phase", ["before_model", "pending_tools", "after_tool_result", "after_tools"])
+def test_resume_after_each_nonterminal_commit_boundary(tmp_path, phase):
+    path = tmp_path / f"{phase}.sqlite3"
+    task = Task(objective=f"crash boundary {phase}")
+    effects = []
+    if phase == "before_model":
+        provider = FinalProvider()
+        registry = ToolRegistry()
+    else:
+        from src.dev_agent.providers.fake import FakeProvider
+
+        provider = FakeProvider(tool_arguments={"value": "x"})
+        registry = ToolRegistry()
+        registry.register(ToolSpec(name="echo", description="echo", required_arguments=frozenset({"value"}), handler=lambda args: effects.append(args) or {"echo": args["value"]}))
+    with CrashAfterCommitStore(path, phase) as store:
+        with pytest.raises(SystemExit, match=phase):
+            Controller(provider, ToolRuntime(registry), store).run(task)
+    with SQLiteStateStore(path) as reopened:
+        resumed = Controller(provider, ToolRuntime(registry), reopened).resume(task.task_id)
+        steps = [item for item in reopened.snapshot()["steps"].values() if item["task_id"] == task.task_id]
+    assert resumed.status == TaskStatus.COMPLETED
+    assert (len(provider.requests) == 1) if phase == "before_model" else (len(provider.requests) == 2)
+    assert len(steps) == (1 if phase in {"before_model", "after_tool_result"} else 2)
+    if phase != "before_model":
+        assert effects == [{"value": "x"}]
+
+
 def test_resume_executes_checkpointed_pending_tool_once_and_preserves_tool_identity(tmp_path):
     path = tmp_path / "runtime.sqlite3"
     task = Task(objective="resume after tool")
@@ -111,6 +224,20 @@ def test_resume_executes_checkpointed_pending_tool_once_and_preserves_tool_ident
     assert len(provider.requests) == 1
     tool_result = provider.requests[0].tool_results[0]
     assert (tool_result.call_id, tool_result.tool_name, tool_result.status.value) == (call.call_id, "write", "succeeded")
+
+
+def test_controller_critical_trace_uses_commit_transition_only(tmp_path):
+    from src.dev_agent.providers.fake import FakeProvider
+
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="echo", description="echo", required_arguments=frozenset({"value"}), handler=lambda args: {"echo": args["value"]}))
+    with CommitOnlyStore(tmp_path / "commit-only.sqlite3") as store:
+        task = Controller(FakeProvider(tool_arguments={"value": "x"}), ToolRuntime(registry), store).run(Task(objective="atomic trace"))
+        assert task.status == TaskStatus.COMPLETED
+        phases = [item["phase"] for item in store.transitions]
+        assert {"before_model", "pending_tools", "after_tool_result", "after_tools", "after_model"} <= set(phases)
+        assert any(item["tool_result"] and "tool.completed" in item["events"] for item in store.transitions)
+        assert any("task.completed" in item["events"] for item in store.transitions)
 
 
 def test_controller_denies_financial_tool_without_human_approval(tmp_path):
@@ -192,6 +319,8 @@ def test_persisted_approval_is_task_and_level_scoped(tmp_path):
         assert denied.status.value == "denied"
         allowed = runtime.execute(call, task_id=task.task_id, approval_id="approval-1")
         assert allowed.status.value == "succeeded"
+        conflict = runtime.execute(ToolCall(tool_name="publish", arguments={"value": "different"}, idempotency_key="publish-1"), task_id=task.task_id)
+        assert conflict.error["category"] == "idempotency_conflict"
         assert calls == [{}]
         assert not store.has_approval("approval-1", task_id=str(Task(objective="other").task_id), side_effect_level="external_write", call_id=call.call_id, arguments_hash=canonical_arguments_hash(call.arguments))
 
@@ -248,6 +377,12 @@ def test_external_effect_pending_intent_blocks_unsafe_retry(tmp_path):
     with SQLiteStateStore(path) as reopened:
         result = ToolRuntime(registry).with_result_store(reopened).execute(call, task_id="11111111-1111-4111-8111-111111111111", approval_id="approval-1")
         assert result.error["category"] == "reconciliation_required"
+        conflict = ToolRuntime(registry).with_result_store(reopened).execute(
+            ToolCall(tool_name="publish", arguments={"value": "different"}, idempotency_key="publish-1"),
+            task_id="11111111-1111-4111-8111-111111111111",
+            approval_id="approval-1",
+        )
+        assert conflict.error["category"] == "idempotency_conflict"
     assert len(effects) == 1
 
 
@@ -260,6 +395,141 @@ def test_external_handler_exception_is_unknown_not_terminal_failure(tmp_path):
         result = ToolRuntime(registry).with_result_store(store).execute(call, task_id="t", approval_id="a")
         assert result.error["category"] == "reconciliation_required"
         assert store.get_effect_intent("unknown-1")["status"] == "unknown"
+
+
+def test_external_timeout_is_reconciliation_required_and_marks_unknown(tmp_path):
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="publish", description="external", side_effect_level="external_write", timeout_seconds=0.01, handler=slow_external_handler))
+    call = ToolCall(tool_name="publish", arguments={"value": "x"}, idempotency_key="timeout-unknown")
+    with SQLiteStateStore(tmp_path / "external-timeout.sqlite3") as store:
+        store.save_approval("approval", task_id="t", side_effect_level="external_write", actor="human", call_id=call.call_id, arguments_hash=canonical_arguments_hash(call.arguments))
+        result = ToolRuntime(registry).with_result_store(store).execute(call, task_id="t", approval_id="approval")
+        assert result.status == ToolResultStatus.TIMEOUT
+        assert result.error == {"category": "reconciliation_required", "cause": "timeout", "message": "tool execution timed out"}
+        assert store.get_effect_intent(call.idempotency_key)["status"] == "unknown"
+
+
+def test_external_output_validation_failure_is_reconciliation_required(tmp_path):
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="publish", description="external", side_effect_level="external_write", output_schema={"type": "object", "required": ["ok"], "properties": {"ok": {"type": "boolean"}}}, handler=invalid_external_output_handler))
+    call = ToolCall(tool_name="publish", arguments={}, idempotency_key="schema-unknown")
+    with SQLiteStateStore(tmp_path / "external-schema.sqlite3") as store:
+        store.save_approval("approval", task_id="t", side_effect_level="external_write", actor="human", call_id=call.call_id, arguments_hash=canonical_arguments_hash(call.arguments))
+        result = ToolRuntime(registry).with_result_store(store).execute(call, task_id="t", approval_id="approval")
+        assert result.status == ToolResultStatus.FAILED
+        assert result.error["category"] == "reconciliation_required"
+        assert result.error["cause"] == "schema_validation"
+        assert store.get_effect_intent(call.idempotency_key)["status"] == "unknown"
+
+
+def test_controller_maps_external_timeout_to_waiting_reconciliation(tmp_path):
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="publish", description="external", side_effect_level="external_write", timeout_seconds=0.01, handler=slow_external_handler))
+    provider = ApprovalCallProvider()
+    with SQLiteStateStore(tmp_path / "controller-reconcile.sqlite3") as store:
+        controller = Controller(provider, ToolRuntime(registry), store)
+        task = Task(objective="publish")
+        assert controller.run(task).status == TaskStatus.WAITING_APPROVAL
+        pending = store.load_latest_checkpoint(task.task_id)["state"]["pending_tool_calls"][0]
+        call = ToolCall.from_dict(pending)
+        store.save_approval("approval", task_id=task.task_id, side_effect_level="external_write", actor="human", call_id=call.call_id, arguments_hash=canonical_arguments_hash(call.arguments))
+        assert controller.resume(task.task_id, approval_id="approval").status == TaskStatus.WAITING_RECONCILIATION
+        intent = store.get_effect_intent(call.idempotency_key)
+        assert intent["status"] == "unknown"
+        confirmed = ToolResult(call_id=call.call_id, tool_name="publish", status=ToolResultStatus.SUCCEEDED, structured_result={"ok": True})
+        store.transition_effect_intent(call.idempotency_key, to_status="reconciling")
+        store.transition_effect_intent(call.idempotency_key, to_status="succeeded", result=confirmed.to_dict())
+        assert controller.resume(task.task_id).status == TaskStatus.COMPLETED
+
+
+def test_process_isolated_tool_is_killed_at_timeout(tmp_path):
+    marker = tmp_path / "late-marker.txt"
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="process", description="isolated", side_effect_level="process", isolation="subprocess", timeout_seconds=0.05, handler=isolated_slow_handler))
+    call = ToolCall(tool_name="process", arguments={"marker": str(marker)}, idempotency_key="process-timeout")
+    with SQLiteStateStore(tmp_path / "process-timeout.sqlite3") as store:
+        result = ToolRuntime(registry).with_result_store(store).execute(call)
+    assert result.status == ToolResultStatus.TIMEOUT
+    assert result.error["category"] == "reconciliation_required"
+    assert result.error["cause"] == "timeout"
+    sleep(0.1)
+    assert not marker.exists()
+
+
+def test_process_timeout_terminates_descendant_processes(tmp_path):
+    marker = tmp_path / "child-marker.txt"
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="process_tree", description="isolated", side_effect_level="process", isolation="subprocess", timeout_seconds=0.2, handler=isolated_child_handler))
+    call = ToolCall(tool_name="process_tree", arguments={"child_marker": str(marker)}, idempotency_key="process-tree-timeout")
+    with SQLiteStateStore(tmp_path / "process-tree-timeout.sqlite3") as store:
+        result = ToolRuntime(registry).with_result_store(store).execute(call)
+    assert result.error["category"] == "reconciliation_required"
+    sleep(0.5)
+    assert not marker.exists()
+
+
+def test_untrusted_and_generated_tools_cannot_opt_into_in_process_execution():
+    with pytest.raises(ValueError, match="subprocess isolation"):
+        ToolSpec(name="untrusted", description="", trust_level="untrusted", handler=lambda args: {})
+    with pytest.raises(ValueError, match="subprocess isolation"):
+        ToolSpec(name="generated", description="", trust_level="generated", handler=lambda args: {})
+
+
+def test_controller_cancellation_is_cooperative_and_durable(tmp_path):
+    started = ThreadEvent()
+
+    class SlowProvider(ModelProvider):
+        provider_id = "cancellable"
+
+        def request(self, request):
+            started.set()
+            sleep(0.2)
+            return ModelResponse(provider=self.provider_id, model="test", text_segments=["late"])
+
+    from src.dev_agent.state import JsonStateStore
+
+    store = JsonStateStore(tmp_path / "cancel.json")
+    controller = Controller(SlowProvider(), ToolRuntime(ToolRegistry()), store)
+    task = Task(objective="cancel me")
+    runner = Thread(target=lambda: controller.run(task), daemon=True)
+    runner.start()
+    assert started.wait(2)
+    controller.cancel(task.task_id)
+    runner.join(2)
+    assert not runner.is_alive()
+    assert task.status == TaskStatus.CANCELLED
+    assert store.load_task(task.task_id).status == TaskStatus.CANCELLED
+    assert any(event["event_type"] == "task.cancelled" for event in store.snapshot()["events"])
+
+
+def test_controller_enforces_input_output_and_observed_cost_limits(tmp_path):
+    class BudgetProvider(ModelProvider):
+        provider_id = "budget"
+
+        def __init__(self, usage):
+            self.usage = usage
+            self.requests = 0
+
+        def request(self, request):
+            self.requests += 1
+            return ModelResponse(provider=self.provider_id, model="test", text_segments=["done"], usage=self.usage)
+
+    input_provider = BudgetProvider({})
+    input_task = Task(objective="x" * 100, limits=ExecutionLimits(max_input_tokens=1))
+    with SQLiteStateStore(tmp_path / "input-limit.sqlite3") as store:
+        with pytest.raises(RuntimeFailure, match="input token"):
+            Controller(input_provider, ToolRuntime(ToolRegistry()), store).run(input_task)
+    assert input_provider.requests == 0
+
+    output_provider = BudgetProvider({"output_tokens": 5})
+    with SQLiteStateStore(tmp_path / "output-limit.sqlite3") as store:
+        with pytest.raises(RuntimeFailure, match="output token"):
+            Controller(output_provider, ToolRuntime(ToolRegistry()), store).run(Task(objective="output", limits=ExecutionLimits(max_output_tokens=2)))
+
+    cost_provider = BudgetProvider({"cost": 0.2})
+    with SQLiteStateStore(tmp_path / "cost-limit.sqlite3") as store:
+        with pytest.raises(RuntimeFailure, match="cost"):
+            Controller(cost_provider, ToolRuntime(ToolRegistry()), store).run(Task(objective="cost", limits=ExecutionLimits(max_cost=0.1)))
 
 
 def test_effect_intent_state_machine_rejects_terminal_reopen(tmp_path):
@@ -281,6 +551,40 @@ def test_reconciliation_api_records_actor_source_and_evidence(tmp_path):
         assert intent["status"] == "succeeded"
         row = store.connection.execute("SELECT actor, source, external_id, evidence_payload FROM effect_reconciliations WHERE idempotency_key = 'k'").fetchone()
         assert (row["actor"], row["source"], row["external_id"]) == ("operator", "mock-service", "ext-1")
+
+
+def test_confirmed_failed_reconciliation_terminalizes_task_without_retry(tmp_path):
+    task = Task(objective="confirmed failure")
+    call = ToolCall(tool_name="publish", arguments={"value": "x"}, idempotency_key="confirmed-failure")
+    step = Step(task_id=task.task_id, order=0, kind="model", status=StepStatus.WAITING)
+    state = {
+        "messages": [{"role": "user", "content": task.objective}],
+        "tool_results": [],
+        "model_calls": 1,
+        "tool_calls": 1,
+        "next_step_order": 0,
+        "pending_tool_calls": [call.to_dict()],
+        "active_step": step.to_dict(),
+        "deadline_epoch": time() + 30,
+    }
+    calls = []
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="publish", description="side effect", side_effect_level="local_write", handler=lambda args: calls.append(args) or {"ok": True}))
+    with SQLiteStateStore(tmp_path / "confirmed-failed.sqlite3") as store:
+        task.status = TaskStatus.WAITING_RECONCILIATION
+        store.save_task(task)
+        store.save_step(step)
+        store.checkpoint(task_id=task.task_id, step_id=step.step_id, phase="waiting_reconciliation", state=state)
+        store.create_effect_intent(call.idempotency_key, task_id=task.task_id, tool_name=call.tool_name, arguments=call.arguments)
+        store.transition_effect_intent(call.idempotency_key, to_status="dispatching")
+        store.mark_effect_unknown(call.idempotency_key, reason="remote rejected request")
+        store.reconcile_effect_intent(call.idempotency_key, status="confirmed_failed", actor="operator", source="remote-api", evidence={"rejected": True})
+        with pytest.raises(RuntimeFailure, match="effect_confirmed_failed"):
+            Controller(FinalProvider(), ToolRuntime(registry), store).resume(task.task_id)
+        resumed = store.load_task(task.task_id)
+
+    assert resumed is not None and resumed.status == TaskStatus.FAILED
+    assert calls == []
 
 
 def test_commit_transition_persists_related_records_atomically(tmp_path):

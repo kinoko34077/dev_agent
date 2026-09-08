@@ -6,14 +6,34 @@
 
 ### 現在の到達点（2026-09-08 JST）
 
-- v2 の全テストが `63 passed`。
+- v2 の全テストが `87 passed`。
 - 外部副作用の曖昧状態を `waiting_reconciliation` としてタスクに永続化し、照合確定後の再開を統合テストで検証（全64件）。
 - Windows の実 symlink を使った workspace 外逸脱拒否テストが `passed`。
 - Ollama のローカル `/api/chat` 実機接続を確認。
 - Gemini の実HTTP経路は接続まで確認したが、モデル一覧・最小生成とも HTTP 403。実 Provider 完走は未達。
-- 作業ツリーは clean。v2 の変更は `v2/bootstrap` に確定済み。
+- 前回記録時点の作業ツリーは clean。今回の継続 hardening は検証中の未コミット変更。
 
 ### 2026-09-08
+
+- 継続 hardening: 外部副作用の dispatch 後 timeout / connection failure /
+  response decode / output limit / output schema failure を
+  `reconciliation_required` + `cause` に統一し、Controller が
+  `WAITING_RECONCILIATION` へ遷移する経路を追加。
+- Controller の completion / failure / approval wait /
+  reconciliation wait / ToolResult の critical transition を
+  `commit_transition()` へ統合。Gate の状態を
+  `IMPLEMENTED` / `INTEGRATED` / `VERIFIED` へ分離し、B11 と E33 の早すぎる
+  `PASS` を撤回。
+- untrusted / generated / process Tool の subprocess 境界、timeout 時の
+  process-tree termination、協調キャンセル、イベント secret pattern 検出と
+  payload byte cap を追加。
+- SQLite fresh/latest schema と既存 v1→v4 ordered migration を分離し、
+  Recovery に内容検証付き atomic restore、Git diagnostics、last-known-good、
+  rollback plan、明示 opt-in の repair branch 操作を追加。
+- Recovery に保存済み JUnit レポートの read-only 検証を追加し、v2 CI workflow
+  からのレポート artifact 出力と exact HEAD check を接続。JSON state の
+  atomic transition 失敗時 rollback、confirmed_failed reconciliation の
+  terminal 化、dirty worktree rollback 拒否も追加。
 
 - `feat: harden approval expiry, revocation, and immutable records`
   - SQLite / JSON 承認記録に期限 (`expires_at`) と取消 (`revoked`) を追加し、期限切れ・取消済みを fail-closed。

@@ -1,53 +1,53 @@
 {
-  "schema_version": 1,
-  "phase6_entry": "PROHIBITED_UNTIL_ALL_PASS",
+  "schema_version": 2,
+  "phase6_entry": "PROHIBITED_UNTIL_ALL_VERIFIED",
   "stages": {
     "A": {
-      "A1": {"status": "PASS", "evidence": ["tests/v2/test_integration_hardening.py::test_external_handler_exception_is_unknown_not_terminal_failure"]},
-      "A2": {"status": "PASS", "evidence": ["tests/v2/test_integration_hardening.py::test_effect_intent_state_machine_rejects_terminal_reopen"]},
-      "A3": {"status": "PASS", "evidence": ["tests/v2/test_integration_hardening.py::test_reconciliation_api_records_actor_source_and_evidence"]},
-      "A4": {"status": "PASS", "evidence": ["tests/v2/test_integration_hardening.py::test_approval_expiry_and_revoke_are_enforced_without_creating_effect_intent"]},
-      "A5": {"status": "PASS", "evidence": ["tests/v2/test_integration_hardening.py::test_approval_binds_to_effective_canonical_path_arguments"]},
-      "A6": {"status": "PASS", "evidence": ["src/dev_agent/state/sqlite_store.py:create_effect_intent"]},
-      "A7": {"status": "TODO", "actionable": true}
+      "A1": {"status": "VERIFIED", "evidence": ["tests/v2/test_integration_hardening.py::test_external_handler_exception_is_unknown_not_terminal_failure"]},
+      "A2": {"status": "VERIFIED", "evidence": ["tests/v2/test_integration_hardening.py::test_effect_intent_state_machine_rejects_terminal_reopen"]},
+      "A3": {"status": "VERIFIED", "evidence": ["tests/v2/test_integration_hardening.py::test_reconciliation_api_records_actor_source_and_evidence"]},
+      "A4": {"status": "VERIFIED", "evidence": ["tests/v2/test_integration_hardening.py::test_approval_expiry_and_revoke_are_enforced_without_creating_effect_intent"]},
+      "A5": {"status": "VERIFIED", "evidence": ["tests/v2/test_integration_hardening.py::test_approval_binds_to_effective_canonical_path_arguments"]},
+      "A6": {"status": "VERIFIED", "evidence": ["src/dev_agent/state/sqlite_store.py:create_effect_intent", "tests/v2/test_integration_hardening.py::test_external_effect_pending_intent_blocks_unsafe_retry"]},
+      "A7": {"status": "INTEGRATED", "evidence": ["src/dev_agent/tools/process_worker.py", "src/dev_agent/tools/runtime.py:_terminate_process_tree", "tests/v2/test_integration_hardening.py::test_process_isolated_tool_is_killed_at_timeout", "tests/v2/test_integration_hardening.py::test_process_timeout_terminates_descendant_processes"], "verification_gap": "Provider-side arbitrary Python handlers still rely on adapter/client timeouts; remote CI execution of the containment drill remains unobserved."}
     },
     "B": {
-      "B8": {"status": "PASS", "evidence": ["src/dev_agent/state/sqlite_store.py:1_to_4 migrations"]},
-      "B9": {"status": "PASS", "evidence": ["schema_version=4"]},
-      "B10": {"status": "PASS", "evidence": ["spec/v2/HARDENING_NEXT_PLAN.md dependency boundary"]},
-      "B11": {"status": "PASS", "evidence": ["src/dev_agent/state/store.py:commit_transition"]},
-      "B12": {"status": "PASS", "evidence": ["SQLite events INSERT without REPLACE"]},
-      "B13": {"status": "PASS", "evidence": ["recovery/validate_sqlite_state.py"]},
+      "B8": {"status": "VERIFIED", "evidence": ["src/dev_agent/state/sqlite_store.py:ordered migrations 1_to_4", "tests/v2/test_recovery_sqlite.py::test_sqlite_store_upgrades_a_v1_schema_through_ordered_migrations"]},
+      "B9": {"status": "VERIFIED", "evidence": ["tests/v2/test_recovery_sqlite.py::test_sqlite_store_records_schema_version"]},
+      "B10": {"status": "VERIFIED", "evidence": ["spec/v2/HARDENING_NEXT_PLAN.md dependency boundary"]},
+      "B11": {"status": "INTEGRATED", "evidence": ["src/dev_agent/runtime/controller.py:all critical transitions call commit_transition", "tests/v2/test_integration_hardening.py::test_commit_transition_persists_related_records_atomically", "tests/v2/test_integration_hardening.py::test_resume_after_each_nonterminal_commit_boundary", "tests/v2/test_integration_hardening.py::test_resume_does_not_repeat_terminal_transition_after_checkpoint_crash"], "verification_gap": "Fault injection for approval/reconciliation/cancellation boundaries and a complete CI matrix remain."},
+      "B12": {"status": "VERIFIED", "evidence": ["src/dev_agent/state/sqlite_store.py:events INSERT without REPLACE", "tests/v2/test_integration_hardening.py::test_resume_does_not_repeat_terminal_transition_after_checkpoint_crash"]},
+      "B13": {"status": "VERIFIED", "evidence": ["recovery/validate_sqlite_state.py", "tests/v2/test_recovery_sqlite.py"]},
       "B14": {"status": "TODO", "actionable": true}
     },
     "C": {
-      "C15": {"status": "TODO", "actionable": true},
-      "C16": {"status": "PASS", "evidence": ["src/dev_agent/runtime/task_graph.py:max_total_tasks_per_root"]},
-      "C17": {"status": "PASS", "evidence": ["tests/v2/test_integration_hardening.py::test_tool_argument_and_result_byte_limits_are_enforced"]},
-      "C18": {"status": "TODO", "actionable": true},
-      "C19": {"status": "TODO", "actionable": true}
+      "C15": {"status": "INTEGRATED", "evidence": ["src/dev_agent/runtime/controller.py:input/output/cost enforcement", "src/dev_agent/runtime/task_graph.py:from_limits", "tests/v2/test_integration_hardening.py::test_controller_enforces_input_output_and_observed_cost_limits"], "verification_gap": "max_retries is explicitly deferred because v2 has no automatic retry engine; token counts are conservative estimates unless provider usage is present."},
+      "C16": {"status": "VERIFIED", "evidence": ["src/dev_agent/runtime/task_graph.py:max_total_tasks_per_root", "src/dev_agent/runtime/task_graph.py:from_limits"]},
+      "C17": {"status": "VERIFIED", "evidence": ["tests/v2/test_integration_hardening.py::test_tool_argument_and_result_byte_limits_are_enforced"]},
+      "C18": {"status": "INTEGRATED", "evidence": ["src/dev_agent/runtime/controller.py:cancel", "tests/v2/test_integration_hardening.py::test_controller_cancellation_is_cooperative_and_durable"], "verification_gap": "Cancellation is cooperative at runtime boundaries; an already-running trusted in-process handler cannot be force-killed."},
+      "C19": {"status": "INTEGRATED", "evidence": ["src/dev_agent/tools/registry.py:trust_level/isolation", "src/dev_agent/tools/process_worker.py", "tests/v2/test_integration_hardening.py::test_process_isolated_tool_is_killed_at_timeout"], "verification_gap": "Full generated-tool lifecycle and descendant-process containment remain to be exercised."}
     },
     "D": {
-      "D20": {"status": "PASS", "evidence": ["src/dev_agent/providers/* explicit ProviderError categories"]},
-      "D21": {"status": "PASS", "evidence": ["Gemini 401/403 classification tests"]},
-      "D22": {"status": "PASS", "evidence": ["src/dev_agent/providers/harness.py:ContractHarness.probe_cases", "tests/v2/test_phase4.py"]},
+      "D20": {"status": "VERIFIED", "evidence": ["src/dev_agent/providers/* explicit ProviderError categories"]},
+      "D21": {"status": "VERIFIED", "evidence": ["Gemini 401/403 classification tests"]},
+      "D22": {"status": "VERIFIED", "evidence": ["src/dev_agent/providers/harness.py:ContractHarness.probe_cases", "tests/v2/test_phase4.py"]},
       "D23": {"status": "TODO", "actionable": true},
       "D24": {"status": "BLOCKED", "actionable": false, "blocker": "local model availability/qualification is environment-dependent"},
-      "D25": {"status": "PASS", "evidence": ["spec/v2/adr/ADR-011-gemini-api-strategy.md"]},
+      "D25": {"status": "VERIFIED", "evidence": ["spec/v2/adr/ADR-011-gemini-api-strategy.md"]},
       "D26": {"status": "BLOCKED", "actionable": false, "blocker": "Gemini project currently returns HTTP 403"},
       "D27": {"status": "BLOCKED", "actionable": false, "blocker": "Gemini live credential/project authorization"},
-      "D28": {"status": "PASS", "evidence": ["spec/v2/PROVIDER_CAPABILITY_MATRIX.json"]}
+      "D28": {"status": "VERIFIED", "evidence": ["spec/v2/PROVIDER_CAPABILITY_MATRIX.json"]}
     },
     "E": {
-      "E29": {"status": "PASS", "evidence": ["remote branch legacy/v1-final"]},
-      "E30": {"status": "PASS", "evidence": ["requirements-v2-dev.txt and requirements-v1-legacy.txt"]},
-      "E31": {"status": "TODO", "actionable": true},
-      "E32": {"status": "TODO", "actionable": true},
-      "E33": {"status": "PASS", "evidence": ["recovery/backup.py"]},
-      "E34": {"status": "TODO", "actionable": true},
-      "E35": {"status": "TODO", "actionable": true},
-      "E36": {"status": "TODO", "actionable": true},
-      "E37": {"status": "PASS", "evidence": ["recovery/backup.py:maintenance_lock"]}
+      "E29": {"status": "VERIFIED", "evidence": ["remote branch legacy/v1-final"]},
+      "E30": {"status": "VERIFIED", "evidence": ["requirements-v2-dev.txt and requirements-v1-legacy.txt"]},
+      "E31": {"status": "INTEGRATED", "evidence": ["scripts/check_head.py", ".github/workflows/v2-core.yml:exact HEAD check", ".github/workflows/v2-tests.yml:exact HEAD check"], "verification_gap": "This checkout cannot observe a remote GitHub Actions run for the new workflow step."},
+      "E32": {"status": "INTEGRATED", "evidence": ["recovery/diagnose.py:configuration/git/test-runner/persisted-report checks", "recovery/test_results.py:JUnit parser", "tests/v2/test_recovery.py::test_recovery_validates_persisted_junit_report"], "verification_gap": "CI artifact upload and operator use of the report are configured but still require a remote workflow run."},
+      "E33": {"status": "INTEGRATED", "evidence": ["recovery/backup.py:backup_sqlite, restore_sqlite, validate_backup", "tests/v2/test_recovery_sqlite.py::test_recovery_backup_restore_and_maintenance_lock"], "verification_gap": "Live restore drill against an operator-selected database is manual."},
+      "E34": {"status": "VERIFIED", "evidence": ["recovery/git_recovery.py:record_last_known_good", "tests/v2/test_recovery.py::test_git_recovery_records_lkg_and_requires_explicit_mutation"]},
+      "E35": {"status": "INTEGRATED", "evidence": ["recovery/git_recovery.py:plan_rollback and rollback_to_last_known_good", "tests/v2/test_recovery.py::test_git_recovery_refuses_dirty_reset_then_applies_explicit_opt_in"], "verification_gap": "Destructive rollback drill against an operator-selected shared checkout is intentionally manual."},
+      "E36": {"status": "INTEGRATED", "evidence": ["recovery/git_recovery.py:create_repair_branch", "tests/v2/test_recovery.py::test_git_recovery_refuses_dirty_reset_then_applies_explicit_opt_in"], "verification_gap": "Repair branch creation is tested in an isolated repository but not run against the shared checkout."},
+      "E37": {"status": "VERIFIED", "evidence": ["recovery/backup.py:maintenance_lock", "tests/v2/test_recovery_sqlite.py::test_recovery_backup_restore_and_maintenance_lock"]}
     }
   }
 }

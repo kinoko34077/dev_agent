@@ -22,6 +22,12 @@ class ToolSpec:
     max_argument_bytes: int = 65536
     max_result_bytes: int = 131072
     enabled: bool = True
+    # ``isolation`` is deliberately explicit.  A thread timeout cannot stop a
+    # Python thread that is already running, so untrusted/generated and
+    # process-oriented handlers must cross a process boundary.
+    isolation: str = "in_process"
+    trust_level: str = "trusted"
+    handler_ref: str | None = None
 
     def __post_init__(self) -> None:
         if isinstance(self.timeout_seconds, bool) or not isinstance(self.timeout_seconds, (int, float)) or not math.isfinite(self.timeout_seconds) or self.timeout_seconds <= 0:
@@ -34,8 +40,22 @@ class ToolSpec:
             raise ValueError("input_schema must be an object")
         if not isinstance(self.output_schema, dict):
             raise ValueError("output_schema must be an object")
+        if self.isolation not in {"in_process", "subprocess"}:
+            raise ValueError("isolation must be 'in_process' or 'subprocess'")
+        if self.trust_level not in {"trusted", "untrusted", "generated"}:
+            raise ValueError("trust_level must be trusted, untrusted, or generated")
+        if self.handler_ref is not None and (not isinstance(self.handler_ref, str) or ":" not in self.handler_ref or not self.handler_ref.strip()):
+            raise ValueError("handler_ref must be a module:qualname string")
+        if self.trust_level in {"untrusted", "generated"} and self.isolation != "subprocess":
+            raise ValueError("untrusted and generated tools require subprocess isolation")
+        if self.side_effect_level == "process" and self.isolation != "subprocess":
+            raise ValueError("process tools require subprocess isolation")
         self._validate_schema_subset(self.input_schema)
         self._validate_schema_subset(self.output_schema)
+
+    @property
+    def requires_subprocess(self) -> bool:
+        return self.isolation == "subprocess" or self.trust_level in {"untrusted", "generated"} or self.side_effect_level == "process"
 
     @staticmethod
     def _validate_schema_subset(schema: dict[str, Any]) -> None:

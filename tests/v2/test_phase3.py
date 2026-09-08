@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from src.dev_agent.domain.protocol import Task, ToolCall
+from src.dev_agent.domain.protocol import ExecutionLimits, Task, ToolCall
 from src.dev_agent.policy import ApprovalPolicy, PathPolicy
 from src.dev_agent.runtime import TaskGraph, TaskGraphError
 from src.dev_agent.providers.fake import FakeProvider
@@ -110,3 +110,13 @@ def test_task_graph_reconstructs_from_durable_tasks():
     child = Task(objective="child", parent_task_id=root.task_id, root_task_id=root.task_id, depth=1)
     graph = TaskGraph.from_tasks([child, root], max_total_tasks_per_root=2)
     assert graph.descendants(root.task_id) == [child.task_id]
+
+
+def test_task_graph_can_be_built_from_finite_task_limits():
+    limits = ExecutionLimits(max_depth=1, max_child_tasks=1)
+    graph = TaskGraph.from_limits(limits)
+    root = Task(objective="root", limits=limits)
+    graph.add(root)
+    graph.add_child(root.task_id, Task(objective="child"))
+    with pytest.raises(TaskGraphError, match="depth"):
+        graph.add_child(next(iter(graph.children[root.task_id])), Task(objective="grandchild"))

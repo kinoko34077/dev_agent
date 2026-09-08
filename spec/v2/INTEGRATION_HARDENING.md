@@ -20,23 +20,54 @@ Status: in progress. This gate precedes Phase 6.
 - Tools that declare a path capability use `PathPolicy` before their handler runs.
 - Terminal failures use one Controller transition that persists the Step (when present), checkpoint, Task, and `task.failed` event.
 - A crash-injection integration test interrupts immediately after the first durable result of two side-effecting ToolCalls; resume executes each handler exactly once and forwards both normalized results to the following model request.
-- Crash-injection tests cover terminal `after_model` and `failure` checkpoints; resume finalizes the persisted terminal transition without repeating the provider call.
+- Crash-injection tests cover `before_model`, `pending_tools`, `after_tool_result`,
+  `after_tools`, terminal `after_model`, and `failure` checkpoints; resume does
+  not duplicate the completed tool or terminal event.
 - The Ollama adapter is exercised against the local `/api/chat` endpoint and maps `max_output_tokens` to the provider runtime output bound (`options.num_predict`).
 - Gemini HTTP failure classification is covered for missing credentials, authentication (401/403), rate limiting (429), transport errors, and malformed provider responses.
 - Independent Recovery validation rejects orphan steps/checkpoints, malformed tool results, unknown effect-intent states, and unsupported schema versions.
 - ToolSpec input schemas are carried as Provider-neutral `tool_definitions` and emitted as Gemini function declarations / Ollama function tools; payload contract tests cover this boundary.
 - Typed ProviderError categories are preserved by Controller failure events.
+- After a side-effect dispatch, timeout, connection failure, response decode
+  failure, output-size failure, and output-schema failure all become
+  `reconciliation_required` with a machine-readable `cause`; the associated
+  Task enters `WAITING_RECONCILIATION` instead of `FAILED`.
+- `Controller` persists task, step, checkpoint, ToolResult, and one or more
+  events through `StateStore.commit_transition()` for critical runtime
+  transitions, including completion, failure, approval wait, reconciliation
+  wait, and each ToolResult.
+- `ToolSpec` can require subprocess isolation for untrusted/generated/process
+  handlers.  The worker uses an importable top-level handler, bounded IO, and
+  process-tree termination on timeout; trusted in-process handlers remain a
+  soft-timeout compatibility path.
+- Event payloads classify sensitive keys, redact common secret formats, cap
+  individual strings, and replace oversized payloads with a digest reference.
+- Input token estimates, provider-reported output/cost usage, task
+  cancellation, and graph limits are enforced or explicitly represented as
+  deferred contracts in the hardening plan.
+- Recovery now supports validated atomic backup and restore, non-destructive
+  Git diagnostics, last-known-good recording, rollback planning, and explicit
+  permission gates for rollback/repair-branch mutation.
+- Gate status schema v2 distinguishes `IMPLEMENTED`, `INTEGRATED`, and
+  `VERIFIED`; only `VERIFIED` satisfies a gate.  Legacy `PASS` is accepted by
+  the checker only for schema v1 callers.
 
 ## Still required before Phase 6
 
-- Crash injection at the remaining pre-model and model-response event boundaries.
+- Crash injection at the remaining pre-model, pending-tool, after-tools, and
+  approval/reconciliation transition boundaries.
 - Approval-wait/resume is now available through `Controller.resume(task_id, approval_id=...)`; a higher-level UI/API for presenting pending approvals remains required.
 - Local-model qualification that verifies visible response quality as well as the hard output bound; the installed `qwen3:0.6b` failed this narrow probe because it spent the small output budget on a thinking trace.
 - Real Gemini live contract probe (network reached, but current key/model combination returned HTTP 403; credential/project restriction must be corrected before promotion).
 - Expanded contract harness: multi-tool, sequential result, malformed response, timeout, rate-limit, quota, and limits.
-- Recovery tools that inspect SQLite state, configuration, Git health, and test results.
+- Persisted CI test-result ingestion and an operator-run rollback/repair drill.
 
 ## Recovery progress
 
 - SQLite schema and task payload validation is now available through the independent `recovery/validate_sqlite_state.py` CLI.
-- Configuration, Git health, last-known-good state, rollback, and repair-branch checks remain required before Phase 6.
+- Configuration, Git health, last-known-good state, rollback, and repair-branch
+  checks are implemented locally; destructive rollback and repair-branch drills
+  remain explicit operator actions before Phase 6.
+- Persisted JUnit XML reports can be validated independently with
+  `recovery/test_results.py` or `recovery/diagnose.py --test-report`; both v2
+  workflows emit and upload the report artifact.

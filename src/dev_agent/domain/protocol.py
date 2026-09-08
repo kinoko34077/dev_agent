@@ -49,6 +49,7 @@ class ToolResultStatus(str, Enum):
     FAILED = "failed"
     DENIED = "denied"
     TIMEOUT = "timeout"
+    CANCELLED = "cancelled"
 
 
 def _now() -> str:

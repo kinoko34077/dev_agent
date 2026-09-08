@@ -5,12 +5,15 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 import hashlib
 import json
-from time import time
+import math
+import re
+from threading import Event
+from time import monotonic, time
 from typing import Any
 
-from ..domain.protocol import Event, ModelRequest, ModelResponse, Step, StepStatus, Task, TaskStatus, ToolCall, ToolResultStatus
+from ..domain.protocol import Event as ProtocolEvent
+from ..domain.protocol import ModelRequest, ModelResponse, Step, StepStatus, Task, TaskStatus, ToolCall, ToolResult, ToolResultStatus
 from ..providers.base import ModelProvider, ProviderError
-from ..policy.approvals import canonical_arguments_hash
 from ..state.store import StateStore
 from ..tools.runtime import ToolRuntime
 
@@ -19,32 +22,96 @@ class RuntimeFailure(RuntimeError):
     """A terminal, normalized runtime failure."""
 
 
+class _ProviderCancelled(Exception):
+    pass
+
+
 class Controller:
+    MAX_EVENT_STRING_CHARS = 4096
+    MAX_EVENT_PAYLOAD_BYTES = 32 * 1024
+    _SECRET_KEY_WORDS = (
+        "token",
+        "secret",
+        "password",
+        "api_key",
+        "apikey",
+        "authorization",
+        "cookie",
+        "private_key",
+        "client_secret",
+        "credential",
+        "access_key",
+        "refresh_token",
+        "id_token",
+        "session",
+    )
+    _SECRET_PATTERNS = (
+        re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{8,}"),
+        re.compile(r"(?i)\b(?:api[_-]?key|secret|token|password)\s*[:=]\s*[^\s,;]+"),
+        re.compile(r"\b(?:sk-(?:proj-)?|AIza|ghp_|github_pat_|AKIA)[A-Za-z0-9._-]{8,}\b"),
+        re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----"),
+    )
+
     def __init__(self, provider: ModelProvider, tools: ToolRuntime, store: StateStore) -> None:
         self.provider = provider
         self.tools = tools.with_result_store(store)
         self.store = store
+        self._cancellation_events: dict[str, Event] = {}
+        self._active_tasks: set[str] = set()
+        self._running_tasks: dict[str, Task] = {}
+
+    def _event_record(self, task: Task, event_type: str, payload: dict[str, Any], *, step_id: str | None = None, request_id: str | None = None) -> ProtocolEvent:
+        return ProtocolEvent(event_type=event_type, task_id=task.task_id, step_id=step_id, request_id=request_id, provider=self.provider.provider_id, payload=self._safe_event_payload(payload))
 
     def _event(self, task: Task, event_type: str, payload: dict[str, Any], *, step_id: str | None = None, request_id: str | None = None) -> None:
-        self.store.append_event(Event(event_type=event_type, task_id=task.task_id, step_id=step_id, request_id=request_id, provider=self.provider.provider_id, payload=self._safe_event_payload(payload)))
+        """Append a non-transition event for compatibility with callers."""
+        self.store.append_event(self._event_record(task, event_type, payload, step_id=step_id, request_id=request_id))
 
-    @staticmethod
-    def _safe_event_payload(payload: dict[str, Any]) -> dict[str, Any]:
-        secret_words = ("token", "secret", "password", "api_key", "apikey", "authorization")
+    @classmethod
+    def _safe_event_payload(cls, payload: dict[str, Any]) -> dict[str, Any]:
+        """Classify sensitive fields, detect common secret formats, and cap bytes."""
+
         def scrub(value: Any, key: str = "") -> Any:
-            if any(word in key.lower() for word in secret_words):
+            normalized_key = key.lower().replace("-", "_")
+            if any(word in normalized_key for word in cls._SECRET_KEY_WORDS):
                 return "[REDACTED]"
             if isinstance(value, dict):
                 return {str(k): scrub(v, str(k)) for k, v in value.items()}
             if isinstance(value, list):
                 return [scrub(v, key) for v in value]
-            if isinstance(value, str) and len(value) > 4096:
-                return value[:4096] + "...[TRUNCATED]"
-            return value
-        return scrub(payload)
+            if isinstance(value, tuple):
+                return [scrub(v, key) for v in value]
+            if isinstance(value, str):
+                for pattern in cls._SECRET_PATTERNS:
+                    value = pattern.sub("[REDACTED]", value)
+                if len(value) > cls.MAX_EVENT_STRING_CHARS:
+                    return value[: cls.MAX_EVENT_STRING_CHARS] + "...[TRUNCATED]"
+                return value
+            if value is None or isinstance(value, (bool, int, float)):
+                return value
+            return f"[UNSERIALIZABLE:{type(value).__name__}]"
 
-    def _checkpoint(self, task: Task, step: Step, phase: str, state: dict[str, Any]) -> None:
-        self.store.checkpoint(task_id=task.task_id, step_id=step.step_id, phase=phase, state=state)
+        safe = scrub(payload)
+        try:
+            encoded = json.dumps(safe, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        except (TypeError, ValueError):
+            safe = {"_redacted": True, "payload_ref": "event://unserializable"}
+            encoded = json.dumps(safe, separators=(",", ":")).encode("utf-8")
+        if len(encoded) > cls.MAX_EVENT_PAYLOAD_BYTES:
+            digest = hashlib.sha256(encoded).hexdigest()
+            return {
+                "_truncated": True,
+                "payload_ref": f"event-sha256:{digest}",
+                "byte_length": len(encoded),
+            }
+        return safe
+
+    @staticmethod
+    def _checkpoint_payload(task: Task, step: Step, phase: str, state: dict[str, Any]) -> dict[str, Any]:
+        return {"task_id": task.task_id, "step_id": step.step_id, "phase": phase, "state": state}
+
+    def _commit(self, *, task: Task | None = None, step: Step | None = None, checkpoint: dict[str, Any] | None = None, events: list[ProtocolEvent] | None = None, tool_result: ToolResult | None = None) -> None:
+        self.store.commit_transition(task=task, step=step, checkpoint=checkpoint, events=events, tool_result=tool_result)
 
     @staticmethod
     def _kernel_operation_key(task: Task, step: Step, call: ToolCall, index: int) -> str:
@@ -52,19 +119,115 @@ class Controller:
         digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:24]
         return f"op:{task.task_id}:{step.order}:{index}:{digest}"
 
-    def _fail(self, task: Task, state: dict[str, Any], category: str, message: str, *, step: Step | None = None, request_id: str | None = None) -> None:
+    def _fail(self, task: Task, state: dict[str, Any], category: str, message: str, *, step: Step | None = None, request_id: str | None = None, tool_result: ToolResult | None = None, extra_events: list[ProtocolEvent] | None = None) -> None:
         if step is not None:
             step.status = StepStatus.FAILED
-            self.store.save_step(step)
-            self._checkpoint(task, step, "failure", state)
+            state["active_step"] = step.to_dict()
         task.status = TaskStatus.FAILED
-        self.store.save_task(task)
-        self._event(task, "task.failed", {"category": category, "message": message}, step_id=step.step_id if step else None, request_id=request_id)
+        events = list(extra_events or [])
+        events.append(self._event_record(task, "task.failed", {"category": category, "message": message}, step_id=step.step_id if step else None, request_id=request_id))
+        checkpoint = self._checkpoint_payload(task, step, "failure", state) if step is not None else None
+        self._commit(task=task, step=step, checkpoint=checkpoint, events=events, tool_result=tool_result)
         raise RuntimeFailure(f"{category}: {message}")
+
+    def _cancel(self, task: Task, state: dict[str, Any], *, step: Step | None = None, message: str = "task execution was cancelled", tool_result: ToolResult | None = None, extra_events: list[ProtocolEvent] | None = None) -> None:
+        if step is not None:
+            step.status = StepStatus.CANCELLED
+            state["active_step"] = step.to_dict()
+        task.status = TaskStatus.CANCELLED
+        events = list(extra_events or [])
+        events.append(self._event_record(task, "task.cancelled", {"category": "cancelled", "message": message}, step_id=step.step_id if step else None))
+        checkpoint = self._checkpoint_payload(task, step, "cancelled", state) if step is not None else None
+        self._commit(task=task, step=step, checkpoint=checkpoint, events=events, tool_result=tool_result)
 
     @staticmethod
     def _initial_state(task: Task) -> dict[str, Any]:
-        return {"messages": [{"role": "user", "content": task.objective}], "tool_results": [], "model_calls": 0, "tool_calls": 0, "next_step_order": 0, "pending_tool_calls": [], "active_step": None, "deadline_epoch": time() + task.limits.max_wall_time_seconds}
+        return {
+            "messages": [{"role": "user", "content": task.objective}],
+            "tool_results": [],
+            "model_calls": 0,
+            "tool_calls": 0,
+            "input_tokens_used": 0,
+            "output_tokens_used": 0,
+            "cost_used": 0.0,
+            "retries_used": 0,
+            "next_step_order": 0,
+            "pending_tool_calls": [],
+            "active_step": None,
+            "deadline_epoch": time() + task.limits.max_wall_time_seconds,
+        }
+
+    @staticmethod
+    def _estimate_tokens(value: Any) -> int:
+        try:
+            size = len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+        except (TypeError, ValueError):
+            return 0
+        return (size + 3) // 4
+
+    @staticmethod
+    def _usage_number(usage: dict[str, Any], names: tuple[str, ...]) -> float | None:
+        for name in names:
+            value = usage.get(name)
+            if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
+                return float(value)
+        return None
+
+    @classmethod
+    def _response_output_tokens(cls, response: ModelResponse) -> int:
+        observed = cls._usage_number(response.usage, ("output_tokens", "completion_tokens", "candidatesTokenCount", "eval_count"))
+        if observed is not None:
+            return max(0, int(observed))
+        return cls._estimate_tokens({"text_segments": response.text_segments, "parts": response.parts, "tool_calls": [call.to_dict() for call in response.tool_calls], "structured_output": response.structured_output})
+
+    @staticmethod
+    def _ensure_state_defaults(state: dict[str, Any]) -> None:
+        state.setdefault("input_tokens_used", 0)
+        state.setdefault("output_tokens_used", 0)
+        state.setdefault("cost_used", 0.0)
+        state.setdefault("retries_used", 0)
+
+    def _provider_request(self, request: ModelRequest, deadline_epoch: float, cancel_event: Event) -> ModelResponse:
+        executor = ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(self.provider.request, request)
+        try:
+            while True:
+                remaining = deadline_epoch - time()
+                if remaining <= 0:
+                    future.cancel()  # best effort; arbitrary provider threads are not killable
+                    raise FutureTimeoutError()
+                try:
+                    response = future.result(timeout=min(0.05, remaining))
+                    return response
+                except FutureTimeoutError:
+                    if cancel_event.is_set():
+                        future.cancel()
+                        raise _ProviderCancelled()
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
+
+    def cancel(self, task_id: str, *, reason: str = "task cancellation requested") -> Task:
+        """Request cooperative cancellation and persist it when not running."""
+        event = self._cancellation_events.get(task_id)
+        if event is not None:
+            event.set()
+            # Do not touch a same-thread SQLite connection from the caller
+            # while the run loop is active in another thread.  The run loop
+            # owns the durable terminal transition at its next boundary.
+            task = self._running_tasks.get(task_id)
+            if task is None:
+                task = self.store.load_task(task_id)
+            if task is None:
+                raise RuntimeFailure(f"task not found: {task_id}")
+            return task
+        task = self.store.load_task(task_id)
+        if task is None:
+            raise RuntimeFailure(f"task not found: {task_id}")
+        if task.status in {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED}:
+            return task
+        task.status = TaskStatus.CANCELLED
+        self._commit(task=task, events=[self._event_record(task, "task.cancelled", {"category": "cancelled", "message": reason})])
+        return task
 
     def resume(self, task_id: str, *, approval_id: str | None = None) -> Task:
         task = self.store.load_task(task_id)
@@ -77,105 +240,156 @@ class Controller:
             checkpoint["state"]["approval_id"] = approval_id
         if checkpoint and checkpoint["phase"] == "after_model":
             task.status = TaskStatus.COMPLETED
-            self.store.save_task(task)
+            events = []
             if not any(event["event_type"] == "task.completed" and event["task_id"] == task.task_id for event in self.store.snapshot()["events"]):
-                self._event(task, "task.completed", {"recovered": True}, step_id=checkpoint["step_id"])
+                events.append(self._event_record(task, "task.completed", {"recovered": True}, step_id=checkpoint["step_id"]))
+            self._commit(task=task, events=events)
             return task
         if checkpoint and checkpoint["phase"] == "failure":
             task.status = TaskStatus.FAILED
-            self.store.save_task(task)
+            events = []
             if not any(event["event_type"] == "task.failed" and event["task_id"] == task.task_id for event in self.store.snapshot()["events"]):
-                self._event(task, "task.failed", {"recovered": True, "category": "recovered_failure"}, step_id=checkpoint["step_id"])
+                events.append(self._event_record(task, "task.failed", {"recovered": True, "category": "recovered_failure"}, step_id=checkpoint["step_id"]))
+            self._commit(task=task, events=events)
+            return task
+        if checkpoint and checkpoint["phase"] == "cancelled":
+            task.status = TaskStatus.CANCELLED
+            self._commit(task=task)
             return task
         return self.run(task, state=checkpoint["state"] if checkpoint else None)
 
-    def _execute_pending(self, task: Task, state: dict[str, Any]) -> None:
+    def _execute_pending(self, task: Task, state: dict[str, Any], cancel_event: Event) -> None:
         step = Step.from_dict(state["active_step"])
         for call in [ToolCall.from_dict(item) for item in state["pending_tool_calls"]]:
-            result = self.tools.execute(call, task_id=task.task_id, approval_id=state.get("approval_id"))
+            if cancel_event.is_set():
+                self._cancel(task, state, step=step)
+                return
+            result = self.tools.execute(call, task_id=task.task_id, approval_id=state.get("approval_id"), cancel_event=cancel_event)
             result.provider_call_id = call.provider_call_id
-            self.store.save_tool_result(result)
-            self._event(task, "tool.completed", {"result": result.to_dict()}, step_id=step.step_id)
+            tool_event = self._event_record(task, "tool.completed", {"result": result.to_dict()}, step_id=step.step_id)
             if result.status != ToolResultStatus.SUCCEEDED:
                 error = result.error or {"category": "tool_execution", "message": "tool failed"}
-                if error.get("category") == "approval_required":
+                category = error.get("category", "tool_execution")
+                if category == "approval_required":
+                    step.status = StepStatus.WAITING
+                    state["active_step"] = step.to_dict()
                     task.status = TaskStatus.WAITING_APPROVAL
-                    self.store.save_task(task)
-                    self._checkpoint(task, step, "waiting_approval", state)
-                    self._event(task, "task.waiting_approval", {"tool_call_id": call.call_id, "tool_name": call.tool_name}, step_id=step.step_id)
+                    waiting_event = self._event_record(task, "task.waiting_approval", {"tool_call_id": call.call_id, "tool_name": call.tool_name}, step_id=step.step_id)
+                    self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "waiting_approval", state), events=[tool_event, waiting_event], tool_result=result)
                     return
-                if error.get("category") == "reconciliation_required":
+                if category == "reconciliation_required":
+                    step.status = StepStatus.WAITING
+                    state["active_step"] = step.to_dict()
                     task.status = TaskStatus.WAITING_RECONCILIATION
-                    self.store.save_task(task)
-                    self._checkpoint(task, step, "waiting_reconciliation", state)
-                    self._event(task, "task.waiting_reconciliation", {"tool_call_id": call.call_id, "tool_name": call.tool_name}, step_id=step.step_id)
+                    waiting_event = self._event_record(task, "task.waiting_reconciliation", {"tool_call_id": call.call_id, "tool_name": call.tool_name, "cause": error.get("cause")}, step_id=step.step_id)
+                    self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "waiting_reconciliation", state), events=[tool_event, waiting_event], tool_result=result)
                     return
-                self._fail(task, state, error["category"], error["message"], step=step)
+                if category == "cancelled":
+                    self._cancel(task, state, step=step, tool_result=result, extra_events=[tool_event])
+                    return
+                self._fail(task, state, category, error.get("message", "tool failed"), step=step, tool_result=result, extra_events=[tool_event])
             state["tool_results"].append(result.to_dict())
             state["pending_tool_calls"] = [item for item in state["pending_tool_calls"] if item["call_id"] != call.call_id]
-            self._checkpoint(task, step, "after_tool_result", state)
+            state["active_step"] = step.to_dict()
+            self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "after_tool_result", state), events=[tool_event], tool_result=result)
         step.status = StepStatus.COMPLETED
-        self.store.save_step(step)
         state["next_step_order"] += 1
         state["active_step"] = None
-        self._checkpoint(task, step, "after_tools", state)
+        self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "after_tools", state))
 
     def run(self, task: Task, *, state: dict[str, Any] | None = None) -> Task:
-        task.status = TaskStatus.RUNNING
-        self.store.save_task(task)
         state = state or self._initial_state(task)
+        self._ensure_state_defaults(state)
         if "deadline_epoch" not in state:
             state["deadline_epoch"] = time() + task.limits.max_wall_time_seconds
-        while task.status == TaskStatus.RUNNING:
-            if time() >= state["deadline_epoch"]:
-                self._fail(task, state, "timeout", "task wall-clock limit exceeded")
-            if state["pending_tool_calls"]:
-                self._execute_pending(task, state)
-                continue
-            if state["next_step_order"] >= task.limits.max_steps or state["model_calls"] >= task.limits.max_model_calls:
-                self._fail(task, state, "limits_exceeded", "execution limits exceeded")
-            step = Step(task_id=task.task_id, order=state["next_step_order"], kind="model", status=StepStatus.RUNNING, attempt=1)
-            state["active_step"] = step.to_dict()
-            self.store.save_step(step)
-            self._checkpoint(task, step, "before_model", state)
-            request = ModelRequest(task_id=task.task_id, messages=state["messages"], allowed_tools=self.tools.registry.names(), tool_definitions=self.tools.registry.definitions(), tool_results=state["tool_results"], max_output_tokens=task.limits.max_output_tokens, cost_ceiling=task.limits.max_cost)
-            self._event(task, "model.requested", {"request": request.to_dict()}, step_id=step.step_id, request_id=request.request_id)
-            state["model_calls"] += 1
-            try:
-                remaining = max(0.001, state["deadline_epoch"] - time())
-                executor = ThreadPoolExecutor(max_workers=1)
-                future = executor.submit(self.provider.request, request)
+        cancel_event = self._cancellation_events.setdefault(task.task_id, Event())
+        self._active_tasks.add(task.task_id)
+        self._running_tasks[task.task_id] = task
+        try:
+            task.status = TaskStatus.RUNNING
+            # Register the cancellation event before the first durable write so
+            # an API/UI cancellation racing with startup cannot be overwritten
+            # by a later RUNNING record.
+            self._commit(task=task)
+            while task.status == TaskStatus.RUNNING:
+                if cancel_event.is_set():
+                    step = Step.from_dict(state["active_step"]) if state.get("active_step") else None
+                    self._cancel(task, state, step=step)
+                    return task
+                if time() >= state["deadline_epoch"]:
+                    self._fail(task, state, "timeout", "task wall-clock limit exceeded")
+                if state["pending_tool_calls"]:
+                    self._execute_pending(task, state, cancel_event)
+                    continue
+                if state["next_step_order"] >= task.limits.max_steps or state["model_calls"] >= task.limits.max_model_calls:
+                    self._fail(task, state, "limits_exceeded", "execution limits exceeded")
+                step = None
+                if state.get("active_step"):
+                    candidate = Step.from_dict(state["active_step"])
+                    if candidate.task_id == task.task_id and candidate.order == state["next_step_order"] and candidate.status in {StepStatus.PENDING, StepStatus.RUNNING}:
+                        step = candidate
+                        step.status = StepStatus.RUNNING
+                        step.attempt = max(1, step.attempt)
+                if step is None:
+                    step = Step(task_id=task.task_id, order=state["next_step_order"], kind="model", status=StepStatus.RUNNING, attempt=1)
+                state["active_step"] = step.to_dict()
                 try:
-                    response = future.result(timeout=remaining)
-                finally:
-                    executor.shutdown(wait=False, cancel_futures=True)
-                if not isinstance(response, ModelResponse):
-                    raise TypeError("provider must return ModelResponse")
-            except FutureTimeoutError:
-                self._fail(task, state, "timeout", "model request timed out", step=step, request_id=request.request_id)
-            except ProviderError as exc:
-                self._fail(task, state, exc.category, str(exc), step=step, request_id=request.request_id)
-            except Exception as exc:
-                self._fail(task, state, "provider_decode", str(exc), step=step, request_id=request.request_id)
-            self._event(task, "model.responded", {"response": response.to_dict()}, step_id=step.step_id, request_id=request.request_id)
-            if response.tool_calls:
-                state["tool_calls"] += len(response.tool_calls)
-                if state["tool_calls"] > task.limits.max_tool_calls:
-                    self._fail(task, state, "limits_exceeded", "tool call limit exceeded", step=step, request_id=request.request_id)
-                state["pending_tool_calls"] = []
-                for index, call in enumerate(response.tool_calls):
-                    # Provider/LLM supplied replay keys are hints only.  The
-                    # Kernel owns operation identity after validation.
-                    call.idempotency_key = self._kernel_operation_key(task, step, call, index)
-                    state["pending_tool_calls"].append(call.to_dict())
-                self._checkpoint(task, step, "pending_tools", state)
-                continue
-            step.status = StepStatus.COMPLETED
-            step.output_ref = response.response_id
-            self.store.save_step(step)
-            self._checkpoint(task, step, "after_model", state)
-            task.status = TaskStatus.COMPLETED
-            self.store.save_task(task)
-            self._event(task, "task.completed", {"response_id": response.response_id, "text": response.text_segments}, step_id=step.step_id, request_id=request.request_id)
+                    request = ModelRequest(task_id=task.task_id, messages=state["messages"], allowed_tools=self.tools.registry.names(), tool_definitions=self.tools.registry.definitions(), tool_results=state["tool_results"], max_output_tokens=task.limits.max_output_tokens, cost_ceiling=task.limits.max_cost)
+                except Exception as exc:
+                    self._fail(task, state, "protocol", str(exc), step=step)
+                input_tokens = self._estimate_tokens({"messages": request.messages, "tool_definitions": request.tool_definitions, "tool_results": [result.to_dict() for result in request.tool_results]})
+                if state["input_tokens_used"] + input_tokens > task.limits.max_input_tokens:
+                    self._fail(task, state, "limits_exceeded", "input token limit exceeded", step=step)
+                state["input_tokens_used"] += input_tokens
+                state["model_calls"] += 1
+                request_event = self._event_record(task, "model.requested", {"request": request.to_dict()}, step_id=step.step_id, request_id=request.request_id)
+                self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "before_model", state), events=[request_event])
+                try:
+                    response = self._provider_request(request, state["deadline_epoch"], cancel_event)
+                    if not isinstance(response, ModelResponse):
+                        raise TypeError("provider must return ModelResponse")
+                except _ProviderCancelled:
+                    self._cancel(task, state, step=step, message="provider request was cancelled")
+                    return task
+                except FutureTimeoutError:
+                    self._fail(task, state, "timeout", "model request timed out", step=step, request_id=request.request_id)
+                except ProviderError as exc:
+                    self._fail(task, state, exc.category, str(exc), step=step, request_id=request.request_id)
+                except Exception as exc:
+                    self._fail(task, state, "provider_decode", str(exc), step=step, request_id=request.request_id)
+                if cancel_event.is_set():
+                    self._cancel(task, state, step=step, message="provider request completed after cancellation")
+                    return task
+                output_tokens = self._response_output_tokens(response)
+                if output_tokens > task.limits.max_output_tokens:
+                    self._fail(task, state, "limits_exceeded", "model output token limit exceeded", step=step, request_id=request.request_id)
+                state["output_tokens_used"] += output_tokens
+                observed_cost = self._usage_number(response.usage, ("cost", "cost_usd", "total_cost", "total_cost_usd"))
+                if observed_cost is not None:
+                    state["cost_used"] += observed_cost
+                    if state["cost_used"] > task.limits.max_cost:
+                        self._fail(task, state, "limits_exceeded", "cost ceiling exceeded", step=step, request_id=request.request_id)
+                response_event = self._event_record(task, "model.responded", {"response": response.to_dict()}, step_id=step.step_id, request_id=request.request_id)
+                if response.tool_calls:
+                    state["tool_calls"] += len(response.tool_calls)
+                    if state["tool_calls"] > task.limits.max_tool_calls:
+                        self._fail(task, state, "limits_exceeded", "tool call limit exceeded", step=step, request_id=request.request_id)
+                    state["pending_tool_calls"] = []
+                    for index, call in enumerate(response.tool_calls):
+                        # Provider/LLM supplied replay keys are hints only.  The
+                        # Kernel owns operation identity after validation.
+                        call.idempotency_key = self._kernel_operation_key(task, step, call, index)
+                        state["pending_tool_calls"].append(call.to_dict())
+                    state["active_step"] = step.to_dict()
+                    self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "pending_tools", state), events=[response_event])
+                    continue
+                step.status = StepStatus.COMPLETED
+                step.output_ref = response.response_id
+                task.status = TaskStatus.COMPLETED
+                self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "after_model", state), events=[response_event, self._event_record(task, "task.completed", {"response_id": response.response_id, "text": response.text_segments}, step_id=step.step_id, request_id=request.request_id)])
+                return task
             return task
-        return task
+        finally:
+            self._active_tasks.discard(task.task_id)
+            self._running_tasks.pop(task.task_id, None)
+            self._cancellation_events.pop(task.task_id, None)

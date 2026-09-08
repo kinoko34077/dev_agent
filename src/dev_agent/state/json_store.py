@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import time
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,17 @@ from ..domain.protocol import Event, Step, Task, ToolResult
 
 class JsonStateStore:
     """Persist the minimum task trace in one replaceable JSON document."""
+
+    _EFFECT_TRANSITIONS = {
+        "pending": {"prepared", "dispatching", "unknown", "succeeded", "reconciling"},
+        "prepared": {"dispatching", "unknown", "reconciling"},
+        "dispatching": {"unknown", "succeeded", "confirmed_failed", "reconciling"},
+        "unknown": {"reconciling", "succeeded", "confirmed_failed", "reconciled"},
+        "reconciling": {"unknown", "succeeded", "confirmed_failed", "reconciled"},
+        "succeeded": set(),
+        "confirmed_failed": set(),
+        "reconciled": set(),
+    }
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
@@ -132,12 +144,7 @@ class JsonStateStore:
         return True
 
     def complete_effect_intent(self, key: str, result: ToolResult) -> None:
-        intent = self._data.setdefault("effect_intents", {}).get(key)
-        if intent is None:
-            raise ValueError(f"effect intent not found: {key}")
-        intent["status"] = "succeeded"
-        intent["result"] = result.to_dict()
-        self._flush()
+        self.transition_effect_intent(key, to_status="succeeded", result=result.to_dict())
 
     def mark_effect_unknown(self, key: str, *, reason: str) -> None:
         self.transition_effect_intent(key, to_status="unknown", result={"unknown": True, "reason": reason})
@@ -150,35 +157,59 @@ class JsonStateStore:
         if intent is None:
             raise ValueError(f"effect intent not found: {key}")
         current = intent.get("status", "pending")
-        transitions = {"pending": {"prepared", "dispatching", "unknown", "succeeded", "reconciling"}, "prepared": {"dispatching", "unknown", "reconciling"}, "dispatching": {"unknown", "succeeded", "confirmed_failed", "reconciling"}, "unknown": {"reconciling", "succeeded", "confirmed_failed", "reconciled"}, "reconciling": {"succeeded", "confirmed_failed", "reconciled"}, "succeeded": set(), "confirmed_failed": set(), "reconciled": set()}
-        if to_status != current and to_status not in transitions.get(current, set()):
+        if to_status != current and to_status not in self._EFFECT_TRANSITIONS.get(current, set()):
             raise ValueError(f"invalid effect intent transition: {current} -> {to_status}")
-        intent["status"] = to_status
-        if result is not None:
-            intent["result"] = result
-        self._flush()
+        before = deepcopy(self._data)
+        try:
+            intent["status"] = to_status
+            if result is not None:
+                intent["result"] = result
+            self._flush()
+        except BaseException:
+            self._data = before
+            raise
 
-    def commit_transition(self, *, task: Task | None = None, step: Step | None = None, checkpoint: dict[str, Any] | None = None, event: Event | None = None, tool_result: ToolResult | None = None) -> None:
-        if task is not None:
-            self._data["tasks"][task.task_id] = task.to_dict()
-        if step is not None:
-            self._data["steps"][step.step_id] = step.to_dict()
-        if checkpoint is not None:
-            self._data["checkpoints"].append(checkpoint)
-        if tool_result is not None:
-            self._data.setdefault("tool_results", {})[tool_result.call_id] = tool_result.to_dict()
-        if event is not None:
-            self._data.setdefault("events", []).append(event.to_dict())
-        self._flush()
+    def commit_transition(self, *, task: Task | None = None, step: Step | None = None, checkpoint: dict[str, Any] | None = None, event: Event | None = None, events: list[Event] | None = None, tool_result: ToolResult | None = None) -> None:
+        before = deepcopy(self._data)
+        try:
+            if task is not None:
+                self._data["tasks"][task.task_id] = task.to_dict()
+            if step is not None:
+                self._data["steps"][step.step_id] = step.to_dict()
+            if checkpoint is not None:
+                self._data["checkpoints"].append(checkpoint)
+            if tool_result is not None:
+                self._data.setdefault("tool_results", {})[tool_result.call_id] = tool_result.to_dict()
+            for transition_event in [*(events or []), *([event] if event is not None else [])]:
+                self._data.setdefault("events", []).append(transition_event.to_dict())
+            self._flush()
+        except BaseException:
+            self._data = before
+            raise
 
-    def reconcile_effect_intent(self, key: str, *, status: str, actor: str, source: str, external_id: str | None = None, evidence: dict[str, Any] | None = None) -> None:
+    def reconcile_effect_intent(self, key: str, *, status: str, actor: str, source: str, external_id: str | None = None, evidence: dict[str, Any] | None = None, result: ToolResult | None = None) -> None:
         if status not in {"succeeded", "confirmed_failed", "unknown"}:
             raise ValueError(f"invalid reconciliation status: {status}")
         if not actor.strip() or not source.strip():
             raise ValueError("reconciliation actor and source are required")
         if self.get_effect_intent(key) is None:
             raise ValueError(f"effect intent not found: {key}")
-        self._data.setdefault("effect_reconciliations", []).append({"idempotency_key": key, "status": status, "actor": actor, "source": source, "external_id": external_id, "evidence": evidence or {}})
-        target = status
-        self.transition_effect_intent(key, to_status="reconciling")
-        self.transition_effect_intent(key, to_status=target, result={"actor": actor, "source": source, "external_id": external_id, "evidence": evidence or {}})
+        intent = self._data.setdefault("effect_intents", {}).get(key)
+        if intent is None:
+            raise ValueError(f"effect intent not found: {key}")
+        current = intent.get("status", "pending")
+        if current != "reconciling" and "reconciling" not in self._EFFECT_TRANSITIONS.get(current, set()):
+            raise ValueError(f"invalid effect intent transition: {current} -> reconciling")
+        if status != "reconciling" and status not in self._EFFECT_TRANSITIONS["reconciling"] and status != current:
+            raise ValueError(f"invalid effect intent transition: reconciling -> {status}")
+        audit = {"idempotency_key": key, "status": status, "actor": actor, "source": source, "external_id": external_id, "evidence": evidence or {}}
+        before = deepcopy(self._data)
+        try:
+            intent["status"] = "reconciling"
+            intent["status"] = status
+            intent["result"] = result.to_dict() if result is not None else {"actor": actor, "source": source, "external_id": external_id, "evidence": evidence or {}}
+            self._data.setdefault("effect_reconciliations", []).append(audit)
+            self._flush()
+        except BaseException:
+            self._data = before
+            raise

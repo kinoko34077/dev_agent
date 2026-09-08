@@ -13,32 +13,65 @@ from ..domain.protocol import Event, Step, Task, ToolResult
 
 class SQLiteStateStore:
     SCHEMA_VERSION = 4
+    _EFFECT_TRANSITIONS = {
+        "pending": {"prepared", "dispatching", "unknown", "succeeded", "reconciling"},
+        "prepared": {"dispatching", "unknown", "reconciling"},
+        "dispatching": {"unknown", "succeeded", "confirmed_failed", "reconciling"},
+        "unknown": {"reconciling", "succeeded", "confirmed_failed", "reconciled"},
+        "reconciling": {"unknown", "succeeded", "confirmed_failed", "reconciled"},
+        "succeeded": set(),
+        "confirmed_failed": set(),
+        "reconciled": set(),
+    }
+
+    _V1_SCHEMA = """
+        CREATE TABLE IF NOT EXISTS tasks (task_id TEXT PRIMARY KEY, payload TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS steps (step_id TEXT PRIMARY KEY, payload TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS tool_results (call_id TEXT PRIMARY KEY, payload TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, event_id TEXT UNIQUE NOT NULL, payload TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS checkpoints (sequence INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL, step_id TEXT NOT NULL, phase TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS idempotency (idempotency_key TEXT PRIMARY KEY, result_payload TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS approvals (approval_id TEXT PRIMARY KEY, task_id TEXT NOT NULL, side_effect_level TEXT NOT NULL, actor TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    """
+
+    _LATEST_SCHEMA = """
+        CREATE TABLE IF NOT EXISTS tasks (task_id TEXT PRIMARY KEY, payload TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS steps (step_id TEXT PRIMARY KEY, payload TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS tool_results (call_id TEXT PRIMARY KEY, payload TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, event_id TEXT UNIQUE NOT NULL, payload TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS checkpoints (sequence INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL, step_id TEXT NOT NULL, phase TEXT NOT NULL, state_payload TEXT NOT NULL DEFAULT '{}');
+        CREATE TABLE IF NOT EXISTS idempotency (idempotency_key TEXT PRIMARY KEY, result_payload TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS approvals (approval_id TEXT PRIMARY KEY, task_id TEXT NOT NULL, side_effect_level TEXT NOT NULL, actor TEXT NOT NULL, call_id TEXT NOT NULL, arguments_hash TEXT NOT NULL, expires_at REAL, revoked INTEGER NOT NULL DEFAULT 0);
+        CREATE TABLE IF NOT EXISTS effect_intents (idempotency_key TEXT PRIMARY KEY, task_id TEXT NOT NULL, tool_name TEXT NOT NULL, arguments_payload TEXT NOT NULL, status TEXT NOT NULL, result_payload TEXT);
+        CREATE TABLE IF NOT EXISTS approval_consumptions (approval_id TEXT PRIMARY KEY);
+        CREATE TABLE IF NOT EXISTS effect_reconciliations (sequence INTEGER PRIMARY KEY AUTOINCREMENT, idempotency_key TEXT NOT NULL, status TEXT NOT NULL, actor TEXT NOT NULL, source TEXT NOT NULL, external_id TEXT, evidence_payload TEXT NOT NULL, recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+        CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    """
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.connection = sqlite3.connect(self.path)
+        # Controller.cancel may be called by an API/UI thread while the run
+        # loop is executing.  All durable mutations still pass through the
+        # store's transactions; allowing the connection across threads avoids
+        # a Python-only thread-affinity failure at that boundary.
+        self.connection = sqlite3.connect(self.path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
-        self.connection.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS tasks (task_id TEXT PRIMARY KEY, payload TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS steps (step_id TEXT PRIMARY KEY, payload TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS tool_results (call_id TEXT PRIMARY KEY, payload TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, event_id TEXT UNIQUE NOT NULL, payload TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS checkpoints (sequence INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL, step_id TEXT NOT NULL, phase TEXT NOT NULL, state_payload TEXT NOT NULL DEFAULT '{}');
-            CREATE TABLE IF NOT EXISTS idempotency (idempotency_key TEXT PRIMARY KEY, result_payload TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS approvals (approval_id TEXT PRIMARY KEY, task_id TEXT NOT NULL, side_effect_level TEXT NOT NULL, actor TEXT NOT NULL, call_id TEXT NOT NULL, arguments_hash TEXT NOT NULL, expires_at REAL, revoked INTEGER NOT NULL DEFAULT 0);
-            CREATE TABLE IF NOT EXISTS effect_intents (idempotency_key TEXT PRIMARY KEY, task_id TEXT NOT NULL, tool_name TEXT NOT NULL, arguments_payload TEXT NOT NULL, status TEXT NOT NULL, result_payload TEXT);
-            CREATE TABLE IF NOT EXISTS approval_consumptions (approval_id TEXT PRIMARY KEY);
-            CREATE TABLE IF NOT EXISTS effect_reconciliations (sequence INTEGER PRIMARY KEY AUTOINCREMENT, idempotency_key TEXT NOT NULL, status TEXT NOT NULL, actor TEXT NOT NULL, source TEXT NOT NULL, external_id TEXT, evidence_payload TEXT NOT NULL, recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
-            CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-            """
-        )
-        self.connection.execute("INSERT OR IGNORE INTO schema_meta(key, value) VALUES ('schema_version', '1')")
-        current = int(self.connection.execute("SELECT value FROM schema_meta WHERE key = 'schema_version'").fetchone()[0])
-        if current > self.SCHEMA_VERSION:
-            raise ValueError(f"unsupported state schema version: {current}")
         try:
+            user_tables = {row[0] for row in self.connection.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")}
+            if not user_tables:
+                # Fresh databases are created at the latest schema directly;
+                # only existing databases pass through ordered migrations.
+                self.connection.executescript(self._LATEST_SCHEMA)
+                self.connection.execute("INSERT OR REPLACE INTO schema_meta(key, value) VALUES ('schema_version', ?)", (str(self.SCHEMA_VERSION),))
+                self.connection.commit()
+                return
+            self.connection.executescript(self._V1_SCHEMA)
+            self.connection.execute("INSERT OR IGNORE INTO schema_meta(key, value) VALUES ('schema_version', '1')")
+            current = int(self.connection.execute("SELECT value FROM schema_meta WHERE key = 'schema_version'").fetchone()[0])
+            if current > self.SCHEMA_VERSION:
+                raise ValueError(f"unsupported state schema version: {current}")
             self.connection.commit()
             self.connection.execute("BEGIN")
             if current < 2:
@@ -49,6 +82,7 @@ class SQLiteStateStore:
                 for name in ("call_id", "arguments_hash"):
                     if name not in approval_columns:
                         self.connection.execute(f"ALTER TABLE approvals ADD COLUMN {name} TEXT NOT NULL DEFAULT ''")
+                self.connection.execute("CREATE TABLE IF NOT EXISTS effect_intents (idempotency_key TEXT PRIMARY KEY, task_id TEXT NOT NULL, tool_name TEXT NOT NULL, arguments_payload TEXT NOT NULL, status TEXT NOT NULL, result_payload TEXT)")
                 self.connection.execute("UPDATE schema_meta SET value = '2' WHERE key = 'schema_version'")
                 current = 2
             if current < 3:
@@ -159,10 +193,7 @@ class SQLiteStateStore:
         return cursor.rowcount == 1
 
     def complete_effect_intent(self, key: str, result: ToolResult) -> None:
-        cursor = self.connection.execute("UPDATE effect_intents SET status = 'succeeded', result_payload = ? WHERE idempotency_key = ?", (json.dumps(result.to_dict(), ensure_ascii=False), key))
-        self.connection.commit()
-        if cursor.rowcount != 1:
-            raise ValueError(f"effect intent not found: {key}")
+        self.transition_effect_intent(key, to_status="succeeded", result=result.to_dict())
 
     def mark_effect_unknown(self, key: str, *, reason: str) -> None:
         self.transition_effect_intent(key, to_status="unknown", result={"unknown": True, "reason": reason})
@@ -175,14 +206,13 @@ class SQLiteStateStore:
         if row is None:
             raise ValueError(f"effect intent not found: {key}")
         current = row["status"]
-        transitions = {"pending": {"prepared", "dispatching", "unknown", "succeeded", "reconciling"}, "prepared": {"dispatching", "unknown", "reconciling"}, "dispatching": {"unknown", "succeeded", "confirmed_failed", "reconciling"}, "unknown": {"reconciling", "succeeded", "confirmed_failed", "reconciled"}, "reconciling": {"succeeded", "confirmed_failed", "reconciled"}, "succeeded": set(), "confirmed_failed": set(), "reconciled": set()}
-        if to_status != current and to_status not in transitions.get(current, set()):
+        if to_status != current and to_status not in self._EFFECT_TRANSITIONS.get(current, set()):
             raise ValueError(f"invalid effect intent transition: {current} -> {to_status}")
         payload = json.dumps(result, ensure_ascii=False) if result is not None else None
         self.connection.execute("UPDATE effect_intents SET status = ?, result_payload = COALESCE(?, result_payload) WHERE idempotency_key = ?", (to_status, payload, key))
         self.connection.commit()
 
-    def commit_transition(self, *, task: Task | None = None, step: Step | None = None, checkpoint: dict[str, Any] | None = None, event: Event | None = None, tool_result: ToolResult | None = None) -> None:
+    def commit_transition(self, *, task: Task | None = None, step: Step | None = None, checkpoint: dict[str, Any] | None = None, event: Event | None = None, events: list[Event] | None = None, tool_result: ToolResult | None = None) -> None:
         """Atomically persist the records belonging to one runtime transition."""
         try:
             self.connection.execute("BEGIN IMMEDIATE")
@@ -194,24 +224,46 @@ class SQLiteStateStore:
                 self.connection.execute("INSERT INTO checkpoints(task_id, step_id, phase, state_payload) VALUES (?, ?, ?, ?)", (checkpoint["task_id"], checkpoint["step_id"], checkpoint["phase"], json.dumps(checkpoint.get("state", {}), ensure_ascii=False)))
             if tool_result is not None:
                 self.connection.execute("INSERT OR REPLACE INTO tool_results VALUES (?, ?)", (tool_result.call_id, json.dumps(tool_result.to_dict(), ensure_ascii=False)))
+            transition_events = list(events or [])
             if event is not None:
-                self.connection.execute("INSERT INTO events(event_id, payload) VALUES (?, ?)", (event.event_id, json.dumps(event.to_dict(), ensure_ascii=False)))
+                transition_events.append(event)
+            for transition_event in transition_events:
+                self.connection.execute("INSERT INTO events(event_id, payload) VALUES (?, ?)", (transition_event.event_id, json.dumps(transition_event.to_dict(), ensure_ascii=False)))
             self.connection.commit()
         except Exception:
             self.connection.rollback()
             raise
+        # Keep the historical checkpoint override as a post-commit crash
+        # injection seam.  Production uses the atomic write above; tests that
+        # model a process dying immediately after a durable boundary can still
+        # override ``checkpoint`` without weakening that transaction.
+        if checkpoint is not None and type(self).checkpoint is not SQLiteStateStore.checkpoint:
+            self.checkpoint(task_id=checkpoint["task_id"], step_id=checkpoint["step_id"], phase=checkpoint["phase"], state=checkpoint.get("state", {}))
 
-    def reconcile_effect_intent(self, key: str, *, status: str, actor: str, source: str, external_id: str | None = None, evidence: dict[str, Any] | None = None) -> None:
+    def reconcile_effect_intent(self, key: str, *, status: str, actor: str, source: str, external_id: str | None = None, evidence: dict[str, Any] | None = None, result: ToolResult | None = None) -> None:
         if status not in {"succeeded", "confirmed_failed", "unknown"}:
             raise ValueError(f"invalid reconciliation status: {status}")
         if not actor.strip() or not source.strip():
             raise ValueError("reconciliation actor and source are required")
-        if self.get_effect_intent(key) is None:
-            raise ValueError(f"effect intent not found: {key}")
-        self.connection.execute("INSERT INTO effect_reconciliations(idempotency_key, status, actor, source, external_id, evidence_payload) VALUES (?, ?, ?, ?, ?, ?)", (key, status, actor, source, external_id, json.dumps(evidence or {}, ensure_ascii=False)))
-        target = status
-        self.transition_effect_intent(key, to_status="reconciling")
-        self.transition_effect_intent(key, to_status=target, result={"actor": actor, "source": source, "external_id": external_id, "evidence": evidence or {}})
+        try:
+            self.connection.execute("BEGIN IMMEDIATE")
+            row = self.connection.execute("SELECT status FROM effect_intents WHERE idempotency_key = ?", (key,)).fetchone()
+            if row is None:
+                raise ValueError(f"effect intent not found: {key}")
+            current = row["status"]
+            if current != "reconciling" and "reconciling" not in self._EFFECT_TRANSITIONS.get(current, set()):
+                raise ValueError(f"invalid effect intent transition: {current} -> reconciling")
+            if status != "reconciling" and status not in self._EFFECT_TRANSITIONS["reconciling"] and status != current:
+                raise ValueError(f"invalid effect intent transition: reconciling -> {status}")
+            audit = {"actor": actor, "source": source, "external_id": external_id, "evidence": evidence or {}}
+            payload = result.to_dict() if result is not None else audit
+            self.connection.execute("INSERT INTO effect_reconciliations(idempotency_key, status, actor, source, external_id, evidence_payload) VALUES (?, ?, ?, ?, ?, ?)", (key, status, actor, source, external_id, json.dumps(evidence or {}, ensure_ascii=False)))
+            self.connection.execute("UPDATE effect_intents SET status = 'reconciling' WHERE idempotency_key = ?", (key,))
+            self.connection.execute("UPDATE effect_intents SET status = ?, result_payload = ? WHERE idempotency_key = ?", (status, json.dumps(payload, ensure_ascii=False), key))
+            self.connection.commit()
+        except BaseException:
+            self.connection.rollback()
+            raise
 
     def _rows(self, table: str, column: str = "payload") -> list[dict[str, Any]]:
         return [json.loads(row[column]) for row in self.connection.execute(f"SELECT {column} FROM {table}").fetchall()]

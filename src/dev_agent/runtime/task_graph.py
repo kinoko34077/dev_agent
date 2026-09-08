@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..domain.protocol import Task
+from ..domain.protocol import ExecutionLimits, Task
 
 
 class TaskGraphError(ValueError):
@@ -20,19 +20,23 @@ class TaskGraph:
     def add(self, task: Task) -> None:
         if task.task_id in self.tasks:
             raise TaskGraphError(f"duplicate task: {task.task_id}")
-        if task.depth > self.max_depth:
+        parent = self.tasks.get(task.parent_task_id) if task.parent_task_id else None
+        if task.parent_task_id and parent is None:
+            raise TaskGraphError("parent task is not present")
+        root_id = (parent.root_task_id or parent.task_id) if parent is not None else (task.root_task_id or task.task_id)
+        root = self.tasks.get(root_id)
+        depth_limit = min(self.max_depth, root.limits.max_depth if root is not None else task.limits.max_depth)
+        if task.depth > depth_limit:
             raise TaskGraphError("max depth exceeded")
         if task.parent_task_id:
-            parent = self.tasks.get(task.parent_task_id)
-            if parent is None:
-                raise TaskGraphError("parent task is not present")
+            assert parent is not None
             if task.task_id == parent.task_id or task.depth != parent.depth + 1:
                 raise TaskGraphError("invalid parent/depth or cycle")
             children = self.children.setdefault(parent.task_id, [])
-            if len(children) >= self.max_children_per_task:
+            if len(children) >= min(self.max_children_per_task, parent.limits.max_child_tasks):
                 raise TaskGraphError("max child tasks exceeded")
-            root = parent.root_task_id or parent.task_id
-            if sum(1 for item in self.tasks.values() if (item.root_task_id or item.task_id) == root) >= self.max_total_tasks_per_root:
+            root_id = parent.root_task_id or parent.task_id
+            if sum(1 for item in self.tasks.values() if (item.root_task_id or item.task_id) == root_id) >= self.max_total_tasks_per_root:
                 raise TaskGraphError("max total tasks per root exceeded")
             children.append(task.task_id)
             task.root_task_id = parent.root_task_id
@@ -52,6 +56,11 @@ class TaskGraph:
             graph.add(task)
         graph.validate()
         return graph
+
+    @classmethod
+    def from_limits(cls, limits: ExecutionLimits, *, max_total_tasks_per_root: int = 128) -> "TaskGraph":
+        """Build graph constraints from one task's finite execution limits."""
+        return cls(max_depth=limits.max_depth, max_children_per_task=limits.max_child_tasks, max_total_tasks_per_root=max_total_tasks_per_root)
 
     def add_child(self, parent_task_id: str, task: Task) -> None:
         task.parent_task_id = parent_task_id

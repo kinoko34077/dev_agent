@@ -15,5 +15,14 @@ jobs:
         with:
           python-version: '3.11'
       - run: python -m pip install -r requirements-v2-dev.txt
-      - run: python -m pytest tests/v2 -q
+      - name: Verify exact checked-out HEAD
+        run: python scripts/check_head.py --expected "$GITHUB_SHA"
+      - run: mkdir -p artifacts
+      - run: python -m pytest tests/v2 -q --junitxml=artifacts/v2-core-junit.xml
       - run: python -m compileall -q src recovery
+      - name: Upload v2 core test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v2-core-junit
+          path: artifacts/v2-core-junit.xml
