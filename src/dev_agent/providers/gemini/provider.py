@@ -30,6 +30,8 @@ class GeminiProvider(ModelProvider):
     def request(self, request: ModelRequest) -> ModelResponse:
         try:
             raw = self.transport(request.to_dict())
+        except ProviderError:
+            raise
         except Exception as exc:
             raise ProviderError(f"gemini transport failed: {exc}", category="transport", retryable=True) from exc
         return normalize_response(raw, provider=self.provider_id, default_model=self.model)

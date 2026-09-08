@@ -1,7 +1,10 @@
+import pytest
+
 from src.dev_agent.domain.protocol import ModelRequest
 from src.dev_agent.providers.gemini import GeminiProvider
 from src.dev_agent.providers.harness import ContractHarness
 from src.dev_agent.providers.openai_compatible import OpenAICompatibleProvider
+from src.dev_agent.providers.base import ProviderError
 
 
 def _request_id():
@@ -32,3 +35,14 @@ def test_adapters_do_not_require_provider_sdk_objects():
     response = GeminiProvider(lambda request: {"text_segments": ["ok"]}).request(ModelRequest(task_id=_request_id(), messages=[{"role": "user", "content": "x"}]))
     assert response.provider == "gemini"
     assert response.text_segments == ["ok"]
+
+
+def test_adapters_preserve_typed_backend_provider_errors():
+    def failing_backend(_request):
+        raise ProviderError("quota exhausted", category="quota", retryable=True)
+
+    request = ModelRequest(task_id=_request_id(), messages=[{"role": "user", "content": "x"}])
+    for provider in (GeminiProvider(failing_backend), OpenAICompatibleProvider(failing_backend)):
+        with pytest.raises(ProviderError) as exc:
+            provider.request(request)
+        assert exc.value.category == "quota"
