@@ -3,6 +3,13 @@ from datetime import datetime, timezone, timedelta
 import pytest
 
 from src.dev_agent.scheduler.queue import DurableQueue, StaleLease, QueueEmpty
+from src.dev_agent.scheduler.worker import WorkerRunner
+from src.dev_agent.domain.protocol import Task
+from src.dev_agent.providers.fake.provider import FakeProvider
+from src.dev_agent.runtime.controller import Controller
+from src.dev_agent.state.sqlite_store import SQLiteStateStore
+from src.dev_agent.tools.registry import ToolRegistry, ToolSpec
+from src.dev_agent.tools.runtime import ToolRuntime
 
 
 def test_queue_survives_restart_and_claims_once(tmp_path):
@@ -39,3 +46,16 @@ def test_queue_orders_priority_and_tracks_attempts(tmp_path):
     retry = queue.claim("worker-2", lease_seconds=30)
     assert retry.task_id == "high"
     assert retry.attempts == 2
+
+
+def test_worker_claims_durable_task_runs_controller_and_completes_queue_item(tmp_path):
+    queue = DurableQueue(tmp_path / "queue.sqlite3")
+    task = Task(objective="worker task")
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="echo", description="echo", handler=lambda args: args))
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        store.save_task(task)
+        queue.enqueue(task.task_id)
+        result = WorkerRunner(queue, Controller(FakeProvider(), ToolRuntime(registry), store), worker_id="worker-a").run_once()
+    assert result is not None and result.status.value == "completed"
+    assert queue.snapshot(task.task_id).state == "completed"

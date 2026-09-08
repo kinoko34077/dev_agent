@@ -56,12 +56,13 @@ class Controller:
         re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----"),
     )
 
-    def __init__(self, provider: ModelProvider, tools: ToolRuntime, store: StateStore, *, event_artifacts: EventArtifactStore | None = None, resource_policy: Any | None = None) -> None:
+    def __init__(self, provider: ModelProvider, tools: ToolRuntime, store: StateStore, *, event_artifacts: EventArtifactStore | None = None, resource_policy: Any | None = None, lease_guard: Any | None = None) -> None:
         self.provider = provider
         self.tools = tools.with_result_store(store)
         self.store = store
         self.event_artifacts = event_artifacts
         self.resource_policy = resource_policy
+        self.lease_guard = lease_guard
         self._cancellation_events: dict[str, Event] = {}
         self._cancellation_reasons: dict[str, str] = {}
         self._active_tasks: set[str] = set()
@@ -125,6 +126,8 @@ class Controller:
         return {"task_id": task.task_id, "step_id": step.step_id, "phase": phase, "state": state}
 
     def _commit(self, *, task: Task | None = None, step: Step | None = None, checkpoint: dict[str, Any] | None = None, events: list[ProtocolEvent] | None = None, tool_result: ToolResult | None = None) -> None:
+        if self.lease_guard is not None:
+            self.lease_guard()
         self.store.commit_transition(task=task, step=step, checkpoint=checkpoint, events=events, tool_result=tool_result)
 
     @staticmethod
@@ -239,6 +242,8 @@ class Controller:
         state.setdefault("retries_used", 0)
 
     def _provider_request(self, request: ModelRequest, deadline_epoch: float, cancel_event: Event) -> ModelResponse:
+        if self.lease_guard is not None:
+            self.lease_guard()
         executor = ThreadPoolExecutor(max_workers=1)
         future = executor.submit(self.provider.request, request)
         try:
@@ -318,6 +323,8 @@ class Controller:
             if cancel_event.is_set():
                 self._cancel(task, state, step=step)
                 return
+            if self.lease_guard is not None:
+                self.lease_guard()
             result = self.tools.execute(call, task_id=task.task_id, approval_id=state.get("approval_id"), cancel_event=cancel_event)
             result.provider_call_id = call.provider_call_id
             tool_event = self._event_record(task, "tool.completed", {"result": result.to_dict()}, step_id=step.step_id)
