@@ -3,12 +3,23 @@
 from __future__ import annotations
 
 import json
+from functools import wraps
 from pathlib import Path
 import sqlite3
+from threading import RLock
 import time
 from typing import Any
 
 from ..domain.protocol import Event, Step, Task, ToolResult
+
+
+def _serialized(method):
+    @wraps(method)
+    def wrapped(self, *args, **kwargs):
+        with self._lock:
+            return method(self, *args, **kwargs)
+
+    return wrapped
 
 
 class SQLiteStateStore:
@@ -58,6 +69,7 @@ class SQLiteStateStore:
         # a Python-only thread-affinity failure at that boundary.
         self.connection = sqlite3.connect(self.path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
+        self._lock = RLock()
         try:
             user_tables = {row[0] for row in self.connection.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")}
             if not user_tables:
@@ -102,6 +114,7 @@ class SQLiteStateStore:
             self.connection.rollback()
             raise
 
+    @_serialized
     def close(self) -> None:
         self.connection.close()
 
@@ -111,44 +124,54 @@ class SQLiteStateStore:
     def __exit__(self, *_: object) -> None:
         self.close()
 
+    @_serialized
     def save_task(self, task: Task) -> None:
         self.connection.execute("INSERT OR REPLACE INTO tasks VALUES (?, ?)", (task.task_id, json.dumps(task.to_dict(), ensure_ascii=False)))
         self.connection.commit()
 
+    @_serialized
     def save_step(self, step: Step) -> None:
         self.connection.execute("INSERT OR REPLACE INTO steps VALUES (?, ?)", (step.step_id, json.dumps(step.to_dict(), ensure_ascii=False)))
         self.connection.commit()
 
+    @_serialized
     def save_tool_result(self, result: ToolResult) -> None:
         self.connection.execute("INSERT OR REPLACE INTO tool_results VALUES (?, ?)", (result.call_id, json.dumps(result.to_dict(), ensure_ascii=False)))
         self.connection.commit()
 
+    @_serialized
     def append_event(self, event: Event) -> None:
         self.connection.execute("INSERT INTO events(event_id, payload) VALUES (?, ?)", (event.event_id, json.dumps(event.to_dict(), ensure_ascii=False)))
         self.connection.commit()
 
+    @_serialized
     def checkpoint(self, *, task_id: str, step_id: str, phase: str, state: dict[str, Any]) -> None:
         self.connection.execute("INSERT INTO checkpoints(task_id, step_id, phase, state_payload) VALUES (?, ?, ?, ?)", (task_id, step_id, phase, json.dumps(state, ensure_ascii=False)))
         self.connection.commit()
 
+    @_serialized
     def load_latest_checkpoint(self, task_id: str) -> dict[str, Any] | None:
         row = self.connection.execute("SELECT task_id, step_id, phase, state_payload FROM checkpoints WHERE task_id = ? ORDER BY sequence DESC LIMIT 1", (task_id,)).fetchone()
         if row is None:
             return None
         return {"task_id": row["task_id"], "step_id": row["step_id"], "phase": row["phase"], "state": json.loads(row["state_payload"])}
 
+    @_serialized
     def load_task(self, task_id: str) -> Task | None:
         row = self.connection.execute("SELECT payload FROM tasks WHERE task_id = ?", (task_id,)).fetchone()
         return Task.from_dict(json.loads(row["payload"])) if row else None
 
+    @_serialized
     def get_idempotent(self, key: str) -> ToolResult | None:
         row = self.connection.execute("SELECT result_payload FROM idempotency WHERE idempotency_key = ?", (key,)).fetchone()
         return ToolResult.from_dict(json.loads(row["result_payload"])) if row else None
 
+    @_serialized
     def save_idempotent(self, key: str, result: ToolResult) -> None:
         self.connection.execute("INSERT OR IGNORE INTO idempotency VALUES (?, ?)", (key, json.dumps(result.to_dict(), ensure_ascii=False)))
         self.connection.commit()
 
+    @_serialized
     def save_approval(self, approval_id: str, *, task_id: str, side_effect_level: str, actor: str, call_id: str, arguments_hash: str, expires_at: float | None = None) -> None:
         try:
             self.connection.execute("INSERT INTO approvals(approval_id, task_id, side_effect_level, actor, call_id, arguments_hash, expires_at, revoked) VALUES (?, ?, ?, ?, ?, ?, ?, 0)", (approval_id, task_id, side_effect_level, actor, call_id, arguments_hash, expires_at))
@@ -157,16 +180,19 @@ class SQLiteStateStore:
             self.connection.rollback()
             raise
 
+    @_serialized
     def has_approval(self, approval_id: str, *, task_id: str, side_effect_level: str, call_id: str, arguments_hash: str) -> bool:
         row = self.connection.execute("SELECT 1 FROM approvals WHERE approval_id = ? AND task_id = ? AND side_effect_level = ? AND call_id = ? AND arguments_hash = ? AND revoked = 0 AND (expires_at IS NULL OR expires_at > ?)", (approval_id, task_id, side_effect_level, call_id, arguments_hash, time.time())).fetchone()
         return row is not None
 
+    @_serialized
     def revoke_approval(self, approval_id: str) -> None:
         cursor = self.connection.execute("UPDATE approvals SET revoked = 1 WHERE approval_id = ?", (approval_id,))
         self.connection.commit()
         if cursor.rowcount != 1:
             raise KeyError(approval_id)
 
+    @_serialized
     def consume_approval(self, approval_id: str, *, task_id: str, side_effect_level: str, call_id: str, arguments_hash: str) -> bool:
         self.connection.execute("BEGIN IMMEDIATE")
         try:
@@ -181,23 +207,28 @@ class SQLiteStateStore:
             self.connection.rollback()
             raise
 
+    @_serialized
     def get_effect_intent(self, key: str) -> dict[str, Any] | None:
         row = self.connection.execute("SELECT * FROM effect_intents WHERE idempotency_key = ?", (key,)).fetchone()
         if row is None:
             return None
         return {"idempotency_key": row["idempotency_key"], "task_id": row["task_id"], "tool_name": row["tool_name"], "arguments": json.loads(row["arguments_payload"]), "status": row["status"], "result": json.loads(row["result_payload"]) if row["result_payload"] else None}
 
+    @_serialized
     def create_effect_intent(self, key: str, *, task_id: str, tool_name: str, arguments: dict[str, Any]) -> bool:
         cursor = self.connection.execute("INSERT OR IGNORE INTO effect_intents(idempotency_key, task_id, tool_name, arguments_payload, status) VALUES (?, ?, ?, ?, 'pending')", (key, task_id, tool_name, json.dumps(arguments, ensure_ascii=False)))
         self.connection.commit()
         return cursor.rowcount == 1
 
+    @_serialized
     def complete_effect_intent(self, key: str, result: ToolResult) -> None:
         self.transition_effect_intent(key, to_status="succeeded", result=result.to_dict())
 
+    @_serialized
     def mark_effect_unknown(self, key: str, *, reason: str) -> None:
         self.transition_effect_intent(key, to_status="unknown", result={"unknown": True, "reason": reason})
 
+    @_serialized
     def transition_effect_intent(self, key: str, *, to_status: str, result: dict[str, Any] | None = None) -> None:
         allowed = {"prepared", "dispatching", "unknown", "succeeded", "confirmed_failed", "reconciling", "reconciled"}
         if to_status not in allowed:
@@ -212,6 +243,7 @@ class SQLiteStateStore:
         self.connection.execute("UPDATE effect_intents SET status = ?, result_payload = COALESCE(?, result_payload) WHERE idempotency_key = ?", (to_status, payload, key))
         self.connection.commit()
 
+    @_serialized
     def commit_transition(self, *, task: Task | None = None, step: Step | None = None, checkpoint: dict[str, Any] | None = None, event: Event | None = None, events: list[Event] | None = None, tool_result: ToolResult | None = None, lease_proof: Any | None = None) -> None:
         """Atomically persist the records belonging to one runtime transition."""
         try:
@@ -245,6 +277,7 @@ class SQLiteStateStore:
         if checkpoint is not None and type(self).checkpoint is not SQLiteStateStore.checkpoint:
             self.checkpoint(task_id=checkpoint["task_id"], step_id=checkpoint["step_id"], phase=checkpoint["phase"], state=checkpoint.get("state", {}))
 
+    @_serialized
     def reconcile_effect_intent(self, key: str, *, status: str, actor: str, source: str, external_id: str | None = None, evidence: dict[str, Any] | None = None, result: ToolResult | None = None) -> None:
         if status not in {"succeeded", "confirmed_failed", "unknown"}:
             raise ValueError(f"invalid reconciliation status: {status}")
@@ -273,6 +306,7 @@ class SQLiteStateStore:
     def _rows(self, table: str, column: str = "payload") -> list[dict[str, Any]]:
         return [json.loads(row[column]) for row in self.connection.execute(f"SELECT {column} FROM {table}").fetchall()]
 
+    @_serialized
     def snapshot(self) -> dict[str, Any]:
         tasks = {item["task_id"]: item for item in self._rows("tasks")}
         steps = {item["step_id"]: item for item in self._rows("steps")}
@@ -281,6 +315,7 @@ class SQLiteStateStore:
         checkpoints = [dict(row) | {"state": json.loads(row["state_payload"])} for row in self.connection.execute("SELECT task_id, step_id, phase, state_payload FROM checkpoints ORDER BY sequence").fetchall()]
         return {"tasks": tasks, "steps": steps, "tool_results": results, "events": events, "checkpoints": checkpoints}
 
+    @_serialized
     def has_event(self, task_id: str, event_type: str) -> bool:
         rows = self.connection.execute("SELECT payload FROM events WHERE payload LIKE ?", (f'%"task_id": "{task_id}"%',)).fetchall()
         return any(json.loads(row["payload"]).get("event_type") == event_type for row in rows)
