@@ -673,12 +673,14 @@ def test_cancel_does_not_terminalize_task_already_waiting_reconciliation(tmp_pat
 
 def test_provider_cancellation_during_request_requires_reconciliation(tmp_path):
     started = ThreadEvent()
+    calls = []
 
     class SlowProvider(ModelProvider):
         provider_id = "provider-cancellable"
 
         def request(self, request):
             started.set()
+            calls.append(request.request_id)
             sleep(0.2)
             return ModelResponse(provider=self.provider_id, model="test", text_segments=["late"])
 
@@ -695,6 +697,8 @@ def test_provider_cancellation_during_request_requires_reconciliation(tmp_path):
     assert result_box[0].status == TaskStatus.WAITING_RECONCILIATION
     checkpoint = store.load_latest_checkpoint(task.task_id)
     assert checkpoint["state"]["cancellation"]["state"] == "unable_to_confirm"
+    assert controller.resume(task.task_id).status == TaskStatus.WAITING_RECONCILIATION
+    assert len(calls) == 1
     waiting = [event for event in store.snapshot()["events"] if event["event_type"] == "task.waiting_reconciliation"]
     assert waiting[-1]["payload"]["cancellation_state"] == "unable_to_confirm"
 

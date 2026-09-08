@@ -258,7 +258,10 @@ class Controller:
             task.status = TaskStatus.CANCELLED
             self._commit(task=task)
             return task
-        if checkpoint and checkpoint["phase"] == "waiting_reconciliation" and checkpoint.get("state", {}).get("provider_reconciliation"):
+        if checkpoint and checkpoint["phase"] == "waiting_reconciliation" and (
+            checkpoint.get("state", {}).get("provider_reconciliation")
+            or checkpoint.get("state", {}).get("cancellation", {}).get("source") == "provider_request"
+        ):
             # A provider request may have reached the external service even
             # though its local result was lost.  Do not spend a second
             # external request until an explicit reconciliation path clears

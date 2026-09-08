@@ -124,6 +124,11 @@ def test_dispatcher_accepts_explicit_task_id_compatibility_entrypoint(tmp_path):
     assert dispatcher.request("00000000-0000-0000-0000-000000000002", request).provider == "secondary"
 
 
+def test_provider_registry_rejects_duplicate_provider_ids():
+    with pytest.raises(ValueError, match="duplicate provider_id"):
+        ProviderRegistry([FakeProvider(), FakeProvider()])
+
+
 def test_dispatcher_does_not_leak_reservation_when_registry_is_missing_provider(tmp_path):
     ledger = ResourceLedger(tmp_path / "dispatcher-missing-provider.sqlite3")
     ledger.register_resource(

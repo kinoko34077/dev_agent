@@ -13,7 +13,13 @@ from .base import ModelProvider, ProviderError
 
 class ProviderRegistry:
     def __init__(self, providers: list[ModelProvider] | tuple[ModelProvider, ...]) -> None:
-        self._providers = {provider.provider_id: provider for provider in providers}
+        self._providers: dict[str, ModelProvider] = {}
+        for provider in providers:
+            if not isinstance(provider.provider_id, str) or not provider.provider_id.strip():
+                raise ValueError("provider_id must be a non-empty string")
+            if provider.provider_id in self._providers:
+                raise ValueError(f"duplicate provider_id: {provider.provider_id}")
+            self._providers[provider.provider_id] = provider
         if not self._providers:
             raise ValueError("at least one provider is required")
 
