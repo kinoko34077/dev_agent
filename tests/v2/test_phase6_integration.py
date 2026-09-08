@@ -1,3 +1,6 @@
+import multiprocessing
+import time
+
 import pytest
 
 from src.dev_agent.resources.budget import BudgetAuthority, BudgetExceeded, BudgetGovernor, BudgetPolicy
@@ -16,6 +19,44 @@ from src.dev_agent.tools.runtime import ToolRuntime
 from src.dev_agent.runtime.controller import Controller
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.scheduler.queue import DurableQueue
+
+
+def _dispatch_with_stale_lease_in_child(resource_path, state_path, marker_path, request_payload, proof_payload, result_queue):
+    """Attempt the concrete provider dispatch from a separate OS process."""
+    from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
+    from src.dev_agent.providers.base import ProviderError
+    from src.dev_agent.providers.dispatch import ProviderDispatcher, ProviderRegistry
+    from src.dev_agent.providers.fake.provider import FakeProvider
+    from src.dev_agent.resources.budget import BudgetGovernor
+    from src.dev_agent.resources.control import ResourceControlPlane
+    from src.dev_agent.resources.ledger import ResourceLedger
+    from src.dev_agent.resources.router import ResourceRouter
+    from src.dev_agent.scheduler.queue import LeaseProof
+    from src.dev_agent.state.sqlite_store import SQLiteStateStore
+
+    class MarkerProvider(FakeProvider):
+        provider_id = "paid"
+
+        def request(self, request):
+            marker_path.write_text("provider-entered", encoding="utf-8")
+            return ModelResponse(provider="paid", model="test", text_segments=["must not run"], usage={"cost_minor": 10})
+
+    proof = LeaseProof(**proof_payload)
+    ledger = ResourceLedger(resource_path)
+    control = ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger))
+    dispatcher = ProviderDispatcher(ProviderRegistry([MarkerProvider()]), control)
+    try:
+        with SQLiteStateStore(state_path) as store:
+            dispatcher.bind_runtime(state_store=store, lease_proof=lambda: proof)
+            dispatcher.request(ModelRequest.from_dict(request_payload))
+    except ProviderError as exc:
+        result_queue.put({"category": exc.category, "message": str(exc)})
+    except BaseException as exc:
+        result_queue.put({"category": type(exc).__name__, "message": str(exc)})
+    else:
+        result_queue.put({"category": "unexpected_success"})
+    finally:
+        ledger.close()
 
 
 def _governor(ledger, policy):
@@ -416,6 +457,48 @@ def test_dispatcher_persists_provider_intent_and_selection_audit(tmp_path):
     assert audits[0]["resource_id"] == "paid"
     assert audits[0]["estimated_cost_minor"] == 10
     assert audits[0]["outcome"] == "succeeded"
+
+
+def test_stale_provider_dispatch_is_fenced_across_independent_processes(tmp_path):
+    resource_path = tmp_path / "resources.sqlite3"
+    state_path = tmp_path / "shared-state.sqlite3"
+    marker_path = tmp_path / "provider-entered.marker"
+    ledger = ResourceLedger(resource_path)
+    ledger.register_resource("paid", provider_id="paid", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
+    ledger.observe("paid", available=10, health="healthy")
+    _governor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0))
+    ledger.close()
+
+    queue = DurableQueue(state_path)
+    task = Task(objective="cross-process stale provider")
+    with SQLiteStateStore(state_path) as store:
+        store.save_task(task)
+    queue.enqueue(task.task_id)
+    first = queue.claim("worker-a", lease_seconds=0.05)
+    time.sleep(0.08)
+    second = queue.claim("worker-b", lease_seconds=30)
+    assert second.lease_owner == "worker-b"
+    proof = first.lease_proof
+    assert proof is not None
+    queue.close()
+
+    context = multiprocessing.get_context("spawn")
+    result_queue = context.Queue()
+    process = context.Process(
+        target=_dispatch_with_stale_lease_in_child,
+        args=(str(resource_path), str(state_path), marker_path, ModelRequest(task_id=task.task_id, messages=[{"role": "user", "content": "x"}]).to_dict(), proof.__dict__, result_queue),
+    )
+    process.start()
+    process.join(10)
+    assert process.exitcode == 0
+    assert result_queue.get(timeout=2)["category"] == "lease_lost"
+    assert not marker_path.exists()
+
+    with SQLiteStateStore(state_path) as store:
+        intent = store.connection.execute("SELECT status FROM effect_intents").fetchone()
+        assert intent["status"] == "confirmed_failed"
+    with ResourceLedger(resource_path) as ledger:
+        assert ledger.reservation_totals()["active_reservations"] == 0
 
 
 def test_dispatcher_replays_durable_success_without_duplicate_provider_call(tmp_path):

@@ -418,28 +418,29 @@ class ResourceLedger:
                 self.connection.rollback()
                 raise
 
-    def transition_budget(self, reservation_id: str, *, to_status: str) -> None:
+    def transition_budget(self, reservation_id: str, *, to_status: str, expected_from: set[str] | None = None) -> None:
         with self._lock:
-            row = self.connection.execute("SELECT status FROM budget_reservations WHERE reservation_id=?", (reservation_id,)).fetchone()
-            if row is None:
-                raise KeyError(reservation_id)
-            current = row["status"]
-            if to_status not in _BUDGET_TRANSITIONS or to_status not in _BUDGET_TRANSITIONS.get(current, set()):
-                raise ValueError(f"invalid budget reservation transition: {current} -> {to_status}")
-            terminal = to_status in {"reconciled", "confirmed_no_charge", "released"}
-            self.connection.execute("UPDATE budget_reservations SET status=?, reconciled_at=CASE WHEN ? THEN ? ELSE reconciled_at END WHERE reservation_id=?", (to_status, int(terminal), datetime.now(timezone.utc).isoformat(), reservation_id))
-            if terminal:
-                self.connection.execute("UPDATE resource_reservations SET status='released' WHERE reservation_id=?", (reservation_id,))
-            self.connection.commit()
+            self.connection.execute("BEGIN IMMEDIATE")
+            try:
+                row = self.connection.execute("SELECT status FROM budget_reservations WHERE reservation_id=?", (reservation_id,)).fetchone()
+                if row is None:
+                    raise KeyError(reservation_id)
+                current = row["status"]
+                if expected_from is not None and current not in expected_from:
+                    raise ValueError(f"budget reservation is not in an expected state: {current}")
+                if to_status not in _BUDGET_TRANSITIONS or to_status not in _BUDGET_TRANSITIONS.get(current, set()):
+                    raise ValueError(f"invalid budget reservation transition: {current} -> {to_status}")
+                terminal = to_status in {"reconciled", "confirmed_no_charge", "released"}
+                self.connection.execute("UPDATE budget_reservations SET status=?, reconciled_at=CASE WHEN ? THEN ? ELSE reconciled_at END WHERE reservation_id=?", (to_status, int(terminal), datetime.now(timezone.utc).isoformat(), reservation_id))
+                if terminal:
+                    self.connection.execute("UPDATE resource_reservations SET status='released' WHERE reservation_id=?", (reservation_id,))
+                self.connection.commit()
+            except BaseException:
+                self.connection.rollback()
+                raise
 
     def release_budget(self, reservation_id: str) -> None:
-        with self._lock:
-            row = self.connection.execute("SELECT status FROM budget_reservations WHERE reservation_id=?", (reservation_id,)).fetchone()
-            if row is None:
-                raise KeyError(reservation_id)
-            if row["status"] not in {"prepared", "dispatching"}:
-                raise ValueError(f"reservation is not releasable: {reservation_id}")
-        self.transition_budget(reservation_id, to_status="confirmed_no_charge")
+        self.transition_budget(reservation_id, to_status="confirmed_no_charge", expected_from={"prepared", "dispatching"})
 
     def mark_budget_unknown(self, reservation_id: str) -> None:
         with self._lock:
@@ -448,6 +449,4 @@ class ResourceLedger:
                 raise KeyError(reservation_id)
             if row["status"] == "unknown":
                 return
-            if row["status"] not in {"prepared", "dispatching"}:
-                raise ValueError(f"reservation is not uncertain: {reservation_id}")
-        self.transition_budget(reservation_id, to_status="unknown")
+        self.transition_budget(reservation_id, to_status="unknown", expected_from={"prepared", "dispatching"})
