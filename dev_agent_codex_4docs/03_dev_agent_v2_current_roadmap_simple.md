@@ -183,18 +183,19 @@ Providerを交換・追加してもCoreが変わらない状態を証明する�
 - repair branch
 - external rescue
 
-### 完了後
-v2の通常運転基盤が一段落。live rollback / repair drill、automatic retry policy、generated Tool lifecycleは後段要件。
+### 現在の判定
+Foundationのローカル契約は一段落しているが、Operational Gateはまだ完了していない。実paid Providerのworst-case課金実証とproduction recovery drillが残るため、Phase 7は開始しない。
 
 ### 6A〜6Eの現在状態
 
-- 6A Resource Ledger / Budget Governor: VERIFIED
+- 6A Resource Ledger / Budget Governor: foundation VERIFIED / operational IN_PROGRESS
 - 6B Router / Survival Modes: VERIFIED
-- 6C Recovery operationalization: VERIFIED
-- 6D Scheduler / Worker ownership: VERIFIED
-- 6E Kernel integration / Gate evidence / documentation: VERIFIED
+- 6C Recovery operationalization: local VERIFIED / production drill DEFERRED
+- 6D Scheduler / Worker ownership: local contract VERIFIED / operational IN_PROGRESS
+- 6E Kernel integration / Gate evidence / documentation: IN_PROGRESS
 
 詳細は `docs/PHASE6_PLAN.md` と `spec/v2/GATE_STATUS.json` Stage Fを参照。
+Stage Gの `G6O1`〜`G6O6` がすべて `VERIFIED` になるまで、Phase 7 implementationは開始しない。
 
 ---
 
