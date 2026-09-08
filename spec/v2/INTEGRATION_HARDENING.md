@@ -62,9 +62,8 @@ Status: in progress. This gate precedes Phase 6.
 
 ## Still required before Phase 6
 
-- Crash injection at the reconciliation/cancellation transition boundaries and
-  a complete CI matrix. Pre-model, pending-tool, after-tool-result, after-tools,
-  terminal, and approval-wait boundaries are covered locally.
+- Live operator use of persisted diagnostic artifacts remains a later Recovery
+  drill; the exact-head CI matrix now passes on the recorded evidence head.
 - Approval-wait/resume is now available through `Controller.resume(task_id, approval_id=...)`; a higher-level UI/API for presenting pending approvals remains required.
 - Local-model qualification that verifies visible response quality as well as the hard output bound; the installed `qwen3:0.6b` failed this narrow probe because it spent the small output budget on a thinking trace.
 - Local Ollama service/model qualification and real Tool-call E2E (D23/D24).

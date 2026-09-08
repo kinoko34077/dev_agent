@@ -11,6 +11,7 @@
 - Windows の実 symlink を使った workspace 外逸脱拒否テストが `passed`。
 - Ollama のローカル `/api/chat` は現環境で接続拒否を確認し、実 Tool-call E2E は未達のまま Gate D23 に保留。
 - Gemini `gemini-2.5-flash` は実HTTPの text + model-generated ToolCall + ToolResult + final response を完走し、Phase 5の live capability matrix へ記録した。Ollama は現環境で接続拒否のため Phase 4 は未達。
+- `d660ec8` の GitHub Actions `v2-core` / `v2 tests` は exact-head check、pytest、JUnit artifact upload を含めて両方 `success`（run `34224800598` / `34224800634`）。
 - 今回の検証対象開始HEADは `7ebc3c7b99656adc6db8edd5395473a435c0eae9`。Gate evidence と計画checkboxはこの実HEADを基準に同期し、追加された `dev_agent_codex_4docs/` はユーザー提供資料として保持する。
 
 ### 2026-09-08
