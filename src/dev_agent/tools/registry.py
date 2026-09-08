@@ -28,6 +28,7 @@ class ToolSpec:
     isolation: str = "in_process"
     trust_level: str = "trusted"
     handler_ref: str | None = None
+    version: str = "1"
 
     def __post_init__(self) -> None:
         if isinstance(self.timeout_seconds, bool) or not isinstance(self.timeout_seconds, (int, float)) or not math.isfinite(self.timeout_seconds) or self.timeout_seconds <= 0:
@@ -40,6 +41,8 @@ class ToolSpec:
             raise ValueError("input_schema must be an object")
         if not isinstance(self.output_schema, dict):
             raise ValueError("output_schema must be an object")
+        if not isinstance(self.version, str) or not self.version.strip():
+            raise ValueError("version must be a non-empty string")
         if self.isolation not in {"in_process", "subprocess"}:
             raise ValueError("isolation must be 'in_process' or 'subprocess'")
         if self.trust_level not in {"trusted", "untrusted", "generated"}:

@@ -57,6 +57,7 @@ class Controller:
         self.tools = tools.with_result_store(store)
         self.store = store
         self._cancellation_events: dict[str, Event] = {}
+        self._cancellation_reasons: dict[str, str] = {}
         self._active_tasks: set[str] = set()
         self._running_tasks: dict[str, Task] = {}
 
@@ -131,12 +132,18 @@ class Controller:
         raise RuntimeFailure(f"{category}: {message}")
 
     def _cancel(self, task: Task, state: dict[str, Any], *, step: Step | None = None, message: str = "task execution was cancelled", tool_result: ToolResult | None = None, extra_events: list[ProtocolEvent] | None = None) -> None:
+        message = self._cancellation_reasons.get(task.task_id, message)
         if step is not None:
             step.status = StepStatus.CANCELLED
             state["active_step"] = step.to_dict()
+        state["cancellation"] = {
+            "state": "terminated",
+            "reason": message,
+            "requested": True,
+        }
         task.status = TaskStatus.CANCELLED
         events = list(extra_events or [])
-        events.append(self._event_record(task, "task.cancelled", {"category": "cancelled", "message": message}, step_id=step.step_id if step else None))
+        events.append(self._event_record(task, "task.cancelled", {"category": "cancelled", "message": message, "cancellation_state": "terminated"}, step_id=step.step_id if step else None))
         checkpoint = self._checkpoint_payload(task, step, "cancelled", state) if step is not None else None
         self._commit(task=task, step=step, checkpoint=checkpoint, events=events, tool_result=tool_result)
 
@@ -211,6 +218,7 @@ class Controller:
         event = self._cancellation_events.get(task_id)
         if event is not None:
             event.set()
+            self._cancellation_reasons[task_id] = reason
             # Do not touch a same-thread SQLite connection from the caller
             # while the run loop is active in another thread.  The run loop
             # owns the durable terminal transition at its next boundary.
@@ -226,7 +234,7 @@ class Controller:
         if task.status in {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED}:
             return task
         task.status = TaskStatus.CANCELLED
-        self._commit(task=task, events=[self._event_record(task, "task.cancelled", {"category": "cancelled", "message": reason})])
+        self._commit(task=task, events=[self._event_record(task, "task.cancelled", {"category": "cancelled", "message": reason, "cancellation_state": "terminated"})])
         return task
 
     def resume(self, task_id: str, *, approval_id: str | None = None) -> Task:
@@ -399,3 +407,4 @@ class Controller:
             self._active_tasks.discard(task.task_id)
             self._running_tasks.pop(task.task_id, None)
             self._cancellation_events.pop(task.task_id, None)
+            self._cancellation_reasons.pop(task.task_id, None)

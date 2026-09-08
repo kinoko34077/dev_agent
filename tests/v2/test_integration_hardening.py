@@ -261,6 +261,11 @@ def test_event_payload_redacts_secrets_and_caps_large_strings():
     assert len(safe["blob"]) == 4096 + len("...[TRUNCATED]")
 
 
+def test_tool_contract_requires_a_non_empty_version():
+    with pytest.raises(ValueError, match="version"):
+        ToolSpec(name="versioned", description="tool", handler=lambda args: {}, version="")
+
+
 def test_approval_binds_to_effective_canonical_path_arguments(tmp_path):
     workspace = tmp_path / "workspace"
     sandbox = workspace / "sandbox"
@@ -526,7 +531,10 @@ def test_controller_cancellation_is_cooperative_and_durable(tmp_path):
     assert not runner.is_alive()
     assert task.status == TaskStatus.CANCELLED
     assert store.load_task(task.task_id).status == TaskStatus.CANCELLED
-    assert any(event["event_type"] == "task.cancelled" for event in store.snapshot()["events"])
+    cancelled = [event for event in store.snapshot()["events"] if event["event_type"] == "task.cancelled"]
+    assert cancelled and cancelled[-1]["payload"]["cancellation_state"] == "terminated"
+    checkpoint = store.load_latest_checkpoint(task.task_id)
+    assert checkpoint["state"]["cancellation"]["state"] == "terminated"
 
 
 def test_controller_enforces_input_output_and_observed_cost_limits(tmp_path):
