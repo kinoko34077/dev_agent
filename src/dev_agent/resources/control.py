@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from ..domain.protocol import ModelRequest, ModelResponse
-from .budget import BudgetExceeded, BudgetGovernor, BudgetReservation, ResourceUnavailable, UnknownPrice
+from .budget import BudgetExceeded, BudgetGovernor, BudgetReservation, MaintenanceActive, ResourceUnavailable, UnknownPrice
 from .ledger import MoneyAmount
 from .router import NoRoute, ResourceRouter, RouteRequest, RouteSelection
 
@@ -40,9 +40,10 @@ class ResourceControlPlane:
 
     def set_maintenance(self, enabled: bool) -> None:
         self._maintenance = bool(enabled)
+        self.router.ledger.set_maintenance(self._maintenance)
 
     def _ensure_dispatch_allowed(self) -> None:
-        if self._maintenance:
+        if self._maintenance or self.router.ledger.maintenance_enabled():
             raise DispatchDenied("maintenance", "new provider dispatch is disabled during maintenance")
 
     def reserve_for_provider(self, task_id: str, provider_id: str, request: ModelRequest) -> DispatchReservation:
@@ -57,6 +58,8 @@ class ResourceControlPlane:
             raise DispatchDenied("unknown_price", str(exc)) from exc
         except ResourceUnavailable as exc:
             raise DispatchDenied("unavailable", str(exc)) from exc
+        except MaintenanceActive as exc:
+            raise DispatchDenied("maintenance", str(exc)) from exc
         except BudgetExceeded as exc:
             raise DispatchDenied("budget", str(exc)) from exc
         except ValueError as exc:
@@ -72,6 +75,8 @@ class ResourceControlPlane:
             raise DispatchDenied("unknown_price", str(exc)) from exc
         except ResourceUnavailable as exc:
             raise DispatchDenied("unavailable", str(exc)) from exc
+        except MaintenanceActive as exc:
+            raise DispatchDenied("maintenance", str(exc)) from exc
         except BudgetExceeded as exc:
             raise DispatchDenied("budget", str(exc)) from exc
         return DispatchReservation(reservation, selection.provider_id)

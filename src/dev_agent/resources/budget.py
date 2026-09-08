@@ -21,6 +21,10 @@ class ResourceUnavailable(BudgetExceeded):
     pass
 
 
+class MaintenanceActive(BudgetExceeded):
+    pass
+
+
 @dataclass(frozen=True)
 class BudgetPolicy:
     hard_cap_minor: int
@@ -86,6 +90,8 @@ class BudgetGovernor:
             reservation_id = self.ledger.reserve_budget(task_id=task_id, resource_id=resource_id, amount=estimated_cost, recovery=recovery, period=self.period, normal_limit_minor=self.policy.hard_cap_minor - self.policy.recovery_reserve_minor, recovery_limit_minor=self.policy.recovery_reserve_minor, native_units=native_units)
         except ValueError as exc:
             message = str(exc)
+            if message == "maintenance mode":
+                raise MaintenanceActive(message) from exc
             if message.startswith("resource capacity exceeded"):
                 raise ResourceUnavailable(message) from exc
             raise BudgetExceeded(message) from exc

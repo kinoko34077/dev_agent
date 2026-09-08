@@ -128,6 +128,10 @@ class ResourceLedger:
         native_units REAL NOT NULL,
         status TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS resource_control (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        maintenance INTEGER NOT NULL DEFAULT 0
+    );
     """
 
     def __init__(self, path: str | Path) -> None:
@@ -158,6 +162,19 @@ class ResourceLedger:
 
     def __exit__(self, *_: object) -> None:
         self.close()
+
+    def set_maintenance(self, enabled: bool) -> None:
+        """Persist the runtime dispatch maintenance fence for all connections."""
+        with self._lock:
+            self.connection.execute(
+                "INSERT INTO resource_control(id, maintenance) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET maintenance=excluded.maintenance",
+                (int(bool(enabled)),),
+            )
+            self.connection.commit()
+
+    def maintenance_enabled(self) -> bool:
+        row = self.connection.execute("SELECT maintenance FROM resource_control WHERE id=1").fetchone()
+        return bool(row and row[0])
 
     @staticmethod
     def _number(value: int | float, name: str, *, nonnegative: bool = True) -> int | float:
@@ -291,6 +308,8 @@ class ResourceLedger:
         with self._lock:
             self.connection.execute("BEGIN IMMEDIATE")
             try:
+                if self.maintenance_enabled():
+                    raise ValueError("maintenance mode")
                 totals = self.reservation_totals(period_id=period.period_id)
                 resource = self.connection.execute("SELECT available FROM resources WHERE resource_id=?", (resource_id,)).fetchone()
                 if resource is None:
