@@ -46,6 +46,16 @@ def test_expired_lease_can_be_reclaimed_but_stale_worker_is_fenced(tmp_path):
     assert queue.snapshot("task-1").state == "completed"
 
 
+def test_expired_lease_cannot_finish_without_reclaim(tmp_path):
+    queue = DurableQueue(tmp_path / "queue.sqlite3")
+    queue.enqueue("task-1")
+    item = queue.claim("worker-a", lease_seconds=0.01)
+    time.sleep(0.05)
+    with pytest.raises(StaleLease):
+        queue.complete("task-1", worker_id="worker-a", state_version=item.state_version)
+    assert queue.snapshot("task-1").state == "leased"
+
+
 def test_queue_orders_priority_and_tracks_attempts(tmp_path):
     queue = DurableQueue(tmp_path / "queue.sqlite3")
     queue.enqueue("low", priority=1)

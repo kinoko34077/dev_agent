@@ -74,7 +74,7 @@ class WorkerRunner:
         heartbeat.start()
         def assert_active_lease() -> None:
             heartbeat.assert_healthy()
-            self.queue.assert_lease(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
+            self.queue.assert_lease(item.task_id, worker_id=self.worker_id, state_version=item.state_version, lease_token=item.lease_token)
 
         self.controller.lease_guard = assert_active_lease
         self.controller.lease_proof = item.lease_proof

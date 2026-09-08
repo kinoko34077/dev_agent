@@ -151,9 +151,14 @@ class DurableQueue:
                 raise StaleLease(task_id)
             return self.snapshot(task_id)
 
-    def assert_lease(self, task_id: str, *, worker_id: str, state_version: int) -> None:
+    def assert_lease(self, task_id: str, *, worker_id: str, state_version: int, lease_token: str | None = None) -> None:
         with self._lock:
-            row = self.connection.execute("SELECT 1 FROM queue_items WHERE task_id=? AND state='leased' AND lease_owner=? AND state_version=? AND lease_until > ?", (task_id, worker_id, state_version, time.time())).fetchone()
+            query = "SELECT 1 FROM queue_items WHERE task_id=? AND state='leased' AND lease_owner=? AND state_version=? AND lease_until > ?"
+            params: tuple[object, ...] = (task_id, worker_id, state_version, time.time())
+            if lease_token is not None:
+                query += " AND lease_token=?"
+                params += (lease_token,)
+            row = self.connection.execute(query, params).fetchone()
             if row is None:
                 raise StaleLease(task_id)
 
@@ -187,7 +192,7 @@ class DurableQueue:
 
     def _finish(self, task_id: str, *, worker_id: str, state_version: int, state: str) -> QueueItem:
         with self._lock:
-            cursor = self.connection.execute("UPDATE queue_items SET state=?, lease_owner=NULL, lease_until=NULL, state_version=state_version+1 WHERE task_id=? AND state='leased' AND lease_owner=? AND state_version=?", (state, task_id, worker_id, state_version))
+            cursor = self.connection.execute("UPDATE queue_items SET state=?, lease_owner=NULL, lease_until=NULL, lease_token=NULL, state_version=state_version+1 WHERE task_id=? AND state='leased' AND lease_owner=? AND state_version=? AND lease_until > ?", (state, task_id, worker_id, state_version, time.time()))
             self.connection.commit()
             if cursor.rowcount != 1:
                 raise StaleLease(task_id)
@@ -196,7 +201,7 @@ class DurableQueue:
     def reap_expired(self, *, now: datetime | float | int | None = None) -> int:
         current = _epoch(now)
         with self._lock:
-            cursor = self.connection.execute("UPDATE queue_items SET state='queued', lease_owner=NULL, lease_until=NULL, state_version=state_version+1 WHERE state='leased' AND lease_until <= ?", (current,))
+            cursor = self.connection.execute("UPDATE queue_items SET state='queued', lease_owner=NULL, lease_until=NULL, lease_token=NULL, state_version=state_version+1 WHERE state='leased' AND lease_until <= ?", (current,))
             self.connection.commit()
             return cursor.rowcount
 
