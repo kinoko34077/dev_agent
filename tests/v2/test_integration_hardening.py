@@ -227,6 +227,17 @@ def test_controller_enforces_whole_task_wall_clock_limit(tmp_path):
             Controller(SlowProvider(), ToolRuntime(ToolRegistry()), store).run(task)
 
 
+def test_resume_honors_persisted_wall_clock_deadline(tmp_path):
+    task = Task(objective="expired", limits=ExecutionLimits(max_wall_time_seconds=30))
+    with SQLiteStateStore(tmp_path / "expired.sqlite3") as store:
+        store.save_task(task)
+        step = Step(task_id=task.task_id, order=0, kind="model")
+        store.save_step(step)
+        store.checkpoint(task_id=task.task_id, step_id=step.step_id, phase="before_model", state={"messages": [], "tool_results": [], "model_calls": 0, "tool_calls": 0, "next_step_order": 0, "pending_tool_calls": [], "active_step": step.to_dict(), "deadline_epoch": 1.0})
+        with pytest.raises(RuntimeFailure, match="timeout"):
+            Controller(FinalProvider(), ToolRuntime(ToolRegistry()), store).resume(task.task_id)
+
+
 def test_real_subprocess_death_resumes_pending_tool_without_duplicate_handler(tmp_path):
     database = tmp_path / "process.sqlite3"
     marker = tmp_path / "effects.log"

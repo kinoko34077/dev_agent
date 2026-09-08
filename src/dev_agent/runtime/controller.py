@@ -5,7 +5,7 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 import hashlib
 import json
-from time import monotonic
+from time import time
 from typing import Any
 
 from ..domain.protocol import Event, ModelRequest, ModelResponse, Step, StepStatus, Task, TaskStatus, ToolCall, ToolResultStatus
@@ -49,7 +49,7 @@ class Controller:
 
     @staticmethod
     def _initial_state(task: Task) -> dict[str, Any]:
-        return {"messages": [{"role": "user", "content": task.objective}], "tool_results": [], "model_calls": 0, "tool_calls": 0, "next_step_order": 0, "pending_tool_calls": [], "active_step": None}
+        return {"messages": [{"role": "user", "content": task.objective}], "tool_results": [], "model_calls": 0, "tool_calls": 0, "next_step_order": 0, "pending_tool_calls": [], "active_step": None, "deadline_epoch": time() + task.limits.max_wall_time_seconds}
 
     def resume(self, task_id: str, *, approval_id: str | None = None) -> Task:
         task = self.store.load_task(task_id)
@@ -100,12 +100,13 @@ class Controller:
         self._checkpoint(task, step, "after_tools", state)
 
     def run(self, task: Task, *, state: dict[str, Any] | None = None) -> Task:
-        started_at = monotonic()
         task.status = TaskStatus.RUNNING
         self.store.save_task(task)
         state = state or self._initial_state(task)
+        if "deadline_epoch" not in state:
+            state["deadline_epoch"] = time() + task.limits.max_wall_time_seconds
         while task.status == TaskStatus.RUNNING:
-            if monotonic() - started_at >= task.limits.max_wall_time_seconds:
+            if time() >= state["deadline_epoch"]:
                 self._fail(task, state, "timeout", "task wall-clock limit exceeded")
             if state["pending_tool_calls"]:
                 self._execute_pending(task, state)
@@ -120,7 +121,7 @@ class Controller:
             self._event(task, "model.requested", {"request": request.to_dict()}, step_id=step.step_id, request_id=request.request_id)
             state["model_calls"] += 1
             try:
-                remaining = max(0.001, task.limits.max_wall_time_seconds - (monotonic() - started_at))
+                remaining = max(0.001, state["deadline_epoch"] - time())
                 executor = ThreadPoolExecutor(max_workers=1)
                 future = executor.submit(self.provider.request, request)
                 try:

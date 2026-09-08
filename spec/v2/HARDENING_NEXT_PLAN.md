@@ -34,6 +34,8 @@
 
 進捗: SQLite / JSON の effect intent と、全ローカル precondition 後の作成、原子的 claim、外部処理後のローカル保存前停止を `reconciliation_required` として再実行禁止にする基礎契約を実装済み。実外部APIの照合処理は未実装。
 
+Execution progress: task wall-clock deadline is now persisted in checkpoint state and survives resume; expired resumed work fails closed. Remaining execution gaps are hard process containment for arbitrary handlers and enforcement/deferral of every decorative limit field.
+
 Approval progress: approval records now bind to one exact internal call ID and canonical argument hash; broad task/level reuse is rejected. One-shot consumption, expiry, revoke, and immutable audit history remain.
 
 ## Gate D — Provider contract

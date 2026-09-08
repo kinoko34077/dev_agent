@@ -16,6 +16,7 @@ Status: in progress. This gate precedes Phase 6.
 - Side-effecting tools require an idempotency key and durable result store.
 - External-write / financial / credential / destructive tools create a durable effect intent before handler execution; a pending intent blocks automatic retry as `reconciliation_required`.
 - Effect intent creation occurs only after schema and path preconditions, and a failed atomic claim cannot dispatch a competing handler.
+- Task wall-clock deadlines are persisted in checkpoint state; resume cannot reset the total budget.
 - Tools that declare a path capability use `PathPolicy` before their handler runs.
 - Terminal failures use one Controller transition that persists the Step (when present), checkpoint, Task, and `task.failed` event.
 - A crash-injection integration test interrupts immediately after the first durable result of two side-effecting ToolCalls; resume executes each handler exactly once and forwards both normalized results to the following model request.
