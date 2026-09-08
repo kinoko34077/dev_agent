@@ -52,11 +52,14 @@ class WorkerRunner:
         TaskStatus.BLOCKED_BUDGET,
     }
 
-    def __init__(self, queue: DurableQueue, controller: Controller, *, worker_id: str, lease_seconds: float = 30.0) -> None:
+    def __init__(self, queue: DurableQueue, controller: Controller, *, worker_id: str, lease_seconds: float = 30.0, max_attempts: int | None = None) -> None:
         self.queue = queue
         self.controller = controller
         self.worker_id = worker_id
         self.lease_seconds = lease_seconds
+        if max_attempts is not None and (isinstance(max_attempts, bool) or not isinstance(max_attempts, int) or max_attempts <= 0):
+            raise ValueError("max_attempts must be a positive integer")
+        self.max_attempts = max_attempts
 
     def run_once(self) -> Task | None:
         try:
@@ -96,5 +99,6 @@ class WorkerRunner:
             # duplicate an ambiguous external effect or spin forever.
             self.queue.defer(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
         else:
-            self.queue.fail(item.task_id, worker_id=self.worker_id, state_version=item.state_version, retry=result.status not in {TaskStatus.FAILED, TaskStatus.CANCELLED})
+            max_attempts = self.max_attempts if self.max_attempts is not None else task.limits.max_retries + 1
+            self.queue.fail(item.task_id, worker_id=self.worker_id, state_version=item.state_version, retry=result.status not in {TaskStatus.FAILED, TaskStatus.CANCELLED}, max_attempts=max_attempts)
         return result

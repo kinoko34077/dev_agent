@@ -59,6 +59,8 @@ class QueueItem:
 
 
 class DurableQueue:
+    DEFAULT_MAX_ATTEMPTS = 3
+    SCHEMA_VERSION = 2
     _SCHEMA = """
     CREATE TABLE IF NOT EXISTS queue_items (
         task_id TEXT PRIMARY KEY,
@@ -72,6 +74,7 @@ class DurableQueue:
         attempts INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS scheduler_control (id INTEGER PRIMARY KEY CHECK (id=1), maintenance INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     """
 
     def __init__(self, path: str | Path) -> None:
@@ -79,12 +82,29 @@ class DurableQueue:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.connection = sqlite3.connect(self.path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
-        self.connection.executescript(self._SCHEMA)
-        columns = {row[1] for row in self.connection.execute("PRAGMA table_info(queue_items)")}
-        if "lease_token" not in columns:
-            self.connection.execute("ALTER TABLE queue_items ADD COLUMN lease_token TEXT")
-        self.connection.commit()
         self._lock = RLock()
+        existing_tables = {row[0] for row in self.connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")}
+        try:
+            self.connection.executescript(self._SCHEMA)
+            if not existing_tables:
+                self.connection.execute("INSERT OR REPLACE INTO schema_meta(key, value) VALUES ('schema_version', ?)", (str(self.SCHEMA_VERSION),))
+                self.connection.commit()
+            else:
+                self.connection.execute("INSERT OR IGNORE INTO schema_meta(key, value) VALUES ('schema_version', '1')")
+                current = int(self.connection.execute("SELECT value FROM schema_meta WHERE key='schema_version'").fetchone()[0])
+                if current > self.SCHEMA_VERSION:
+                    raise ValueError(f"unsupported queue schema version: {current}")
+                self.connection.commit()
+                self.connection.execute("BEGIN")
+                if current < 2:
+                    columns = {row[1] for row in self.connection.execute("PRAGMA table_info(queue_items)")}
+                    if "lease_token" not in columns:
+                        self.connection.execute("ALTER TABLE queue_items ADD COLUMN lease_token TEXT")
+                    self.connection.execute("UPDATE schema_meta SET value='2' WHERE key='schema_version'")
+                self.connection.commit()
+        except Exception:
+            self.connection.rollback()
+            raise
 
     def close(self) -> None:
         self.connection.close()
@@ -171,8 +191,10 @@ class DurableQueue:
     def complete(self, task_id: str, *, worker_id: str, state_version: int) -> QueueItem:
         return self._finish(task_id, worker_id=worker_id, state_version=state_version, state="completed")
 
-    def fail(self, task_id: str, *, worker_id: str, state_version: int, retry: bool = False) -> QueueItem:
-        return self._finish(task_id, worker_id=worker_id, state_version=state_version, state="queued" if retry else "failed")
+    def fail(self, task_id: str, *, worker_id: str, state_version: int, retry: bool = False, max_attempts: int = DEFAULT_MAX_ATTEMPTS) -> QueueItem:
+        if isinstance(max_attempts, bool) or not isinstance(max_attempts, int) or max_attempts <= 0:
+            raise ValueError("max_attempts must be a positive integer")
+        return self._finish(task_id, worker_id=worker_id, state_version=state_version, state="queued" if retry else "failed", max_attempts=max_attempts)
 
     def defer(self, task_id: str, *, worker_id: str, state_version: int) -> QueueItem:
         """Park a task that requires an external event before it can resume."""
@@ -190,8 +212,15 @@ class DurableQueue:
                 raise ValueError(f"task is not waiting: {task_id}")
             return self.snapshot(task_id)
 
-    def _finish(self, task_id: str, *, worker_id: str, state_version: int, state: str) -> QueueItem:
+    def _finish(self, task_id: str, *, worker_id: str, state_version: int, state: str, max_attempts: int = DEFAULT_MAX_ATTEMPTS) -> QueueItem:
         with self._lock:
+            if state == "queued":
+                row = self.connection.execute("SELECT attempts FROM queue_items WHERE task_id=? AND state='leased' AND lease_owner=? AND state_version=? AND lease_until > ?", (task_id, worker_id, state_version, time.time())).fetchone()
+                if row is None:
+                    self.connection.rollback()
+                    raise StaleLease(task_id)
+                if int(row["attempts"]) >= max_attempts:
+                    state = "failed"
             cursor = self.connection.execute("UPDATE queue_items SET state=?, lease_owner=NULL, lease_until=NULL, lease_token=NULL, state_version=state_version+1 WHERE task_id=? AND state='leased' AND lease_owner=? AND state_version=? AND lease_until > ?", (state, task_id, worker_id, state_version, time.time()))
             self.connection.commit()
             if cursor.rowcount != 1:

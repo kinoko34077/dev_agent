@@ -1,5 +1,6 @@
 from datetime import datetime, timezone, timedelta
 import multiprocessing
+import sqlite3
 import time
 
 import pytest
@@ -12,6 +13,26 @@ from src.dev_agent.runtime.controller import Controller
 from src.dev_agent.state.sqlite_store import SQLiteStateStore
 from src.dev_agent.tools.registry import ToolRegistry, ToolSpec
 from src.dev_agent.tools.runtime import ToolRuntime
+
+
+def test_queue_runs_ordered_migration_for_legacy_lease_schema(tmp_path):
+    path = tmp_path / "legacy-queue.sqlite3"
+    connection = sqlite3.connect(path)
+    connection.executescript(
+        """
+        CREATE TABLE queue_items (task_id TEXT PRIMARY KEY, priority INTEGER NOT NULL, run_at REAL NOT NULL, state TEXT NOT NULL, lease_owner TEXT, lease_until REAL, state_version INTEGER NOT NULL, attempts INTEGER NOT NULL DEFAULT 0);
+        CREATE TABLE scheduler_control (id INTEGER PRIMARY KEY CHECK (id=1), maintenance INTEGER NOT NULL DEFAULT 0);
+        """
+    )
+    connection.commit()
+    connection.close()
+
+    queue = DurableQueue(path)
+    columns = {row[1] for row in queue.connection.execute("PRAGMA table_info(queue_items)")}
+    version = queue.connection.execute("SELECT value FROM schema_meta WHERE key='schema_version'").fetchone()[0]
+
+    assert "lease_token" in columns
+    assert version == "2"
 
 
 def _claim_in_process(path, worker_id, result_queue):
@@ -66,6 +87,44 @@ def test_queue_orders_priority_and_tracks_attempts(tmp_path):
     retry = queue.claim("worker-2", lease_seconds=30)
     assert retry.task_id == "high"
     assert retry.attempts == 2
+
+
+def test_queue_fails_after_finite_default_attempts(tmp_path):
+    queue = DurableQueue(tmp_path / "queue.sqlite3")
+    queue.enqueue("bounded")
+    for attempt in range(DurableQueue.DEFAULT_MAX_ATTEMPTS):
+        item = queue.claim(f"worker-{attempt}", lease_seconds=30)
+        queue.fail("bounded", worker_id=f"worker-{attempt}", state_version=item.state_version, retry=True)
+        if attempt < DurableQueue.DEFAULT_MAX_ATTEMPTS - 1:
+            assert queue.snapshot("bounded").state == "queued"
+    assert queue.snapshot("bounded").state == "failed"
+    assert queue.snapshot("bounded").attempts == DurableQueue.DEFAULT_MAX_ATTEMPTS
+
+
+def test_worker_uses_task_retry_limit_as_total_attempt_bound(tmp_path):
+    queue = DurableQueue(tmp_path / "queue.sqlite3")
+    task = Task(objective="bounded worker", limits={"max_retries": 1})
+
+    class RetryingController:
+        def __init__(self, store):
+            self.store = store
+            self.lease_guard = None
+            self.lease_proof = None
+
+        def resume(self, task_id):
+            return self.store.load_task(task_id)
+
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        store.save_task(task)
+        queue.enqueue(task.task_id)
+        runner = WorkerRunner(queue, RetryingController(store), worker_id="worker-a")
+        first = runner.run_once()
+        assert first.status == TaskStatus.QUEUED
+        assert queue.snapshot(task.task_id).state == "queued"
+        second = runner.run_once()
+        assert second.status == TaskStatus.QUEUED
+        assert queue.snapshot(task.task_id).state == "failed"
+        assert queue.snapshot(task.task_id).attempts == 2
 
 
 def test_worker_claims_durable_task_runs_controller_and_completes_queue_item(tmp_path):
