@@ -235,6 +235,10 @@ def test_queue_claim_is_atomic_across_independent_processes(tmp_path):
     path = str(tmp_path / "queue.sqlite3")
     queue = DurableQueue(path)
     queue.enqueue("task-1")
+    # Do not keep the parent's SQLite handle open while Windows spawn workers
+    # contend for the same database.  The claim transaction itself is still
+    # exercised by two independent process-owned connections.
+    queue.close()
     context = multiprocessing.get_context("spawn")
     result_queue = context.Queue()
     processes = [context.Process(target=_claim_in_process, args=(path, f"worker-{index}", result_queue)) for index in range(2)]
