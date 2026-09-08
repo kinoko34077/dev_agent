@@ -301,14 +301,14 @@ class Controller:
         if checkpoint and checkpoint["phase"] == "after_model":
             task.status = TaskStatus.COMPLETED
             events = []
-            if not any(event["event_type"] == "task.completed" and event["task_id"] == task.task_id for event in self.store.snapshot()["events"]):
+            if not self.store.has_event(task.task_id, "task.completed"):
                 events.append(self._event_record(task, "task.completed", {"recovered": True}, step_id=checkpoint["step_id"]))
             self._commit(task=task, events=events)
             return task
         if checkpoint and checkpoint["phase"] == "failure":
             task.status = TaskStatus.FAILED
             events = []
-            if not any(event["event_type"] == "task.failed" and event["task_id"] == task.task_id for event in self.store.snapshot()["events"]):
+            if not self.store.has_event(task.task_id, "task.failed"):
                 events.append(self._event_record(task, "task.failed", {"recovered": True, "category": "recovered_failure"}, step_id=checkpoint["step_id"]))
             self._commit(task=task, events=events)
             return task

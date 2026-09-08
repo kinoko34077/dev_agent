@@ -1,6 +1,6 @@
 import pytest
 
-from src.dev_agent.domain.protocol import Task, TaskStatus
+from src.dev_agent.domain.protocol import Event, Task, TaskStatus
 from src.dev_agent.providers.fake import FakeProvider
 from src.dev_agent.runtime import Controller, RuntimeFailure
 from src.dev_agent.state import JsonStateStore
@@ -19,6 +19,15 @@ def test_tool_runtime_binding_returns_independent_instances():
     assert runtime.result_store is None
     assert first.result_store is first_store
     assert second.result_store is second_store
+
+
+@pytest.mark.parametrize("store_type", [JsonStateStore])
+def test_state_store_supports_targeted_event_lookup(tmp_path, store_type):
+    task = Task(objective="event lookup")
+    store = store_type(tmp_path / "state.json")
+    store.append_event(Event(event_type="task.completed", task_id=task.task_id))
+    assert store.has_event(task.task_id, "task.completed") is True
+    assert store.has_event(task.task_id, "task.failed") is False
 
 
 def make_controller(tmp_path, provider=None, *, max_steps=20):

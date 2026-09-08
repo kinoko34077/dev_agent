@@ -93,6 +93,9 @@ class JsonStateStore:
     def snapshot(self) -> dict[str, Any]:
         return json.loads(json.dumps(self._data))
 
+    def has_event(self, task_id: str, event_type: str) -> bool:
+        return any(item.get("task_id") == task_id and item.get("event_type") == event_type for item in self._data.get("events", []))
+
     def load_task(self, task_id: str) -> Task | None:
         value = self._data["tasks"].get(task_id)
         return Task.from_dict(value) if value else None

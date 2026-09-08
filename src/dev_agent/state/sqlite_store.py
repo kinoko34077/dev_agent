@@ -280,3 +280,7 @@ class SQLiteStateStore:
         events = self._rows("events")
         checkpoints = [dict(row) | {"state": json.loads(row["state_payload"])} for row in self.connection.execute("SELECT task_id, step_id, phase, state_payload FROM checkpoints ORDER BY sequence").fetchall()]
         return {"tasks": tasks, "steps": steps, "tool_results": results, "events": events, "checkpoints": checkpoints}
+
+    def has_event(self, task_id: str, event_type: str) -> bool:
+        rows = self.connection.execute("SELECT payload FROM events WHERE payload LIKE ?", (f'%"task_id": "{task_id}"%',)).fetchall()
+        return any(json.loads(row["payload"]).get("event_type") == event_type for row in rows)
