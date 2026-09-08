@@ -12,6 +12,18 @@
       "capabilities": ["text", "model_generated_tool_call", "tool_result_roundtrip", "final_response"],
       "known_quirks": ["maxOutputTokens=8 ended with MAX_TOKENS before candidate parts; the qualification probe used 256 tokens"],
       "errors": []
+    },
+    {
+      "provider": "ollama",
+      "model": "qwen3:8b",
+      "api_version": "local /api/chat",
+      "adapter_version": "dev_agent OllamaProvider",
+      "tested_at": "2026-09-08T21:30:04+09:00",
+      "expires_at": "2026-10-08T21:30:04+09:00",
+      "confidence": "high",
+      "capabilities": ["text", "model_generated_tool_call", "tool_result_roundtrip", "final_response", "controller_e2e"],
+      "known_quirks": ["qwen3 may include a <think> trace in final text; qualification used a bounded 512-token response"],
+      "errors": []
     }
   ],
   "entry_contract": ["provider", "model", "api_version", "adapter_version", "tested_at", "expires_at", "confidence", "capabilities", "known_quirks", "errors"]

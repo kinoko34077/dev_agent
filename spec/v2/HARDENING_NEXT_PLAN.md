@@ -3,7 +3,7 @@
 目的は、外部サービスが停止してもローカルで検証可能な境界を先に完了し、外部依存の項目を明確な保留として後回しにできる状態を作ること。
 
 Current State sync: verification target is
-`6ed814e3ab938d4635e225992c1087dbfe3243f4`; the latest local full suite is
+`6055d5caa3e8f2afb686479d6eb08f6af5344111`; the latest local full suite is
 `116 passed`. Gate evidence distinguishes local, CI, and live Provider evidence.
 
 ## 現在の実行範囲（2026-09-08 JST）
@@ -69,7 +69,9 @@ its root in backup and retention configuration.
 
 Provider contract progress: the offline harness now exercises model-generated
 ToolCalls, sequential ToolCalls, normalized ToolResults, and final response
-roundtrip. Live Ollama/Gemini qualification remains environment-dependent.
+roundtrip. Live Gemini and Ollama qualification now have observed capability
+matrix entries; Ollama `qwen3:8b` emits a possible `<think>` trace that remains
+an explicit output-quality quirk.
 
 Recovery progress: `recovery/validate_artifacts.py` and
 `recovery/diagnose.py --artifact-root` independently validate event artifact

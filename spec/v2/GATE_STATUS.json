@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "evidence_head": "6ed814e3ab938d4635e225992c1087dbfe3243f4",
+  "evidence_head": "6055d5caa3e8f2afb686479d6eb08f6af5344111",
   "phase6_entry": "PROHIBITED_UNTIL_ALL_VERIFIED",
   "phase6_entry_rule": "Phase 3.5, Phase 4, and Phase 5 current acceptance gates must be VERIFIED; future recovery drills and Phase 7 lifecycle requirements are tracked separately.",
   "phase_classification": {
@@ -53,8 +53,8 @@
       "D20": {"status": "VERIFIED", "phase": "phase4", "evidence": ["src/dev_agent/providers/* explicit ProviderError categories"]},
       "D21": {"status": "VERIFIED", "phase": "phase4", "evidence": ["Gemini 401/403 classification tests"]},
       "D22": {"status": "VERIFIED", "phase": "phase4", "evidence": ["src/dev_agent/providers/harness.py:ContractHarness.probe_cases", "src/dev_agent/providers/harness.py:ContractHarness.probe_tool_roundtrip", "tests/v2/test_phase4.py"]},
-      "D23": {"status": "TODO", "phase": "phase4", "actionable": true},
-      "D24": {"status": "BLOCKED", "phase": "phase4", "actionable": false, "blocker": "local model availability/qualification is environment-dependent"},
+      "D23": {"status": "VERIFIED", "phase": "phase4", "evidence": ["spec/v2/PROVIDER_CAPABILITY_MATRIX.json:ollama/qwen3:8b", "live Controller E2E 2026-09-08: model.requested -> model-generated ToolCall -> tool.completed -> final model response -> task.completed"]},
+      "D24": {"status": "VERIFIED", "phase": "phase4", "evidence": ["Ollama /api/tags returned qwen3:8b", "live Controller E2E completed with qwen3:8b and bounded 512-token output"]},
       "D25": {"status": "VERIFIED", "phase": "phase5", "evidence": ["spec/v2/adr/ADR-011-gemini-api-strategy.md"]},
       "D26": {"status": "VERIFIED", "phase": "phase5", "evidence": ["spec/v2/PROVIDER_CAPABILITY_MATRIX.json:gemini-2.5-flash live text/tool roundtrip", "live GeminiHttpProvider request returned HTTP 200"]},
       "D27": {"status": "VERIFIED", "phase": "phase5", "evidence": ["spec/v2/PROVIDER_CAPABILITY_MATRIX.json:gemini-2.5-flash model-generated ToolCall, ToolResult, and final response", "live GeminiHttpProvider request returned normalized ToolCall and final text"]},

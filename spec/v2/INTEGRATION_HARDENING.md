@@ -50,6 +50,10 @@ Status: in progress. This gate precedes Phase 6.
 - A live Gemini `gemini-2.5-flash` probe completed text plus model-generated
   ToolCall, ToolResult, and final response roundtrip on 2026-09-08 JST; the
   observed capability is recorded in `PROVIDER_CAPABILITY_MATRIX.json`.
+- A live Ollama `qwen3:8b` Controller probe completed the full sequence
+  `model.requested -> model-generated ToolCall -> tool.completed -> final
+  model response -> task.completed` on 2026-09-08 JST; the observed
+  capability and `<think>` output quirk are recorded in the matrix.
 - Input token estimates, provider-reported output/cost usage, task
   cancellation, and graph limits are enforced or explicitly represented as
   deferred contracts in the hardening plan.
@@ -69,7 +73,8 @@ Status: in progress. This gate precedes Phase 6.
   drill; the exact-head CI matrix now passes on the recorded evidence head.
 - Approval-wait/resume is now available through `Controller.resume(task_id, approval_id=...)`; a higher-level UI/API for presenting pending approvals remains required.
 - Local-model qualification that verifies visible response quality as well as the hard output bound; the installed `qwen3:0.6b` failed this narrow probe because it spent the small output budget on a thinking trace.
-- Local Ollama service/model qualification and real Tool-call E2E (D23/D24).
+- Output-quality policy for local model thinking traces remains a follow-up;
+  the required Ollama Tool-call qualification is now verified (D23/D24).
 - Expanded contract harness: multi-tool, sequential result, malformed response, timeout, rate-limit, quota, and limits.
 - Persisted CI test-result ingestion and an operator-run rollback/repair drill.
 
