@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from ..domain.protocol import ModelRequest, ModelResponse
 from ..resources.control import DispatchReservation, ResourceControlPlane
 from ..resources.router import NoRoute, RouteRequest, RouteSelection
+from ..resources.survival import SurvivalGovernor, SurvivalMode, SurvivalSnapshot
 from .base import ModelProvider, ProviderError
 
 
@@ -36,9 +37,10 @@ class ProviderDispatcher(ModelProvider):
     provider_id = "resource-router"
     handles_resource_policy = True
 
-    def __init__(self, registry: ProviderRegistry, control: ResourceControlPlane) -> None:
+    def __init__(self, registry: ProviderRegistry, control: ResourceControlPlane, *, survival: SurvivalGovernor | None = None) -> None:
         self.registry = registry
         self.control = control
+        self.survival = survival
         self.audits: list[DispatchAudit] = []
 
     def request(self, request: ModelRequest) -> ModelResponse:
@@ -73,4 +75,13 @@ class ProviderDispatcher(ModelProvider):
             return response
 
     def _selection(self, request: ModelRequest, excluded: set[str]) -> RouteSelection:
-        return self.control.router.choose(RouteRequest(capabilities=set(request.requested_capabilities) or {"text"}, sensitivity=request.sensitivity, excluded_resource_ids=excluded))
+        max_cost_minor = None
+        if self.survival is not None:
+            budget = self.control.governor.snapshot()
+            healthy = sum(resource["health"] in {"healthy", "degraded"} for resource in self.control.router.ledger.list_resources())
+            state = self.survival.evaluate(SurvivalSnapshot(budget["normal_available_minor"], budget["recovery_available_minor"], healthy))
+            if state.mode in {SurvivalMode.CONSERVE, SurvivalMode.SURVIVAL}:
+                # Paid normal dispatch is prohibited in constrained modes.
+                # Recovery-only paid work requires a distinct future request type.
+                max_cost_minor = 0
+        return self.control.router.choose(RouteRequest(capabilities=set(request.requested_capabilities) or {"text"}, sensitivity=request.sensitivity, excluded_resource_ids=excluded, max_cost_minor=max_cost_minor))

@@ -9,6 +9,7 @@ from src.dev_agent.domain.protocol import Task
 from src.dev_agent.providers.fake.provider import FakeProvider
 from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.dispatch import ProviderDispatcher, ProviderRegistry
+from src.dev_agent.resources.survival import SurvivalGovernor
 from src.dev_agent.state.sqlite_store import SQLiteStateStore
 from src.dev_agent.tools.registry import ToolRegistry, ToolSpec
 from src.dev_agent.tools.runtime import ToolRuntime
@@ -81,3 +82,22 @@ def test_dispatcher_routes_to_secondary_provider_after_retryable_primary_failure
     request = ModelRequest(task_id="00000000-0000-0000-0000-000000000001", messages=[{"role": "user", "content": "x"}])
     assert dispatcher.request(request).provider == "secondary"
     assert [(entry.provider_id, entry.outcome) for entry in dispatcher.audits] == [("primary", "rate_limit"), ("secondary", "succeeded")]
+
+
+def test_survival_dispatch_policy_prohibits_paid_provider_when_budget_is_exhausted(tmp_path):
+    ledger = ResourceLedger(tmp_path / "survival.sqlite3")
+    ledger.register_resource("free", provider_id="free", native_unit="request", capacity=10, capabilities=["text"], cost_minor=0)
+    ledger.register_resource("paid", provider_id="paid", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
+    for resource_id in ("free", "paid"):
+        ledger.observe(resource_id, available=10, health="healthy")
+
+    class Provider(FakeProvider):
+        def request(self, request):
+            return ModelResponse(provider=self.provider_id, model="test", text_segments=[self.provider_id])
+
+    free, paid = Provider(), Provider()
+    free.provider_id, paid.provider_id = "free", "paid"
+    control = ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=0, recovery_reserve_minor=0)))
+    dispatcher = ProviderDispatcher(ProviderRegistry([free, paid]), control, survival=SurvivalGovernor())
+    request = ModelRequest(task_id="00000000-0000-0000-0000-000000000001", messages=[{"role": "user", "content": "x"}])
+    assert dispatcher.request(request).provider == "free"
