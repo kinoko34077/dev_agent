@@ -19,6 +19,34 @@ def _now() -> str:
 
 
 @dataclass(frozen=True)
+class MoneyAmount:
+    """An exact, currency-bound monetary amount in native minor units."""
+
+    currency: str
+    minor_units: int
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.currency, str) or len(self.currency.strip()) != 3 or not self.currency.strip().isalpha():
+            raise ValueError("currency must be a three-letter code")
+        if isinstance(self.minor_units, bool) or not isinstance(self.minor_units, int) or self.minor_units < 0:
+            raise ValueError("minor_units must be a non-negative integer")
+        object.__setattr__(self, "currency", self.currency.upper())
+
+
+@dataclass(frozen=True)
+class BudgetPeriod:
+    """An explicit accounting period; reservations never cross its boundary."""
+
+    period_id: str
+    starts_at: str
+    ends_at: str
+
+    def __post_init__(self) -> None:
+        if not self.period_id.strip() or self.starts_at >= self.ends_at:
+            raise ValueError("budget period requires an id and increasing boundaries")
+
+
+@dataclass(frozen=True)
 class ResourceSpec:
     resource_id: str
     provider_id: str
@@ -27,6 +55,7 @@ class ResourceSpec:
     capabilities: tuple[str, ...]
     sensitivity: str
     cost_minor: int | None
+    price_currency: str | None = None
 
 
 class ResourceLedger:
@@ -62,6 +91,9 @@ class ResourceLedger:
         hard_cap_minor INTEGER NOT NULL,
         recovery_reserve_minor INTEGER NOT NULL,
         currency TEXT NOT NULL
+        , period_id TEXT NOT NULL DEFAULT 'legacy'
+        , period_starts_at TEXT NOT NULL DEFAULT ''
+        , period_ends_at TEXT NOT NULL DEFAULT ''
     );
     CREATE TABLE IF NOT EXISTS budget_reservations (
         reservation_id TEXT PRIMARY KEY,
@@ -73,6 +105,8 @@ class ResourceLedger:
         status TEXT NOT NULL,
         created_at TEXT NOT NULL,
         reconciled_at TEXT
+        , period_id TEXT NOT NULL DEFAULT 'legacy'
+        , currency TEXT NOT NULL DEFAULT 'JPY'
     );
     """
 
@@ -83,7 +117,18 @@ class ResourceLedger:
         self.connection.row_factory = sqlite3.Row
         self._lock = RLock()
         self.connection.executescript(self._SCHEMA)
+        self._ensure_column("resources", "price_currency", "TEXT")
+        self._ensure_column("budget_config", "period_id", "TEXT NOT NULL DEFAULT 'legacy'")
+        self._ensure_column("budget_config", "period_starts_at", "TEXT NOT NULL DEFAULT ''")
+        self._ensure_column("budget_config", "period_ends_at", "TEXT NOT NULL DEFAULT ''")
+        self._ensure_column("budget_reservations", "period_id", "TEXT NOT NULL DEFAULT 'legacy'")
+        self._ensure_column("budget_reservations", "currency", "TEXT NOT NULL DEFAULT 'JPY'")
         self.connection.commit()
+
+    def _ensure_column(self, table: str, column: str, definition: str) -> None:
+        existing = {row[1] for row in self.connection.execute(f"PRAGMA table_info({table})")}
+        if column not in existing:
+            self.connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
     def close(self) -> None:
         self.connection.close()
@@ -112,6 +157,7 @@ class ResourceLedger:
         capabilities: Iterable[str],
         sensitivity: str = "normal",
         cost_minor: int | None = None,
+        price_currency: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> ResourceSpec:
         if not resource_id.strip() or not provider_id.strip() or not native_unit.strip():
@@ -120,6 +166,9 @@ class ResourceLedger:
         if cost_minor is not None:
             if isinstance(cost_minor, bool) or not isinstance(cost_minor, int) or cost_minor < 0:
                 raise ValueError("cost_minor must be a non-negative integer or None")
+            price_currency = price_currency or "JPY"
+        if price_currency is not None and (len(price_currency.strip()) != 3 or not price_currency.isalpha()):
+            raise ValueError("price_currency must be a three-letter code")
         capability_list = tuple(sorted({str(item) for item in capabilities if str(item).strip()}))
         if not capability_list:
             raise ValueError("at least one capability is required")
@@ -127,16 +176,16 @@ class ResourceLedger:
         with self._lock:
             self.connection.execute(
                 """INSERT INTO resources(resource_id, provider_id, native_unit, capacity, capabilities_json,
-                   sensitivity, cost_minor, available, health, confidence, observed_at, metadata_json)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'unknown', 0, ?, ?)
+                   sensitivity, cost_minor, price_currency, available, health, confidence, observed_at, metadata_json)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'unknown', 0, ?, ?)
                    ON CONFLICT(resource_id) DO UPDATE SET provider_id=excluded.provider_id,
                    native_unit=excluded.native_unit, capacity=excluded.capacity,
                    capabilities_json=excluded.capabilities_json, sensitivity=excluded.sensitivity,
-                   cost_minor=excluded.cost_minor, metadata_json=excluded.metadata_json""",
-                (resource_id, provider_id, native_unit, capacity, json.dumps(capability_list), sensitivity, cost_minor, capacity, now, json.dumps(metadata or {}, ensure_ascii=False)),
+                   cost_minor=excluded.cost_minor, price_currency=excluded.price_currency, metadata_json=excluded.metadata_json""",
+                (resource_id, provider_id, native_unit, capacity, json.dumps(capability_list), sensitivity, cost_minor, price_currency.upper() if price_currency else None, capacity, now, json.dumps(metadata or {}, ensure_ascii=False)),
             )
             self.connection.commit()
-        return ResourceSpec(resource_id, provider_id, native_unit, capacity, capability_list, sensitivity, cost_minor)
+        return ResourceSpec(resource_id, provider_id, native_unit, capacity, capability_list, sensitivity, cost_minor, price_currency.upper() if price_currency else None)
 
     def observe(self, resource_id: str, *, available: int | float, health: str, confidence: float = 1.0, observed_at: str | None = None) -> None:
         self._number(available, "available")
@@ -165,15 +214,20 @@ class ResourceLedger:
     def list_resources(self) -> list[dict[str, Any]]:
         return [self.get_resource(row[0]) for row in self.connection.execute("SELECT resource_id FROM resources ORDER BY resource_id")]
 
-    def configure_budget(self, *, hard_cap_minor: int, recovery_reserve_minor: int, currency: str) -> None:
+    def configure_budget(self, *, hard_cap_minor: int, recovery_reserve_minor: int, currency: str, period: BudgetPeriod | None = None) -> None:
         if not isinstance(hard_cap_minor, int) or hard_cap_minor < 0 or not isinstance(recovery_reserve_minor, int) or recovery_reserve_minor < 0 or recovery_reserve_minor > hard_cap_minor:
             raise ValueError("invalid budget cap or recovery reserve")
+        if period is None:
+            now = datetime.now(timezone.utc)
+            start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            end = start.replace(year=start.year + 1, month=1) if start.month == 12 else start.replace(month=start.month + 1)
+            period = BudgetPeriod(start.strftime("%Y-%m"), start.isoformat(), end.isoformat())
         with self._lock:
-            self.connection.execute("INSERT INTO budget_config(id, hard_cap_minor, recovery_reserve_minor, currency) VALUES (1, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET hard_cap_minor=excluded.hard_cap_minor, recovery_reserve_minor=excluded.recovery_reserve_minor, currency=excluded.currency", (hard_cap_minor, recovery_reserve_minor, currency))
+            self.connection.execute("INSERT INTO budget_config(id, hard_cap_minor, recovery_reserve_minor, currency, period_id, period_starts_at, period_ends_at) VALUES (1, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET hard_cap_minor=excluded.hard_cap_minor, recovery_reserve_minor=excluded.recovery_reserve_minor, currency=excluded.currency, period_id=excluded.period_id, period_starts_at=excluded.period_starts_at, period_ends_at=excluded.period_ends_at", (hard_cap_minor, recovery_reserve_minor, currency.upper(), period.period_id, period.starts_at, period.ends_at))
             self.connection.commit()
 
     def budget_config(self) -> dict[str, Any]:
-        row = self.connection.execute("SELECT hard_cap_minor, recovery_reserve_minor, currency FROM budget_config WHERE id=1").fetchone()
+        row = self.connection.execute("SELECT hard_cap_minor, recovery_reserve_minor, currency, period_id, period_starts_at, period_ends_at FROM budget_config WHERE id=1").fetchone()
         if row is None:
             raise ValueError("budget is not configured")
         return dict(row)
@@ -200,8 +254,13 @@ class ResourceLedger:
             raise KeyError(reservation_id)
         return dict(row)
 
-    def reservation_totals(self) -> dict[str, int]:
-        rows = self.connection.execute("SELECT recovery, status, COALESCE(actual_minor, estimated_minor) AS amount FROM budget_reservations WHERE status IN ('reserved', 'unknown', 'reconciled')").fetchall()
+    def reservation_totals(self, *, period_id: str | None = None) -> dict[str, int]:
+        query = "SELECT recovery, status, COALESCE(actual_minor, estimated_minor) AS amount FROM budget_reservations WHERE status IN ('reserved', 'unknown', 'reconciled')"
+        params: tuple[str, ...] = ()
+        if period_id is not None:
+            query += " AND period_id=?"
+            params = (period_id,)
+        rows = self.connection.execute(query, params).fetchall()
         normal_committed = sum(int(row["amount"]) for row in rows if not row["recovery"])
         recovery_committed = sum(int(row["amount"]) for row in rows if row["recovery"])
         active = sum(1 for row in rows if row["status"] in {"reserved", "unknown"})

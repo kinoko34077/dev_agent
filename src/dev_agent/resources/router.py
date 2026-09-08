@@ -27,6 +27,7 @@ class RouteSelection:
     provider_id: str
     native_unit: str
     estimated_cost_minor: int | None
+    price_currency: str | None
 
 
 _SENSITIVITY = {"public": 0, "normal": 1, "internal": 2, "sensitive": 3}
@@ -60,4 +61,4 @@ class ResourceRouter:
         if not candidates:
             raise NoRoute("no eligible resource")
         _, _, _, chosen = min(candidates)
-        return RouteSelection(chosen["resource_id"], chosen["provider_id"], chosen["native_unit"], chosen["cost_minor"])
+        return RouteSelection(chosen["resource_id"], chosen["provider_id"], chosen["native_unit"], chosen["cost_minor"], chosen["price_currency"])
