@@ -126,6 +126,14 @@ def test_controller_denies_financial_tool_without_human_approval(tmp_path):
     assert any(event["event_type"] == "task.waiting_approval" for event in controller.store.snapshot()["events"])
 
 
+def test_event_payload_redacts_secrets_and_caps_large_strings():
+    safe = Controller._safe_event_payload({"api_key": "fake-secret", "nested": {"password": "pw"}, "blob": "x" * 5000})
+    assert safe["api_key"] == "[REDACTED]"
+    assert safe["nested"]["password"] == "[REDACTED]"
+    assert safe["blob"].endswith("...[TRUNCATED]")
+    assert len(safe["blob"]) == 4096 + len("...[TRUNCATED]")
+
+
 def test_controller_waiting_approval_can_resume_with_persisted_record(tmp_path):
     calls = []
     registry = ToolRegistry()

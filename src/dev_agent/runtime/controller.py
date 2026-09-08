@@ -26,7 +26,22 @@ class Controller:
         self.store = store
 
     def _event(self, task: Task, event_type: str, payload: dict[str, Any], *, step_id: str | None = None, request_id: str | None = None) -> None:
-        self.store.append_event(Event(event_type=event_type, task_id=task.task_id, step_id=step_id, request_id=request_id, provider=self.provider.provider_id, payload=payload))
+        self.store.append_event(Event(event_type=event_type, task_id=task.task_id, step_id=step_id, request_id=request_id, provider=self.provider.provider_id, payload=self._safe_event_payload(payload)))
+
+    @staticmethod
+    def _safe_event_payload(payload: dict[str, Any]) -> dict[str, Any]:
+        secret_words = ("token", "secret", "password", "api_key", "apikey", "authorization")
+        def scrub(value: Any, key: str = "") -> Any:
+            if any(word in key.lower() for word in secret_words):
+                return "[REDACTED]"
+            if isinstance(value, dict):
+                return {str(k): scrub(v, str(k)) for k, v in value.items()}
+            if isinstance(value, list):
+                return [scrub(v, key) for v in value]
+            if isinstance(value, str) and len(value) > 4096:
+                return value[:4096] + "...[TRUNCATED]"
+            return value
+        return scrub(payload)
 
     def _checkpoint(self, task: Task, step: Step, phase: str, state: dict[str, Any]) -> None:
         self.store.checkpoint(task_id=task.task_id, step_id=step.step_id, phase=phase, state=state)
