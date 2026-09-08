@@ -69,7 +69,8 @@ class ResourceControlPlane:
 
     def record_provider_error(self, provider_id: str, reservation: DispatchReservation, error: Exception) -> None:
         category = getattr(error, "category", "provider_error")
-        self.router.ledger.record_provider_failure(provider_id)
+        if category in {"transport", "rate_limit", "quota"}:
+            self.router.ledger.record_provider_failure(provider_id)
         if category == "transport":
             self.uncertain(reservation)
         else:

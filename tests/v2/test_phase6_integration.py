@@ -101,3 +101,22 @@ def test_survival_dispatch_policy_prohibits_paid_provider_when_budget_is_exhaust
     dispatcher = ProviderDispatcher(ProviderRegistry([free, paid]), control, survival=SurvivalGovernor())
     request = ModelRequest(task_id="00000000-0000-0000-0000-000000000001", messages=[{"role": "user", "content": "x"}])
     assert dispatcher.request(request).provider == "free"
+
+
+def test_authentication_failure_does_not_open_short_retry_circuit(tmp_path):
+    ledger = ResourceLedger(tmp_path / "auth.sqlite3")
+    ledger.register_resource("primary", provider_id="primary", native_unit="request", capacity=10, capabilities=["text"], cost_minor=0)
+    ledger.observe("primary", available=10, health="healthy")
+
+    class AuthProvider(FakeProvider):
+        provider_id = "primary"
+
+        def request(self, request):
+            raise ProviderError("denied", category="authentication", retryable=False)
+
+    control = ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=10, recovery_reserve_minor=0)))
+    dispatcher = ProviderDispatcher(ProviderRegistry([AuthProvider()]), control)
+    request = ModelRequest(task_id="00000000-0000-0000-0000-000000000001", messages=[{"role": "user", "content": "x"}])
+    with pytest.raises(ProviderError):
+        dispatcher.request(request)
+    assert ledger.get_resource("primary")["consecutive_failures"] == 0
