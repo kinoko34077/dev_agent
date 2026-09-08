@@ -112,6 +112,21 @@ def test_budget_configuration_rejects_invalid_currency_at_ledger_boundary(tmp_pa
         ledger.configure_budget(hard_cap_minor=100, recovery_reserve_minor=0, currency="JPYX", period=BudgetPeriod("2026-09", "2026-09-01T00:00:00+00:00", "2026-10-01T00:00:00+00:00"), _authority=_BUDGET_ADMIN_TOKEN)
 
 
+def test_budget_configuration_cannot_drop_below_committed_or_abandon_unknown_reservations(tmp_path):
+    ledger = _ledger(tmp_path)
+    policy = BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20)
+    governor = _governor(ledger, policy)
+    reservation = governor.reserve("task", "remote-gemini", estimated_cost_minor=40)
+
+    with pytest.raises(ValueError, match="below existing committed"):
+        BudgetAuthority.configure(ledger, BudgetPolicy(hard_cap_minor=30, recovery_reserve_minor=20, period=governor.period))
+
+    governor.mark_unknown(reservation.reservation_id)
+    next_period = BudgetPeriod("2026-10", "2026-10-01T00:00:00+00:00", "2026-11-01T00:00:00+00:00")
+    with pytest.raises(ValueError, match="reservations are active"):
+        BudgetAuthority.configure(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20, period=next_period))
+
+
 def test_budget_reservation_is_atomic_under_concurrency(tmp_path):
     ledger = _ledger(tmp_path)
     governor = _governor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20))

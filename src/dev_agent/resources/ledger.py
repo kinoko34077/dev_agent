@@ -325,6 +325,16 @@ class ResourceLedger:
             end = start.replace(year=start.year + 1, month=1) if start.month == 12 else start.replace(month=start.month + 1)
             period = BudgetPeriod(start.strftime("%Y-%m"), start.isoformat(), end.isoformat())
         with self._lock:
+            existing = self.connection.execute("SELECT period_id FROM budget_config WHERE id=1").fetchone()
+            if existing is not None:
+                active = self.connection.execute("SELECT period_id, recovery, status, COALESCE(actual_minor, estimated_minor) AS amount FROM budget_reservations WHERE status IN ('prepared', 'dispatching', 'unknown')").fetchall()
+                if any(row["period_id"] != period.period_id for row in active):
+                    raise ValueError("cannot change budget period while reservations are active")
+                committed = self.connection.execute("SELECT recovery, COALESCE(actual_minor, estimated_minor) AS amount FROM budget_reservations WHERE period_id=? AND status IN ('prepared', 'dispatching', 'unknown', 'reconciled')", (period.period_id,)).fetchall()
+                normal_committed = sum(int(row["amount"]) for row in committed if not row["recovery"])
+                recovery_committed = sum(int(row["amount"]) for row in committed if row["recovery"])
+                if normal_committed > hard_cap_minor - recovery_reserve_minor or recovery_committed > recovery_reserve_minor:
+                    raise ValueError("budget configuration is below existing committed reservations")
             self.connection.execute("INSERT INTO budget_config(id, hard_cap_minor, recovery_reserve_minor, currency, period_id, period_starts_at, period_ends_at) VALUES (1, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET hard_cap_minor=excluded.hard_cap_minor, recovery_reserve_minor=excluded.recovery_reserve_minor, currency=excluded.currency, period_id=excluded.period_id, period_starts_at=excluded.period_starts_at, period_ends_at=excluded.period_ends_at", (hard_cap_minor, recovery_reserve_minor, normalized_currency, period.period_id, period.starts_at, period.ends_at))
             self.connection.commit()
 
