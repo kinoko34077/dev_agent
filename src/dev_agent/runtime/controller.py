@@ -84,8 +84,8 @@ class Controller:
         digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:24]
         return f"op:{task.task_id}:{step.order}:{index}:{digest}"
 
-    def _prepare_provider_intent(self, request: ModelRequest, reservation: Any) -> str:
-        key = f"provider:{request.request_id}:{reservation.budget.resource_id}"
+    def _prepare_provider_intent(self, request: ModelRequest, reservation: Any, *, intent_key: str | None = None) -> str:
+        key = intent_key or f"provider:{request.request_id}:{reservation.budget.resource_id}"
         if self.store.get_effect_intent(key) is None:
             self.store.create_effect_intent(
                 key,
@@ -217,6 +217,7 @@ class Controller:
         state.setdefault("output_tokens_used", 0)
         state.setdefault("cost_used", 0.0)
         state.setdefault("retries_used", 0)
+        state.setdefault("active_request_id", None)
 
     def _provider_request(self, request: ModelRequest, deadline_epoch: float, cancel_event: Event) -> ModelResponse:
         if self.lease_guard is not None:
@@ -400,9 +401,19 @@ class Controller:
                     step = Step(task_id=task.task_id, order=state["next_step_order"], kind="model", status=StepStatus.RUNNING, attempt=1)
                 state["active_step"] = step.to_dict()
                 try:
-                    request = ModelRequest(task_id=task.task_id, messages=state["messages"], allowed_tools=self.tools.registry.names(), tool_definitions=self.tools.registry.definitions(), tool_results=state["tool_results"], max_output_tokens=task.limits.max_output_tokens, cost_ceiling=task.limits.max_cost)
+                    request = ModelRequest(
+                        request_id=state.get("active_request_id") or None,
+                        task_id=task.task_id,
+                        messages=state["messages"],
+                        allowed_tools=self.tools.registry.names(),
+                        tool_definitions=self.tools.registry.definitions(),
+                        tool_results=state["tool_results"],
+                        max_output_tokens=task.limits.max_output_tokens,
+                        cost_ceiling=task.limits.max_cost,
+                    )
                 except Exception as exc:
                     self._fail(task, state, "protocol", str(exc), step=step)
+                state["active_request_id"] = request.request_id
                 input_tokens = self._estimate_tokens({"messages": request.messages, "tool_definitions": request.tool_definitions, "tool_results": [result.to_dict() for result in request.tool_results]})
                 if state["input_tokens_used"] + input_tokens > task.limits.max_input_tokens:
                     self._fail(task, state, "limits_exceeded", "input token limit exceeded", step=step)
@@ -414,8 +425,9 @@ class Controller:
                 provider_intent_key = None
                 if self.resource_policy is not None and not getattr(self.provider, "handles_resource_policy", False):
                     try:
-                        reservation = self.resource_policy.reserve_for_provider(task.task_id, self.provider.provider_id, request)
-                        provider_intent_key = self._prepare_provider_intent(request, reservation)
+                        provider_intent_key = f"provider:{request.request_id}:{self.provider.provider_id}"
+                        reservation = self.resource_policy.reserve_for_provider(task.task_id, self.provider.provider_id, request, intent_key=provider_intent_key)
+                        provider_intent_key = self._prepare_provider_intent(request, reservation, intent_key=provider_intent_key)
                         self.resource_policy.mark_dispatching(reservation)
                         self._provider_intent(provider_intent_key, status="dispatching", result={"provider_id": self.provider.provider_id, "resource_id": reservation.budget.resource_id})
                         self._record_provider_audit(request, reservation, "dispatching", provider_intent_key)
@@ -546,12 +558,14 @@ class Controller:
                             effective_arguments=self.tools.effective_arguments(call),
                         )
                         state["pending_tool_calls"].append(call.to_dict())
+                    state["active_request_id"] = None
                     state["active_step"] = step.to_dict()
                     self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "pending_tools", state), events=[response_event])
                     continue
                 step.status = StepStatus.COMPLETED
                 step.output_ref = response.response_id
                 task.status = TaskStatus.COMPLETED
+                state["active_request_id"] = None
                 self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "after_model", state), events=[response_event, self._event_record(task, "task.completed", {"response_id": response.response_id, "text": response.text_segments}, step_id=step.step_id, request_id=request.request_id)])
                 return task
             return task

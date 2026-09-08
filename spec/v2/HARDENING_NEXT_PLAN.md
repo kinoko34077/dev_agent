@@ -55,7 +55,7 @@ Phase 6 着手条件は満たされ、`GATE_STATUS.json` の `phase6_entry` は
 
 外部 API が必要な試験は mock provider で先行し、live 試験は credential / quota 待ちとして保留できる。
 
-進捗: SQLite / JSON の effect intent と、全ローカル precondition 後の作成、原子的 claim、外部処理後のローカル保存前停止を `reconciliation_required` として再実行禁止にする基礎契約を実装済み。timeout、connection failure、response decode、result byte limit、output schema failure も同じ契約へ統一した。曖昧な外部状態は Task の `waiting_reconciliation` として永続化し、照合で intent を succeeded に確定した後に安全再開できる。Provider dispatch では Budget reservation も intent key に永続結合し、budget 状態だけ保存されたクラッシュ後に二重予約を作らず再利用する。実外部APIの照合アダプタ自体は未実装。
+進捗: SQLite / JSON の effect intent と、全ローカル precondition 後の作成、原子的 claim、外部処理後のローカル保存前停止を `reconciliation_required` として再実行禁止にする基礎契約を実装済み。timeout、connection failure、response decode、result byte limit、output schema failure も同じ契約へ統一した。曖昧な外部状態は Task の `waiting_reconciliation` として永続化し、照合で intent を succeeded に確定した後に安全再開できる。Controller は active model request ID を checkpoint へ保存し、Provider dispatch では Budget reservation も intent key に永続結合するため、budget 状態だけ保存されたクラッシュ後に新しい外部 request / 二重予約を作らず再利用する。実外部APIの照合アダプタ自体は未実装。
 
 Execution progress: task wall-clock deadline is now persisted in checkpoint state and survives resume; expired resumed work fails closed. Input token estimates, provider-reported output/cost usage, and TaskGraph limits are enforced. Trusted in-process handlers retain a documented soft timeout; untrusted/generated/process handlers use a subprocess boundary with process-tree termination. Scheduler retries are now finite: WorkerRunner derives total attempts from `max_retries + 1`, and DurableQueue applies a default cap when callers omit a limit.
 

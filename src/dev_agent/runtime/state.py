@@ -30,6 +30,7 @@ class RuntimeState(dict[str, Any]):
             next_step_order=0,
             pending_tool_calls=[],
             active_step=None,
+            active_request_id=None,
             deadline_epoch=now + task.limits.max_wall_time_seconds,
         )
 
@@ -62,3 +63,11 @@ class RuntimeState(dict[str, Any]):
     def deadline_epoch(self) -> float:
         return float(self["deadline_epoch"])
 
+    @property
+    def active_request_id(self) -> str | None:
+        value = self.get("active_request_id")
+        return value if isinstance(value, str) and value.strip() else None
+
+    @active_request_id.setter
+    def active_request_id(self, value: str | None) -> None:
+        self["active_request_id"] = value

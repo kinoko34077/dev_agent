@@ -15,4 +15,4 @@ def test_runtime_state_round_trips_checkpoint_json_without_aliasing():
     assert restored["next_step_order"] == 2
     assert restored.pending_tool_calls == [{"call_id": "call"}]
     assert state.pending_tool_calls == [{"call_id": "call"}]
-
+    assert restored.active_request_id is None

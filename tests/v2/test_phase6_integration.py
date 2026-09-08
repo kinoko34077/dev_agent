@@ -90,6 +90,48 @@ def test_controller_reserves_and_reconciles_before_each_provider_dispatch(tmp_pa
     assert governor.snapshot()["normal_committed_minor"] == 20
 
 
+def test_controller_reuses_request_and_budget_intent_after_crash_before_intent_persist(tmp_path):
+    ledger = ResourceLedger(tmp_path / "controller-dispatch-crash.sqlite3")
+    ledger.register_resource("paid", provider_id="direct", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
+    ledger.observe("paid", available=10, health="healthy")
+    control = ResourceControlPlane(ResourceRouter(ledger), _governor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)))
+    requests = []
+
+    class DirectProvider(FakeProvider):
+        provider_id = "direct"
+
+        def request(self, request):
+            requests.append(request.request_id)
+            return ModelResponse(provider="direct", model="test", text_segments=["recovered"], usage={"cost_minor": 10})
+
+    provider = DirectProvider()
+    task = Task(objective="direct dispatch crash", limits={"max_steps": 1})
+    with SQLiteStateStore(tmp_path / "controller-dispatch-state.sqlite3") as store:
+        first = Controller(provider, ToolRuntime(ToolRegistry()), store, resource_policy=control)
+
+        def crash_before_intent(*args, **kwargs):
+            raise KeyboardInterrupt("simulated process crash")
+
+        first._prepare_provider_intent = crash_before_intent
+        with pytest.raises(KeyboardInterrupt, match="simulated process crash"):
+            first.run(task)
+
+        checkpoint = store.load_latest_checkpoint(task.task_id)
+        assert checkpoint is not None
+        request_id = checkpoint["state"]["active_request_id"]
+        assert isinstance(request_id, str) and request_id
+        assert store.load_task(task.task_id).status.value == "running"
+        assert ledger.connection.execute("SELECT COUNT(*) FROM budget_reservations").fetchone()[0] == 1
+        assert requests == []
+
+        second = Controller(provider, ToolRuntime(ToolRegistry()), store, resource_policy=control)
+        result = second.resume(task.task_id)
+
+        assert result.status.value == "completed"
+        assert requests == [request_id]
+        assert ledger.connection.execute("SELECT COUNT(*) FROM budget_reservations").fetchone()[0] == 1
+
+
 def test_control_never_converts_generic_float_ceiling_and_holds_missing_charge_unknown(tmp_path):
     ledger = ResourceLedger(tmp_path / "control.sqlite3")
     ledger.register_resource("paid", provider_id="remote", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10, price_currency="JPY")
