@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 import inspect
+import multiprocessing
 
 import pytest
 
@@ -30,6 +31,15 @@ def _ledger(tmp_path):
     ledger.observe("local-qwen", available=90, health="healthy")
     ledger.observe("remote-gemini", available=90, health="healthy")
     return ledger
+
+
+def _reserve_in_process(path, task_id, result_queue):
+    ledger = ResourceLedger(path)
+    governor = BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20))
+    try:
+        result_queue.put(governor.reserve(task_id, "remote-gemini", estimated_cost=MoneyAmount("JPY", 50)).reservation_id)
+    except BudgetExceeded:
+        result_queue.put(None)
 
 
 def test_resource_ledger_persists_native_unit_observations(tmp_path):
@@ -73,6 +83,20 @@ def test_budget_reservation_is_atomic_across_independent_ledger_connections(tmp_
     with ThreadPoolExecutor(max_workers=2) as pool:
         reservations = list(pool.map(lambda pair: reserve(*pair), ((first_governor, 1), (second_governor, 2))))
     assert sum(item is not None for item in reservations) == 1
+
+
+def test_budget_reservation_is_atomic_across_independent_processes(tmp_path):
+    ledger = _ledger(tmp_path)
+    path = str(tmp_path / "resources.sqlite3")
+    context = multiprocessing.get_context("spawn")
+    result_queue = context.Queue()
+    processes = [context.Process(target=_reserve_in_process, args=(path, f"process-{index}", result_queue)) for index in range(2)]
+    for process in processes:
+        process.start()
+    for process in processes:
+        process.join(10)
+        assert process.exitcode == 0
+    assert sum(result_queue.get(timeout=2) is not None for _ in processes) == 1
 
 
 def test_budget_rejects_unknown_price_and_preserves_recovery_reserve(tmp_path):

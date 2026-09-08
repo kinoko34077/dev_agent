@@ -1,4 +1,5 @@
 from datetime import datetime, timezone, timedelta
+import multiprocessing
 
 import pytest
 
@@ -10,6 +11,14 @@ from src.dev_agent.runtime.controller import Controller
 from src.dev_agent.state.sqlite_store import SQLiteStateStore
 from src.dev_agent.tools.registry import ToolRegistry, ToolSpec
 from src.dev_agent.tools.runtime import ToolRuntime
+
+
+def _claim_in_process(path, worker_id, result_queue):
+    queue = DurableQueue(path)
+    try:
+        result_queue.put(queue.claim(worker_id, lease_seconds=30).task_id)
+    except QueueEmpty:
+        result_queue.put(None)
 
 
 def test_queue_survives_restart_and_claims_once(tmp_path):
@@ -87,3 +96,18 @@ def test_maintenance_mode_rejects_new_claims_and_can_resume(tmp_path):
         queue.claim("worker-a")
     queue.set_maintenance(False)
     assert queue.claim("worker-a").task_id == "task-1"
+
+
+def test_queue_claim_is_atomic_across_independent_processes(tmp_path):
+    path = str(tmp_path / "queue.sqlite3")
+    queue = DurableQueue(path)
+    queue.enqueue("task-1")
+    context = multiprocessing.get_context("spawn")
+    result_queue = context.Queue()
+    processes = [context.Process(target=_claim_in_process, args=(path, f"worker-{index}", result_queue)) for index in range(2)]
+    for process in processes:
+        process.start()
+    for process in processes:
+        process.join(10)
+        assert process.exitcode == 0
+    assert sum(result_queue.get(timeout=2) is not None for _ in processes) == 1
