@@ -403,6 +403,14 @@ class Controller:
                         self.resource_policy.uncertain(reservation)
                         self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="timeout", message="model request timed out")
                         return task
+                    if getattr(self.provider, "handles_resource_policy", False):
+                        # The dispatcher owns the reservation and may still be
+                        # inside the concrete provider call.  Treat the
+                        # timeout as an ambiguous external outcome instead
+                        # of terminalizing the task before its reservation is
+                        # reconciled.
+                        self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="timeout", message="model request timed out")
+                        return task
                     self._fail(task, state, "timeout", "model request timed out", step=step, request_id=request.request_id)
                 except ProviderError as exc:
                     if reservation is not None:

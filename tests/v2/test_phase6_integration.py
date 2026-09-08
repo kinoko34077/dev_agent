@@ -325,6 +325,31 @@ def test_controller_waits_when_dispatcher_owns_transport_reconciliation(tmp_path
     assert ledger.reservation_totals()["active_reservations"] == 1
 
 
+def test_controller_maps_dispatcher_timeout_to_reconciliation(tmp_path):
+    ledger = ResourceLedger(tmp_path / "dispatcher-timeout.sqlite3")
+    ledger.register_resource("paid", provider_id="slow", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
+    ledger.observe("paid", available=10, health="healthy")
+    control = ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)))
+
+    class SlowProvider(FakeProvider):
+        provider_id = "slow"
+
+        def request(self, request):
+            import time
+            time.sleep(0.2)
+            return ModelResponse(provider="slow", model="test", text_segments=["late"])
+
+    dispatcher = ProviderDispatcher(ProviderRegistry([SlowProvider()]), control)
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        task = Task(objective="dispatcher timeout", limits={"max_wall_time_seconds": 0.03})
+        controller = Controller(dispatcher, ToolRuntime(ToolRegistry()), store)
+        result = controller.run(task)
+        assert result.status.value == "waiting_reconciliation"
+        resumed = controller.resume(task.task_id)
+        assert resumed.status.value == "waiting_reconciliation"
+    assert ledger.reservation_totals()["active_reservations"] == 1
+
+
 def test_dispatcher_wraps_untyped_provider_failure_as_reconciliation(tmp_path):
     ledger = ResourceLedger(tmp_path / "dispatcher-raw-transport.sqlite3")
     ledger.register_resource("paid", provider_id="broken", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
