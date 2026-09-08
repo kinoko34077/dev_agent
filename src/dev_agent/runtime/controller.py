@@ -401,6 +401,13 @@ class Controller:
                             self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause=exc.category, message=str(exc))
                             return task
                         self.resource_policy.release(reservation)
+                    elif getattr(self.provider, "handles_resource_policy", False) and exc.category == "transport":
+                        # A dispatcher-owned reservation has already been
+                        # moved to unknown by the dispatcher.  Preserve the
+                        # same task-level ambiguity even though Controller has
+                        # no local reservation object to mutate.
+                        self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause=exc.category, message=str(exc))
+                        return task
                     self._fail(task, state, exc.category, str(exc), step=step, request_id=request.request_id)
                 except Exception as exc:
                     if reservation is not None:

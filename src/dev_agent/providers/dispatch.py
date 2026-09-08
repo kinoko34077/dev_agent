@@ -85,10 +85,13 @@ class ProviderDispatcher(ModelProvider):
                 if not exc.retryable:
                     raise
                 continue
-            except Exception:
+            except Exception as exc:
                 self.control.uncertain(reservation)
                 self.control.router.ledger.record_provider_failure(selection.provider_id)
-                raise
+                # Once a concrete provider has been invoked, an untyped
+                # exception still leaves the external outcome ambiguous. Do
+                # not let Controller classify it as a local decode failure.
+                raise ProviderError(f"provider transport failed: {exc}", category="transport", retryable=True) from exc
             self.control.reconcile_response(reservation, response)
             self.control.router.ledger.record_provider_success(selection.provider_id)
             self.audits.append(DispatchAudit(selection.provider_id, selection.resource_id, "succeeded"))

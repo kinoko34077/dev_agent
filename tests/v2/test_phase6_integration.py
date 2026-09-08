@@ -268,6 +268,45 @@ def test_paid_provider_transport_error_waits_for_reconciliation(tmp_path):
     assert result.status.value == "waiting_reconciliation"
 
 
+def test_controller_waits_when_dispatcher_owns_transport_reconciliation(tmp_path):
+    ledger = ResourceLedger(tmp_path / "dispatcher-transport.sqlite3")
+    ledger.register_resource("paid", provider_id="broken", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
+    ledger.observe("paid", available=10, health="healthy")
+    control = ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)))
+
+    class BrokenProvider(FakeProvider):
+        provider_id = "broken"
+
+        def request(self, request):
+            raise ProviderError("connection lost", category="transport", retryable=True)
+
+    dispatcher = ProviderDispatcher(ProviderRegistry([BrokenProvider()]), control)
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        result = Controller(dispatcher, ToolRuntime(ToolRegistry()), store).run(Task(objective="dispatcher transport"))
+
+    assert result.status.value == "waiting_reconciliation"
+    assert ledger.reservation_totals()["active_reservations"] == 1
+
+
+def test_dispatcher_wraps_untyped_provider_failure_as_reconciliation(tmp_path):
+    ledger = ResourceLedger(tmp_path / "dispatcher-raw-transport.sqlite3")
+    ledger.register_resource("paid", provider_id="broken", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
+    ledger.observe("paid", available=10, health="healthy")
+    control = ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)))
+
+    class RawBrokenProvider(FakeProvider):
+        provider_id = "broken"
+
+        def request(self, request):
+            raise ConnectionError("socket closed")
+
+    dispatcher = ProviderDispatcher(ProviderRegistry([RawBrokenProvider()]), control)
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        result = Controller(dispatcher, ToolRuntime(ToolRegistry()), store).run(Task(objective="raw dispatcher transport"))
+
+    assert result.status.value == "waiting_reconciliation"
+
+
 def test_maintenance_mode_denies_new_provider_reservations(tmp_path):
     ledger = ResourceLedger(tmp_path / "maintenance.sqlite3")
     ledger.register_resource("free", provider_id="free", native_unit="request", capacity=10, capabilities=["text"], cost_minor=0)
