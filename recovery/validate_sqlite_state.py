@@ -9,7 +9,7 @@ import sqlite3
 import sys
 
 
-REQUIRED_TABLES = frozenset({"tasks", "steps", "tool_results", "events", "checkpoints", "idempotency", "approvals", "approval_consumptions", "effect_intents", "effect_reconciliations", "schema_meta"})
+REQUIRED_TABLES = frozenset({"tasks", "steps", "tool_results", "events", "checkpoints", "idempotency", "approvals", "approval_consumptions", "effect_intents", "effect_reconciliations", "provider_dispatch_audits", "schema_meta"})
 
 
 def validate_sqlite_state(path: str | Path) -> tuple[bool, str]:
@@ -24,7 +24,7 @@ def validate_sqlite_state(path: str | Path) -> tuple[bool, str]:
         if missing:
             return False, f"missing tables: {', '.join(missing)}"
         version_row = connection.execute("SELECT value FROM schema_meta WHERE key = 'schema_version'").fetchone()
-        if version_row is None or version_row[0] != "4":
+        if version_row is None or version_row[0] != "5":
             return False, "unsupported or missing schema version"
         invalid = connection.execute("SELECT task_id, payload FROM tasks").fetchall()
         task_ids = set()
@@ -64,6 +64,17 @@ def validate_sqlite_state(path: str | Path) -> tuple[bool, str]:
                 return False, f"invalid effect intent arguments: {key}"
             if status in {"succeeded", "unknown", "confirmed_failed", "reconciled"} and not result_payload:
                 return False, f"completed effect intent has no result: {key}"
+        for sequence, task_id, request_id, intent_key, provider_id, resource_id, native_unit, estimated_cost_minor, price_currency, outcome, details_payload in connection.execute("SELECT sequence, task_id, request_id, intent_key, provider_id, resource_id, native_unit, estimated_cost_minor, price_currency, outcome, details_payload FROM provider_dispatch_audits"):
+            if not all(isinstance(value, str) and value.strip() for value in (task_id, request_id, provider_id, resource_id, native_unit, outcome)):
+                return False, f"invalid provider audit: {sequence}"
+            if task_id not in task_ids:
+                return False, f"orphan provider audit: {sequence}"
+            if estimated_cost_minor is not None and (not isinstance(estimated_cost_minor, int) or estimated_cost_minor < 0):
+                return False, f"invalid provider audit cost: {sequence}"
+            if price_currency is not None and (not isinstance(price_currency, str) or not price_currency.strip()):
+                return False, f"invalid provider audit currency: {sequence}"
+            if not isinstance(json.loads(details_payload), dict):
+                return False, f"invalid provider audit details: {sequence}"
         return True, "SQLite state schema and task payloads are readable"
     except (sqlite3.Error, json.JSONDecodeError) as exc:
         return False, f"cannot validate SQLite state: {exc}"

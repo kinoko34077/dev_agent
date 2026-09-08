@@ -39,6 +39,7 @@ class JsonStateStore:
             "effect_intents": {},
             "approval_consumptions": {},
             "effect_reconciliations": [],
+            "provider_dispatch_audits": [],
         }
         self._load()
 
@@ -171,6 +172,29 @@ class JsonStateStore:
         except BaseException:
             self._data = before
             raise
+
+    def record_provider_audit(self, *, task_id: str, request_id: str, intent_key: str | None, provider_id: str, resource_id: str, native_unit: str, estimated_cost_minor: int | None, price_currency: str | None, outcome: str, details: dict[str, Any] | None = None) -> None:
+        if not all(isinstance(value, str) and value.strip() for value in (task_id, request_id, provider_id, resource_id, native_unit, outcome)):
+            raise ValueError("provider audit identity and outcome are required")
+        if estimated_cost_minor is not None and (isinstance(estimated_cost_minor, bool) or not isinstance(estimated_cost_minor, int) or estimated_cost_minor < 0):
+            raise ValueError("estimated_cost_minor must be a non-negative integer or None")
+        self._data.setdefault("provider_dispatch_audits", []).append({
+            "task_id": task_id,
+            "request_id": request_id,
+            "intent_key": intent_key,
+            "provider_id": provider_id,
+            "resource_id": resource_id,
+            "native_unit": native_unit,
+            "estimated_cost_minor": estimated_cost_minor,
+            "price_currency": price_currency,
+            "outcome": outcome,
+            "details": details or {},
+        })
+        self._flush()
+
+    def list_provider_audits(self, *, task_id: str | None = None, request_id: str | None = None) -> list[dict[str, Any]]:
+        audits = self._data.get("provider_dispatch_audits", [])
+        return [item for item in audits if (task_id is None or item.get("task_id") == task_id) and (request_id is None or item.get("request_id") == request_id)]
 
     def commit_transition(self, *, task: Task | None = None, step: Step | None = None, checkpoint: dict[str, Any] | None = None, event: Event | None = None, events: list[Event] | None = None, tool_result: ToolResult | None = None, lease_proof: Any | None = None) -> None:
         before = deepcopy(self._data)

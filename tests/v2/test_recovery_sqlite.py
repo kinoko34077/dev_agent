@@ -46,7 +46,7 @@ def test_sqlite_store_records_schema_version(tmp_path):
     database = tmp_path / "versioned.sqlite3"
     with SQLiteStateStore(database) as store:
         version = store.connection.execute("SELECT value FROM schema_meta WHERE key = 'schema_version'").fetchone()[0]
-    assert version == "4"
+    assert version == "5"
 
 
 def test_sqlite_store_upgrades_a_v1_schema_through_ordered_migrations(tmp_path):
@@ -66,10 +66,11 @@ def test_sqlite_store_upgrades_a_v1_schema_through_ordered_migrations(tmp_path):
             """
         )
     with SQLiteStateStore(database) as store:
-        assert store.connection.execute("SELECT value FROM schema_meta WHERE key = 'schema_version'").fetchone()[0] == "4"
+        assert store.connection.execute("SELECT value FROM schema_meta WHERE key = 'schema_version'").fetchone()[0] == "5"
         assert {row[1] for row in store.connection.execute("PRAGMA table_info(approvals)")} >= {"call_id", "arguments_hash", "expires_at", "revoked"}
         assert "state_payload" in {row[1] for row in store.connection.execute("PRAGMA table_info(checkpoints)")}
         assert store.connection.execute("SELECT 1 FROM effect_intents").fetchone() is None
+        assert store.connection.execute("SELECT 1 FROM provider_dispatch_audits").fetchone() is None
 
 
 def test_recovery_rejects_unsupported_schema_version(tmp_path):

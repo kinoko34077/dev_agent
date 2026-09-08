@@ -95,11 +95,31 @@ class Controller:
                     "task_id": request.task_id,
                     "provider_id": self.provider.provider_id,
                     "resource_id": reservation.budget.resource_id,
+                    "native_unit": getattr(reservation, "native_unit", "request"),
+                    "estimated_cost_minor": getattr(reservation, "estimated_cost_minor", reservation.budget.estimated_cost_minor),
+                    "price_currency": getattr(reservation, "price_currency", reservation.budget.estimated_cost.currency),
                     "max_output_tokens": request.max_output_tokens,
                 },
             )
             self.store.transition_effect_intent(key, to_status="prepared")
         return key
+
+    def _record_provider_audit(self, request: ModelRequest, reservation: Any, outcome: str, intent_key: str | None, *, details: dict[str, Any] | None = None) -> None:
+        recorder = getattr(self.store, "record_provider_audit", None)
+        if recorder is None:
+            return
+        recorder(
+            task_id=request.task_id,
+            request_id=request.request_id,
+            intent_key=intent_key,
+            provider_id=self.provider.provider_id,
+            resource_id=reservation.budget.resource_id,
+            native_unit=getattr(reservation, "native_unit", "request"),
+            estimated_cost_minor=getattr(reservation, "estimated_cost_minor", reservation.budget.estimated_cost_minor),
+            price_currency=getattr(reservation, "price_currency", reservation.budget.estimated_cost.currency),
+            outcome=outcome,
+            details=details,
+        )
 
     def _provider_intent(self, key: str | None, *, status: str, result: dict[str, Any]) -> None:
         if key is not None:
@@ -410,6 +430,7 @@ class Controller:
                         provider_intent_key = self._prepare_provider_intent(request, reservation)
                         self.resource_policy.mark_dispatching(reservation)
                         self._provider_intent(provider_intent_key, status="dispatching", result={"provider_id": self.provider.provider_id, "resource_id": reservation.budget.resource_id})
+                        self._record_provider_audit(request, reservation, "dispatching", provider_intent_key)
                     except Exception as exc:
                         self._block_budget(task, state, step=step, message=str(exc))
                         return task
@@ -425,9 +446,11 @@ class Controller:
                         if exc.unable_to_confirm:
                             self.resource_policy.uncertain(reservation)
                             self._provider_intent(provider_intent_key, status="unknown", result={"error_category": "cancelled", "cause": "unable_to_confirm"})
+                            self._record_provider_audit(request, reservation, "unknown", provider_intent_key, details={"category": "cancelled", "cause": "unable_to_confirm"})
                         else:
                             self.resource_policy.release(reservation)
                             self._provider_intent(provider_intent_key, status="confirmed_failed", result={"error_category": "cancelled", "cause": "confirmed_no_charge"})
+                            self._record_provider_audit(request, reservation, "confirmed_no_charge", provider_intent_key, details={"category": "cancelled"})
                     if exc.unable_to_confirm:
                         self._cancel_unable_to_confirm(task, state, step=step, message="provider request cancellation could not be confirmed")
                     else:
@@ -437,6 +460,7 @@ class Controller:
                     if reservation is not None:
                         self.resource_policy.uncertain(reservation)
                         self._provider_intent(provider_intent_key, status="unknown", result={"error_category": "timeout"})
+                        self._record_provider_audit(request, reservation, "unknown", provider_intent_key, details={"category": "timeout"})
                         self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="timeout", message="model request timed out")
                         return task
                     if getattr(self.provider, "handles_resource_policy", False):
@@ -453,11 +477,13 @@ class Controller:
                         if exc.category in {"reconciliation_required", "transport", "provider_decode"}:
                             self.resource_policy.uncertain(reservation)
                             self._provider_intent(provider_intent_key, status="unknown", result={"error_category": exc.category, "message": str(exc)})
+                            self._record_provider_audit(request, reservation, "unknown", provider_intent_key, details={"category": exc.category})
                             cause = "budget_reconciliation" if exc.category == "reconciliation_required" else exc.category
                             self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause=cause, message=str(exc))
                             return task
                         self.resource_policy.release(reservation)
                         self._provider_intent(provider_intent_key, status="confirmed_failed", result={"error_category": exc.category, "message": str(exc)})
+                        self._record_provider_audit(request, reservation, "confirmed_failed", provider_intent_key, details={"category": exc.category})
                     elif getattr(self.provider, "handles_resource_policy", False) and exc.category == "transport":
                         # A dispatcher-owned reservation has already been
                         # moved to unknown by the dispatcher.  Preserve the
@@ -483,6 +509,7 @@ class Controller:
                         # failure.
                         self.resource_policy.uncertain(reservation)
                         self._provider_intent(provider_intent_key, status="unknown", result={"error_category": "provider_decode", "message": str(exc)})
+                        self._record_provider_audit(request, reservation, "unknown", provider_intent_key, details={"category": "provider_decode"})
                         self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="provider_decode", message=str(exc))
                         return task
                     self._fail(task, state, "provider_decode", str(exc), step=step, request_id=request.request_id)
@@ -492,6 +519,7 @@ class Controller:
                     except BudgetExceeded as exc:
                         self.resource_policy.uncertain(reservation)
                         self._provider_intent(provider_intent_key, status="unknown", result={"error_category": "reconciliation_required", "message": str(exc)})
+                        self._record_provider_audit(request, reservation, "unknown", provider_intent_key, details={"category": "reconciliation_required"})
                         self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="budget_reconciliation", message=str(exc))
                         return task
                     except Exception as exc:
@@ -500,6 +528,7 @@ class Controller:
                         self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="budget_reconciliation", message=str(exc))
                         return task
                     self._provider_intent(provider_intent_key, status="succeeded", result={"provider_id": response.provider, "resource_id": reservation.budget.resource_id, "outcome": "succeeded", "response": response.to_dict()})
+                    self._record_provider_audit(request, reservation, "succeeded", provider_intent_key)
                 if cancel_event.is_set():
                     self._cancel(task, state, step=step, message="provider request completed after cancellation")
                     return task

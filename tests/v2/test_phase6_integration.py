@@ -315,8 +315,11 @@ def test_controller_paid_dispatch_reserves_and_reconciles_actual_cost(tmp_path):
     dispatcher = ProviderDispatcher(ProviderRegistry([PaidProvider()]), ResourceControlPlane(ResourceRouter(ledger), governor))
     with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
         result = Controller(dispatcher, ToolRuntime(ToolRegistry()), store).run(Task(objective="paid e2e"))
+        audits = store.list_provider_audits()
     assert result.status.value == "completed"
     assert governor.snapshot()["normal_committed_minor"] == 20
+    assert [item["outcome"] for item in audits] == ["succeeded"]
+    assert audits[0]["estimated_cost_minor"] == 20
 
 
 def test_paid_provider_timeout_waits_for_reconciliation_instead_of_failing(tmp_path):
@@ -401,12 +404,18 @@ def test_dispatcher_persists_provider_intent_and_selection_audit(tmp_path):
     with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
         result = Controller(dispatcher, ToolRuntime(ToolRegistry()), store).run(Task(objective="durable provider audit"))
         intents = store.connection.execute("SELECT tool_name, status, result_payload FROM effect_intents").fetchall()
+        audits = store.list_provider_audits()
 
     assert result.status.value == "completed"
     assert len(intents) == 1
     assert intents[0]["tool_name"] == "provider:paid"
     assert intents[0]["status"] == "succeeded"
     assert '"resource_id": "paid"' in intents[0]["result_payload"]
+    assert len(audits) == 1
+    assert audits[0]["provider_id"] == "paid"
+    assert audits[0]["resource_id"] == "paid"
+    assert audits[0]["estimated_cost_minor"] == 10
+    assert audits[0]["outcome"] == "succeeded"
 
 
 def test_dispatcher_replays_durable_success_without_duplicate_provider_call(tmp_path):

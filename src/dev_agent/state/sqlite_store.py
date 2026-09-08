@@ -23,7 +23,7 @@ def _serialized(method):
 
 
 class SQLiteStateStore:
-    SCHEMA_VERSION = 4
+    SCHEMA_VERSION = 5
     _EFFECT_TRANSITIONS = {
         "pending": {"prepared", "dispatching", "unknown", "succeeded", "reconciling"},
         "prepared": {"dispatching", "unknown", "confirmed_failed", "reconciling"},
@@ -57,6 +57,9 @@ class SQLiteStateStore:
         CREATE TABLE IF NOT EXISTS effect_intents (idempotency_key TEXT PRIMARY KEY, task_id TEXT NOT NULL, tool_name TEXT NOT NULL, arguments_payload TEXT NOT NULL, status TEXT NOT NULL, result_payload TEXT);
         CREATE TABLE IF NOT EXISTS approval_consumptions (approval_id TEXT PRIMARY KEY);
         CREATE TABLE IF NOT EXISTS effect_reconciliations (sequence INTEGER PRIMARY KEY AUTOINCREMENT, idempotency_key TEXT NOT NULL, status TEXT NOT NULL, actor TEXT NOT NULL, source TEXT NOT NULL, external_id TEXT, evidence_payload TEXT NOT NULL, recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+        CREATE TABLE IF NOT EXISTS provider_dispatch_audits (sequence INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL, request_id TEXT NOT NULL, intent_key TEXT, provider_id TEXT NOT NULL, resource_id TEXT NOT NULL, native_unit TEXT NOT NULL, estimated_cost_minor INTEGER, price_currency TEXT, outcome TEXT NOT NULL, details_payload TEXT NOT NULL DEFAULT '{}', recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+        CREATE INDEX IF NOT EXISTS idx_provider_dispatch_audits_task ON provider_dispatch_audits(task_id, sequence);
+        CREATE INDEX IF NOT EXISTS idx_provider_dispatch_audits_request ON provider_dispatch_audits(request_id, sequence);
         CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     """
 
@@ -109,6 +112,12 @@ class SQLiteStateStore:
             if current < 4:
                 self.connection.execute("CREATE TABLE IF NOT EXISTS effect_reconciliations (sequence INTEGER PRIMARY KEY AUTOINCREMENT, idempotency_key TEXT NOT NULL, status TEXT NOT NULL, actor TEXT NOT NULL, source TEXT NOT NULL, external_id TEXT, evidence_payload TEXT NOT NULL, recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")
                 self.connection.execute("UPDATE schema_meta SET value = '4' WHERE key = 'schema_version'")
+                current = 4
+            if current < 5:
+                self.connection.execute("CREATE TABLE IF NOT EXISTS provider_dispatch_audits (sequence INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL, request_id TEXT NOT NULL, intent_key TEXT, provider_id TEXT NOT NULL, resource_id TEXT NOT NULL, native_unit TEXT NOT NULL, estimated_cost_minor INTEGER, price_currency TEXT, outcome TEXT NOT NULL, details_payload TEXT NOT NULL DEFAULT '{}', recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")
+                self.connection.execute("CREATE INDEX IF NOT EXISTS idx_provider_dispatch_audits_task ON provider_dispatch_audits(task_id, sequence)")
+                self.connection.execute("CREATE INDEX IF NOT EXISTS idx_provider_dispatch_audits_request ON provider_dispatch_audits(request_id, sequence)")
+                self.connection.execute("UPDATE schema_meta SET value = '5' WHERE key = 'schema_version'")
             self.connection.commit()
         except Exception:
             self.connection.rollback()
@@ -252,6 +261,32 @@ class SQLiteStateStore:
         except BaseException:
             self.connection.rollback()
             raise
+
+    @_serialized
+    def record_provider_audit(self, *, task_id: str, request_id: str, intent_key: str | None, provider_id: str, resource_id: str, native_unit: str, estimated_cost_minor: int | None, price_currency: str | None, outcome: str, details: dict[str, Any] | None = None) -> None:
+        if not all(isinstance(value, str) and value.strip() for value in (task_id, request_id, provider_id, resource_id, native_unit, outcome)):
+            raise ValueError("provider audit identity and outcome are required")
+        if estimated_cost_minor is not None and (isinstance(estimated_cost_minor, bool) or not isinstance(estimated_cost_minor, int) or estimated_cost_minor < 0):
+            raise ValueError("estimated_cost_minor must be a non-negative integer or None")
+        self.connection.execute(
+            "INSERT INTO provider_dispatch_audits(task_id, request_id, intent_key, provider_id, resource_id, native_unit, estimated_cost_minor, price_currency, outcome, details_payload) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (task_id, request_id, intent_key, provider_id, resource_id, native_unit, estimated_cost_minor, price_currency, outcome, json.dumps(details or {}, ensure_ascii=False)),
+        )
+        self.connection.commit()
+
+    @_serialized
+    def list_provider_audits(self, *, task_id: str | None = None, request_id: str | None = None) -> list[dict[str, Any]]:
+        clauses = []
+        values: list[str] = []
+        if task_id is not None:
+            clauses.append("task_id = ?")
+            values.append(task_id)
+        if request_id is not None:
+            clauses.append("request_id = ?")
+            values.append(request_id)
+        where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+        rows = self.connection.execute(f"SELECT sequence, task_id, request_id, intent_key, provider_id, resource_id, native_unit, estimated_cost_minor, price_currency, outcome, details_payload, recorded_at FROM provider_dispatch_audits{where} ORDER BY sequence", values).fetchall()
+        return [dict(row) | {"details": json.loads(row["details_payload"])} for row in rows]
 
     @_serialized
     def commit_transition(self, *, task: Task | None = None, step: Step | None = None, checkpoint: dict[str, Any] | None = None, event: Event | None = None, events: list[Event] | None = None, tool_result: ToolResult | None = None, lease_proof: Any | None = None) -> None:

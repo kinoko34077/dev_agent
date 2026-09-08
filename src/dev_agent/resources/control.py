@@ -23,6 +23,9 @@ class DispatchDenied(RuntimeError):
 class DispatchReservation:
     budget: BudgetReservation
     provider_id: str
+    native_unit: str = "request"
+    estimated_cost_minor: int | None = None
+    price_currency: str | None = None
 
 
 class ResourcePolicy(Protocol):
@@ -65,7 +68,7 @@ class ResourceControlPlane:
             raise DispatchDenied("budget", str(exc)) from exc
         except ValueError as exc:
             raise DispatchDenied("invalid_request", str(exc)) from exc
-        return DispatchReservation(reservation, provider_id)
+        return DispatchReservation(reservation, provider_id, selection.native_unit, selection.estimated_cost_minor, selection.price_currency)
 
     def reserve_selection(self, task_id: str, selection: RouteSelection) -> DispatchReservation:
         self._ensure_dispatch_allowed()
@@ -80,7 +83,7 @@ class ResourceControlPlane:
             raise DispatchDenied("maintenance", str(exc)) from exc
         except BudgetExceeded as exc:
             raise DispatchDenied("budget", str(exc)) from exc
-        return DispatchReservation(reservation, selection.provider_id)
+        return DispatchReservation(reservation, selection.provider_id, selection.native_unit, selection.estimated_cost_minor, selection.price_currency)
 
     def reconcile_response(self, reservation: DispatchReservation, response: ModelResponse) -> None:
         observed = response.usage.get("cost_minor")

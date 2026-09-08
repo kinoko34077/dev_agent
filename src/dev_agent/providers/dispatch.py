@@ -88,6 +88,9 @@ class ProviderDispatcher(ModelProvider):
                     "task_id": request.task_id,
                     "provider_id": selection.provider_id,
                     "resource_id": selection.resource_id,
+                    "native_unit": selection.native_unit,
+                    "estimated_cost_minor": selection.estimated_cost_minor,
+                    "price_currency": selection.price_currency,
                     "max_output_tokens": request.max_output_tokens,
                 },
             )
@@ -118,6 +121,23 @@ class ProviderDispatcher(ModelProvider):
         if not isinstance(response, dict):
             raise ProviderError("durable provider result is malformed", category="provider_decode", retryable=False)
         return ModelResponse.from_dict(response)
+
+    def _record_audit(self, request: ModelRequest, selection: RouteSelection, outcome: str, intent_key: str | None, *, details: dict[str, Any] | None = None) -> None:
+        entry = DispatchAudit(selection.provider_id, selection.resource_id, outcome)
+        self.audits.append(entry)
+        if self._state_store is not None:
+            self._state_store.record_provider_audit(
+                task_id=request.task_id,
+                request_id=request.request_id,
+                intent_key=intent_key,
+                provider_id=selection.provider_id,
+                resource_id=selection.resource_id,
+                native_unit=selection.native_unit,
+                estimated_cost_minor=selection.estimated_cost_minor,
+                price_currency=selection.price_currency,
+                outcome=outcome,
+                details=details,
+            )
 
     def request(self, request_or_task_id: ModelRequest | str, explicit_request: ModelRequest | None = None) -> ModelResponse:
         """Dispatch one request, accepting both canonical and legacy call shapes.
@@ -155,7 +175,7 @@ class ProviderDispatcher(ModelProvider):
             intent_key = self._prepare_intent(request, selection)
             cached = self._intent_result(intent_key)
             if cached is not None:
-                self.audits.append(DispatchAudit(selection.provider_id, selection.resource_id, "durable_replay"))
+                self._record_audit(request, selection, "durable_replay", intent_key)
                 return cached
             reservation = self.control.reserve_selection(request.task_id, selection)
             self.control.mark_dispatching(reservation)
@@ -164,7 +184,7 @@ class ProviderDispatcher(ModelProvider):
             except Exception as exc:
                 self.control.release(reservation)
                 self._intent(intent_key, status="confirmed_failed", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id, "error_category": "lease_lost", "message": str(exc)})
-                self.audits.append(DispatchAudit(selection.provider_id, selection.resource_id, "lease_lost"))
+                self._record_audit(request, selection, "lease_lost", intent_key, details={"category": "lease_lost"})
                 raise ProviderError("provider dispatch rejected by stale lease", category="lease_lost", retryable=True) from exc
             try:
                 if self._lease_guard is not None:
@@ -177,7 +197,7 @@ class ProviderDispatcher(ModelProvider):
                 # intent instead of reporting an external ambiguity.
                 self.control.release(reservation)
                 self._intent(intent_key, status="confirmed_failed", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id, "error_category": "lease_lost", "message": str(exc)})
-                self.audits.append(DispatchAudit(selection.provider_id, selection.resource_id, "lease_lost"))
+                self._record_audit(request, selection, "lease_lost", intent_key, details={"category": "lease_lost"})
                 raise ProviderError("provider dispatch rejected by stale lease", category="lease_lost", retryable=True) from exc
             try:
                 response = provider.request(request)
@@ -185,7 +205,7 @@ class ProviderDispatcher(ModelProvider):
                 self.control.record_provider_error(selection.provider_id, reservation, exc)
                 outcome = "unknown" if exc.category in {"transport", "provider_decode", "reconciliation_required"} else "confirmed_failed"
                 self._intent(intent_key, status=outcome, result={"provider_id": selection.provider_id, "resource_id": selection.resource_id, "error_category": exc.category, "message": str(exc)})
-                self.audits.append(DispatchAudit(selection.provider_id, selection.resource_id, exc.category))
+                self._record_audit(request, selection, exc.category, intent_key, details={"category": exc.category, "retryable": exc.retryable})
                 # A transport failure occurs after the concrete provider was
                 # invoked.  Its external outcome is therefore ambiguous even
                 # when the provider labels the error retryable; fail closed
@@ -202,6 +222,7 @@ class ProviderDispatcher(ModelProvider):
                 self.control.uncertain(reservation)
                 self.control.router.ledger.record_provider_failure(selection.provider_id)
                 self._intent(intent_key, status="unknown", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id, "error_category": "transport", "message": str(exc)})
+                self._record_audit(request, selection, "transport", intent_key, details={"category": "transport"})
                 # Once a concrete provider has been invoked, an untyped
                 # exception still leaves the external outcome ambiguous. Do
                 # not let Controller classify it as a local decode failure.
@@ -217,17 +238,17 @@ class ProviderDispatcher(ModelProvider):
                 # that ambiguity to Controller instead of misclassifying it
                 # as a provider decode failure or retrying the request.
                 self._intent(intent_key, status="unknown", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id, "error_category": "reconciliation_required", "message": str(exc)})
-                self.audits.append(DispatchAudit(selection.provider_id, selection.resource_id, "budget_reconciliation"))
+                self._record_audit(request, selection, "budget_reconciliation", intent_key, details={"category": "reconciliation_required"})
                 raise ProviderError(str(exc), category="reconciliation_required", retryable=False) from exc
             except Exception as exc:
                 self.control.uncertain(reservation)
                 self.control.router.ledger.record_provider_failure(selection.provider_id)
                 self._intent(intent_key, status="unknown", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id, "error_category": "provider_decode", "message": str(exc)})
-                self.audits.append(DispatchAudit(selection.provider_id, selection.resource_id, "provider_decode"))
+                self._record_audit(request, selection, "provider_decode", intent_key, details={"category": "provider_decode"})
                 raise ProviderError(f"provider response could not be decoded: {exc}", category="provider_decode", retryable=False) from exc
             self._intent(intent_key, status="succeeded", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id, "outcome": "succeeded", "response": response.to_dict()})
             self.control.router.ledger.record_provider_success(selection.provider_id)
-            self.audits.append(DispatchAudit(selection.provider_id, selection.resource_id, "succeeded"))
+            self._record_audit(request, selection, "succeeded", intent_key)
             return response
 
     def _selection(self, request: ModelRequest, excluded: set[str]) -> RouteSelection:
