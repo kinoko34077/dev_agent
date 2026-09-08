@@ -205,6 +205,26 @@ def test_invalid_external_call_creates_no_effect_intent(tmp_path):
         assert store.get_effect_intent("invalid-1") is None
 
 
+def test_tool_input_schema_rejects_nested_type_enum_and_extra_before_handler(tmp_path):
+    calls = []
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="typed", description="typed", side_effect_level="local_write", input_schema={"type": "object", "properties": {"amount": {"type": "integer", "minimum": 1}, "mode": {"type": "string", "enum": ["safe"]}}, "required": ["amount", "mode"], "additionalProperties": False}, handler=lambda args: calls.append(args) or {"ok": True}))
+    with SQLiteStateStore(tmp_path / "schema.sqlite3") as store:
+        runtime = ToolRuntime(registry).with_result_store(store)
+        result = runtime.execute(ToolCall(tool_name="typed", arguments={"amount": "one", "mode": "unsafe", "extra": True}, idempotency_key="typed-1"))
+    assert result.error["category"] == "schema_validation"
+    assert calls == []
+
+
+def test_tool_output_schema_rejects_untrusted_handler_output(tmp_path):
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="bad_output", description="bad", output_schema={"type": "object", "required": ["ok"], "properties": {"ok": {"type": "boolean"}}}, handler=lambda args: {"ok": "yes"}))
+    with SQLiteStateStore(tmp_path / "output-schema.sqlite3") as store:
+        result = ToolRuntime(registry).with_result_store(store).execute(ToolCall(tool_name="bad_output"))
+    assert result.status.value == "failed"
+    assert result.error["category"] == "schema_validation"
+
+
 def test_tool_timeout_returns_timeout_without_waiting_for_handler(tmp_path):
     registry = ToolRegistry()
     registry.register(ToolSpec(name="slow", description="slow", side_effect_level="none", timeout_seconds=0.01, handler=lambda args: sleep(0.2) or {"ok": True}))

@@ -7,6 +7,7 @@ from ..domain.protocol import ToolCall, ToolResult, ToolResultStatus
 from ..policy.approvals import ApprovalPolicy, canonical_arguments_hash
 from ..policy.permissions import PathPolicy
 from .registry import ToolRegistry
+from .schema import SchemaValidationError, validate
 
 
 class ToolRuntime:
@@ -52,6 +53,11 @@ class ToolRuntime:
                 error={"category": "schema_validation", "message": f"missing arguments: {', '.join(missing)}"},
             )
         try:
+            if spec.input_schema:
+                validate(call.arguments, spec.input_schema)
+        except SchemaValidationError as exc:
+            return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.FAILED, error={"category": "schema_validation", "message": str(exc)})
+        try:
             arguments = dict(call.arguments)
             if spec.path_argument:
                 if self.paths is None or not spec.path_operation or spec.path_argument not in arguments:
@@ -76,6 +82,11 @@ class ToolRuntime:
                 executor.shutdown(wait=False, cancel_futures=True)
             if not isinstance(value, dict):
                 raise TypeError("tool handler must return a dict")
+            if spec.output_schema:
+                try:
+                    validate(value, spec.output_schema)
+                except SchemaValidationError as exc:
+                    return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.FAILED, error={"category": "schema_validation", "message": str(exc)})
             result = ToolResult(call_id=call.call_id, tool_name=call.tool_name, structured_result=value)
             if spec.side_effect_level in self.EXTERNAL_GUARDED:
                 self.result_store.complete_effect_intent(call.idempotency_key, result)

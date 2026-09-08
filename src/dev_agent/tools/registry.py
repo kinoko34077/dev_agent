@@ -14,6 +14,7 @@ class ToolSpec:
     handler: Callable[[dict[str, Any]], dict[str, Any]]
     required_arguments: frozenset[str] = field(default_factory=frozenset)
     input_schema: dict[str, Any] = field(default_factory=dict)
+    output_schema: dict[str, Any] = field(default_factory=dict)
     side_effect_level: str = "none"
     path_argument: str | None = None
     path_operation: str | None = None
@@ -25,6 +26,8 @@ class ToolSpec:
             raise ValueError("timeout_seconds must be a finite positive number")
         if not isinstance(self.input_schema, dict):
             raise ValueError("input_schema must be an object")
+        if not isinstance(self.output_schema, dict):
+            raise ValueError("output_schema must be an object")
 
     def provider_definition(self) -> dict[str, Any]:
         schema = dict(self.input_schema)
