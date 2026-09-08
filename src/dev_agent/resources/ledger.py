@@ -259,8 +259,10 @@ class ResourceLedger:
             if isinstance(cost_minor, bool) or not isinstance(cost_minor, int) or cost_minor < 0:
                 raise ValueError("cost_minor must be a non-negative integer or None")
             price_currency = price_currency or "JPY"
-        if price_currency is not None and (len(price_currency.strip()) != 3 or not price_currency.isalpha()):
-            raise ValueError("price_currency must be a three-letter code")
+        if price_currency is not None:
+            if not isinstance(price_currency, str) or len(price_currency.strip()) != 3 or not price_currency.strip().isalpha():
+                raise ValueError("price_currency must be a three-letter code")
+            price_currency = price_currency.strip().upper()
         capability_list = tuple(sorted({str(item) for item in capabilities if str(item).strip()}))
         if not capability_list:
             raise ValueError("at least one capability is required")
@@ -314,15 +316,16 @@ class ResourceLedger:
     def configure_budget(self, *, hard_cap_minor: int, recovery_reserve_minor: int, currency: str, period: BudgetPeriod | None = None, _authority: object | None = None) -> None:
         if _authority is not _BUDGET_ADMIN_TOKEN:
             raise PermissionError("budget configuration requires admin authority")
-        if not isinstance(hard_cap_minor, int) or hard_cap_minor < 0 or not isinstance(recovery_reserve_minor, int) or recovery_reserve_minor < 0 or recovery_reserve_minor > hard_cap_minor:
+        if isinstance(hard_cap_minor, bool) or not isinstance(hard_cap_minor, int) or hard_cap_minor < 0 or isinstance(recovery_reserve_minor, bool) or not isinstance(recovery_reserve_minor, int) or recovery_reserve_minor < 0 or recovery_reserve_minor > hard_cap_minor:
             raise ValueError("invalid budget cap or recovery reserve")
+        normalized_currency = MoneyAmount(currency, 0).currency
         if period is None:
             now = datetime.now(timezone.utc)
             start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             end = start.replace(year=start.year + 1, month=1) if start.month == 12 else start.replace(month=start.month + 1)
             period = BudgetPeriod(start.strftime("%Y-%m"), start.isoformat(), end.isoformat())
         with self._lock:
-            self.connection.execute("INSERT INTO budget_config(id, hard_cap_minor, recovery_reserve_minor, currency, period_id, period_starts_at, period_ends_at) VALUES (1, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET hard_cap_minor=excluded.hard_cap_minor, recovery_reserve_minor=excluded.recovery_reserve_minor, currency=excluded.currency, period_id=excluded.period_id, period_starts_at=excluded.period_starts_at, period_ends_at=excluded.period_ends_at", (hard_cap_minor, recovery_reserve_minor, currency.upper(), period.period_id, period.starts_at, period.ends_at))
+            self.connection.execute("INSERT INTO budget_config(id, hard_cap_minor, recovery_reserve_minor, currency, period_id, period_starts_at, period_ends_at) VALUES (1, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET hard_cap_minor=excluded.hard_cap_minor, recovery_reserve_minor=excluded.recovery_reserve_minor, currency=excluded.currency, period_id=excluded.period_id, period_starts_at=excluded.period_starts_at, period_ends_at=excluded.period_ends_at", (hard_cap_minor, recovery_reserve_minor, normalized_currency, period.period_id, period.starts_at, period.ends_at))
             self.connection.commit()
 
     def budget_config(self) -> dict[str, Any]:

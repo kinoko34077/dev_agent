@@ -6,7 +6,7 @@ import sqlite3
 import pytest
 
 from src.dev_agent.resources.budget import BudgetAuthority, BudgetExceeded, BudgetGovernor, BudgetPolicy, ResourceUnavailable, UnknownPrice
-from src.dev_agent.resources.ledger import BudgetPeriod, MoneyAmount, ResourceLedger, ResourcePrice
+from src.dev_agent.resources.ledger import BudgetPeriod, MoneyAmount, ResourceLedger, ResourcePrice, _BUDGET_ADMIN_TOKEN
 
 
 def test_resource_ledger_runs_ordered_migrations_for_legacy_database(tmp_path):
@@ -91,6 +91,25 @@ def test_resource_observation_cannot_exceed_registered_capacity(tmp_path):
     ledger.register_resource("small", provider_id="local", native_unit="request", capacity=1, capabilities=["text"])
     with pytest.raises(ValueError, match="exceeds resource capacity"):
         ledger.observe("small", available=2, health="healthy")
+
+
+def test_resource_price_currency_is_normalized_before_budget_matching(tmp_path):
+    ledger = ResourceLedger(tmp_path / "currency-normalization.sqlite3")
+    ledger.register_resource("paid", provider_id="remote", native_unit="request", capacity=1, capabilities=["text"], cost_minor=10, price_currency="jpy")
+    ledger.observe("paid", available=1, health="healthy")
+    governor = _governor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0, currency="JPY"))
+
+    reservation = governor.reserve("task", "paid", estimated_cost_minor=10)
+
+    assert reservation.reservation_id
+    assert ledger.get_resource("paid")["price_currency"] == "JPY"
+
+
+def test_budget_configuration_rejects_invalid_currency_at_ledger_boundary(tmp_path):
+    ledger = ResourceLedger(tmp_path / "invalid-currency.sqlite3")
+
+    with pytest.raises(ValueError, match="currency"):
+        ledger.configure_budget(hard_cap_minor=100, recovery_reserve_minor=0, currency="JPYX", period=BudgetPeriod("2026-09", "2026-09-01T00:00:00+00:00", "2026-10-01T00:00:00+00:00"), _authority=_BUDGET_ADMIN_TOKEN)
 
 
 def test_budget_reservation_is_atomic_under_concurrency(tmp_path):
