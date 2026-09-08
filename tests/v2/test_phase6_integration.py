@@ -172,6 +172,36 @@ def test_controller_replays_succeeded_direct_provider_intent_after_final_commit_
         assert ledger.connection.execute("SELECT COUNT(*) FROM budget_reservations").fetchone()[0] == 1
 
 
+def test_controller_holds_direct_dispatching_intent_after_provider_process_crash(tmp_path):
+    ledger = ResourceLedger(tmp_path / "controller-dispatching-crash.sqlite3")
+    ledger.register_resource("paid", provider_id="direct", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
+    ledger.observe("paid", available=10, health="healthy")
+    control = ResourceControlPlane(ResourceRouter(ledger), _governor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)))
+    requests = []
+
+    class CrashingProvider(FakeProvider):
+        provider_id = "direct"
+
+        def request(self, request):
+            requests.append(request.request_id)
+            raise KeyboardInterrupt("simulated provider process crash")
+
+    provider = CrashingProvider()
+    task = Task(objective="direct provider process crash", limits={"max_steps": 1})
+    with SQLiteStateStore(tmp_path / "controller-dispatching-state.sqlite3") as store:
+        first = Controller(provider, ToolRuntime(ToolRegistry()), store, resource_policy=control)
+        with pytest.raises(KeyboardInterrupt, match="simulated provider process crash"):
+            first.run(task)
+        assert ledger.connection.execute("SELECT status FROM budget_reservations").fetchone()[0] == "dispatching"
+
+        second = Controller(provider, ToolRuntime(ToolRegistry()), store, resource_policy=control)
+        result = second.resume(task.task_id)
+
+        assert result.status.value == "waiting_reconciliation"
+        assert len(requests) == 1
+        assert ledger.connection.execute("SELECT COUNT(*) FROM budget_reservations").fetchone()[0] == 1
+
+
 def test_control_never_converts_generic_float_ceiling_and_holds_missing_charge_unknown(tmp_path):
     ledger = ResourceLedger(tmp_path / "control.sqlite3")
     ledger.register_resource("paid", provider_id="remote", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10, price_currency="JPY")

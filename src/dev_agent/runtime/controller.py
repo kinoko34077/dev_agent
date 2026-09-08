@@ -416,6 +416,7 @@ class Controller:
                 if step is None:
                     step = Step(task_id=task.task_id, order=state["next_step_order"], kind="model", status=StepStatus.RUNNING, attempt=1)
                 state["active_step"] = step.to_dict()
+                replaying_request = bool(state.get("active_request_id"))
                 try:
                     request = ModelRequest(
                         request_id=state.get("active_request_id") or None,
@@ -430,13 +431,14 @@ class Controller:
                 except Exception as exc:
                     self._fail(task, state, "protocol", str(exc), step=step)
                 state["active_request_id"] = request.request_id
-                input_tokens = self._estimate_tokens({"messages": request.messages, "tool_definitions": request.tool_definitions, "tool_results": [result.to_dict() for result in request.tool_results]})
-                if state["input_tokens_used"] + input_tokens > task.limits.max_input_tokens:
-                    self._fail(task, state, "limits_exceeded", "input token limit exceeded", step=step)
-                state["input_tokens_used"] += input_tokens
-                state["model_calls"] += 1
-                request_event = self._event_record(task, "model.requested", {"request": request.to_dict()}, step_id=step.step_id, request_id=request.request_id)
-                self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "before_model", state), events=[request_event])
+                if not replaying_request:
+                    input_tokens = self._estimate_tokens({"messages": request.messages, "tool_definitions": request.tool_definitions, "tool_results": [result.to_dict() for result in request.tool_results]})
+                    if state["input_tokens_used"] + input_tokens > task.limits.max_input_tokens:
+                        self._fail(task, state, "limits_exceeded", "input token limit exceeded", step=step)
+                    state["input_tokens_used"] += input_tokens
+                    state["model_calls"] += 1
+                    request_event = self._event_record(task, "model.requested", {"request": request.to_dict()}, step_id=step.step_id, request_id=request.request_id)
+                    self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "before_model", state), events=[request_event])
                 reservation = None
                 provider_intent_key = None
                 replayed_response = None

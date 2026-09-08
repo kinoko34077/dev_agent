@@ -251,9 +251,13 @@ def test_resume_after_each_nonterminal_commit_boundary(tmp_path, phase):
     with CrashAfterCommitStore(path, phase) as store:
         with pytest.raises(SystemExit, match=phase):
             Controller(provider, ToolRuntime(registry), store).run(task)
-    with SQLiteStateStore(path) as reopened:
-        resumed = Controller(provider, ToolRuntime(registry), reopened).resume(task.task_id)
-        steps = [item for item in reopened.snapshot()["steps"].values() if item["task_id"] == task.task_id]
+        with SQLiteStateStore(path) as reopened:
+            resumed = Controller(provider, ToolRuntime(registry), reopened).resume(task.task_id)
+            steps = [item for item in reopened.snapshot()["steps"].values() if item["task_id"] == task.task_id]
+            if phase == "before_model":
+                checkpoint = reopened.load_latest_checkpoint(task.task_id)
+                assert checkpoint["state"]["model_calls"] == 1
+                assert len([event for event in reopened.snapshot()["events"] if event["event_type"] == "model.requested"]) == 1
     assert resumed.status == TaskStatus.COMPLETED
     assert (len(provider.requests) == 1) if phase == "before_model" else (len(provider.requests) == 2)
     assert len(steps) == (1 if phase in {"before_model", "after_tool_result"} else 2)
