@@ -320,9 +320,13 @@ class ResourceLedger:
                 if self.maintenance_enabled():
                     raise ValueError("maintenance mode")
                 totals = self.reservation_totals(period_id=period.period_id)
-                resource = self.connection.execute("SELECT available FROM resources WHERE resource_id=?", (resource_id,)).fetchone()
+                resource = self.connection.execute("SELECT available, health, price_currency FROM resources WHERE resource_id=?", (resource_id,)).fetchone()
                 if resource is None:
                     raise KeyError(resource_id)
+                if resource["health"] == "unhealthy":
+                    raise ValueError(f"resource is unhealthy: {resource_id}")
+                if resource["price_currency"] is not None and resource["price_currency"] != amount.currency:
+                    raise ValueError(f"currency mismatch for resource: {resource_id}")
                 used = self.connection.execute("SELECT COALESCE(SUM(native_units), 0) FROM resource_reservations WHERE resource_id=? AND status='reserved'", (resource_id,)).fetchone()[0]
                 if float(used) + float(native_units) > float(resource["available"]):
                     raise ValueError(f"resource capacity exceeded: {resource_id}")
