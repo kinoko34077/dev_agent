@@ -9,7 +9,7 @@ from time import time
 from typing import Any
 
 from ..domain.protocol import Event, ModelRequest, ModelResponse, Step, StepStatus, Task, TaskStatus, ToolCall, ToolResultStatus
-from ..providers.base import ModelProvider
+from ..providers.base import ModelProvider, ProviderError
 from ..policy.approvals import canonical_arguments_hash
 from ..state.store import StateStore
 from ..tools.runtime import ToolRuntime
@@ -132,6 +132,8 @@ class Controller:
                     raise TypeError("provider must return ModelResponse")
             except FutureTimeoutError:
                 self._fail(task, state, "timeout", "model request timed out", step=step, request_id=request.request_id)
+            except ProviderError as exc:
+                self._fail(task, state, exc.category, str(exc), step=step, request_id=request.request_id)
             except Exception as exc:
                 self._fail(task, state, "provider_decode", str(exc), step=step, request_id=request.request_id)
             self._event(task, "model.responded", {"response": response.to_dict()}, step_id=step.step_id, request_id=request.request_id)

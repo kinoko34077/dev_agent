@@ -25,6 +25,7 @@ Status: in progress. This gate precedes Phase 6.
 - Gemini HTTP failure classification is covered for missing credentials, authentication (401/403), rate limiting (429), transport errors, and malformed provider responses.
 - Independent Recovery validation rejects orphan steps/checkpoints, malformed tool results, unknown effect-intent states, and unsupported schema versions.
 - ToolSpec input schemas are carried as Provider-neutral `tool_definitions` and emitted as Gemini function declarations / Ollama function tools; payload contract tests cover this boundary.
+- Typed ProviderError categories are preserved by Controller failure events.
 
 ## Still required before Phase 6
 

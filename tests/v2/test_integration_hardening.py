@@ -8,6 +8,7 @@ from src.dev_agent.domain.protocol import ExecutionLimits, ModelResponse, Step, 
 from src.dev_agent.policy import PathPolicy
 from src.dev_agent.policy.approvals import canonical_arguments_hash
 from src.dev_agent.providers.base import ModelProvider
+from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.runtime import Controller, RuntimeFailure
 from src.dev_agent.state import SQLiteStateStore
 from src.dev_agent.tools import ToolRegistry, ToolRuntime, ToolSpec
@@ -225,6 +226,22 @@ def test_controller_enforces_whole_task_wall_clock_limit(tmp_path):
     with SQLiteStateStore(tmp_path / "deadline.sqlite3") as store:
         with pytest.raises(RuntimeFailure, match="timeout"):
             Controller(SlowProvider(), ToolRuntime(ToolRegistry()), store).run(task)
+
+
+@pytest.mark.parametrize("category", ["authentication", "rate_limit", "transport", "provider_decode"])
+def test_controller_preserves_provider_error_category(tmp_path, category):
+    class ErrorProvider(ModelProvider):
+        provider_id = "error"
+
+        def request(self, request):
+            raise ProviderError(f"{category}: simulated", category=category)
+
+    task = Task(objective="provider error")
+    with SQLiteStateStore(tmp_path / f"{category}.sqlite3") as store:
+        with pytest.raises(RuntimeFailure, match=category):
+            Controller(ErrorProvider(), ToolRuntime(ToolRegistry()), store).run(task)
+        failures = [event for event in store.snapshot()["events"] if event["event_type"] == "task.failed"]
+    assert failures[-1]["payload"]["category"] == category
 
 
 def test_resume_honors_persisted_wall_clock_deadline(tmp_path):

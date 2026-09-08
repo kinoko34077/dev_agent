@@ -47,6 +47,8 @@ Approval progress: approval records now bind to one exact internal call ID and c
 
 進捗: ToolSpec の input schema を Provider-neutral `tool_definitions` として ModelRequest に渡し、Gemini `functionDeclarations` / Ollama `tools` payload へ変換する offline 契約を実装済み。実モデルが選択・実行する live E2E は未達。
 
+Provider error progress: `ProviderError` now carries category, retryable, and optional HTTP status; Controller preserves authentication, rate-limit, transport, and decode categories instead of collapsing them to `provider_decode`.
+
 ## Gate E — promotion / deferred work
 
 Gate A〜D の未達を一覧化し、外部依存項目は保留理由と再開条件を残す。Gate を満たすまで Phase 6（resource / survival / rescue）へ進まない。
