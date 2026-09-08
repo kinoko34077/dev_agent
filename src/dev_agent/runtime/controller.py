@@ -15,6 +15,7 @@ from ..domain.protocol import Event as ProtocolEvent
 from ..domain.protocol import ModelRequest, ModelResponse, Step, StepStatus, Task, TaskStatus, ToolCall, ToolResult, ToolResultStatus
 from ..providers.base import ModelProvider, ProviderError
 from ..security.event_artifacts import EventArtifactStore
+from ..security.audit import AuditRecorder
 from ..state.store import StateStore
 from ..tools.runtime import ToolRuntime
 
@@ -70,7 +71,7 @@ class Controller:
         self._running_tasks: dict[str, Task] = {}
 
     def _event_record(self, task: Task, event_type: str, payload: dict[str, Any], *, step_id: str | None = None, request_id: str | None = None) -> ProtocolEvent:
-        return ProtocolEvent(event_type=event_type, task_id=task.task_id, step_id=step_id, request_id=request_id, provider=self.provider.provider_id, payload=self._safe_event_payload(payload, artifact_store=self.event_artifacts))
+        return ProtocolEvent(event_type=event_type, task_id=task.task_id, step_id=step_id, request_id=request_id, provider=self.provider.provider_id, payload=AuditRecorder.sanitize_payload(payload, artifact_store=self.event_artifacts))
 
     def _event(self, task: Task, event_type: str, payload: dict[str, Any], *, step_id: str | None = None, request_id: str | None = None) -> None:
         """Append a non-transition event for compatibility with callers."""

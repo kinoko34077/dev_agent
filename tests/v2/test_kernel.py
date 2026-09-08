@@ -5,6 +5,7 @@ from src.dev_agent.providers.fake import FakeProvider
 from src.dev_agent.runtime import Controller, RuntimeFailure
 from src.dev_agent.state import JsonStateStore
 from src.dev_agent.tools import ToolRegistry, ToolRuntime, ToolSpec
+from src.dev_agent.security.audit import AuditRecorder
 
 
 def test_tool_runtime_binding_returns_independent_instances():
@@ -28,6 +29,11 @@ def test_state_store_supports_targeted_event_lookup(tmp_path, store_type):
     store.append_event(Event(event_type="task.completed", task_id=task.task_id))
     assert store.has_event(task.task_id, "task.completed") is True
     assert store.has_event(task.task_id, "task.failed") is False
+
+
+def test_audit_recorder_sanitizes_secret_patterns_and_bounds_payload():
+    assert AuditRecorder.sanitize_payload({"content": "Bearer abcdefghijklmnop"})["content"] == "[REDACTED]"
+    assert AuditRecorder.sanitize_payload({str(index): "x" * 4096 for index in range(20)})["_truncated"] is True
 
 
 def make_controller(tmp_path, provider=None, *, max_steps=20):
