@@ -81,6 +81,10 @@ The lease proof for the provider intent transition is checked inside the
 StateStore transaction. An independent-process test confirms that a reclaimed
 queue lease prevents the stale process from entering the concrete provider.
 
+Checkpoint JSON is exposed through `src/dev_agent/runtime/state.py:RuntimeState`;
+the Controller deep-copies resumed state before mutation while retaining the
+legacy mapping shape for existing checkpoints.
+
 The machine-readable evidence is maintained in
 `spec/v2/GATE_STATUS.json` under Stage F (`F6A`–`F6E`). Stage G records the
 remaining operational integration: money-safe dispatch, real provider routing,
