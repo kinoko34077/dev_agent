@@ -1,6 +1,6 @@
 # Phase 6 — Resource / Survival / Recovery
 
-Status: VERIFIED at the current implementation boundary
+Status: foundation VERIFIED; operational integration IN PROGRESS
 
 Phase 6A〜6E is the current v2 work boundary. The phase is deliberately split
 into small control-plane components so that resource exhaustion, provider
@@ -58,8 +58,9 @@ provided. The integration reserves before every provider request, reconciles
 observed usage, and preserves uncertain reservations on timeout/cancellation.
 
 The machine-readable evidence is maintained in
-`spec/v2/GATE_STATUS.json` under Stage F (`F6A`–`F6E`). The next scope is not
-new Phase 6 mechanism; it is operational drills and explicitly deferred
-Phase 6/7 work such as live rollback/repair execution, artifact-root retention
+`spec/v2/GATE_STATUS.json` under Stage F (`F6A`–`F6E`). Stage G records the
+remaining operational integration: money-safe dispatch, real provider routing,
+survival enforcement, lease-fenced workers, independent concurrency proof, and
+recovery drills. It must be VERIFIED before Phase 6 is considered complete.
+Explicitly deferred Phase 6/7 work includes live rollback/repair execution, artifact-root retention
 integration, automatic retry policy, and generated Tool lifecycle.
-

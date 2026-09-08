@@ -4,11 +4,11 @@ import json
 from scripts.check_gate import check, load_status
 
 
-def test_current_gate_status_reports_phase6_current_gates_verified():
+def test_current_gate_status_reports_phase6_operational_work_in_progress():
     value = load_status(Path("spec/v2/GATE_STATUS.json"))
     code, details = check(value)
-    assert code == 0
-    assert details == []
+    assert code == 1
+    assert any(detail.startswith("G/G6O") for detail in details)
 
 
 def test_gate_checker_distinguishes_all_external_blockers():
@@ -58,3 +58,31 @@ def test_gate_checker_separates_deferred_future_requirements_from_current_gates(
         },
     }
     assert check(value) == (0, [])
+
+
+def test_gate_checker_derives_phase6_statuses_and_rejects_manual_false_positive():
+    value = {
+        "schema_version": 4,
+        "phase6_entry": "ALL_VERIFIED",
+        "phase6_foundation_status": "VERIFIED",
+        "phase6_operational_status": "VERIFIED",
+        "phase_classification": {
+            "phase3_5": {"gates": []},
+            "phase4": {"gates": []},
+            "phase5": {"gates": []},
+            "phase6_foundation": {"gates": ["F/F6A"]},
+            "phase6_operational": {"gates": ["G/G6O1"]},
+            "phase6_future": {"requirements": []},
+            "phase7_future": {"requirements": []},
+        },
+        "stages": {
+            "F": {"F6A": {"status": "VERIFIED", "evidence": ["test"]}},
+            "G": {"G6O1": {"status": "TODO"}},
+        },
+    }
+    try:
+        check(value)
+    except ValueError as exc:
+        assert "phase6_operational_status" in str(exc)
+    else:
+        raise AssertionError("manual phase6 status must match the derived gate status")

@@ -35,11 +35,11 @@ v1 は移植元ではなく、知見・ログ・失敗の回帰資料である�
 
 ### 現在フェーズ
 
-**Phase 6 — Resource / Survival / Recovery（6A〜6E実装済み・運用証跡を継続）**
+**Phase 6 — Resource / Survival / Recovery（foundation verified・運用統合を実施中）**
 
-Phase 0〜5 は current acceptance verified。Phase 6A〜6Eで resource ledger、budget reservation、privacy-first router、survival modes、独立Recovery運用、durable scheduler ownershipを実装し、Stage Fとして検証している。次の作業は live operator drill と明示した後段要件である。
+Phase 0〜5 は current acceptance verified。Phase 6A〜6Eで resource ledger、budget reservation、privacy-first router、survival modes、独立Recovery運用、durable scheduler ownershipの基礎を実装し、Stage Fとして検証している。Stage Gでは、実Provider dispatch、通貨・period安全な予算、survival policy、lease-fenced worker、独立接続の競合証明、recovery drill を統合検証する。
 
-進行判定: Phase 6A〜6Eの通常系・競合系・fail-closed系・exact HEAD CI証跡が揃い、current Gateが自動判定できること。
+進行判定: Stage F foundation と Stage G operational を別々に自動判定し、Stage Gの通常系・独立競合系・fail-closed系・exact HEAD CI証跡が揃うこと。
 
 ## 3. フェーズ別ロードマップ
 

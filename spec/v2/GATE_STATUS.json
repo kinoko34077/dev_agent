@@ -1,8 +1,9 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "evidence_head": "396c784239f3baea2850be53a88cf0b866abc2fe",
-  "current_phase": "phase6",
-  "phase6_status": "VERIFIED",
+  "current_phase": "phase6_operational",
+  "phase6_foundation_status": "VERIFIED",
+  "phase6_operational_status": "IN_PROGRESS",
   "phase6_entry": "ALL_VERIFIED",
   "phase6_entry_rule": "Phase 3.5, Phase 4, and Phase 5 current acceptance gates must be VERIFIED; future recovery drills and Phase 7 lifecycle requirements are tracked separately.",
   "phase_classification": {
@@ -18,9 +19,13 @@
       "gates": ["D/D25", "D/D26", "D/D27", "D/D28"],
       "acceptance": "At least one remote Provider independently satisfies the same Core Contract; Gemini may remain BLOCKED when an alternative Provider is qualified."
     },
-    "phase6": {
+    "phase6_foundation": {
       "gates": ["F/F6A", "F/F6B", "F/F6C", "F/F6D", "F/F6E"],
-      "acceptance": "Resource accounting, fail-closed budget reservation, deterministic routing and survival modes, independent recovery operations, and durable worker ownership are integrated and fault-tested."
+      "acceptance": "Phase 6 foundation components are implemented and verified at their local contract boundaries."
+    },
+    "phase6_operational": {
+      "gates": ["G/G6O1", "G/G6O2", "G/G6O3", "G/G6O4", "G/G6O5", "G/G6O6"],
+      "acceptance": "Money-safe provider dispatch, runtime routing and survival enforcement, lease-fenced worker execution, independent concurrent SQLite proof, and recovery drills are integrated and fault-tested end-to-end."
     },
     "phase6_future": {
       "requirements": ["B14/artifact-root backup and retention integration", "C15/automatic retry and resource budget policy", "E33/live operator restore drill", "E35/live rollback drill", "E36/live repair-branch drill"]
@@ -83,6 +88,14 @@
       "F6C": {"status": "VERIFIED", "phase": "phase6", "evidence": ["recovery/phase6_recovery.py", "recovery/validate_resources.py", "tests/v2/test_phase6_recovery.py"]},
       "F6D": {"status": "VERIFIED", "phase": "phase6", "evidence": ["src/dev_agent/scheduler/queue.py", "tests/v2/test_phase6_scheduler.py::test_expired_lease_can_be_reclaimed_but_stale_worker_is_fenced", "tests/v2/test_phase6_scheduler.py::test_queue_survives_restart_and_claims_once"]},
       "F6E": {"status": "VERIFIED", "phase": "phase6", "evidence": ["src/dev_agent/resources/control.py", "src/dev_agent/runtime/controller.py:resource_policy", "tests/v2/test_phase6_integration.py::test_controller_reserves_and_reconciles_before_each_provider_dispatch", "spec/v2/TRACEABILITY.md:INV-010/INV-011", "GitHub Actions v2-core run 34231468796 passed on exact evidence_head", "GitHub Actions v2 tests run 34231468809 passed on exact evidence_head"]}
+    },
+    "G": {
+      "G6O1": {"status": "TODO", "phase": "phase6_operational", "evidence_needed": "Typed currency-aware money and explicit budget-period reservations are enforced before paid provider dispatch; unknown actual charges remain unknown."},
+      "G6O2": {"status": "TODO", "phase": "phase6_operational", "evidence_needed": "Controller dispatches through ProviderDispatcher, ResourceRouter, and ProviderRegistry with audited selection and real failover."},
+      "G6O3": {"status": "TODO", "phase": "phase6_operational", "evidence_needed": "Provider outcomes update health/circuit state and survival mode changes dispatch policy."},
+      "G6O4": {"status": "TODO", "phase": "phase6_operational", "evidence_needed": "A worker claims durable work, renews a lease, invokes Controller, and stale workers are fenced before effects or transitions."},
+      "G6O5": {"status": "TODO", "phase": "phase6_operational", "evidence_needed": "Independent ledger and queue connections prove atomic reservation and lease ownership under concurrent access."},
+      "G6O6": {"status": "TODO", "phase": "phase6_operational", "evidence_needed": "Maintenance mode and recovery rescue operations are exercised with retained operational artifacts."}
     }
   }
 }
