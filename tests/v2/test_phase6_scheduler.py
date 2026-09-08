@@ -156,7 +156,7 @@ def test_worker_renews_lease_during_long_controller_execution(tmp_path):
             self.lease_proof = None
 
         def resume(self, task_id):
-            time.sleep(0.12)
+            time.sleep(1.2)
             self.lease_guard()
             task = self.store.load_task(task_id)
             task.status = TaskStatus.COMPLETED
@@ -166,7 +166,7 @@ def test_worker_renews_lease_during_long_controller_execution(tmp_path):
         store.save_task(task)
         queue.enqueue(task.task_id)
         controller = SlowController(store)
-        completed = WorkerRunner(queue, controller, worker_id="worker-a", lease_seconds=0.05).run_once()
+        completed = WorkerRunner(queue, controller, worker_id="worker-a", lease_seconds=0.5).run_once()
 
     assert completed is not None and completed.status == TaskStatus.COMPLETED
     assert queue.snapshot(task.task_id).state == "completed"
