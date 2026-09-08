@@ -25,6 +25,9 @@ Implemented in `src/dev_agent/resources/ledger.py` and `budget.py`.
   operations validate their expected source state in the same transaction.
 - Reservation state is durable as `prepared -> dispatching -> reconciled`,
   `unknown`, or `confirmed_no_charge`.
+- Provider reservations can be bound to a durable effect-intent key. A restart
+  after the budget transition but before the intent transition reuses the
+  existing reservation instead of creating a second charge hold.
 
 ## 6B — Router and Survival Modes
 
@@ -76,6 +79,9 @@ cost metadata before entering the external call; succeeded intents are replayed
 without sending a duplicate request. Provider selection, estimated cost,
 fallback outcome, and terminal outcome are also written to a durable audit
 record instead of relying only on the dispatcher's in-memory audit list.
+The budget reservation is keyed by that same provider intent, so the two
+durable records remain replay-compatible across the crash boundary between
+reservation and dispatch-intent persistence.
 
 The lease proof for the provider intent transition is checked inside the
 StateStore transaction. An independent-process test confirms that a reclaimed

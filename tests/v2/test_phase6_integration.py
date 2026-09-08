@@ -198,6 +198,48 @@ def test_dispatcher_persists_dispatching_before_provider_call(tmp_path):
     assert ledger.reservation_totals()["active_reservations"] == 0
 
 
+def test_dispatcher_reuses_budget_reservation_after_crash_between_budget_and_intent_dispatch(tmp_path):
+    ledger = ResourceLedger(tmp_path / "dispatch-crash-restart.sqlite3")
+    ledger.register_resource("paid", provider_id="paid", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
+    ledger.observe("paid", available=10, health="healthy")
+    control = ResourceControlPlane(ResourceRouter(ledger), _governor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)))
+    calls = []
+
+    class PaidProvider(FakeProvider):
+        provider_id = "paid"
+
+        def request(self, request):
+            calls.append(request.request_id)
+            return ModelResponse(provider="paid", model="test", text_segments=["recovered"], usage={"cost_minor": 10})
+
+    request = ModelRequest(task_id="00000000-0000-0000-0000-000000000011", messages=[{"role": "user", "content": "crash boundary"}])
+    registry = ProviderRegistry([PaidProvider()])
+    with SQLiteStateStore(tmp_path / "dispatch-state.sqlite3") as store:
+        first = ProviderDispatcher(registry, control)
+        first.bind_runtime(state_store=store)
+        original_intent = first._intent
+
+        def crash_after_budget(key, *, status, result):
+            if status == "dispatching":
+                raise KeyboardInterrupt("simulated process crash")
+            return original_intent(key, status=status, result=result)
+
+        first._intent = crash_after_budget
+        with pytest.raises(KeyboardInterrupt, match="simulated process crash"):
+            first.request(request)
+
+        intent_key = f"provider:{request.request_id}:paid"
+        assert store.get_effect_intent(intent_key)["status"] == "prepared"
+        assert ledger.connection.execute("SELECT status FROM budget_reservations").fetchone()[0] == "dispatching"
+        assert calls == []
+
+        second = ProviderDispatcher(registry, control)
+        second.bind_runtime(state_store=store)
+        assert second.request(request).text_segments == ["recovered"]
+        assert calls == [request.request_id]
+        assert ledger.connection.execute("SELECT COUNT(*) FROM budget_reservations").fetchone()[0] == 1
+
+
 def test_dispatcher_accepts_explicit_task_id_compatibility_entrypoint(tmp_path):
     ledger = ResourceLedger(tmp_path / "dispatcher-task-id.sqlite3")
     ledger.register_resource(
