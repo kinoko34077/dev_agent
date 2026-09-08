@@ -74,7 +74,7 @@ def run_diagnostics(root: str | Path, *, test_report: str | Path | None = None, 
         ("v2_source", (path / "src" / "dev_agent").is_dir(), str(path / "src" / "dev_agent")),
         ("v2_gate_status", (path / "spec" / "v2" / "GATE_STATUS.json").is_file(), str(path / "spec" / "v2" / "GATE_STATUS.json")),
         ("v2_workflow", (path / ".github" / "workflows" / "v2-core.yml").is_file(), str(path / ".github" / "workflows" / "v2-core.yml")),
-        ("configuration", all((path / item).is_file() for item in ("config/config.yaml", "config/access.yaml", "config/oi_profile.yaml")), "config files exist; contents not read"),
+        ("configuration", all((path / item).is_file() for item in ("config/config.yaml", "config/access.yaml", "config/oi_profile.yaml", "config/v2.yaml")), "config files exist; contents not read"),
         ("v2_test_runner", all((path / item).is_file() for item in ("pytest.ini", "requirements-v2-dev.txt")), "pytest.ini and v2 requirements exist"),
     )
     diagnostics = [Diagnostic(name, ok, detail) for name, ok, detail in checks]

@@ -1,0 +1,20 @@
+# v2 Kernel operational contract. Provider secrets stay in environment/config
+# adapters; this file contains only bounded control-plane policy.
+budget:
+  currency: JPY
+  hard_cap_minor: 10000
+  recovery_reserve_minor: 1000
+  period: monthly-utc
+resources:
+  observation_max_age_seconds: 300
+  require_worst_case_price_for_paid_dispatch: true
+router:
+  privacy_first: true
+  failover: true
+survival:
+  conserve_threshold_minor: 1000
+scheduler:
+  lease_seconds: 30
+  maintenance_claims: false
+recovery:
+  mutation_requires_explicit_opt_in: true
