@@ -33,7 +33,7 @@ def test_resource_ledger_runs_ordered_migrations_for_legacy_database(tmp_path):
     assert "price_currency" in columns
     assert config["period_id"] != "legacy"
     assert config["period_starts_at"] < config["period_ends_at"]
-    assert version == "3"
+    assert version == "4"
 
 
 def _ledger(tmp_path):
@@ -185,6 +185,33 @@ def test_budget_reservation_persists_dispatch_lifecycle(tmp_path):
     governor.confirm_no_charge(reservation.reservation_id)
     assert ledger.reservation_row(reservation.reservation_id)["status"] == "confirmed_no_charge"
     assert governor.snapshot()["active_reservations"] == 0
+
+
+def test_budget_reservation_reuses_the_same_dispatch_intent_after_restart(tmp_path):
+    first = _ledger(tmp_path)
+    policy = BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20)
+    first_governor = _governor(first, policy)
+    intent_key = "provider:request-1:remote-gemini"
+    first_reservation = first_governor.reserve("task-1", "remote-gemini", estimated_cost_minor=40, intent_key=intent_key)
+    first_governor.mark_dispatching(first_reservation.reservation_id)
+
+    second = ResourceLedger(tmp_path / "resources.sqlite3")
+    second_governor = BudgetGovernor(second, policy)
+    replay = second_governor.reserve("task-1", "remote-gemini", estimated_cost_minor=40, intent_key=intent_key)
+
+    assert replay.reservation_id == first_reservation.reservation_id
+    second_governor.mark_dispatching(replay.reservation_id)
+    assert second.reservation_row(replay.reservation_id)["status"] == "dispatching"
+    assert second.connection.execute("SELECT COUNT(*) FROM budget_reservations").fetchone()[0] == 1
+
+
+def test_budget_reservation_intent_cannot_be_rebound_to_different_charge(tmp_path):
+    ledger = _ledger(tmp_path)
+    governor = _governor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20))
+    governor.reserve("task-1", "remote-gemini", estimated_cost_minor=40, intent_key="provider:request-1:remote-gemini")
+
+    with pytest.raises(BudgetExceeded, match="different budget reservation"):
+        governor.reserve("task-2", "remote-gemini", estimated_cost_minor=20, intent_key="provider:request-1:remote-gemini")
 
 
 def test_budget_reservations_are_currency_and_period_bound(tmp_path):

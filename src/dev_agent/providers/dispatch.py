@@ -177,7 +177,7 @@ class ProviderDispatcher(ModelProvider):
             if cached is not None:
                 self._record_audit(request, selection, "durable_replay", intent_key)
                 return cached
-            reservation = self.control.reserve_selection(request.task_id, selection)
+            reservation = self.control.reserve_selection(request.task_id, selection, intent_key=intent_key)
             self.control.mark_dispatching(reservation)
             try:
                 self._intent(intent_key, status="dispatching", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id})

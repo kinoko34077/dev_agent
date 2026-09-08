@@ -89,7 +89,7 @@ class ResourceSpec:
 class ResourceLedger:
     """SQLite-backed resource observations and budget reservation records."""
 
-    SCHEMA_VERSION = 3
+    SCHEMA_VERSION = 4
     _SCHEMA = """
     CREATE TABLE IF NOT EXISTS resources (
         resource_id TEXT PRIMARY KEY,
@@ -129,6 +129,7 @@ class ResourceLedger:
         reservation_id TEXT PRIMARY KEY,
         task_id TEXT NOT NULL,
         resource_id TEXT NOT NULL,
+        intent_key TEXT UNIQUE,
         estimated_minor INTEGER NOT NULL,
         actual_minor INTEGER,
         recovery INTEGER NOT NULL,
@@ -193,6 +194,10 @@ class ResourceLedger:
                     self.connection.execute("UPDATE budget_reservations SET period_id=?, currency=? WHERE period_id='legacy'", (period_id, config["currency"]))
                 self.connection.execute("UPDATE budget_reservations SET status='prepared' WHERE status='reserved'")
                 self.connection.execute("UPDATE resource_schema_meta SET value='3' WHERE key='schema_version'")
+            if current < 4:
+                self._ensure_column("budget_reservations", "intent_key", "TEXT")
+                self.connection.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_budget_reservations_intent_key ON budget_reservations(intent_key) WHERE intent_key IS NOT NULL")
+                self.connection.execute("UPDATE resource_schema_meta SET value='4' WHERE key='schema_version'")
             self.connection.commit()
         except Exception:
             self.connection.rollback()
@@ -363,13 +368,34 @@ class ResourceLedger:
             active = sum(1 for row in rows if row["status"] in {"prepared", "dispatching", "unknown"})
             return {"normal_committed_minor": normal_committed, "recovery_committed_minor": recovery_committed, "active_reservations": active}
 
-    def reserve_budget(self, *, task_id: str, resource_id: str, amount: MoneyAmount, recovery: bool, period: BudgetPeriod, normal_limit_minor: int, recovery_limit_minor: int, native_units: int | float = 1) -> str:
+    def reserve_budget(self, *, task_id: str, resource_id: str, amount: MoneyAmount, recovery: bool, period: BudgetPeriod, normal_limit_minor: int, recovery_limit_minor: int, native_units: int | float = 1, intent_key: str | None = None) -> str:
         """Atomically check and create a reservation behind the ledger boundary."""
+        if intent_key is not None and (not isinstance(intent_key, str) or not intent_key.strip()):
+            raise ValueError("intent_key must be a non-empty string or None")
         with self._lock:
             self.connection.execute("BEGIN IMMEDIATE")
             try:
                 if self.maintenance_enabled():
                     raise ValueError("maintenance mode")
+                if intent_key is not None:
+                    existing = self.connection.execute("SELECT * FROM budget_reservations WHERE intent_key=?", (intent_key,)).fetchone()
+                    if existing is not None:
+                        if (
+                            existing["task_id"] != task_id
+                            or existing["resource_id"] != resource_id
+                            or int(existing["estimated_minor"]) != amount.minor_units
+                            or bool(existing["recovery"]) != bool(recovery)
+                            or existing["period_id"] != period.period_id
+                            or existing["currency"] != amount.currency
+                        ):
+                            raise ValueError("intent key is bound to a different budget reservation")
+                        if existing["status"] in {"reconciled", "confirmed_no_charge", "released"}:
+                            raise ValueError("intent key is bound to a terminal budget reservation")
+                        resource_reservation = self.connection.execute("SELECT native_units, status FROM resource_reservations WHERE reservation_id=?", (existing["reservation_id"],)).fetchone()
+                        if resource_reservation is None or resource_reservation["status"] != "reserved" or float(resource_reservation["native_units"]) != float(native_units):
+                            raise ValueError("intent key is bound to an invalid resource reservation")
+                        self.connection.commit()
+                        return existing["reservation_id"]
                 totals = self.reservation_totals(period_id=period.period_id)
                 resource = self.connection.execute("SELECT available, health, price_currency FROM resources WHERE resource_id=?", (resource_id,)).fetchone()
                 if resource is None:
@@ -385,7 +411,7 @@ class ResourceLedger:
                 if amount.minor_units > remaining:
                     raise ValueError(f"budget exceeded: requested {amount.minor_units}, remaining {remaining}")
                 reservation_id = str(uuid4())
-                self.connection.execute("INSERT INTO budget_reservations(reservation_id, task_id, resource_id, estimated_minor, actual_minor, recovery, status, created_at, reconciled_at, period_id, currency) VALUES (?, ?, ?, ?, NULL, ?, 'prepared', ?, NULL, ?, ?)", (reservation_id, task_id, resource_id, amount.minor_units, int(recovery), datetime.now(timezone.utc).isoformat(), period.period_id, amount.currency))
+                self.connection.execute("INSERT INTO budget_reservations(reservation_id, task_id, resource_id, intent_key, estimated_minor, actual_minor, recovery, status, created_at, reconciled_at, period_id, currency) VALUES (?, ?, ?, ?, ?, NULL, ?, 'prepared', ?, NULL, ?, ?)", (reservation_id, task_id, resource_id, intent_key, amount.minor_units, int(recovery), datetime.now(timezone.utc).isoformat(), period.period_id, amount.currency))
                 self.connection.execute("INSERT INTO resource_reservations(reservation_id, resource_id, native_units, status) VALUES (?, ?, ?, 'reserved')", (reservation_id, resource_id, native_units))
                 self.connection.commit()
                 return reservation_id

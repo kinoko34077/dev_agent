@@ -29,7 +29,7 @@ class DispatchReservation:
 
 
 class ResourcePolicy(Protocol):
-    def reserve_for_provider(self, task_id: str, provider_id: str, request: ModelRequest) -> DispatchReservation: ...
+    def reserve_for_provider(self, task_id: str, provider_id: str, request: ModelRequest, *, intent_key: str | None = None) -> DispatchReservation: ...
     def mark_dispatching(self, reservation: DispatchReservation) -> None: ...
     def reconcile_response(self, reservation: DispatchReservation, response: ModelResponse) -> None: ...
     def release(self, reservation: DispatchReservation) -> None: ...
@@ -50,12 +50,12 @@ class ResourceControlPlane:
         if self._maintenance or self.router.ledger.maintenance_enabled():
             raise DispatchDenied("maintenance", "new provider dispatch is disabled during maintenance")
 
-    def reserve_for_provider(self, task_id: str, provider_id: str, request: ModelRequest) -> DispatchReservation:
+    def reserve_for_provider(self, task_id: str, provider_id: str, request: ModelRequest, *, intent_key: str | None = None) -> DispatchReservation:
         self._ensure_dispatch_allowed()
         try:
             selection = self.router.choose(RouteRequest(capabilities=set(request.requested_capabilities) or {"text"}, sensitivity=request.sensitivity, allowed_providers={provider_id}))
             price = None if selection.estimated_cost_minor is None or selection.price_currency is None else MoneyAmount(selection.price_currency, selection.estimated_cost_minor)
-            reservation = self.governor.reserve(task_id, selection.resource_id, estimated_cost=price)
+            reservation = self.governor.reserve(task_id, selection.resource_id, estimated_cost=price, intent_key=intent_key)
         except NoRoute as exc:
             raise DispatchDenied("no_route", str(exc)) from exc
         except UnknownPrice as exc:
@@ -70,11 +70,11 @@ class ResourceControlPlane:
             raise DispatchDenied("invalid_request", str(exc)) from exc
         return DispatchReservation(reservation, provider_id, selection.native_unit, selection.estimated_cost_minor, selection.price_currency)
 
-    def reserve_selection(self, task_id: str, selection: RouteSelection) -> DispatchReservation:
+    def reserve_selection(self, task_id: str, selection: RouteSelection, *, intent_key: str | None = None) -> DispatchReservation:
         self._ensure_dispatch_allowed()
         price = None if selection.estimated_cost_minor is None or selection.price_currency is None else MoneyAmount(selection.price_currency, selection.estimated_cost_minor)
         try:
-            reservation = self.governor.reserve(task_id, selection.resource_id, estimated_cost=price)
+            reservation = self.governor.reserve(task_id, selection.resource_id, estimated_cost=price, intent_key=intent_key)
         except UnknownPrice as exc:
             raise DispatchDenied("unknown_price", str(exc)) from exc
         except ResourceUnavailable as exc:

@@ -106,7 +106,7 @@ class BudgetGovernor:
     def _current_month() -> BudgetPeriod:
         return _current_month()
 
-    def reserve(self, task_id: str, resource_id: str, *, estimated_cost: MoneyAmount | None = None, estimated_cost_minor: int | None = None, recovery: bool = False, native_units: int | float = 1) -> BudgetReservation:
+    def reserve(self, task_id: str, resource_id: str, *, estimated_cost: MoneyAmount | None = None, estimated_cost_minor: int | None = None, recovery: bool = False, native_units: int | float = 1, intent_key: str | None = None) -> BudgetReservation:
         if not task_id.strip():
             raise ValueError("task_id is required")
         if estimated_cost is not None and estimated_cost_minor is not None:
@@ -125,7 +125,7 @@ class BudgetGovernor:
         if resource["health"] == "unhealthy":
             raise BudgetExceeded(f"resource is unhealthy: {resource_id}")
         try:
-            reservation_id = self.ledger.reserve_budget(task_id=task_id, resource_id=resource_id, amount=estimated_cost, recovery=recovery, period=self.period, normal_limit_minor=self.policy.hard_cap_minor - self.policy.recovery_reserve_minor, recovery_limit_minor=self.policy.recovery_reserve_minor, native_units=native_units)
+            reservation_id = self.ledger.reserve_budget(task_id=task_id, resource_id=resource_id, amount=estimated_cost, recovery=recovery, period=self.period, normal_limit_minor=self.policy.hard_cap_minor - self.policy.recovery_reserve_minor, recovery_limit_minor=self.policy.recovery_reserve_minor, native_units=native_units, intent_key=intent_key)
         except ValueError as exc:
             message = str(exc)
             if message == "maintenance mode":
@@ -156,7 +156,10 @@ class BudgetGovernor:
 
     def mark_dispatching(self, reservation_id: str) -> None:
         """Persist that the external dispatch boundary is being entered."""
-        self.ledger.transition_budget(reservation_id, to_status="dispatching")
+        current = self.ledger.reservation_row(reservation_id)["status"]
+        if current == "dispatching":
+            return
+        self.ledger.transition_budget(reservation_id, to_status="dispatching", expected_from={"prepared"})
 
     def confirm_no_charge(self, reservation_id: str) -> None:
         """Close a reservation only when the provider outcome proves no charge."""
