@@ -636,6 +636,52 @@ def test_controller_cancellation_is_cooperative_and_durable(tmp_path):
     assert checkpoint["state"]["cancellation"]["state"] == "terminated"
 
 
+def test_cancellation_during_guarded_effect_requires_reconciliation(tmp_path):
+    started = ThreadEvent()
+    calls = []
+
+    def guarded_handler(args):
+        started.set()
+        sleep(0.2)
+        calls.append(args)
+        return {"ok": True}
+
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="publish", description="external", side_effect_level="external_write", timeout_seconds=1.0, handler=guarded_handler))
+    call = ToolCall(tool_name="publish", arguments={"value": "x"}, idempotency_key="cancelled-effect")
+    cancel_event = ThreadEvent()
+    result_box = []
+    with SQLiteStateStore(tmp_path / "cancelled-effect.sqlite3") as store:
+        store.save_approval("approval", task_id="t", side_effect_level="external_write", actor="human", call_id=call.call_id, arguments_hash=canonical_arguments_hash(call.arguments))
+        runtime = ToolRuntime(registry).with_result_store(store)
+        runner = Thread(target=lambda: result_box.append(runtime.execute(call, task_id="t", approval_id="approval", cancel_event=cancel_event)), daemon=True)
+        runner.start()
+        assert started.wait(2)
+        cancel_event.set()
+        runner.join(2)
+        assert result_box[0].error["category"] == "reconciliation_required"
+        assert store.get_effect_intent(call.idempotency_key)["status"] == "unknown"
+    assert calls == []
+
+
+def test_resume_after_cancelled_commit_crash_does_not_duplicate_cancel_event(tmp_path):
+    path = tmp_path / "cancelled-crash.sqlite3"
+    task = Task(objective="cancel crash")
+    step = Step(task_id=task.task_id, order=0, kind="model")
+    state = {"messages": [], "active_step": step.to_dict(), "pending_tool_calls": [], "cancellation": {"state": "requested"}}
+    controller = Controller(FinalProvider(), ToolRuntime(ToolRegistry()), CrashAfterCommitStore(path, "cancelled"))
+    with controller.store as store:
+        with pytest.raises(SystemExit, match="cancelled"):
+            controller._cancel(task, state, step=step, message="operator requested cancellation")
+    with SQLiteStateStore(path) as reopened:
+        resumed = Controller(FinalProvider(), ToolRuntime(ToolRegistry()), reopened).resume(task.task_id)
+        events = [event for event in reopened.snapshot()["events"] if event["task_id"] == task.task_id and event["event_type"] == "task.cancelled"]
+        checkpoint = reopened.load_latest_checkpoint(task.task_id)
+    assert resumed.status == TaskStatus.CANCELLED
+    assert len(events) == 1
+    assert checkpoint["state"]["cancellation"]["state"] == "terminated"
+
+
 def test_controller_enforces_input_output_and_observed_cost_limits(tmp_path):
     class BudgetProvider(ModelProvider):
         provider_id = "budget"
