@@ -173,8 +173,9 @@ class ResourceLedger:
             self.connection.commit()
 
     def maintenance_enabled(self) -> bool:
-        row = self.connection.execute("SELECT maintenance FROM resource_control WHERE id=1").fetchone()
-        return bool(row and row[0])
+        with self._lock:
+            row = self.connection.execute("SELECT maintenance FROM resource_control WHERE id=1").fetchone()
+            return bool(row and row[0])
 
     @staticmethod
     def _number(value: int | float, name: str, *, nonnegative: bool = True) -> int | float:
@@ -243,16 +244,18 @@ class ResourceLedger:
             self.connection.commit()
 
     def get_resource(self, resource_id: str) -> dict[str, Any]:
-        row = self.connection.execute("SELECT * FROM resources WHERE resource_id = ?", (resource_id,)).fetchone()
-        if row is None:
-            raise KeyError(resource_id)
-        result = dict(row)
-        result["capabilities"] = tuple(json.loads(result.pop("capabilities_json")))
-        result["metadata"] = json.loads(result.pop("metadata_json"))
-        return result
+        with self._lock:
+            row = self.connection.execute("SELECT * FROM resources WHERE resource_id = ?", (resource_id,)).fetchone()
+            if row is None:
+                raise KeyError(resource_id)
+            result = dict(row)
+            result["capabilities"] = tuple(json.loads(result.pop("capabilities_json")))
+            result["metadata"] = json.loads(result.pop("metadata_json"))
+            return result
 
     def list_resources(self) -> list[dict[str, Any]]:
-        return [self.get_resource(row[0]) for row in self.connection.execute("SELECT resource_id FROM resources ORDER BY resource_id")]
+        with self._lock:
+            return [self.get_resource(row[0]) for row in self.connection.execute("SELECT resource_id FROM resources ORDER BY resource_id")]
 
     def configure_budget(self, *, hard_cap_minor: int, recovery_reserve_minor: int, currency: str, period: BudgetPeriod | None = None) -> None:
         if not isinstance(hard_cap_minor, int) or hard_cap_minor < 0 or not isinstance(recovery_reserve_minor, int) or recovery_reserve_minor < 0 or recovery_reserve_minor > hard_cap_minor:
@@ -267,10 +270,11 @@ class ResourceLedger:
             self.connection.commit()
 
     def budget_config(self) -> dict[str, Any]:
-        row = self.connection.execute("SELECT hard_cap_minor, recovery_reserve_minor, currency, period_id, period_starts_at, period_ends_at FROM budget_config WHERE id=1").fetchone()
-        if row is None:
-            raise ValueError("budget is not configured")
-        return dict(row)
+        with self._lock:
+            row = self.connection.execute("SELECT hard_cap_minor, recovery_reserve_minor, currency, period_id, period_starts_at, period_ends_at FROM budget_config WHERE id=1").fetchone()
+            if row is None:
+                raise ValueError("budget is not configured")
+            return dict(row)
 
     def record_provider_failure(self, provider_id: str, *, threshold: int = 3, cooldown_seconds: float = 60.0) -> None:
         if threshold <= 0 or cooldown_seconds < 0:
@@ -289,22 +293,24 @@ class ResourceLedger:
             self.connection.commit()
 
     def reservation_row(self, reservation_id: str) -> dict[str, Any]:
-        row = self.connection.execute("SELECT * FROM budget_reservations WHERE reservation_id=?", (reservation_id,)).fetchone()
-        if row is None:
-            raise KeyError(reservation_id)
-        return dict(row)
+        with self._lock:
+            row = self.connection.execute("SELECT * FROM budget_reservations WHERE reservation_id=?", (reservation_id,)).fetchone()
+            if row is None:
+                raise KeyError(reservation_id)
+            return dict(row)
 
     def reservation_totals(self, *, period_id: str | None = None) -> dict[str, int]:
-        query = "SELECT recovery, status, COALESCE(actual_minor, estimated_minor) AS amount FROM budget_reservations WHERE status IN ('reserved', 'unknown', 'reconciled')"
-        params: tuple[str, ...] = ()
-        if period_id is not None:
-            query += " AND period_id=?"
-            params = (period_id,)
-        rows = self.connection.execute(query, params).fetchall()
-        normal_committed = sum(int(row["amount"]) for row in rows if not row["recovery"])
-        recovery_committed = sum(int(row["amount"]) for row in rows if row["recovery"])
-        active = sum(1 for row in rows if row["status"] in {"reserved", "unknown"})
-        return {"normal_committed_minor": normal_committed, "recovery_committed_minor": recovery_committed, "active_reservations": active}
+        with self._lock:
+            query = "SELECT recovery, status, COALESCE(actual_minor, estimated_minor) AS amount FROM budget_reservations WHERE status IN ('reserved', 'unknown', 'reconciled')"
+            params: tuple[str, ...] = ()
+            if period_id is not None:
+                query += " AND period_id=?"
+                params = (period_id,)
+            rows = self.connection.execute(query, params).fetchall()
+            normal_committed = sum(int(row["amount"]) for row in rows if not row["recovery"])
+            recovery_committed = sum(int(row["amount"]) for row in rows if row["recovery"])
+            active = sum(1 for row in rows if row["status"] in {"reserved", "unknown"})
+            return {"normal_committed_minor": normal_committed, "recovery_committed_minor": recovery_committed, "active_reservations": active}
 
     def reserve_budget(self, *, task_id: str, resource_id: str, amount: MoneyAmount, recovery: bool, period: BudgetPeriod, normal_limit_minor: int, recovery_limit_minor: int, native_units: int | float = 1) -> str:
         """Atomically check and create a reservation behind the ledger boundary."""
