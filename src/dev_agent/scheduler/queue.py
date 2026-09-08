@@ -112,11 +112,12 @@ class DurableQueue:
             raise ValueError("worker_id and positive lease_seconds are required")
         current = _epoch(now)
         with self._lock:
-            control = self.connection.execute("SELECT maintenance FROM scheduler_control WHERE id=1").fetchone()
-            if control is not None and control[0]:
-                raise MaintenanceMode("scheduler is in maintenance mode")
             self.connection.execute("BEGIN IMMEDIATE")
             try:
+                control = self.connection.execute("SELECT maintenance FROM scheduler_control WHERE id=1").fetchone()
+                if control is not None and control[0]:
+                    self.connection.rollback()
+                    raise MaintenanceMode("scheduler is in maintenance mode")
                 row = self.connection.execute("SELECT * FROM queue_items WHERE (state='queued' AND run_at <= ?) OR (state='leased' AND lease_until <= ?) ORDER BY priority DESC, run_at ASC, task_id ASC LIMIT 1", (current, current)).fetchone()
                 if row is None:
                     self.connection.rollback()
@@ -141,6 +142,8 @@ class DurableQueue:
             self.connection.commit()
 
     def renew(self, task_id: str, *, worker_id: str, state_version: int, lease_seconds: float = 30.0) -> QueueItem:
+        if not worker_id.strip() or lease_seconds <= 0:
+            raise ValueError("worker_id and positive lease_seconds are required")
         with self._lock:
             cursor = self.connection.execute("UPDATE queue_items SET lease_until=? WHERE task_id=? AND state='leased' AND lease_owner=? AND state_version=?", (time.time() + lease_seconds, task_id, worker_id, state_version))
             self.connection.commit()
@@ -163,6 +166,22 @@ class DurableQueue:
 
     def fail(self, task_id: str, *, worker_id: str, state_version: int, retry: bool = False) -> QueueItem:
         return self._finish(task_id, worker_id=worker_id, state_version=state_version, state="queued" if retry else "failed")
+
+    def defer(self, task_id: str, *, worker_id: str, state_version: int) -> QueueItem:
+        """Park a task that requires an external event before it can resume."""
+        return self._finish(task_id, worker_id=worker_id, state_version=state_version, state="waiting")
+
+    def wake(self, task_id: str, *, run_at: datetime | float | int | None = None) -> QueueItem:
+        """Explicitly make a parked task claimable again."""
+        with self._lock:
+            cursor = self.connection.execute(
+                "UPDATE queue_items SET state='queued', run_at=?, lease_owner=NULL, lease_until=NULL, lease_token=NULL, state_version=state_version+1 WHERE task_id=? AND state='waiting'",
+                (_epoch(run_at), task_id),
+            )
+            self.connection.commit()
+            if cursor.rowcount != 1:
+                raise ValueError(f"task is not waiting: {task_id}")
+            return self.snapshot(task_id)
 
     def _finish(self, task_id: str, *, worker_id: str, state_version: int, state: str) -> QueueItem:
         with self._lock:

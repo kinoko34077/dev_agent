@@ -8,6 +8,14 @@ from .queue import DurableQueue, QueueEmpty
 
 
 class WorkerRunner:
+    _DEFERRED_STATUSES = {
+        TaskStatus.WAITING_DEPENDENCY,
+        TaskStatus.WAITING_APPROVAL,
+        TaskStatus.WAITING_RECONCILIATION,
+        TaskStatus.BLOCKED_QUOTA,
+        TaskStatus.BLOCKED_BUDGET,
+    }
+
     def __init__(self, queue: DurableQueue, controller: Controller, *, worker_id: str, lease_seconds: float = 30.0) -> None:
         self.queue = queue
         self.controller = controller
@@ -38,6 +46,11 @@ class WorkerRunner:
             self.controller.lease_proof = previous_proof
         if result.status == TaskStatus.COMPLETED:
             self.queue.complete(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
+        elif result.status in self._DEFERRED_STATUSES:
+            # Waiting states require an external event (approval, budget
+            # replenishment, or reconciliation).  Requeueing immediately can
+            # duplicate an ambiguous external effect or spin forever.
+            self.queue.defer(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
         else:
             self.queue.fail(item.task_id, worker_id=self.worker_id, state_version=item.state_version, retry=result.status not in {TaskStatus.FAILED, TaskStatus.CANCELLED})
         return result

@@ -5,7 +5,7 @@ import pytest
 
 from src.dev_agent.scheduler.queue import DurableQueue, LeaseProof, MaintenanceMode, StaleLease, QueueEmpty
 from src.dev_agent.scheduler.worker import WorkerRunner
-from src.dev_agent.domain.protocol import Task
+from src.dev_agent.domain.protocol import Task, TaskStatus
 from src.dev_agent.providers.fake.provider import FakeProvider
 from src.dev_agent.runtime.controller import Controller
 from src.dev_agent.state.sqlite_store import SQLiteStateStore
@@ -70,6 +70,33 @@ def test_worker_claims_durable_task_runs_controller_and_completes_queue_item(tmp
     assert queue.snapshot(task.task_id).state == "completed"
 
 
+def test_worker_defers_waiting_task_until_explicit_wake(tmp_path):
+    queue = DurableQueue(tmp_path / "queue.sqlite3")
+    task = Task(objective="waiting task")
+
+    class WaitingController:
+        def __init__(self, store):
+            self.store = store
+            self.lease_guard = None
+            self.lease_proof = None
+
+        def resume(self, task_id):
+            waiting = self.store.load_task(task_id)
+            waiting.status = TaskStatus.WAITING_RECONCILIATION
+            return waiting
+
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        store.save_task(task)
+        queue.enqueue(task.task_id)
+        runner = WorkerRunner(queue, WaitingController(store), worker_id="worker-a")
+        result = runner.run_once()
+        assert result is not None and result.status == TaskStatus.WAITING_RECONCILIATION
+        assert queue.snapshot(task.task_id).state == "waiting"
+        assert runner.run_once() is None
+        queue.wake(task.task_id)
+        assert queue.snapshot(task.task_id).state == "queued"
+
+
 def test_same_database_state_store_rejects_stale_lease_proof(tmp_path):
     from src.dev_agent.state.sqlite_store import SQLiteStateStore
 
@@ -96,6 +123,15 @@ def test_maintenance_mode_rejects_new_claims_and_can_resume(tmp_path):
         queue.claim("worker-a")
     queue.set_maintenance(False)
     assert queue.claim("worker-a").task_id == "task-1"
+
+
+def test_lease_renewal_rejects_non_positive_duration(tmp_path):
+    queue = DurableQueue(tmp_path / "queue.sqlite3")
+    queue.enqueue("task-1")
+    item = queue.claim("worker-a")
+
+    with pytest.raises(ValueError, match="positive lease_seconds"):
+        queue.renew("task-1", worker_id="worker-a", state_version=item.state_version, lease_seconds=0)
 
 
 def test_queue_claim_is_atomic_across_independent_processes(tmp_path):
