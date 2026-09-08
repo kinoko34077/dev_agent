@@ -140,3 +140,39 @@ def test_controller_runs_through_provider_dispatcher_and_records_selected_provid
         result = Controller(dispatcher, ToolRuntime(registry), store).run(Task(objective="dispatch e2e"))
     assert result.status.value == "completed"
     assert dispatcher.audits[-1].provider_id == "secondary"
+
+
+def test_paid_provider_timeout_waits_for_reconciliation_instead_of_failing(tmp_path):
+    ledger = ResourceLedger(tmp_path / "provider-timeout.sqlite3")
+    ledger.register_resource("paid", provider_id="slow", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
+    ledger.observe("paid", available=10, health="healthy")
+    control = ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)))
+
+    class SlowProvider(FakeProvider):
+        provider_id = "slow"
+
+        def request(self, request):
+            import time
+            time.sleep(0.2)
+            return ModelResponse(provider="slow", model="test", text_segments=["late"])
+
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        result = Controller(SlowProvider(), ToolRuntime(ToolRegistry()), store, resource_policy=control).run(Task(objective="timeout", limits={"max_wall_time_seconds": 0.03}))
+    assert result.status.value == "waiting_reconciliation"
+
+
+def test_paid_provider_transport_error_waits_for_reconciliation(tmp_path):
+    ledger = ResourceLedger(tmp_path / "provider-transport.sqlite3")
+    ledger.register_resource("paid", provider_id="broken", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
+    ledger.observe("paid", available=10, health="healthy")
+    control = ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)))
+
+    class BrokenProvider(FakeProvider):
+        provider_id = "broken"
+
+        def request(self, request):
+            raise ProviderError("connection lost", category="transport", retryable=True)
+
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        result = Controller(BrokenProvider(), ToolRuntime(ToolRegistry()), store, resource_policy=control).run(Task(objective="transport"))
+    assert result.status.value == "waiting_reconciliation"

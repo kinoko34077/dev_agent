@@ -442,9 +442,15 @@ class Controller:
                 except FutureTimeoutError:
                     if reservation is not None:
                         self.resource_policy.uncertain(reservation)
+                        self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="timeout", message="model request timed out")
+                        return task
                     self._fail(task, state, "timeout", "model request timed out", step=step, request_id=request.request_id)
                 except ProviderError as exc:
                     if reservation is not None:
+                        if exc.category == "transport":
+                            self.resource_policy.uncertain(reservation)
+                            self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause=exc.category, message=str(exc))
+                            return task
                         self.resource_policy.release(reservation)
                     self._fail(task, state, exc.category, str(exc), step=step, request_id=request.request_id)
                 except Exception as exc:
@@ -499,3 +505,11 @@ class Controller:
             self._running_tasks.pop(task.task_id, None)
             self._cancellation_events.pop(task.task_id, None)
             self._cancellation_reasons.pop(task.task_id, None)
+
+    def _provider_waiting_reconciliation(self, task: Task, state: dict[str, Any], *, step: Step, request_id: str, cause: str, message: str) -> None:
+        step.status = StepStatus.WAITING
+        state["active_step"] = step.to_dict()
+        state["provider_reconciliation"] = {"cause": cause, "request_id": request_id, "status": "unknown"}
+        task.status = TaskStatus.WAITING_RECONCILIATION
+        event = self._event_record(task, "task.waiting_reconciliation", {"category": "reconciliation_required", "cause": cause, "message": message, "source": "provider_request"}, step_id=step.step_id, request_id=request_id)
+        self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "waiting_reconciliation", state), events=[event])
