@@ -1,6 +1,8 @@
 from recovery.validate_sqlite_state import validate_sqlite_state
 from src.dev_agent.domain.protocol import Task
 from src.dev_agent.state import SQLiteStateStore
+from recovery.backup import backup_sqlite, maintenance_lock, validate_backup
+import pytest
 
 
 def test_recovery_validates_sqlite_without_runtime_import(tmp_path):
@@ -43,7 +45,7 @@ def test_sqlite_store_records_schema_version(tmp_path):
     database = tmp_path / "versioned.sqlite3"
     with SQLiteStateStore(database) as store:
         version = store.connection.execute("SELECT value FROM schema_meta WHERE key = 'schema_version'").fetchone()[0]
-    assert version == "3"
+    assert version == "4"
 
 
 def test_recovery_rejects_unsupported_schema_version(tmp_path):
@@ -76,3 +78,19 @@ def test_recovery_rejects_unknown_effect_intent_status(tmp_path):
     ok, message = validate_sqlite_state(database)
     assert not ok
     assert "effect intent" in message
+
+
+def test_recovery_backup_restore_and_maintenance_lock(tmp_path):
+    source = tmp_path / "source.sqlite3"
+    backup = tmp_path / "backup.sqlite3"
+    with SQLiteStateStore(source) as store:
+        store.save_task(Task(objective="backup"))
+    backup_sqlite(source, backup)
+    assert validate_backup(source, backup)
+    lock = tmp_path / "maintenance.lock"
+    with maintenance_lock(lock):
+        assert lock.exists()
+        with pytest.raises(FileExistsError):
+            with maintenance_lock(lock):
+                pass
+    assert not lock.exists()
