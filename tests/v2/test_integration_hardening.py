@@ -474,6 +474,42 @@ def test_controller_maps_external_timeout_to_waiting_reconciliation(tmp_path):
         assert controller.resume(task.task_id).status == TaskStatus.COMPLETED
 
 
+def test_resume_after_reconciliation_wait_commit_crash_reconciles_without_duplicate_toolcall(tmp_path):
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="publish", description="external", side_effect_level="external_write", timeout_seconds=0.01, handler=slow_external_handler))
+    provider = ApprovalCallProvider()
+    task = Task(objective="reconciliation crash boundary")
+    path = tmp_path / "reconciliation-crash.sqlite3"
+    with CrashAfterCommitStore(path, "waiting_reconciliation") as store:
+        controller = Controller(provider, ToolRuntime(registry), store)
+        assert controller.run(task).status == TaskStatus.WAITING_APPROVAL
+        pending = store.load_latest_checkpoint(task.task_id)["state"]["pending_tool_calls"][0]
+        store.save_approval(
+            "approval-before-reconciliation-crash",
+            task_id=task.task_id,
+            side_effect_level="external_write",
+            actor="human",
+            call_id=pending["call_id"],
+            arguments_hash=canonical_arguments_hash(pending["arguments"]),
+        )
+        with pytest.raises(SystemExit, match="waiting_reconciliation"):
+            controller.resume(task.task_id, approval_id="approval-before-reconciliation-crash")
+    with SQLiteStateStore(path) as reopened:
+        call = ToolCall.from_dict(pending)
+        confirmed = ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.SUCCEEDED, structured_result={"ok": True})
+        reopened.reconcile_effect_intent(
+            call.idempotency_key,
+            status="succeeded",
+            actor="operator",
+            source="provider-confirmation",
+            result=confirmed,
+        )
+        result = Controller(provider, ToolRuntime(registry), reopened).resume(task.task_id)
+    assert result.status == TaskStatus.COMPLETED
+    assert len(provider.requests) == 2
+    assert len(provider.requests[1].tool_results) == 1
+
+
 def test_process_isolated_tool_is_killed_at_timeout(tmp_path):
     marker = tmp_path / "late-marker.txt"
     registry = ToolRegistry()

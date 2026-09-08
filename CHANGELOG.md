@@ -6,7 +6,7 @@
 
 ### 現在の到達点（2026-09-08 JST）
 
-- v2 の全テストが `104 passed`（2026-09-08 JST のローカル実行）。
+- v2 の全テストが `105 passed`（2026-09-08 JST のローカル実行）。
 - 外部副作用の曖昧状態を `waiting_reconciliation` としてタスクに永続化し、照合確定後の再開を統合テストで検証（全64件）。
 - Windows の実 symlink を使った workspace 外逸脱拒否テストが `passed`。
 - Ollama のローカル `/api/chat` は現環境で接続拒否を確認し、実 Tool-call E2E は未達のまま Gate D23 に保留。
@@ -23,6 +23,8 @@
   相対 path / 絶対 path の表現差による重複操作を防止。協調キャンセルの
   durable state に `terminated` 状態と理由を追加し、承認待ち commit crash
   復帰テストを拡張。
+- `WAITING_RECONCILIATION` の commit 直後クラッシュを注入し、照合後の resume が
+  外部 ToolCall を再送せず、最終 Provider 要求だけを継続することを検証。
 - Controller の completion / failure / approval wait /
   reconciliation wait / ToolResult の critical transition を
   `commit_transition()` へ統合。Gate の状態を
