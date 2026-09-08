@@ -31,7 +31,7 @@ class GeminiProvider(ModelProvider):
         try:
             raw = self.transport(request.to_dict())
         except Exception as exc:
-            raise ProviderError(f"gemini transport failed: {exc}") from exc
+            raise ProviderError(f"gemini transport failed: {exc}", category="transport", retryable=True) from exc
         return normalize_response(raw, provider=self.provider_id, default_model=self.model)
 
 
@@ -49,7 +49,7 @@ class GeminiHttpProvider(ModelProvider):
     def _key(self) -> str:
         key = self.api_key or os.environ.get("GEMINI_API_KEY")
         if not key:
-            raise ProviderError("gemini authentication failed: GEMINI_API_KEY is not configured")
+            raise ProviderError("gemini authentication failed: GEMINI_API_KEY is not configured", category="authentication", retryable=False)
         return key
 
     @staticmethod
@@ -74,8 +74,8 @@ class GeminiHttpProvider(ModelProvider):
             with urlopen(http_request, timeout=self.timeout_seconds) as response:
                 raw = json.loads(response.read().decode("utf-8"))
         except HTTPError as exc:
-            category = "rate_limit" if exc.code == 429 else "authentication" if exc.code in (401, 403) else "provider_http"
-            raise ProviderError(f"gemini {category}: HTTP {exc.code}") from exc
+            category = "rate_limit" if exc.code == 429 else "authentication" if exc.code == 401 else "authorization" if exc.code == 403 else "provider_http"
+            raise ProviderError(f"gemini {category}: HTTP {exc.code}", category=category, retryable=category in {"rate_limit"}, http_status=exc.code) from exc
         except (URLError, OSError, json.JSONDecodeError) as exc:
-            raise ProviderError(f"gemini transport failed: {exc}") from exc
+            raise ProviderError(f"gemini transport failed: {exc}", category="transport", retryable=True) from exc
         return decode_generate_content(raw, model=self.model, request_id=request.request_id)

@@ -74,7 +74,7 @@ class SQLiteStateStore:
         self.connection.commit()
 
     def append_event(self, event: Event) -> None:
-        self.connection.execute("INSERT OR REPLACE INTO events(event_id, payload) VALUES (?, ?)", (event.event_id, json.dumps(event.to_dict(), ensure_ascii=False)))
+        self.connection.execute("INSERT INTO events(event_id, payload) VALUES (?, ?)", (event.event_id, json.dumps(event.to_dict(), ensure_ascii=False)))
         self.connection.commit()
 
     def checkpoint(self, *, task_id: str, step_id: str, phase: str, state: dict[str, Any]) -> None:

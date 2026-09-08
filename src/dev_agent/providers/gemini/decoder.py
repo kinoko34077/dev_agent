@@ -14,7 +14,7 @@ def decode_generate_content(raw: Mapping[str, Any], *, model: str, request_id: s
         candidate = raw["candidates"][0]
         parts = candidate["content"]["parts"]
     except (KeyError, IndexError, TypeError) as exc:
-        raise ProviderError(f"gemini response decode failed: missing candidate content: {exc}") from exc
+        raise ProviderError(f"gemini response decode failed: missing candidate content: {exc}", category="provider_decode", retryable=False) from exc
     text_segments: list[str] = []
     calls: list[ToolCall] = []
     try:
@@ -25,8 +25,8 @@ def decode_generate_content(raw: Mapping[str, Any], *, model: str, request_id: s
                 function = part["functionCall"]
                 calls.append(ToolCall(tool_name=function["name"], arguments=function.get("args", {}), provider_call_id=function.get("id"), originating_request_id=request_id))
     except (KeyError, TypeError, ValueError) as exc:
-        raise ProviderError(f"gemini response decode failed: invalid part: {exc}") from exc
+        raise ProviderError(f"gemini response decode failed: invalid part: {exc}", category="provider_decode", retryable=False) from exc
     if not text_segments and not calls:
-        raise ProviderError("gemini response decode failed: no text or function call")
+        raise ProviderError("gemini response decode failed: no text or function call", category="provider_decode", retryable=False)
     usage = raw.get("usageMetadata", {})
     return ModelResponse(provider="gemini", model=model, finish_reason=candidate.get("finishReason", "stop"), text_segments=text_segments, tool_calls=calls, usage=usage)

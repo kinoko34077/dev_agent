@@ -40,7 +40,7 @@ class OllamaProvider(ModelProvider):
             with urlopen(http_request, timeout=self.timeout_seconds) as response:
                 raw = json.loads(response.read().decode("utf-8"))
         except (URLError, OSError, json.JSONDecodeError) as exc:
-            raise ProviderError(f"ollama transport failed: {exc}") from exc
+            raise ProviderError(f"ollama transport failed: {exc}", category="transport", retryable=True) from exc
         try:
             message = raw["message"]
             calls = []
@@ -51,4 +51,4 @@ class OllamaProvider(ModelProvider):
             usage = {key: raw[key] for key in ("prompt_eval_count", "eval_count", "total_duration") if key in raw}
             return ModelResponse(provider=self.provider_id, model=raw.get("model", self.model), finish_reason=raw.get("done_reason", "stop"), text_segments=[text] if text else [], tool_calls=calls, usage=usage)
         except (KeyError, TypeError, ValueError) as exc:
-            raise ProviderError(f"ollama response decode failed: {exc}") from exc
+            raise ProviderError(f"ollama response decode failed: {exc}", category="provider_decode", retryable=False) from exc

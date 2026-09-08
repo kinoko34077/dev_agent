@@ -21,5 +21,5 @@ class OpenAICompatibleProvider(ModelProvider):
         try:
             raw = self.transport(request.to_dict())
         except Exception as exc:
-            raise ProviderError(f"openai-compatible transport failed: {exc}") from exc
+            raise ProviderError(f"openai-compatible transport failed: {exc}", category="transport", retryable=True) from exc
         return normalize_response(raw, provider=self.provider_id, default_model=self.model)
