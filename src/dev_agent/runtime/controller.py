@@ -89,6 +89,12 @@ class Controller:
                     self._checkpoint(task, step, "waiting_approval", state)
                     self._event(task, "task.waiting_approval", {"tool_call_id": call.call_id, "tool_name": call.tool_name}, step_id=step.step_id)
                     return
+                if error.get("category") == "reconciliation_required":
+                    task.status = TaskStatus.WAITING_RECONCILIATION
+                    self.store.save_task(task)
+                    self._checkpoint(task, step, "waiting_reconciliation", state)
+                    self._event(task, "task.waiting_reconciliation", {"tool_call_id": call.call_id, "tool_name": call.tool_name}, step_id=step.step_id)
+                    return
                 self._fail(task, state, error["category"], error["message"], step=step)
             state["tool_results"].append(result.to_dict())
             state["pending_tool_calls"] = [item for item in state["pending_tool_calls"] if item["call_id"] != call.call_id]

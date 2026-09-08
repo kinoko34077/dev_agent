@@ -7,6 +7,7 @@
 ### 現在の到達点（2026-09-08 JST）
 
 - v2 の全テストが `63 passed`。
+- 外部副作用の曖昧状態を `waiting_reconciliation` としてタスクに永続化し、照合確定後の再開を統合テストで検証（全64件）。
 - Windows の実 symlink を使った workspace 外逸脱拒否テストが `passed`。
 - Ollama のローカル `/api/chat` 実機接続を確認。
 - Gemini の実HTTP経路は接続まで確認したが、モデル一覧・最小生成とも HTTP 403。実 Provider 完走は未達。

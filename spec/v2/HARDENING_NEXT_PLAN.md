@@ -32,7 +32,7 @@
 
 外部 API が必要な試験は mock provider で先行し、live 試験は credential / quota 待ちとして保留できる。
 
-進捗: SQLite / JSON の effect intent と、全ローカル precondition 後の作成、原子的 claim、外部処理後のローカル保存前停止を `reconciliation_required` として再実行禁止にする基礎契約を実装済み。実外部APIの照合処理は未実装。
+進捗: SQLite / JSON の effect intent と、全ローカル precondition 後の作成、原子的 claim、外部処理後のローカル保存前停止を `reconciliation_required` として再実行禁止にする基礎契約を実装済み。曖昧な外部状態は Task の `waiting_reconciliation` として永続化し、照合で intent を succeeded に確定した後に安全再開できる。実外部APIの照合アダプタ自体は未実装。
 
 Execution progress: task wall-clock deadline is now persisted in checkpoint state and survives resume; expired resumed work fails closed. Remaining execution gaps are hard process containment for arbitrary handlers and enforcement/deferral of every decorative limit field.
 

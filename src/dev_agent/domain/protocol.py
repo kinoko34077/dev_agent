@@ -27,6 +27,7 @@ class TaskStatus(str, Enum):
     RUNNING = "running"
     WAITING_DEPENDENCY = "waiting_dependency"
     WAITING_APPROVAL = "waiting_approval"
+    WAITING_RECONCILIATION = "waiting_reconciliation"
     BLOCKED_QUOTA = "blocked_quota"
     BLOCKED_BUDGET = "blocked_budget"
     COMPLETED = "completed"

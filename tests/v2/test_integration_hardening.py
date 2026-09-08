@@ -4,7 +4,7 @@ import os
 import subprocess
 import sys
 
-from src.dev_agent.domain.protocol import ExecutionLimits, ModelResponse, Step, Task, TaskStatus, ToolCall
+from src.dev_agent.domain.protocol import ExecutionLimits, ModelResponse, Step, Task, TaskStatus, ToolCall, ToolResult, ToolResultStatus
 from src.dev_agent.policy import PathPolicy
 from src.dev_agent.policy.approvals import canonical_arguments_hash
 from src.dev_agent.providers.base import ModelProvider
@@ -225,6 +225,38 @@ def test_external_effect_pending_intent_blocks_unsafe_retry(tmp_path):
         result = ToolRuntime(registry).with_result_store(reopened).execute(call, task_id="11111111-1111-4111-8111-111111111111", approval_id="approval-1")
         assert result.error["category"] == "reconciliation_required"
     assert len(effects) == 1
+
+
+def test_controller_pauses_for_reconciliation_and_resumes_after_recorded_success(tmp_path):
+    path = tmp_path / "reconcile.sqlite3"
+    task_id = "11111111-1111-4111-8111-111111111111"
+    effects = []
+    def external_handler(args):
+        effects.append(args)
+        raise SystemExit("accepted then local crash")
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="publish", description="external", side_effect_level="external_write", handler=external_handler))
+    provider = ApprovalCallProvider()
+    with SQLiteStateStore(path) as store:
+        controller = Controller(provider, ToolRuntime(registry), store)
+        task = Task(objective="reconcile")
+        assert controller.run(task).status == TaskStatus.WAITING_APPROVAL
+        pending = store.load_latest_checkpoint(task.task_id)["state"]["pending_tool_calls"][0]
+        call = ToolCall.from_dict(pending)
+        store.save_approval("approval-1", task_id=task.task_id, side_effect_level="external_write", actor="human", call_id=call.call_id, arguments_hash=canonical_arguments_hash(call.arguments))
+        with pytest.raises(SystemExit):
+            controller.resume(task.task_id, approval_id="approval-1")
+    with SQLiteStateStore(path) as store:
+        task = store.load_task(task.task_id)
+        assert task is not None
+        # The crash leaves the durable intent pending; reconciliation confirms it.
+        intent = store.snapshot()
+        keys = [row["idempotency_key"] for row in store.connection.execute("SELECT idempotency_key FROM effect_intents").fetchall()]
+        assert keys
+        store.complete_effect_intent(keys[0], ToolResult(call_id=call.call_id, tool_name="publish", status=ToolResultStatus.SUCCEEDED, structured_result={"ok": True}))
+        resumed = Controller(FinalProvider(), ToolRuntime(registry), store).resume(task.task_id)
+        assert resumed.status == TaskStatus.COMPLETED
+    assert effects == [{"value": "x"}]
 
 
 def test_invalid_external_call_creates_no_effect_intent(tmp_path):
