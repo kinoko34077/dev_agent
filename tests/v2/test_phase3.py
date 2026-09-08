@@ -37,6 +37,22 @@ def test_task_graph_enforces_depth_and_child_limits():
         graph.validate()
 
 
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    (({"max_depth": -1}, "max_depth"), ({"max_children_per_task": -1}, "max_children"), ({"max_total_tasks_per_root": 0}, "max_total")),
+)
+def test_task_graph_rejects_invalid_global_limits(kwargs, message):
+    with pytest.raises(TaskGraphError, match=message):
+        TaskGraph(**kwargs)
+
+
+def test_task_graph_rejects_root_with_foreign_root_id():
+    root = Task(objective="root")
+    foreign_root = Task(objective="foreign")
+    with pytest.raises(TaskGraphError, match="root task"):
+        TaskGraph().add(Task(objective="invalid root", root_task_id=foreign_root.task_id))
+
+
 def test_controller_resumes_task_from_reopened_sqlite_store(tmp_path):
     path = tmp_path / "resume.sqlite3"
     task = Task(objective="resume me")

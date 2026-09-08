@@ -11,6 +11,13 @@ class TaskGraphError(ValueError):
 
 class TaskGraph:
     def __init__(self, *, max_depth: int = 4, max_children_per_task: int = 8, max_total_tasks_per_root: int = 128) -> None:
+        for name, value, minimum in (
+            ("max_depth", max_depth, 0),
+            ("max_children_per_task", max_children_per_task, 0),
+            ("max_total_tasks_per_root", max_total_tasks_per_root, 1),
+        ):
+            if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
+                raise TaskGraphError(f"{name} must be an integer >= {minimum}")
         self.max_depth = max_depth
         self.max_children_per_task = max_children_per_task
         self.max_total_tasks_per_root = max_total_tasks_per_root
@@ -20,6 +27,8 @@ class TaskGraph:
     def add(self, task: Task) -> None:
         if task.task_id in self.tasks:
             raise TaskGraphError(f"duplicate task: {task.task_id}")
+        if task.parent_task_id is None and task.root_task_id != task.task_id:
+            raise TaskGraphError("root task must identify itself as root_task_id")
         parent = self.tasks.get(task.parent_task_id) if task.parent_task_id else None
         if task.parent_task_id and parent is None:
             raise TaskGraphError("parent task is not present")
