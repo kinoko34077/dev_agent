@@ -2,9 +2,45 @@
 
 from __future__ import annotations
 
+from threading import Event, Thread
+
 from ..domain.protocol import Task, TaskStatus
 from ..runtime.controller import Controller
-from .queue import DurableQueue, QueueEmpty
+from .queue import DurableQueue, QueueEmpty, StaleLease
+
+
+class _LeaseHeartbeat:
+    """Renew one lease while the Controller owns a long-running task."""
+
+    def __init__(self, queue: DurableQueue, *, task_id: str, worker_id: str, state_version: int, lease_seconds: float) -> None:
+        self.queue = queue
+        self.task_id = task_id
+        self.worker_id = worker_id
+        self.state_version = state_version
+        self.lease_seconds = lease_seconds
+        self._stop = Event()
+        self._failure: Exception | None = None
+        self._thread = Thread(target=self._run, name=f"lease-heartbeat:{task_id}", daemon=True)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def _run(self) -> None:
+        interval = min(1.0, max(0.01, self.lease_seconds / 3.0))
+        while not self._stop.wait(interval):
+            try:
+                self.queue.renew(self.task_id, worker_id=self.worker_id, state_version=self.state_version, lease_seconds=self.lease_seconds)
+            except Exception as exc:
+                self._failure = exc
+                return
+
+    def assert_healthy(self) -> None:
+        if self._failure is not None:
+            raise StaleLease(self.task_id) from self._failure
+
+    def stop(self) -> None:
+        self._stop.set()
+        self._thread.join(timeout=max(1.0, self.lease_seconds))
 
 
 class WorkerRunner:
@@ -34,14 +70,22 @@ class WorkerRunner:
         self.queue.renew(item.task_id, worker_id=self.worker_id, state_version=item.state_version, lease_seconds=self.lease_seconds)
         previous_guard = self.controller.lease_guard
         previous_proof = self.controller.lease_proof
-        self.controller.lease_guard = lambda: self.queue.assert_lease(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
+        heartbeat = _LeaseHeartbeat(self.queue, task_id=item.task_id, worker_id=self.worker_id, state_version=item.state_version, lease_seconds=self.lease_seconds)
+        heartbeat.start()
+        def assert_active_lease() -> None:
+            heartbeat.assert_healthy()
+            self.queue.assert_lease(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
+
+        self.controller.lease_guard = assert_active_lease
         self.controller.lease_proof = item.lease_proof
         try:
             result = self.controller.resume(task.task_id)
+            heartbeat.assert_healthy()
         except Exception:
             self.queue.fail(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
             raise
         finally:
+            heartbeat.stop()
             self.controller.lease_guard = previous_guard
             self.controller.lease_proof = previous_proof
         if result.status == TaskStatus.COMPLETED:

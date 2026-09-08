@@ -1,5 +1,6 @@
 from datetime import datetime, timezone, timedelta
 import multiprocessing
+import time
 
 import pytest
 
@@ -132,6 +133,33 @@ def test_lease_renewal_rejects_non_positive_duration(tmp_path):
 
     with pytest.raises(ValueError, match="positive lease_seconds"):
         queue.renew("task-1", worker_id="worker-a", state_version=item.state_version, lease_seconds=0)
+
+
+def test_worker_renews_lease_during_long_controller_execution(tmp_path):
+    queue = DurableQueue(tmp_path / "queue.sqlite3")
+    task = Task(objective="long worker task")
+
+    class SlowController:
+        def __init__(self, store):
+            self.store = store
+            self.lease_guard = None
+            self.lease_proof = None
+
+        def resume(self, task_id):
+            time.sleep(0.12)
+            self.lease_guard()
+            task = self.store.load_task(task_id)
+            task.status = TaskStatus.COMPLETED
+            return task
+
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        store.save_task(task)
+        queue.enqueue(task.task_id)
+        controller = SlowController(store)
+        completed = WorkerRunner(queue, controller, worker_id="worker-a", lease_seconds=0.05).run_once()
+
+    assert completed is not None and completed.status == TaskStatus.COMPLETED
+    assert queue.snapshot(task.task_id).state == "completed"
 
 
 def test_queue_claim_is_atomic_across_independent_processes(tmp_path):

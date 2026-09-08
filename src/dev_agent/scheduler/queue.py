@@ -152,14 +152,16 @@ class DurableQueue:
             return self.snapshot(task_id)
 
     def assert_lease(self, task_id: str, *, worker_id: str, state_version: int) -> None:
-        row = self.connection.execute("SELECT 1 FROM queue_items WHERE task_id=? AND state='leased' AND lease_owner=? AND state_version=? AND lease_until > ?", (task_id, worker_id, state_version, time.time())).fetchone()
-        if row is None:
-            raise StaleLease(task_id)
+        with self._lock:
+            row = self.connection.execute("SELECT 1 FROM queue_items WHERE task_id=? AND state='leased' AND lease_owner=? AND state_version=? AND lease_until > ?", (task_id, worker_id, state_version, time.time())).fetchone()
+            if row is None:
+                raise StaleLease(task_id)
 
     def assert_proof(self, proof: LeaseProof) -> None:
-        row = self.connection.execute("SELECT 1 FROM queue_items WHERE task_id=? AND state='leased' AND lease_owner=? AND lease_token=? AND state_version=? AND lease_until > ?", (proof.task_id, proof.worker_id, proof.lease_token, proof.state_version, time.time())).fetchone()
-        if row is None:
-            raise StaleLease(proof.task_id)
+        with self._lock:
+            row = self.connection.execute("SELECT 1 FROM queue_items WHERE task_id=? AND state='leased' AND lease_owner=? AND lease_token=? AND state_version=? AND lease_until > ?", (proof.task_id, proof.worker_id, proof.lease_token, proof.state_version, time.time())).fetchone()
+            if row is None:
+                raise StaleLease(proof.task_id)
 
     def complete(self, task_id: str, *, worker_id: str, state_version: int) -> QueueItem:
         return self._finish(task_id, worker_id=worker_id, state_version=state_version, state="completed")
@@ -199,7 +201,8 @@ class DurableQueue:
             return cursor.rowcount
 
     def snapshot(self, task_id: str) -> QueueItem:
-        row = self.connection.execute("SELECT * FROM queue_items WHERE task_id=?", (task_id,)).fetchone()
-        if row is None:
-            raise KeyError(task_id)
-        return self._item(row)
+        with self._lock:
+            row = self.connection.execute("SELECT * FROM queue_items WHERE task_id=?", (task_id,)).fetchone()
+            if row is None:
+                raise KeyError(task_id)
+            return self._item(row)
