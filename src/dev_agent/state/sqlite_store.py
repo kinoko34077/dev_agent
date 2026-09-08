@@ -12,7 +12,7 @@ from ..domain.protocol import Event, Step, Task, ToolResult
 
 
 class SQLiteStateStore:
-    SCHEMA_VERSION = 2
+    SCHEMA_VERSION = 3
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
@@ -33,24 +33,35 @@ class SQLiteStateStore:
             CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             """
         )
-        columns = {row[1] for row in self.connection.execute("PRAGMA table_info(checkpoints)")}
-        if "state_payload" not in columns:
-            self.connection.execute("ALTER TABLE checkpoints ADD COLUMN state_payload TEXT NOT NULL DEFAULT '{}'")
-        approval_columns = {row[1] for row in self.connection.execute("PRAGMA table_info(approvals)")}
-        for name in ("call_id", "arguments_hash"):
-            if name not in approval_columns:
-                self.connection.execute(f"ALTER TABLE approvals ADD COLUMN {name} TEXT NOT NULL DEFAULT ''")
-        if "expires_at" not in approval_columns:
-            self.connection.execute("ALTER TABLE approvals ADD COLUMN expires_at REAL")
-        if "revoked" not in approval_columns:
-            self.connection.execute("ALTER TABLE approvals ADD COLUMN revoked INTEGER NOT NULL DEFAULT 0")
-        self.connection.execute("INSERT OR IGNORE INTO schema_meta(key, value) VALUES ('schema_version', '2')")
+        self.connection.execute("INSERT OR IGNORE INTO schema_meta(key, value) VALUES ('schema_version', '1')")
         current = int(self.connection.execute("SELECT value FROM schema_meta WHERE key = 'schema_version'").fetchone()[0])
         if current > self.SCHEMA_VERSION:
             raise ValueError(f"unsupported state schema version: {current}")
-        if current < self.SCHEMA_VERSION:
-            self.connection.execute("UPDATE schema_meta SET value = ? WHERE key = 'schema_version'", (str(self.SCHEMA_VERSION),))
-        self.connection.commit()
+        try:
+            self.connection.commit()
+            self.connection.execute("BEGIN")
+            if current < 2:
+                columns = {row[1] for row in self.connection.execute("PRAGMA table_info(checkpoints)")}
+                if "state_payload" not in columns:
+                    self.connection.execute("ALTER TABLE checkpoints ADD COLUMN state_payload TEXT NOT NULL DEFAULT '{}'")
+                approval_columns = {row[1] for row in self.connection.execute("PRAGMA table_info(approvals)")}
+                for name in ("call_id", "arguments_hash"):
+                    if name not in approval_columns:
+                        self.connection.execute(f"ALTER TABLE approvals ADD COLUMN {name} TEXT NOT NULL DEFAULT ''")
+                self.connection.execute("UPDATE schema_meta SET value = '2' WHERE key = 'schema_version'")
+                current = 2
+            if current < 3:
+                approval_columns = {row[1] for row in self.connection.execute("PRAGMA table_info(approvals)")}
+                if "expires_at" not in approval_columns:
+                    self.connection.execute("ALTER TABLE approvals ADD COLUMN expires_at REAL")
+                if "revoked" not in approval_columns:
+                    self.connection.execute("ALTER TABLE approvals ADD COLUMN revoked INTEGER NOT NULL DEFAULT 0")
+                self.connection.execute("CREATE TABLE IF NOT EXISTS approval_consumptions (approval_id TEXT PRIMARY KEY)")
+                self.connection.execute("UPDATE schema_meta SET value = '3' WHERE key = 'schema_version'")
+            self.connection.commit()
+        except Exception:
+            self.connection.rollback()
+            raise
 
     def close(self) -> None:
         self.connection.close()

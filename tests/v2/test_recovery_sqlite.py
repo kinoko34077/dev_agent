@@ -43,7 +43,7 @@ def test_sqlite_store_records_schema_version(tmp_path):
     database = tmp_path / "versioned.sqlite3"
     with SQLiteStateStore(database) as store:
         version = store.connection.execute("SELECT value FROM schema_meta WHERE key = 'schema_version'").fetchone()[0]
-    assert version == "2"
+    assert version == "3"
 
 
 def test_recovery_rejects_unsupported_schema_version(tmp_path):

@@ -24,7 +24,7 @@ def validate_sqlite_state(path: str | Path) -> tuple[bool, str]:
         if missing:
             return False, f"missing tables: {', '.join(missing)}"
         version_row = connection.execute("SELECT value FROM schema_meta WHERE key = 'schema_version'").fetchone()
-        if version_row is None or version_row[0] != "2":
+        if version_row is None or version_row[0] != "3":
             return False, "unsupported or missing schema version"
         invalid = connection.execute("SELECT task_id, payload FROM tasks").fetchall()
         task_ids = set()
