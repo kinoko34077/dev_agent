@@ -19,6 +19,7 @@ class RouteRequest:
     allowed_providers: set[str] | None = None
     max_cost_minor: int | None = None
     max_latency_ms: int | None = None
+    excluded_resource_ids: set[str] = field(default_factory=set)
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,8 @@ class ResourceRouter:
             raise ValueError("invalid sensitivity")
         candidates = []
         for resource in self.ledger.list_resources():
+            if resource["resource_id"] in request.excluded_resource_ids:
+                continue
             if request.allowed_providers is not None and resource["provider_id"] not in request.allowed_providers:
                 continue
             if not request.capabilities.issubset(set(resource["capabilities"])):

@@ -410,7 +410,7 @@ class Controller:
                 request_event = self._event_record(task, "model.requested", {"request": request.to_dict()}, step_id=step.step_id, request_id=request.request_id)
                 self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "before_model", state), events=[request_event])
                 reservation = None
-                if self.resource_policy is not None:
+                if self.resource_policy is not None and not getattr(self.provider, "handles_resource_policy", False):
                     try:
                         reservation = self.resource_policy.reserve_for_provider(task.task_id, self.provider.provider_id, request)
                     except Exception as exc:

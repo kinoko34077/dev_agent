@@ -7,6 +7,8 @@ from src.dev_agent.resources.ledger import ResourceLedger
 from src.dev_agent.resources.router import ResourceRouter
 from src.dev_agent.domain.protocol import Task
 from src.dev_agent.providers.fake.provider import FakeProvider
+from src.dev_agent.providers.base import ProviderError
+from src.dev_agent.providers.dispatch import ProviderDispatcher, ProviderRegistry
 from src.dev_agent.state.sqlite_store import SQLiteStateStore
 from src.dev_agent.tools.registry import ToolRegistry, ToolSpec
 from src.dev_agent.tools.runtime import ToolRuntime
@@ -54,3 +56,28 @@ def test_control_never_converts_generic_float_ceiling_and_holds_missing_charge_u
     with pytest.raises(DispatchDenied) as exc:
         control.reserve_for_provider("task-2", "usd", request)
     assert exc.value.category == "budget"
+
+
+def test_dispatcher_routes_to_secondary_provider_after_retryable_primary_failure(tmp_path):
+    ledger = ResourceLedger(tmp_path / "dispatch.sqlite3")
+    for resource_id, provider_id in (("primary", "primary"), ("secondary", "secondary")):
+        ledger.register_resource(resource_id, provider_id=provider_id, native_unit="request", capacity=10, capabilities=["text"], cost_minor=0)
+        ledger.observe(resource_id, available=10, health="healthy")
+
+    class FailingProvider(FakeProvider):
+        provider_id = "primary"
+
+        def request(self, request):
+            raise ProviderError("rate limited", category="rate_limit", retryable=True)
+
+    class SecondaryProvider(FakeProvider):
+        provider_id = "secondary"
+
+        def request(self, request):
+            return ModelResponse(provider="secondary", model="test", text_segments=["ok"])
+
+    control = ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=10, recovery_reserve_minor=0)))
+    dispatcher = ProviderDispatcher(ProviderRegistry([FailingProvider(), SecondaryProvider()]), control)
+    request = ModelRequest(task_id="00000000-0000-0000-0000-000000000001", messages=[{"role": "user", "content": "x"}])
+    assert dispatcher.request(request).provider == "secondary"
+    assert [(entry.provider_id, entry.outcome) for entry in dispatcher.audits] == [("primary", "rate_limit"), ("secondary", "succeeded")]

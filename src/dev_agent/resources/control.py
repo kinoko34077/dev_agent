@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from ..domain.protocol import ModelRequest, ModelResponse
 from .budget import BudgetExceeded, BudgetGovernor, BudgetReservation, UnknownPrice
 from .ledger import MoneyAmount
-from .router import NoRoute, ResourceRouter, RouteRequest
+from .router import NoRoute, ResourceRouter, RouteRequest, RouteSelection
 
 
 class DispatchDenied(RuntimeError):
@@ -44,6 +44,16 @@ class ResourceControlPlane:
             raise DispatchDenied("invalid_request", str(exc)) from exc
         return DispatchReservation(reservation, provider_id)
 
+    def reserve_selection(self, task_id: str, selection: RouteSelection) -> DispatchReservation:
+        price = None if selection.estimated_cost_minor is None or selection.price_currency is None else MoneyAmount(selection.price_currency, selection.estimated_cost_minor)
+        try:
+            reservation = self.governor.reserve(task_id, selection.resource_id, estimated_cost=price)
+        except UnknownPrice as exc:
+            raise DispatchDenied("unknown_price", str(exc)) from exc
+        except BudgetExceeded as exc:
+            raise DispatchDenied("budget", str(exc)) from exc
+        return DispatchReservation(reservation, selection.provider_id)
+
     def reconcile_response(self, reservation: DispatchReservation, response: ModelResponse) -> None:
         observed = response.usage.get("cost_minor")
         if isinstance(observed, bool) or not isinstance(observed, int) or observed < 0:
@@ -56,6 +66,14 @@ class ResourceControlPlane:
 
     def uncertain(self, reservation: DispatchReservation) -> None:
         self.governor.mark_unknown(reservation.budget.reservation_id)
+
+    def record_provider_error(self, provider_id: str, reservation: DispatchReservation, error: Exception) -> None:
+        category = getattr(error, "category", "provider_error")
+        self.router.ledger.record_provider_failure(provider_id)
+        if category == "transport":
+            self.uncertain(reservation)
+        else:
+            self.release(reservation)
 
 
 __all__ = ["DispatchDenied", "DispatchReservation", "ResourceControlPlane"]
