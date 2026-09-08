@@ -63,9 +63,9 @@ Cancellation progress: `Controller.cancel()` is cooperative and durable at the n
 
 Event security progress: oversized sanitized payloads can be written through an
 explicit `EventArtifactStore` with content-addressed references, root-bound reads,
-secret-pattern rejection, and expiry purge. The store is intentionally injected
-and is not silently placed beside a database, so Recovery operators must include
-its root in backup and retention configuration.
+secret-pattern rejection, and expiry purge. `recovery/backup.py` now validates and
+atomically copies the artifact root for RecoveryOperator backup/restore; operators
+still choose the production retention window and broader secret classification.
 
 Provider contract progress: the offline harness now exercises model-generated
 ToolCalls, sequential ToolCalls, normalized ToolResults, and final response

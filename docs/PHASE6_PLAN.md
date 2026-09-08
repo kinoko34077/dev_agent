@@ -91,5 +91,6 @@ remaining operational integration: money-safe dispatch, real provider routing,
 survival enforcement, lease-fenced workers, independent concurrency proof, and
 recovery drills. It must be VERIFIED before Phase 6 is considered complete.
 Explicitly deferred Phase 6/7 work includes qualification against a real paid
-Provider, artifact-root retention integration, production-environment recovery
-drills, and generated Tool lifecycle.
+Provider, production-environment recovery drills with retained artifacts, and
+generated Tool lifecycle. Artifact-root backup/restore is implemented through
+the RecoveryOperator, but its production retention policy remains operator work.
