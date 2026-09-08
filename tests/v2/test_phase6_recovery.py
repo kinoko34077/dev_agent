@@ -7,6 +7,14 @@ from recovery.validate_resources import validate_resource_ledger
 from src.dev_agent.resources.ledger import ResourceLedger
 
 
+def test_rescue_cli_diagnose_is_read_only_json(capsys):
+    from recovery.rescue import main
+
+    assert main(["diagnose", "--root", ".", "--json"]) == 0
+    output = capsys.readouterr().out
+    assert '"name": "repository_root"' in output
+
+
 def test_recovery_operator_is_read_only_by_default_and_can_backup_restore(tmp_path):
     root = tmp_path / "repo"
     root.mkdir()
