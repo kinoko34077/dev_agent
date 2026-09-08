@@ -21,6 +21,8 @@ Implemented in `src/dev_agent/resources/ledger.py` and `budget.py`.
   until reconciliation.
 - Budget policy is configured only through the explicit `BudgetAuthority`; the
   runtime `BudgetGovernor` reads persisted policy and cannot raise the hard cap.
+- Budget transitions are serialized with `BEGIN IMMEDIATE`, and release/unknown
+  operations validate their expected source state in the same transaction.
 - Reservation state is durable as `prepared -> dispatching -> reconciled`,
   `unknown`, or `confirmed_no_charge`.
 
@@ -70,8 +72,14 @@ an explicit provider reconciliation path clears the marker; cancellation of an
 already ambiguous task cannot terminalize it as ordinary `cancelled`.
 ProviderDispatcher and Controller-managed direct Providers also persist a
 provider effect intent containing selected provider/resource and normalized
-outcome before entering the external call; succeeded intents are replayed
-without sending a duplicate request.
+cost metadata before entering the external call; succeeded intents are replayed
+without sending a duplicate request. Provider selection, estimated cost,
+fallback outcome, and terminal outcome are also written to a durable audit
+record instead of relying only on the dispatcher's in-memory audit list.
+
+The lease proof for the provider intent transition is checked inside the
+StateStore transaction. An independent-process test confirms that a reclaimed
+queue lease prevents the stale process from entering the concrete provider.
 
 The machine-readable evidence is maintained in
 `spec/v2/GATE_STATUS.json` under Stage F (`F6A`–`F6E`). Stage G records the
