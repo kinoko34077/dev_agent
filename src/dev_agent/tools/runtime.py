@@ -211,6 +211,12 @@ class ToolRuntime:
                     raise _ToolTimedOut()
                 try:
                     value = future.result(timeout=min(0.05, remaining))
+                    # A handler may finish concurrently with the deadline.
+                    # Do not accept a value observed after the runtime budget;
+                    # guarded effects must become reconciliation-required and
+                    # pure tools must remain a hard timeout.
+                    if monotonic() >= deadline:
+                        raise _ToolTimedOut()
                     return value
                 except FutureTimeoutError:
                     if cancel_event is not None and cancel_event.is_set():
