@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 from src.dev_agent.resources.ledger import ResourceLedger
@@ -39,5 +41,14 @@ def test_router_rejects_stale_observation_when_max_age_is_set(tmp_path):
     ledger = ResourceLedger(tmp_path / "resources.sqlite3")
     ledger.register_resource("old", provider_id="old", native_unit="request", capacity=1, capabilities=["text"], cost_minor=0)
     ledger.observe("old", available=1, health="healthy", observed_at="2020-01-01T00:00:00+00:00")
+    with pytest.raises(NoRoute, match="no eligible resource"):
+        ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}, max_observation_age_seconds=60))
+
+
+def test_router_rejects_future_dated_observation_when_max_age_is_set(tmp_path):
+    ledger = ResourceLedger(tmp_path / "future-observation.sqlite3")
+    ledger.register_resource("future", provider_id="future", native_unit="request", capacity=1, capabilities=["text"], cost_minor=0)
+    future = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+    ledger.observe("future", available=1, health="healthy", observed_at=future)
     with pytest.raises(NoRoute, match="no eligible resource"):
         ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}, max_observation_age_seconds=60))

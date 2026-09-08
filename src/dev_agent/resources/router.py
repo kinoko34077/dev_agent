@@ -62,7 +62,8 @@ class ResourceRouter:
                     observed_at = datetime.fromisoformat(resource["observed_at"]).timestamp()
                 except (TypeError, ValueError):
                     continue
-                if time.time() - observed_at > request.max_observation_age_seconds:
+                observation_age = time.time() - observed_at
+                if observation_age < 0 or observation_age > request.max_observation_age_seconds:
                     continue
             if request.max_cost_minor is not None and resource["cost_minor"] is not None and resource["cost_minor"] > request.max_cost_minor:
                 continue
