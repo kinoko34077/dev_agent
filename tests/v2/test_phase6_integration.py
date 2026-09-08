@@ -120,3 +120,23 @@ def test_authentication_failure_does_not_open_short_retry_circuit(tmp_path):
     with pytest.raises(ProviderError):
         dispatcher.request(request)
     assert ledger.get_resource("primary")["consecutive_failures"] == 0
+
+
+def test_controller_runs_through_provider_dispatcher_and_records_selected_provider(tmp_path):
+    ledger = ResourceLedger(tmp_path / "controller-dispatch.sqlite3")
+    ledger.register_resource("secondary-resource", provider_id="secondary", native_unit="request", capacity=10, capabilities=["text"], cost_minor=0)
+    ledger.observe("secondary-resource", available=10, health="healthy")
+
+    class SecondaryProvider(FakeProvider):
+        provider_id = "secondary"
+
+        def request(self, request):
+            return ModelResponse(provider="secondary", model="test", text_segments=["dispatcher complete"])
+
+    control = ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=10, recovery_reserve_minor=0)))
+    dispatcher = ProviderDispatcher(ProviderRegistry([SecondaryProvider()]), control)
+    registry = ToolRegistry()
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        result = Controller(dispatcher, ToolRuntime(registry), store).run(Task(objective="dispatch e2e"))
+    assert result.status.value == "completed"
+    assert dispatcher.audits[-1].provider_id == "secondary"
