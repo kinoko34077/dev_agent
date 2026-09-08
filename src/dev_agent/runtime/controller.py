@@ -86,7 +86,8 @@ class Controller:
 
     def _prepare_provider_intent(self, request: ModelRequest, reservation: Any, *, intent_key: str | None = None) -> str:
         key = intent_key or f"provider:{request.request_id}:{reservation.budget.resource_id}"
-        if self.store.get_effect_intent(key) is None:
+        intent = self.store.get_effect_intent(key)
+        if intent is None:
             self.store.create_effect_intent(
                 key,
                 task_id=request.task_id,
@@ -102,6 +103,8 @@ class Controller:
                     "max_output_tokens": request.max_output_tokens,
                 },
             )
+            self.store.transition_effect_intent(key, to_status="prepared")
+        elif intent.get("status") == "pending":
             self.store.transition_effect_intent(key, to_status="prepared")
         return key
 
@@ -125,6 +128,19 @@ class Controller:
     def _provider_intent(self, key: str | None, *, status: str, result: dict[str, Any]) -> None:
         if key is not None:
             self.store.transition_effect_intent(key, to_status=status, result=result, lease_proof=self.lease_proof if status == "dispatching" else None)
+
+    def _provider_replay(self, key: str) -> ModelResponse:
+        intent = self.store.get_effect_intent(key)
+        if intent is None or intent.get("status") != "succeeded":
+            raise ProviderError("durable provider result is not replayable", category="provider_decode", retryable=False)
+        result = intent.get("result") or {}
+        response = result.get("response") if isinstance(result, dict) else None
+        if not isinstance(response, dict):
+            raise ProviderError("durable provider result is malformed", category="provider_decode", retryable=False)
+        try:
+            return ModelResponse.from_dict(response)
+        except Exception as exc:
+            raise ProviderError("durable provider result is malformed", category="provider_decode", retryable=False) from exc
 
     def _fail(self, task: Task, state: dict[str, Any], category: str, message: str, *, step: Step | None = None, request_id: str | None = None, tool_result: ToolResult | None = None, extra_events: list[ProtocolEvent] | None = None) -> None:
         if step is not None:
@@ -423,19 +439,30 @@ class Controller:
                 self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "before_model", state), events=[request_event])
                 reservation = None
                 provider_intent_key = None
+                replayed_response = None
                 if self.resource_policy is not None and not getattr(self.provider, "handles_resource_policy", False):
                     try:
                         provider_intent_key = f"provider:{request.request_id}:{self.provider.provider_id}"
-                        reservation = self.resource_policy.reserve_for_provider(task.task_id, self.provider.provider_id, request, intent_key=provider_intent_key)
-                        provider_intent_key = self._prepare_provider_intent(request, reservation, intent_key=provider_intent_key)
-                        self.resource_policy.mark_dispatching(reservation)
-                        self._provider_intent(provider_intent_key, status="dispatching", result={"provider_id": self.provider.provider_id, "resource_id": reservation.budget.resource_id})
-                        self._record_provider_audit(request, reservation, "dispatching", provider_intent_key)
+                        existing_intent = self.store.get_effect_intent(provider_intent_key)
+                        existing_status = existing_intent.get("status") if existing_intent is not None else None
+                        if existing_status in {"dispatching", "unknown", "reconciling"}:
+                            self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="provider_intent_pending", message="provider effect intent requires reconciliation before retry")
+                            return task
+                        if existing_status in {"confirmed_failed", "reconciled"}:
+                            self._fail(task, state, "provider_effect_terminal", "provider effect intent is already terminal", step=step, request_id=request.request_id)
+                        if existing_status == "succeeded":
+                            replayed_response = self._provider_replay(provider_intent_key)
+                        else:
+                            reservation = self.resource_policy.reserve_for_provider(task.task_id, self.provider.provider_id, request, intent_key=provider_intent_key)
+                            provider_intent_key = self._prepare_provider_intent(request, reservation, intent_key=provider_intent_key)
+                            self.resource_policy.mark_dispatching(reservation)
+                            self._provider_intent(provider_intent_key, status="dispatching", result={"provider_id": self.provider.provider_id, "resource_id": reservation.budget.resource_id})
+                            self._record_provider_audit(request, reservation, "dispatching", provider_intent_key)
                     except Exception as exc:
                         self._block_budget(task, state, step=step, message=str(exc))
                         return task
                 try:
-                    response = self._provider_request(request, state["deadline_epoch"], cancel_event)
+                    response = replayed_response if replayed_response is not None else self._provider_request(request, state["deadline_epoch"], cancel_event)
                     if not isinstance(response, ModelResponse):
                         raise TypeError("provider must return ModelResponse")
                 except DispatchDenied as exc:

@@ -132,6 +132,46 @@ def test_controller_reuses_request_and_budget_intent_after_crash_before_intent_p
         assert ledger.connection.execute("SELECT COUNT(*) FROM budget_reservations").fetchone()[0] == 1
 
 
+def test_controller_replays_succeeded_direct_provider_intent_after_final_commit_crash(tmp_path):
+    ledger = ResourceLedger(tmp_path / "controller-replay.sqlite3")
+    ledger.register_resource("paid", provider_id="direct", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
+    ledger.observe("paid", available=10, health="healthy")
+    control = ResourceControlPlane(ResourceRouter(ledger), _governor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)))
+    requests = []
+
+    class DirectProvider(FakeProvider):
+        provider_id = "direct"
+
+        def request(self, request):
+            requests.append(request.request_id)
+            return ModelResponse(provider="direct", model="test", text_segments=["once"], usage={"cost_minor": 10})
+
+    provider = DirectProvider()
+    task = Task(objective="direct provider replay", limits={"max_steps": 1})
+    with SQLiteStateStore(tmp_path / "controller-replay-state.sqlite3") as store:
+        first = Controller(provider, ToolRuntime(ToolRegistry()), store, resource_policy=control)
+        original_commit = first._commit
+
+        def crash_after_final_transition(**kwargs):
+            checkpoint = kwargs.get("checkpoint") or {}
+            if checkpoint.get("phase") == "after_model":
+                raise KeyboardInterrupt("simulated final commit crash")
+            return original_commit(**kwargs)
+
+        first._commit = crash_after_final_transition
+        with pytest.raises(KeyboardInterrupt, match="simulated final commit crash"):
+            first.run(task)
+        assert len(requests) == 1
+        assert ledger.connection.execute("SELECT status FROM budget_reservations").fetchone()[0] == "reconciled"
+
+        second = Controller(provider, ToolRuntime(ToolRegistry()), store, resource_policy=control)
+        result = second.resume(task.task_id)
+
+        assert result.status.value == "completed"
+        assert len(requests) == 1
+        assert ledger.connection.execute("SELECT COUNT(*) FROM budget_reservations").fetchone()[0] == 1
+
+
 def test_control_never_converts_generic_float_ceiling_and_holds_missing_charge_unknown(tmp_path):
     ledger = ResourceLedger(tmp_path / "control.sqlite3")
     ledger.register_resource("paid", provider_id="remote", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10, price_currency="JPY")
