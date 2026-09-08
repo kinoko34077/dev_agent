@@ -19,6 +19,7 @@ from ..resources.control import DispatchDenied, ResourcePolicy
 from ..resources.budget import BudgetExceeded
 from ..state.store import StateStore
 from ..tools.runtime import ToolRuntime
+from .state import RuntimeState
 
 
 class RuntimeFailure(RuntimeError):
@@ -184,21 +185,8 @@ class Controller:
         self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "blocked_budget", state), events=[event])
 
     @staticmethod
-    def _initial_state(task: Task) -> dict[str, Any]:
-        return {
-            "messages": [{"role": "user", "content": task.objective}],
-            "tool_results": [],
-            "model_calls": 0,
-            "tool_calls": 0,
-            "input_tokens_used": 0,
-            "output_tokens_used": 0,
-            "cost_used": 0.0,
-            "retries_used": 0,
-            "next_step_order": 0,
-            "pending_tool_calls": [],
-            "active_step": None,
-            "deadline_epoch": time() + task.limits.max_wall_time_seconds,
-        }
+    def _initial_state(task: Task) -> RuntimeState:
+        return RuntimeState.initial(task, now=time())
 
     @staticmethod
     def _estimate_tokens(value: Any) -> int:
@@ -376,7 +364,7 @@ class Controller:
         self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "after_tools", state))
 
     def run(self, task: Task, *, state: dict[str, Any] | None = None) -> Task:
-        state = state or self._initial_state(task)
+        state = RuntimeState.from_checkpoint(state) if state is not None else self._initial_state(task)
         self._ensure_state_defaults(state)
         if "deadline_epoch" not in state:
             state["deadline_epoch"] = time() + task.limits.max_wall_time_seconds
