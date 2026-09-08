@@ -176,3 +176,15 @@ def test_paid_provider_transport_error_waits_for_reconciliation(tmp_path):
     with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
         result = Controller(BrokenProvider(), ToolRuntime(ToolRegistry()), store, resource_policy=control).run(Task(objective="transport"))
     assert result.status.value == "waiting_reconciliation"
+
+
+def test_maintenance_mode_denies_new_provider_reservations(tmp_path):
+    ledger = ResourceLedger(tmp_path / "maintenance.sqlite3")
+    ledger.register_resource("free", provider_id="free", native_unit="request", capacity=10, capabilities=["text"], cost_minor=0)
+    ledger.observe("free", available=10, health="healthy")
+    control = ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=10, recovery_reserve_minor=0)))
+    control.set_maintenance(True)
+    request = ModelRequest(task_id="00000000-0000-0000-0000-000000000001", messages=[{"role": "user", "content": "x"}])
+    with pytest.raises(DispatchDenied) as exc:
+        control.reserve_for_provider("task-1", "free", request)
+    assert exc.value.category == "maintenance"

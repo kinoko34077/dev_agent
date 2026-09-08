@@ -28,8 +28,17 @@ class ResourceControlPlane:
     def __init__(self, router: ResourceRouter, governor: BudgetGovernor) -> None:
         self.router = router
         self.governor = governor
+        self._maintenance = False
+
+    def set_maintenance(self, enabled: bool) -> None:
+        self._maintenance = bool(enabled)
+
+    def _ensure_dispatch_allowed(self) -> None:
+        if self._maintenance:
+            raise DispatchDenied("maintenance", "new provider dispatch is disabled during maintenance")
 
     def reserve_for_provider(self, task_id: str, provider_id: str, request: ModelRequest) -> DispatchReservation:
+        self._ensure_dispatch_allowed()
         try:
             selection = self.router.choose(RouteRequest(capabilities=set(request.requested_capabilities) or {"text"}, sensitivity=request.sensitivity, allowed_providers={provider_id}))
             price = None if selection.estimated_cost_minor is None or selection.price_currency is None else MoneyAmount(selection.price_currency, selection.estimated_cost_minor)
@@ -45,6 +54,7 @@ class ResourceControlPlane:
         return DispatchReservation(reservation, provider_id)
 
     def reserve_selection(self, task_id: str, selection: RouteSelection) -> DispatchReservation:
+        self._ensure_dispatch_allowed()
         price = None if selection.estimated_cost_minor is None or selection.price_currency is None else MoneyAmount(selection.price_currency, selection.estimated_cost_minor)
         try:
             reservation = self.governor.reserve(task_id, selection.resource_id, estimated_cost=price)
