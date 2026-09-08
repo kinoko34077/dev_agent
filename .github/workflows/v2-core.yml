@@ -1,0 +1,19 @@
+name: v2-core
+
+on:
+  push:
+    branches: [v2/bootstrap]
+  pull_request:
+    branches: [v2/bootstrap]
+
+jobs:
+  kernel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r requirements-v2-dev.txt
+      - run: python -m pytest tests/v2 -q
+      - run: python -m compileall -q src recovery
