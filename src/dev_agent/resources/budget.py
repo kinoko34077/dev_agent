@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import math
 from typing import Any
 
 from .ledger import BudgetPeriod, MoneyAmount, ResourceLedger
@@ -77,7 +78,7 @@ class BudgetGovernor:
             estimated_cost = MoneyAmount(self.currency, estimated_cost_minor)
         if estimated_cost is None:
             raise UnknownPrice(f"price is unknown for resource {resource_id}")
-        if isinstance(native_units, bool) or not isinstance(native_units, (int, float)) or native_units <= 0:
+        if isinstance(native_units, bool) or not isinstance(native_units, (int, float)) or not math.isfinite(float(native_units)) or native_units <= 0:
             raise ValueError("native_units must be positive")
         if estimated_cost.currency != self.currency:
             raise BudgetExceeded(f"currency mismatch: budget={self.currency}, request={estimated_cost.currency}")

@@ -184,3 +184,11 @@ def test_native_units_are_reserved_and_released_with_budget_lifecycle(tmp_path):
         governor.reserve("task-2", "remote-gemini", estimated_cost=MoneyAmount("JPY", 10), native_units=1)
     governor.release(first.reservation_id)
     assert governor.reserve("task-3", "remote-gemini", estimated_cost=MoneyAmount("JPY", 10), native_units=1).reservation_id
+
+
+@pytest.mark.parametrize("native_units", [float("nan"), float("inf")])
+def test_budget_rejects_non_finite_native_units(tmp_path, native_units):
+    ledger = _ledger(tmp_path)
+    governor = BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=0))
+    with pytest.raises(ValueError, match="native_units"):
+        governor.reserve("task-invalid", "remote-gemini", estimated_cost=MoneyAmount("JPY", 10), native_units=native_units)
