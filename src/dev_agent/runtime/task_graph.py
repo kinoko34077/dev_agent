@@ -10,9 +10,10 @@ class TaskGraphError(ValueError):
 
 
 class TaskGraph:
-    def __init__(self, *, max_depth: int = 4, max_children_per_task: int = 8) -> None:
+    def __init__(self, *, max_depth: int = 4, max_children_per_task: int = 8, max_total_tasks_per_root: int = 128) -> None:
         self.max_depth = max_depth
         self.max_children_per_task = max_children_per_task
+        self.max_total_tasks_per_root = max_total_tasks_per_root
         self.tasks: dict[str, Task] = {}
         self.children: dict[str, list[str]] = {}
 
@@ -30,6 +31,9 @@ class TaskGraph:
             children = self.children.setdefault(parent.task_id, [])
             if len(children) >= self.max_children_per_task:
                 raise TaskGraphError("max child tasks exceeded")
+            root = parent.root_task_id or parent.task_id
+            if sum(1 for item in self.tasks.values() if (item.root_task_id or item.task_id) == root) >= self.max_total_tasks_per_root:
+                raise TaskGraphError("max total tasks per root exceeded")
             children.append(task.task_id)
             task.root_task_id = parent.root_task_id
         self.tasks[task.task_id] = task
@@ -40,6 +44,14 @@ class TaskGraph:
             if task.parent_task_id and task.task_id in self.children.get(task.parent_task_id, []):
                 self.children[task.parent_task_id].remove(task.task_id)
             raise
+
+    @classmethod
+    def from_tasks(cls, tasks: list[Task], **limits: int) -> "TaskGraph":
+        graph = cls(**limits)
+        for task in sorted(tasks, key=lambda item: (item.depth, item.created_at, item.task_id)):
+            graph.add(task)
+        graph.validate()
+        return graph
 
     def add_child(self, parent_task_id: str, task: Task) -> None:
         task.parent_task_id = parent_task_id

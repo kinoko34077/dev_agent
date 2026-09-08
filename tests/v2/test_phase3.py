@@ -103,3 +103,10 @@ def test_approval_defaults_to_deny_for_high_risk_side_effects():
     assert not policy.authorize("financial")
     assert policy.authorize("financial", approved=True)
     assert policy.authorize("local_read")
+
+
+def test_task_graph_reconstructs_from_durable_tasks():
+    root = Task(objective="root")
+    child = Task(objective="child", parent_task_id=root.task_id, root_task_id=root.task_id, depth=1)
+    graph = TaskGraph.from_tasks([child, root], max_total_tasks_per_root=2)
+    assert graph.descendants(root.task_id) == [child.task_id]
