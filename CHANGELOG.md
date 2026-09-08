@@ -6,13 +6,19 @@
 
 ### 現在の到達点（2026-09-08 JST）
 
-- v2 の全テストが `59 passed`。
+- v2 の全テストが `63 passed`。
 - Windows の実 symlink を使った workspace 外逸脱拒否テストが `passed`。
 - Ollama のローカル `/api/chat` 実機接続を確認。
 - Gemini の実HTTP経路は接続まで確認したが、モデル一覧・最小生成とも HTTP 403。実 Provider 完走は未達。
 - 作業ツリーは clean。v2 の変更は `v2/bootstrap` に確定済み。
 
 ### 2026-09-08
+
+- `feat: harden approval expiry, revocation, and immutable records`
+  - SQLite / JSON 承認記録に期限 (`expires_at`) と取消 (`revoked`) を追加し、期限切れ・取消済みを fail-closed。
+  - 承認 ID の重複保存を拒否し、既存監査履歴を上書きしない契約を追加。
+  - 期限・取消済み承認では effect intent を生成しない厳格テストを追加。
+  - 外部 intent が既に pending の場合は承認再消費より先に reconciliation_required を返し、安全な照合導線を維持。
 
 - 作業継続（未コミット時点）: 承認待機→永続承認→`resume(approval_id=...)` の実行経路、Provider固有 call ID と内部UUIDの分離を追加。全41テスト通過後に次コミットへ確定。
 

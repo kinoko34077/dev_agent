@@ -1,5 +1,5 @@
 import pytest
-from time import sleep
+from time import sleep, time
 import os
 import subprocess
 import sys
@@ -170,6 +170,39 @@ def test_persisted_approval_is_task_and_level_scoped(tmp_path):
         assert allowed.status.value == "succeeded"
         assert calls == [{}]
         assert not store.has_approval("approval-1", task_id=str(Task(objective="other").task_id), side_effect_level="external_write", call_id=call.call_id, arguments_hash=canonical_arguments_hash(call.arguments))
+
+
+def test_approval_expiry_and_revoke_are_enforced_without_creating_effect_intent(tmp_path):
+    task_id = "11111111-1111-4111-8111-111111111111"
+    call = ToolCall(tool_name="publish", arguments={"value": "x"}, idempotency_key="approval-expiry")
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="publish", description="external", side_effect_level="external_write", handler=lambda args: {"ok": True}))
+    with SQLiteStateStore(tmp_path / "approval-expiry.sqlite3") as store:
+        store.save_approval("expired", task_id=task_id, side_effect_level="external_write", actor="human", call_id=call.call_id, arguments_hash=canonical_arguments_hash(call.arguments), expires_at=time() - 1)
+        expired = ToolRuntime(registry).with_result_store(store).execute(call, task_id=task_id, approval_id="expired")
+        assert expired.error["category"] == "approval_required"
+        assert store.get_effect_intent(call.idempotency_key) is None
+        store.save_approval("revoked", task_id=task_id, side_effect_level="external_write", actor="human", call_id=call.call_id, arguments_hash=canonical_arguments_hash(call.arguments), expires_at=time() + 60)
+        store.revoke_approval("revoked")
+        revoked = ToolRuntime(registry).with_result_store(store).execute(ToolCall(tool_name="publish", arguments={"value": "x"}, idempotency_key="approval-revoked", call_id=call.call_id), task_id=task_id, approval_id="revoked")
+        assert revoked.error["category"] == "approval_required"
+        assert store.get_effect_intent("approval-revoked") is None
+
+
+def test_approval_records_are_immutable_and_one_shot(tmp_path):
+    task_id = "11111111-1111-4111-8111-111111111111"
+    call = ToolCall(tool_name="publish", arguments={"value": "x"}, idempotency_key="approval-once")
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="publish", description="external", side_effect_level="external_write", handler=lambda args: {"ok": True}))
+    with SQLiteStateStore(tmp_path / "approval-immutable.sqlite3") as store:
+        kwargs = dict(task_id=task_id, side_effect_level="external_write", actor="human", call_id=call.call_id, arguments_hash=canonical_arguments_hash(call.arguments))
+        store.save_approval("approval-1", **kwargs)
+        with pytest.raises(Exception):
+            store.save_approval("approval-1", **kwargs)
+        runtime = ToolRuntime(registry).with_result_store(store)
+        assert runtime.execute(call, task_id=task_id, approval_id="approval-1").status.value == "succeeded"
+        replay = runtime.execute(ToolCall(tool_name="publish", arguments={"value": "x"}, idempotency_key="approval-once-2", call_id=call.call_id), task_id=task_id, approval_id="approval-1")
+        assert replay.error["category"] == "approval_required"
 
 
 def test_external_effect_pending_intent_blocks_unsafe_retry(tmp_path):

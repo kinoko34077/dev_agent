@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -91,15 +92,22 @@ class JsonStateStore:
         self._data.setdefault("idempotency", {})[key] = result.to_dict()
         self._flush()
 
-    def save_approval(self, approval_id: str, *, task_id: str, side_effect_level: str, actor: str) -> None:
+    def save_approval(self, approval_id: str, *, task_id: str, side_effect_level: str, actor: str, call_id: str, arguments_hash: str, expires_at: float | None = None) -> None:
         if approval_id in self._data.setdefault("approvals", {}):
             raise ValueError(f"approval already exists: {approval_id}")
-        self._data["approvals"][approval_id] = {"task_id": task_id, "side_effect_level": side_effect_level, "actor": actor, "call_id": call_id, "arguments_hash": arguments_hash}
+        self._data["approvals"][approval_id] = {"task_id": task_id, "side_effect_level": side_effect_level, "actor": actor, "call_id": call_id, "arguments_hash": arguments_hash, "expires_at": expires_at, "revoked": False}
         self._flush()
 
     def has_approval(self, approval_id: str, *, task_id: str, side_effect_level: str, call_id: str, arguments_hash: str) -> bool:
         item = self._data.get("approvals", {}).get(approval_id)
-        return bool(item and item.get("task_id") == task_id and item.get("side_effect_level") == side_effect_level and item.get("call_id") == call_id and item.get("arguments_hash") == arguments_hash)
+        return bool(item and not item.get("revoked", False) and (item.get("expires_at") is None or float(item["expires_at"]) > time.time()) and item.get("task_id") == task_id and item.get("side_effect_level") == side_effect_level and item.get("call_id") == call_id and item.get("arguments_hash") == arguments_hash)
+
+    def revoke_approval(self, approval_id: str) -> None:
+        item = self._data.get("approvals", {}).get(approval_id)
+        if item is None:
+            raise KeyError(approval_id)
+        item["revoked"] = True
+        self._flush()
 
     def consume_approval(self, approval_id: str, *, task_id: str, side_effect_level: str, call_id: str, arguments_hash: str) -> bool:
         if not self.has_approval(approval_id, task_id=task_id, side_effect_level=side_effect_level, call_id=call_id, arguments_hash=arguments_hash):
