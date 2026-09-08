@@ -10,6 +10,9 @@
 - 実測請求が保護予算を超えた場合の予約を `unknown` として保持し、監査・照合なしの解放を禁止。
 - Schedulerのmaintenance判定をclaimトランザクション内へ移し、待機Taskを `waiting` にparkして明示 `wake()` まで再実行しない契約を追加。
 - Provider timeout/transport後の `resume()` 再送と、照合待ちTaskのterminal cancellationを抑止。
+- Dispatcher所有のtransport失敗も `WAITING_RECONCILIATION` へ統一し、Provider cancellation後の再送を抑止。
+- ResourceLedgerのruntime maintenance fenceを接続間で共有し、予約トランザクション内でも再確認。
+- 全v2テストは現行コードで `166 passed`、exact-head GitHub Actionsも `v2-core` / `v2 tests` ともにsuccess（run `34258693732` / `34258693738`）。
 - resource-ledgerのnative reservation整合性をRecovery validatorで検査。
 - Phase 6 operational Gateは引き続き `IN_PROGRESS`。実Providerのpaid dispatch、独立queue/state authority、operator recovery drill、exact-head CIの最新証跡を継続取得する。
 
