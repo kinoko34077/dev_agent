@@ -347,6 +347,11 @@ def test_tool_argument_and_result_byte_limits_are_enforced(tmp_path):
         assert small.error["category"] == "limits_exceeded"
 
 
+def test_tool_registry_rejects_schema_keywords_runtime_cannot_enforce():
+    with pytest.raises(ValueError, match="unsupported schema keywords"):
+        ToolSpec(name="unsafe_schema", description="", input_schema={"type": "object", "oneOf": []}, handler=lambda args: {})
+
+
 def test_tool_timeout_returns_timeout_without_waiting_for_handler(tmp_path):
     registry = ToolRegistry()
     registry.register(ToolSpec(name="slow", description="slow", side_effect_level="none", timeout_seconds=0.01, handler=lambda args: sleep(0.2) or {"ok": True}))

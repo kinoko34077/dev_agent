@@ -34,6 +34,20 @@ class ToolSpec:
             raise ValueError("input_schema must be an object")
         if not isinstance(self.output_schema, dict):
             raise ValueError("output_schema must be an object")
+        self._validate_schema_subset(self.input_schema)
+        self._validate_schema_subset(self.output_schema)
+
+    @staticmethod
+    def _validate_schema_subset(schema: dict[str, Any]) -> None:
+        supported = {"type", "properties", "required", "additionalProperties", "enum", "minimum", "maximum", "items", "minItems", "maxItems", "minLength", "maxLength"}
+        unknown = set(schema) - supported
+        if unknown:
+            raise ValueError(f"unsupported schema keywords: {', '.join(sorted(unknown))}")
+        for child in schema.get("properties", {}).values():
+            if isinstance(child, dict):
+                ToolSpec._validate_schema_subset(child)
+        if isinstance(schema.get("items"), dict):
+            ToolSpec._validate_schema_subset(schema["items"])
 
     def provider_definition(self) -> dict[str, Any]:
         schema = dict(self.input_schema)
