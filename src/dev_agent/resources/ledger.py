@@ -122,6 +122,12 @@ class ResourceLedger:
         , period_id TEXT NOT NULL DEFAULT 'legacy'
         , currency TEXT NOT NULL DEFAULT 'JPY'
     );
+    CREATE TABLE IF NOT EXISTS resource_reservations (
+        reservation_id TEXT PRIMARY KEY,
+        resource_id TEXT NOT NULL,
+        native_units REAL NOT NULL,
+        status TEXT NOT NULL
+    );
     """
 
     def __init__(self, path: str | Path) -> None:
@@ -280,17 +286,24 @@ class ResourceLedger:
         active = sum(1 for row in rows if row["status"] in {"reserved", "unknown"})
         return {"normal_committed_minor": normal_committed, "recovery_committed_minor": recovery_committed, "active_reservations": active}
 
-    def reserve_budget(self, *, task_id: str, resource_id: str, amount: MoneyAmount, recovery: bool, period: BudgetPeriod, normal_limit_minor: int, recovery_limit_minor: int) -> str:
+    def reserve_budget(self, *, task_id: str, resource_id: str, amount: MoneyAmount, recovery: bool, period: BudgetPeriod, normal_limit_minor: int, recovery_limit_minor: int, native_units: int | float = 1) -> str:
         """Atomically check and create a reservation behind the ledger boundary."""
         with self._lock:
             self.connection.execute("BEGIN IMMEDIATE")
             try:
                 totals = self.reservation_totals(period_id=period.period_id)
+                resource = self.connection.execute("SELECT available FROM resources WHERE resource_id=?", (resource_id,)).fetchone()
+                if resource is None:
+                    raise KeyError(resource_id)
+                used = self.connection.execute("SELECT COALESCE(SUM(native_units), 0) FROM resource_reservations WHERE resource_id=? AND status='reserved'", (resource_id,)).fetchone()[0]
+                if float(used) + float(native_units) > float(resource["available"]):
+                    raise ValueError(f"resource capacity exceeded: {resource_id}")
                 remaining = (recovery_limit_minor if recovery else normal_limit_minor) - (totals["recovery_committed_minor"] if recovery else totals["normal_committed_minor"])
                 if amount.minor_units > remaining:
                     raise ValueError(f"budget exceeded: requested {amount.minor_units}, remaining {remaining}")
                 reservation_id = str(uuid4())
                 self.connection.execute("INSERT INTO budget_reservations(reservation_id, task_id, resource_id, estimated_minor, actual_minor, recovery, status, created_at, reconciled_at, period_id, currency) VALUES (?, ?, ?, ?, NULL, ?, 'reserved', ?, NULL, ?, ?)", (reservation_id, task_id, resource_id, amount.minor_units, int(recovery), datetime.now(timezone.utc).isoformat(), period.period_id, amount.currency))
+                self.connection.execute("INSERT INTO resource_reservations(reservation_id, resource_id, native_units, status) VALUES (?, ?, ?, 'reserved')", (reservation_id, resource_id, native_units))
                 self.connection.commit()
                 return reservation_id
             except Exception:
@@ -316,6 +329,7 @@ class ResourceLedger:
                 if current_total + actual.minor_units > limit:
                     raise ValueError("actual usage exceeds the protected budget")
                 self.connection.execute("UPDATE budget_reservations SET actual_minor=?, status='reconciled', reconciled_at=? WHERE reservation_id=?", (actual.minor_units, datetime.now(timezone.utc).isoformat(), reservation_id))
+                self.connection.execute("UPDATE resource_reservations SET status='released' WHERE reservation_id=?", (reservation_id,))
                 self.connection.commit()
             except Exception:
                 self.connection.rollback()
@@ -324,6 +338,7 @@ class ResourceLedger:
     def release_budget(self, reservation_id: str) -> None:
         with self._lock:
             cursor = self.connection.execute("UPDATE budget_reservations SET status='released', reconciled_at=? WHERE reservation_id=? AND status='reserved'", (datetime.now(timezone.utc).isoformat(), reservation_id))
+            self.connection.execute("UPDATE resource_reservations SET status='released' WHERE reservation_id=?", (reservation_id,))
             self.connection.commit()
             if cursor.rowcount != 1:
                 raise ValueError(f"reservation is not active: {reservation_id}")

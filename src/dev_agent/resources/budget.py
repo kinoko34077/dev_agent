@@ -17,6 +17,10 @@ class UnknownPrice(BudgetExceeded):
     pass
 
 
+class ResourceUnavailable(BudgetExceeded):
+    pass
+
+
 @dataclass(frozen=True)
 class BudgetPolicy:
     hard_cap_minor: int
@@ -32,6 +36,7 @@ class BudgetReservation:
     resource_id: str
     estimated_cost: MoneyAmount
     recovery: bool
+    native_units: int | float = 1
 
     @property
     def estimated_cost_minor(self) -> int:
@@ -56,7 +61,7 @@ class BudgetGovernor:
         end = start.replace(year=start.year + 1, month=1) if start.month == 12 else start.replace(month=start.month + 1)
         return BudgetPeriod(start.strftime("%Y-%m"), start.isoformat(), end.isoformat())
 
-    def reserve(self, task_id: str, resource_id: str, *, estimated_cost: MoneyAmount | None = None, estimated_cost_minor: int | None = None, recovery: bool = False) -> BudgetReservation:
+    def reserve(self, task_id: str, resource_id: str, *, estimated_cost: MoneyAmount | None = None, estimated_cost_minor: int | None = None, recovery: bool = False, native_units: int | float = 1) -> BudgetReservation:
         if not task_id.strip():
             raise ValueError("task_id is required")
         if estimated_cost is not None and estimated_cost_minor is not None:
@@ -65,6 +70,8 @@ class BudgetGovernor:
             estimated_cost = MoneyAmount(self.currency, estimated_cost_minor)
         if estimated_cost is None:
             raise UnknownPrice(f"price is unknown for resource {resource_id}")
+        if isinstance(native_units, bool) or not isinstance(native_units, (int, float)) or native_units <= 0:
+            raise ValueError("native_units must be positive")
         if estimated_cost.currency != self.currency:
             raise BudgetExceeded(f"currency mismatch: budget={self.currency}, request={estimated_cost.currency}")
         resource = self.ledger.get_resource(resource_id)
@@ -73,10 +80,13 @@ class BudgetGovernor:
         if resource["health"] == "unhealthy":
             raise BudgetExceeded(f"resource is unhealthy: {resource_id}")
         try:
-            reservation_id = self.ledger.reserve_budget(task_id=task_id, resource_id=resource_id, amount=estimated_cost, recovery=recovery, period=self.period, normal_limit_minor=self.policy.hard_cap_minor - self.policy.recovery_reserve_minor, recovery_limit_minor=self.policy.recovery_reserve_minor)
+            reservation_id = self.ledger.reserve_budget(task_id=task_id, resource_id=resource_id, amount=estimated_cost, recovery=recovery, period=self.period, normal_limit_minor=self.policy.hard_cap_minor - self.policy.recovery_reserve_minor, recovery_limit_minor=self.policy.recovery_reserve_minor, native_units=native_units)
         except ValueError as exc:
-            raise BudgetExceeded(str(exc)) from exc
-        return BudgetReservation(reservation_id, task_id, resource_id, estimated_cost, recovery)
+            message = str(exc)
+            if message.startswith("resource capacity exceeded"):
+                raise ResourceUnavailable(message) from exc
+            raise BudgetExceeded(message) from exc
+        return BudgetReservation(reservation_id, task_id, resource_id, estimated_cost, recovery, native_units)
 
     def reconcile(self, reservation_id: str, *, actual_cost: MoneyAmount | None = None, actual_cost_minor: int | None = None) -> dict[str, Any]:
         if actual_cost is not None and actual_cost_minor is not None:

@@ -4,7 +4,7 @@ import multiprocessing
 
 import pytest
 
-from src.dev_agent.resources.budget import BudgetExceeded, BudgetGovernor, BudgetPolicy, UnknownPrice
+from src.dev_agent.resources.budget import BudgetExceeded, BudgetGovernor, BudgetPolicy, ResourceUnavailable, UnknownPrice
 from src.dev_agent.resources.ledger import BudgetPeriod, MoneyAmount, ResourceLedger, ResourcePrice
 
 
@@ -166,3 +166,14 @@ def test_resource_price_is_currency_bound_and_explicitly_unknown_when_unbounded(
     assert ResourcePrice("JPY", None).worst_case is None
     with pytest.raises(ValueError):
         ResourcePrice("USD", MoneyAmount("JPY", 50))
+
+
+def test_native_units_are_reserved_and_released_with_budget_lifecycle(tmp_path):
+    ledger = _ledger(tmp_path)
+    ledger.observe("remote-gemini", available=1, health="healthy")
+    governor = BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=0))
+    first = governor.reserve("task-1", "remote-gemini", estimated_cost=MoneyAmount("JPY", 10), native_units=1)
+    with pytest.raises(ResourceUnavailable):
+        governor.reserve("task-2", "remote-gemini", estimated_cost=MoneyAmount("JPY", 10), native_units=1)
+    governor.release(first.reservation_id)
+    assert governor.reserve("task-3", "remote-gemini", estimated_cost=MoneyAmount("JPY", 10), native_units=1).reservation_id

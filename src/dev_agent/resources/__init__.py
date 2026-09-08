@@ -1,6 +1,6 @@
 """Phase 6 resource, budget, routing, and survival control plane."""
 
-from .budget import BudgetExceeded, BudgetGovernor, BudgetPolicy, BudgetReservation, UnknownPrice
+from .budget import BudgetExceeded, BudgetGovernor, BudgetPolicy, BudgetReservation, ResourceUnavailable, UnknownPrice
 from .control import DispatchDenied, DispatchReservation, ResourceControlPlane
 from .ledger import BudgetPeriod, MoneyAmount, ResourceLedger, ResourcePrice, ResourceSpec
 from .router import NoRoute, ResourceRouter, RouteRequest, RouteSelection
@@ -11,6 +11,7 @@ __all__ = [
     "BudgetGovernor",
     "BudgetPolicy",
     "BudgetReservation",
+    "ResourceUnavailable",
     "BudgetPeriod",
     "UnknownPrice",
     "DispatchDenied",
