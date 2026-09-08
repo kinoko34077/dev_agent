@@ -70,8 +70,11 @@ class ProviderDispatcher(ModelProvider):
                 if last_error is not None:
                     raise last_error
                 raise
-            reservation = self.control.reserve_selection(request.task_id, selection)
             provider = self.registry.get(selection.provider_id)
+            # Resolve the concrete provider before acquiring a budget/capacity
+            # reservation.  A stale resource observation must not strand a
+            # reservation when registry and ledger contents diverge.
+            reservation = self.control.reserve_selection(request.task_id, selection)
             try:
                 response = provider.request(request)
             except ProviderError as exc:

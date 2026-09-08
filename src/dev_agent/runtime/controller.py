@@ -6,7 +6,6 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 import hashlib
 import json
 import math
-import re
 from threading import Event
 from time import monotonic, time
 from typing import Any, Callable
@@ -32,31 +31,13 @@ class _ProviderCancelled(Exception):
 
 
 class Controller:
-    MAX_EVENT_STRING_CHARS = 4096
-    MAX_EVENT_PAYLOAD_BYTES = 32 * 1024
-    EVENT_ARTIFACT_RETENTION_SECONDS = 24 * 60 * 60
-    _SECRET_KEY_WORDS = (
-        "token",
-        "secret",
-        "password",
-        "api_key",
-        "apikey",
-        "authorization",
-        "cookie",
-        "private_key",
-        "client_secret",
-        "credential",
-        "access_key",
-        "refresh_token",
-        "id_token",
-        "session",
-    )
-    _SECRET_PATTERNS = (
-        re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{8,}"),
-        re.compile(r"(?i)\b(?:api[_-]?key|secret|token|password)\s*[:=]\s*[^\s,;]+"),
-        re.compile(r"\b(?:sk-(?:proj-)?|AIza|ghp_|github_pat_|AKIA)[A-Za-z0-9._-]{8,}\b"),
-        re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----"),
-    )
+    # Keep the historic names available to callers while the implementation
+    # lives in the single canonical AuditRecorder boundary.
+    MAX_EVENT_STRING_CHARS = AuditRecorder.MAX_STRING_CHARS
+    MAX_EVENT_PAYLOAD_BYTES = AuditRecorder.MAX_PAYLOAD_BYTES
+    EVENT_ARTIFACT_RETENTION_SECONDS = AuditRecorder.RETENTION_SECONDS
+    _SECRET_KEY_WORDS = tuple(AuditRecorder.SECRET_KEYS)
+    _SECRET_PATTERNS = AuditRecorder.SECRET_PATTERNS
 
     def __init__(self, provider: ModelProvider, tools: ToolRuntime, store: StateStore, *, event_artifacts: EventArtifactStore | None = None, resource_policy: ResourcePolicy | None = None, lease_guard: Callable[[], None] | None = None, lease_proof: Any | None = None) -> None:
         self.provider = provider
@@ -80,49 +61,8 @@ class Controller:
 
     @classmethod
     def _safe_event_payload(cls, payload: dict[str, Any], *, artifact_store: EventArtifactStore | None = None) -> dict[str, Any]:
-        """Classify sensitive fields, detect common secret formats, and cap bytes."""
-
-        def scrub(value: Any, key: str = "") -> Any:
-            normalized_key = key.lower().replace("-", "_")
-            if any(word in normalized_key for word in cls._SECRET_KEY_WORDS):
-                return "[REDACTED]"
-            if isinstance(value, dict):
-                return {str(k): scrub(v, str(k)) for k, v in value.items()}
-            if isinstance(value, list):
-                return [scrub(v, key) for v in value]
-            if isinstance(value, tuple):
-                return [scrub(v, key) for v in value]
-            if isinstance(value, str):
-                for pattern in cls._SECRET_PATTERNS:
-                    value = pattern.sub("[REDACTED]", value)
-                if len(value) > cls.MAX_EVENT_STRING_CHARS:
-                    return value[: cls.MAX_EVENT_STRING_CHARS] + "...[TRUNCATED]"
-                return value
-            if value is None or isinstance(value, (bool, int, float)):
-                return value
-            return f"[UNSERIALIZABLE:{type(value).__name__}]"
-
-        safe = scrub(payload)
-        try:
-            encoded = json.dumps(safe, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        except (TypeError, ValueError):
-            safe = {"_redacted": True, "payload_ref": "event://unserializable"}
-            encoded = json.dumps(safe, separators=(",", ":")).encode("utf-8")
-        if len(encoded) > cls.MAX_EVENT_PAYLOAD_BYTES:
-            if artifact_store is not None:
-                artifact = artifact_store.put(encoded, content_type="application/json", retention_seconds=cls.EVENT_ARTIFACT_RETENTION_SECONDS)
-                payload_ref = artifact["uri"]
-                expires_at = artifact["expires_at"]
-            else:
-                payload_ref = f"event-sha256:{hashlib.sha256(encoded).hexdigest()}"
-                expires_at = None
-            return {
-                "_truncated": True,
-                "payload_ref": payload_ref,
-                "byte_length": len(encoded),
-                **({"artifact_expires_at": expires_at} if expires_at is not None else {}),
-            }
-        return safe
+        """Compatibility entry point backed by the canonical audit sanitizer."""
+        return AuditRecorder.sanitize_payload(payload, artifact_store=artifact_store)
 
     @staticmethod
     def _checkpoint_payload(task: Task, step: Step, phase: str, state: dict[str, Any]) -> dict[str, Any]:

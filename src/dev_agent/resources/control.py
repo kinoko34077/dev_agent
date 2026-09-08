@@ -81,7 +81,15 @@ class ResourceControlPlane:
         if isinstance(observed, bool) or not isinstance(observed, int) or observed < 0:
             self.governor.mark_unknown(reservation.budget.reservation_id)
             return
-        self.governor.reconcile(reservation.budget.reservation_id, actual_cost=MoneyAmount(reservation.budget.estimated_cost.currency, observed))
+        try:
+            self.governor.reconcile(reservation.budget.reservation_id, actual_cost=MoneyAmount(reservation.budget.estimated_cost.currency, observed))
+        except BudgetExceeded:
+            # The charge is known, but protected accounting cannot accept it.
+            # Keep the reservation held for an explicit operator/provider
+            # reconciliation rather than releasing capacity or losing the
+            # evidence of an over-budget external effect.
+            self.governor.mark_unknown(reservation.budget.reservation_id)
+            raise
 
     def release(self, reservation: DispatchReservation) -> None:
         self.governor.release(reservation.budget.reservation_id)

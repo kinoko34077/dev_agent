@@ -1,6 +1,6 @@
 import pytest
 
-from src.dev_agent.resources.budget import BudgetGovernor, BudgetPolicy
+from src.dev_agent.resources.budget import BudgetExceeded, BudgetGovernor, BudgetPolicy
 from src.dev_agent.resources.control import ResourceControlPlane
 from src.dev_agent.resources.control import DispatchDenied
 from src.dev_agent.resources.ledger import ResourceLedger
@@ -59,6 +59,20 @@ def test_control_never_converts_generic_float_ceiling_and_holds_missing_charge_u
     assert exc.value.category == "budget"
 
 
+def test_over_budget_observed_charge_is_held_unknown_for_reconciliation(tmp_path):
+    ledger = ResourceLedger(tmp_path / "over-budget.sqlite3")
+    ledger.register_resource("paid", provider_id="remote", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
+    ledger.observe("paid", available=10, health="healthy")
+    control = ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)))
+    request = ModelRequest(task_id="00000000-0000-0000-0000-000000000004", messages=[{"role": "user", "content": "x"}])
+    reservation = control.reserve_for_provider(request.task_id, "remote", request)
+
+    with pytest.raises(BudgetExceeded, match="protected budget"):
+        control.reconcile_response(reservation, ModelResponse(provider="remote", model="test", usage={"cost_minor": 30}))
+
+    assert ledger.reservation_row(reservation.budget.reservation_id)["status"] == "unknown"
+
+
 def test_dispatcher_routes_to_secondary_provider_after_retryable_primary_failure(tmp_path):
     ledger = ResourceLedger(tmp_path / "dispatch.sqlite3")
     for resource_id, provider_id in (("primary", "primary"), ("secondary", "secondary")):
@@ -108,6 +122,29 @@ def test_dispatcher_accepts_explicit_task_id_compatibility_entrypoint(tmp_path):
     request = ModelRequest(task_id="00000000-0000-0000-0000-000000000002", messages=[{"role": "user", "content": "hello"}])
 
     assert dispatcher.request("00000000-0000-0000-0000-000000000002", request).provider == "secondary"
+
+
+def test_dispatcher_does_not_leak_reservation_when_registry_is_missing_provider(tmp_path):
+    ledger = ResourceLedger(tmp_path / "dispatcher-missing-provider.sqlite3")
+    ledger.register_resource(
+        "orphan-resource",
+        provider_id="orphan",
+        native_unit="request",
+        capacity=1,
+        capabilities={"text"},
+        cost_minor=10,
+    )
+    ledger.observe("orphan-resource", available=1, health="healthy")
+    governor = BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=0))
+    control = ResourceControlPlane(ResourceRouter(ledger), governor)
+    dispatcher = ProviderDispatcher(ProviderRegistry([FakeProvider()]), control)
+    request = ModelRequest(task_id="00000000-0000-0000-0000-000000000003", messages=[{"role": "user", "content": "hello"}])
+
+    with pytest.raises(ProviderError, match="unsupported provider"):
+        dispatcher.request(request)
+
+    assert governor.snapshot()["active_reservations"] == 0
+    assert ledger.get_resource("orphan-resource")["available"] == 1
 
 
 def test_survival_dispatch_policy_prohibits_paid_provider_when_budget_is_exhausted(tmp_path):
