@@ -12,7 +12,7 @@ from ..domain.protocol import Event, Step, Task, ToolResult
 
 
 class SQLiteStateStore:
-    SCHEMA_VERSION = 3
+    SCHEMA_VERSION = 4
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
@@ -30,6 +30,7 @@ class SQLiteStateStore:
             CREATE TABLE IF NOT EXISTS approvals (approval_id TEXT PRIMARY KEY, task_id TEXT NOT NULL, side_effect_level TEXT NOT NULL, actor TEXT NOT NULL, call_id TEXT NOT NULL, arguments_hash TEXT NOT NULL, expires_at REAL, revoked INTEGER NOT NULL DEFAULT 0);
             CREATE TABLE IF NOT EXISTS effect_intents (idempotency_key TEXT PRIMARY KEY, task_id TEXT NOT NULL, tool_name TEXT NOT NULL, arguments_payload TEXT NOT NULL, status TEXT NOT NULL, result_payload TEXT);
             CREATE TABLE IF NOT EXISTS approval_consumptions (approval_id TEXT PRIMARY KEY);
+            CREATE TABLE IF NOT EXISTS effect_reconciliations (sequence INTEGER PRIMARY KEY AUTOINCREMENT, idempotency_key TEXT NOT NULL, status TEXT NOT NULL, actor TEXT NOT NULL, source TEXT NOT NULL, external_id TEXT, evidence_payload TEXT NOT NULL, recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
             CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             """
         )
@@ -58,6 +59,10 @@ class SQLiteStateStore:
                     self.connection.execute("ALTER TABLE approvals ADD COLUMN revoked INTEGER NOT NULL DEFAULT 0")
                 self.connection.execute("CREATE TABLE IF NOT EXISTS approval_consumptions (approval_id TEXT PRIMARY KEY)")
                 self.connection.execute("UPDATE schema_meta SET value = '3' WHERE key = 'schema_version'")
+                current = 3
+            if current < 4:
+                self.connection.execute("CREATE TABLE IF NOT EXISTS effect_reconciliations (sequence INTEGER PRIMARY KEY AUTOINCREMENT, idempotency_key TEXT NOT NULL, status TEXT NOT NULL, actor TEXT NOT NULL, source TEXT NOT NULL, external_id TEXT, evidence_payload TEXT NOT NULL, recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")
+                self.connection.execute("UPDATE schema_meta SET value = '4' WHERE key = 'schema_version'")
             self.connection.commit()
         except Exception:
             self.connection.rollback()
@@ -195,6 +200,18 @@ class SQLiteStateStore:
         except Exception:
             self.connection.rollback()
             raise
+
+    def reconcile_effect_intent(self, key: str, *, status: str, actor: str, source: str, external_id: str | None = None, evidence: dict[str, Any] | None = None) -> None:
+        if status not in {"succeeded", "confirmed_failed", "unknown"}:
+            raise ValueError(f"invalid reconciliation status: {status}")
+        if not actor.strip() or not source.strip():
+            raise ValueError("reconciliation actor and source are required")
+        if self.get_effect_intent(key) is None:
+            raise ValueError(f"effect intent not found: {key}")
+        self.connection.execute("INSERT INTO effect_reconciliations(idempotency_key, status, actor, source, external_id, evidence_payload) VALUES (?, ?, ?, ?, ?, ?)", (key, status, actor, source, external_id, json.dumps(evidence or {}, ensure_ascii=False)))
+        target = status
+        self.transition_effect_intent(key, to_status="reconciling")
+        self.transition_effect_intent(key, to_status=target, result={"actor": actor, "source": source, "external_id": external_id, "evidence": evidence or {}})
 
     def _rows(self, table: str, column: str = "payload") -> list[dict[str, Any]]:
         return [json.loads(row[column]) for row in self.connection.execute(f"SELECT {column} FROM {table}").fetchall()]

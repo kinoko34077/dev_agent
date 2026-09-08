@@ -273,6 +273,16 @@ def test_effect_intent_state_machine_rejects_terminal_reopen(tmp_path):
             store.transition_effect_intent("k", to_status="dispatching")
 
 
+def test_reconciliation_api_records_actor_source_and_evidence(tmp_path):
+    with SQLiteStateStore(tmp_path / "reconcile-api.sqlite3") as store:
+        assert store.create_effect_intent("k", task_id="t", tool_name="publish", arguments={})
+        store.reconcile_effect_intent("k", status="succeeded", actor="operator", source="mock-service", external_id="ext-1", evidence={"matched": True})
+        intent = store.get_effect_intent("k")
+        assert intent["status"] == "succeeded"
+        row = store.connection.execute("SELECT actor, source, external_id, evidence_payload FROM effect_reconciliations WHERE idempotency_key = 'k'").fetchone()
+        assert (row["actor"], row["source"], row["external_id"]) == ("operator", "mock-service", "ext-1")
+
+
 def test_commit_transition_persists_related_records_atomically(tmp_path):
     task = Task(objective="atomic")
     step = Step(task_id=task.task_id, order=0, kind="model")

@@ -26,6 +26,7 @@ class JsonStateStore:
             "approvals": {},
             "effect_intents": {},
             "approval_consumptions": {},
+            "effect_reconciliations": [],
         }
         self._load()
 
@@ -169,3 +170,15 @@ class JsonStateStore:
         if event is not None:
             self._data.setdefault("events", []).append(event.to_dict())
         self._flush()
+
+    def reconcile_effect_intent(self, key: str, *, status: str, actor: str, source: str, external_id: str | None = None, evidence: dict[str, Any] | None = None) -> None:
+        if status not in {"succeeded", "confirmed_failed", "unknown"}:
+            raise ValueError(f"invalid reconciliation status: {status}")
+        if not actor.strip() or not source.strip():
+            raise ValueError("reconciliation actor and source are required")
+        if self.get_effect_intent(key) is None:
+            raise ValueError(f"effect intent not found: {key}")
+        self._data.setdefault("effect_reconciliations", []).append({"idempotency_key": key, "status": status, "actor": actor, "source": source, "external_id": external_id, "evidence": evidence or {}})
+        target = status
+        self.transition_effect_intent(key, to_status="reconciling")
+        self.transition_effect_intent(key, to_status=target, result={"actor": actor, "source": source, "external_id": external_id, "evidence": evidence or {}})
