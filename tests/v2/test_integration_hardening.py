@@ -193,6 +193,17 @@ def test_external_effect_pending_intent_blocks_unsafe_retry(tmp_path):
     assert len(effects) == 1
 
 
+def test_invalid_external_call_creates_no_effect_intent(tmp_path):
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="publish", description="external", side_effect_level="external_write", required_arguments=frozenset({"value"}), handler=lambda args: {"ok": True}))
+    call = ToolCall(tool_name="publish", arguments={}, idempotency_key="invalid-1")
+    with SQLiteStateStore(tmp_path / "invalid-intent.sqlite3") as store:
+        store.save_approval("approval-1", task_id="11111111-1111-4111-8111-111111111111", side_effect_level="external_write", actor="human", call_id=call.call_id, arguments_hash=canonical_arguments_hash(call.arguments))
+        result = ToolRuntime(registry).with_result_store(store).execute(call, task_id="11111111-1111-4111-8111-111111111111", approval_id="approval-1")
+        assert result.error["category"] == "schema_validation"
+        assert store.get_effect_intent("invalid-1") is None
+
+
 def test_tool_timeout_returns_timeout_without_waiting_for_handler(tmp_path):
     registry = ToolRegistry()
     registry.register(ToolSpec(name="slow", description="slow", side_effect_level="none", timeout_seconds=0.01, handler=lambda args: sleep(0.2) or {"ok": True}))

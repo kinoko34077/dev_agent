@@ -43,13 +43,6 @@ class ToolRuntime:
             return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.DENIED, error={"category": "policy_denied", "message": "idempotency key is required for this side effect"})
         if spec.side_effect_level in self.IDEMPOTENCY_REQUIRED and self.result_store is None:
             return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.DENIED, error={"category": "policy_denied", "message": "durable result store is required for this side effect"})
-        if spec.side_effect_level in self.EXTERNAL_GUARDED:
-            intent = self.result_store.get_effect_intent(call.idempotency_key)
-            if intent is not None:
-                if intent["status"] == "succeeded" and intent.get("result"):
-                    return ToolResult.from_dict(intent["result"])
-                return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.DENIED, error={"category": "reconciliation_required", "message": "external effect intent is pending; reconcile before retry"})
-            self.result_store.create_effect_intent(call.idempotency_key, task_id=task_id or "unknown", tool_name=call.tool_name, arguments=call.arguments)
         missing = sorted(spec.required_arguments - call.arguments.keys())
         if missing:
             return ToolResult(
@@ -64,6 +57,14 @@ class ToolRuntime:
                 if self.paths is None or not spec.path_operation or spec.path_argument not in arguments:
                     return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.DENIED, error={"category": "policy_denied", "message": "path policy is required"})
                 arguments[spec.path_argument] = str(self.paths.require(arguments[spec.path_argument], spec.path_operation))
+            if spec.side_effect_level in self.EXTERNAL_GUARDED:
+                intent = self.result_store.get_effect_intent(call.idempotency_key)
+                if intent is not None:
+                    if intent["status"] == "succeeded" and intent.get("result"):
+                        return ToolResult.from_dict(intent["result"])
+                    return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.DENIED, error={"category": "reconciliation_required", "message": "external effect intent is pending; reconcile before retry"})
+                if not self.result_store.create_effect_intent(call.idempotency_key, task_id=task_id or "unknown", tool_name=call.tool_name, arguments=arguments):
+                    return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.DENIED, error={"category": "reconciliation_required", "message": "external effect claim lost; reconcile before retry"})
             executor = ThreadPoolExecutor(max_workers=1)
             future = executor.submit(spec.handler, arguments)
             try:
