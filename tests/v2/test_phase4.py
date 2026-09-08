@@ -19,6 +19,9 @@ def test_local_provider_completes_contract_without_cloud():
     report = ContractHarness().probe(LocalProvider(backend, model="local-test"))
     assert report.errors == []
     assert report.capabilities == {"text", "tool_call"}
+    assert report.model == "local-test"
+    assert report.adapter_version == "v2"
+    assert report.tested_at
 
 
 def test_local_provider_normalizes_model_response_directly():

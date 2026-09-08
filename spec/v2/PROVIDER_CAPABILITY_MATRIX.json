@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "entries": [],
+  "entry_contract": ["provider", "model", "api_version", "adapter_version", "tested_at", "expires_at", "confidence", "capabilities", "known_quirks", "errors"]
+}
