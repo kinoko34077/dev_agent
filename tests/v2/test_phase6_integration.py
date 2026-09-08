@@ -84,6 +84,32 @@ def test_dispatcher_routes_to_secondary_provider_after_retryable_primary_failure
     assert [(entry.provider_id, entry.outcome) for entry in dispatcher.audits] == [("primary", "rate_limit"), ("secondary", "succeeded")]
 
 
+def test_dispatcher_accepts_explicit_task_id_compatibility_entrypoint(tmp_path):
+    ledger = ResourceLedger(tmp_path / "dispatcher-task-id.sqlite3")
+    ledger.register_resource(
+        "secondary-resource",
+        provider_id="secondary",
+        native_unit="request",
+        capacity=1,
+        capabilities={"text"},
+        cost_minor=0,
+    )
+    ledger.observe("secondary-resource", available=1, health="healthy")
+    governor = BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=0))
+    control = ResourceControlPlane(ResourceRouter(ledger), governor)
+
+    class SecondaryProvider(FakeProvider):
+        provider_id = "secondary"
+
+        def request(self, request):
+            return ModelResponse(provider="secondary", model="test", text_segments=["ok"])
+
+    dispatcher = ProviderDispatcher(ProviderRegistry([SecondaryProvider()]), control)
+    request = ModelRequest(task_id="00000000-0000-0000-0000-000000000002", messages=[{"role": "user", "content": "hello"}])
+
+    assert dispatcher.request("00000000-0000-0000-0000-000000000002", request).provider == "secondary"
+
+
 def test_survival_dispatch_policy_prohibits_paid_provider_when_budget_is_exhausted(tmp_path):
     ledger = ResourceLedger(tmp_path / "survival.sqlite3")
     ledger.register_resource("free", provider_id="free", native_unit="request", capacity=10, capabilities=["text"], cost_minor=0)

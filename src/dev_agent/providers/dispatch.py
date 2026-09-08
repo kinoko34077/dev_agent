@@ -43,7 +43,24 @@ class ProviderDispatcher(ModelProvider):
         self.survival = survival
         self.audits: list[DispatchAudit] = []
 
-    def request(self, request: ModelRequest) -> ModelResponse:
+    def request(self, request_or_task_id: ModelRequest | str, explicit_request: ModelRequest | None = None) -> ModelResponse:
+        """Dispatch one request, accepting both canonical and legacy call shapes.
+
+        The provider protocol exposes ``request(ModelRequest)``.  Phase 6's
+        dispatcher plan also described an explicit ``(task_id, request)``
+        boundary, so accept that shape without allowing the two identities to
+        diverge.
+        """
+        if explicit_request is None:
+            if not isinstance(request_or_task_id, ModelRequest):
+                raise TypeError("request must be a ModelRequest")
+            request = request_or_task_id
+        else:
+            if not isinstance(request_or_task_id, str):
+                raise TypeError("explicit task_id must be a string")
+            if request_or_task_id != explicit_request.task_id:
+                raise ValueError("explicit task_id does not match request.task_id")
+            request = explicit_request
         excluded: set[str] = set()
         last_error: ProviderError | None = None
         while True:
