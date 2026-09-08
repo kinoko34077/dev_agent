@@ -24,6 +24,7 @@ class JsonStateStore:
             "checkpoints": [],
             "approvals": {},
             "effect_intents": {},
+            "approval_consumptions": {},
         }
         self._load()
 
@@ -99,6 +100,16 @@ class JsonStateStore:
     def has_approval(self, approval_id: str, *, task_id: str, side_effect_level: str, call_id: str, arguments_hash: str) -> bool:
         item = self._data.get("approvals", {}).get(approval_id)
         return bool(item and item.get("task_id") == task_id and item.get("side_effect_level") == side_effect_level and item.get("call_id") == call_id and item.get("arguments_hash") == arguments_hash)
+
+    def consume_approval(self, approval_id: str, *, task_id: str, side_effect_level: str, call_id: str, arguments_hash: str) -> bool:
+        if not self.has_approval(approval_id, task_id=task_id, side_effect_level=side_effect_level, call_id=call_id, arguments_hash=arguments_hash):
+            return False
+        consumed = self._data.setdefault("approval_consumptions", {})
+        if approval_id in consumed:
+            return False
+        consumed[approval_id] = True
+        self._flush()
+        return True
 
     def get_effect_intent(self, key: str) -> dict[str, Any] | None:
         return self._data.get("effect_intents", {}).get(key)

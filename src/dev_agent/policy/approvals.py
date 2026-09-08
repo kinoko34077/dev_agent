@@ -24,5 +24,5 @@ class ApprovalPolicy:
         if not self.requires_approval(side_effect_level):
             return True
         if approval_id and task_id and call_id and arguments_hash and store is not None:
-            return store.has_approval(approval_id, task_id=task_id, side_effect_level=side_effect_level, call_id=call_id, arguments_hash=arguments_hash)
+            return store.consume_approval(approval_id, task_id=task_id, side_effect_level=side_effect_level, call_id=call_id, arguments_hash=arguments_hash)
         return approved

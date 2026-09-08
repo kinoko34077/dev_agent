@@ -38,8 +38,6 @@ class ToolRuntime:
                 status=ToolResultStatus.DENIED,
                 error={"category": "policy_denied", "message": f"tool is not enabled: {call.tool_name}"},
             )
-        if self.approvals.requires_approval(spec.side_effect_level) and not self.approvals.authorize(spec.side_effect_level, approval_id=approval_id, task_id=task_id or call.originating_request_id, call_id=call.call_id, arguments_hash=canonical_arguments_hash(call.arguments), store=self.result_store):
-            return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.DENIED, error={"category": "approval_required", "message": "human approval is required"})
         if spec.side_effect_level in self.IDEMPOTENCY_REQUIRED and not call.idempotency_key:
             return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.DENIED, error={"category": "policy_denied", "message": "idempotency key is required for this side effect"})
         if spec.side_effect_level in self.IDEMPOTENCY_REQUIRED and self.result_store is None:
@@ -69,6 +67,9 @@ class ToolRuntime:
                     if intent["status"] == "succeeded" and intent.get("result"):
                         return ToolResult.from_dict(intent["result"])
                     return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.DENIED, error={"category": "reconciliation_required", "message": "external effect intent is pending; reconcile before retry"})
+            if self.approvals.requires_approval(spec.side_effect_level) and not self.approvals.authorize(spec.side_effect_level, approval_id=approval_id, task_id=task_id or call.originating_request_id, call_id=call.call_id, arguments_hash=canonical_arguments_hash(call.arguments), store=self.result_store):
+                return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.DENIED, error={"category": "approval_required", "message": "human approval is required"})
+            if spec.side_effect_level in self.EXTERNAL_GUARDED:
                 if not self.result_store.create_effect_intent(call.idempotency_key, task_id=task_id or "unknown", tool_name=call.tool_name, arguments=arguments):
                     return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.DENIED, error={"category": "reconciliation_required", "message": "external effect claim lost; reconcile before retry"})
             executor = ThreadPoolExecutor(max_workers=1)
