@@ -212,10 +212,15 @@ class SQLiteStateStore:
         self.connection.execute("UPDATE effect_intents SET status = ?, result_payload = COALESCE(?, result_payload) WHERE idempotency_key = ?", (to_status, payload, key))
         self.connection.commit()
 
-    def commit_transition(self, *, task: Task | None = None, step: Step | None = None, checkpoint: dict[str, Any] | None = None, event: Event | None = None, events: list[Event] | None = None, tool_result: ToolResult | None = None) -> None:
+    def commit_transition(self, *, task: Task | None = None, step: Step | None = None, checkpoint: dict[str, Any] | None = None, event: Event | None = None, events: list[Event] | None = None, tool_result: ToolResult | None = None, lease_proof: Any | None = None) -> None:
         """Atomically persist the records belonging to one runtime transition."""
         try:
             self.connection.execute("BEGIN IMMEDIATE")
+            if lease_proof is not None and self.connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='queue_items'").fetchone() is not None:
+                row = self.connection.execute("SELECT 1 FROM queue_items WHERE task_id=? AND state='leased' AND lease_owner=? AND lease_token=? AND state_version=? AND lease_until > ?", (lease_proof.task_id, lease_proof.worker_id, lease_proof.lease_token, lease_proof.state_version, time.time())).fetchone()
+                if row is None:
+                    from ..scheduler.queue import StaleLease
+                    raise StaleLease(lease_proof.task_id)
             if task is not None:
                 self.connection.execute("INSERT OR REPLACE INTO tasks VALUES (?, ?)", (task.task_id, json.dumps(task.to_dict(), ensure_ascii=False)))
             if step is not None:

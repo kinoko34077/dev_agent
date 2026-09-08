@@ -56,13 +56,14 @@ class Controller:
         re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----"),
     )
 
-    def __init__(self, provider: ModelProvider, tools: ToolRuntime, store: StateStore, *, event_artifacts: EventArtifactStore | None = None, resource_policy: Any | None = None, lease_guard: Any | None = None) -> None:
+    def __init__(self, provider: ModelProvider, tools: ToolRuntime, store: StateStore, *, event_artifacts: EventArtifactStore | None = None, resource_policy: Any | None = None, lease_guard: Any | None = None, lease_proof: Any | None = None) -> None:
         self.provider = provider
         self.tools = tools.with_result_store(store)
         self.store = store
         self.event_artifacts = event_artifacts
         self.resource_policy = resource_policy
         self.lease_guard = lease_guard
+        self.lease_proof = lease_proof
         self._cancellation_events: dict[str, Event] = {}
         self._cancellation_reasons: dict[str, str] = {}
         self._active_tasks: set[str] = set()
@@ -128,7 +129,7 @@ class Controller:
     def _commit(self, *, task: Task | None = None, step: Step | None = None, checkpoint: dict[str, Any] | None = None, events: list[ProtocolEvent] | None = None, tool_result: ToolResult | None = None) -> None:
         if self.lease_guard is not None:
             self.lease_guard()
-        self.store.commit_transition(task=task, step=step, checkpoint=checkpoint, events=events, tool_result=tool_result)
+        self.store.commit_transition(task=task, step=step, checkpoint=checkpoint, events=events, tool_result=tool_result, lease_proof=self.lease_proof)
 
     @staticmethod
     def _kernel_operation_key(task: Task, step: Step, call: ToolCall, index: int, *, effective_arguments: dict[str, Any] | None = None) -> str:

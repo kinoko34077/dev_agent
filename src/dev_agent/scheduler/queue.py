@@ -8,9 +8,14 @@ from pathlib import Path
 import sqlite3
 from threading import RLock
 import time
+from uuid import uuid4
 
 
 class QueueEmpty(RuntimeError):
+    pass
+
+
+class MaintenanceMode(RuntimeError):
     pass
 
 
@@ -27,6 +32,14 @@ def _epoch(value: datetime | float | int | None) -> float:
 
 
 @dataclass(frozen=True)
+class LeaseProof:
+    task_id: str
+    worker_id: str
+    lease_token: str
+    state_version: int
+
+
+@dataclass(frozen=True)
 class QueueItem:
     task_id: str
     priority: int
@@ -36,6 +49,13 @@ class QueueItem:
     lease_until: datetime | None
     state_version: int
     attempts: int
+    lease_token: str | None = None
+
+    @property
+    def lease_proof(self) -> LeaseProof | None:
+        if self.lease_owner is None or self.lease_token is None:
+            return None
+        return LeaseProof(self.task_id, self.lease_owner, self.lease_token, self.state_version)
 
 
 class DurableQueue:
@@ -47,9 +67,11 @@ class DurableQueue:
         state TEXT NOT NULL,
         lease_owner TEXT,
         lease_until REAL,
+        lease_token TEXT,
         state_version INTEGER NOT NULL,
         attempts INTEGER NOT NULL DEFAULT 0
     );
+    CREATE TABLE IF NOT EXISTS scheduler_control (id INTEGER PRIMARY KEY CHECK (id=1), maintenance INTEGER NOT NULL DEFAULT 0);
     """
 
     def __init__(self, path: str | Path) -> None:
@@ -58,6 +80,9 @@ class DurableQueue:
         self.connection = sqlite3.connect(self.path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
         self.connection.executescript(self._SCHEMA)
+        columns = {row[1] for row in self.connection.execute("PRAGMA table_info(queue_items)")}
+        if "lease_token" not in columns:
+            self.connection.execute("ALTER TABLE queue_items ADD COLUMN lease_token TEXT")
         self.connection.commit()
         self._lock = RLock()
 
@@ -72,13 +97,13 @@ class DurableQueue:
 
     @staticmethod
     def _item(row: sqlite3.Row) -> QueueItem:
-        return QueueItem(row["task_id"], row["priority"], datetime.fromtimestamp(row["run_at"], timezone.utc), row["state"], row["lease_owner"], datetime.fromtimestamp(row["lease_until"], timezone.utc) if row["lease_until"] is not None else None, row["state_version"], row["attempts"])
+        return QueueItem(row["task_id"], row["priority"], datetime.fromtimestamp(row["run_at"], timezone.utc), row["state"], row["lease_owner"], datetime.fromtimestamp(row["lease_until"], timezone.utc) if row["lease_until"] is not None else None, row["state_version"], row["attempts"], row["lease_token"])
 
     def enqueue(self, task_id: str, *, run_at: datetime | float | int | None = None, priority: int = 0) -> QueueItem:
         if not task_id.strip() or isinstance(priority, bool) or not isinstance(priority, int):
             raise ValueError("task_id and integer priority are required")
         with self._lock:
-            self.connection.execute("INSERT INTO queue_items VALUES (?, ?, ?, 'queued', NULL, NULL, 1, 0)", (task_id, priority, _epoch(run_at)))
+            self.connection.execute("INSERT INTO queue_items(task_id, priority, run_at, state, lease_owner, lease_until, lease_token, state_version, attempts) VALUES (?, ?, ?, 'queued', NULL, NULL, NULL, 1, 0)", (task_id, priority, _epoch(run_at)))
             self.connection.commit()
             return self.snapshot(task_id)
 
@@ -87,6 +112,9 @@ class DurableQueue:
             raise ValueError("worker_id and positive lease_seconds are required")
         current = _epoch(now)
         with self._lock:
+            control = self.connection.execute("SELECT maintenance FROM scheduler_control WHERE id=1").fetchone()
+            if control is not None and control[0]:
+                raise MaintenanceMode("scheduler is in maintenance mode")
             self.connection.execute("BEGIN IMMEDIATE")
             try:
                 row = self.connection.execute("SELECT * FROM queue_items WHERE (state='queued' AND run_at <= ?) OR (state='leased' AND lease_until <= ?) ORDER BY priority DESC, run_at ASC, task_id ASC LIMIT 1", (current, current)).fetchone()
@@ -95,7 +123,8 @@ class DurableQueue:
                     raise QueueEmpty("no queue item is ready")
                 version = int(row["state_version"]) + 1
                 until = current + lease_seconds
-                cursor = self.connection.execute("UPDATE queue_items SET state='leased', lease_owner=?, lease_until=?, state_version=?, attempts=attempts+1 WHERE task_id=? AND state_version=? AND (state='queued' OR (state='leased' AND lease_until <= ?))", (worker_id, until, version, row["task_id"], row["state_version"], current))
+                token = str(uuid4())
+                cursor = self.connection.execute("UPDATE queue_items SET state='leased', lease_owner=?, lease_until=?, lease_token=?, state_version=?, attempts=attempts+1 WHERE task_id=? AND state_version=? AND (state='queued' OR (state='leased' AND lease_until <= ?))", (worker_id, until, token, version, row["task_id"], row["state_version"], current))
                 if cursor.rowcount != 1:
                     self.connection.rollback()
                     raise QueueEmpty("queue claim lost race")
@@ -105,6 +134,11 @@ class DurableQueue:
                     self.connection.rollback()
                 raise
             return self.snapshot(row["task_id"])
+
+    def set_maintenance(self, enabled: bool) -> None:
+        with self._lock:
+            self.connection.execute("INSERT INTO scheduler_control(id, maintenance) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET maintenance=excluded.maintenance", (int(enabled),))
+            self.connection.commit()
 
     def renew(self, task_id: str, *, worker_id: str, state_version: int, lease_seconds: float = 30.0) -> QueueItem:
         with self._lock:
@@ -118,6 +152,11 @@ class DurableQueue:
         row = self.connection.execute("SELECT 1 FROM queue_items WHERE task_id=? AND state='leased' AND lease_owner=? AND state_version=? AND lease_until > ?", (task_id, worker_id, state_version, time.time())).fetchone()
         if row is None:
             raise StaleLease(task_id)
+
+    def assert_proof(self, proof: LeaseProof) -> None:
+        row = self.connection.execute("SELECT 1 FROM queue_items WHERE task_id=? AND state='leased' AND lease_owner=? AND lease_token=? AND state_version=? AND lease_until > ?", (proof.task_id, proof.worker_id, proof.lease_token, proof.state_version, time.time())).fetchone()
+        if row is None:
+            raise StaleLease(proof.task_id)
 
     def complete(self, task_id: str, *, worker_id: str, state_version: int) -> QueueItem:
         return self._finish(task_id, worker_id=worker_id, state_version=state_version, state="completed")

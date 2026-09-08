@@ -25,7 +25,9 @@ class WorkerRunner:
             raise RuntimeError(f"queued task is missing from StateStore: {item.task_id}")
         self.queue.renew(item.task_id, worker_id=self.worker_id, state_version=item.state_version, lease_seconds=self.lease_seconds)
         previous_guard = self.controller.lease_guard
+        previous_proof = self.controller.lease_proof
         self.controller.lease_guard = lambda: self.queue.assert_lease(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
+        self.controller.lease_proof = item.lease_proof
         try:
             result = self.controller.resume(task.task_id)
         except Exception:
@@ -33,6 +35,7 @@ class WorkerRunner:
             raise
         finally:
             self.controller.lease_guard = previous_guard
+            self.controller.lease_proof = previous_proof
         if result.status == TaskStatus.COMPLETED:
             self.queue.complete(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
         else:
