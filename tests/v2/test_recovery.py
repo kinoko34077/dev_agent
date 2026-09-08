@@ -5,6 +5,7 @@ import subprocess
 from recovery.diagnose import run_diagnostics
 from recovery.git_recovery import inspect_git, load_last_known_good, plan_rollback, record_last_known_good, rollback_to_last_known_good, create_repair_branch
 from recovery.phase6_recovery import RecoveryOperator
+from recovery.backup import backup_artifact_root, restore_artifact_root
 from recovery.test_results import parse_junit_report, validate_junit_report
 from recovery.validate_state import validate_state
 import pytest
@@ -151,3 +152,22 @@ def test_phase6_recovery_operator_drill_runs_restore_lkg_rollback_and_repair(tmp
     assert rolled_back.commit == first
     assert operator.create_repair_branch(metadata, "repair/drill", allow_write=True) == "repair/drill"
     assert (tmp_path / "last-known-good.json").is_file()
+
+
+def test_recovery_artifact_root_backup_and_restore_is_validated_and_atomic(tmp_path):
+    from src.dev_agent.security.event_artifacts import EventArtifactStore
+    from recovery.validate_artifacts import validate_artifact_root
+
+    source = tmp_path / "artifacts"
+    backup = tmp_path / "artifacts-backup"
+    restored = tmp_path / "artifacts-restored"
+    store = EventArtifactStore(source)
+    reference = store.put(b'{"safe":true}', content_type="application/json", retention_seconds=60)["uri"]
+
+    assert backup_artifact_root(source, backup) == backup
+    assert validate_artifact_root(backup)[0]
+    assert EventArtifactStore(backup).read(reference) == b'{"safe":true}'
+    assert restore_artifact_root(backup, restored) == restored
+    assert validate_artifact_root(restored)[0]
+    with pytest.raises(FileExistsError):
+        backup_artifact_root(source, backup)

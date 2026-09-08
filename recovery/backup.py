@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from pathlib import Path
 import os
+import shutil
 import sqlite3
 import tempfile
 from typing import Iterator
@@ -121,6 +122,45 @@ def restore_sqlite(source: str | Path, destination: str | Path, *, replace: bool
                 pass
 
 
+def _copy_artifact_root(source: str | Path, destination: str | Path) -> Path:
+    from .validate_artifacts import validate_artifact_root
+
+    source_path, destination_path = Path(source).expanduser().resolve(), Path(destination).expanduser().resolve()
+    if source_path == destination_path:
+        raise ValueError("artifact destination must differ from source")
+    if not source_path.is_dir():
+        raise FileNotFoundError(source_path)
+    if destination_path.exists():
+        raise FileExistsError(destination_path)
+    source_ok, source_detail = validate_artifact_root(source_path)
+    if not source_ok:
+        raise ValueError(f"artifact source failed validation: {source_detail}")
+    destination_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = Path(tempfile.mkdtemp(prefix=f".{destination_path.name}.", dir=destination_path.parent))
+    try:
+        for item in source_path.iterdir():
+            if item.is_file() and item.suffix in {".bin", ".json"}:
+                shutil.copy2(item, temporary_path / item.name)
+        ok, detail = validate_artifact_root(temporary_path)
+        if not ok:
+            raise ValueError(f"artifact copy failed validation: {detail}")
+        os.replace(temporary_path, destination_path)
+        return destination_path
+    finally:
+        if temporary_path.exists():
+            shutil.rmtree(temporary_path)
+
+
+def backup_artifact_root(source: str | Path, destination: str | Path) -> Path:
+    """Atomically copy a validated event-artifact root without sidecar drift."""
+    return _copy_artifact_root(source, destination)
+
+
+def restore_artifact_root(source: str | Path, destination: str | Path) -> Path:
+    """Restore a validated artifact-root copy to a new, non-existing path."""
+    return _copy_artifact_root(source, destination)
+
+
 @contextmanager
 def maintenance_lock(lock_path: str | Path) -> Iterator[None]:
     """Exclusive create lock preventing concurrent recovery/normal maintenance."""
@@ -142,4 +182,4 @@ def maintenance_lock(lock_path: str | Path) -> Iterator[None]:
                 pass
 
 
-__all__ = ["backup_sqlite", "maintenance_lock", "restore_sqlite", "validate_backup"]
+__all__ = ["backup_artifact_root", "backup_sqlite", "maintenance_lock", "restore_artifact_root", "restore_sqlite", "validate_backup"]

@@ -14,7 +14,7 @@ from .phase6_recovery import RecoveryOperator
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Read-only-first recovery rescue utility")
     sub = parser.add_subparsers(dest="command", required=True)
-    for name in ("diagnose", "validate-ledger", "backup", "restore-plan", "rollback-plan", "repair-branch-plan"):
+    for name in ("diagnose", "validate-ledger", "backup", "backup-artifacts", "restore-plan", "rollback-plan", "repair-branch-plan"):
         command = sub.add_parser(name)
         command.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent)
         command.add_argument("--json", action="store_true")
@@ -23,6 +23,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.choices["validate-ledger"].add_argument("database", type=Path)
     sub.choices["backup"].add_argument("source", type=Path)
     sub.choices["backup"].add_argument("destination", type=Path)
+    sub.choices["backup-artifacts"].add_argument("source", type=Path)
+    sub.choices["backup-artifacts"].add_argument("destination", type=Path)
     sub.choices["restore-plan"].add_argument("metadata", type=Path)
     sub.choices["rollback-plan"].add_argument("metadata", type=Path)
     sub.choices["repair-branch-plan"].add_argument("metadata", type=Path)
@@ -38,6 +40,10 @@ def main(argv: list[str] | None = None) -> int:
         if not args.allow_write:
             parser.error("backup requires --allow-write")
         value = {"path": str(operator.backup_state(args.source, args.destination))}
+    elif args.command == "backup-artifacts":
+        if not args.allow_write:
+            parser.error("backup-artifacts requires --allow-write")
+        value = {"path": str(operator.backup_artifacts(args.source, args.destination))}
     elif args.command == "restore-plan":
         value = {"operation": "restore", "metadata": str(args.metadata), "mutation_requires": "--allow-write"}
     elif args.command == "rollback-plan":

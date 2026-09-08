@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from .backup import backup_sqlite, maintenance_lock, restore_sqlite, validate_backup
+from .backup import backup_artifact_root, backup_sqlite, maintenance_lock, restore_artifact_root, restore_sqlite, validate_backup
 from .git_recovery import create_repair_branch, inspect_git, plan_rollback, record_last_known_good
 from .validate_sqlite_state import validate_sqlite_state
 
@@ -23,6 +23,9 @@ class RecoveryOperator:
     def backup_state(self, source: str | Path, destination: str | Path) -> Path:
         return backup_sqlite(source, destination)
 
+    def backup_artifacts(self, source: str | Path, destination: str | Path) -> Path:
+        return backup_artifact_root(source, destination)
+
     def restore_state(self, source: str | Path, destination: str | Path, *, allow_write: bool = False, lock_path: str | Path | None = None, replace: bool = False) -> Path:
         if not allow_write:
             raise PermissionError("restore requires allow_write=True")
@@ -32,6 +35,18 @@ class RecoveryOperator:
             ok, detail = validate_sqlite_state(restored)
             if not ok:
                 raise ValueError(f"restored state failed validation: {detail}")
+            return restored
+
+    def restore_artifacts(self, source: str | Path, destination: str | Path, *, allow_write: bool = False, lock_path: str | Path | None = None) -> Path:
+        if not allow_write:
+            raise PermissionError("artifact restore requires allow_write=True")
+        lock = Path(lock_path) if lock_path is not None else Path(destination).with_name(Path(destination).name + ".maintenance.lock")
+        with maintenance_lock(lock):
+            restored = restore_artifact_root(source, destination)
+            from .validate_artifacts import validate_artifact_root
+            ok, detail = validate_artifact_root(restored)
+            if not ok:
+                raise ValueError(f"restored artifact root failed validation: {detail}")
             return restored
 
     def validate_state(self, database: str | Path) -> tuple[bool, str]:
@@ -48,4 +63,3 @@ class RecoveryOperator:
 
 
 __all__ = ["RecoveryOperator"]
-
