@@ -188,3 +188,15 @@ def test_maintenance_mode_denies_new_provider_reservations(tmp_path):
     with pytest.raises(DispatchDenied) as exc:
         control.reserve_for_provider("task-1", "free", request)
     assert exc.value.category == "maintenance"
+
+
+def test_native_capacity_denial_has_unavailable_category(tmp_path):
+    ledger = ResourceLedger(tmp_path / "capacity-category.sqlite3")
+    ledger.register_resource("tiny", provider_id="tiny", native_unit="request", capacity=1, capabilities=["text"], cost_minor=0)
+    ledger.observe("tiny", available=1, health="healthy")
+    control = ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=10, recovery_reserve_minor=0)))
+    request = ModelRequest(task_id="00000000-0000-0000-0000-000000000001", messages=[{"role": "user", "content": "x"}])
+    control.reserve_for_provider("task-1", "tiny", request)
+    with pytest.raises(DispatchDenied) as exc:
+        control.reserve_for_provider("task-2", "tiny", request)
+    assert exc.value.category == "unavailable"

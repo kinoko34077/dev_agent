@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..domain.protocol import ModelRequest, ModelResponse
-from .budget import BudgetExceeded, BudgetGovernor, BudgetReservation, UnknownPrice
+from .budget import BudgetExceeded, BudgetGovernor, BudgetReservation, ResourceUnavailable, UnknownPrice
 from .ledger import MoneyAmount
 from .router import NoRoute, ResourceRouter, RouteRequest, RouteSelection
 
@@ -47,6 +47,8 @@ class ResourceControlPlane:
             raise DispatchDenied("no_route", str(exc)) from exc
         except UnknownPrice as exc:
             raise DispatchDenied("unknown_price", str(exc)) from exc
+        except ResourceUnavailable as exc:
+            raise DispatchDenied("unavailable", str(exc)) from exc
         except BudgetExceeded as exc:
             raise DispatchDenied("budget", str(exc)) from exc
         except ValueError as exc:
@@ -60,6 +62,8 @@ class ResourceControlPlane:
             reservation = self.governor.reserve(task_id, selection.resource_id, estimated_cost=price)
         except UnknownPrice as exc:
             raise DispatchDenied("unknown_price", str(exc)) from exc
+        except ResourceUnavailable as exc:
+            raise DispatchDenied("unavailable", str(exc)) from exc
         except BudgetExceeded as exc:
             raise DispatchDenied("budget", str(exc)) from exc
         return DispatchReservation(reservation, selection.provider_id)
