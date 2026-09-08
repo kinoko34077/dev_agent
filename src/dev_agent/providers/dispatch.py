@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..domain.protocol import ModelRequest, ModelResponse
-from ..resources.control import DispatchReservation, ResourceControlPlane
+from ..resources.control import DispatchDenied, DispatchReservation, ResourceControlPlane
 from ..resources.router import NoRoute, RouteRequest, RouteSelection
 from ..resources.survival import SurvivalGovernor, SurvivalMode, SurvivalSnapshot
 from .base import ModelProvider, ProviderError
@@ -72,10 +72,10 @@ class ProviderDispatcher(ModelProvider):
         while True:
             try:
                 selection = self._selection(request, excluded)
-            except NoRoute:
+            except NoRoute as exc:
                 if last_error is not None:
                     raise last_error
-                raise
+                raise DispatchDenied("no_route", str(exc)) from exc
             provider = self.registry.get(selection.provider_id)
             # Resolve the concrete provider before acquiring a budget/capacity
             # reservation.  A stale resource observation must not strand a

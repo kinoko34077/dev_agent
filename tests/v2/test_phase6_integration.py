@@ -242,6 +242,37 @@ def test_controller_runs_through_provider_dispatcher_and_records_selected_provid
     assert dispatcher.audits[-1].provider_id == "secondary"
 
 
+def test_controller_maps_dispatcher_budget_denial_to_blocked_budget(tmp_path):
+    ledger = ResourceLedger(tmp_path / "dispatcher-budget-denial.sqlite3")
+    ledger.register_resource("paid", provider_id="paid", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
+    ledger.observe("paid", available=10, health="healthy")
+    control = ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=0, recovery_reserve_minor=0)))
+
+    class PaidProvider(FakeProvider):
+        provider_id = "paid"
+
+        def request(self, request):
+            raise AssertionError("budget-denied provider must not be invoked")
+
+    dispatcher = ProviderDispatcher(ProviderRegistry([PaidProvider()]), control)
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        result = Controller(dispatcher, ToolRuntime(ToolRegistry()), store).run(Task(objective="budget blocked"))
+        events = [event for event in store.snapshot()["events"] if event["event_type"] == "task.blocked_budget"]
+
+    assert result.status.value == "blocked_budget"
+    assert events
+
+
+def test_controller_maps_dispatcher_no_route_to_blocked_budget(tmp_path):
+    ledger = ResourceLedger(tmp_path / "dispatcher-no-route.sqlite3")
+    control = ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=0)))
+    dispatcher = ProviderDispatcher(ProviderRegistry([FakeProvider()]), control)
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        result = Controller(dispatcher, ToolRuntime(ToolRegistry()), store).run(Task(objective="no route"))
+
+    assert result.status.value == "blocked_budget"
+
+
 def test_controller_paid_dispatch_reserves_and_reconciles_actual_cost(tmp_path):
     ledger = ResourceLedger(tmp_path / "paid-controller.sqlite3")
     ledger.register_resource("paid", provider_id="paid", native_unit="request", capacity=10, capabilities=["text"], cost_minor=20)

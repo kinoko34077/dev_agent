@@ -15,7 +15,7 @@ from ..domain.protocol import ModelRequest, ModelResponse, Step, StepStatus, Tas
 from ..providers.base import ModelProvider, ProviderError
 from ..security.event_artifacts import EventArtifactStore
 from ..security.audit import AuditRecorder
-from ..resources.control import ResourcePolicy
+from ..resources.control import DispatchDenied, ResourcePolicy
 from ..state.store import StateStore
 from ..tools.runtime import ToolRuntime
 
@@ -387,6 +387,9 @@ class Controller:
                     response = self._provider_request(request, state["deadline_epoch"], cancel_event)
                     if not isinstance(response, ModelResponse):
                         raise TypeError("provider must return ModelResponse")
+                except DispatchDenied as exc:
+                    self._block_budget(task, state, step=step, message=f"{exc.category}: {exc}")
+                    return task
                 except _ProviderCancelled as exc:
                     if reservation is not None:
                         if exc.unable_to_confirm:
