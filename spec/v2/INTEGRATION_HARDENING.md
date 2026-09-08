@@ -54,8 +54,9 @@ Status: in progress. This gate precedes Phase 6.
 
 ## Still required before Phase 6
 
-- Crash injection at the remaining pre-model, pending-tool, after-tools, and
-  approval/reconciliation transition boundaries.
+- Crash injection at the reconciliation/cancellation transition boundaries and
+  a complete CI matrix. Pre-model, pending-tool, after-tool-result, after-tools,
+  terminal, and approval-wait boundaries are covered locally.
 - Approval-wait/resume is now available through `Controller.resume(task_id, approval_id=...)`; a higher-level UI/API for presenting pending approvals remains required.
 - Local-model qualification that verifies visible response quality as well as the hard output bound; the installed `qwen3:0.6b` failed this narrow probe because it spent the small output budget on a thinking trace.
 - Real Gemini live contract probe (network reached, but current key/model combination returned HTTP 403; credential/project restriction must be corrected before promotion).

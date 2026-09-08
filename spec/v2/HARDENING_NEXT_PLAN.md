@@ -2,6 +2,25 @@
 
 目的は、外部サービスが停止してもローカルで検証可能な境界を先に完了し、外部依存の項目を明確な保留として後回しにできる状態を作ること。
 
+## 現在の実行範囲（2026-09-08 JST）
+
+追加された v2 roadmap / foundation 要件に合わせ、当面は Phase 3.5
+（Kernel Trust Boundary Closure）だけを対象にする。Phase 6 の Resource / Budget /
+Router / Survival / Scheduler 実装は開始せず、Phase 3.5 の Gate が全項目
+`VERIFIED` になり、正常系・異常系・再開系・exact HEAD の証跡が揃うまで入口を
+`PROHIBITED_UNTIL_ALL_VERIFIED` のまま維持する。
+
+直近の実装順は次の通り。
+
+1. Controller の critical transition、承認、照合、キャンセル境界の fault matrix を拡張する。
+2. Tool の実効引数を operation identity・approval・audit・dispatch で共通化する。
+3. Event の secret classification と artifact / retention 境界を完成させる。
+4. trusted in-process、subprocess、外部ネットワークの timeout / cancellation 契約を個別に検証する。
+5. ローカル Provider の real Tool-call E2E と、外部 Provider の BLOCKED 条件を再確認する。
+
+Phase 6 の実装に着手する条件は、Gate checker の actionable 項目がゼロ、
+`phase6_entry` が `ALL_VERIFIED`、および未解決の P0/P1 がゼロであることとする。
+
 ## Gate A — durable state / recovery（先行）
 
 合格条件:

@@ -6,12 +6,12 @@
 
 ### 現在の到達点（2026-09-08 JST）
 
-- v2 の全テストが `87 passed`。
+- v2 の全テストが `101 passed`（2026-09-08 JST のローカル実行）。
 - 外部副作用の曖昧状態を `waiting_reconciliation` としてタスクに永続化し、照合確定後の再開を統合テストで検証（全64件）。
 - Windows の実 symlink を使った workspace 外逸脱拒否テストが `passed`。
-- Ollama のローカル `/api/chat` 実機接続を確認。
+- Ollama のローカル `/api/chat` は現環境で接続拒否を確認し、実 Tool-call E2E は未達のまま Gate D23 に保留。
 - Gemini の実HTTP経路は接続まで確認したが、モデル一覧・最小生成とも HTTP 403。実 Provider 完走は未達。
-- 前回記録時点の作業ツリーは clean。今回の継続 hardening は検証中の未コミット変更。
+- 現在の HEAD は `93560ed`。今回の継続 hardening は検証中の未コミット変更で、追加された `dev_agent_codex_4docs/` はユーザー提供資料として保持する。
 
 ### 2026-09-08
 

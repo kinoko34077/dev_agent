@@ -293,6 +293,33 @@ def test_controller_waiting_approval_can_resume_with_persisted_record(tmp_path):
     store.close()
 
 
+def test_resume_after_waiting_approval_commit_crash_does_not_duplicate_tool_decision(tmp_path):
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="publish", description="external", side_effect_level="external_write", handler=lambda args: {"ok": True}))
+    provider = ApprovalCallProvider()
+    task = Task(objective="approval crash boundary")
+    path = tmp_path / "approval-crash.sqlite3"
+    with CrashAfterCommitStore(path, "waiting_approval") as store:
+        with pytest.raises(SystemExit, match="waiting_approval"):
+            Controller(provider, ToolRuntime(registry), store).run(task)
+    with SQLiteStateStore(path) as reopened:
+        pending = reopened.load_latest_checkpoint(task.task_id)["state"]["pending_tool_calls"][0]
+        reopened.save_approval(
+            "approval-after-crash",
+            task_id=task.task_id,
+            side_effect_level="external_write",
+            actor="human",
+            call_id=pending["call_id"],
+            arguments_hash=canonical_arguments_hash(pending["arguments"]),
+        )
+        result = Controller(provider, ToolRuntime(registry), reopened).resume(task.task_id, approval_id="approval-after-crash")
+    assert result.status == TaskStatus.COMPLETED
+    # The second request is the legitimate final-response request after the
+    # approved ToolCall; the model's original ToolCall is not regenerated.
+    assert len(provider.requests) == 2
+    assert len(provider.requests[1].tool_results) == 1
+
+
 def test_controller_enforces_path_policy_before_handler(tmp_path):
     calls = []
     workspace = tmp_path / "workspace"
@@ -785,6 +812,25 @@ def test_controller_replaces_provider_idempotency_hint_with_kernel_operation_key
     key = Controller._kernel_operation_key(task, step, provider.call, 0)
     assert key.startswith(f"op:{task.task_id}:0:0:")
     assert key != "model-chosen"
+
+
+def test_kernel_operation_key_binds_to_canonical_effective_path(tmp_path):
+    workspace = tmp_path / "workspace"
+    sandbox = workspace / "sandbox"
+    sandbox.mkdir(parents=True)
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="read_file", description="read", path_argument="path", path_operation="read", handler=lambda args: {"ok": True}))
+    runtime = ToolRuntime(
+        registry,
+        paths=PathPolicy(workspace, {"sandbox": {"read"}}),
+    )
+    task = Task(objective="canonical identity")
+    step = Step(task_id=task.task_id, order=0, kind="model")
+    relative = ToolCall(tool_name="read_file", arguments={"path": "sandbox/data.txt"})
+    absolute = ToolCall(tool_name="read_file", arguments={"path": str((sandbox / "data.txt").resolve())})
+    first = Controller._kernel_operation_key(task, step, relative, 0, effective_arguments=runtime.effective_arguments(relative))
+    second = Controller._kernel_operation_key(task, step, absolute, 0, effective_arguments=runtime.effective_arguments(absolute))
+    assert first == second
 
 
 @pytest.mark.parametrize("phase", ["after_model", "failure"])

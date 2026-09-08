@@ -114,8 +114,8 @@ class Controller:
         self.store.commit_transition(task=task, step=step, checkpoint=checkpoint, events=events, tool_result=tool_result)
 
     @staticmethod
-    def _kernel_operation_key(task: Task, step: Step, call: ToolCall, index: int) -> str:
-        canonical = json.dumps({"tool_name": call.tool_name, "arguments": call.arguments}, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    def _kernel_operation_key(task: Task, step: Step, call: ToolCall, index: int, *, effective_arguments: dict[str, Any] | None = None) -> str:
+        canonical = json.dumps({"tool_name": call.tool_name, "arguments": effective_arguments if effective_arguments is not None else call.arguments}, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:24]
         return f"op:{task.task_id}:{step.order}:{index}:{digest}"
 
@@ -378,7 +378,13 @@ class Controller:
                     for index, call in enumerate(response.tool_calls):
                         # Provider/LLM supplied replay keys are hints only.  The
                         # Kernel owns operation identity after validation.
-                        call.idempotency_key = self._kernel_operation_key(task, step, call, index)
+                        call.idempotency_key = self._kernel_operation_key(
+                            task,
+                            step,
+                            call,
+                            index,
+                            effective_arguments=self.tools.effective_arguments(call),
+                        )
                         state["pending_tool_calls"].append(call.to_dict())
                     state["active_step"] = step.to_dict()
                     self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "pending_tools", state), events=[response_event])

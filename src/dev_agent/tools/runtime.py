@@ -143,6 +143,20 @@ class ToolRuntime:
         self.result_store = result_store
         return self
 
+    def effective_arguments(self, call: ToolCall) -> dict[str, Any]:
+        """Return the deterministic argument payload used for tool identity.
+
+        This is deliberately policy-neutral: permission checks still happen in
+        ``execute``.  Identity, approval, and dispatch must nevertheless agree
+        on path canonicalization, otherwise equivalent relative and absolute
+        paths could receive different operation keys.
+        """
+        spec = self.registry.resolve(call.tool_name)
+        arguments = dict(call.arguments)
+        if spec is not None and spec.path_argument and self.paths is not None and spec.path_argument in arguments:
+            arguments[spec.path_argument] = str(self.paths.canonical(arguments[spec.path_argument]))
+        return arguments
+
     @staticmethod
     def _reconciliation_result(call: ToolCall, *, cause: str, message: str, status: ToolResultStatus = ToolResultStatus.FAILED) -> ToolResult:
         return ToolResult(
@@ -225,7 +239,7 @@ class ToolRuntime:
             return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.FAILED, error={"category": "schema_validation", "message": str(exc)})
         effect_dispatched = False
         try:
-            arguments = dict(call.arguments)
+            arguments = self.effective_arguments(call)
             if _json_size(arguments) > spec.max_argument_bytes:
                 return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.DENIED, error={"category": "limits_exceeded", "message": "tool arguments exceed configured byte limit"})
             if spec.path_argument:
