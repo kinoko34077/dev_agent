@@ -48,6 +48,44 @@ def test_event_payload_detects_secret_values_and_total_byte_cap():
     assert "abcdefghijklmnop" not in str(safe)
 
 
+def test_event_artifact_store_keeps_sanitized_oversized_payloads_bound_and_expirable(tmp_path):
+    from src.dev_agent.runtime import controller as controller_module
+
+    artifact_store_type = getattr(controller_module, "EventArtifactStore", None)
+    assert artifact_store_type is not None
+    store = artifact_store_type(tmp_path / "artifacts")
+    payload = b'{"message":"safe"}'
+    reference = store.put(payload, content_type="application/json", retention_seconds=60)
+    assert reference["uri"].startswith("event-artifact-sha256:")
+    assert store.read(reference["uri"]) == payload
+    assert store.purge(now=reference["expires_at"] + 1) == 1
+    with pytest.raises(FileNotFoundError):
+        store.read(reference["uri"])
+
+
+def test_event_artifact_store_rejects_path_traversal_and_secret_payloads(tmp_path):
+    from src.dev_agent.runtime import controller as controller_module
+
+    store = controller_module.EventArtifactStore(tmp_path / "artifacts")
+    with pytest.raises(ValueError, match="artifact reference"):
+        store.read("event-artifact-sha256:../escape")
+    with pytest.raises(ValueError, match="sanitized"):
+        store.put(b"api_key=raw-secret", content_type="text/plain", retention_seconds=60)
+
+
+def test_controller_writes_sanitized_oversized_event_to_artifact_store(tmp_path):
+    from src.dev_agent.providers.fake import FakeProvider
+    from src.dev_agent.security.event_artifacts import EventArtifactStore
+
+    store = JsonStateStore(tmp_path / "event-state.json")
+    controller = Controller(FakeProvider(), ToolRuntime(ToolRegistry()), store, event_artifacts=EventArtifactStore(tmp_path / "event-artifacts"))
+    task = Task(objective="artifact event")
+    event = controller._event_record(task, "large.event", {"content": ["safe-" + ("x" * 4_096)] * 20})
+    assert event.payload["payload_ref"].startswith("event-artifact-sha256:")
+    artifact_root = tmp_path / "event-artifacts"
+    assert list(artifact_root.glob("*.bin"))
+
+
 def test_json_commit_transition_restores_memory_when_flush_fails(tmp_path, monkeypatch):
     store = JsonStateStore(tmp_path / "atomic.json")
     before = store.snapshot()

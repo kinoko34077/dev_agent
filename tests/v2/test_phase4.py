@@ -30,6 +30,29 @@ def test_local_provider_normalizes_model_response_directly():
     assert response.text_segments == ["ok"]
 
 
+def test_contract_harness_verifies_sequential_tool_result_roundtrip():
+    calls = []
+
+    def backend(request):
+        calls.append(request)
+        if not request["tool_results"]:
+            return {
+                "model": "local-test",
+                "finish_reason": "tool_call",
+                "tool_calls": [
+                    {"tool_name": "echo", "arguments": {"value": "one"}},
+                    {"tool_name": "echo", "arguments": {"value": "two"}},
+                ],
+            }
+        return {"model": "local-test", "text_segments": ["complete"]}
+
+    report = ContractHarness().probe_tool_roundtrip(LocalProvider(backend, model="local-test"))
+    assert report.errors == []
+    assert "tool_result_roundtrip" in report.capabilities
+    assert "sequential_tool_call" in report.capabilities
+    assert calls[1]["tool_results"][0]["structured_result"] == {"ok": True}
+
+
 def test_contract_harness_preserves_typed_provider_failures():
     def backend(_request):
         raise ProviderError("quota exhausted", category="quota", retryable=True, http_status=429)

@@ -14,6 +14,7 @@ from typing import Any
 from ..domain.protocol import Event as ProtocolEvent
 from ..domain.protocol import ModelRequest, ModelResponse, Step, StepStatus, Task, TaskStatus, ToolCall, ToolResult, ToolResultStatus
 from ..providers.base import ModelProvider, ProviderError
+from ..security.event_artifacts import EventArtifactStore
 from ..state.store import StateStore
 from ..tools.runtime import ToolRuntime
 
@@ -29,6 +30,7 @@ class _ProviderCancelled(Exception):
 class Controller:
     MAX_EVENT_STRING_CHARS = 4096
     MAX_EVENT_PAYLOAD_BYTES = 32 * 1024
+    EVENT_ARTIFACT_RETENTION_SECONDS = 24 * 60 * 60
     _SECRET_KEY_WORDS = (
         "token",
         "secret",
@@ -52,24 +54,25 @@ class Controller:
         re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----"),
     )
 
-    def __init__(self, provider: ModelProvider, tools: ToolRuntime, store: StateStore) -> None:
+    def __init__(self, provider: ModelProvider, tools: ToolRuntime, store: StateStore, *, event_artifacts: EventArtifactStore | None = None) -> None:
         self.provider = provider
         self.tools = tools.with_result_store(store)
         self.store = store
+        self.event_artifacts = event_artifacts
         self._cancellation_events: dict[str, Event] = {}
         self._cancellation_reasons: dict[str, str] = {}
         self._active_tasks: set[str] = set()
         self._running_tasks: dict[str, Task] = {}
 
     def _event_record(self, task: Task, event_type: str, payload: dict[str, Any], *, step_id: str | None = None, request_id: str | None = None) -> ProtocolEvent:
-        return ProtocolEvent(event_type=event_type, task_id=task.task_id, step_id=step_id, request_id=request_id, provider=self.provider.provider_id, payload=self._safe_event_payload(payload))
+        return ProtocolEvent(event_type=event_type, task_id=task.task_id, step_id=step_id, request_id=request_id, provider=self.provider.provider_id, payload=self._safe_event_payload(payload, artifact_store=self.event_artifacts))
 
     def _event(self, task: Task, event_type: str, payload: dict[str, Any], *, step_id: str | None = None, request_id: str | None = None) -> None:
         """Append a non-transition event for compatibility with callers."""
         self.store.append_event(self._event_record(task, event_type, payload, step_id=step_id, request_id=request_id))
 
     @classmethod
-    def _safe_event_payload(cls, payload: dict[str, Any]) -> dict[str, Any]:
+    def _safe_event_payload(cls, payload: dict[str, Any], *, artifact_store: EventArtifactStore | None = None) -> dict[str, Any]:
         """Classify sensitive fields, detect common secret formats, and cap bytes."""
 
         def scrub(value: Any, key: str = "") -> Any:
@@ -99,11 +102,18 @@ class Controller:
             safe = {"_redacted": True, "payload_ref": "event://unserializable"}
             encoded = json.dumps(safe, separators=(",", ":")).encode("utf-8")
         if len(encoded) > cls.MAX_EVENT_PAYLOAD_BYTES:
-            digest = hashlib.sha256(encoded).hexdigest()
+            if artifact_store is not None:
+                artifact = artifact_store.put(encoded, content_type="application/json", retention_seconds=cls.EVENT_ARTIFACT_RETENTION_SECONDS)
+                payload_ref = artifact["uri"]
+                expires_at = artifact["expires_at"]
+            else:
+                payload_ref = f"event-sha256:{hashlib.sha256(encoded).hexdigest()}"
+                expires_at = None
             return {
                 "_truncated": True,
-                "payload_ref": f"event-sha256:{digest}",
+                "payload_ref": payload_ref,
                 "byte_length": len(encoded),
+                **({"artifact_expires_at": expires_at} if expires_at is not None else {}),
             }
         return safe
 

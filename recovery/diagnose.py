@@ -11,8 +11,10 @@ import sys
 
 try:
     from .test_results import validate_junit_report
+    from .validate_artifacts import validate_artifact_root
 except ImportError:  # direct ``python recovery/diagnose.py`` execution
     from test_results import validate_junit_report
+    from validate_artifacts import validate_artifact_root
 
 
 @dataclass(frozen=True)
@@ -60,7 +62,7 @@ def _git_health(root: Path) -> Diagnostic:
         return Diagnostic("git_health", False, f"git health check unavailable: {exc}")
 
 
-def run_diagnostics(root: str | Path, *, test_report: str | Path | None = None) -> list[Diagnostic]:
+def run_diagnostics(root: str | Path, *, test_report: str | Path | None = None, artifact_root: str | Path | None = None) -> list[Diagnostic]:
     """Inspect repository prerequisites without network or provider access."""
     path = Path(root).expanduser().resolve()
     checks = (
@@ -77,6 +79,9 @@ def run_diagnostics(root: str | Path, *, test_report: str | Path | None = None) 
     if test_report is not None:
         ok, detail = validate_junit_report(test_report)
         diagnostics.append(Diagnostic("persisted_test_report", ok, detail))
+    if artifact_root is not None:
+        ok, detail = validate_artifact_root(artifact_root)
+        diagnostics.append(Diagnostic("event_artifact_root", ok, detail))
     if path.is_dir() and (path / ".git").exists():
         diagnostics.append(_git_health(path))
     return diagnostics
@@ -86,9 +91,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run read-only dev_agent recovery diagnostics")
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent)
     parser.add_argument("--test-report", type=Path, help="validate a persisted JUnit XML report")
+    parser.add_argument("--artifact-root", type=Path, help="validate an event artifact root")
     parser.add_argument("--json", action="store_true", dest="as_json")
     args = parser.parse_args(argv)
-    diagnostics = run_diagnostics(args.root, test_report=args.test_report)
+    diagnostics = run_diagnostics(args.root, test_report=args.test_report, artifact_root=args.artifact_root)
     if args.as_json:
         print(json.dumps([asdict(item) for item in diagnostics], ensure_ascii=False, indent=2))
     else:

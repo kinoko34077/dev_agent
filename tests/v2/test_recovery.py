@@ -37,6 +37,24 @@ def test_recovery_validates_persisted_junit_report(tmp_path):
     assert next(item for item in checks if item.name == "persisted_test_report").ok
 
 
+def test_recovery_validates_event_artifact_root(tmp_path):
+    from recovery import diagnose
+
+    validator = getattr(diagnose, "validate_artifact_root", None)
+    assert validator is not None
+    from src.dev_agent.security.event_artifacts import EventArtifactStore
+
+    artifact_root = tmp_path / "artifacts"
+    store = EventArtifactStore(artifact_root)
+    store.put(b'{"safe":true}', content_type="application/json", retention_seconds=60)
+    assert validator(artifact_root)[0]
+    payload = next(artifact_root.glob("*.bin"))
+    payload.write_bytes(b"corrupted")
+    ok, detail = validator(artifact_root)
+    assert not ok
+    assert "digest" in detail
+
+
 def test_recovery_rejects_invalid_persisted_junit_report(tmp_path):
     report = tmp_path / "invalid-junit.xml"
     report.write_text('<testsuites><testsuite tests="1" failures="2" /></testsuites>', encoding="utf-8")

@@ -57,6 +57,22 @@ Execution progress: task wall-clock deadline is now persisted in checkpoint stat
 
 Cancellation progress: `Controller.cancel()` is cooperative and durable at the next runtime boundary. In-flight trusted Python handlers cannot be force-killed; process-isolated handlers are terminated and ambiguous side effects remain reconciliation-gated.
 
+Event security progress: oversized sanitized payloads can be written through an
+explicit `EventArtifactStore` with content-addressed references, root-bound reads,
+secret-pattern rejection, and expiry purge. The store is intentionally injected
+and is not silently placed beside a database, so Recovery operators must include
+its root in backup and retention configuration.
+
+Provider contract progress: the offline harness now exercises model-generated
+ToolCalls, sequential ToolCalls, normalized ToolResults, and final response
+roundtrip. Live Ollama/Gemini qualification remains environment-dependent.
+
+Recovery progress: `recovery/validate_artifacts.py` and
+`recovery/diagnose.py --artifact-root` independently validate event artifact
+digests, metadata, byte lengths, and missing payloads. The artifact root remains
+an explicit operator backup/retention input rather than an implicit database
+sidecar.
+
 Approval progress: approval records bind to one exact internal call ID and canonical hash of the effective arguments after path canonicalization. Broad task/level reuse is rejected. One-shot consumption, expiry, revoke, and duplicate-insert rejection are enforced; SQLite consumption now uses `BEGIN IMMEDIATE` so validation, expiry/revoke check, and consumption commit are one transaction. Reconciliation audit insertion and intent transition are also one transaction. Reconciliation inspection remains available for an already-claimed side effect.
 
 Gate governance progress: `spec/v2/GATE_STATUS.json` schema v2 uses `IMPLEMENTED`, `INTEGRATED`, and `VERIFIED`; only `VERIFIED` is accepted as complete. Existing false positives for Controller transaction integration and recovery restore were downgraded to `INTEGRATED` with an explicit verification gap.

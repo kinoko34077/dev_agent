@@ -42,6 +42,11 @@ Status: in progress. This gate precedes Phase 6.
   soft-timeout compatibility path.
 - Event payloads classify sensitive keys, redact common secret formats, cap
   individual strings, and replace oversized payloads with a digest reference.
+- An explicitly injected `EventArtifactStore` can retain already-sanitized
+  oversized payloads by content-addressed reference with root-bound reads and
+  expiry purge; artifact roots remain an explicit Recovery/retention input.
+- The Provider contract harness verifies model-generated ToolCalls, sequential
+  calls, normalized ToolResults, and a final response through the neutral protocol.
 - Input token estimates, provider-reported output/cost usage, task
   cancellation, and graph limits are enforced or explicitly represented as
   deferred contracts in the hardening plan.
@@ -72,3 +77,7 @@ Status: in progress. This gate precedes Phase 6.
 - Persisted JUnit XML reports can be validated independently with
   `recovery/test_results.py` or `recovery/diagnose.py --test-report`; both v2
   workflows emit and upload the report artifact.
+- Event artifact roots can be checked independently with
+  `recovery/validate_artifacts.py` or `recovery/diagnose.py --artifact-root`;
+  the check validates content digests, byte lengths, metadata, and missing
+  payloads without importing Runtime or Provider code.
