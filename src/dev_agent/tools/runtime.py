@@ -78,6 +78,8 @@ class ToolRuntime:
                 value = future.result(timeout=spec.timeout_seconds)
             except FutureTimeoutError:
                 future.cancel()
+                if spec.side_effect_level in self.EXTERNAL_GUARDED:
+                    self.result_store.mark_effect_unknown(call.idempotency_key, reason="handler timeout after dispatch")
                 return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.TIMEOUT, error={"category": "timeout", "message": "tool execution timed out"})
             finally:
                 executor.shutdown(wait=False, cancel_futures=True)
@@ -87,6 +89,8 @@ class ToolRuntime:
                 try:
                     validate(value, spec.output_schema)
                 except SchemaValidationError as exc:
+                    if spec.side_effect_level in self.EXTERNAL_GUARDED:
+                        self.result_store.mark_effect_unknown(call.idempotency_key, reason="invalid output after dispatch")
                     return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.FAILED, error={"category": "schema_validation", "message": str(exc)})
             result = ToolResult(call_id=call.call_id, tool_name=call.tool_name, structured_result=value)
             if spec.side_effect_level in self.EXTERNAL_GUARDED:
@@ -97,6 +101,9 @@ class ToolRuntime:
         except PermissionError as exc:
             return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.DENIED, error={"category": "policy_denied", "message": str(exc)})
         except Exception as exc:  # tool failures become data, not uncontrolled runtime errors
+            if spec.side_effect_level in self.EXTERNAL_GUARDED and call.idempotency_key and self.result_store is not None:
+                self.result_store.mark_effect_unknown(call.idempotency_key, reason=f"handler exception: {type(exc).__name__}")
+                return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.DENIED, error={"category": "reconciliation_required", "message": "external effect outcome is unknown; reconcile before retry"})
             return ToolResult(
                 call_id=call.call_id,
                 tool_name=call.tool_name,

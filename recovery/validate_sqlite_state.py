@@ -9,7 +9,7 @@ import sqlite3
 import sys
 
 
-REQUIRED_TABLES = frozenset({"tasks", "steps", "tool_results", "events", "checkpoints", "idempotency", "approvals", "effect_intents", "schema_meta"})
+REQUIRED_TABLES = frozenset({"tasks", "steps", "tool_results", "events", "checkpoints", "idempotency", "approvals", "approval_consumptions", "effect_intents", "schema_meta"})
 
 
 def validate_sqlite_state(path: str | Path) -> tuple[bool, str]:
@@ -48,21 +48,21 @@ def validate_sqlite_state(path: str | Path) -> tuple[bool, str]:
             if not isinstance(value, dict) or value.get("call_id") != call_id:
                 return False, f"invalid tool result: {call_id}"
         approval_columns = {row[1] for row in connection.execute("PRAGMA table_info(approvals)")}
-        required_approval_columns = {"approval_id", "task_id", "side_effect_level", "actor"}
+        required_approval_columns = {"approval_id", "task_id", "side_effect_level", "actor", "call_id", "arguments_hash", "expires_at", "revoked"}
         if not required_approval_columns <= approval_columns:
             return False, "invalid approvals schema"
-        for approval_id, task_id, level, actor in connection.execute("SELECT approval_id, task_id, side_effect_level, actor FROM approvals"):
-            if not all(isinstance(value, str) and value.strip() for value in (approval_id, task_id, level, actor)):
+        for approval_id, task_id, level, actor, call_id, arguments_hash, expires_at, revoked in connection.execute("SELECT approval_id, task_id, side_effect_level, actor, call_id, arguments_hash, expires_at, revoked FROM approvals"):
+            if not all(isinstance(value, str) and value.strip() for value in (approval_id, task_id, level, actor, call_id, arguments_hash)) or revoked not in (0, 1):
                 return False, f"invalid approval record: {approval_id}"
         intent_columns = {row[1] for row in connection.execute("PRAGMA table_info(effect_intents)")}
         if not {"idempotency_key", "task_id", "tool_name", "arguments_payload", "status"} <= intent_columns:
             return False, "invalid effect_intents schema"
         for key, task_id, tool_name, arguments_payload, status, result_payload in connection.execute("SELECT idempotency_key, task_id, tool_name, arguments_payload, status, result_payload FROM effect_intents"):
-            if task_id not in task_ids or not tool_name.strip() or status not in {"pending", "succeeded"}:
+            if task_id not in task_ids or not tool_name.strip() or status not in {"pending", "succeeded", "unknown"}:
                 return False, f"invalid effect intent: {key}"
             if not isinstance(json.loads(arguments_payload), dict):
                 return False, f"invalid effect intent arguments: {key}"
-            if status == "succeeded" and not result_payload:
+            if status in {"succeeded", "unknown"} and not result_payload:
                 return False, f"completed effect intent has no result: {key}"
         return True, "SQLite state schema and task payloads are readable"
     except (sqlite3.Error, json.JSONDecodeError) as exc:

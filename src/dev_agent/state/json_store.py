@@ -137,3 +137,11 @@ class JsonStateStore:
         intent["status"] = "succeeded"
         intent["result"] = result.to_dict()
         self._flush()
+
+    def mark_effect_unknown(self, key: str, *, reason: str) -> None:
+        intent = self._data.setdefault("effect_intents", {}).get(key)
+        if intent is None:
+            raise ValueError(f"effect intent not found: {key}")
+        intent["status"] = "unknown"
+        intent["result"] = {"unknown": True, "reason": reason}
+        self._flush()

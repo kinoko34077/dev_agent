@@ -137,6 +137,12 @@ class SQLiteStateStore:
         if cursor.rowcount != 1:
             raise ValueError(f"effect intent not found: {key}")
 
+    def mark_effect_unknown(self, key: str, *, reason: str) -> None:
+        cursor = self.connection.execute("UPDATE effect_intents SET status = 'unknown', result_payload = ? WHERE idempotency_key = ?", (json.dumps({"unknown": True, "reason": reason}, ensure_ascii=False), key))
+        self.connection.commit()
+        if cursor.rowcount != 1:
+            raise ValueError(f"effect intent not found: {key}")
+
     def _rows(self, table: str, column: str = "payload") -> list[dict[str, Any]]:
         return [json.loads(row[column]) for row in self.connection.execute(f"SELECT {column} FROM {table}").fetchall()]
 

@@ -227,6 +227,17 @@ def test_external_effect_pending_intent_blocks_unsafe_retry(tmp_path):
     assert len(effects) == 1
 
 
+def test_external_handler_exception_is_unknown_not_terminal_failure(tmp_path):
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="publish", description="external", side_effect_level="external_write", handler=lambda args: (_ for _ in ()).throw(ConnectionError("response lost"))))
+    call = ToolCall(tool_name="publish", arguments={"value": "x"}, idempotency_key="unknown-1")
+    with SQLiteStateStore(tmp_path / "unknown.sqlite3") as store:
+        store.save_approval("a", task_id="t", side_effect_level="external_write", actor="human", call_id=call.call_id, arguments_hash=canonical_arguments_hash(call.arguments))
+        result = ToolRuntime(registry).with_result_store(store).execute(call, task_id="t", approval_id="a")
+        assert result.error["category"] == "reconciliation_required"
+        assert store.get_effect_intent("unknown-1")["status"] == "unknown"
+
+
 def test_controller_pauses_for_reconciliation_and_resumes_after_recorded_success(tmp_path):
     path = tmp_path / "reconcile.sqlite3"
     task_id = "11111111-1111-4111-8111-111111111111"
