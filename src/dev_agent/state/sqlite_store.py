@@ -160,10 +160,22 @@ class SQLiteStateStore:
             raise ValueError(f"effect intent not found: {key}")
 
     def mark_effect_unknown(self, key: str, *, reason: str) -> None:
-        cursor = self.connection.execute("UPDATE effect_intents SET status = 'unknown', result_payload = ? WHERE idempotency_key = ?", (json.dumps({"unknown": True, "reason": reason}, ensure_ascii=False), key))
-        self.connection.commit()
-        if cursor.rowcount != 1:
+        self.transition_effect_intent(key, to_status="unknown", result={"unknown": True, "reason": reason})
+
+    def transition_effect_intent(self, key: str, *, to_status: str, result: dict[str, Any] | None = None) -> None:
+        allowed = {"prepared", "dispatching", "unknown", "succeeded", "confirmed_failed", "reconciling", "reconciled"}
+        if to_status not in allowed:
+            raise ValueError(f"invalid effect intent status: {to_status}")
+        row = self.connection.execute("SELECT status FROM effect_intents WHERE idempotency_key = ?", (key,)).fetchone()
+        if row is None:
             raise ValueError(f"effect intent not found: {key}")
+        current = row["status"]
+        transitions = {"pending": {"prepared", "dispatching", "unknown", "succeeded", "reconciling"}, "prepared": {"dispatching", "unknown", "reconciling"}, "dispatching": {"unknown", "succeeded", "confirmed_failed", "reconciling"}, "unknown": {"reconciling", "succeeded", "confirmed_failed", "reconciled"}, "reconciling": {"succeeded", "confirmed_failed", "reconciled"}, "succeeded": set(), "confirmed_failed": set(), "reconciled": set()}
+        if to_status != current and to_status not in transitions.get(current, set()):
+            raise ValueError(f"invalid effect intent transition: {current} -> {to_status}")
+        payload = json.dumps(result, ensure_ascii=False) if result is not None else None
+        self.connection.execute("UPDATE effect_intents SET status = ?, result_payload = COALESCE(?, result_payload) WHERE idempotency_key = ?", (to_status, payload, key))
+        self.connection.commit()
 
     def _rows(self, table: str, column: str = "payload") -> list[dict[str, Any]]:
         return [json.loads(row[column]) for row in self.connection.execute(f"SELECT {column} FROM {table}").fetchall()]

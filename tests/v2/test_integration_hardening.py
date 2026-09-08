@@ -262,6 +262,17 @@ def test_external_handler_exception_is_unknown_not_terminal_failure(tmp_path):
         assert store.get_effect_intent("unknown-1")["status"] == "unknown"
 
 
+def test_effect_intent_state_machine_rejects_terminal_reopen(tmp_path):
+    with SQLiteStateStore(tmp_path / "state-machine.sqlite3") as store:
+        assert store.create_effect_intent("k", task_id="t", tool_name="publish", arguments={})
+        store.transition_effect_intent("k", to_status="dispatching")
+        store.transition_effect_intent("k", to_status="unknown", result={"reason": "timeout"})
+        store.transition_effect_intent("k", to_status="reconciling")
+        store.transition_effect_intent("k", to_status="succeeded", result={"ok": True})
+        with pytest.raises(ValueError, match="invalid effect intent transition"):
+            store.transition_effect_intent("k", to_status="dispatching")
+
+
 def test_controller_pauses_for_reconciliation_and_resumes_after_recorded_success(tmp_path):
     path = tmp_path / "reconcile.sqlite3"
     task_id = "11111111-1111-4111-8111-111111111111"

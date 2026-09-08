@@ -72,6 +72,7 @@ class ToolRuntime:
             if spec.side_effect_level in self.EXTERNAL_GUARDED:
                 if not self.result_store.create_effect_intent(call.idempotency_key, task_id=task_id or "unknown", tool_name=call.tool_name, arguments=arguments):
                     return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.DENIED, error={"category": "reconciliation_required", "message": "external effect claim lost; reconcile before retry"})
+                self.result_store.transition_effect_intent(call.idempotency_key, to_status="dispatching")
             executor = ThreadPoolExecutor(max_workers=1)
             future = executor.submit(spec.handler, arguments)
             try:

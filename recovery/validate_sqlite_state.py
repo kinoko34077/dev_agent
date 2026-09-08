@@ -58,11 +58,11 @@ def validate_sqlite_state(path: str | Path) -> tuple[bool, str]:
         if not {"idempotency_key", "task_id", "tool_name", "arguments_payload", "status"} <= intent_columns:
             return False, "invalid effect_intents schema"
         for key, task_id, tool_name, arguments_payload, status, result_payload in connection.execute("SELECT idempotency_key, task_id, tool_name, arguments_payload, status, result_payload FROM effect_intents"):
-            if task_id not in task_ids or not tool_name.strip() or status not in {"pending", "succeeded", "unknown"}:
+            if task_id not in task_ids or not tool_name.strip() or status not in {"pending", "prepared", "dispatching", "unknown", "succeeded", "confirmed_failed", "reconciling", "reconciled"}:
                 return False, f"invalid effect intent: {key}"
             if not isinstance(json.loads(arguments_payload), dict):
                 return False, f"invalid effect intent arguments: {key}"
-            if status in {"succeeded", "unknown"} and not result_payload:
+            if status in {"succeeded", "unknown", "confirmed_failed", "reconciled"} and not result_payload:
                 return False, f"completed effect intent has no result: {key}"
         return True, "SQLite state schema and task payloads are readable"
     except (sqlite3.Error, json.JSONDecodeError) as exc:
