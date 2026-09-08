@@ -197,6 +197,13 @@ class Controller:
                     raise FutureTimeoutError()
                 try:
                     response = future.result(timeout=min(0.05, remaining))
+                    # A provider can complete concurrently with the deadline
+                    # boundary.  Do not accept a response that arrived after
+                    # the runtime lease expired: for an external provider the
+                    # outcome is no longer safe to classify as an ordinary
+                    # timeout or success, so the caller must reconcile it.
+                    if time() >= deadline_epoch:
+                        raise FutureTimeoutError()
                     return response
                 except FutureTimeoutError:
                     if cancel_event.is_set():
