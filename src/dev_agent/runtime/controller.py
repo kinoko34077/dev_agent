@@ -83,6 +83,28 @@ class Controller:
         digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:24]
         return f"op:{task.task_id}:{step.order}:{index}:{digest}"
 
+    def _prepare_provider_intent(self, request: ModelRequest, reservation: Any) -> str:
+        key = f"provider:{request.request_id}:{reservation.budget.resource_id}"
+        if self.store.get_effect_intent(key) is None:
+            self.store.create_effect_intent(
+                key,
+                task_id=request.task_id,
+                tool_name=f"provider:{self.provider.provider_id}",
+                arguments={
+                    "request_id": request.request_id,
+                    "task_id": request.task_id,
+                    "provider_id": self.provider.provider_id,
+                    "resource_id": reservation.budget.resource_id,
+                    "max_output_tokens": request.max_output_tokens,
+                },
+            )
+            self.store.transition_effect_intent(key, to_status="prepared")
+        return key
+
+    def _provider_intent(self, key: str | None, *, status: str, result: dict[str, Any]) -> None:
+        if key is not None:
+            self.store.transition_effect_intent(key, to_status=status, result=result)
+
     def _fail(self, task: Task, state: dict[str, Any], category: str, message: str, *, step: Step | None = None, request_id: str | None = None, tool_result: ToolResult | None = None, extra_events: list[ProtocolEvent] | None = None) -> None:
         if step is not None:
             step.status = StepStatus.FAILED
@@ -381,10 +403,13 @@ class Controller:
                 request_event = self._event_record(task, "model.requested", {"request": request.to_dict()}, step_id=step.step_id, request_id=request.request_id)
                 self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "before_model", state), events=[request_event])
                 reservation = None
+                provider_intent_key = None
                 if self.resource_policy is not None and not getattr(self.provider, "handles_resource_policy", False):
                     try:
                         reservation = self.resource_policy.reserve_for_provider(task.task_id, self.provider.provider_id, request)
+                        provider_intent_key = self._prepare_provider_intent(request, reservation)
                         self.resource_policy.mark_dispatching(reservation)
+                        self._provider_intent(provider_intent_key, status="dispatching", result={"provider_id": self.provider.provider_id, "resource_id": reservation.budget.resource_id})
                     except Exception as exc:
                         self._block_budget(task, state, step=step, message=str(exc))
                         return task
@@ -399,8 +424,10 @@ class Controller:
                     if reservation is not None:
                         if exc.unable_to_confirm:
                             self.resource_policy.uncertain(reservation)
+                            self._provider_intent(provider_intent_key, status="unknown", result={"error_category": "cancelled", "cause": "unable_to_confirm"})
                         else:
                             self.resource_policy.release(reservation)
+                            self._provider_intent(provider_intent_key, status="confirmed_failed", result={"error_category": "cancelled", "cause": "confirmed_no_charge"})
                     if exc.unable_to_confirm:
                         self._cancel_unable_to_confirm(task, state, step=step, message="provider request cancellation could not be confirmed")
                     else:
@@ -409,6 +436,7 @@ class Controller:
                 except FutureTimeoutError:
                     if reservation is not None:
                         self.resource_policy.uncertain(reservation)
+                        self._provider_intent(provider_intent_key, status="unknown", result={"error_category": "timeout"})
                         self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="timeout", message="model request timed out")
                         return task
                     if getattr(self.provider, "handles_resource_policy", False):
@@ -424,10 +452,12 @@ class Controller:
                     if reservation is not None:
                         if exc.category in {"reconciliation_required", "transport", "provider_decode"}:
                             self.resource_policy.uncertain(reservation)
+                            self._provider_intent(provider_intent_key, status="unknown", result={"error_category": exc.category, "message": str(exc)})
                             cause = "budget_reconciliation" if exc.category == "reconciliation_required" else exc.category
                             self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause=cause, message=str(exc))
                             return task
                         self.resource_policy.release(reservation)
+                        self._provider_intent(provider_intent_key, status="confirmed_failed", result={"error_category": exc.category, "message": str(exc)})
                     elif getattr(self.provider, "handles_resource_policy", False) and exc.category == "transport":
                         # A dispatcher-owned reservation has already been
                         # moved to unknown by the dispatcher.  Preserve the
@@ -452,6 +482,7 @@ class Controller:
                         # incorrectly recording a terminal local decode
                         # failure.
                         self.resource_policy.uncertain(reservation)
+                        self._provider_intent(provider_intent_key, status="unknown", result={"error_category": "provider_decode", "message": str(exc)})
                         self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="provider_decode", message=str(exc))
                         return task
                     self._fail(task, state, "provider_decode", str(exc), step=step, request_id=request.request_id)
@@ -460,10 +491,15 @@ class Controller:
                         self.resource_policy.reconcile_response(reservation, response)
                     except BudgetExceeded as exc:
                         self.resource_policy.uncertain(reservation)
+                        self._provider_intent(provider_intent_key, status="unknown", result={"error_category": "reconciliation_required", "message": str(exc)})
                         self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="budget_reconciliation", message=str(exc))
                         return task
                     except Exception as exc:
-                        self._fail(task, state, "budget_reconciliation", str(exc), step=step, request_id=request.request_id)
+                        self.resource_policy.uncertain(reservation)
+                        self._provider_intent(provider_intent_key, status="unknown", result={"error_category": "reconciliation_required", "message": str(exc)})
+                        self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="budget_reconciliation", message=str(exc))
+                        return task
+                    self._provider_intent(provider_intent_key, status="succeeded", result={"provider_id": response.provider, "resource_id": reservation.budget.resource_id, "outcome": "succeeded", "response": response.to_dict()})
                 if cancel_event.is_set():
                     self._cancel(task, state, step=step, message="provider request completed after cancellation")
                     return task

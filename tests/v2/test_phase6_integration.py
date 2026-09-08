@@ -340,6 +340,7 @@ def test_paid_provider_timeout_waits_for_reconciliation_instead_of_failing(tmp_p
         task = Task(objective="timeout", limits={"max_wall_time_seconds": 0.03})
         result = controller.run(task)
         assert result.status.value == "waiting_reconciliation"
+        assert store.connection.execute("SELECT status FROM effect_intents").fetchone()[0] == "unknown"
         resumed = controller.resume(task.task_id)
     assert resumed.status.value == "waiting_reconciliation"
     assert len(calls) == 1
@@ -376,6 +377,7 @@ def test_paid_provider_decode_failure_after_dispatch_waits_for_reconciliation(tm
 
     with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
         result = Controller(DecodeFailureProvider(), ToolRuntime(ToolRegistry()), store, resource_policy=control).run(Task(objective="decode failure"))
+        assert store.connection.execute("SELECT status FROM effect_intents").fetchone()[0] == "unknown"
 
     assert result.status.value == "waiting_reconciliation"
     assert ledger.reservation_totals()["active_reservations"] == 1
