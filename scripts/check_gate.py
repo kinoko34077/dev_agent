@@ -1,4 +1,4 @@
-"""Machine-readable Stage A-E gate checker.
+"""Machine-readable current-phase gate checker.
 
 Exit 0: every item is VERIFIED. Exit 1: actionable work remains. Exit 2: only
 external blockers remain (and no TODO/actionable item exists).
@@ -23,9 +23,9 @@ def check(value: dict) -> tuple[int, list[str]]:
         raise ValueError("schema v2/v3 phase6_entry must require ALL_VERIFIED")
     if schema_version == 3:
         classifications = value.get("phase_classification")
-        required_phases = {"phase3_5", "phase4", "phase5", "phase6_future", "phase7_future"}
+        required_phases = {"phase3_5", "phase4", "phase5", "phase6", "phase6_future", "phase7_future"}
         if not isinstance(classifications, dict) or not required_phases <= set(classifications):
-            raise ValueError("schema v3 requires phase_classification for phase3_5, phase4, phase5, phase6_future, and phase7_future")
+            raise ValueError("schema v3 requires phase_classification for phase3_5, phase4, phase5, phase6, phase6_future, and phase7_future")
     pending: list[str] = []
     blockers: list[str] = []
     for stage, items in value.get("stages", {}).items():
@@ -62,7 +62,7 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, json.JSONDecodeError, ValueError) as exc:
         print(f"GATE_STATUS_ERROR: {exc}")
         return 1
-    print("PASS: all Stage A-E gates" if code == 0 else ("ACTIONABLE: " if code == 1 else "BLOCKED: ") + ", ".join(details))
+    print("PASS: all current gates" if code == 0 else ("ACTIONABLE: " if code == 1 else "BLOCKED: ") + ", ".join(details))
     return code
 
 

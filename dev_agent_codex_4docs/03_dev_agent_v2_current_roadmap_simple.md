@@ -1,7 +1,7 @@
 # dev_agent v2 現行ロードマップ 簡易版
 
 Status: CURRENT ROADMAP  
-Current Phase: **Phase 3.5 — Kernel Integration Hardening**
+Current Phase: **Phase 6 — Resource / Survival / Recovery (6A〜6E)**
 
 ---
 
@@ -76,8 +76,8 @@ Task実行を再起動・権限・副作用へ耐えられる構造にする。
 - Side-effect管理
 
 ### 状態
-**primitive実装済み**
-現在Phase 3.5で統合強化中。
+**primitive / integration verified**
+Phase 3.5のcurrent acceptanceは完了。
 
 ---
 
@@ -104,10 +104,10 @@ KernelのTrust Boundaryを閉じ、後段機能を安全に載せられる状態
 - Gate管理
 
 ### 完了後
-**Phase 4 / 5へ進行**
+**Phase 4 / 5へ進行済み**
 
 ### 状態
-**現在進行中**
+**完了（current acceptance verified）**
 
 ---
 
@@ -126,7 +126,7 @@ KernelのTrust Boundaryを閉じ、後段機能を安全に載せられる状態
 - model適格性評価
 
 ### 完了条件
-代表タスクをLocal Providerで安全に完走できる。
+代表タスクをLocal Providerで安全に完走できる。現状はOllama qwen3:8bのController E2Eで検証済み。
 
 ---
 
@@ -144,7 +144,7 @@ Providerを交換・追加してもCoreが変わらない状態を証明する�
 - Provider差のnormalize
 
 ### 完了条件
-複数の独立Providerが同一Kernel contractを満たす。
+複数の独立Providerが同一Kernel contractを満たす。現状はGemini live contractで検証済み。
 
 ---
 
@@ -184,7 +184,17 @@ Providerを交換・追加してもCoreが変わらない状態を証明する�
 - external rescue
 
 ### 完了後
-v2の通常運転基盤が一段落。
+v2の通常運転基盤が一段落。live rollback / repair drill、automatic retry policy、generated Tool lifecycleは後段要件。
+
+### 6A〜6Eの現在状態
+
+- 6A Resource Ledger / Budget Governor: VERIFIED
+- 6B Router / Survival Modes: VERIFIED
+- 6C Recovery operationalization: VERIFIED
+- 6D Scheduler / Worker ownership: VERIFIED
+- 6E Kernel integration / Gate evidence / documentation: VERIFIED
+
+詳細は `docs/PHASE6_PLAN.md` と `spec/v2/GATE_STATUS.json` Stage Fを参照。
 
 ---
 
@@ -274,7 +284,7 @@ Deterministic Kernel
 Phase 3
 Task / Policy / Durable State
       ↓
-Phase 3.5   ← CURRENT
+Phase 6      ← CURRENT
 Kernel Trust Boundary Hardening
       ↓
 Phase 4
@@ -303,10 +313,9 @@ Virtual Office UI
 # 現在の優先順位
 
 ```text
-1. Phase 3.5を閉じる
-2. Local Providerを実証
-3. Multi-Providerを実証
-4. Resource / Budget / Survival / Recoveryを完成
+1. Phase 3.5〜5のcurrent acceptanceを維持
+2. Resource / Budget / Survival / Recoveryを運用化
+3. live recovery drillと後段要件を検証
 5. 通常基盤を一度固定
 6. 自律改善系を本格導入
 7. Multi-Agent / AI Companyへ拡張
@@ -337,6 +346,6 @@ UI
 
 現在はまず、
 
-> **Phase 3.5〜6までで「自律改善を載せても壊れにくい通常基盤」を完成させる**
+> **Phase 6までで「自律改善を載せても壊れにくい通常基盤」を完成させる**
 
 ことを優先する。

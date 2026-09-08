@@ -9,7 +9,7 @@
 - 基準仕様: 2026-09-07 の「dev_agent v2 — Codex Development Handoff」（ACCEPTED）。現在のユーザー指示がこれより優先する。
 - 目的: 特定のモデルや Provider に依存せず、予算・権限・停止条件・状態を決定的に制御でき、外部から復旧できる実行 Control Plane を作る。
 - 開発原則: `Mechanism-heavy / Intelligence-on-demand`。既知の反復仕事は Workflow、探索的な判断だけを Agent に任せる。
-- 当面の範囲: `v2-kernel-alpha0` まで。Gemini、マルチエージェント、自己修復、AI会社運営、Virtual Office UI は後続フェーズまで実装しない。
+- 現在の範囲: `v2-survival-alpha`（Phase 6A〜6E）。マルチエージェント、自己修復、AI会社運営、Virtual Office UI は後続フェーズ。
 
 ### 2026-09-07 時点の観測
 
@@ -35,11 +35,11 @@ v1 は移植元ではなく、知見・ログ・失敗の回帰資料である�
 
 ### 現在フェーズ
 
-**Phase 3.5 — Kernel integration hardening（進行中）**
+**Phase 6 — Resource / Survival / Recovery（6A〜6E実装済み・運用証跡を継続）**
 
-Phase 0〜2 は基礎実装済み。Phase 3〜5 は primitive / offline adapter の段階であり、system-level Gate は未達。次の作業は checkpoint resume、Tool policy、ToolResult protocol、failure transition、実 Provider / recovery の統合を hardening gate として固める。
+Phase 0〜5 は current acceptance verified。Phase 6A〜6Eで resource ledger、budget reservation、privacy-first router、survival modes、独立Recovery運用、durable scheduler ownershipを実装し、Stage Fとして検証している。次の作業は live operator drill と明示した後段要件である。
 
-進行判定: mid-execution resume、idempotency、approval、path policy、failure audit が Controller 経路で証明され、実 Local Provider / live contract / recovery state inspection の不足点が解消されること。
+進行判定: Phase 6A〜6Eの通常系・競合系・fail-closed系・exact HEAD CI証跡が揃い、current Gateが自動判定できること。
 
 ## 3. フェーズ別ロードマップ
 

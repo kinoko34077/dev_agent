@@ -1,6 +1,7 @@
 # Kernel integration hardening
 
-Status: in progress. This gate precedes Phase 6.
+Status: completed at the Phase 3.5〜5 acceptance boundary. Phase 6 is current;
+see `docs/PHASE6_PLAN.md`.
 
 ## Completed in this slice
 
@@ -23,7 +24,7 @@ Status: in progress. This gate precedes Phase 6.
 - Crash-injection tests cover `before_model`, `pending_tools`, `after_tool_result`,
   `after_tools`, terminal `after_model`, and `failure` checkpoints; resume does
   not duplicate the completed tool or terminal event.
-- The Ollama adapter maps `max_output_tokens` to the provider runtime output bound (`options.num_predict`); the local `/api/tags` probe currently receives connection refused, so D23 remains open.
+- The Ollama adapter maps `max_output_tokens` to the provider runtime output bound (`options.num_predict`); the live `qwen3:8b` Controller qualification is recorded in the capability matrix and D23/D24 are verified.
 - Gemini HTTP failure classification is covered for missing credentials, authentication (401/403), rate limiting (429), transport errors, and malformed provider responses.
 - Independent Recovery validation rejects orphan steps/checkpoints, malformed tool results, unknown effect-intent states, and unsupported schema versions.
 - ToolSpec input schemas are carried as Provider-neutral `tool_definitions` and emitted as Gemini function declarations / Ollama function tools; payload contract tests cover this boundary.
@@ -67,23 +68,23 @@ Status: in progress. This gate precedes Phase 6.
   `VERIFIED`; only `VERIFIED` satisfies a gate.  Legacy `PASS` is accepted by
   the checker only for schema v1 callers.
 
-## Still required before Phase 6
+## Deferred follow-up during Phase 6 / Phase 7
 
 - Live operator use of persisted diagnostic artifacts remains a later Recovery
   drill; the exact-head CI matrix now passes on the recorded evidence head.
 - Approval-wait/resume is now available through `Controller.resume(task_id, approval_id=...)`; a higher-level UI/API for presenting pending approvals remains required.
-- Local-model qualification that verifies visible response quality as well as the hard output bound; the installed `qwen3:0.6b` failed this narrow probe because it spent the small output budget on a thinking trace.
+- Local-model visible-response quality policy remains a follow-up; `qwen3:8b` Tool-call qualification is verified, while the `qwen3:0.6b` thinking-trace behavior remains a recorded quirk.
 - Output-quality policy for local model thinking traces remains a follow-up;
   the required Ollama Tool-call qualification is now verified (D23/D24).
 - Expanded contract harness: multi-tool, sequential result, malformed response, timeout, rate-limit, quota, and limits.
-- Persisted CI test-result ingestion and an operator-run rollback/repair drill.
+- Persisted CI test-result ingestion and live operator rollback/repair drills remain deferred operational work.
 
 ## Recovery progress
 
 - SQLite schema and task payload validation is now available through the independent `recovery/validate_sqlite_state.py` CLI.
-- Configuration, Git health, last-known-good state, rollback, and repair-branch
-  checks are implemented locally; destructive rollback and repair-branch drills
-  remain explicit operator actions before Phase 6.
+- Configuration, Git health, last-known-good state, rollback, repair-branch, and
+  Phase 6 resource-ledger checks are implemented locally; destructive rollback
+  and repair-branch drills remain explicit operator actions.
 - Persisted JUnit XML reports can be validated independently with
   `recovery/test_results.py` or `recovery/diagnose.py --test-report`; both v2
   workflows emit and upload the report artifact.

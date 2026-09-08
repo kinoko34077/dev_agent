@@ -2,12 +2,12 @@
 
 This document records observed failures and the condition required to retry.
 
-## Local Ollama probe — 2026-09-08 JST
+## Local Ollama qualification — 2026-09-08 JST
 
-- Observation: `ollama.exe` is installed, but `http://127.0.0.1:11434/api/tags` returned connection refused.
-- Cause: the local Ollama server is not running or is not listening on the default local API port.
-- Safe retry: start the local server, confirm `GET /api/tags` succeeds, choose an already-installed model, then run the local Provider probe with `stream: false`.
-- Do not treat an installed executable as a usable inference resource.
+- Observation: `GET /api/tags` succeeded and the installed `qwen3:8b` completed the Controller Tool-call roundtrip.
+- Qualification: `model.requested -> model-generated ToolCall -> tool.completed -> final model response -> task.completed` passed with a bounded output request.
+- Known quirk: `qwen3:8b` may emit a `<think>` trace; this is recorded as output-quality metadata, not as a transport failure. The smaller `qwen3:0.6b` can spend a narrow output bound on reasoning text and is not the selected qualification model.
+- Safe retry: confirm `GET /api/tags`, select a recorded model, use `stream: false`, enforce the output bound, and require visible response quality.
 
 The adapter uses `POST /api/chat`, `stream: false`, and converts the response `message.content` / `message.tool_calls` into the internal protocol. Tool results are sent with the call ID, status, and result data preserved.
 
@@ -25,12 +25,10 @@ The adapter uses `POST /api/chat`, `stream: false`, and converts the response `m
 - Failed mitigation: the documented `think: false` request was accepted by the installed Ollama 0.7.0 service for `qwen3:0.6b`, but the model still emitted a thinking trace. It is therefore not a portable control and is deliberately not baked into the generic adapter.
 - Safe retry condition: qualify each selected model with both a bounded `eval_count` and an expected visible response for a concise prompt. Choose a model/version that passes this check, or introduce an explicit protocol-level reasoning budget and a provider/version-specific adapter; do not assume a request flag works merely because it receives HTTP 200.
 
-## Gemini live probe — 2026-09-08 JST
+## Gemini live qualification — 2026-09-08 JST
 
-- Observation: `GEMINI_API_KEY` is not configured in the current process.
-- Cause: no credential is available to perform an authenticated probe.
-- Safe retry: provide the key through the environment only, run the probe against a selected model with the smallest bounded request, record model/version/time/result, and redact raw credentials from all events.
-- Until then, the Gemini adapter is verified against sanitized REST response fixtures only.
+- Observation: `gemini-2.5-flash` completed live text, model-generated ToolCall, ToolResult, and final response roundtrip.
+- Qualification: the normalized result and capability matrix entry are the Phase 5 evidence; credentials remain environment-only and are not written to events.
 
 The v2 `GeminiHttpProvider` now reads `GEMINI_API_KEY` from the process environment at request time, sends it via the documented `x-goog-api-key` header, sends `generationConfig.maxOutputTokens`, and decodes the documented `generateContent` response. It fails closed when the variable is absent; a `.env` file is not loaded implicitly.
 
@@ -39,7 +37,7 @@ The v2 `GeminiHttpProvider` now reads `GEMINI_API_KEY` from the process environm
 - Observation: with the key present and network permission granted, the minimal `gemini-2.5-flash` request reached Google and returned HTTP 403.
 - Meaning: this is no longer a local transport failure. The key may be invalid, restricted from the Generative Language API, attached to a project where the API is disabled, or not permitted to use the selected model.
 - Safe remedy: in Google AI Studio / Cloud, verify the key belongs to the intended project, enable the Generative Language API, review application/API restrictions, and confirm the model is available to that key. Then repeat the same minimal probe; never paste the key into source, chat, or logs.
-- Current gate: live Gemini completion remains unverified until that probe returns a normalized text response and bounded usage. The adapter correctly classifies 401/403 as `authentication` and does not retry automatically.
+- Current gate: the live contract is verified; future 401/403 observations remain authentication/authorization blockers and are not capability passes. The adapter does not retry them automatically.
 - Follow-up: switching from URL query authentication to the official `x-goog-api-key` header still returned HTTP 403 for both the model-list request and the minimal completion. This rules out the original query-vs-header choice as the sole cause; credential/project restrictions remain the active blocker.
 
 ## Failure classification

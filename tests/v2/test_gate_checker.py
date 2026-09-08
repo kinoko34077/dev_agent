@@ -48,6 +48,7 @@ def test_gate_checker_separates_deferred_future_requirements_from_current_gates(
             "phase3_5": {"gates": ["B/B11"]},
             "phase4": {"gates": []},
             "phase5": {"gates": []},
+            "phase6": {"gates": ["F/F6A", "F/F6B", "F/F6C", "F/F6D", "F/F6E"]},
             "phase6_future": {"requirements": ["E33/live_restore"]},
             "phase7_future": {"requirements": ["C19/generated_lifecycle"]},
         },

@@ -1,6 +1,8 @@
 {
   "schema_version": 3,
-  "evidence_head": "6055d5caa3e8f2afb686479d6eb08f6af5344111",
+  "evidence_head": "396c784239f3baea2850be53a88cf0b866abc2fe",
+  "current_phase": "phase6",
+  "phase6_status": "VERIFIED",
   "phase6_entry": "ALL_VERIFIED",
   "phase6_entry_rule": "Phase 3.5, Phase 4, and Phase 5 current acceptance gates must be VERIFIED; future recovery drills and Phase 7 lifecycle requirements are tracked separately.",
   "phase_classification": {
@@ -15,6 +17,10 @@
     "phase5": {
       "gates": ["D/D25", "D/D26", "D/D27", "D/D28"],
       "acceptance": "At least one remote Provider independently satisfies the same Core Contract; Gemini may remain BLOCKED when an alternative Provider is qualified."
+    },
+    "phase6": {
+      "gates": ["F/F6A", "F/F6B", "F/F6C", "F/F6D", "F/F6E"],
+      "acceptance": "Resource accounting, fail-closed budget reservation, deterministic routing and survival modes, independent recovery operations, and durable worker ownership are integrated and fault-tested."
     },
     "phase6_future": {
       "requirements": ["B14/artifact-root backup and retention integration", "C15/automatic retry and resource budget policy", "E33/live operator restore drill", "E35/live rollback drill", "E36/live repair-branch drill"]
@@ -63,13 +69,20 @@
     "E": {
       "E29": {"status": "VERIFIED", "evidence": ["remote branch legacy/v1-final"]},
       "E30": {"status": "VERIFIED", "evidence": ["requirements-v2-dev.txt and requirements-v1-legacy.txt"]},
-      "E31": {"status": "VERIFIED", "phase": "phase3_5", "evidence": ["scripts/check_head.py", ".github/workflows/v2-core.yml:exact HEAD check", ".github/workflows/v2-tests.yml:exact HEAD check", "GitHub Actions v2-core run 34224800598 passed on d660ec874beaa5060cb01e1635cd98a33e796d18", "GitHub Actions v2 tests run 34224800634 passed on d660ec874beaa5060cb01e1635cd98a33e796d18"], "responsibility": "Repository CI exact-head verification; runtime transition correctness remains B11."},
+      "E31": {"status": "VERIFIED", "phase": "phase3_5", "evidence": ["scripts/check_head.py", ".github/workflows/v2-core.yml:exact HEAD check", ".github/workflows/v2-tests.yml:exact HEAD check", "GitHub Actions v2-core run 34231468796 passed on 396c784239f3baea2850be53a88cf0b866abc2fe", "GitHub Actions v2 tests run 34231468809 passed on 396c784239f3baea2850be53a88cf0b866abc2fe"], "responsibility": "Repository CI exact-head verification; runtime transition correctness remains B11."},
       "E32": {"status": "VERIFIED", "phase": "phase3_5", "evidence": ["recovery/diagnose.py:configuration/git/test-runner/persisted-report/artifact-root checks", "recovery/test_results.py:JUnit parser", "recovery/validate_artifacts.py:event artifact validator", "tests/v2/test_recovery.py::test_recovery_validates_persisted_junit_report", "tests/v2/test_recovery.py::test_recovery_validates_event_artifact_root", "GitHub Actions v2-core artifact v2-core-junit from run 34224800598", "GitHub Actions v2 tests artifact v2-junit from run 34224800634"]},
       "E33": {"status": "VERIFIED", "phase": "phase3_5", "evidence": ["recovery/backup.py:backup_sqlite, restore_sqlite, validate_backup", "tests/v2/test_recovery_sqlite.py::test_recovery_backup_restore_and_maintenance_lock"], "deferred_requirements": ["phase6_future/E33/live operator restore drill"]},
       "E34": {"status": "VERIFIED", "evidence": ["recovery/git_recovery.py:record_last_known_good", "tests/v2/test_recovery.py::test_git_recovery_records_lkg_and_requires_explicit_mutation"]},
       "E35": {"status": "VERIFIED", "phase": "phase3_5", "evidence": ["recovery/git_recovery.py:plan_rollback and rollback_to_last_known_good", "tests/v2/test_recovery.py::test_git_recovery_refuses_dirty_reset_then_applies_explicit_opt_in"], "deferred_requirements": ["phase6_future/E35/live rollback drill"]},
       "E36": {"status": "VERIFIED", "phase": "phase3_5", "evidence": ["recovery/git_recovery.py:create_repair_branch", "tests/v2/test_recovery.py::test_git_recovery_refuses_dirty_reset_then_applies_explicit_opt_in"], "deferred_requirements": ["phase6_future/E36/live repair-branch drill"]},
       "E37": {"status": "VERIFIED", "evidence": ["recovery/backup.py:maintenance_lock", "tests/v2/test_recovery_sqlite.py::test_recovery_backup_restore_and_maintenance_lock"]}
+    },
+    "F": {
+      "F6A": {"status": "VERIFIED", "phase": "phase6", "evidence": ["src/dev_agent/resources/ledger.py", "src/dev_agent/resources/budget.py", "tests/v2/test_phase6_resources.py::test_budget_reservation_is_atomic_under_concurrency", "tests/v2/test_phase6_resources.py::test_unknown_provider_charge_remains_reserved_until_reconciliation"]},
+      "F6B": {"status": "VERIFIED", "phase": "phase6", "evidence": ["src/dev_agent/resources/router.py", "src/dev_agent/resources/survival.py", "tests/v2/test_phase6_router.py"]},
+      "F6C": {"status": "VERIFIED", "phase": "phase6", "evidence": ["recovery/phase6_recovery.py", "recovery/validate_resources.py", "tests/v2/test_phase6_recovery.py"]},
+      "F6D": {"status": "VERIFIED", "phase": "phase6", "evidence": ["src/dev_agent/scheduler/queue.py", "tests/v2/test_phase6_scheduler.py::test_expired_lease_can_be_reclaimed_but_stale_worker_is_fenced", "tests/v2/test_phase6_scheduler.py::test_queue_survives_restart_and_claims_once"]},
+      "F6E": {"status": "VERIFIED", "phase": "phase6", "evidence": ["src/dev_agent/resources/control.py", "src/dev_agent/runtime/controller.py:resource_policy", "tests/v2/test_phase6_integration.py::test_controller_reserves_and_reconciles_before_each_provider_dispatch", "spec/v2/TRACEABILITY.md:INV-010/INV-011", "GitHub Actions v2-core run 34231468796 passed on exact evidence_head", "GitHub Actions v2 tests run 34231468809 passed on exact evidence_head"]}
     }
   }
 }

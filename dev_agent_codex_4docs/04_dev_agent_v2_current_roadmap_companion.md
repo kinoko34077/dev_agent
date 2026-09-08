@@ -3,6 +3,11 @@
 Status: COMPANION / SUPPORTING REQUIREMENTS  
 Parent: `dev_agent v2 現行ロードマップ 簡易版`
 
+Current sync: Phase 3.5〜5 acceptance is closed; Phase 6A〜6E is the
+current implementation boundary. The Phase 3.5 sections below remain the
+hardening criteria that Phase 6 depends on. Current Phase 6 evidence is in
+`docs/PHASE6_PLAN.md` and `spec/v2/GATE_STATUS.json` Stage F.
+
 ---
 
 # 0. 本資料の役割
@@ -612,6 +617,13 @@ state_version
 
 Multi-Agent以前でもbackground executionを始めた時点で必要。
 
+## Phase 6E — Kernel Integration / Evidence
+
+Phase 6A〜6DをControllerのprovider dispatch、independent Recovery、Gate
+checker、fault tests、exact-head CI、Current State文書へ接続する。予約は
+dispatch前、使用量は応答後、timeout/cancellation ambiguityはunknown保持と
+し、scheduler claimはController実行単位へ所有権を渡す。
+
 ---
 
 # 10. Phase 7 補助条件
@@ -786,7 +798,8 @@ audit
 
 # 15. 後段へ延期してよいもの
 
-現在Phase 3.5へ持ち込まない。
+Phase 3.5では持ち込まなかった。Phase 6A〜6Eでは、Resource Ledger、Budget
+Governor、Router、Survival、Recovery、Schedulerを実装する。
 
 ```text
 Resource Ledger
@@ -870,7 +883,7 @@ DEFERRED
 
 # 19. 現在の適用範囲
 
-現在Phase 3.5では主に、
+Phase 3.5の歴史的hardening対象は主に、
 
 ```text
 Tool safety
@@ -887,7 +900,7 @@ Gate evidence
 
 だけへ集中する。
 
-Phase 6以降の実装を混ぜない。
+Phase 3.5完了後のPhase 6A〜6Eは `docs/PHASE6_PLAN.md` とStage Fで管理する。
 
 ---
 

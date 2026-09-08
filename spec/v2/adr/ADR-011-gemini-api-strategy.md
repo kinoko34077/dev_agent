@@ -1,6 +1,6 @@
 # ADR-011: Gemini API adapter strategy
 
-Status: accepted for Phase 3.5
+Status: accepted for Phase 5 provider qualification
 
 The Kernel remains provider-neutral. Gemini integration uses adapters: the
 existing `generateContent` adapter is compatibility-only and a future

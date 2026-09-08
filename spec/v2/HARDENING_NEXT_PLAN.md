@@ -1,18 +1,18 @@
-# Hardening next plan
+# Hardening next plan (completed / frozen)
 
 目的は、外部サービスが停止してもローカルで検証可能な境界を先に完了し、外部依存の項目を明確な保留として後回しにできる状態を作ること。
 
-Current State sync: verification target is
-`6055d5caa3e8f2afb686479d6eb08f6af5344111`; the latest local full suite is
-`116 passed`. Gate evidence distinguishes local, CI, and live Provider evidence.
+Current State sync: Phase 3.5〜5 acceptance was closed at `ea575d8`; Phase 6A〜6E
+implementation evidence is `396c784`. Phase 6 is documented separately in `docs/PHASE6_PLAN.md`; this document is the
+historical hardening record. Gate evidence distinguishes local, CI, and live
+Provider evidence.
 
 ## 現在の実行範囲（2026-09-08 JST）
 
-追加された v2 roadmap / foundation 要件に合わせ、Phase 3.5
-（Kernel Trust Boundary Closure）だけを対象にする。Phase 6 の Resource / Budget /
-Router / Survival / Scheduler 実装は開始せず、Phase 3.5 の Gate が全項目
-`VERIFIED` になり、正常系・異常系・再開系・exact HEAD の証跡が揃うまで入口を
-`PROHIBITED_UNTIL_ALL_VERIFIED` のまま維持する。
+追加された v2 roadmap / foundation 要件に合わせた Phase 3.5
+（Kernel Trust Boundary Closure）の完了記録である。Phase 3.5 / 4 / 5 の
+current acceptance は `VERIFIED` となり、Phase 6 の実装は
+`docs/PHASE6_PLAN.md`へ移管した。
 
 直近の実装順は次の通り。
 
@@ -22,8 +22,8 @@ Router / Survival / Scheduler 実装は開始せず、Phase 3.5 の Gate が全�
 4. trusted in-process、subprocess、外部ネットワークの timeout / cancellation 契約を個別に検証する。
 5. ローカル Provider の real Tool-call E2E と、外部 Provider の BLOCKED 条件を再確認する。
 
-Phase 6 の実装に着手する条件は、Gate checker の actionable 項目がゼロ、
-`phase6_entry` が `ALL_VERIFIED`、および未解決の P0/P1 がゼロであることとする。
+Phase 6 着手条件は満たされ、`GATE_STATUS.json` の `phase6_entry` は
+`ALL_VERIFIED` である。
 
 ## Gate A — durable state / recovery（先行）
 
@@ -95,12 +95,13 @@ evidence is retained. Passing one does not promote the other.
 - text、multi-tool、sequential result、malformed、timeout、401/403、429、quota、output limit を共通 harness で検査する。
 - live probe は capability matrix へモデル名・時刻・結果・失敗分類を記録する。
 
-進捗: ToolSpec の input schema を Provider-neutral `tool_definitions` として ModelRequest に渡し、Gemini `functionDeclarations` / Ollama `tools` payload へ変換する offline 契約を実装済み。実モデルが選択・実行する live E2E は未達。
+進捗: ToolSpec の input schema を Provider-neutral `tool_definitions` として ModelRequest に渡し、Gemini `functionDeclarations` / Ollama `tools` payload へ変換する契約を実装済み。Ollama `qwen3:8b` Controller E2EとGemini live contractを確認済み。
 
 Provider error progress: `ProviderError` now carries category, retryable, and optional HTTP status; Controller preserves authentication, rate-limit, transport, and decode categories instead of collapsing them to `provider_decode`.
 
 ## Gate E — promotion / deferred work
 
-Gate A〜D の未達を一覧化し、外部依存項目は保留理由と再開条件を残す。Gate を満たすまで Phase 6（resource / survival / rescue）へ進まない。
+Gate A〜D の未達を一覧化し、外部依存項目は保留理由と再開条件を残した。
+Phase 6A〜6Eの実装・証拠は `GATE_STATUS.json` Stage Fへ移行済み。
 
 Dependency boundary: v2 development installs `requirements-v2-dev.txt` only; legacy v1 replay dependencies are isolated in `requirements-v1-legacy.txt` and are not prerequisites for the kernel test job.
