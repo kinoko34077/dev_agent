@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+import inspect
 
 import pytest
 
@@ -126,3 +127,11 @@ def test_missing_actual_cost_is_held_unknown_not_estimated(tmp_path):
     row = ledger.reservation_row(reservation.reservation_id)
     assert row["status"] == "unknown"
     assert row["actual_minor"] is None
+
+
+def test_budget_governor_uses_ledger_transaction_api_not_private_sqlite_state():
+    from src.dev_agent.resources.budget import BudgetGovernor
+
+    source = inspect.getsource(BudgetGovernor)
+    assert "ledger.connection" not in source
+    assert "ledger._lock" not in source

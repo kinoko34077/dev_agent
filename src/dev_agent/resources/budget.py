@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
-from uuid import uuid4
 
 from .ledger import BudgetPeriod, MoneyAmount, ResourceLedger
 
@@ -73,25 +72,10 @@ class BudgetGovernor:
             raise BudgetExceeded(f"currency mismatch: budget={self.currency}, resource={resource['price_currency']}")
         if resource["health"] == "unhealthy":
             raise BudgetExceeded(f"resource is unhealthy: {resource_id}")
-        with self.ledger._lock:
-            self.ledger.connection.execute("BEGIN IMMEDIATE")
-            try:
-                totals = self.ledger.reservation_totals(period_id=self.period.period_id)
-                if recovery:
-                    remaining = self.policy.recovery_reserve_minor - totals["recovery_committed_minor"]
-                else:
-                    normal_cap = self.policy.hard_cap_minor - self.policy.recovery_reserve_minor
-                    remaining = normal_cap - totals["normal_committed_minor"]
-                if estimated_cost.minor_units > remaining:
-                    self.ledger.connection.rollback()
-                    raise BudgetExceeded(f"budget exceeded for {resource_id}: requested {estimated_cost.minor_units}, remaining {remaining}")
-                reservation_id = str(uuid4())
-                self.ledger.connection.execute("INSERT INTO budget_reservations(reservation_id, task_id, resource_id, estimated_minor, actual_minor, recovery, status, created_at, reconciled_at, period_id, currency) VALUES (?, ?, ?, ?, NULL, ?, 'reserved', ?, NULL, ?, ?)", (reservation_id, task_id, resource_id, estimated_cost.minor_units, int(recovery), datetime.now(timezone.utc).isoformat(), self.period.period_id, self.currency))
-                self.ledger.connection.commit()
-            except Exception:
-                if self.ledger.connection.in_transaction:
-                    self.ledger.connection.rollback()
-                raise
+        try:
+            reservation_id = self.ledger.reserve_budget(task_id=task_id, resource_id=resource_id, amount=estimated_cost, recovery=recovery, period=self.period, normal_limit_minor=self.policy.hard_cap_minor - self.policy.recovery_reserve_minor, recovery_limit_minor=self.policy.recovery_reserve_minor)
+        except ValueError as exc:
+            raise BudgetExceeded(str(exc)) from exc
         return BudgetReservation(reservation_id, task_id, resource_id, estimated_cost, recovery)
 
     def reconcile(self, reservation_id: str, *, actual_cost: MoneyAmount | None = None, actual_cost_minor: int | None = None) -> dict[str, Any]:
@@ -104,43 +88,18 @@ class BudgetGovernor:
             return self.ledger.reservation_row(reservation_id)
         if actual_cost.currency != self.currency:
             raise BudgetExceeded(f"currency mismatch: budget={self.currency}, actual={actual_cost.currency}")
-        with self.ledger._lock:
-            self.ledger.connection.execute("BEGIN IMMEDIATE")
-            try:
-                row = self.ledger.connection.execute("SELECT * FROM budget_reservations WHERE reservation_id=?", (reservation_id,)).fetchone()
-                if row is None:
-                    raise KeyError(reservation_id)
-                if row["status"] not in {"reserved", "unknown"}:
-                    raise ValueError(f"reservation is not active: {reservation_id}")
-                if row["period_id"] != self.period.period_id or row["currency"] != self.currency:
-                    raise BudgetExceeded("reservation does not belong to current budget period or currency")
-                totals = self.ledger.reservation_totals(period_id=self.period.period_id)
-                current_total = totals["recovery_committed_minor"] if row["recovery"] else totals["normal_committed_minor"]
-                current_total -= int(row["estimated_minor"])
-                limit = self.policy.recovery_reserve_minor if row["recovery"] else self.policy.hard_cap_minor - self.policy.recovery_reserve_minor
-                if current_total + actual_cost.minor_units > limit:
-                    raise BudgetExceeded("actual usage exceeds the protected budget")
-                self.ledger.connection.execute("UPDATE budget_reservations SET actual_minor=?, status='reconciled', reconciled_at=? WHERE reservation_id=?", (actual_cost.minor_units, datetime.now(timezone.utc).isoformat(), reservation_id))
-                self.ledger.connection.commit()
-            except Exception:
-                self.ledger.connection.rollback()
-                raise
+        try:
+            self.ledger.reconcile_budget(reservation_id, actual=actual_cost, period=self.period, normal_limit_minor=self.policy.hard_cap_minor - self.policy.recovery_reserve_minor, recovery_limit_minor=self.policy.recovery_reserve_minor)
+        except ValueError as exc:
+            raise BudgetExceeded(str(exc)) from exc
         return self.ledger.reservation_row(reservation_id)
 
     def release(self, reservation_id: str) -> None:
-        with self.ledger._lock:
-            cursor = self.ledger.connection.execute("UPDATE budget_reservations SET status='released', reconciled_at=? WHERE reservation_id=? AND status='reserved'", (datetime.now(timezone.utc).isoformat(), reservation_id))
-            self.ledger.connection.commit()
-            if cursor.rowcount != 1:
-                raise ValueError(f"reservation is not active: {reservation_id}")
+        self.ledger.release_budget(reservation_id)
 
     def mark_unknown(self, reservation_id: str) -> None:
         """Hold an uncertain charge until an operator/provider reconciles it."""
-        with self.ledger._lock:
-            cursor = self.ledger.connection.execute("UPDATE budget_reservations SET status='unknown' WHERE reservation_id=? AND status='reserved'", (reservation_id,))
-            self.ledger.connection.commit()
-            if cursor.rowcount != 1:
-                raise ValueError(f"reservation is not active: {reservation_id}")
+        self.ledger.mark_budget_unknown(reservation_id)
 
     def snapshot(self) -> dict[str, Any]:
         totals = self.ledger.reservation_totals(period_id=self.period.period_id)

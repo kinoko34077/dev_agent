@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 import time
 
 from .ledger import ResourceLedger
@@ -20,6 +21,7 @@ class RouteRequest:
     max_cost_minor: int | None = None
     max_latency_ms: int | None = None
     excluded_resource_ids: set[str] = field(default_factory=set)
+    max_observation_age_seconds: float | None = 300.0
 
 
 @dataclass(frozen=True)
@@ -55,6 +57,13 @@ class ResourceRouter:
                 continue
             if resource["circuit_open_until"] > time.time():
                 continue
+            if request.max_observation_age_seconds is not None:
+                try:
+                    observed_at = datetime.fromisoformat(resource["observed_at"]).timestamp()
+                except (TypeError, ValueError):
+                    continue
+                if time.time() - observed_at > request.max_observation_age_seconds:
+                    continue
             if request.max_cost_minor is not None and resource["cost_minor"] is not None and resource["cost_minor"] > request.max_cost_minor:
                 continue
             if request.max_cost_minor is not None and resource["cost_minor"] is None:
