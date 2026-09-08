@@ -9,13 +9,14 @@ import math
 import re
 from threading import Event
 from time import monotonic, time
-from typing import Any
+from typing import Any, Callable
 
 from ..domain.protocol import Event as ProtocolEvent
 from ..domain.protocol import ModelRequest, ModelResponse, Step, StepStatus, Task, TaskStatus, ToolCall, ToolResult, ToolResultStatus
 from ..providers.base import ModelProvider, ProviderError
 from ..security.event_artifacts import EventArtifactStore
 from ..security.audit import AuditRecorder
+from ..resources.control import ResourcePolicy
 from ..state.store import StateStore
 from ..tools.runtime import ToolRuntime
 
@@ -57,7 +58,7 @@ class Controller:
         re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----"),
     )
 
-    def __init__(self, provider: ModelProvider, tools: ToolRuntime, store: StateStore, *, event_artifacts: EventArtifactStore | None = None, resource_policy: Any | None = None, lease_guard: Any | None = None, lease_proof: Any | None = None) -> None:
+    def __init__(self, provider: ModelProvider, tools: ToolRuntime, store: StateStore, *, event_artifacts: EventArtifactStore | None = None, resource_policy: ResourcePolicy | None = None, lease_guard: Callable[[], None] | None = None, lease_proof: Any | None = None) -> None:
         self.provider = provider
         self.tools = tools.with_result_store(store)
         self.store = store

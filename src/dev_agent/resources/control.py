@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Protocol
 
 from ..domain.protocol import ModelRequest, ModelResponse
 from .budget import BudgetExceeded, BudgetGovernor, BudgetReservation, ResourceUnavailable, UnknownPrice
@@ -22,6 +23,13 @@ class DispatchDenied(RuntimeError):
 class DispatchReservation:
     budget: BudgetReservation
     provider_id: str
+
+
+class ResourcePolicy(Protocol):
+    def reserve_for_provider(self, task_id: str, provider_id: str, request: ModelRequest) -> DispatchReservation: ...
+    def reconcile_response(self, reservation: DispatchReservation, response: ModelResponse) -> None: ...
+    def release(self, reservation: DispatchReservation) -> None: ...
+    def uncertain(self, reservation: DispatchReservation) -> None: ...
 
 
 class ResourceControlPlane:
@@ -91,4 +99,4 @@ class ResourceControlPlane:
             self.release(reservation)
 
 
-__all__ = ["DispatchDenied", "DispatchReservation", "ResourceControlPlane"]
+__all__ = ["DispatchDenied", "DispatchReservation", "ResourceControlPlane", "ResourcePolicy"]
