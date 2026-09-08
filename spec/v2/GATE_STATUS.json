@@ -25,7 +25,7 @@
       "C16": {"status": "VERIFIED", "evidence": ["src/dev_agent/runtime/task_graph.py:max_total_tasks_per_root", "src/dev_agent/runtime/task_graph.py:from_limits"]},
       "C17": {"status": "VERIFIED", "evidence": ["tests/v2/test_integration_hardening.py::test_tool_argument_and_result_byte_limits_are_enforced"]},
       "C18": {"status": "INTEGRATED", "evidence": ["src/dev_agent/runtime/controller.py:cancel", "tests/v2/test_integration_hardening.py::test_controller_cancellation_is_cooperative_and_durable"], "verification_gap": "Cancellation is cooperative at runtime boundaries; an already-running trusted in-process handler cannot be force-killed."},
-      "C19": {"status": "INTEGRATED", "evidence": ["src/dev_agent/tools/registry.py:trust_level/isolation", "src/dev_agent/tools/process_worker.py", "tests/v2/test_integration_hardening.py::test_process_isolated_tool_is_killed_at_timeout"], "verification_gap": "Full generated-tool lifecycle and descendant-process containment remain to be exercised."}
+      "C19": {"status": "INTEGRATED", "evidence": ["src/dev_agent/tools/registry.py:trust_level/isolation", "src/dev_agent/tools/process_worker.py", "tests/v2/test_integration_hardening.py::test_generated_tool_uses_subprocess_boundary_for_normal_execution", "tests/v2/test_integration_hardening.py::test_process_isolated_tool_is_killed_at_timeout"], "verification_gap": "Full generated-tool lifecycle and remote descendant-process containment remain to be exercised."}
     },
     "D": {
       "D20": {"status": "VERIFIED", "evidence": ["src/dev_agent/providers/* explicit ProviderError categories"]},

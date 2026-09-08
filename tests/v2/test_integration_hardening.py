@@ -37,6 +37,10 @@ def isolated_child_handler(args):
     return {"ok": True}
 
 
+def isolated_generated_echo_handler(args):
+    return {"echo": args["value"]}
+
+
 def test_event_payload_detects_secret_values_and_total_byte_cap():
     safe = Controller._safe_event_payload({"content": "bearer abcdefghijklmnop", "large": ["x" * 4096] * 20})
     assert safe["_truncated"] is True
@@ -522,6 +526,27 @@ def test_process_isolated_tool_is_killed_at_timeout(tmp_path):
     assert result.error["cause"] == "timeout"
     sleep(0.1)
     assert not marker.exists()
+
+
+def test_generated_tool_uses_subprocess_boundary_for_normal_execution(tmp_path):
+    registry = ToolRegistry()
+    registry.register(
+        ToolSpec(
+            name="generated_echo",
+            description="generated",
+            trust_level="generated",
+            isolation="subprocess",
+            input_schema={"type": "object", "required": ["value"], "properties": {"value": {"type": "string"}}},
+            output_schema={"type": "object", "required": ["echo"], "properties": {"echo": {"type": "string"}}},
+            handler=isolated_generated_echo_handler,
+            handler_ref="tests.v2.test_integration_hardening:isolated_generated_echo_handler",
+        )
+    )
+    call = ToolCall(tool_name="generated_echo", arguments={"value": "ok"})
+    with SQLiteStateStore(tmp_path / "generated.sqlite3") as store:
+        result = ToolRuntime(registry).with_result_store(store).execute(call)
+    assert result.status == ToolResultStatus.SUCCEEDED
+    assert result.structured_result == {"echo": "ok"}
 
 
 def test_process_timeout_terminates_descendant_processes(tmp_path):
