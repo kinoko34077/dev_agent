@@ -6,12 +6,12 @@
 
 ### 現在の到達点（2026-09-08 JST）
 
-- v2 の全テストが `113 passed`（2026-09-08 JST のローカル実行）。
+- v2 の全テストが `115 passed`（2026-09-08 JST のローカル実行）。
 - 外部副作用の曖昧状態を `waiting_reconciliation` としてタスクに永続化し、照合確定後の再開を統合テストで検証（全64件）。
 - Windows の実 symlink を使った workspace 外逸脱拒否テストが `passed`。
 - Ollama のローカル `/api/chat` は現環境で接続拒否を確認し、実 Tool-call E2E は未達のまま Gate D23 に保留。
 - Gemini の実HTTP経路は接続まで確認したが、モデル一覧・最小生成とも HTTP 403。実 Provider 完走は未達。
-- 現在の HEAD は `93560ed`。今回の継続 hardening は検証中の未コミット変更で、追加された `dev_agent_codex_4docs/` はユーザー提供資料として保持する。
+- 現在の検証対象 HEAD は `96c3af0636c734216ebadc91b31061209efaa435`。Gate evidence と計画checkboxはこのHEADへ同期し、追加された `dev_agent_codex_4docs/` はユーザー提供資料として保持する。
 
 ### 2026-09-08
 
@@ -34,6 +34,8 @@
   digest、byte length、metadata、missing payloadをRuntime非依存で検査可能にした。
 - guarded effect中のキャンセルを `reconciliation_required` として扱い、
   cancelled commit直後のcrash復帰でcancel eventが重複しないことを検証。
+- cancellation後にguarded effectの結果を確認できない場合、checkpoint/eventへ
+  `unable_to_confirm` を記録し、通常の `terminated` と区別する経路を追加。
 - Controller の completion / failure / approval wait /
   reconciliation wait / ToolResult の critical transition を
   `commit_transition()` へ統合。Gate の状態を

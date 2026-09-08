@@ -664,6 +664,34 @@ def test_cancellation_during_guarded_effect_requires_reconciliation(tmp_path):
     assert calls == []
 
 
+def test_controller_marks_guarded_cancellation_unable_to_confirm(tmp_path):
+    started = ThreadEvent()
+
+    def guarded_handler(args):
+        started.set()
+        sleep(0.2)
+        return {"ok": True}
+
+    registry = ToolRegistry()
+    registry.register(ToolSpec(name="write", description="local effect", side_effect_level="local_write", handler=guarded_handler))
+    call = ToolCall(tool_name="write", arguments={"value": "x"})
+    store = JsonStateStore(tmp_path / "controller-cancel-uncertain.json")
+    controller = Controller(SingleCallProvider(call), ToolRuntime(registry), store)
+    task = Task(objective="cancel guarded effect")
+    result_box = []
+    runner = Thread(target=lambda: result_box.append(controller.run(task)), daemon=True)
+    runner.start()
+    assert started.wait(2)
+    controller.cancel(task.task_id, reason="operator cancelled after dispatch")
+    runner.join(2)
+    assert not runner.is_alive()
+    assert result_box[0].status == TaskStatus.WAITING_RECONCILIATION
+    checkpoint = store.load_latest_checkpoint(task.task_id)
+    assert checkpoint["state"]["cancellation"]["state"] == "unable_to_confirm"
+    waiting = [event for event in store.snapshot()["events"] if event["event_type"] == "task.waiting_reconciliation"]
+    assert waiting[-1]["payload"]["cancellation_state"] == "unable_to_confirm"
+
+
 def test_resume_after_cancelled_commit_crash_does_not_duplicate_cancel_event(tmp_path):
     path = tmp_path / "cancelled-crash.sqlite3"
     task = Task(objective="cancel crash")

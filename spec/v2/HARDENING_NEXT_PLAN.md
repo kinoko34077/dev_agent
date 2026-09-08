@@ -2,6 +2,10 @@
 
 目的は、外部サービスが停止してもローカルで検証可能な境界を先に完了し、外部依存の項目を明確な保留として後回しにできる状態を作ること。
 
+Current State sync: verification target is
+`96c3af0636c734216ebadc91b31061209efaa435`; the latest local full suite is
+`115 passed`. Gate evidence distinguishes local, CI, and live Provider evidence.
+
 ## 現在の実行範囲（2026-09-08 JST）
 
 追加された v2 roadmap / foundation 要件に合わせ、当面は Phase 3.5
@@ -76,6 +80,11 @@ sidecar.
 Approval progress: approval records bind to one exact internal call ID and canonical hash of the effective arguments after path canonicalization. Broad task/level reuse is rejected. One-shot consumption, expiry, revoke, and duplicate-insert rejection are enforced; SQLite consumption now uses `BEGIN IMMEDIATE` so validation, expiry/revoke check, and consumption commit are one transaction. Reconciliation audit insertion and intent transition are also one transaction. Reconciliation inspection remains available for an already-claimed side effect.
 
 Gate governance progress: `spec/v2/GATE_STATUS.json` schema v2 uses `IMPLEMENTED`, `INTEGRATED`, and `VERIFIED`; only `VERIFIED` is accepted as complete. Existing false positives for Controller transaction integration and recovery restore were downgraded to `INTEGRATED` with an explicit verification gap.
+
+Responsibility boundary: B11 is the runtime guarantee that critical Controller
+state transitions use `commit_transition()` with crash/restart coverage. E31 is
+the repository/CI guarantee that the exact commit is checked and its test
+evidence is retained. Passing one does not promote the other.
 
 ## Gate D — Provider contract
 

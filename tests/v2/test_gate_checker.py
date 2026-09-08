@@ -38,3 +38,22 @@ def test_gate_checker_rejects_v2_false_positive_metadata():
         assert "evidence" in str(exc)
     else:
         raise AssertionError("verified gates must carry evidence")
+
+
+def test_gate_checker_separates_deferred_future_requirements_from_current_gates():
+    value = {
+        "schema_version": 3,
+        "phase6_entry": "PROHIBITED_UNTIL_ALL_VERIFIED",
+        "phase_classification": {
+            "phase3_5": {"gates": ["B/B11"]},
+            "phase4": {"gates": []},
+            "phase5": {"gates": []},
+            "phase6_future": {"requirements": ["E33/live_restore"]},
+            "phase7_future": {"requirements": ["C19/generated_lifecycle"]},
+        },
+        "stages": {
+            "B": {"B11": {"status": "VERIFIED", "evidence": ["test"], "deferred_requirements": ["E33/live_restore"]}},
+            "E": {"E33": {"status": "DEFERRED", "actionable": False, "deferred_to": "phase6_future"}},
+        },
+    }
+    assert check(value) == (0, [])

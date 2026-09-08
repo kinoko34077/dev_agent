@@ -12,14 +12,20 @@ import sys
 
 def load_status(path: Path) -> dict:
     value = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(value, dict) or value.get("schema_version") not in {1, 2}:
+    if not isinstance(value, dict) or value.get("schema_version") not in {1, 2, 3}:
         raise ValueError("invalid gate status schema")
     return value
 
 
 def check(value: dict) -> tuple[int, list[str]]:
-    if value.get("schema_version") == 2 and value.get("phase6_entry", "PROHIBITED_UNTIL_ALL_VERIFIED") != "PROHIBITED_UNTIL_ALL_VERIFIED":
+    schema_version = value.get("schema_version")
+    if schema_version in {2, 3} and value.get("phase6_entry", "PROHIBITED_UNTIL_ALL_VERIFIED") != "PROHIBITED_UNTIL_ALL_VERIFIED":
         raise ValueError("schema v2 phase6_entry must require ALL_VERIFIED")
+    if schema_version == 3:
+        classifications = value.get("phase_classification")
+        required_phases = {"phase3_5", "phase4", "phase5", "phase6_future", "phase7_future"}
+        if not isinstance(classifications, dict) or not required_phases <= set(classifications):
+            raise ValueError("schema v3 requires phase_classification for phase3_5, phase4, phase5, phase6_future, and phase7_future")
     pending: list[str] = []
     blockers: list[str] = []
     for stage, items in value.get("stages", {}).items():
@@ -29,11 +35,13 @@ def check(value: dict) -> tuple[int, list[str]]:
             if not isinstance(record, dict):
                 raise ValueError(f"invalid gate record: {stage}/{item_id}")
             status = record.get("status")
+            if schema_version == 3 and status == "DEFERRED" and not record.get("actionable", False):
+                continue
             # Schema v1 used PASS.  It is accepted only for old callers; the
             # v2 status file uses VERIFIED so existence is never mistaken for
             # integration or verification.
             if status == "VERIFIED" or (status == "PASS" and value.get("schema_version") == 1):
-                if value.get("schema_version") == 2 and not record.get("evidence"):
+                if schema_version in {2, 3} and not record.get("evidence"):
                     raise ValueError(f"verified gate has no evidence: {stage}/{item_id}")
                 continue
             if status == "BLOCKED" and not record.get("actionable", False):

@@ -298,8 +298,19 @@ class Controller:
                 if category == "reconciliation_required":
                     step.status = StepStatus.WAITING
                     state["active_step"] = step.to_dict()
+                    cancellation_state = None
+                    if error.get("cause") == "cancelled":
+                        cancellation_state = "unable_to_confirm"
+                        state["cancellation"] = {
+                            "state": cancellation_state,
+                            "reason": self._cancellation_reasons.get(task.task_id, "cancellation occurred after guarded dispatch"),
+                            "requested": True,
+                        }
                     task.status = TaskStatus.WAITING_RECONCILIATION
-                    waiting_event = self._event_record(task, "task.waiting_reconciliation", {"tool_call_id": call.call_id, "tool_name": call.tool_name, "cause": error.get("cause")}, step_id=step.step_id)
+                    waiting_payload = {"tool_call_id": call.call_id, "tool_name": call.tool_name, "cause": error.get("cause")}
+                    if cancellation_state is not None:
+                        waiting_payload["cancellation_state"] = cancellation_state
+                    waiting_event = self._event_record(task, "task.waiting_reconciliation", waiting_payload, step_id=step.step_id)
                     self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "waiting_reconciliation", state), events=[tool_event, waiting_event], tool_result=result)
                     return
                 if category == "cancelled":
