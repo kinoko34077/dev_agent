@@ -156,3 +156,16 @@ class JsonStateStore:
         if result is not None:
             intent["result"] = result
         self._flush()
+
+    def commit_transition(self, *, task: Task | None = None, step: Step | None = None, checkpoint: dict[str, Any] | None = None, event: Event | None = None, tool_result: ToolResult | None = None) -> None:
+        if task is not None:
+            self._data["tasks"][task.task_id] = task.to_dict()
+        if step is not None:
+            self._data["steps"][step.step_id] = step.to_dict()
+        if checkpoint is not None:
+            self._data["checkpoints"].append(checkpoint)
+        if tool_result is not None:
+            self._data.setdefault("tool_results", {})[tool_result.call_id] = tool_result.to_dict()
+        if event is not None:
+            self._data.setdefault("events", []).append(event.to_dict())
+        self._flush()

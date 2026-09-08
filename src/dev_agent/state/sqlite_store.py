@@ -177,6 +177,25 @@ class SQLiteStateStore:
         self.connection.execute("UPDATE effect_intents SET status = ?, result_payload = COALESCE(?, result_payload) WHERE idempotency_key = ?", (to_status, payload, key))
         self.connection.commit()
 
+    def commit_transition(self, *, task: Task | None = None, step: Step | None = None, checkpoint: dict[str, Any] | None = None, event: Event | None = None, tool_result: ToolResult | None = None) -> None:
+        """Atomically persist the records belonging to one runtime transition."""
+        try:
+            self.connection.execute("BEGIN IMMEDIATE")
+            if task is not None:
+                self.connection.execute("INSERT OR REPLACE INTO tasks VALUES (?, ?)", (task.task_id, json.dumps(task.to_dict(), ensure_ascii=False)))
+            if step is not None:
+                self.connection.execute("INSERT OR REPLACE INTO steps VALUES (?, ?)", (step.step_id, json.dumps(step.to_dict(), ensure_ascii=False)))
+            if checkpoint is not None:
+                self.connection.execute("INSERT INTO checkpoints(task_id, step_id, phase, state_payload) VALUES (?, ?, ?, ?)", (checkpoint["task_id"], checkpoint["step_id"], checkpoint["phase"], json.dumps(checkpoint.get("state", {}), ensure_ascii=False)))
+            if tool_result is not None:
+                self.connection.execute("INSERT OR REPLACE INTO tool_results VALUES (?, ?)", (tool_result.call_id, json.dumps(tool_result.to_dict(), ensure_ascii=False)))
+            if event is not None:
+                self.connection.execute("INSERT INTO events(event_id, payload) VALUES (?, ?)", (event.event_id, json.dumps(event.to_dict(), ensure_ascii=False)))
+            self.connection.commit()
+        except Exception:
+            self.connection.rollback()
+            raise
+
     def _rows(self, table: str, column: str = "payload") -> list[dict[str, Any]]:
         return [json.loads(row[column]) for row in self.connection.execute(f"SELECT {column} FROM {table}").fetchall()]
 

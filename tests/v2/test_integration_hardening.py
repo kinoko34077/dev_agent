@@ -4,7 +4,7 @@ import os
 import subprocess
 import sys
 
-from src.dev_agent.domain.protocol import ExecutionLimits, ModelResponse, Step, Task, TaskStatus, ToolCall, ToolResult, ToolResultStatus
+from src.dev_agent.domain.protocol import Event, ExecutionLimits, ModelResponse, Step, Task, TaskStatus, ToolCall, ToolResult, ToolResultStatus
 from src.dev_agent.policy import PathPolicy
 from src.dev_agent.policy.approvals import canonical_arguments_hash
 from src.dev_agent.providers.base import ModelProvider
@@ -271,6 +271,19 @@ def test_effect_intent_state_machine_rejects_terminal_reopen(tmp_path):
         store.transition_effect_intent("k", to_status="succeeded", result={"ok": True})
         with pytest.raises(ValueError, match="invalid effect intent transition"):
             store.transition_effect_intent("k", to_status="dispatching")
+
+
+def test_commit_transition_persists_related_records_atomically(tmp_path):
+    task = Task(objective="atomic")
+    step = Step(task_id=task.task_id, order=0, kind="model")
+    event = Event(event_type="transition", task_id=task.task_id, step_id=step.step_id, payload={"ok": True})
+    result = ToolResult(call_id=str(__import__("uuid").uuid4()), tool_name="echo", status=ToolResultStatus.SUCCEEDED, structured_result={"ok": True})
+    with SQLiteStateStore(tmp_path / "atomic.sqlite3") as store:
+        store.commit_transition(task=task, step=step, checkpoint={"task_id": task.task_id, "step_id": step.step_id, "phase": "after_tools", "state": {}}, event=event, tool_result=result)
+        assert store.load_task(task.task_id) is not None
+        assert store.load_latest_checkpoint(task.task_id)["phase"] == "after_tools"
+        assert any(item["event_id"] == event.event_id for item in store.snapshot()["events"])
+        assert result.call_id in store.snapshot()["tool_results"]
 
 
 def test_controller_pauses_for_reconciliation_and_resumes_after_recorded_success(tmp_path):
