@@ -16,6 +16,7 @@ from ..providers.base import ModelProvider, ProviderError
 from ..security.event_artifacts import EventArtifactStore
 from ..security.audit import AuditRecorder
 from ..resources.control import DispatchDenied, ResourcePolicy
+from ..resources.budget import BudgetExceeded
 from ..state.store import StateStore
 from ..tools.runtime import ToolRuntime
 
@@ -417,6 +418,10 @@ class Controller:
                     self._fail(task, state, "timeout", "model request timed out", step=step, request_id=request.request_id)
                 except ProviderError as exc:
                     if reservation is not None:
+                        if exc.category == "reconciliation_required":
+                            self.resource_policy.uncertain(reservation)
+                            self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="budget_reconciliation", message=str(exc))
+                            return task
                         if exc.category == "transport":
                             self.resource_policy.uncertain(reservation)
                             self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause=exc.category, message=str(exc))
@@ -429,6 +434,13 @@ class Controller:
                         # no local reservation object to mutate.
                         self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause=exc.category, message=str(exc))
                         return task
+                    elif getattr(self.provider, "handles_resource_policy", False) and exc.category == "reconciliation_required":
+                        # The dispatcher has already held its reservation
+                        # unknown after observing a charge that the protected
+                        # budget cannot accept.  Do not terminalize the task
+                        # or allow a duplicate provider request.
+                        self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="budget_reconciliation", message=str(exc))
+                        return task
                     self._fail(task, state, exc.category, str(exc), step=step, request_id=request.request_id)
                 except Exception as exc:
                     if reservation is not None:
@@ -437,6 +449,10 @@ class Controller:
                 if reservation is not None:
                     try:
                         self.resource_policy.reconcile_response(reservation, response)
+                    except BudgetExceeded as exc:
+                        self.resource_policy.uncertain(reservation)
+                        self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="budget_reconciliation", message=str(exc))
+                        return task
                     except Exception as exc:
                         self._fail(task, state, "budget_reconciliation", str(exc), step=step, request_id=request.request_id)
                 if cancel_event.is_set():

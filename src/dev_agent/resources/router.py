@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+import math
 import time
 
 from .ledger import ResourceLedger
@@ -22,6 +23,14 @@ class RouteRequest:
     max_latency_ms: int | None = None
     excluded_resource_ids: set[str] = field(default_factory=set)
     max_observation_age_seconds: float | None = 300.0
+
+    def __post_init__(self) -> None:
+        for name, value in (("max_cost_minor", self.max_cost_minor), ("max_latency_ms", self.max_latency_ms)):
+            if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 0):
+                raise ValueError(f"{name} must be a non-negative integer or None")
+        if self.max_observation_age_seconds is not None:
+            if isinstance(self.max_observation_age_seconds, bool) or not isinstance(self.max_observation_age_seconds, (int, float)) or not math.isfinite(self.max_observation_age_seconds) or self.max_observation_age_seconds < 0:
+                raise ValueError("max_observation_age_seconds must be a non-negative number or None")
 
 
 @dataclass(frozen=True)
@@ -57,13 +66,19 @@ class ResourceRouter:
                 continue
             if resource["circuit_open_until"] > time.time():
                 continue
+            try:
+                observed_at = datetime.fromisoformat(resource["observed_at"]).timestamp()
+            except (TypeError, ValueError):
+                continue
+            observation_age = time.time() - observed_at
+            if observation_age < 0:
+                continue
             if request.max_observation_age_seconds is not None:
-                try:
-                    observed_at = datetime.fromisoformat(resource["observed_at"]).timestamp()
-                except (TypeError, ValueError):
+                if observation_age > request.max_observation_age_seconds:
                     continue
-                observation_age = time.time() - observed_at
-                if observation_age < 0 or observation_age > request.max_observation_age_seconds:
+            if request.max_latency_ms is not None:
+                latency = resource["metadata"].get("latency_ms")
+                if isinstance(latency, bool) or not isinstance(latency, (int, float)) or not math.isfinite(latency) or latency < 0 or latency > request.max_latency_ms:
                     continue
             if request.max_cost_minor is not None and resource["cost_minor"] is not None and resource["cost_minor"] > request.max_cost_minor:
                 continue

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..domain.protocol import ModelRequest, ModelResponse
+from ..resources.budget import BudgetExceeded
 from ..resources.control import DispatchDenied, DispatchReservation, ResourceControlPlane
 from ..resources.router import NoRoute, RouteRequest, RouteSelection
 from ..resources.survival import SurvivalGovernor, SurvivalMode, SurvivalSnapshot
@@ -105,7 +106,16 @@ class ProviderDispatcher(ModelProvider):
                 # exception still leaves the external outcome ambiguous. Do
                 # not let Controller classify it as a local decode failure.
                 raise ProviderError(f"provider transport failed: {exc}", category="transport", retryable=True) from exc
-            self.control.reconcile_response(reservation, response)
+            try:
+                self.control.reconcile_response(reservation, response)
+            except BudgetExceeded as exc:
+                # The provider already returned an external result, but the
+                # observed charge cannot be accepted by the protected budget.
+                # ResourceControlPlane keeps the reservation unknown; expose
+                # that ambiguity to Controller instead of misclassifying it
+                # as a provider decode failure or retrying the request.
+                self.audits.append(DispatchAudit(selection.provider_id, selection.resource_id, "budget_reconciliation"))
+                raise ProviderError(str(exc), category="reconciliation_required", retryable=False) from exc
             self.control.router.ledger.record_provider_success(selection.provider_id)
             self.audits.append(DispatchAudit(selection.provider_id, selection.resource_id, "succeeded"))
             return response

@@ -400,6 +400,27 @@ def test_dispatcher_wraps_untyped_provider_failure_as_reconciliation(tmp_path):
     assert result.status.value == "waiting_reconciliation"
 
 
+def test_dispatcher_holds_over_budget_observed_charge_for_reconciliation(tmp_path):
+    ledger = ResourceLedger(tmp_path / "dispatcher-over-budget.sqlite3")
+    ledger.register_resource("paid", provider_id="paid", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
+    ledger.observe("paid", available=10, health="healthy")
+    control = ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)))
+
+    class OverBudgetProvider(FakeProvider):
+        provider_id = "paid"
+
+        def request(self, request):
+            return ModelResponse(provider="paid", model="test", text_segments=["ok"], usage={"cost_minor": 30})
+
+    dispatcher = ProviderDispatcher(ProviderRegistry([OverBudgetProvider()]), control)
+    task = Task(objective="dispatcher over-budget response")
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        result = Controller(dispatcher, ToolRuntime(ToolRegistry()), store).run(task)
+
+    assert result.status.value == "waiting_reconciliation"
+    assert ledger.reservation_totals()["active_reservations"] == 1
+
+
 def test_maintenance_mode_denies_new_provider_reservations(tmp_path):
     ledger = ResourceLedger(tmp_path / "maintenance.sqlite3")
     ledger.register_resource("free", provider_id="free", native_unit="request", capacity=10, capabilities=["text"], cost_minor=0)

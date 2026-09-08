@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import math
 
 import pytest
 
@@ -52,3 +53,33 @@ def test_router_rejects_future_dated_observation_when_max_age_is_set(tmp_path):
     ledger.observe("future", available=1, health="healthy", observed_at=future)
     with pytest.raises(NoRoute, match="no eligible resource"):
         ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}, max_observation_age_seconds=60))
+
+
+def test_router_rejects_future_dated_observation_even_without_age_override(tmp_path):
+    ledger = ResourceLedger(tmp_path / "future-observation-no-age.sqlite3")
+    ledger.register_resource("future", provider_id="future", native_unit="request", capacity=1, capabilities=["text"], cost_minor=0)
+    future = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+    ledger.observe("future", available=1, health="healthy", observed_at=future)
+    with pytest.raises(NoRoute, match="no eligible resource"):
+        ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}, max_observation_age_seconds=None))
+
+
+def test_router_enforces_max_latency_from_resource_metadata(tmp_path):
+    ledger = ResourceLedger(tmp_path / "latency-filter.sqlite3")
+    ledger.register_resource("fast", provider_id="fast", native_unit="request", capacity=1, capabilities=["text"], cost_minor=0, metadata={"latency_ms": 40})
+    ledger.register_resource("slow", provider_id="slow", native_unit="request", capacity=1, capabilities=["text"], cost_minor=0, metadata={"latency_ms": 200})
+    ledger.observe("fast", available=1, health="healthy")
+    ledger.observe("slow", available=1, health="healthy")
+    router = ResourceRouter(ledger)
+    assert router.choose(RouteRequest(capabilities={"text"}, max_latency_ms=100)).resource_id == "fast"
+    with pytest.raises(NoRoute, match="no eligible resource"):
+        router.choose(RouteRequest(capabilities={"text"}, max_latency_ms=10))
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (("max_cost_minor", -1), ("max_latency_ms", True), ("max_observation_age_seconds", math.nan)),
+)
+def test_route_request_rejects_invalid_limits(field, value):
+    with pytest.raises(ValueError, match=field):
+        RouteRequest(**{field: value})
