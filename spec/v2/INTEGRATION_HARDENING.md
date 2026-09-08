@@ -23,7 +23,7 @@ Status: in progress. This gate precedes Phase 6.
 - Crash-injection tests cover `before_model`, `pending_tools`, `after_tool_result`,
   `after_tools`, terminal `after_model`, and `failure` checkpoints; resume does
   not duplicate the completed tool or terminal event.
-- The Ollama adapter is exercised against the local `/api/chat` endpoint and maps `max_output_tokens` to the provider runtime output bound (`options.num_predict`).
+- The Ollama adapter maps `max_output_tokens` to the provider runtime output bound (`options.num_predict`); the local `/api/tags` probe currently receives connection refused, so D23 remains open.
 - Gemini HTTP failure classification is covered for missing credentials, authentication (401/403), rate limiting (429), transport errors, and malformed provider responses.
 - Independent Recovery validation rejects orphan steps/checkpoints, malformed tool results, unknown effect-intent states, and unsupported schema versions.
 - ToolSpec input schemas are carried as Provider-neutral `tool_definitions` and emitted as Gemini function declarations / Ollama function tools; payload contract tests cover this boundary.
@@ -47,13 +47,16 @@ Status: in progress. This gate precedes Phase 6.
   expiry purge; artifact roots remain an explicit Recovery/retention input.
 - The Provider contract harness verifies model-generated ToolCalls, sequential
   calls, normalized ToolResults, and a final response through the neutral protocol.
+- A live Gemini `gemini-2.5-flash` probe completed text plus model-generated
+  ToolCall, ToolResult, and final response roundtrip on 2026-09-08 JST; the
+  observed capability is recorded in `PROVIDER_CAPABILITY_MATRIX.json`.
 - Input token estimates, provider-reported output/cost usage, task
   cancellation, and graph limits are enforced or explicitly represented as
   deferred contracts in the hardening plan.
 - Recovery now supports validated atomic backup and restore, non-destructive
   Git diagnostics, last-known-good recording, rollback planning, and explicit
   permission gates for rollback/repair-branch mutation.
-- Gate status schema v2 distinguishes `IMPLEMENTED`, `INTEGRATED`, and
+- Gate status schema v3 distinguishes `IMPLEMENTED`, `INTEGRATED`, and
   `VERIFIED`; only `VERIFIED` satisfies a gate.  Legacy `PASS` is accepted by
   the checker only for schema v1 callers.
 
@@ -64,7 +67,7 @@ Status: in progress. This gate precedes Phase 6.
   terminal, and approval-wait boundaries are covered locally.
 - Approval-wait/resume is now available through `Controller.resume(task_id, approval_id=...)`; a higher-level UI/API for presenting pending approvals remains required.
 - Local-model qualification that verifies visible response quality as well as the hard output bound; the installed `qwen3:0.6b` failed this narrow probe because it spent the small output budget on a thinking trace.
-- Real Gemini live contract probe (network reached, but current key/model combination returned HTTP 403; credential/project restriction must be corrected before promotion).
+- Local Ollama service/model qualification and real Tool-call E2E (D23/D24).
 - Expanded contract harness: multi-tool, sequential result, malformed response, timeout, rate-limit, quota, and limits.
 - Persisted CI test-result ingestion and an operator-run rollback/repair drill.
 

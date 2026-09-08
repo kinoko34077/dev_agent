@@ -10,8 +10,8 @@
 - 外部副作用の曖昧状態を `waiting_reconciliation` としてタスクに永続化し、照合確定後の再開を統合テストで検証（全64件）。
 - Windows の実 symlink を使った workspace 外逸脱拒否テストが `passed`。
 - Ollama のローカル `/api/chat` は現環境で接続拒否を確認し、実 Tool-call E2E は未達のまま Gate D23 に保留。
-- Gemini の実HTTP経路は接続まで確認したが、モデル一覧・最小生成とも HTTP 403。実 Provider 完走は未達。
-- 現在の検証対象 HEAD は `96c3af0636c734216ebadc91b31061209efaa435`。Gate evidence と計画checkboxはこのHEADへ同期し、追加された `dev_agent_codex_4docs/` はユーザー提供資料として保持する。
+- Gemini `gemini-2.5-flash` は実HTTPの text + model-generated ToolCall + ToolResult + final response を完走し、Phase 5の live capability matrix へ記録した。Ollama は現環境で接続拒否のため Phase 4 は未達。
+- 今回の検証対象開始HEADは `7ebc3c7b99656adc6db8edd5395473a435c0eae9`。Gate evidence と計画checkboxはこの実HEADを基準に同期し、追加された `dev_agent_codex_4docs/` はユーザー提供資料として保持する。
 
 ### 2026-09-08
 

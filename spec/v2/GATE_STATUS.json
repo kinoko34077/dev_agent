@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "evidence_head": "96c3af0636c734216ebadc91b31061209efaa435",
+  "evidence_head": "7ebc3c7b99656adc6db8edd5395473a435c0eae9",
   "phase6_entry": "PROHIBITED_UNTIL_ALL_VERIFIED",
   "phase6_entry_rule": "Phase 3.5, Phase 4, and Phase 5 current acceptance gates must be VERIFIED; future recovery drills and Phase 7 lifecycle requirements are tracked separately.",
   "phase_classification": {
@@ -56,8 +56,8 @@
       "D23": {"status": "TODO", "phase": "phase4", "actionable": true},
       "D24": {"status": "BLOCKED", "phase": "phase4", "actionable": false, "blocker": "local model availability/qualification is environment-dependent"},
       "D25": {"status": "VERIFIED", "phase": "phase5", "evidence": ["spec/v2/adr/ADR-011-gemini-api-strategy.md"]},
-      "D26": {"status": "BLOCKED", "phase": "phase5", "actionable": false, "blocker": "Gemini project currently returns HTTP 403; Phase 5 may close through an independently qualified alternative Provider"},
-      "D27": {"status": "BLOCKED", "phase": "phase5", "actionable": false, "blocker": "Gemini live credential/project authorization; not a universal Phase 5 blocker when an alternative Provider satisfies the contract"},
+      "D26": {"status": "VERIFIED", "phase": "phase5", "evidence": ["spec/v2/PROVIDER_CAPABILITY_MATRIX.json:gemini-2.5-flash live text/tool roundtrip", "live GeminiHttpProvider request returned HTTP 200"]},
+      "D27": {"status": "VERIFIED", "phase": "phase5", "evidence": ["spec/v2/PROVIDER_CAPABILITY_MATRIX.json:gemini-2.5-flash model-generated ToolCall, ToolResult, and final response", "live GeminiHttpProvider request returned normalized ToolCall and final text"]},
       "D28": {"status": "VERIFIED", "phase": "phase5", "evidence": ["spec/v2/PROVIDER_CAPABILITY_MATRIX.json"]}
     },
     "E": {

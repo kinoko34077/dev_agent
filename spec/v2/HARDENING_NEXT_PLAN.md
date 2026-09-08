@@ -3,7 +3,7 @@
 目的は、外部サービスが停止してもローカルで検証可能な境界を先に完了し、外部依存の項目を明確な保留として後回しにできる状態を作ること。
 
 Current State sync: verification target is
-`96c3af0636c734216ebadc91b31061209efaa435`; the latest local full suite is
+`7ebc3c7b99656adc6db8edd5395473a435c0eae9`; the latest local full suite is
 `115 passed`. Gate evidence distinguishes local, CI, and live Provider evidence.
 
 ## 現在の実行範囲（2026-09-08 JST）

@@ -1,5 +1,18 @@
 {
   "schema_version": 1,
-  "entries": [],
+  "entries": [
+    {
+      "provider": "gemini",
+      "model": "gemini-2.5-flash",
+      "api_version": "v1beta generateContent",
+      "adapter_version": "dev_agent GeminiHttpProvider",
+      "tested_at": "2026-09-08T20:48:33+09:00",
+      "expires_at": "2026-10-08T00:00:00+09:00",
+      "confidence": "high",
+      "capabilities": ["text", "model_generated_tool_call", "tool_result_roundtrip", "final_response"],
+      "known_quirks": ["maxOutputTokens=8 ended with MAX_TOKENS before candidate parts; the qualification probe used 256 tokens"],
+      "errors": []
+    }
+  ],
   "entry_contract": ["provider", "model", "api_version", "adapter_version", "tested_at", "expires_at", "confidence", "capabilities", "known_quirks", "errors"]
 }
