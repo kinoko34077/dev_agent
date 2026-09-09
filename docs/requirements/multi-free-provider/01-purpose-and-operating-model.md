@@ -43,4 +43,4 @@ dev_agentは単一の高性能LLMに依存する「賢いAgent」ではなく、
 
 ## 現行実装への適用境界
 
-この章は運用目的を定める。現行移行前調整では、Intelligence TierやTask分類の実装を開始せず、既存Phase 6の決定的な実行・予算・監査境界を維持する。
+この章は運用目的を定める。現行ではPhase 6の決定的な実行・予算・監査境界を維持したまま、Phase 7A/BのTask profile、bounded Intelligence Policy、明示opt-inのresource tier routingを追加している。後段の自律化は別Gateで扱う。

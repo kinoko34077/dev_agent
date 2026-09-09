@@ -45,8 +45,9 @@ Phase 7の候補条件:
 Phase 7A/Bの最初の境界として、Task profile (`task_type`、`risk`、
 `required_capabilities`) と決定的なIntelligence Policyを実装する。Policyは
 L0〜L3のbounded tierを算出し、model metadataによる自己昇格を受け付けない。
-これは実Providerのmodel selectionをまだ変更しない。Phase 7CのEvaluatorと
-7Dのbounded evaluation-to-plan coordinatorまでは実装済みだが、planの実行、
+明示opt-in時はresource metadataのtierとexact matchしてrouteを制約するが、
+通常routingは変更しない。Phase 7CのEvaluatorと7Dのbounded
+evaluation-to-plan coordinatorまでは実装済みだが、planの受理・実行、
 AgentBackend、Codex/MCP integration、workflow promotion、self-improvement、
 multi-agent orchestrationは後段である。
 
@@ -60,10 +61,10 @@ multi-agent orchestrationは後段である。
 
 - 追加Providerのlive qualification、未実装Providerの固有quota headerの解析
 - task別成功率・provider diversityを含む後段Router scoring
-- model-tierによる実Provider選択、Evaluator、escalation
+- plan受理を伴う後段の実Provider選択、escalation実行
 - Hedged Request
 - AgentBackend、MCP/API
-- Phase 7、Self-Improvement
+- 後段のPhase 7（workflow promotion、Self-Improvement等）
 - 大規模Controller rewrite
 - quota/domain observationの加算型複数Credential集約、task別成功率、provider diversity scoring
 

@@ -118,8 +118,12 @@ an explicit Codex/operator launch, an approved manifest, and review. In this
 workspace, Cloudflare and OpenRouter have successful live qualification
 artifacts, while Groq returned HTTP 403 and SambaNova returned HTTP 429/402
 after reaching the API. Mistral's latest live attempt returned HTTP 429 and is
-not a qualification. The first Cloudflare and OpenRouter Worker proposals
-reached the API but were rejected by strict unified-diff validation; no host
-verified Worker task or official integration has occurred. No live or Gate
-evidence is inferred from adapter unit tests, and a Worker result does not
-become an official change until Codex reviews and integrates it.
+not a qualification. The OpenRouter task `openrouter-worker-smoke-005` produced
+a valid patch, was applied only in its dedicated worktree, and passed the
+manifest-approved host test (`1 passed`). Its ignored result artifact remains
+under `.devfarm/results/openrouter-worker-smoke-005/`; it is not an official
+branch change or Gate evidence. The Cloudflare task
+`cloudflare-worker-smoke-007` reached the API but failed response decoding and
+produced no proposal. No live or Gate evidence is inferred from adapter unit
+tests, and a Worker result does not become an official change until Codex
+reviews and integrates it.

@@ -95,6 +95,7 @@ Provider outage、quota exhaustion、timeout、unknownを、無限retryや重複
 
 この章は将来のWorkflow、Evaluator、metrics、survival、multi-agent要件を
 参照可能にするための保存である。Phase 7A/BのTask profileと決定的な
-Intelligence Policy、Phase 7C/Dのhost evaluator、独立したdurable event記録、
-有限なescalation plan coordinatorは実装済みである。planの実行、workflow
+Intelligence Policy、明示opt-inのresource tier routing、Phase 7C/Dのhost evaluator、
+独立したdurable event記録、有限なescalation plan coordinatorは実装済みである。
+planの受理・実行、workflow
 promotion、AgentBackend、MCPは今回の境界外である。

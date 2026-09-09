@@ -4,6 +4,15 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-10 JST — Bounded tier routing and host-verified DevFarm handoff
+
+- Phase 7A/Bの`IntelligenceRoutePolicy`を明示opt-inのresource tier routingへ接続した。`RouteRequest`は許可tierとresource metadataをexact matchし、通常routing、Task metadataによる自己昇格、Providerの自動activationは変更しない。
+- Phase 7Dの`EvaluationCoordinator`はhost側のevidenceをdurableに記録してから`escalation.planned`を記録し、有限planを返す。planの自動dispatch、Task mutation、model自身のtier昇格は行わない。
+- OpenRouter `openrouter-worker-smoke-005`で、valid unified diffを専用worktreeへ限定適用し、manifest-approved host test `1 passed`を確認した。結果は`.devfarm/`のhandoff artifactに保持し、公式branchへ統合していない。Cloudflare `cloudflare-worker-smoke-007`はresponse decode failureでproposal未生成である。
+- `scripts/devfarm_worker.py`はmodelの非文字列notesを明示的なJSON textへ正規化し、欠落した`notes.md`をhost側で補完する。modelのtests claimは正式証拠に採用しない。
+- `MISTRAL_API_KEY`を再読込みしたlive attemptは推論HTTP 429で未資格化。証跡を`spec/v2/evidence/phase7-mistral-2026-09-10.json`へ保存した。G6O1と既存Gate statusは変更していない。
+- 最新ローカルv2全回帰は`368 passed, 1 skipped in 68.74s`。Windows ACL skipはdeployment-ownedのまま。
+
 ### 2026-09-10 JST — Phase 7D bounded evaluation coordination
 
 - `EvaluationCoordinator`を追加し、host側の`EvaluationEvidence`を既存のdurable Eventへ記録してから、`RETRY_SAME`／`RETRY_OTHER_PROVIDER`／`ESCALATE`だけに有限な`EscalationPlan`を返す境界を実装した。PASS／WAIT_HUMAN／FAILは自動dispatchへ変換しない。

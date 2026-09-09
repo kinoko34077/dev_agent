@@ -97,5 +97,4 @@ recovery=True のようなフラグだけで通常AgentがRecovery Reserveを使
 - reserve使用者、理由、上限、承認、結果をdurable auditへ記録する。
 - 通常処理のbudget経路からRecovery Reserveを不可視にしない。
 
-この権限モデルの実装は次要件へ送り、今回の現行Phase 6実装を変更しない。
-
+Recovery ReserveのRecoveryTaskAuthority境界は現行Phase 6へ実装済みである。AgentBackend／MCPからの利用や、より広いdeployment／OS-level authorityは次要件として扱う。

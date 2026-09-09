@@ -67,8 +67,9 @@ Phase 7A/Bの移行境界として、`Task`は `task_type`、`risk`、
 `required_capabilities` をtyped profileとして保持し、既存JSON payloadへ
 後方互換に保存する。`TaskIntelligencePolicy`はこのprofileからL0〜L3の
 minimum/maximum/allowed tierを決定的に算出し、Controllerはその結果を
-ModelRequest metadataとaudit-visible requestへ渡す。これはモデル選択や
-実Providerのtier qualificationではなく、モデルが自己申告で昇格できない
-policy seamである。Phase 7Dでは、host側のEvaluator結果をdurable eventへ
-記録し、有限なescalation planを返すcoordinatorまで追加した。planの実行、
+ModelRequest metadataとaudit-visible requestへ渡す。明示opt-in時はresource
+metadataのtierとexact matchしてrouteを制約するが、通常routingは変更せず、
+モデルが自己申告で昇格できないpolicy seamを維持する。Phase 7Dでは、host側の
+Evaluator結果をdurable eventへ記録し、有限なescalation planを返すcoordinator
+まで追加した。planの受理・実行、
 workflow promotion、AgentBackend/MCPは後段である。

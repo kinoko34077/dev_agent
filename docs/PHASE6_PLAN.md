@@ -1,9 +1,9 @@
 # Phase 6 — Resource / Survival / Recovery
 
-Status: foundation VERIFIED; G6O2〜G6O6 VERIFIED; G6O1 BLOCKED_EXTERNAL; Phase 6A quota/provider expansion locally verified; OpenRouter Free and Cloudflare canonical live qualification verified; Mistral live attempt HTTP 429 and unqualified; Groq models probe HTTP 403; Phase 7C evaluator core and Phase 7D bounded coordinator locally verified
+Status: foundation VERIFIED; G6O2〜G6O6 VERIFIED; G6O1 BLOCKED_EXTERNAL; Phase 6A quota/provider expansion locally verified; OpenRouter Free and Cloudflare canonical live qualification verified; Mistral live attempt HTTP 429 and unqualified; Groq models probe HTTP 403; Phase 7A/B opt-in tier routing and Phase 7C/D bounded evaluation coordinator locally verified
 
 The current code baseline is
-`b6e2892a8729dbef453d28161d98def2ea63383d`. The latest exact-head GitHub
+`040594d23da98bbc9c6387153838ea7d2a69b1f9`. The latest exact-head GitHub
 Actions evidence is for the prior refactor commit `47191d4a8725af68848a43a0900af63afc4a42d8`:
 both workflows succeeded, `v2-core` run `34384890829` (Python 3.10 and 3.11
 matrix jobs) and `v2 tests` run `34384890828`. CI run IDs are external
@@ -20,8 +20,9 @@ requirements file. Refactor R3 at
 RoutingSnapshot read boundary. The latest refactor pass also isolated the
 Router `ResourceReadView`, Provider `ProviderHealthStore`, and direct-provider
 `LegacyDirectProviderJournal` without changing the public Controller flow. The
-latest local regression for the current code baseline is `359 passed, 1
-skipped in 67.97s`; the refactor baseline was `358 passed, 1 skipped in
+latest local regression for the current code baseline is `368 passed, 1
+skipped in 68.74s`; the latest DevFarm patch/host verification targeted run is
+`16 passed in 17.51s`. The refactor baseline was `358 passed, 1 skipped in
 66.76s`. These results are external observations and do not create
 live-provider qualification evidence. Documentation-only synchronization does
 not change the implementation baseline and is not written back into
@@ -47,7 +48,8 @@ request/day rate-limit headers. Cloudflare and OpenRouter Free are
 live-qualified; Groq's models probe is currently rejected with HTTP 403 and
 SambaNova reached the API but returned HTTP 429/402, so both remain
 unqualified. Mistral's configured-key live attempt reached the API but
-returned HTTP 429 and remains unqualified.
+returned HTTP 429 and remains unqualified; its latest artifact is
+`spec/v2/evidence/phase7-mistral-2026-09-10.json`.
 SambaNova is intentionally excluded
 from the no-charge qualification command until its billing tier and
 worst-case cost are explicitly qualified. Its failure artifacts are
@@ -56,16 +58,21 @@ worst-case cost are explicitly qualified. Its failure artifacts are
 probe is recorded at `spec/v2/evidence/groq-models-2026-09-09.json`, and the
 OpenRouter success artifact is
 `spec/v2/evidence/phase6-openrouter-free-2026-09-09.json`; these are not Gate
-evidence. Phase
+evidence. OpenRouter DevFarm task `openrouter-worker-smoke-005` also passed
+its manifest-approved host test (`1 passed`) in its dedicated worktree, with no
+official-branch integration. Cloudflare task `cloudflare-worker-smoke-007`
+failed response decoding before proposal generation. Phase
 7A/B also carries a typed Task profile and deterministic intelligence-policy
-metadata into ModelRequest; it does not select a model or add an AgentBackend.
+metadata into ModelRequest. An explicit bounded-routing opt-in can constrain
+selection to exactly labelled resource tiers; default routing remains unchanged
+and this is not an AgentBackend.
 The canonical path stays
 Controller -> ProviderDispatcher -> ProviderRegistry -> concrete Provider,
 while the Controller direct-provider branch remains compatibility-only. Phase
 7C now has a deterministic host-evidence evaluator and durable event recorder;
 Phase 7D adds a coordinator that records that evidence before returning one
-bounded escalation plan. It does not yet implement model-tier routing,
-escalation execution, Hedging,
+bounded escalation plan. The plan event is durable, but it does not yet
+implement plan acceptance/dispatch execution, Hedging,
 AgentBackend, MCP, evaluator promotion, or later Phase 7 stages.
 
 ## 6A — Resource Ledger and Budget Governor
@@ -193,8 +200,9 @@ reservation and dispatch-intent persistence.
 
 Task requests carry typed `task_type`, `risk`, and `required_capabilities`.
 `TaskIntelligencePolicy` derives bounded minimum and maximum tiers without
-reading a model-selected tier from task metadata; the decision is included in
-normalized request metadata for audit and later Evaluator integration.
+reading a model-selected tier from task metadata; an explicit routing opt-in
+uses the resulting tier against exact resource metadata, while the decision is
+also included in normalized request metadata for audit and Evaluator integration.
 
 Phase 6A's additional free-provider adapters (Groq, Cloudflare Workers AI,
 Mistral, OpenRouter Free, and SambaNova) expose the normalized contract. Groq,
@@ -202,7 +210,7 @@ Cloudflare, and SambaNova HTTP adapters keep endpoint/auth/response details
 inside their provider modules, while live qualification remains opt-in.
 Contract, HTTP-decoder, and normalized quota-ingestion tests do not constitute
 live provider or quota qualification evidence. SambaNova's current live probe
-reached the API and returned HTTP 429; it is recorded as an external failure,
+reached the API and returned HTTP 429/402; it is recorded as an external failure,
 not as successful qualification.
 
 The lease proof for the provider intent transition is checked inside the
@@ -228,6 +236,7 @@ deployment-owned budget administration. All Stage G records must be VERIFIED
 before Phase 6 is considered complete.
 Explicitly deferred Phase 6/7 work includes qualification against a real paid
 Provider, production-environment recovery drills with retained artifacts,
-actual model-tier routing, independent Evaluator persistence, and generated
-Tool lifecycle. Artifact-root backup/restore is implemented through
+plan acceptance/dispatch, unrestricted model-tier routing, and generated Tool
+lifecycle. Bounded tier routing and Evaluator evidence are already implemented.
+Artifact-root backup/restore is implemented through
 the RecoveryOperator, but its production retention policy remains operator work.

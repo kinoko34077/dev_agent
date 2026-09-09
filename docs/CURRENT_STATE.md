@@ -1,24 +1,25 @@
 # Current State — v2/bootstrap
 
-現在のコード基準は `b6e2892a8729dbef453d28161d98def2ea63383d` です。R2〜R7の
-リファクタを完了し、公開Protocol、schema v7、Provider contract、Gate判定は
-変更していません。GATE_STATUSのstatusはこの同期でも変更しません。
+現在のコード基準は `040594d23da98bbc9c6387153838ea7d2a69b1f9` です。R2〜R7の
+リファクタとPhase 7A〜7Dの限定的な実装を完了し、公開Protocol、schema v7、
+Provider contract、Gate判定は変更していません。GATE_STATUSのstatusはこの同期でも
+変更しません。
 
 ## 判定
 
 - Phase 6 foundation: `VERIFIED`
 - Phase 6 operational: `G6O2`〜`G6O6` は `VERIFIED`
 - `G6O1`: `BLOCKED_EXTERNAL`（実paid Providerのworst-case課金実証と、deployment-owned budget設定の外部保護が必要）
-- Phase 7A/B/C/D: Task profile、bounded policy、決定的host evaluator、durable evidence、Evaluatorから有限なescalation planを返すcoordinatorまで実装済み。実Model tier routing、planのdispatch実行、AgentBackend、MCPは未実装
+- Phase 7A/B/C/D: Task profile、bounded policy、明示opt-inのtier/resource routing、決定的host evaluator、durable evidence、Evaluatorから有限なescalation planを返すcoordinatorまで実装済み。planのdispatch実行、AgentBackend、MCPは未実装
 - Gate昇格やlive qualificationの成功は、local testやWorker proposalから推測しません
 
 ## 検証
 
-- v2ローカル全回帰: `359 passed, 1 skipped in 67.97s`
-- Phase 7D coordinator targeted regression: `18 passed in 0.30s`
+- v2ローカル全回帰: `368 passed, 1 skipped in 68.74s`
+- 最新のDevFarm patch/host verification targeted regression: `16 passed in 17.51s`
 - skip: `tests/v2/test_budget_reservations.py:142`（Windows ACLはdeployment-owned）
 - 変更前refactor baseline: `8bf7c2e`、`358 passed, 1 skipped in 66.76s`
-- exact-head GitHub Actions: `47191d4` に対し `v2-core` run `34384890829`（kernel 3.10 job `102578562036`、3.11 job `102578562331`）と `v2 tests` run `34384890828` がsuccess
+- exact-head GitHub Actions: `47191d4` に対する `v2-core` run `34384890829`（3.10 job `102578562036`、3.11 job `102578562331`）と `v2 tests` run `34384890828` はsuccess。現行HEADのCIはGitHub Actionsで外部観測し、repo内Gateへ自己記録しない
 - `v2-core` はPython 3.10/3.11 matrixでfull `tests/v2`、3.11のみcompileallを実行し、`v2 tests`は互換provider smokeを担います。重複full suiteとcollect-only実行は除去しました
 - import smoke: 主要runtime/resource/state/tool/provider/recovery/devfarm 12モジュールを `566ms` でimport、`compileall src recovery scripts` 成功
 
@@ -30,7 +31,7 @@
 | OpenRouter Free | `QUALIFIED` | `openrouter/free`のcanonical経路とToolCall往復を確認。quotaは未報告 |
 | Ollama | `QUALIFIED` | local / privacy / survival用途 |
 | Groq | `UNQUALIFIED` | `/v1/models` probeがHTTP 403。permission/account状態を推測しない |
-| Mistral | `UNQUALIFIED` | キー読込み後のlive attemptはAPI HTTP 429。成功や無料枠を推測しない |
+| Mistral | `UNQUALIFIED` | `MISTRAL_API_KEY` 読込み後のlive attemptはAPI HTTP 429。証跡は `spec/v2/evidence/phase7-mistral-2026-09-10.json`。成功や無料枠を推測しない |
 | SambaNova | `INACTIVE` | `/v1/models`は到達したが推論HTTP 429/402。free/no-charge qualification対象外 |
 
 資格情報は環境変数または外部secret storeからのみ読み込み、repo・manifest・audit・
@@ -50,16 +51,18 @@
 
 worktree不存在、base revision不一致、dirty状態、symlink/out-of-root、protected path、
 secret outbound、scope外patch、binary/submodule/symlink patch、patch上限超過を
-fail-closedで拒否します。Cloudflare / OpenRouterの明示Worker試行はAPI到達後に
-Model生成patchがstrict unified-diff検証で拒否され、host-verified Worker成功、公式branch
-統合、2 Worker並列の実績はまだありません。これは外部Model出力品質の未達であり、validator
-を緩めて成功扱いにはしません。
+fail-closedで拒否します。OpenRouterの明示Worker `openrouter-worker-smoke-005` は、
+valid unified diffを専用worktreeへ適用し、manifest許可済みhost testを `1 passed` で
+検証した最初のhost-verified結果です。成果は無視対象の`.devfarm/results/`に保持し、
+公式branchへは統合していません。Cloudflare `cloudflare-worker-smoke-007` は応答decode
+失敗でproposal未生成、2 Worker並列の実績もまだありません。Modelのtests claimは証拠に
+採用せず、notesの型不正もartifact生成時に安全に正規化します。
 
 ## 次の作業（Refactor後）
 
-1. DevFarmは、承認済みmanifestで生成品質が満たせる小taskを再試行する。成功しない場合も失敗artifactを正本として保持する
-2. Phase 7A/Bとして、Task profileのbounded tierを明示的なresource metadataへ接続するmodel routingを段階導入する
-3. Phase 7Dのplanは、実際のretry/escalation dispatchへ自動接続せず、host側review・policy・既存ControlPlaneを経由する境界を追加する
+1. DevFarmは、承認済みmanifestで2件目の独立Workerを実証する。成功成果もCodex review後にのみ公式branchへ統合する
+2. Phase 7A/Bのtier/resource routingは明示opt-inとし、通常routing・Task metadataによる自己昇格・自動activationを変更しない
+3. Phase 7Dのplanはdurable eventとして記録済み。次段階はhost側review・policy・既存ControlPlaneを通る明示的な受理境界であり、自動dispatchではない
 4. G6O1、Groq、Mistral、SambaNovaの外部状態は、実証が得られるまで現在の判定を維持する
 
 READMEは入口、`PHASE6_PLAN.md`はPhase 6の受入条件、`V2_EXECUTION_PLAN.md`はロードマップ、
