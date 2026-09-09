@@ -97,7 +97,19 @@ def _is_within(root: Path, candidate: Path) -> bool:
 
 
 def _git_process(workspace: Path, *arguments: str, input_text: str | None = None) -> subprocess.CompletedProcess[str]:
-    command = ["git", "-c", f"safe.directory={workspace.as_posix()}", "-C", workspace.as_posix(), *arguments]
+    # Python's text-mode pipe on Windows may present a valid LF patch to Git as
+    # CRLF.  Treat only CR at the physical line ending as an EOL marker; other
+    # trailing whitespace remains rejected by --whitespace=error.
+    command = [
+        "git",
+        "-c",
+        "core.whitespace=cr-at-eol",
+        "-c",
+        f"safe.directory={workspace.as_posix()}",
+        "-C",
+        workspace.as_posix(),
+        *arguments,
+    ]
     return subprocess.run(command, input=input_text, capture_output=True, text=True, check=False)
 
 
