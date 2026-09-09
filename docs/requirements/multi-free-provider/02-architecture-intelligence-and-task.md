@@ -73,5 +73,6 @@ metadataのtierとexact matchしてrouteを制約するが、通常routingは変
 Evaluator結果をdurable eventへ記録し、有限なescalation plan、明示review
 （accepted/rejected）、受理済みplanのdispatch-ready handoffを実装した。
 `EscalationExecutor`はaccepted handoffを再検証してcanonical ProviderDispatcherへ
-bounded dispatchする。Task lifecycleとの自動循環、実績ベースrouting、workflow
-promotion、AgentBackend/MCPは後段である。
+bounded dispatchする。`EvaluationDispatchCoordinator`は一回のhost evaluationを
+明示review済みdispatchへ接続するが、Task lifecycleのterminal/waiting遷移、次cycleの
+evidence生成、実績ベースrouting、workflow promotion、AgentBackend/MCPは後段である。

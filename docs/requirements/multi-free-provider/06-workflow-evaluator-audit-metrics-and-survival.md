@@ -99,6 +99,6 @@ Intelligence Policy、明示opt-inのresource tier routing、Phase 7C/Dのhost e
 独立したdurable event記録、有限なescalation plan coordinator、host/operatorによる
 planの明示review（accepted/rejected）記録、受理済みplanのdispatch-ready handoff、
 accepted handoffをcanonical ProviderDispatcherへ再検証付きで送る
-`EscalationExecutor`は実装済みである。Phase 7Eのbounded workflow promotion
-proposalも実装済みだが、自動promotion、Task lifecycleの自動循環、実績ベースrouting、
-AgentBackend、MCPは今回の境界外である。
+`EscalationExecutor`と、host evaluation→明示review→dispatchの一回cycleを実装済みである。
+Phase 7Eのbounded workflow promotion proposalも実装済みだが、自動promotion、Task
+lifecycleの自動循環、実績ベースrouting、AgentBackend、MCPは今回の境界外である。

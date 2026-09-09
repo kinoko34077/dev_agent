@@ -1,6 +1,6 @@
 # Current State — v2/bootstrap
 
-実装基準は `2ed0a22` です。本書はそのコードと、直近の外部資格化・DevFarm
+実装基準は `526a533` です。本書はそのコードと、直近の外部資格化・DevFarm
 実行結果を同期したCurrent Stateです。GATE_STATUSの既存statusは変更していません。
 
 ## 判定
@@ -10,13 +10,14 @@
 - `G6O1`: `BLOCKED_EXTERNAL`（実paid Providerのworst-case課金実証と、deployment-owned budget設定の外部保護が必要）
 - Phase 7A/B: typed task profile、bounded tier policy、明示opt-in resource routing、model identityとthinking effortの分離を実装済み
 - Phase 7C/D: deterministic host evaluator、durable evidence、有限escalation plan、明示review、dispatch-ready handoffを実装済み
-- Phase 7 execution: `EscalationExecutor`がaccepted `dispatch_ready`を再検証し、既存ProviderDispatcher・effect intent・budget/resource境界を通る有限dispatchを実装済み。重複再送とunknown/reconciliationをfail-closedに扱う
+- Phase 7 execution: `EscalationExecutor`がaccepted `dispatch_ready`を再検証し、既存ProviderDispatcher・effect intent・budget/resource境界を通る有限dispatchを実装済み。`EvaluationDispatchCoordinator`がhost evaluator→明示review→dispatchの一回のcycleを接続し、PASS／拒否／unknownを別状態で返す。重複再送とunknown/reconciliationをfail-closedに扱う
 - Phase 7E: bounded workflow promotion proposalの生成境界を実装済み。自動promotionは行わない
 - Gate昇格やlive qualificationの成功は、local test・model自己申告・Worker proposalだけから推測しない
 
 ## 検証
 
-- v2ローカル全回帰: `393 passed, 1 skipped in 74.50s`（`python -m pytest tests/v2 -q --durations=10`）
+- v2ローカル全回帰: `397 passed, 1 skipped in 97.15s`（`python -m pytest tests/v2 -q --durations=10`）
+- Evaluator→dispatch cycle focused: `18 passed in 2.62s`
 - intelligence routing / escalation execution focused: `26 passed in 1.28s`
 - DevFarm manifest / patch / host verification focused: `24 passed in 27.50s`
 - DevFarm host verification: Gemini 3.5 Flash-Lite `gemini-worker-phase7-003` が、入力ファイルを外部送信せず、隔離worktreeへpatchを適用し、許可済みhost test `7 passed` を確認
@@ -49,7 +50,7 @@ thoughtSignature、thinking設定はAdapter内部で保持・変換し、Kernel 
 - `EscalationExecutor`はControllerへ実装を追加せず、accepted review、exact plan/dispatch identity、Task state、lease、Intelligence policy、tier、capability、privacy、quota、budget、bindingを再確認してからcanonical `ProviderDispatcher`へ委譲します
 - `RETRY_SAME`は同一binding、`RETRY_OTHER_PROVIDER`は同tierの別binding、`ESCALATE`はdurable allowed tier内のnext tierを選びます。`plan_id`、`dispatch_id`、`task_id`、attempt、bindingをeffect intentとdurable eventへ結合し、succeededは再送せず、dispatching/unknown/reconcilingは再実行せずreconciliationへ残します
 - `IntelligenceRoutePolicy`はtierとthinking effortを別フィールドで出力します。L1はminimal、通常L2はlow、難しいL2/L3はhigh。Gemini AdapterだけがGemini 3.xの`thinkingConfig.thinkingLevel`へ変換します
-- evaluator結果後のhost test、retry、escalation、Task terminal transitionは引き続き別責務です。自動無限retry、model自己昇格、自動mergeはありません
+- `EvaluationDispatchCoordinator`はhost evaluator結果を一回の明示review済みdispatchへ接続します。host test、最終的なTask terminal transition、次cycleのevidence生成は呼出側が所有し、自動無限retry、model自己昇格、自動mergeはありません
 
 ## Refactor Freezeの内容
 
@@ -79,7 +80,7 @@ dummy docを公式branchへ自動統合していません。実装成果の公�
 
 1. 外部資格情報が実行環境へ読み込まれた場合だけ、OpenRouter/CloudflareをGeminiと異なるProviderとして再度DevFarm実証する。未読込み状態で送信や成功判定を捏造しない
 2. Worker metricsを一定数蓄積し、`Task Type × tier × capability × quota × latency/failure`の実績ベースroutingを、最小サンプル数・期限・rollback条件付きで導入する
-3. Phase 7 evaluator結果を実Task lifecycleへ接続し、host PASS / bounded retry / escalation / WAIT_HUMANを有限に循環させる
+3. `EvaluationDispatchCoordinator`の結果を実Task lifecycleのterminal／waiting遷移と次cycleのhost evidenceへ接続し、PASS / bounded retry / escalation / WAIT_HUMANを有限に循環させる
 4. Gemini 3.7はlive qualification後でなければfallbackへ登録しない。Groq/Mistral/SambaNovaの外部状態も現在の判定を維持する
 5. AgentBackend / Codex、MCP、Self-Improvementは前段のPhase 7 acceptanceが揃うまで着手しない
 

@@ -10,7 +10,12 @@
 - Gemini `gemini-3.5-flash-lite`（L1 Worker）と`gemini-3.8-flash`（L2 core）を、ToolCall／ToolResult／multi-turn／thoughtSignature roundtrip、Controller E2E、durable audit、budget reconciliationを含むcanonical qualification artifactへ記録した。Gemini固有transcriptとthinking変換はAdapter内に保持する。
 - Intelligence tierとthinking effortを別metadataとして扱い、L1 minimal、通常L2 low、難しいL2/L3 highのbounded mappingを追加した。Gemini 3.7は未qualificationの候補としてactivateしていない。
 - DevFarmはGemini 3.5 Flash-Liteをmodel-awareにL1 Workerとしてactivateし、入力ゼロのhost-verified taskを1件、独立file ownershipの2 Worker並列を1組実証した。各Workerは隔離worktreeでmanifest-approved host test `7 passed`、binding/model/tier/request/duration/safe usage/acceptanceのhost metricsを記録した。生成物は公式branchへ自動統合していない。
-- このsliceのローカルv2全回帰は`393 passed, 1 skipped`。G6O1と既存Gate statusは変更していない。現行コード基準は`2ed0a22`で、exact-head CIは文書同期push後にGitHub Actionsを外部観測する。
+- このsliceを含むローカルv2全回帰は`397 passed, 1 skipped`。G6O1と既存Gate statusは変更していない。現行コード基準は`526a533`で、exact-head CIは後続pushごとにGitHub Actionsを外部観測する。
+
+### 2026-09-10 JST — Explicit evaluator-to-dispatch cycle
+
+- `EvaluationDispatchCoordinator`を追加し、host evaluatorの一回の判定を、`awaiting_review`、明示review、`dispatch_ready`、bounded `EscalationExecutor`実行まで一つの追跡可能なcycleへ接続した。PASSはterminal、拒否はnon-dispatch、unknownはreconciliation-requiredとして返し、自動承認・自動merge・無限retry・Taskの勝手なterminal遷移は行わない。
+- 既存Coordinator／Executor／effect intent／ProviderDispatcherを再利用し、Phase 7の実行責務をControllerへ追加していない。focused regressionは`18 passed`。G6O1と既存Gate statusは変更していない。
 
 ### 2026-09-10 JST — Escalation handoff invariant hardening
 

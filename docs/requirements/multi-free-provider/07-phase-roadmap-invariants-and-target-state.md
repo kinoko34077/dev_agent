@@ -55,7 +55,7 @@ L0〜L3のbounded tierとthinking effortを算出し、model metadataによる�
 evaluation-to-plan coordinator、host/operatorによるplanの明示review記録、受理済み
 planのdispatch-ready handoff、`EscalationExecutor`によるbounded canonical
 dispatchまで実装済みである。Phase 7Eのworkflow proposalはbounded proposalに留め、
-Task lifecycle自動循環、実績ベースrouting、AgentBackend、Codex/MCP integration、
+Task lifecycleのterminal/waiting遷移と次cycle evidenceの自動循環、実績ベースrouting、AgentBackend、Codex/MCP integration、
 self-improvement、multi-agent orchestrationは後段である。
 
 ## 38. External agent timing
