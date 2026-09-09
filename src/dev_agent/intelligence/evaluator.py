@@ -10,7 +10,12 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, TYPE_CHECKING
+
+from ..domain.protocol import Event
+
+if TYPE_CHECKING:
+    from ..state.store import StateStore
 
 
 class EvaluatorDecision(str, Enum):
@@ -127,4 +132,31 @@ class TaskEvaluator:
         )
 
 
-__all__ = ["EvaluationEvidence", "EvaluationResult", "EvaluatorDecision", "TaskEvaluator"]
+class EvaluationRecorder:
+    """Persist evaluator evidence through the existing durable Event API."""
+
+    def __init__(self, store: "StateStore", *, actor: str = "host-evaluator") -> None:
+        if not isinstance(actor, str) or not actor.strip():
+            raise ValueError("actor must be a non-empty string")
+        self._store = store
+        self._actor = actor.strip()
+
+    def record(self, result: EvaluationResult) -> Event:
+        if not isinstance(result, EvaluationResult):
+            raise TypeError("result must be EvaluationResult")
+        event = Event(
+            event_type="evaluation.recorded",
+            task_id=result.task_id,
+            provider=self._actor,
+            payload={
+                "actor": self._actor,
+                "decision": result.decision.value,
+                "reasons": list(result.reasons),
+                "evidence": result.to_dict()["evidence"],
+            },
+        )
+        self._store.append_event(event)
+        return event
+
+
+__all__ = ["EvaluationEvidence", "EvaluationRecorder", "EvaluationResult", "EvaluatorDecision", "TaskEvaluator"]

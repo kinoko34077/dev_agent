@@ -1,6 +1,9 @@
 import pytest
+from uuid import uuid4
 
 from src.dev_agent.intelligence.evaluator import EvaluationEvidence, EvaluatorDecision, TaskEvaluator
+from src.dev_agent.intelligence.evaluator import EvaluationRecorder
+from src.dev_agent.state import JsonStateStore
 
 
 def _evidence(**overrides):
@@ -69,3 +72,15 @@ def test_evaluator_rejects_invalid_attempt_bounds():
         TaskEvaluator().evaluate(_evidence(attempt=0))
     with pytest.raises(ValueError, match="max_attempts"):
         TaskEvaluator().evaluate(_evidence(max_attempts=0))
+
+
+def test_evaluation_recorder_persists_host_evidence_as_a_durable_event(tmp_path):
+    result = TaskEvaluator().evaluate(_evidence(task_id=str(uuid4())))
+    store = JsonStateStore(tmp_path / "state.json")
+
+    event = EvaluationRecorder(store).record(result)
+
+    assert event.event_type == "evaluation.recorded"
+    persisted = [item for item in store.snapshot()["events"] if item["event_type"] == "evaluation.recorded"]
+    assert persisted[0]["payload"]["decision"] == "PASS"
+    assert persisted[0]["payload"]["evidence"]["deterministic_checks_passed"] is True
