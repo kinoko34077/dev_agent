@@ -206,6 +206,13 @@ def prepare_worktree(root: str | Path, *, task_id: str, branch: str, revision: s
     return worktree
 
 
+def _read_json(path: Path) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise DevFarmError(f"could not read JSON file {path}: {exc}") from exc
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -216,12 +223,23 @@ def main(argv: list[str] | None = None) -> int:
     worktree.add_argument("branch")
     worktree.add_argument("--revision")
     worktree.add_argument("--root", type=Path, default=Path.cwd())
+    manifest = sub.add_parser("validate-manifest")
+    manifest.add_argument("path", type=Path)
+    result = sub.add_parser("validate-result")
+    result.add_argument("path", type=Path)
+    result.add_argument("--manifest", required=True, type=Path)
     args = parser.parse_args(argv)
     try:
         if args.command == "init":
             print(init_farm(args.root))
-        else:
+        elif args.command == "prepare-worktree":
             print(prepare_worktree(args.root, task_id=args.task_id, branch=args.branch, revision=args.revision))
+        elif args.command == "validate-manifest":
+            print(json.dumps(validate_manifest(_read_json(args.path)), ensure_ascii=False, indent=2))
+        else:
+            normalized_manifest = validate_manifest(_read_json(args.manifest))
+            normalized_result = validate_result(_read_json(args.path), manifest=normalized_manifest)
+            print(json.dumps(normalized_result, ensure_ascii=False, indent=2))
     except (DevFarmError, FileExistsError, RuntimeError) as exc:
         parser.error(str(exc))
     return 0

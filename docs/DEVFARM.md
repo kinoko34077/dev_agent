@@ -39,6 +39,16 @@ Gate promotion, and Current State synchronization remain Codex responsibilities.
 Workers do not communicate directly; dependent work is passed through the
 result artifact and then a new manifest.
 
+Codex can validate handoff artifacts before review or integration:
+
+```text
+python scripts/devfarm.py validate-manifest .devfarm/tasks/<task-id>.json
+python scripts/devfarm.py validate-result .devfarm/results/<task-id>/result.json --manifest .devfarm/tasks/<task-id>.json
+```
+
+Both commands print the normalized contract and fail closed on malformed JSON,
+base-revision drift, protected ownership, or an out-of-scope changed file.
+
 ## Current activation boundary
 
 The farm is scaffolded and contract-tested, but no free cloud Worker is
