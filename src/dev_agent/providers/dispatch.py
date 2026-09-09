@@ -229,10 +229,10 @@ class ProviderDispatcher(ModelProvider):
             return response
 
     def _selection(self, request: ModelRequest, excluded: set[str]) -> RouteSelection:
-        snapshot = self.control.router.snapshot()
+        snapshot = self.control.routing_snapshot()
         max_cost_minor = None
         if self.survival is not None:
-            budget = self.control.governor.snapshot()
+            budget = self.control.budget_snapshot()
             healthy = sum(resource["health"] in {"healthy", "degraded"} for resource in snapshot.resources)
             state = self.survival.evaluate(SurvivalSnapshot(budget["normal_available_minor"], budget["recovery_available_minor"], healthy))
             if state.mode in {SurvivalMode.CONSERVE, SurvivalMode.SURVIVAL}:

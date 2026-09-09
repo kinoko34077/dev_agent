@@ -53,6 +53,20 @@ class ResourceControlPlane:
         if self._maintenance or self.governor.ledger.maintenance_enabled():
             raise DispatchDenied("maintenance", "new provider dispatch is disabled during maintenance")
 
+    def routing_snapshot(self):
+        """Return the single read snapshot used by a routing decision.
+
+        Provider dispatchers must not reach through the control plane into the
+        router's backing ledger.  Keeping this read on the control-plane
+        facade also leaves room for one coordinated snapshot of resource,
+        quota, and health state as the routing policy grows.
+        """
+        return self.router.snapshot()
+
+    def budget_snapshot(self):
+        """Return the budget view needed by survival policy evaluation."""
+        return self.governor.snapshot()
+
     def reserve_for_provider(self, task_id: str, provider_id: str, request: ModelRequest, *, intent_key: str | None = None) -> DispatchReservation:
         self._ensure_dispatch_allowed()
         try:
