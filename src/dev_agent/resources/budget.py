@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import math
 from typing import Any
 
+from ..domain.protocol import Task, TaskClass
 from .ledger import _BUDGET_ADMIN_TOKEN, BudgetPeriod, MoneyAmount, ResourceLedger
 
 
@@ -36,18 +37,6 @@ class BudgetPolicy:
     recovery_reserve_minor: int
     currency: str = "JPY"
     period: BudgetPeriod | None = None
-
-
-class BudgetTaskClass:
-    """Task classes allowed to request a budget slice.
-
-    Recovery is intentionally represented by a named class rather than a
-    caller-controlled boolean.  The authority method below still requires a
-    private capability, so merely spelling ``"recovery"`` is insufficient.
-    """
-
-    NORMAL = "normal"
-    RECOVERY = "recovery"
 
 
 _RECOVERY_RESERVE_TOKEN = object()
@@ -88,25 +77,24 @@ class BudgetAuthority:
     @staticmethod
     def reserve_recovery(
         governor: "BudgetGovernor",
-        task_id: str,
+        task: Task,
         resource_id: str,
         *,
-        task_class: str,
         estimated_cost: MoneyAmount | None = None,
         estimated_cost_minor: int | None = None,
         native_units: int | float = 1,
         intent_key: str | None = None,
     ) -> "BudgetReservation":
-        """Reserve the protected slice for an explicitly classified task.
+        """Reserve the protected slice for an explicitly classified Task.
 
         Normal runtime code must not call ``BudgetGovernor.reserve(...,
         recovery=True)``.  Only this authority-controlled path can provide
         the internal capability required by the Governor.
         """
-        if task_class != BudgetTaskClass.RECOVERY:
-            raise PermissionError("recovery reserve requires the recovery task class")
+        if not isinstance(task, Task) or task.task_class is not TaskClass.RECOVERY:
+            raise PermissionError("recovery reserve requires the recovery task class on Task")
         return governor.reserve(
-            task_id,
+            task.task_id,
             resource_id,
             estimated_cost=estimated_cost,
             estimated_cost_minor=estimated_cost_minor,

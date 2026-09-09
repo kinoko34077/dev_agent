@@ -27,8 +27,8 @@ Implemented in `src/dev_agent/resources/ledger.py` and `budget.py`.
   runtime `BudgetGovernor` reads persisted policy and cannot raise the hard cap.
 - Recovery Reserve is not a caller-controlled boolean: direct
   `recovery=True` reservations are rejected, and only
-  `BudgetAuthority.reserve_recovery(..., task_class="recovery")` can obtain the
-  internal capability for a formally classified recovery task.
+  `BudgetAuthority.reserve_recovery(governor, recovery_task, ...)` can obtain
+  the internal capability for a persisted `Task(task_class="recovery")`.
 - Budget transitions are serialized with `BEGIN IMMEDIATE`, and release/unknown
   operations validate their expected source state in the same transaction.
 - Reservation state is durable as `prepared -> dispatching -> reconciled`,

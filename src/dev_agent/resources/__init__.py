@@ -1,6 +1,6 @@
 """Phase 6 resource, budget, routing, and survival control plane."""
 
-from .budget import BudgetAuthority, BudgetExceeded, BudgetGovernor, BudgetPolicy, BudgetReconciliationRequired, BudgetReservation, BudgetTaskClass, MaintenanceActive, ResourceUnavailable, UnknownPrice
+from .budget import BudgetAuthority, BudgetExceeded, BudgetGovernor, BudgetPolicy, BudgetReconciliationRequired, BudgetReservation, MaintenanceActive, ResourceUnavailable, UnknownPrice
 from .control import DispatchDenied, DispatchReservation, ResourceControlPlane
 from .ledger import BudgetPeriod, MoneyAmount, ResourceLedger, ResourcePrice, ResourceSpec
 from .router import NoRoute, ResourceRouter, RouteRequest, RouteSelection
@@ -13,7 +13,6 @@ __all__ = [
     "BudgetPolicy",
     "BudgetReconciliationRequired",
     "BudgetReservation",
-    "BudgetTaskClass",
     "ResourceUnavailable",
     "MaintenanceActive",
     "BudgetPeriod",

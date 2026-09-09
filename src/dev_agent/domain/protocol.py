@@ -35,6 +35,11 @@ class TaskStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class TaskClass(str, Enum):
+    NORMAL = "normal"
+    RECOVERY = "recovery"
+
+
 class StepStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"
@@ -183,6 +188,7 @@ class Task:
     workflow_id: str | None = None
     limits: ExecutionLimits = field(default_factory=ExecutionLimits)
     metadata: dict[str, Any] = field(default_factory=dict)
+    task_class: TaskClass = TaskClass.NORMAL
 
     def __post_init__(self) -> None:
         self.task_id = _id(self.task_id, "task_id")
@@ -192,6 +198,7 @@ class Task:
         if isinstance(self.depth, bool) or not isinstance(self.depth, int) or self.depth < 0:
             raise ProtocolError("depth must be a non-negative integer")
         self.status = _enum(self.status, TaskStatus, "status")  # type: ignore[assignment]
+        self.task_class = _enum(self.task_class, TaskClass, "task_class")  # type: ignore[assignment]
         self.inputs = _mapping(self.inputs, "inputs")
         self.constraints = _mapping(self.constraints, "constraints")
         self.metadata = _mapping(self.metadata, "metadata")
