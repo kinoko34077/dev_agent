@@ -57,7 +57,11 @@ def test_evaluation_coordinator_records_evidence_before_returning_bounded_plan(t
     events = [item for item in store.snapshot()["events"] if item["event_type"] == "evaluation.recorded"]
     assert len(events) == 1
     assert events[0]["payload"]["decision"] == "ESCALATE"
+    planned = [item for item in store.snapshot()["events"] if item["event_type"] == "escalation.planned"]
+    assert len(planned) == 1
+    assert planned[0]["payload"]["target"] == "higher_tier"
     assert cycle.to_dict()["plan"]["next_tier"] == "L2"
+    assert cycle.to_dict()["plan_event"]["event_type"] == "escalation.planned"
 
 
 def test_evaluation_coordinator_can_record_a_terminal_pass_without_planning_dispatch(tmp_path):
@@ -69,6 +73,7 @@ def test_evaluation_coordinator_can_record_a_terminal_pass_without_planning_disp
 
     assert cycle.result.decision is EvaluatorDecision.PASS
     assert cycle.plan is None
+    assert cycle.plan_event is None
     assert store.has_event(_TASK_ID, "evaluation.recorded")
 
 

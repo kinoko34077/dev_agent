@@ -23,12 +23,14 @@ class EvaluationCycle:
     result: EvaluationResult
     event: Event
     plan: EscalationPlan | None = None
+    plan_event: Event | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "result": self.result.to_dict(),
             "event": self.event.to_dict(),
             "plan": self.plan.to_dict() if self.plan is not None else None,
+            "plan_event": self.plan_event.to_dict() if self.plan_event is not None else None,
         }
 
 
@@ -81,7 +83,8 @@ class EvaluationCoordinator:
             plan = self._escalation_policy.plan(escalation_context)
             if plan.decision is not result.decision:
                 raise ValueError("evaluation and escalation decisions diverged")
-        return EvaluationCycle(result=result, event=event, plan=plan)
+        plan_event = self._recorder.record_plan(plan) if plan is not None else None
+        return EvaluationCycle(result=result, event=event, plan=plan, plan_event=plan_event)
 
     @staticmethod
     def _validate_context(evidence: EvaluationEvidence, context: EscalationContext) -> None:

@@ -159,5 +159,21 @@ class EvaluationRecorder:
         self._store.append_event(event)
         return event
 
+    def record_plan(self, plan: Any) -> Event:
+        """Persist a bounded next-step plan after its evaluation event."""
+        if not hasattr(plan, "to_dict") or not isinstance(getattr(plan, "task_id", None), str):
+            raise TypeError("plan must provide task_id and to_dict()")
+        plan_payload = plan.to_dict()
+        if not isinstance(plan_payload, dict):
+            raise TypeError("plan.to_dict() must return an object")
+        event = Event(
+            event_type="escalation.planned",
+            task_id=plan.task_id,
+            provider=self._actor,
+            payload={"actor": self._actor, "plan": plan_payload, **plan_payload},
+        )
+        self._store.append_event(event)
+        return event
+
 
 __all__ = ["EvaluationEvidence", "EvaluationRecorder", "EvaluationResult", "EvaluatorDecision", "TaskEvaluator"]
