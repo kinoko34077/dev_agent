@@ -94,7 +94,9 @@ Phase 6 operational progress: a shared Controller now accepts an immutable
 per-run `ExecutionContext` for lease guard/proof isolation, and ToolRuntime
 binding is non-mutating through `bound_to()`. Recovery Reserve use is formally
 classified and authority-gated. The live local qualification script verified
-Controller -> ProviderDispatcher -> ResourceRouter -> Budget -> Ollama HTTP ->
+Normal provider execution is
+Controller -> ProviderDispatcher -> ProviderRegistry -> ResourceRouter ->
+Budget -> concrete Provider (for example Ollama HTTP) ->
 usage reconciliation -> durable audit with `qwen3:8b`. G6O3/G6O4/G6O5/G6O6
 are verified within their stated scopes; G6O1 is externally blocked pending
 paid-provider worst-case evidence and deployment-owned protected operator

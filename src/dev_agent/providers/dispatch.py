@@ -43,9 +43,16 @@ class DispatchAudit:
 
 
 class ProviderDispatcher(ModelProvider):
-    """Select, reserve, invoke, and account for a concrete provider."""
+    """Canonical multi-provider runtime boundary.
+
+    The dispatcher owns provider selection, durable provider intent/audit,
+    fallback, resource reservation, and reconciliation before invoking the
+    concrete provider registered in ProviderRegistry. Controller callers
+    should use this path when resource-aware provider execution is required.
+    """
 
     provider_id = "resource-router"
+    PROVIDER_PATH_ROLE = "canonical_dispatcher_registry"
     handles_resource_policy = True
 
     def __init__(self, registry: ProviderRegistry, control: ResourceControlPlane, *, survival: SurvivalGovernor | None = None) -> None:

@@ -36,6 +36,12 @@ Phase 6 の現在地と未完了の外部証跡は [`docs/PHASE6_PLAN.md`](docs/
 
 以下は v1 の履歴・互換運用情報です。
 
+## 次段階要件と移行前調整
+
+次段階の要件は requirements Index (docs/requirements/README.md) から参照してください。Multi-Free Provider、quota、Intelligence Hierarchy、AgentBackend/MCPは要件保存のみで、現行移行前調整では実装していません。
+
+通常のProvider経路は Controller -> ProviderDispatcher -> ProviderRegistry -> concrete Provider です。Controller内のdirect経路は既存呼び出し向けのcompatibility/legacy pathとして維持しています。移行前調整後のローカル全テストは 253 passed, 1 skipped です。
+
 ## legacy v1（履歴）
 
 ## 🧠 概要

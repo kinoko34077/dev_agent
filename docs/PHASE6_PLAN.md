@@ -12,6 +12,13 @@ into small control-plane components so that resource exhaustion, provider
 failure, recovery mutation, and worker ownership remain deterministic and
 auditable.
 
+Next-stage requirements are indexed at docs/requirements/README.md. The
+migration-prep boundary records the canonical
+Controller -> ProviderDispatcher -> ProviderRegistry path and keeps the
+Controller direct-provider branch compatibility-only. It does not implement
+quota_domain, new Providers, Intelligence Tier, Hedging, AgentBackend, MCP, or
+Phase 7.
+
 ## 6A — Resource Ledger and Budget Governor
 
 Implemented in `src/dev_agent/resources/ledger.py` and `budget.py`.
@@ -104,9 +111,13 @@ Implemented in `src/dev_agent/scheduler/queue.py`.
 
 ## 6E — Kernel integration and evidence
 
-The optional `ResourceControlPlane` is connected to Controller provider
-dispatch. Existing callers remain backward-compatible when no policy is
-provided. The integration reserves before every provider request, reconciles
+The normal multi-provider path is
+Controller -> ProviderDispatcher -> ProviderRegistry -> concrete Provider.
+The optional `ResourceControlPlane` is connected to that dispatcher boundary.
+Existing direct ModelProvider callers remain backward-compatible when no
+policy is provided; when a policy is supplied, the Controller-managed direct
+branch is explicitly a compatibility/legacy path. The integration reserves
+before every provider request, reconciles
 observed usage, and preserves uncertain reservations on timeout/cancellation.
 Provider timeout/transport checkpoints remain fail-closed on `resume()` until
 an explicit provider reconciliation path clears the marker; cancellation of an

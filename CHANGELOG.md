@@ -4,6 +4,13 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-09 JST — Multi-Free Provider migration preparation
+
+- 添付要件を docs/requirements/ の7章とIndexへ分割し、必要章だけを参照できる導線を追加。将来要件は現行Gateの達成として扱わない。
+- 通常のProvider経路を Controller -> ProviderDispatcher -> ProviderRegistry -> concrete Provider と明示し、Controllerのdirect Provider分岐をcompatibility/legacy pathとして文書化。
+- 予算・資源制御に関する既存Integration Testの3件を tests/v2/test_budget_dispatch.py へ移し、Provider経路の境界テストを tests/v2/test_provider_dispatch.py へ追加。全回帰は 253 passed, 1 skipped。
+- G6O1の BLOCKED_EXTERNAL、Phase 6 foundationとG6O2〜G6O6の判定、da74b3bのtested code baseline / 74e54f9のdocumentation-evidenceモデルは維持。
+
 ### 2026-09-09 JST — Phase 6 operational hardening continued
 
 - Dispatcherの明示 `task_id` 互換入口と公開モジュール境界を追加し、Registry不整合時の予約リークを防止。

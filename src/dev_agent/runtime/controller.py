@@ -50,6 +50,12 @@ class ExecutionContext:
 
 
 class Controller:
+    # New resource-aware provider integrations use
+    # Controller -> ProviderDispatcher -> ProviderRegistry. The direct
+    # provider branch below is retained only for compatibility with existing
+    # ModelProvider callers that predate the dispatcher boundary.
+    DIRECT_PROVIDER_PATH_ROLE = "compatibility_legacy"
+
     # Keep the historic names available to callers while the implementation
     # lives in the single canonical AuditRecorder boundary.
     MAX_EVENT_STRING_CHARS = AuditRecorder.MAX_STRING_CHARS
@@ -514,6 +520,9 @@ class Controller:
                 reservation = None
                 provider_intent_key = None
                 replayed_response = None
+                # Compatibility/legacy path: a direct ModelProvider is kept
+                # for existing callers. New multi-provider behavior belongs
+                # in ProviderDispatcher, not in another Controller branch.
                 if self.resource_policy is not None and not getattr(self.provider, "handles_resource_policy", False):
                     try:
                         provider_intent_key = f"provider:{request.request_id}:{self.provider.provider_id}"
