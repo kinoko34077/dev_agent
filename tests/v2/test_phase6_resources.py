@@ -144,6 +144,29 @@ def test_resource_ledger_persists_quota_observation_and_reloads_it(tmp_path):
     assert reopened.get_quota_observation("gemini-free")["request_remaining"] == 80
 
 
+def test_resource_ledger_lists_latest_quota_observation_per_resource_in_domain(tmp_path):
+    ledger = ResourceLedger(tmp_path / "quota-domain-observations.sqlite3")
+    for resource_id in ("credential-a", "credential-b"):
+        ledger.register_resource(
+            resource_id,
+            provider_id="provider",
+            native_unit="request",
+            capacity=10,
+            capabilities=["text"],
+            quota_domain="shared-domain",
+        )
+    ledger.observe_quota("credential-a", request_limit=100, request_remaining=90, source="old")
+    ledger.observe_quota("credential-a", request_limit=100, request_remaining=70, source="new")
+    ledger.observe_quota("credential-b", request_limit=100, request_remaining=80, source="other")
+
+    observations = ledger.list_quota_observations(quota_domain="shared-domain")
+
+    assert [(item["resource_id"], item["request_remaining"]) for item in observations] == [
+        ("credential-a", 70),
+        ("credential-b", 80),
+    ]
+
+
 def test_quota_observation_rejects_invalid_limits_and_missing_domain(tmp_path):
     ledger = ResourceLedger(tmp_path / "quota-validation.sqlite3")
     ledger.register_resource(

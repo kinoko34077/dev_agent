@@ -270,6 +270,7 @@ class ProviderDispatcher(ModelProvider):
             try:
                 if not isinstance(response, ModelResponse):
                     raise TypeError("provider must return ModelResponse")
+                quota_observed = self.control.observe_provider_response(reservation, response)
                 self.control.reconcile_response(reservation, response)
             except BudgetExceeded as exc:
                 # The provider already returned an external result, but the
@@ -289,7 +290,7 @@ class ProviderDispatcher(ModelProvider):
             try:
                 self._intent(intent_key, status="succeeded", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id, "outcome": "succeeded", "response": response.to_dict()})
                 self.control.router.ledger.record_provider_success(selection.provider_id)
-                self._record_audit(request, selection, "succeeded", intent_key)
+                self._record_audit(request, selection, "succeeded", intent_key, details={"quota_observed": quota_observed})
             except Exception as exc:
                 # The concrete provider has already returned and the budget
                 # result was accepted.  Losing the durable result/audit here

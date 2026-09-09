@@ -642,6 +642,10 @@ class Controller:
                         return task
                 if reservation is not None:
                     try:
+                        quota_observed = False
+                        observer = getattr(self.resource_policy, "observe_provider_response", None)
+                        if callable(observer):
+                            quota_observed = bool(observer(reservation, response))
                         self.resource_policy.reconcile_response(reservation, response)
                     except BudgetExceeded as exc:
                         self.resource_policy.uncertain(reservation)
@@ -656,7 +660,7 @@ class Controller:
                         return task
                     try:
                         self._provider_intent(provider_intent_key, status="succeeded", result={"provider_id": response.provider, "resource_id": reservation.budget.resource_id, "outcome": "succeeded", "response": response.to_dict()})
-                        self._record_provider_audit(request, reservation, "succeeded", provider_intent_key)
+                        self._record_provider_audit(request, reservation, "succeeded", provider_intent_key, details={"quota_observed": quota_observed})
                     except Exception as exc:
                         # The provider response and budget reconciliation are
                         # already real.  If durable success/audit persistence

@@ -109,6 +109,33 @@ def test_router_prefers_higher_fresh_quota_before_cost(tmp_path):
     assert ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"})).resource_id == "b"
 
 
+def test_router_uses_conservative_shared_domain_headroom_without_summing_credentials(tmp_path):
+    ledger = ResourceLedger(tmp_path / "shared-quota-priority.sqlite3")
+    for resource_id, cost_minor, remaining in (("credential-a", 10, 90), ("credential-b", 0, 80)):
+        ledger.register_resource(
+            resource_id,
+            provider_id=resource_id,
+            native_unit="request",
+            capacity=10,
+            capabilities=["text"],
+            cost_minor=cost_minor,
+            quota_domain="shared-domain",
+        )
+        ledger.observe(resource_id, available=10, health="healthy")
+        ledger.observe_quota(resource_id, request_limit=100, request_remaining=remaining)
+
+    assert ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"})).resource_id == "credential-b"
+
+
+def test_router_rejects_resource_at_concurrency_limit(tmp_path):
+    ledger = ResourceLedger(tmp_path / "concurrency-limit.sqlite3")
+    ledger.register_resource("busy", provider_id="busy", native_unit="request", capacity=10, capabilities=["text"], cost_minor=0)
+    ledger.observe("busy", available=10, health="healthy", inflight=2, concurrency_limit=2)
+
+    with pytest.raises(NoRoute, match="no eligible resource"):
+        ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}))
+
+
 def test_router_enforces_max_latency_from_resource_metadata(tmp_path):
     ledger = ResourceLedger(tmp_path / "latency-filter.sqlite3")
     ledger.register_resource("fast", provider_id="fast", native_unit="request", capacity=1, capabilities=["text"], cost_minor=0, metadata={"latency_ms": 40})

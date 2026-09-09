@@ -52,15 +52,14 @@ Phase 7候補には、AgentBackend、Codex/MCP integration、workflow promotion�
 
 現行Phase 6A第一バッチでは、次を行わない。
 
-- 追加Providerのlive qualification、quota observation自動取り込み
-- Provider responseからのquota observation自動取り込み
+- 追加Providerのlive qualification、Provider固有quota headerの解析
 - task別成功率・provider diversityを含む後段Router scoring
 - intelligence tier
 - Hedged Request
 - AgentBackend、MCP/API
 - Phase 7、Self-Improvement
 - 大規模Controller rewrite
-- quota/domain observationの複数Credential集約拡張
+- quota/domain observationの加算型複数Credential集約、task別成功率、provider diversity scoring
 
 ## 40. Invariants
 

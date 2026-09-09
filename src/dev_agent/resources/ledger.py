@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from collections.abc import Mapping
 import json
 import math
 from pathlib import Path
@@ -544,6 +545,91 @@ class ResourceLedger:
                 (resource_id,),
             ).fetchone()
             return dict(row) if row is not None else None
+
+    def list_quota_observations(self, *, quota_domain: str | None = None) -> list[dict[str, Any]]:
+        """Return the newest observation for each resource in a quota domain.
+
+        Credentials are intentionally kept as separate resources.  Callers
+        that need a domain-level headroom must combine these observations
+        conservatively; this API never sums them.
+        """
+        if quota_domain is not None and (not isinstance(quota_domain, str) or not quota_domain.strip()):
+            raise ValueError("quota_domain must be a non-empty string or None")
+        with self._lock:
+            clauses = " WHERE quota_domain=?" if quota_domain is not None else ""
+            params: tuple[object, ...] = (quota_domain.strip(),) if quota_domain is not None else ()
+            rows = self.connection.execute(
+                """SELECT resource_id, quota_domain, request_limit,
+                          request_remaining, token_limit, token_remaining,
+                          reset_at, daily_remaining, concurrency_limit,
+                          confidence, observed_at, source
+                   FROM quota_observations""" + clauses +
+                " ORDER BY observed_at DESC, observation_id DESC",
+                params,
+            ).fetchall()
+            latest: dict[str, dict[str, Any]] = {}
+            for row in rows:
+                latest.setdefault(row["resource_id"], dict(row))
+            return [latest[resource_id] for resource_id in sorted(latest)]
+
+    def ingest_quota_observation(
+        self,
+        resource_id: str,
+        usage: Mapping[str, Any],
+        *,
+        observed_at: str | None = None,
+        source: str = "provider-response",
+    ) -> bool:
+        """Ingest the provider-neutral quota observation in response usage.
+
+        Provider adapters may expose provider headers as the normalized
+        ``usage.quota_observation`` object.  Unknown or malformed auxiliary
+        telemetry is ignored so it cannot turn an otherwise valid model
+        response into a duplicate retry.  The resource's persisted domain is
+        always authoritative.
+        """
+        if not isinstance(usage, Mapping):
+            return False
+        payload = usage.get("quota_observation")
+        if payload is None:
+            # Accept the short alias for transition compatibility, while the
+            # documented contract remains quota_observation.
+            payload = usage.get("quota")
+        if not isinstance(payload, Mapping):
+            return False
+        fields = (
+            "request_limit",
+            "request_remaining",
+            "token_limit",
+            "token_remaining",
+            "reset_at",
+            "daily_remaining",
+            "concurrency_limit",
+        )
+        if not any(field in payload for field in fields):
+            return False
+        try:
+            reported_domain = payload.get("quota_domain")
+            if reported_domain is not None:
+                resource = self.get_resource(resource_id)
+                if reported_domain != resource.get("quota_domain"):
+                    return False
+            self.observe_quota(
+                resource_id,
+                request_limit=payload.get("request_limit"),
+                request_remaining=payload.get("request_remaining"),
+                token_limit=payload.get("token_limit"),
+                token_remaining=payload.get("token_remaining"),
+                reset_at=payload.get("reset_at"),
+                daily_remaining=payload.get("daily_remaining"),
+                concurrency_limit=payload.get("concurrency_limit"),
+                confidence=payload.get("confidence", 1.0),
+                observed_at=payload.get("observed_at") or observed_at,
+                source=payload.get("source", source),
+            )
+        except (TypeError, ValueError, KeyError):
+            return False
+        return True
 
     def get_resource(self, resource_id: str) -> dict[str, Any]:
         with self._lock:

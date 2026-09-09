@@ -71,6 +71,25 @@ class ResourceRouter:
             ratios.append(0.0)
         return min(ratios) if ratios else None
 
+    def _fresh_domain_quota_ratio(self, quota_domain: str, max_age_seconds: float | None) -> float | None:
+        ratios: list[float] = []
+        now = time.time()
+        for observation in self.ledger.list_quota_observations(quota_domain=quota_domain):
+            try:
+                observed_at = datetime.fromisoformat(str(observation["observed_at"])).timestamp()
+            except (TypeError, ValueError):
+                continue
+            age = now - observed_at
+            if age < 0 or (max_age_seconds is not None and age > max_age_seconds):
+                continue
+            ratio = self._quota_ratio(observation)
+            if ratio is not None:
+                ratios.append(ratio)
+        # A quota domain may be shared by several credentials.  Taking the
+        # minimum fresh headroom prevents the router from treating shared
+        # quota as additive capacity.
+        return min(ratios) if ratios else None
+
     def choose(self, request: RouteRequest) -> RouteSelection:
         if request.sensitivity not in _SENSITIVITY:
             raise ValueError("invalid sensitivity")
@@ -87,6 +106,15 @@ class ResourceRouter:
             if resource["health"] not in {"healthy", "degraded"} or resource["available"] <= 0:
                 continue
             if resource["circuit_open_until"] > time.time():
+                continue
+            inflight = resource.get("inflight")
+            concurrency_limit = resource.get("concurrency_limit")
+            if (
+                isinstance(concurrency_limit, (int, float))
+                and not isinstance(concurrency_limit, bool)
+                and math.isfinite(float(concurrency_limit))
+                and (concurrency_limit <= 0 or not isinstance(inflight, (int, float)) or isinstance(inflight, bool) or inflight >= concurrency_limit)
+            ):
                 continue
             try:
                 observed_at = datetime.fromisoformat(resource["observed_at"]).timestamp()
@@ -108,19 +136,7 @@ class ResourceRouter:
                 continue
             quota_ratio = None
             if resource.get("quota_domain"):
-                quota = self.ledger.get_quota_observation(resource["resource_id"])
-                if quota is None:
-                    continue
-                try:
-                    quota_observed_at = datetime.fromisoformat(str(quota["observed_at"])).timestamp()
-                except (TypeError, ValueError):
-                    continue
-                quota_age = time.time() - quota_observed_at
-                if quota_age < 0:
-                    continue
-                if request.max_quota_observation_age_seconds is not None and quota_age > request.max_quota_observation_age_seconds:
-                    continue
-                quota_ratio = self._quota_ratio(quota)
+                quota_ratio = self._fresh_domain_quota_ratio(resource["quota_domain"], request.max_quota_observation_age_seconds)
                 if quota_ratio is None or quota_ratio <= 0:
                     continue
             elif resource.get("quota_remaining_ratio") is not None:

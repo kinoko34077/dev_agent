@@ -88,3 +88,57 @@ def test_dispatcher_uses_secondary_after_primary_circuit_opens(tmp_path):
 
     assert result.status is TaskStatus.COMPLETED
     assert calls == ["groq"]
+
+
+def test_dispatcher_ingests_normalized_quota_observation_from_provider_response(tmp_path):
+    ledger, control = _free_control(tmp_path)
+    ledger.observe_quota("groq-free", request_limit=100, request_remaining=90)
+
+    class QuotaProvider(FakeProvider):
+        provider_id = "groq"
+
+        def request(self, request):
+            return ModelResponse(
+                provider="groq",
+                model="free",
+                text_segments=["ok"],
+                usage={
+                    "cost_minor": 0,
+                    "quota_observation": {
+                        "request_limit": 100,
+                        "request_remaining": 88,
+                        "source": "provider-response",
+                    },
+                },
+            )
+
+    dispatcher = ProviderDispatcher(ProviderRegistry([QuotaProvider()]), control)
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        result = Controller(dispatcher, ToolRuntime(ToolRegistry()), store).run(Task(objective="quota telemetry"))
+
+    assert result.status is TaskStatus.COMPLETED
+    assert ledger.get_quota_observation("groq-free")["request_remaining"] == 88
+    assert ledger.get_quota_observation("groq-free")["source"] == "provider-response"
+
+
+def test_dispatcher_ignores_malformed_quota_telemetry_without_failing_result(tmp_path):
+    ledger, control = _free_control(tmp_path)
+    ledger.observe_quota("groq-free", request_limit=100, request_remaining=90)
+
+    class MalformedQuotaProvider(FakeProvider):
+        provider_id = "groq"
+
+        def request(self, request):
+            return ModelResponse(
+                provider="groq",
+                model="free",
+                text_segments=["ok"],
+                usage={"cost_minor": 0, "quota_observation": {"request_remaining": "not-an-integer"}},
+            )
+
+    dispatcher = ProviderDispatcher(ProviderRegistry([MalformedQuotaProvider()]), control)
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        result = Controller(dispatcher, ToolRuntime(ToolRegistry()), store).run(Task(objective="bad quota telemetry"))
+
+    assert result.status is TaskStatus.COMPLETED
+    assert ledger.get_quota_observation("groq-free")["request_remaining"] == 90

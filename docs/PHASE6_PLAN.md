@@ -18,10 +18,12 @@ auditable.
 
 Next-stage requirements are indexed at docs/requirements/README.md. The
 current Phase 6A boundary adds durable `quota_domain` and quota observations,
-operational resource observations, and fresh quota-aware routing. Groq,
-Cloudflare Workers AI, Mistral, and OpenRouter Free are separate injected-
-transport Adapter contracts; live qualification and automatic quota-header
-ingestion remain later work. The canonical path stays
+operational resource observations, fresh quota-aware routing, and normalized
+quota telemetry ingestion from a valid provider response. Shared domains use
+conservative fresh headroom rather than summing credentials; concurrency
+limits are hard filters before dispatch. Groq, Cloudflare Workers AI, Mistral,
+and OpenRouter Free are separate injected-transport Adapter contracts; live
+qualification and provider-specific header parsing remain later work. The canonical path stays
 Controller -> ProviderDispatcher -> ProviderRegistry -> concrete Provider,
 while the Controller direct-provider branch remains compatibility-only. It
 does not implement Intelligence Tier, Hedging, AgentBackend, MCP, or Phase 7.
@@ -37,8 +39,9 @@ Implemented in `src/dev_agent/resources/ledger.py` and `budget.py`.
   durable and schema-migrated, with stale/missing domain observations rejected
   by the quota-aware Router.
 - Current operational observations include quota headroom/reset, latency and
-  failure EWMA, inflight, and concurrency limit. Provider-specific quota header
-  ingestion is intentionally not part of this local foundation.
+  failure EWMA, inflight, and concurrency limit. Adapters may expose only the
+  provider-neutral `usage.quota_observation` object; malformed auxiliary
+  telemetry is ignored without invalidating an otherwise valid model result.
 - Paid dispatches reserve integer minor units before dispatch.
 - The normal budget cannot consume the recovery reserve.
 - Unknown price fails closed.
@@ -150,8 +153,8 @@ reservation and dispatch-intent persistence.
 
 Phase 6A's additional free-provider adapters (Groq, Cloudflare Workers AI,
 Mistral, and OpenRouter Free) use injected transports and the normalized
-contract only. Their contract tests do not constitute live provider or quota
-qualification evidence.
+contract only. Their contract tests and normalized quota-ingestion tests do
+not constitute live provider or quota qualification evidence.
 
 The lease proof for the provider intent transition is checked inside the
 StateStore transaction. An independent-process test confirms that a reclaimed

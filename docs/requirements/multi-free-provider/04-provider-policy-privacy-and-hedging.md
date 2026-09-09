@@ -30,7 +30,7 @@ AdapterはProviderの契約を実行境界へ変換し、少なくとも次を�
 - timeout/unknown
 - capability report
 
-この移行前調整では既存の ModelProvider と ProviderDispatcher の責務を変更しない。Phase 6AのAdapterは注入transportによる契約境界に限定する。
+この移行前調整では既存の ModelProvider と ProviderDispatcher の責務を変更しない。Phase 6AのAdapterは注入transportによる契約境界に限定し、Provider固有のheader解析はAdapter内で行った上で、共通経路へは `usage.quota_observation` として正規化する。
 
 ## 17. Privacy policy
 
@@ -77,4 +77,4 @@ Meta ProviderはProviderを束ねる抽象として将来検討するが、通�
 
 ## 現行実装への適用境界
 
-Groq、Cloudflare Workers AI、Mistral、OpenRouter FreeはProvider-neutralな注入transport AdapterとContractHarness検証まで実装した。資格情報を用いたlive通信、quota headerの自動取り込み、privacy分類、hedging、Meta Providerは未実装であり、Adapter contractテストをlive qualificationやGate VERIFIEDの証拠に読み替えない。
+Groq、Cloudflare Workers AI、Mistral、OpenRouter FreeはProvider-neutralな注入transport AdapterとContractHarness検証まで実装した。正規化済みquota observationの取り込みは共通Dispatcher境界へ実装したが、資格情報を用いたlive通信、Provider固有quota headerの実通信検証、privacy分類、hedging、Meta Providerは未実装である。Adapter contractテストをlive qualificationやGate VERIFIEDの証拠に読み替えない。
