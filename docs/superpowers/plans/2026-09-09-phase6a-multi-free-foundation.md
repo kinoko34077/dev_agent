@@ -116,9 +116,9 @@
 - G6O1 remains BLOCKED_EXTERNAL and Phase 7 remains deferred.
 
 - [x] Step 1: Run full pytest, compileall, JSON validation, and relevant gate checks; `check_head` follows the clean commit.
-- [ ] Step 2: Update Current State with exact local test count and external CI run IDs.
+- [x] Step 2: Update Current State with exact local test count and external CI run IDs (`267 passed, 1 skipped`; v2-core `34318901211`; v2 tests `34318901190`; code baseline `0d690d8`).
 - [x] Step 3: Inspect diff and verify no forbidden future feature was added.
-- [ ] Step 4: Commit, push, and confirm exact-head CI.
+- [ ] Step 4: Commit, push, and confirm exact-head CI for the final documentation commit.
 - [ ] Step 5: Stop at a clean tested boundary and record remaining provider live qualification work.
 
 ## Execution record
@@ -127,7 +127,8 @@
 - `10b322d`: quota-domain identity and ResourceLedger schema v5 migration.
 - `dd1a486`: durable quota observations, schema v6 operational observations, and quota-aware routing.
 - `a414907`, `0a32d38`: Groq/Cloudflare contract adapters and adapter file cleanup.
-- Working-tree follow-up: Mistral/OpenRouter Free contract adapters, Provider exports, and Phase 6A dispatch/documentation synchronization.
+- `0d690d8`: Mistral/OpenRouter Free contract adapters, Provider exports, Groq-backed quota/outage dispatch tests, expired-lease fencing, and Current State synchronization.
+- External exact-head CI for `0d690d8`: v2-core `34318901211` and v2 tests `34318901190` both success.
 
 Remaining after this batch: live qualification for the new cloud providers,
 provider-owned quota observation ingestion, multi-credential quota aggregation,

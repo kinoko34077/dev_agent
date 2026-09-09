@@ -9,7 +9,7 @@
 - ResourceLedgerをschema v6へ拡張し、`quota_domain`、durable quota observation、quota remaining/reset、latency/failure EWMA、inflight/concurrencyの観測値をordered migrationで保持できるようにした。
 - quota domainを宣言したResourceはmissing/future/stale observationをfail-closedで除外し、fresh quota headroomを優先してRouterが選択する。ProviderDispatcherの通常経路とControllerのcompatibility/legacy direct経路は変更していない。
 - Groq、Cloudflare Workers AI、Mistral、OpenRouter FreeのAdapter境界を、注入transportと既存のnormalized ModelProvider contractで追加した。CI/local testは実通信を行わず、live qualificationやquota header自動取得は未実施。
-- G6O1は実paid Providerのworst-case qualificationとdeployment-owned protected budget config待ちの`BLOCKED_EXTERNAL`を維持し、Phase 7は開始していない。ローカル全回帰は `264 passed, 1 skipped`。
+- G6O1は実paid Providerのworst-case qualificationとdeployment-owned protected budget config待ちの`BLOCKED_EXTERNAL`を維持し、Phase 7は開始していない。ローカル全回帰は `267 passed, 1 skipped`。コード基準 `0d690d888b58574b721572b81c16de20ee324066` に対するGitHub Actions exact-head CIは `v2-core` run `34318901211` / `v2 tests` run `34318901190` がsuccess。
 
 ### 2026-09-09 JST — Multi-Free Provider migration preparation
 

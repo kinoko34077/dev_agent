@@ -4,10 +4,12 @@ Status: foundation VERIFIED; G6O2〜G6O6 VERIFIED; G6O1 BLOCKED_EXTERNAL; Phase 
 
 The earlier Phase 6 operational code evidence baseline is
 `da74b3b934cde66060ecabe65916fb57442b5bd9` (external exact-head CI:
-v2-core run `34311452342`, v2 tests run `34311452341`). The current
-Phase 6A quota/provider expansion is tracked by its own exact-head CI result
-after the final commit; CI run IDs are external observations, not repository
-self-certification records.
+v2-core run `34311452342`, v2 tests run `34311452341`). The current Phase 6A
+code baseline is `0d690d888b58574b721572b81c16de20ee324066`; its external
+exact-head CI is v2-core run `34318901211` and v2 tests run `34318901190`.
+CI run IDs are external observations, not repository self-certification
+records. The documentation commit that records them is not itself presented
+as code evidence.
 
 Phase 6A〜6E is the current v2 work boundary. The phase is deliberately split
 into small control-plane components so that resource exhaustion, provider
