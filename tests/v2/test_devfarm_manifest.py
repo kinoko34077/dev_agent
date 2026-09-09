@@ -14,6 +14,8 @@ def test_devfarm_provider_uses_factory_and_explicit_activation_allowlist():
     policy = DevFarmActivationPolicy()
     assert policy.is_active("cloudflare")
     assert policy.is_active("gemini")
+    assert policy.is_active("gemini", "gemini-3.5-flash-lite")
+    assert not policy.is_active("gemini", "gemini-3.8-flash")
     assert policy.is_active("openrouter")
     assert not policy.is_active("mistral")
 
@@ -29,7 +31,8 @@ def test_devfarm_provider_uses_factory_and_explicit_activation_allowlist():
     gemini = _provider("gemini", "gemini-3.5-flash-lite", 4)
     assert isinstance(gemini, GeminiHttpProvider)
     assert gemini.model == "gemini-3.5-flash-lite"
-    assert gemini.provider_binding_id == "gemini"
+    assert gemini.provider_binding_id == "gemini:worker"
+    assert gemini.intelligence_tier == "L1"
 
     with pytest.raises(DevFarmError, match="not active"):
         _provider("mistral", "mistral-small-latest", 4)

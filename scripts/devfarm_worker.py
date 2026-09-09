@@ -48,10 +48,19 @@ class DevFarmActivationPolicy:
     """
 
     # Gemini 3.5 Flash-Lite has an operator-run qualification artifact.  The
-    # allowlist is intentionally provider-level for this small bootstrap; the
-    # manifest still chooses the concrete model and the factory supplies its
-    # non-secret identity labels.
+    # Provider activation and concrete Worker-model activation are separate
+    # checks; the manifest still approves the provider and the factory supplies
+    # non-secret binding/tier identity labels.
     DEFAULT_ACTIVE_PROVIDER_IDS = frozenset({"cloudflare", "gemini", "openrouter"})
+    ACTIVE_MODEL_IDS = {
+        "gemini": frozenset({"gemini-3.5-flash-lite"}),
+        "openrouter": frozenset({"openrouter/free"}),
+        "cloudflare": None,
+    }
+    WORKER_BINDINGS = {
+        ("gemini", "gemini-3.5-flash-lite"): ("gemini:worker", "L1"),
+        ("openrouter", "openrouter/free"): ("openrouter:free", "L1"),
+    }
 
     def __init__(self, active_provider_ids: set[str] | frozenset[str] | None = None) -> None:
         selected = self.DEFAULT_ACTIVE_PROVIDER_IDS if active_provider_ids is None else active_provider_ids
@@ -59,12 +68,22 @@ class DevFarmActivationPolicy:
             raise ValueError("active_provider_ids must be a set of non-empty strings")
         self._active_provider_ids = frozenset(item.strip() for item in selected)
 
-    def is_active(self, provider_id: str) -> bool:
-        return isinstance(provider_id, str) and provider_id.strip() in self._active_provider_ids
+    def is_active(self, provider_id: str, model_id: str | None = None) -> bool:
+        if not isinstance(provider_id, str) or provider_id.strip() not in self._active_provider_ids:
+            return False
+        if model_id is None:
+            return True
+        allowed_models = self.ACTIVE_MODEL_IDS.get(provider_id.strip())
+        return allowed_models is None or model_id.strip() in allowed_models
 
-    def ensure_active(self, provider_id: str) -> None:
-        if not self.is_active(provider_id):
-            raise DevFarmError(f"development worker provider is not active: {provider_id}")
+    def ensure_active(self, provider_id: str, model_id: str | None = None) -> None:
+        if not self.is_active(provider_id, model_id):
+            label = f"{provider_id}/{model_id}" if model_id is not None else provider_id
+            raise DevFarmError(f"development worker provider is not active: {label}")
+
+    def binding_for(self, provider_id: str, model_id: str) -> tuple[str, str | None]:
+        self.ensure_active(provider_id, model_id)
+        return self.WORKER_BINDINGS.get((provider_id, model_id), (provider_id, None))
 
 
 def _read_json(path: Path) -> Any:
@@ -239,6 +258,7 @@ def _prompt(manifest: Mapping[str, Any], inputs: str) -> str:
         "Set `status` to `completed` when you have a proposal, or `failed` when you cannot produce one. "
         "`tests_run` is only a proposed command list; the host will verify commands later and your test claims are not evidence. "
         "The `patch` must be either an empty string or begin with `diff --git` and contain a valid literal unified diff. "
+        "If the patch is non-empty, end its final line with one real newline so the host can apply it literally. "
         "Every diff header must use `diff --git a/relative/path b/relative/path`; for a new file use `--- /dev/null` and `+++ b/relative/path`. "
         "Do not include trailing whitespace on any added or context line. "
         "For a new file, copy this exact diff shape, including the leading plus signs on content lines: "
@@ -252,13 +272,17 @@ def _prompt(manifest: Mapping[str, Any], inputs: str) -> str:
 
 
 def _provider(name: str, model: str, timeout_seconds: float) -> ModelProvider:
-    DevFarmActivationPolicy().ensure_active(name)
+    policy = DevFarmActivationPolicy()
+    policy.ensure_active(name, model)
+    binding_id, intelligence_tier = policy.binding_for(name, model)
     try:
         return ProviderFactory().create(
             ProviderDefinition(
                 provider_id=name,
                 model=model,
                 timeout_seconds=timeout_seconds,
+                provider_binding_id=binding_id,
+                intelligence_tier=intelligence_tier,
             )
         )
     except (TypeError, ValueError) as exc:
@@ -627,6 +651,12 @@ def run_worker(root: str | Path, manifest_path: str | Path, *, provider: ModelPr
         return _record_failed_model_output(root, manifest, str(exc), worker_metrics=metrics)
     try:
         patch = output.get("patch", "")
+        if isinstance(patch, str) and patch and not patch.endswith("\n"):
+            # JSON responses commonly omit the final line ending.  Appending
+            # exactly one LF is a transport-format normalization, not a patch
+            # edit; record it in host metrics and validate the normalized bytes.
+            patch = patch + "\n"
+            output = {**output, "patch": patch, "patch_normalizations": ["appended_final_newline"]}
         actual_changed_files = validate_patch(patch, manifest=manifest)
         _validate_patch_application(workspace, patch)
         status = _normalize_model_status(output.get("status"))
@@ -638,6 +668,11 @@ def run_worker(root: str | Path, manifest_path: str | Path, *, provider: ModelPr
             "tests_run": output.get("tests_run"),
             "tests_passed": output.get("tests_passed"),
         }
+        normalizations = output.get("patch_normalizations", [])
+        if normalizations:
+            if not isinstance(normalizations, list) or any(not isinstance(item, str) for item in normalizations):
+                raise DevFarmError("patch_normalizations must be a list of strings")
+            metrics["patch_normalizations"] = list(normalizations)
         result = {
             "status": status,
             "base_revision": manifest["base_revision"],
