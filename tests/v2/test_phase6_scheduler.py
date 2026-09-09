@@ -1,13 +1,14 @@
 from datetime import datetime, timezone, timedelta
 import multiprocessing
 import sqlite3
+from threading import Barrier, Thread
 import time
 
 import pytest
 
 from src.dev_agent.scheduler.queue import DurableQueue, LeaseProof, MaintenanceMode, StaleLease, QueueEmpty
 from src.dev_agent.scheduler.worker import WorkerRunner
-from src.dev_agent.domain.protocol import Task, TaskStatus
+from src.dev_agent.domain.protocol import ModelRequest, ModelResponse, Task, TaskStatus
 from src.dev_agent.providers.fake.provider import FakeProvider
 from src.dev_agent.runtime.controller import Controller
 from src.dev_agent.state.sqlite_store import SQLiteStateStore
@@ -133,10 +134,8 @@ def test_worker_uses_task_retry_limit_as_total_attempt_bound(tmp_path):
     class RetryingController:
         def __init__(self, store):
             self.store = store
-            self.lease_guard = None
-            self.lease_proof = None
 
-        def resume(self, task_id):
+        def resume(self, task_id, *, execution_context=None):
             return self.store.load_task(task_id)
 
     with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
@@ -172,10 +171,8 @@ def test_worker_defers_waiting_task_until_explicit_wake(tmp_path):
     class WaitingController:
         def __init__(self, store):
             self.store = store
-            self.lease_guard = None
-            self.lease_proof = None
 
-        def resume(self, task_id):
+        def resume(self, task_id, *, execution_context=None):
             waiting = self.store.load_task(task_id)
             waiting.status = TaskStatus.WAITING_RECONCILIATION
             return waiting
@@ -236,12 +233,11 @@ def test_worker_renews_lease_during_long_controller_execution(tmp_path):
     class SlowController:
         def __init__(self, store):
             self.store = store
-            self.lease_guard = None
-            self.lease_proof = None
+            self.execution_context = None
 
-        def resume(self, task_id):
+        def resume(self, task_id, *, execution_context=None):
             time.sleep(1.5)
-            self.lease_guard()
+            execution_context.lease_guard()
             task = self.store.load_task(task_id)
             task.status = TaskStatus.COMPLETED
             return task
@@ -254,6 +250,45 @@ def test_worker_renews_lease_during_long_controller_execution(tmp_path):
 
     assert completed is not None and completed.status == TaskStatus.COMPLETED
     assert queue.snapshot(task.task_id).state == "completed"
+
+
+def test_shared_controller_keeps_worker_execution_contexts_isolated(tmp_path):
+    path = tmp_path / "shared-runtime.sqlite3"
+    queue = DurableQueue(path)
+    tasks = [Task(objective=f"concurrent task {index}") for index in range(2)]
+    barrier = Barrier(2)
+
+    class ConcurrentProvider:
+        provider_id = "concurrent"
+
+        def request(self, request: ModelRequest) -> ModelResponse:
+            barrier.wait(timeout=5)
+            return ModelResponse(provider=self.provider_id, model="test", text_segments=[request.task_id])
+
+    controller = None
+    errors: list[BaseException] = []
+    with SQLiteStateStore(path) as store:
+        for task in tasks:
+            store.save_task(task)
+            queue.enqueue(task.task_id)
+        controller = Controller(ConcurrentProvider(), ToolRuntime(ToolRegistry()), store)
+
+        def run_worker(index: int) -> None:
+            try:
+                result = WorkerRunner(queue, controller, worker_id=f"worker-{index}", lease_seconds=2.0).run_once()
+                assert result is not None and result.status == TaskStatus.COMPLETED
+            except BaseException as exc:  # surface thread failures in the parent assertion
+                errors.append(exc)
+
+        threads = [Thread(target=run_worker, args=(index,)) for index in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=10)
+
+        assert all(not thread.is_alive() for thread in threads)
+        assert errors == []
+        assert [queue.snapshot(task.task_id).state for task in tasks] == ["completed", "completed"]
 
 
 def test_queue_claim_is_atomic_across_independent_processes(tmp_path):

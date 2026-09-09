@@ -5,7 +5,7 @@ from __future__ import annotations
 from threading import Event, Thread
 
 from ..domain.protocol import Task, TaskStatus
-from ..runtime.controller import Controller
+from ..runtime.controller import Controller, ExecutionContext
 from .queue import DurableQueue, QueueEmpty, StaleLease
 
 
@@ -73,26 +73,21 @@ class WorkerRunner:
         max_attempts = self.max_attempts if self.max_attempts is not None else task.limits.max_retries + 1
         item = self.queue.set_max_attempts(item.task_id, worker_id=self.worker_id, state_version=item.state_version, max_attempts=max_attempts)
         self.queue.renew(item.task_id, worker_id=self.worker_id, state_version=item.state_version, lease_seconds=self.lease_seconds)
-        previous_guard = self.controller.lease_guard
-        previous_proof = self.controller.lease_proof
         heartbeat = _LeaseHeartbeat(self.queue, task_id=item.task_id, worker_id=self.worker_id, state_version=item.state_version, lease_seconds=self.lease_seconds)
         heartbeat.start()
         def assert_active_lease() -> None:
             heartbeat.assert_healthy()
             self.queue.assert_lease(item.task_id, worker_id=self.worker_id, state_version=item.state_version, lease_token=item.lease_token)
 
-        self.controller.lease_guard = assert_active_lease
-        self.controller.lease_proof = item.lease_proof
+        execution_context = ExecutionContext(lease_guard=assert_active_lease, lease_proof=item.lease_proof)
         try:
-            result = self.controller.resume(task.task_id)
+            result = self.controller.resume(task.task_id, execution_context=execution_context)
             heartbeat.assert_healthy()
         except Exception:
             self.queue.fail(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
             raise
         finally:
             heartbeat.stop()
-            self.controller.lease_guard = previous_guard
-            self.controller.lease_proof = previous_proof
         if result.status == TaskStatus.COMPLETED:
             self.queue.complete(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
         elif result.status in self._DEFERRED_STATUSES:

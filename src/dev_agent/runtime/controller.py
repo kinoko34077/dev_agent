@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from contextvars import ContextVar, copy_context
+from dataclasses import dataclass
 import hashlib
 import json
 import math
@@ -32,6 +34,21 @@ class _ProviderCancelled(Exception):
         self.unable_to_confirm = unable_to_confirm
 
 
+@dataclass(frozen=True)
+class ExecutionContext:
+    """Immutable per-run ownership and fencing context.
+
+    A Controller may be shared by multiple workers.  Lease state therefore
+    cannot live in mutable Controller attributes: one worker must never be
+    able to replace another worker's guard or proof while it is dispatching.
+    The context is installed only in the calling execution context and is
+    visible to provider callbacks through ``ContextVar`` isolation.
+    """
+
+    lease_guard: Callable[[], None] | None = None
+    lease_proof: Any | None = None
+
+
 class Controller:
     # Keep the historic names available to callers while the implementation
     # lives in the single canonical AuditRecorder boundary.
@@ -43,19 +60,42 @@ class Controller:
 
     def __init__(self, provider: ModelProvider, tools: ToolRuntime, store: StateStore, *, event_artifacts: EventArtifactStore | None = None, resource_policy: ResourcePolicy | None = None, lease_guard: Callable[[], None] | None = None, lease_proof: Any | None = None) -> None:
         self.provider = provider
-        self.tools = tools.with_result_store(store)
+        self.tools = tools.bound_to(store)
         self.store = store
         self.event_artifacts = event_artifacts
         self.resource_policy = resource_policy
-        self.lease_guard = lease_guard
-        self.lease_proof = lease_proof
+        self._default_execution_context = ExecutionContext(lease_guard=lease_guard, lease_proof=lease_proof)
+        self._execution_context: ContextVar[ExecutionContext | None] = ContextVar(
+            f"dev_agent_execution_context:{id(self)}", default=None
+        )
         self._cancellation_events: dict[str, Event] = {}
         self._cancellation_reasons: dict[str, str] = {}
         self._active_tasks: set[str] = set()
         self._running_tasks: dict[str, Task] = {}
         binder = getattr(provider, "bind_runtime", None)
         if callable(binder):
-            binder(state_store=store, lease_guard=lambda: self.lease_guard() if self.lease_guard is not None else None, lease_proof=lambda: self.lease_proof)
+            binder(state_store=store, lease_guard=self._active_lease_guard, lease_proof=self._active_lease_proof)
+
+    def _current_execution_context(self) -> ExecutionContext:
+        return self._execution_context.get() or self._default_execution_context
+
+    def _active_lease_guard(self) -> None:
+        guard = self._current_execution_context().lease_guard
+        if guard is not None:
+            guard()
+
+    def _active_lease_proof(self) -> Any | None:
+        return self._current_execution_context().lease_proof
+
+    @property
+    def lease_guard(self) -> Callable[[], None] | None:
+        """Read-only compatibility view of the current run's lease guard."""
+        return self._current_execution_context().lease_guard
+
+    @property
+    def lease_proof(self) -> Any | None:
+        """Read-only compatibility view of the current run's lease proof."""
+        return self._current_execution_context().lease_proof
 
     def _event_record(self, task: Task, event_type: str, payload: dict[str, Any], *, step_id: str | None = None, request_id: str | None = None) -> ProtocolEvent:
         return ProtocolEvent(event_type=event_type, task_id=task.task_id, step_id=step_id, request_id=request_id, provider=self.provider.provider_id, payload=AuditRecorder.sanitize_payload(payload, artifact_store=self.event_artifacts))
@@ -74,9 +114,8 @@ class Controller:
         return {"task_id": task.task_id, "step_id": step.step_id, "phase": phase, "state": state}
 
     def _commit(self, *, task: Task | None = None, step: Step | None = None, checkpoint: dict[str, Any] | None = None, events: list[ProtocolEvent] | None = None, tool_result: ToolResult | None = None) -> None:
-        if self.lease_guard is not None:
-            self.lease_guard()
-        self.store.commit_transition(task=task, step=step, checkpoint=checkpoint, events=events, tool_result=tool_result, lease_proof=self.lease_proof)
+        self._active_lease_guard()
+        self.store.commit_transition(task=task, step=step, checkpoint=checkpoint, events=events, tool_result=tool_result, lease_proof=self._active_lease_proof())
 
     @staticmethod
     def _kernel_operation_key(task: Task, step: Step, call: ToolCall, index: int, *, effective_arguments: dict[str, Any] | None = None) -> str:
@@ -127,7 +166,7 @@ class Controller:
 
     def _provider_intent(self, key: str | None, *, status: str, result: dict[str, Any]) -> None:
         if key is not None:
-            self.store.transition_effect_intent(key, to_status=status, result=result, lease_proof=self.lease_proof if status == "dispatching" else None)
+            self.store.transition_effect_intent(key, to_status=status, result=result, lease_proof=self._active_lease_proof() if status == "dispatching" else None)
 
     def _provider_replay(self, key: str) -> ModelResponse:
         intent = self.store.get_effect_intent(key)
@@ -236,10 +275,13 @@ class Controller:
         state.setdefault("active_request_id", None)
 
     def _provider_request(self, request: ModelRequest, deadline_epoch: float, cancel_event: Event) -> ModelResponse:
-        if self.lease_guard is not None:
-            self.lease_guard()
+        self._active_lease_guard()
         executor = ThreadPoolExecutor(max_workers=1)
-        future = executor.submit(self.provider.request, request)
+        # ProviderDispatcher may consult the run's lease proof from inside
+        # its provider thread. ContextVars do not propagate through a new
+        # thread implicitly, so capture the immutable run context explicitly.
+        provider_context = copy_context()
+        future = executor.submit(provider_context.run, self.provider.request, request)
         try:
             while True:
                 remaining = deadline_epoch - time()
@@ -289,7 +331,15 @@ class Controller:
         self._commit(task=task, events=[self._event_record(task, "task.cancelled", {"category": "cancelled", "message": reason, "cancellation_state": "terminated"})])
         return task
 
-    def resume(self, task_id: str, *, approval_id: str | None = None) -> Task:
+    def resume(self, task_id: str, *, approval_id: str | None = None, execution_context: ExecutionContext | None = None) -> Task:
+        context = execution_context or self._current_execution_context()
+        token = self._execution_context.set(context)
+        try:
+            return self._resume(task_id, approval_id=approval_id)
+        finally:
+            self._execution_context.reset(token)
+
+    def _resume(self, task_id: str, *, approval_id: str | None = None) -> Task:
         task = self.store.load_task(task_id)
         if task is None:
             raise RuntimeFailure(f"task not found: {task_id}")
@@ -334,8 +384,7 @@ class Controller:
             if cancel_event.is_set():
                 self._cancel(task, state, step=step)
                 return
-            if self.lease_guard is not None:
-                self.lease_guard()
+            self._active_lease_guard()
             result = self.tools.execute(call, task_id=task.task_id, approval_id=state.get("approval_id"), cancel_event=cancel_event)
             result.provider_call_id = call.provider_call_id
             tool_event = self._event_record(task, "tool.completed", {"result": result.to_dict()}, step_id=step.step_id)
@@ -380,7 +429,15 @@ class Controller:
         state["active_step"] = None
         self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "after_tools", state))
 
-    def run(self, task: Task, *, state: dict[str, Any] | None = None) -> Task:
+    def run(self, task: Task, *, state: dict[str, Any] | None = None, execution_context: ExecutionContext | None = None) -> Task:
+        context = execution_context or self._current_execution_context()
+        token = self._execution_context.set(context)
+        try:
+            return self._run(task, state=state)
+        finally:
+            self._execution_context.reset(token)
+
+    def _run(self, task: Task, *, state: dict[str, Any] | None = None) -> Task:
         state = RuntimeState.from_checkpoint(state) if state is not None else self._initial_state(task)
         self._ensure_state_defaults(state)
         if "deadline_epoch" not in state:
@@ -547,7 +604,7 @@ class Controller:
                     self._fail(task, state, "provider_decode", str(exc), step=step, request_id=request.request_id)
                 if reservation is not None and self.lease_guard is not None:
                     try:
-                        self.lease_guard()
+                        self._active_lease_guard()
                     except Exception as exc:
                         # The provider may have completed after this worker
                         # lost ownership.  Do not accept the response as a
