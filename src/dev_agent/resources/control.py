@@ -121,9 +121,10 @@ class ResourceControlPlane:
 
     def record_provider_error(self, provider_id: str, reservation: DispatchReservation, error: Exception) -> None:
         category = getattr(error, "category", "provider_error")
-        if category in {"transport", "rate_limit", "quota"}:
+        requires_reconciliation = bool(getattr(error, "requires_reconciliation", False))
+        if category in {"transport", "rate_limit", "quota"} or requires_reconciliation:
             self.router.ledger.record_provider_failure(provider_id)
-        if category in {"transport", "provider_decode", "reconciliation_required"}:
+        if requires_reconciliation:
             self.uncertain(reservation)
         else:
             self.governor.confirm_no_charge(reservation.budget.reservation_id)
