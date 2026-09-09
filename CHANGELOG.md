@@ -12,7 +12,7 @@
 - Provider timeout/transport後の `resume()` 再送と、照合待ちTaskのterminal cancellationを抑止。
 - Dispatcher所有のtransport失敗も `WAITING_RECONCILIATION` へ統一し、Provider cancellation後の再送を抑止。
 - ResourceLedgerのruntime maintenance fenceを接続間で共有し、予約トランザクション内でも再確認。
-- 現行 `v2/bootstrap` のローカル全テストは `246 passed, 1 skipped`（Windows ACL依存テスト）。外部GitHub Actionsは、コード実装commit `ec39e8b` に対して `v2-core` run `34308323345` / `v2 tests` run `34308323266` がともにsuccess（各runの `GITHUB_SHA` は対象commitと一致）。証跡記録commitはコード基準を変更せず、CI providerをexact-headの正本とする。
+- 現行 `v2/bootstrap` のローカル全テストは `251 passed, 1 skipped`（Windows ACL依存テスト）。外部GitHub Actionsは、コード・テストcommit `e534b4a` に対して `v2-core` run `34310308651` / `v2 tests` run `34310308652` がともにsuccess（各runの `GITHUB_SHA` は対象commitと一致）。証跡記録commitはコード基準を変更せず、CI providerをexact-headの正本とする。
 - Phase 6のG6O3/G6O4/G6O5を各責務のローカル受入でVERIFIEDへ再分類し、実Ollama Dispatcher経路と隔離Recovery operator drillを追加。Phase 6全体は有償Providerのworst-case費用実証待ちでIN_PROGRESSを維持。
 - Workerのlease contextをper-run immutable `ExecutionContext`へ移し、Recovery Reserveの直接 `recovery=True` を拒否して `BudgetAuthority.reserve_recovery()` に限定。後者は永続Taskの `task_class="recovery"` を要求する。
 - resource-ledgerのnative reservation整合性をRecovery validatorで検査。
@@ -20,6 +20,7 @@
 - Protected budget config loaderがsymlink、型の暗黙変換、POSIXのgroup/world書込を拒否し、Phase 6のlocal qualificationも外部設定経路を通すよう同期。
 - 有償Provider qualification用のfail-closed入口を追加。明示的なbilling確認がない実通信を拒否し、Providerが実コストを返さない場合は成功扱いせず照合待ちにする。
 - 有償予約の`usage.cost_minor`欠落をDispatcher成功へ通さないよう修正。無料固定価格リソースだけは互換上0へreconcileし、有償予約はunknown／照合待ちに固定。
+- 外部ProviderのHTTP 5xx／408／status不明エラーを、送信後の不確実な結果として照合待ちへ統一。Workerはheartbeat障害をterminal failureへ誤変換せず、leaseが有効なら有限retryへ戻す。deadlineとcancel要求の競合も`unable_to_confirm`へ記録する。
 
 ### 現在の到達点（2026-09-08 JST）
 
