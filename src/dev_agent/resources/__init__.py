@@ -2,7 +2,7 @@
 
 from .budget import BudgetAuthority, BudgetExceeded, BudgetGovernor, BudgetPolicy, BudgetReconciliationRequired, BudgetReservation, MaintenanceActive, ResourceUnavailable, UnknownPrice
 from .control import DispatchDenied, DispatchReservation, ResourceControlPlane
-from .ledger import BudgetPeriod, MoneyAmount, ResourceLedger, ResourcePrice, ResourceSpec
+from .ledger import BudgetPeriod, MoneyAmount, QuotaObservation, ResourceLedger, ResourcePrice, ResourceSpec
 from .router import NoRoute, ResourceRouter, RouteRequest, RouteSelection
 from .survival import SurvivalGovernor, SurvivalMode, SurvivalSnapshot, SurvivalState
 
@@ -26,6 +26,7 @@ __all__ = [
     "ResourceLedger",
     "ResourceRouter",
     "ResourceSpec",
+    "QuotaObservation",
     "RouteRequest",
     "RouteSelection",
     "SurvivalGovernor",

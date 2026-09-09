@@ -87,6 +87,22 @@ class ResourceSpec:
     quota_domain: str | None = None
 
 
+@dataclass(frozen=True)
+class QuotaObservation:
+    resource_id: str
+    quota_domain: str
+    request_limit: int | None
+    request_remaining: int | None
+    token_limit: int | None
+    token_remaining: int | None
+    reset_at: str | None
+    daily_remaining: int | None
+    concurrency_limit: int | float | None
+    confidence: float
+    observed_at: str
+    source: str
+
+
 class ResourceLedger:
     """SQLite-backed resource observations and budget reservation records."""
 
@@ -343,6 +359,95 @@ class ResourceLedger:
             self.connection.execute("UPDATE resources SET available=?, health=?, confidence=?, observed_at=? WHERE resource_id=?", (available, health, confidence, timestamp, resource_id))
             self.connection.execute("INSERT INTO resource_observations VALUES (?, ?, ?, ?, ?, ?)", (str(uuid4()), resource_id, available, health, confidence, timestamp))
             self.connection.commit()
+
+    @staticmethod
+    def _quota_integer(value: int | None, name: str) -> int | None:
+        if value is None:
+            return None
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError(f"{name} must be a non-negative integer or None")
+        return value
+
+    def observe_quota(
+        self,
+        resource_id: str,
+        *,
+        request_limit: int | None = None,
+        request_remaining: int | None = None,
+        token_limit: int | None = None,
+        token_remaining: int | None = None,
+        reset_at: str | None = None,
+        daily_remaining: int | None = None,
+        concurrency_limit: int | float | None = None,
+        confidence: float = 1.0,
+        observed_at: str | None = None,
+        source: str = "provider",
+    ) -> None:
+        request_limit = self._quota_integer(request_limit, "request_limit")
+        request_remaining = self._quota_integer(request_remaining, "request_remaining")
+        token_limit = self._quota_integer(token_limit, "token_limit")
+        token_remaining = self._quota_integer(token_remaining, "token_remaining")
+        daily_remaining = self._quota_integer(daily_remaining, "daily_remaining")
+        if request_limit is not None and request_remaining is not None and request_remaining > request_limit:
+            raise ValueError("request_remaining cannot exceed request_limit")
+        if token_limit is not None and token_remaining is not None and token_remaining > token_limit:
+            raise ValueError("token_remaining cannot exceed token_limit")
+        if isinstance(concurrency_limit, bool) or (concurrency_limit is not None and (not isinstance(concurrency_limit, (int, float)) or not math.isfinite(float(concurrency_limit)) or concurrency_limit < 0)):
+            raise ValueError("concurrency_limit must be non-negative or None")
+        self._number(confidence, "confidence")
+        if confidence > 1:
+            raise ValueError("confidence must be at most 1")
+        if reset_at is not None and (not isinstance(reset_at, str) or not reset_at.strip()):
+            raise ValueError("reset_at must be a non-empty string or None")
+        if not isinstance(source, str) or not source.strip():
+            raise ValueError("source must be a non-empty string")
+        timestamp = observed_at or _now()
+        with self._lock:
+            resource = self.connection.execute("SELECT quota_domain FROM resources WHERE resource_id = ?", (resource_id,)).fetchone()
+            if resource is None:
+                raise KeyError(resource_id)
+            quota_domain = resource["quota_domain"]
+            if not isinstance(quota_domain, str) or not quota_domain.strip():
+                raise ValueError("quota_domain is required for quota observations")
+            self.connection.execute(
+                """INSERT INTO quota_observations(
+                    observation_id, resource_id, quota_domain, request_limit,
+                    request_remaining, token_limit, token_remaining, reset_at,
+                    daily_remaining, concurrency_limit, confidence, observed_at,
+                    source
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    str(uuid4()),
+                    resource_id,
+                    quota_domain,
+                    request_limit,
+                    request_remaining,
+                    token_limit,
+                    token_remaining,
+                    reset_at.strip() if isinstance(reset_at, str) else None,
+                    daily_remaining,
+                    concurrency_limit,
+                    confidence,
+                    timestamp,
+                    source.strip(),
+                ),
+            )
+            self.connection.commit()
+
+    def get_quota_observation(self, resource_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self.connection.execute(
+                """SELECT resource_id, quota_domain, request_limit,
+                          request_remaining, token_limit, token_remaining,
+                          reset_at, daily_remaining, concurrency_limit,
+                          confidence, observed_at, source
+                   FROM quota_observations
+                   WHERE resource_id=?
+                   ORDER BY observed_at DESC, observation_id DESC
+                   LIMIT 1""",
+                (resource_id,),
+            ).fetchone()
+            return dict(row) if row is not None else None
 
     def get_resource(self, resource_id: str) -> dict[str, Any]:
         with self._lock:

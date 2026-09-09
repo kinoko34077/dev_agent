@@ -108,6 +108,65 @@ def test_resource_ledger_persists_quota_domain_identity(tmp_path):
     assert reopened.get_resource("gemini-free")["quota_domain"] == "google-project-123"
 
 
+def test_resource_ledger_persists_quota_observation_and_reloads_it(tmp_path):
+    ledger = ResourceLedger(tmp_path / "quota-observation.sqlite3")
+    ledger.register_resource(
+        "gemini-free",
+        provider_id="gemini",
+        native_unit="request",
+        capacity=100,
+        capabilities=["text"],
+        quota_domain="google-project-123",
+    )
+
+    ledger.observe_quota(
+        "gemini-free",
+        request_limit=100,
+        request_remaining=80,
+        token_limit=10000,
+        token_remaining=8000,
+        reset_at="2026-09-10T00:00:00+00:00",
+        daily_remaining=500,
+        concurrency_limit=4,
+        confidence=0.9,
+        source="provider-header",
+    )
+
+    observation = ledger.get_quota_observation("gemini-free")
+    assert observation["quota_domain"] == "google-project-123"
+    assert observation["request_remaining"] == 80
+    assert observation["token_remaining"] == 8000
+    assert observation["concurrency_limit"] == pytest.approx(4)
+    assert observation["confidence"] == pytest.approx(0.9)
+    assert observation["source"] == "provider-header"
+
+    reopened = ResourceLedger(tmp_path / "quota-observation.sqlite3")
+    assert reopened.get_quota_observation("gemini-free")["request_remaining"] == 80
+
+
+def test_quota_observation_rejects_invalid_limits_and_missing_domain(tmp_path):
+    ledger = ResourceLedger(tmp_path / "quota-validation.sqlite3")
+    ledger.register_resource(
+        "gemini-free",
+        provider_id="gemini",
+        native_unit="request",
+        capacity=100,
+        capabilities=["text"],
+        quota_domain="google-project-123",
+    )
+    with pytest.raises(ValueError, match="request_remaining"):
+        ledger.observe_quota("gemini-free", request_limit=10, request_remaining=11)
+
+    ledger.register_resource(
+        "local",
+        provider_id="ollama",
+        native_unit="request",
+        capacity=100,
+        capabilities=["text"],
+    )
+    with pytest.raises(ValueError, match="quota_domain"):
+        ledger.observe_quota("local", request_remaining=1)
+
 def test_resource_observation_cannot_exceed_registered_capacity(tmp_path):
     ledger = ResourceLedger(tmp_path / "resources.sqlite3")
     ledger.register_resource("small", provider_id="local", native_unit="request", capacity=1, capabilities=["text"])
