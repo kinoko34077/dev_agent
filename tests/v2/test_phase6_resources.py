@@ -7,7 +7,7 @@ import pytest
 
 from src.dev_agent.resources.budget import BudgetAuthority, BudgetExceeded, BudgetGovernor, BudgetPolicy, ResourceUnavailable, UnknownPrice
 from src.dev_agent.resources.ledger import BudgetPeriod, MoneyAmount, ResourceLedger, ResourcePrice, _BUDGET_ADMIN_TOKEN
-from src.dev_agent.domain.protocol import Task, TaskClass
+from src.dev_agent.domain.protocol import RecoveryTaskAuthority, Task, TaskClass
 
 
 def test_resource_ledger_runs_ordered_migrations_for_legacy_database(tmp_path):
@@ -158,7 +158,7 @@ def test_recovery_reserve_requires_authorized_task_class(tmp_path):
     ledger = _ledger(tmp_path)
     governor = _governor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=40))
     normal_task = Task(objective="normal task")
-    recovery_task = Task(objective="recovery task", task_class=TaskClass.RECOVERY)
+    recovery_task = RecoveryTaskAuthority.create(objective="recovery task")
 
     with pytest.raises(PermissionError, match="BudgetAuthority"):
         governor.reserve("task-recovery", "remote-gemini", estimated_cost_minor=30, recovery=True)
@@ -229,7 +229,7 @@ def test_budget_rejects_unknown_price_and_preserves_recovery_reserve(tmp_path):
     assert reservation.reservation_id
     with pytest.raises(BudgetExceeded):
         governor.reserve("task-normal-2", "remote-gemini", estimated_cost_minor=1)
-    recovery = BudgetAuthority.reserve_recovery(governor, Task(objective="task recovery", task_class=TaskClass.RECOVERY), "remote-gemini", estimated_cost_minor=30)
+    recovery = BudgetAuthority.reserve_recovery(governor, RecoveryTaskAuthority.create(objective="task recovery"), "remote-gemini", estimated_cost_minor=30)
     assert recovery.recovery
 
 

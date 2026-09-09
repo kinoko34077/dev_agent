@@ -99,7 +99,7 @@ class JsonStateStore:
 
     def load_task(self, task_id: str) -> Task | None:
         value = self._data["tasks"].get(task_id)
-        return Task.from_dict(value) if value else None
+        return Task.from_persisted_dict(value) if value else None
 
     def get_idempotent(self, key: str) -> ToolResult | None:
         value = self._data.setdefault("idempotency", {}).get(key)

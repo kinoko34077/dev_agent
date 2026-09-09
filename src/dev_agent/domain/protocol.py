@@ -40,6 +40,9 @@ class TaskClass(str, Enum):
     RECOVERY = "recovery"
 
 
+_RECOVERY_TASK_AUTHORITY = object()
+
+
 class StepStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"
@@ -189,6 +192,7 @@ class Task:
     limits: ExecutionLimits = field(default_factory=ExecutionLimits)
     metadata: dict[str, Any] = field(default_factory=dict)
     task_class: TaskClass = TaskClass.NORMAL
+    _authority: object | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         self.task_id = _id(self.task_id, "task_id")
@@ -199,6 +203,8 @@ class Task:
             raise ProtocolError("depth must be a non-negative integer")
         self.status = _enum(self.status, TaskStatus, "status")  # type: ignore[assignment]
         self.task_class = _enum(self.task_class, TaskClass, "task_class")  # type: ignore[assignment]
+        if self.task_class is TaskClass.RECOVERY and self._authority is not _RECOVERY_TASK_AUTHORITY:
+            raise ProtocolError("recovery tasks must be created by RecoveryTaskAuthority")
         self.inputs = _mapping(self.inputs, "inputs")
         self.constraints = _mapping(self.constraints, "constraints")
         self.metadata = _mapping(self.metadata, "metadata")
@@ -206,17 +212,42 @@ class Task:
             self.limits = ExecutionLimits.from_dict(self.limits)  # type: ignore[arg-type]
 
     def to_dict(self) -> dict[str, Any]:
-        return _json_dict(self)
+        value = _json_dict(self)
+        value.pop("_authority", None)
+        return value
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "Task":
+        return cls._from_dict(data, authority=None)
+
+    @classmethod
+    def from_persisted_dict(cls, data: Mapping[str, Any]) -> "Task":
+        """Rehydrate a task already accepted by a trusted durable StateStore."""
+        return cls._from_dict(data, authority=_RECOVERY_TASK_AUTHORITY)
+
+    @classmethod
+    def _from_dict(cls, data: Mapping[str, Any], *, authority: object | None) -> "Task":
         values = dict(data)
         values["status"] = _enum(values.get("status", TaskStatus.QUEUED), TaskStatus, "status")
         values["limits"] = ExecutionLimits.from_dict(values.get("limits", {}))
+        values["_authority"] = authority
         try:
             return cls(**values)
         except TypeError as exc:
             raise ProtocolError(f"invalid task: {exc}") from exc
+
+
+class RecoveryTaskAuthority:
+    """Create the explicitly classified Tasks allowed to use Recovery Reserve."""
+
+    @staticmethod
+    def create(**values: Any) -> Task:
+        requested = values.pop("task_class", TaskClass.RECOVERY)
+        if _enum(requested, TaskClass, "task_class") is not TaskClass.RECOVERY:
+            raise ProtocolError("RecoveryTaskAuthority can create only recovery tasks")
+        values["task_class"] = TaskClass.RECOVERY
+        values["_authority"] = _RECOVERY_TASK_AUTHORITY
+        return Task(**values)
 
 
 @dataclass

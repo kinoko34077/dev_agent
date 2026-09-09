@@ -168,7 +168,7 @@ class SQLiteStateStore:
     @_serialized
     def load_task(self, task_id: str) -> Task | None:
         row = self.connection.execute("SELECT payload FROM tasks WHERE task_id = ?", (task_id,)).fetchone()
-        return Task.from_dict(json.loads(row["payload"])) if row else None
+        return Task.from_persisted_dict(json.loads(row["payload"])) if row else None
 
     @_serialized
     def get_idempotent(self, key: str) -> ToolResult | None:

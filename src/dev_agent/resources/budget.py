@@ -9,7 +9,7 @@ import math
 from pathlib import Path
 from typing import Any
 
-from ..domain.protocol import Task, TaskClass
+from ..domain.protocol import Task, TaskClass, _RECOVERY_TASK_AUTHORITY
 from .ledger import _BUDGET_ADMIN_TOKEN, BudgetPeriod, MoneyAmount, ResourceLedger
 
 
@@ -145,8 +145,8 @@ class BudgetAuthority:
         recovery=True)``.  Only this authority-controlled path can provide
         the internal capability required by the Governor.
         """
-        if not isinstance(task, Task) or task.task_class is not TaskClass.RECOVERY:
-            raise PermissionError("recovery reserve requires the recovery task class on Task")
+        if not isinstance(task, Task) or task.task_class is not TaskClass.RECOVERY or task._authority is not _RECOVERY_TASK_AUTHORITY:
+            raise PermissionError("recovery reserve requires an authorized RecoveryTaskAuthority task class")
         return governor.reserve(
             task.task_id,
             resource_id,

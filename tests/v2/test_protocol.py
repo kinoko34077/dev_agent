@@ -8,11 +8,15 @@ from src.dev_agent.domain.protocol import (
     ModelRequest,
     ModelResponse,
     ProtocolError,
+    RecoveryTaskAuthority,
     Task,
+    TaskClass,
     ToolCall,
     ToolResult,
     dumps,
 )
+from src.dev_agent.state.sqlite_store import SQLiteStateStore
+from src.dev_agent.state.json_store import JsonStateStore
 
 
 def test_protocol_records_round_trip_without_provider_objects():
@@ -42,6 +46,24 @@ def test_protocol_records_round_trip_without_provider_objects():
     assert ToolResult.from_dict(result.to_dict()).to_dict() == result.to_dict()
     assert Event.from_dict(event.to_dict()).to_dict() == event.to_dict()
     assert json.loads(dumps(response))["provider"] == "fake"
+
+
+def test_recovery_task_requires_authority_and_trusted_persisted_reload(tmp_path):
+    with pytest.raises(ProtocolError, match="RecoveryTaskAuthority"):
+        Task(objective="forged recovery", task_class=TaskClass.RECOVERY)
+    task = RecoveryTaskAuthority.create(objective="authorized recovery")
+    with pytest.raises(ProtocolError, match="RecoveryTaskAuthority"):
+        Task.from_dict(task.to_dict())
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        store.save_task(task)
+        loaded = store.load_task(task.task_id)
+    assert loaded is not None
+    assert loaded.task_class is TaskClass.RECOVERY
+    json_store = JsonStateStore(tmp_path / "state.json")
+    json_store.save_task(task)
+    loaded_json = json_store.load_task(task.task_id)
+    assert loaded_json is not None
+    assert loaded_json.task_class is TaskClass.RECOVERY
 
 
 def test_limits_reject_unbounded_or_invalid_values():

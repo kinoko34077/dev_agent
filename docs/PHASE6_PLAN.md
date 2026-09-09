@@ -31,8 +31,9 @@ Implemented in `src/dev_agent/resources/ledger.py` and `budget.py`.
   external path remains a deployment prerequisite.
 - Recovery Reserve is not a caller-controlled boolean: direct
   `recovery=True` reservations are rejected, and only
-  `BudgetAuthority.reserve_recovery(governor, recovery_task, ...)` can obtain
-  the internal capability for a persisted `Task(task_class="recovery")`.
+  `BudgetAuthority.reserve_recovery(governor, recovery_task, ...)` can use a
+  `RecoveryTaskAuthority`-created `Task(task_class="recovery")`; trusted
+  StateStore rehydration preserves that authority without exposing it in JSON.
 - Budget transitions are serialized with `BEGIN IMMEDIATE`, and release/unknown
   operations validate their expected source state in the same transaction.
 - Reservation state is durable as `prepared -> dispatching -> reconciled`,
