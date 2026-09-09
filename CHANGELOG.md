@@ -4,6 +4,14 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-10 JST — Refactor state and DevFarm evidence synchronization
+
+- ResourceLedgerの同一SQLite transaction境界を維持したまま、Resource Catalog、Resource Observation、Quota Observation、Provider Healthの内部storeを分離した。公開Facade、schema、budget semanticsは変更していない。
+- Phase 7Cにhost側の決定的 `TaskEvaluator` と durable `evaluation.recorded` eventを追加した。Model自身のtests claimや自己評価は正式な成功証拠にせず、有限なPASS／RETRY／ESCALATE／WAIT_HUMAN／FAIL判定だけを記録する。
+- DevFarmのWorker proposalはCloudflare／OpenRouterともAPI到達後にstrict unified-diff validationで拒否された。host-verified test、公式branch統合、実Worker成功とは扱っていない。
+- `MISTRAL_API_KEY` を環境から再読込みしてlive qualificationを試行したが、推論HTTP 429で未資格化。証跡を `spec/v2/evidence/phase6-mistral-2026-09-09.json` に保存した。G6O1とProvider Gate判定は変更していない。
+- 現在状態の正本を `docs/CURRENT_STATE.md` に追加し、README／Phase 6計画／DevFarm説明／Traceabilityの古いテスト件数、credential状態、実装所有者、外部送信表現を同期した。
+
 ### 2026-09-09 JST — Shared compatible HTTP, OpenRouter qualification, and quota units
 
 - Groq／SambaNovaの重複HTTP実装を共通 `OpenAICompatibleHttpTransport`／`OpenAICompatibleHttpProvider` へ集約し、Mistral／OpenRouterを同じ境界へ追加した。Mistral固有の `max_tokens` 差分はAdapter内に限定し、Provider SDK型をKernelへ漏らさない。
@@ -15,7 +23,7 @@
 - `test_phase6_integration.py`をbudget、provider dispatch、provider reconciliation、provider fencing、terminal stateの5ファイルへ責務別に分割し、Gate／Traceabilityのテスト参照を同期した。
 - ローカルv2全回帰は `316 passed, 1 skipped`。同一timestampのquota観測は挿入順をtie-breakerとして最新値を決定する。Mistralは資格情報未設定、GroqはHTTP 403、SambaNovaはHTTP 429/402のため、いずれもlive無料Providerの成功とは扱っていない。G6O1はBLOCKED_EXTERNALのまま。実装baseline `8c8176b783dcb145065de9116958b0192620755c` のexact-head CIは `v2-core` run `34357779353` と `v2 tests` run `34357779324` がsuccess。
 - `ResourceReadView`、`ProviderHealthStore`、`LegacyDirectProviderJournal`を追加し、Routerの読み取り、Provider health、Controller compatibility経路の永続化責務を内部分離した。Controller／Providerの公開契約、SQLite schema、Gate判定は変更していない。ローカルv2全回帰は `317 passed, 1 skipped`。実装baseline `9cfac134a1e34c2228acde75ba5b49c65111a57a` のexact-head CIは `v2-core` run `34360260517` と `v2 tests` run `34360260443` がsuccess。
-- `ProviderDefinition → ProviderFactory → ProviderRegistry`を追加し、Provider固有の構築配線と資格情報解決を分離した。開発Worker Runnerはmanifest-scoped入力、result／patch／tests／notes artifact、範囲外変更拒否を提供するが、外部モデルへの内部ファイル送信とパッチ適用は自動化しない。
+- `ProviderDefinition → ProviderFactory → ProviderRegistry`を追加し、Provider固有の構築配線と資格情報解決を分離した。開発Worker Runnerはmanifest-scoped入力、result／patch／tests／notes artifact、範囲外変更拒否を提供する。自動activation・無承認送信・自動patch適用は行わず、明示実行時は承認済みoutbound scopeだけを外部Providerへ送信する。
 
 ### 2026-09-09 JST — Free Provider HTTP boundary and development Worker Farm
 

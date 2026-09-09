@@ -1,14 +1,14 @@
 # Phase 6 — Resource / Survival / Recovery
 
-Status: foundation VERIFIED; G6O2〜G6O6 VERIFIED; G6O1 BLOCKED_EXTERNAL; Phase 6A quota/provider expansion locally verified; OpenRouter Free canonical live qualification verified; Mistral credential待ち; Groq models probe HTTP 403
+Status: foundation VERIFIED; G6O2〜G6O6 VERIFIED; G6O1 BLOCKED_EXTERNAL; Phase 6A quota/provider expansion locally verified; OpenRouter Free and Cloudflare canonical live qualification verified; Mistral live attempt HTTP 429 and unqualified; Groq models probe HTTP 403; Phase 7C evaluator core locally verified
 
 The current implementation code baseline is
-`9cfac134a1e34c2228acde75ba5b49c65111a57a`. Its external exact-head CI
-completed successfully: `v2-core` run `34360260517` and `v2 tests` run
-`34360260443`, both with `GITHUB_SHA` equal to that code baseline. CI run IDs
-are external observations, not repository self-certification records. A later
-documentation-only commit that records them is not itself presented as code
-evidence.
+`8b638a9`. This baseline adds durable Phase 7C Evaluator evidence after the
+refactor slices. Its latest external exact-head CI result is pending
+confirmation in this checkout; older CI run IDs are not reused as evidence for
+this baseline. CI run IDs are external observations, not repository
+self-certification records. A later documentation-only commit that records
+them is not itself presented as code evidence.
 
 Historical baselines include the implementation before the refactor pass,
 `22c26542323b80abeeeac51e31f835cfa1d6ab67`; its external exact-head CI
@@ -21,8 +21,8 @@ requirements file. Refactor R3 at
 RoutingSnapshot read boundary. The latest refactor pass also isolated the
 Router `ResourceReadView`, Provider `ProviderHealthStore`, and direct-provider
 `LegacyDirectProviderJournal` without changing the public Controller flow. The
-latest local regression is `317 passed, 1 skipped`. The current code baseline's
-exact-head CI results are recorded above;
+latest local regression for the current code baseline is `349 passed, 1 skipped`.
+The current code baseline's exact-head CI result is pending confirmation;
 these results are external observations and do not create live-provider
 qualification evidence. Documentation-only synchronization does not change
 the implementation baseline and is not written back into `GATE_STATUS.json`.
@@ -46,7 +46,8 @@ the SambaCloud OpenAI-compatible Chat Completions endpoint and normalizes its
 request/day rate-limit headers. Cloudflare and OpenRouter Free are
 live-qualified; Groq's models probe is currently rejected with HTTP 403 and
 SambaNova reached the API but returned HTTP 429/402, so both remain
-unqualified. Mistral has no configured credential in the current environment.
+unqualified. Mistral's configured-key live attempt reached the API but
+returned HTTP 429 and remains unqualified.
 SambaNova is intentionally excluded
 from the no-charge qualification command until its billing tier and
 worst-case cost are explicitly qualified. Its failure artifacts are
@@ -60,9 +61,10 @@ evidence. Phase
 metadata into ModelRequest; it does not select a model or add an AgentBackend.
 The canonical path stays
 Controller -> ProviderDispatcher -> ProviderRegistry -> concrete Provider,
-while the Controller direct-provider branch remains compatibility-only. It
-does not implement model-tier routing, Hedging, AgentBackend, MCP, evaluator
-promotion, or later Phase 7 stages.
+while the Controller direct-provider branch remains compatibility-only. Phase
+7C now has a deterministic host-evidence evaluator and durable event recorder;
+it does not yet implement model-tier routing, escalation execution, Hedging,
+AgentBackend, MCP, evaluator promotion, or later Phase 7 stages.
 
 ## 6A — Resource Ledger and Budget Governor
 

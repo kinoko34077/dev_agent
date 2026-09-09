@@ -9,9 +9,13 @@
 | INV-008, INV-013 | protocol / rescue boundary | `providers`, `recovery` | import / adapter contract |
 | INV-009, INV-012 | reversible change / human approval | `policy`, Git workflow | policy Gate |
 | INV-010, INV-011 | hard budget / reserve | `resources` | survival Gate |
-| INV-010, INV-011 | native-unit ledger, reservation, and reconciliation | `src/dev_agent/resources/ledger.py`, `budget.py`, `control.py` | `tests/v2/test_phase6_resources.py`, `test_phase6_budget_dispatch.py`, `test_phase6_provider_reconciliation.py` / F6A, F6E |
+| INV-010, INV-011 | native-unit ledger, reservation, and reconciliation | `src/dev_agent/resources/ledger.py` (facade), `budget.py`, `control.py`, `catalog.py`, `observations.py` | `tests/v2/test_phase6_resources.py`, `test_phase6_budget_dispatch.py`, `test_phase6_provider_reconciliation.py` / F6A, F6E |
 | INV-012 | privacy-first routing and deterministic survival mode | `src/dev_agent/resources/router.py`, `survival.py` | `tests/v2/test_phase6_router.py` / F6B |
 | INV-007, INV-008 | independent recovery operation boundary | `recovery/phase6_recovery.py`, `validate_resources.py` | `tests/v2/test_phase6_recovery.py` / F6C |
 | INV-003, INV-004 | durable queue ownership and lease fencing | `src/dev_agent/scheduler/queue.py` | `tests/v2/test_phase6_scheduler.py` / F6D |
 | INV-003, INV-004, INV-011 | waiting queue items are parked until explicit wake; ambiguous provider resume is fail-closed | `src/dev_agent/scheduler/worker.py`, `src/dev_agent/runtime/controller.py` | `tests/v2/test_phase6_scheduler.py::test_worker_defers_waiting_task_until_explicit_wake`, `tests/v2/test_phase6_provider_reconciliation.py::test_paid_provider_timeout_waits_for_reconciliation_instead_of_failing` / G6O4 |
 | INV-015 | workflow first | `workflows` | resolver Gate |
+| INV-011, REQ-006 | Provider intent, replay, and durable provider audit ownership | `src/dev_agent/providers/journal.py`, `dispatch.py` (facade) | provider dispatch / replay / audit tests / G6O2 |
+| INV-012 | Provider health mutation through the control-plane boundary | `src/dev_agent/resources/health.py`, `control.py`, `router.py` (read view) | provider health and routing tests / G6O2 |
+| INV-009, INV-012 | DevFarm outbound scope, worktree isolation, patch validation, and host verification | `scripts/devfarm.py`, `scripts/devfarm_worker.py` | DevFarm manifest/result/patch/isolation tests |
+| REQ-015 | Deterministic host-evidence evaluation with durable decision record | `src/dev_agent/intelligence/evaluator.py` | `tests/v2/test_evaluator.py` / Phase 7C foundation |

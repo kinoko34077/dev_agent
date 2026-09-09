@@ -1,0 +1,5 @@
+{
+  "status": "failed",
+  "category": "rate_limit",
+  "message": "mistral rate_limit: HTTP 429: Rate limit exceeded: rate_limited: 1300"
+}
