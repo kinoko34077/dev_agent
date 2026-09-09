@@ -799,6 +799,70 @@ def test_dispatcher_rejects_stale_lease_before_provider_call(tmp_path):
     assert ledger.reservation_totals()["active_reservations"] == 0
 
 
+def test_dispatcher_holds_result_when_lease_is_lost_after_provider_call(tmp_path):
+    ledger = ResourceLedger(tmp_path / "provider-post-call-lease.sqlite3")
+    ledger.register_resource("paid", provider_id="paid", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
+    ledger.observe("paid", available=10, health="healthy")
+    control = ResourceControlPlane(ResourceRouter(ledger), _governor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)))
+    calls = []
+    checks = 0
+
+    class PaidProvider(FakeProvider):
+        provider_id = "paid"
+
+        def request(self, request):
+            calls.append(request.request_id)
+            return ModelResponse(provider="paid", model="test", text_segments=["must reconcile"], usage={"cost_minor": 10})
+
+    def lease_guard():
+        nonlocal checks
+        checks += 1
+        if checks >= 2:
+            raise RuntimeError("stale worker")
+
+    request = ModelRequest(task_id=Task(objective="post-call stale").task_id, messages=[{"role": "user", "content": "hello"}])
+    dispatcher = ProviderDispatcher(ProviderRegistry([PaidProvider()]), control)
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        dispatcher.bind_runtime(state_store=store, lease_guard=lease_guard)
+        with pytest.raises(ProviderError) as exc_info:
+            dispatcher.request(request)
+        assert exc_info.value.category == "reconciliation_required"
+        key = store.connection.execute("SELECT idempotency_key FROM effect_intents").fetchone()[0]
+        assert store.get_effect_intent(key)["status"] == "unknown"
+
+    assert calls == [request.request_id]
+    assert ledger.reservation_totals()["active_reservations"] == 1
+
+
+def test_direct_provider_holds_result_when_lease_is_lost_after_provider_call(tmp_path):
+    ledger = ResourceLedger(tmp_path / "direct-post-call-lease.sqlite3")
+    ledger.register_resource("paid", provider_id="paid", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
+    ledger.observe("paid", available=10, health="healthy")
+    control = ResourceControlPlane(ResourceRouter(ledger), _governor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)))
+    checks = 0
+
+    class PaidProvider(FakeProvider):
+        provider_id = "paid"
+
+        def request(self, request):
+            return ModelResponse(provider="paid", model="test", text_segments=["must reconcile"], usage={"cost_minor": 10})
+
+    def lease_guard():
+        nonlocal checks
+        checks += 1
+        if checks == 4:
+            raise RuntimeError("stale worker")
+
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        task = Task(objective="direct post-call stale")
+        result = Controller(PaidProvider(), ToolRuntime(ToolRegistry()), store, resource_policy=control, lease_guard=lease_guard).run(task)
+        intent = store.connection.execute("SELECT status FROM effect_intents").fetchone()
+
+    assert result.status.value == "waiting_reconciliation"
+    assert intent["status"] == "unknown"
+    assert ledger.reservation_totals()["active_reservations"] == 1
+
+
 def test_dispatch_intent_transition_fences_reclaimed_queue_lease(tmp_path):
     ledger = ResourceLedger(tmp_path / "provider-lease-proof-resources.sqlite3")
     ledger.register_resource("paid", provider_id="paid", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
@@ -865,12 +929,12 @@ def test_controller_maps_dispatcher_timeout_to_reconciliation(tmp_path):
 
         def request(self, request):
             import time
-            time.sleep(0.2)
+            time.sleep(0.5)
             return ModelResponse(provider="slow", model="test", text_segments=["late"])
 
     dispatcher = ProviderDispatcher(ProviderRegistry([SlowProvider()]), control)
     with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
-        task = Task(objective="dispatcher timeout", limits={"max_wall_time_seconds": 0.03})
+        task = Task(objective="dispatcher timeout", limits={"max_wall_time_seconds": 0.25})
         controller = Controller(dispatcher, ToolRuntime(ToolRegistry()), store)
         result = controller.run(task)
         assert result.status.value == "waiting_reconciliation"

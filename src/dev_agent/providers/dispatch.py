@@ -233,6 +233,23 @@ class ProviderDispatcher(ModelProvider):
                 # not let Controller classify it as a local decode failure.
                 raise ProviderError(f"provider transport failed: {exc}", category="transport", retryable=True) from exc
             try:
+                if self._lease_guard is not None:
+                    self._lease_guard()
+            except Exception as exc:
+                # A lease can expire while the concrete provider is running.
+                # Its response is externally real but ownership is no longer
+                # authoritative; keep the reservation and intent unknown.
+                try:
+                    self.control.uncertain(reservation)
+                except Exception:
+                    pass
+                try:
+                    self._intent(intent_key, status="unknown", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id, "error_category": "reconciliation_required", "cause": "lease_lost", "message": str(exc)})
+                    self._record_audit(request, selection, "lease_lost_after_dispatch", intent_key, details={"category": "reconciliation_required", "cause": "lease_lost"})
+                except Exception:
+                    pass
+                raise ProviderError("provider dispatch completed after lease loss; reconciliation required", category="reconciliation_required", retryable=False) from exc
+            try:
                 if not isinstance(response, ModelResponse):
                     raise TypeError("provider must return ModelResponse")
                 self.control.reconcile_response(reservation, response)

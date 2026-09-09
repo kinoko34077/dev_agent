@@ -545,6 +545,20 @@ class Controller:
                         self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="provider_decode", message=str(exc))
                         return task
                     self._fail(task, state, "provider_decode", str(exc), step=step, request_id=request.request_id)
+                if reservation is not None and self.lease_guard is not None:
+                    try:
+                        self.lease_guard()
+                    except Exception as exc:
+                        # The provider may have completed after this worker
+                        # lost ownership.  Do not accept the response as a
+                        # normal success; preserve the charge-bearing
+                        # reservation and require reconciliation before any
+                        # retry can reuse the request.
+                        self.resource_policy.uncertain(reservation)
+                        self._provider_intent(provider_intent_key, status="unknown", result={"error_category": "reconciliation_required", "cause": "lease_lost", "message": str(exc)})
+                        self._record_provider_audit(request, reservation, "unknown", provider_intent_key, details={"category": "reconciliation_required", "cause": "lease_lost"})
+                        self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="lease_lost", message="provider response arrived after lease loss")
+                        return task
                 if reservation is not None:
                     try:
                         self.resource_policy.reconcile_response(reservation, response)
