@@ -41,6 +41,12 @@ Phase 0〜5 は current acceptance verified。Phase 3.5の後段要件、Phase 4
 
 進行判定: Stage F foundation と Stage G operational を別々に自動判定する。Stage Gは責務別に判定し、全G6O項目がVERIFIEDになるまでPhase 7へ進まない。現行のexact-head CIは `spec/v2/GATE_STATUS.json` の外部証跡方針に従う。
 
+### 2026-09-09 の現在状態
+
+`v2/bootstrap` は `37e40b2207baaa26ab907633c30325b8d0fcca7d` まで、Groq／Cloudflare Workers AI の標準ライブラリHTTP Adapter、Groq rate-limit headerの正規化quota observation、fail-closedなlive qualification入口、開発専用Worker Farmのmanifest／result／worktree境界を実装している。通常のProvider経路は引き続き Controller -> ProviderDispatcher -> ProviderRegistry -> concrete Provider を正本とし、Controllerのdirect経路はcompatibility/legacyに限定する。Worker Farmは正式runtimeのScheduler／AgentBackend／Phase 7 Multi-Agentではなく、組み込み保護領域を含む契約検証済みの開発補助境界である。
+
+Groq／Cloudflareのlive qualificationは、それぞれ `GROQ_API_KEY`、`CLOUDFLARE_ACCOUNT_ID`／`CLOUDFLARE_API_TOKEN` の外部資格情報が未設定のため `blocked_external`。実ProviderのToolCall／ToolResult／quota観測証跡は未取得で、G6O1の有償Provider外部条件や既存Gate判定も変更していない。ローカル回帰は `286 passed, 1 skipped`。実通信が可能になった後に、まず1 Providerを開発Workerへ限定投入し、Codexがreview・統合する。
+
 ## 3. フェーズ別ロードマップ
 
 | Phase | 目的 / 主な成果物 | Gate（次へ進む条件） | 対応マイルストーン |

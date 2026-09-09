@@ -19,11 +19,13 @@ Codex (Commander / integrator)
 
 Each worker receives a manifest with a fixed `base_revision`, `allowed_files`,
 `read_files`, `forbidden_files`, finite attempts, acceptance checks, and an
-output contract. `scripts.devfarm.validate_manifest()` rejects path escapes and
-overlapping ownership. A result must use the same base revision and may list
-only files from `allowed_files`; a Worker cannot modify `v2/bootstrap`, Gate
-status, budget authority, Recovery policy, credentials, or another Worker's
-worktree by convention and contract.
+output contract. `scripts.devfarm.validate_manifest()` rejects path escapes,
+overlapping ownership, and attempts to own the built-in protected files
+(`spec/v2/GATE_STATUS.json`, budget authority) or the `recovery/` and
+`.devfarm/` trees. A result must use the same base revision and may list only
+files from `allowed_files`; a Worker cannot modify `v2/bootstrap`, Gate status,
+budget authority, Recovery policy, credentials, or another Worker's worktree
+by convention and contract.
 
 Prepare a separate checkout with an `agent/<provider>/<task>` branch:
 

@@ -11,6 +11,12 @@ CI run IDs are external observations, not repository self-certification
 records. The documentation commit that records them is not itself presented
 as code evidence.
 
+The latest local baseline is
+`37e40b2207baaa26ab907633c30325b8d0fcca7d`; its exact-head CI is tracked
+externally while the workflows run. The latest local regression is
+`286 passed, 1 skipped`; this does not turn absent live-provider credentials
+into qualification evidence.
+
 Phase 6A〜6E is the current v2 work boundary. The phase is deliberately split
 into small control-plane components so that resource exhaustion, provider
 failure, recovery mutation, and worker ownership remain deterministic and
