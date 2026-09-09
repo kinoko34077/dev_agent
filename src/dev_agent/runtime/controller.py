@@ -706,6 +706,28 @@ class Controller:
                     state["tool_calls"] += len(response.tool_calls)
                     if state["tool_calls"] > task.limits.max_tool_calls:
                         self._fail(task, state, "limits_exceeded", "tool call limit exceeded", step=step, request_id=request.request_id)
+                    # Preserve the provider-facing assistant tool-call turn in
+                    # the durable conversation transcript. OpenAI-compatible
+                    # providers require this message immediately before the
+                    # following tool results; keeping it in Kernel state also
+                    # makes a resumed second request wire-compatible.
+                    state["messages"].append(
+                        {
+                            "role": "assistant",
+                            "content": "".join(response.text_segments),
+                            "tool_calls": [
+                                {
+                                    "id": call.provider_call_id or call.call_id,
+                                    "type": "function",
+                                    "function": {
+                                        "name": call.tool_name,
+                                        "arguments": json.dumps(call.arguments, ensure_ascii=False, separators=(",", ":")),
+                                    },
+                                }
+                                for call in response.tool_calls
+                            ],
+                        }
+                    )
                     state["pending_tool_calls"] = []
                     for index, call in enumerate(response.tool_calls):
                         # Provider/LLM supplied replay keys are hints only.  The

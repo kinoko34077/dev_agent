@@ -381,7 +381,7 @@ class ToolCall:
 class ModelRequest:
     request_id: str = field(default_factory=lambda: str(uuid4()))
     task_id: str = ""
-    messages: list[dict[str, str]] = field(default_factory=list)
+    messages: list[dict[str, Any]] = field(default_factory=list)
     requested_capabilities: list[str] = field(default_factory=list)
     allowed_tools: list[str] = field(default_factory=list)
     tool_definitions: list[dict[str, Any]] = field(default_factory=list)

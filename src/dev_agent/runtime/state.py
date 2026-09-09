@@ -44,7 +44,7 @@ class RuntimeState(dict[str, Any]):
         return deepcopy(dict(self))
 
     @property
-    def messages(self) -> list[dict[str, str]]:
+    def messages(self) -> list[dict[str, Any]]:
         return self["messages"]
 
     @property
