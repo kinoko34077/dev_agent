@@ -24,7 +24,7 @@ Phase 6Aの第一バッチとして、ResourceLedger schema v7のquota_domain id
 - 通常Provider経路は Controller -> ProviderDispatcher -> ProviderRegistry -> Concrete Provider とする。
 - Controllerのdirect Provider処理は compatibility / legacy path として残す。
 - ExecutionContext、ToolRuntime.bound_to()、RuntimeState、AuditRecorderは既存境界を維持する。
-- 後段のmodel tier拡張、Hedge、AgentBackend、MCP/API、plan dispatch実行、未実装Providerの固有header解析は次段階へ送る。明示opt-inのresource tier routing、GroqとSambaNovaのrate-limit headerを正規化した `usage.quota_observation` の取り込み、CloudflareのNeuron消費推定（`authority=estimated`）とPhase 7A/BのTask profile policyは現行境界に含む。Phase 7Dではhost/operatorがplanを明示reviewし、accepted/rejectedをdurable eventへ記録するが、review後の自動dispatchやTask mutationは行わない。CloudflareとOpenRouter Freeのlive qualificationはToolCall往復とdurable auditを確認したが、quota残量は未報告のためunknownである。SambaNovaは `/v1/models` 接続を確認したが、推論はHTTP 429/402で停止しているためfree-provider qualificationから除外し、成功・無償tier・paid worst-caseを推測しない。Mistralはキー読込み後の推論HTTP 429で未資格化であり、成功や無料枠を推測しない。
+- 後段のmodel tier拡張、Hedge、AgentBackend、MCP/API、plan dispatch実行、未実装Providerの固有header解析は次段階へ送る。明示opt-inのresource tier routing、GroqとSambaNovaのrate-limit headerを正規化した `usage.quota_observation` の取り込み、CloudflareのNeuron消費推定（`authority=estimated`）とPhase 7A/BのTask profile policyは現行境界に含む。Phase 7Dではhost/operatorがplanを明示reviewし、accepted/rejectedと受理済みplanのdispatch-ready handoffをdurable eventへ記録するが、review後の自動dispatchやTask mutationは行わない。CloudflareとOpenRouter Freeのlive qualificationはToolCall往復とdurable auditを確認したが、quota残量は未報告のためunknownである。SambaNovaは `/v1/models` 接続を確認したが、推論はHTTP 429/402で停止しているためfree-provider qualificationから除外し、成功・無償tier・paid worst-caseを推測しない。Mistralはキー読込み後の推論HTTP 429で未資格化であり、成功や無料枠を推測しない。
 
 ## 選択的ロードの目安
 

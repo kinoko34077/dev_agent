@@ -1,12 +1,12 @@
 # Phase 6 — Resource / Survival / Recovery
 
-Status: foundation VERIFIED; G6O2〜G6O6 VERIFIED; G6O1 BLOCKED_EXTERNAL; Phase 6A quota/provider expansion locally verified; OpenRouter Free and Cloudflare canonical live qualification verified; Mistral live attempt HTTP 429 and unqualified; Groq models probe HTTP 403; Phase 7A/B opt-in tier routing and Phase 7C/D bounded evaluation coordinator locally verified
+Status: foundation VERIFIED; G6O2〜G6O6 VERIFIED; G6O1 BLOCKED_EXTERNAL; Phase 6A quota/provider expansion locally verified; OpenRouter Free and Cloudflare canonical live qualification verified; Mistral live attempt HTTP 429 and unqualified; Groq models probe HTTP 403; Phase 7A/B opt-in tier routing and Phase 7C/D bounded evaluation coordinator / reviewed dispatch-ready handoff locally verified
 
 The current code baseline is
-`d1372b8dfc5ed4394c3f439474e064a81a20150d`. The latest exact-head GitHub
-Actions evidence is for the prior refactor commit `47191d4a8725af68848a43a0900af63afc4a42d8`:
-both workflows succeeded, `v2-core` run `34384890829` (Python 3.10 and 3.11
-matrix jobs) and `v2 tests` run `34384890828`. CI run IDs are external
+`3bb5ba6e50e234e13b4e6c4b6b852085731ca8f1`. The latest exact-head GitHub
+Actions evidence is for this commit:
+both workflows succeeded, `v2-core` run `34407852066` (Python 3.10 and 3.11
+matrix jobs) and `v2 tests` run `34407851906`. CI run IDs are external
 observations, not repository self-certification records.
 
 Historical baselines include the implementation before the refactor pass,
@@ -20,8 +20,8 @@ requirements file. Refactor R3 at
 RoutingSnapshot read boundary. The latest refactor pass also isolated the
 Router `ResourceReadView`, Provider `ProviderHealthStore`, and direct-provider
 `LegacyDirectProviderJournal` without changing the public Controller flow. The
-latest local regression for the current code baseline is `371 passed, 1
-skipped in 68.74s`; the latest DevFarm patch/host verification targeted run is
+latest local regression for the current code baseline is `373 passed, 1
+skipped in 57.74s`; the latest DevFarm patch/host verification targeted run is
 `16 passed in 17.51s`. The refactor baseline was `358 passed, 1 skipped in
 66.76s`. These results are external observations and do not create
 live-provider qualification evidence. Documentation-only synchronization does
@@ -72,8 +72,10 @@ while the Controller direct-provider branch remains compatibility-only. Phase
 7C now has a deterministic host-evidence evaluator and durable event recorder;
 Phase 7D adds a coordinator that records that evidence before returning one
 bounded escalation plan. The plan event is durable, and an explicit host
-review records acceptance or rejection with actor, reference, and reason. It
-does not yet implement plan dispatch execution, Hedging,
+review records acceptance or rejection with actor, reference, and reason. An
+accepted plan can now be recorded as a dispatch-ready handoff without
+selecting a Provider or executing it. It does not yet implement plan dispatch
+execution, Hedging,
 AgentBackend, MCP, evaluator promotion, or later Phase 7 stages.
 
 ## 6A — Resource Ledger and Budget Governor

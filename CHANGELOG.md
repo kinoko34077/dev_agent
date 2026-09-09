@@ -4,6 +4,12 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-10 JST — Reviewed escalation dispatch handoff
+
+- `EvaluationCoordinator.prepare_dispatch()`を追加し、accepted reviewとplan identityを検証した受理済みplanだけを、Provider選択・予算再確認・Task mutation・実dispatchを行わない不変`EscalationDispatchRequest`へ変換する。`escalation.dispatch_ready` eventにはplan、reviewer、approval referenceをdurableに記録する。
+- rejected review、別planのreview、terminal evaluationからのhandoffは拒否する。Phase 7D focused testsは`23 passed`、全回帰は`373 passed, 1 skipped`。
+- `3bb5ba6`のexact-head GitHub Actionsは`v2-core` run `34407852066`（Python 3.10/3.11 success）と`v2 tests` run `34407851906`（success）を確認した。G6O1と既存Gate statusは変更していない。
+
 ### 2026-09-10 JST — Explicit escalation plan review boundary
 
 - `EscalationPlan`へ`plan_id`を付与し、`EvaluationCoordinator.review_plan()`でhost/operatorのaccepted／rejectedをdurable eventへ記録する境界を追加した。actor、approval reference、reject reason、対象planを保存するが、Provider dispatch、Task mutation、Worker artifact適用は行わない。
