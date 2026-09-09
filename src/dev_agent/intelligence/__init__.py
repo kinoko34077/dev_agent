@@ -21,6 +21,7 @@ from .workflow import (
     WorkflowPromotionPolicy,
     WorkflowPromotionRecorder,
 )
+from .loop import EvaluationDispatchCoordinator, EvaluationDispatchCycle, EvaluationDispatchStatus
 
 __all__ = [
     "EvaluationEvidence",
@@ -50,4 +51,7 @@ __all__ = [
     "WorkflowPromotionEvidence",
     "WorkflowPromotionPolicy",
     "WorkflowPromotionRecorder",
+    "EvaluationDispatchCoordinator",
+    "EvaluationDispatchCycle",
+    "EvaluationDispatchStatus",
 ]
