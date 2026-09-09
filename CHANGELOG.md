@@ -4,6 +4,12 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-10 JST — Explicit escalation plan review boundary
+
+- `EscalationPlan`へ`plan_id`を付与し、`EvaluationCoordinator.review_plan()`でhost/operatorのaccepted／rejectedをdurable eventへ記録する境界を追加した。actor、approval reference、reject reason、対象planを保存するが、Provider dispatch、Task mutation、Worker artifact適用は行わない。
+- plan reviewの対象は同じ`EvaluationCycle`が生成した`escalation.planned`に限定し、plan event identityとevaluation resultの一致を検証する。対象テストは`14 passed`、全回帰は`371 passed, 1 skipped`。
+- `d1372b8`の実装を反映したCurrent State／Phase計画／Multi-Free要件／Traceabilityを同期した。G6O1と既存Gate statusは変更していない。
+
 ### 2026-09-10 JST — Bounded tier routing and host-verified DevFarm handoff
 
 - Phase 7A/Bの`IntelligenceRoutePolicy`を明示opt-inのresource tier routingへ接続した。`RouteRequest`は許可tierとresource metadataをexact matchし、通常routing、Task metadataによる自己昇格、Providerの自動activationは変更しない。

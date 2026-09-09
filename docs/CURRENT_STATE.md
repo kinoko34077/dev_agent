@@ -1,6 +1,6 @@
 # Current State — v2/bootstrap
 
-現在のコード基準は `040594d23da98bbc9c6387153838ea7d2a69b1f9` です。R2〜R7の
+現在のコード基準は `d1372b8dfc5ed4394c3f439474e064a81a20150d` です。R2〜R7の
 リファクタとPhase 7A〜7Dの限定的な実装を完了し、公開Protocol、schema v7、
 Provider contract、Gate判定は変更していません。GATE_STATUSのstatusはこの同期でも
 変更しません。
@@ -10,12 +10,12 @@ Provider contract、Gate判定は変更していません。GATE_STATUSのstatus
 - Phase 6 foundation: `VERIFIED`
 - Phase 6 operational: `G6O2`〜`G6O6` は `VERIFIED`
 - `G6O1`: `BLOCKED_EXTERNAL`（実paid Providerのworst-case課金実証と、deployment-owned budget設定の外部保護が必要）
-- Phase 7A/B/C/D: Task profile、bounded policy、明示opt-inのtier/resource routing、決定的host evaluator、durable evidence、Evaluatorから有限なescalation planを返すcoordinatorまで実装済み。planのdispatch実行、AgentBackend、MCPは未実装
+- Phase 7A/B/C/D: Task profile、bounded policy、明示opt-inのtier/resource routing、決定的host evaluator、durable evidence、有限なescalation planの生成と明示host review（accepted/rejected）記録まで実装済み。planのdispatch実行、AgentBackend、MCPは未実装
 - Gate昇格やlive qualificationの成功は、local testやWorker proposalから推測しません
 
 ## 検証
 
-- v2ローカル全回帰: `368 passed, 1 skipped in 68.74s`
+- v2ローカル全回帰: `371 passed, 1 skipped in 83.01s`
 - 最新のDevFarm patch/host verification targeted regression: `16 passed in 17.51s`
 - skip: `tests/v2/test_budget_reservations.py:142`（Windows ACLはdeployment-owned）
 - 変更前refactor baseline: `8bf7c2e`、`358 passed, 1 skipped in 66.76s`
@@ -62,7 +62,7 @@ valid unified diffを専用worktreeへ適用し、manifest許可済みhost test�
 
 1. DevFarmは、承認済みmanifestで2件目の独立Workerを実証する。成功成果もCodex review後にのみ公式branchへ統合する
 2. Phase 7A/Bのtier/resource routingは明示opt-inとし、通常routing・Task metadataによる自己昇格・自動activationを変更しない
-3. Phase 7Dのplanはdurable eventとして記録済み。次段階はhost側review・policy・既存ControlPlaneを通る明示的な受理境界であり、自動dispatchではない
+3. Phase 7Dのplan生成とhost側review（accepted/rejected）はdurable eventとして記録済み。次段階は既存ControlPlaneを通る明示的なdispatch受理・実行境界であり、自動dispatchではない
 4. G6O1、Groq、Mistral、SambaNovaの外部状態は、実証が得られるまで現在の判定を維持する
 
 READMEは入口、`PHASE6_PLAN.md`はPhase 6の受入条件、`V2_EXECUTION_PLAN.md`はロードマップ、

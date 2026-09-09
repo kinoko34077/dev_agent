@@ -3,7 +3,7 @@
 Status: foundation VERIFIED; G6O2〜G6O6 VERIFIED; G6O1 BLOCKED_EXTERNAL; Phase 6A quota/provider expansion locally verified; OpenRouter Free and Cloudflare canonical live qualification verified; Mistral live attempt HTTP 429 and unqualified; Groq models probe HTTP 403; Phase 7A/B opt-in tier routing and Phase 7C/D bounded evaluation coordinator locally verified
 
 The current code baseline is
-`040594d23da98bbc9c6387153838ea7d2a69b1f9`. The latest exact-head GitHub
+`d1372b8dfc5ed4394c3f439474e064a81a20150d`. The latest exact-head GitHub
 Actions evidence is for the prior refactor commit `47191d4a8725af68848a43a0900af63afc4a42d8`:
 both workflows succeeded, `v2-core` run `34384890829` (Python 3.10 and 3.11
 matrix jobs) and `v2 tests` run `34384890828`. CI run IDs are external
@@ -20,7 +20,7 @@ requirements file. Refactor R3 at
 RoutingSnapshot read boundary. The latest refactor pass also isolated the
 Router `ResourceReadView`, Provider `ProviderHealthStore`, and direct-provider
 `LegacyDirectProviderJournal` without changing the public Controller flow. The
-latest local regression for the current code baseline is `368 passed, 1
+latest local regression for the current code baseline is `371 passed, 1
 skipped in 68.74s`; the latest DevFarm patch/host verification targeted run is
 `16 passed in 17.51s`. The refactor baseline was `358 passed, 1 skipped in
 66.76s`. These results are external observations and do not create
@@ -71,8 +71,9 @@ Controller -> ProviderDispatcher -> ProviderRegistry -> concrete Provider,
 while the Controller direct-provider branch remains compatibility-only. Phase
 7C now has a deterministic host-evidence evaluator and durable event recorder;
 Phase 7D adds a coordinator that records that evidence before returning one
-bounded escalation plan. The plan event is durable, but it does not yet
-implement plan acceptance/dispatch execution, Hedging,
+bounded escalation plan. The plan event is durable, and an explicit host
+review records acceptance or rejection with actor, reference, and reason. It
+does not yet implement plan dispatch execution, Hedging,
 AgentBackend, MCP, evaluator promotion, or later Phase 7 stages.
 
 ## 6A — Resource Ledger and Budget Governor
@@ -236,7 +237,7 @@ deployment-owned budget administration. All Stage G records must be VERIFIED
 before Phase 6 is considered complete.
 Explicitly deferred Phase 6/7 work includes qualification against a real paid
 Provider, production-environment recovery drills with retained artifacts,
-plan acceptance/dispatch, unrestricted model-tier routing, and generated Tool
-lifecycle. Bounded tier routing and Evaluator evidence are already implemented.
+plan dispatch, unrestricted model-tier routing, and generated Tool lifecycle.
+Bounded tier routing, Evaluator evidence, and explicit plan review are already implemented.
 Artifact-root backup/restore is implemented through
 the RecoveryOperator, but its production retention policy remains operator work.

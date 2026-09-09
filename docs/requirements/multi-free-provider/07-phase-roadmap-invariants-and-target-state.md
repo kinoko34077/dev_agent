@@ -47,7 +47,7 @@ Phase 7A/Bの最初の境界として、Task profile (`task_type`、`risk`、
 L0〜L3のbounded tierを算出し、model metadataによる自己昇格を受け付けない。
 明示opt-in時はresource metadataのtierとexact matchしてrouteを制約するが、
 通常routingは変更しない。Phase 7CのEvaluatorと7Dのbounded
-evaluation-to-plan coordinatorまでは実装済みだが、planの受理・実行、
+evaluation-to-plan coordinatorとhost/operatorによるplanの明示review記録までは実装済みだが、planのdispatch実行、
 AgentBackend、Codex/MCP integration、workflow promotion、self-improvement、
 multi-agent orchestrationは後段である。
 
@@ -61,7 +61,7 @@ multi-agent orchestrationは後段である。
 
 - 追加Providerのlive qualification、未実装Providerの固有quota headerの解析
 - task別成功率・provider diversityを含む後段Router scoring
-- plan受理を伴う後段の実Provider選択、escalation実行
+- plan review後の実Provider選択、dispatch受理、escalation実行
 - Hedged Request
 - AgentBackend、MCP/API
 - 後段のPhase 7（workflow promotion、Self-Improvement等）

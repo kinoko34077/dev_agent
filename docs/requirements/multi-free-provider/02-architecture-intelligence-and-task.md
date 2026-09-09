@@ -71,5 +71,5 @@ ModelRequest metadataとaudit-visible requestへ渡す。明示opt-in時はresou
 metadataのtierとexact matchしてrouteを制約するが、通常routingは変更せず、
 モデルが自己申告で昇格できないpolicy seamを維持する。Phase 7Dでは、host側の
 Evaluator結果をdurable eventへ記録し、有限なescalation planを返すcoordinator
-まで追加した。planの受理・実行、
-workflow promotion、AgentBackend/MCPは後段である。
+まで追加した。planの明示review（accepted/rejected）記録も実装済みだが、
+review後のdispatch実行、workflow promotion、AgentBackend/MCPは後段である。
