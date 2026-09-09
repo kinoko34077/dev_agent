@@ -14,7 +14,7 @@ as code evidence.
 The latest local baseline is
 `37e40b2207baaa26ab907633c30325b8d0fcca7d`; its exact-head CI is tracked
 externally while the workflows run. The latest local regression is
-`287 passed, 1 skipped`; this does not turn absent live-provider credentials
+`288 passed, 1 skipped`; this does not turn absent live-provider credentials
 into qualification evidence.
 
 Phase 6A〜6E is the current v2 work boundary. The phase is deliberately split

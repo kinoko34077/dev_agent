@@ -9,8 +9,8 @@
 - Groq Chat CompletionsとCloudflare Workers AI RESTのopt-in HTTP Adapterを追加し、endpoint／認証／Provider固有envelopeをAdapter内へ閉じ込めた。Groqのrate-limit headerは正規化 `usage.quota_observation` として返し、存在しないCloudflare quota値は推測しない。
 - `scripts/qualify_free_provider.py` はcanonical Controller -> ProviderDispatcher -> ProviderRegistry経路を一時SQLiteで検証し、資格情報未設定時は`blocked_external`として終了する。live成功やGate昇格を推測しない。
 - `.devfarm/`をGit ignore対象とし、`scripts/devfarm.py`のmanifest ownership検証、result contract、workerごとのGit worktree準備を追加。正式runtimeのScheduler／AgentBackend／Phase 7 Multi-Agentとは分離した。
-- Controllerがassistant tool-call turnをcheckpoint可能な会話履歴へ保持し、Groq等のOpenAI互換wire contractでToolResult直前に再送できるようにした。
-- Adapter decoder、資格情報fail-closed、manifest ownership、保護領域拒否、Provider transcriptの回帰を含むローカル全回帰は `287 passed, 1 skipped`。Groq／Cloudflareのlive qualificationは資格情報待ちで未取得。
+- Controllerがassistant tool-call turnをcheckpoint可能な会話履歴へ保持し、Groq等のOpenAI互換wire contractでToolResult直前に再送できるようにした。資格確認スクリプトのcanonical Dispatcher往復もモック回帰で固定した。
+- Adapter decoder、資格情報fail-closed、manifest ownership、保護領域拒否、Provider transcript、qualification pathの回帰を含むローカル全回帰は `288 passed, 1 skipped`。Groq／Cloudflareのlive qualificationは資格情報待ちで未取得。
 
 ### 2026-09-09 JST — Phase 6B/C quota operation and Phase 7A/B policy seam
 
