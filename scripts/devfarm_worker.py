@@ -219,6 +219,24 @@ def _write_auxiliary_artifacts(root: Path, task_id: str, output: Mapping[str, An
     directory.joinpath("notes.md").write_text(notes + "\n", encoding="utf-8")
 
 
+def _record_failed_model_output(root: Path, manifest: Mapping[str, Any], reason: str) -> dict[str, Any]:
+    result = {
+        "status": "failed",
+        "base_revision": manifest["base_revision"],
+        "changed_files": [],
+        "tests_run": [],
+        "tests_passed": False,
+        "model_claims": {},
+        "proposed_test_commands": [],
+        "host_verified_tests": [],
+        "known_issues": [reason],
+        "assumptions": ["The model proposal failed deterministic validation; no patch was accepted."],
+    }
+    write_result(root, result, manifest=manifest)
+    _write_auxiliary_artifacts(root, manifest["task_id"], {**result, "patch": "", "notes": reason})
+    return result
+
+
 def _read_result_artifact(root: Path, manifest: Mapping[str, Any]) -> dict[str, Any]:
     path = root / ".devfarm" / "results" / manifest["task_id"] / "result.json"
     try:
@@ -356,26 +374,29 @@ def run_worker(root: str | Path, manifest_path: str | Path, *, provider: ModelPr
     if len(text) > MAX_OUTPUT_TEXT_CHARS:
         raise DevFarmError("worker response exceeds output limit")
     output = _extract_json(text)
-    patch = output.get("patch", "")
-    actual_changed_files = validate_patch(patch, manifest=manifest)
-    model_claims = {
-        "changed_files": output.get("changed_files"),
-        "tests_run": output.get("tests_run"),
-        "tests_passed": output.get("tests_passed"),
-    }
-    result = {
-        "status": output.get("status"),
-        "base_revision": manifest["base_revision"],
-        "changed_files": actual_changed_files,
-        "tests_run": [],
-        "tests_passed": False,
-        "model_claims": model_claims,
-        "proposed_test_commands": output.get("tests_run", []),
-        "host_verified_tests": [],
-        "known_issues": output.get("known_issues"),
-        "assumptions": output.get("assumptions"),
-    }
-    normalized = validate_result(result, manifest=manifest)
+    try:
+        patch = output.get("patch", "")
+        actual_changed_files = validate_patch(patch, manifest=manifest)
+        model_claims = {
+            "changed_files": output.get("changed_files"),
+            "tests_run": output.get("tests_run"),
+            "tests_passed": output.get("tests_passed"),
+        }
+        result = {
+            "status": output.get("status"),
+            "base_revision": manifest["base_revision"],
+            "changed_files": actual_changed_files,
+            "tests_run": [],
+            "tests_passed": False,
+            "model_claims": model_claims,
+            "proposed_test_commands": output.get("tests_run", []),
+            "host_verified_tests": [],
+            "known_issues": output.get("known_issues"),
+            "assumptions": output.get("assumptions"),
+        }
+        normalized = validate_result(result, manifest=manifest)
+    except DevFarmError as exc:
+        return _record_failed_model_output(root, manifest, str(exc))
     write_result(root, normalized, manifest=manifest)
     _write_auxiliary_artifacts(root, manifest["task_id"], output)
     return normalized

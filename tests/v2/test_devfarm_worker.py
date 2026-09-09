@@ -113,7 +113,7 @@ def test_worker_writes_validated_result_artifacts(tmp_path):
     assert (result_dir / "notes.md").read_text(encoding="utf-8") == "Focused test added.\n"
 
 
-def test_worker_rejects_model_output_outside_manifest_scope(tmp_path):
+def test_worker_records_model_output_outside_manifest_scope_as_failed_artifact(tmp_path):
     root, manifest_path = _workspace(tmp_path)
     output = {
         "status": "completed",
@@ -125,8 +125,32 @@ def test_worker_rejects_model_output_outside_manifest_scope(tmp_path):
         "patch": "diff --git a/README.md b/README.md\n",
     }
 
-    with pytest.raises(DevFarmError, match="outside manifest"):
-        run_worker(root, manifest_path, provider=_WorkerProvider(output))
+    result = run_worker(root, manifest_path, provider=_WorkerProvider(output))
+
+    assert result["status"] == "failed"
+    assert any("outside manifest" in issue for issue in result["known_issues"])
+    assert result["changed_files"] == []
+    assert (root / ".devfarm/results/worker-test-001/patch.diff").read_text(encoding="utf-8") == ""
+
+
+def test_worker_records_malformed_model_patch_as_failed_artifact(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    output = {
+        "status": "completed",
+        "changed_files": [],
+        "tests_run": [],
+        "tests_passed": True,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": "not a unified diff",
+        "notes": "model returned an invalid proposal",
+    }
+
+    result = run_worker(root, manifest_path, provider=_WorkerProvider(output))
+
+    assert result["status"] == "failed"
+    assert any("unified diff" in issue for issue in result["known_issues"])
+    assert json.loads((root / ".devfarm/results/worker-test-001/tests.json").read_text(encoding="utf-8"))["host_verified_tests"] == []
 
 
 def test_worker_requires_existing_clean_worktree_at_manifest_revision(tmp_path):
