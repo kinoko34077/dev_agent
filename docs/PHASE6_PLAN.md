@@ -2,9 +2,9 @@
 
 Status: foundation VERIFIED; operational integration IN PROGRESS
 
-Current code evidence baseline: `653c4d8442aaf18407c49ac2aa27c7cba2743f35`
-(external exact-head CI: v2-core run `34307148658`, v2 tests run
-`34307148651`). These run IDs are external
+Current code evidence baseline: `ec39e8bc3ce2e46a741c7a96599f1122db30407a`
+(external exact-head CI: v2-core run `34308323345`, v2 tests run
+`34308323266`). These run IDs are external
 observations, not repository self-certification records.
 
 Phase 6A〜6E is the current v2 work boundary. The phase is deliberately split
