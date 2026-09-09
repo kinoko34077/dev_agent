@@ -89,6 +89,7 @@ class ResourceSpec:
     cost_minor: int | None
     price_currency: str | None = None
     quota_domain: str | None = None
+    provider_binding_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -363,6 +364,7 @@ class ResourceLedger:
         cost_minor: int | None = None,
         price_currency: str | None = None,
         quota_domain: str | None = None,
+        provider_binding_id: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> ResourceSpec:
         if not resource_id.strip() or not provider_id.strip() or not native_unit.strip():
@@ -371,6 +373,16 @@ class ResourceLedger:
             if not isinstance(quota_domain, str) or not quota_domain.strip():
                 raise ValueError("quota_domain must be a non-empty string or None")
             quota_domain = quota_domain.strip()
+        if provider_binding_id is not None:
+            if not isinstance(provider_binding_id, str) or not provider_binding_id.strip():
+                raise ValueError("provider_binding_id must be a non-empty string or None")
+            provider_binding_id = provider_binding_id.strip()
+        resource_metadata = dict(metadata or {})
+        metadata_binding = resource_metadata.get("provider_binding_id")
+        if provider_binding_id is None and isinstance(metadata_binding, str) and metadata_binding.strip():
+            provider_binding_id = metadata_binding.strip()
+        provider_binding_id = provider_binding_id or provider_id.strip()
+        resource_metadata["provider_binding_id"] = provider_binding_id
         self._number(capacity, "capacity")
         if cost_minor is not None:
             if isinstance(cost_minor, bool) or not isinstance(cost_minor, int) or cost_minor < 0:
@@ -394,10 +406,10 @@ class ResourceLedger:
                    capabilities_json=excluded.capabilities_json, sensitivity=excluded.sensitivity,
                    cost_minor=excluded.cost_minor, price_currency=excluded.price_currency,
                    quota_domain=excluded.quota_domain, metadata_json=excluded.metadata_json""",
-                (resource_id, provider_id, native_unit, capacity, json.dumps(capability_list), sensitivity, cost_minor, price_currency.upper() if price_currency else None, quota_domain, capacity, now, json.dumps(metadata or {}, ensure_ascii=False)),
+                (resource_id, provider_id, native_unit, capacity, json.dumps(capability_list), sensitivity, cost_minor, price_currency.upper() if price_currency else None, quota_domain, capacity, now, json.dumps(resource_metadata, ensure_ascii=False)),
             )
             self.connection.commit()
-        return ResourceSpec(resource_id, provider_id, native_unit, capacity, capability_list, sensitivity, cost_minor, price_currency.upper() if price_currency else None, quota_domain)
+        return ResourceSpec(resource_id, provider_id, native_unit, capacity, capability_list, sensitivity, cost_minor, price_currency.upper() if price_currency else None, quota_domain, provider_binding_id)
 
     def observe(
         self,

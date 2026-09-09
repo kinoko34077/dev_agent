@@ -51,6 +51,8 @@ class RouteSelection:
     native_unit: str
     estimated_cost_minor: int | None
     price_currency: str | None
+    provider_binding_id: str | None = None
+    model_id: str | None = None
 
 
 _SENSITIVITY = {"public": 0, "normal": 1, "internal": 2, "sensitive": 3}
@@ -200,4 +202,19 @@ class ResourceRouter:
         if not candidates:
             raise NoRoute("no eligible resource")
         *_, chosen = min(candidates)
-        return RouteSelection(chosen["resource_id"], chosen["provider_id"], chosen["native_unit"], chosen["cost_minor"], chosen["price_currency"])
+        metadata = chosen.get("metadata") if isinstance(chosen.get("metadata"), dict) else {}
+        provider_binding_id = chosen.get("provider_binding_id") or metadata.get("provider_binding_id") or chosen["provider_id"]
+        model_id = chosen.get("model_id") or metadata.get("model_id")
+        if not isinstance(provider_binding_id, str) or not provider_binding_id.strip():
+            provider_binding_id = chosen["provider_id"]
+        if not isinstance(model_id, str) or not model_id.strip():
+            model_id = None
+        return RouteSelection(
+            chosen["resource_id"],
+            chosen["provider_id"],
+            chosen["native_unit"],
+            chosen["cost_minor"],
+            chosen["price_currency"],
+            provider_binding_id.strip(),
+            model_id.strip() if model_id else None,
+        )

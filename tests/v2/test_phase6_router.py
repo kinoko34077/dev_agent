@@ -25,6 +25,27 @@ def test_router_prioritizes_privacy_over_cost_and_filters_capabilities(tmp_path)
     assert selection.provider_id == "ollama"
 
 
+def test_router_exposes_provider_binding_and_model_from_resource_metadata(tmp_path):
+    ledger = ResourceLedger(tmp_path / "resources.sqlite3")
+    ledger.register_resource(
+        "mistral-small",
+        provider_id="mistral",
+        native_unit="request",
+        capacity=1,
+        capabilities=["text"],
+        sensitivity="normal",
+        cost_minor=0,
+        metadata={"provider_binding_id": "mistral:small", "model_id": "mistral-small-latest"},
+    )
+    ledger.observe("mistral-small", available=1, health="healthy")
+
+    selection = ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}, sensitivity="normal"))
+
+    assert selection.provider_id == "mistral"
+    assert selection.provider_binding_id == "mistral:small"
+    assert selection.model_id == "mistral-small-latest"
+
+
 def test_router_excludes_open_circuit_and_reports_no_route(tmp_path):
     ledger = _ledger(tmp_path)
     ledger.record_provider_failure("ollama", threshold=1, cooldown_seconds=60)

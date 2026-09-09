@@ -47,6 +47,8 @@ class ProviderDispatchJournal:
                     "request_id": request.request_id,
                     "task_id": request.task_id,
                     "provider_id": selection.provider_id,
+                    "provider_binding_id": selection.provider_binding_id or selection.provider_id,
+                    "model_id": selection.model_id,
                     "resource_id": selection.resource_id,
                     "native_unit": selection.native_unit,
                     "estimated_cost_minor": selection.estimated_cost_minor,
@@ -102,6 +104,9 @@ class ProviderDispatchJournal:
     ) -> None:
         if self._state_store is None:
             return
+        audit_details = dict(details or {})
+        audit_details.setdefault("provider_binding_id", selection.provider_binding_id or selection.provider_id)
+        audit_details.setdefault("model_id", selection.model_id)
         self._state_store.record_provider_audit(
             task_id=request.task_id,
             request_id=request.request_id,
@@ -112,7 +117,7 @@ class ProviderDispatchJournal:
             estimated_cost_minor=selection.estimated_cost_minor,
             price_currency=selection.price_currency,
             outcome=outcome,
-            details=details,
+            details=audit_details,
         )
 
 

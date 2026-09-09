@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from dataclasses import replace
 from typing import Any, Callable, TYPE_CHECKING
 
 from ..domain.protocol import ModelRequest, ModelResponse
@@ -24,24 +25,50 @@ class ProviderRegistry:
             from .factory import ProviderFactory
 
             factory = ProviderFactory()
-        return cls([factory.create(definition) for definition in definitions])
+        definitions = list(definitions)
+        counts: dict[str, int] = {}
+        for definition in definitions:
+            counts[definition.provider_id] = counts.get(definition.provider_id, 0) + 1
+        providers = []
+        for definition in definitions:
+            if definition.provider_binding_id is None and counts[definition.provider_id] > 1:
+                definition = replace(definition, provider_binding_id=f"{definition.provider_id}:{definition.model}")
+            providers.append(factory.create(definition))
+        return cls(providers)
 
     def __init__(self, providers: list[ModelProvider] | tuple[ModelProvider, ...]) -> None:
         self._providers: dict[str, ModelProvider] = {}
+        self._bindings_by_provider: dict[str, list[str]] = {}
         for provider in providers:
             if not isinstance(provider.provider_id, str) or not provider.provider_id.strip():
                 raise ValueError("provider_id must be a non-empty string")
-            if provider.provider_id in self._providers:
-                raise ValueError(f"duplicate provider_id: {provider.provider_id}")
-            self._providers[provider.provider_id] = provider
+            binding_id = getattr(provider, "provider_binding_id", None) or provider.provider_id
+            if not isinstance(binding_id, str) or not binding_id.strip():
+                raise ValueError("provider_binding_id must be a non-empty string")
+            binding_id = binding_id.strip()
+            if binding_id in self._providers:
+                raise ValueError(f"duplicate provider_id without distinct provider_binding_id: {binding_id}")
+            self._providers[binding_id] = provider
+            self._bindings_by_provider.setdefault(provider.provider_id, []).append(binding_id)
         if not self._providers:
             raise ValueError("at least one provider is required")
 
     def get(self, provider_id: str) -> ModelProvider:
+        bindings = self._bindings_by_provider.get(provider_id, [])
+        if len(bindings) > 1:
+            raise ProviderError(f"provider binding is required for provider: {provider_id}", category="unsupported_capability", retryable=False)
+        if len(bindings) == 1:
+            return self._providers[bindings[0]]
+        raise ProviderError(f"unsupported provider: {provider_id}", category="unsupported_capability", retryable=False)
+
+    def get_binding(self, provider_binding_id: str) -> ModelProvider:
         try:
-            return self._providers[provider_id]
+            return self._providers[provider_binding_id]
         except KeyError as exc:
-            raise ProviderError(f"unsupported provider: {provider_id}", category="unsupported_capability", retryable=False) from exc
+            raise ProviderError(f"unsupported provider binding: {provider_binding_id}", category="unsupported_capability", retryable=False) from exc
+
+    def bindings_for_provider(self, provider_id: str) -> tuple[str, ...]:
+        return tuple(sorted(self._bindings_by_provider.get(provider_id, ())))
 
 
 @dataclass(frozen=True)
@@ -49,6 +76,8 @@ class DispatchAudit:
     provider_id: str
     resource_id: str
     outcome: str
+    provider_binding_id: str | None = None
+    model_id: str | None = None
 
 
 class ProviderDispatcher(ModelProvider):
@@ -97,7 +126,7 @@ class ProviderDispatcher(ModelProvider):
         return self._journal.result(key)
 
     def _record_audit(self, request: ModelRequest, selection: RouteSelection, outcome: str, intent_key: str | None, *, details: dict[str, Any] | None = None) -> None:
-        entry = DispatchAudit(selection.provider_id, selection.resource_id, outcome)
+        entry = DispatchAudit(selection.provider_id, selection.resource_id, outcome, selection.provider_binding_id, selection.model_id)
         self._journal.record_audit(request, selection, outcome, intent_key, details=details)
         # Keep the compatibility in-memory view only after the durable audit
         # has committed; it must never report a success that exists solely in
@@ -131,7 +160,7 @@ class ProviderDispatcher(ModelProvider):
                 if last_error is not None:
                     raise last_error
                 raise DispatchDenied("no_route", str(exc)) from exc
-            provider = self.registry.get(selection.provider_id)
+            provider = self.registry.get_binding(selection.provider_binding_id or selection.provider_id)
             # Resolve the concrete provider and durable intent before
             # acquiring a budget/capacity reservation.  A replayed succeeded
             # intent must not create a fresh reservation, and a stale
