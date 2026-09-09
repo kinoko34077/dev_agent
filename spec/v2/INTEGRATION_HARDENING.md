@@ -70,14 +70,17 @@ see `docs/PHASE6_PLAN.md`.
 
 ## Deferred follow-up during Phase 6 / Phase 7
 
-- Live operator use of persisted diagnostic artifacts remains a later Recovery
-  drill; the exact-head CI matrix now passes on the recorded evidence head.
+- The isolated operator-equivalent Recovery drill is verified; live production
+  use and retention of persisted diagnostic artifacts remain deployment work.
+  The exact-head CI matrix passes on the current code evidence baseline.
 - Approval-wait/resume is now available through `Controller.resume(task_id, approval_id=...)`; a higher-level UI/API for presenting pending approvals remains required.
 - Local-model visible-response quality policy remains a follow-up; `qwen3:8b` Tool-call qualification is verified, while the `qwen3:0.6b` thinking-trace behavior remains a recorded quirk.
 - Output-quality policy for local model thinking traces remains a follow-up;
   the required Ollama Tool-call qualification is now verified (D23/D24).
 - Expanded contract harness: multi-tool, sequential result, malformed response, timeout, rate-limit, quota, and limits.
-- Persisted CI test-result ingestion and live operator rollback/repair drills remain deferred operational work.
+- Persisted CI test-result ingestion and production-environment rollback/repair
+  drills remain deferred operational work; the isolated Phase 6 operator drill
+  is already recorded as verified evidence.
 
 ## Recovery progress
 

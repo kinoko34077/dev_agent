@@ -35,11 +35,11 @@ v1 は移植元ではなく、知見・ログ・失敗の回帰資料である�
 
 ### 現在フェーズ
 
-**Phase 6 — Resource / Survival / Recovery（foundation verified・運用統合を実施中）**
+**Phase 6 — Resource / Survival / Recovery（foundation verified・運用統合の最終閉鎖中）**
 
-Phase 0〜5 は current acceptance verified。Phase 3.5の後段要件、Phase 4 local実Provider、Phase 5 remote実Providerの証跡は `spec/v2/GATE_STATUS.json` を正とする。Phase 6A〜6Eで resource ledger、budget reservation、privacy-first router、survival modes、独立Recovery運用、durable scheduler ownershipの基礎を実装し、Stage Fとして検証している。Stage Gでは、実Provider dispatch、通貨・period安全な予算、survival policy、lease-fenced worker、独立接続の競合証明、recovery drill を統合検証する。
+Phase 0〜5 は current acceptance verified。Phase 3.5の後段要件、Phase 4 local実Provider、Phase 5 remote実Providerの証跡は `spec/v2/GATE_STATUS.json` を正とする。Phase 6A〜6Eで resource ledger、budget reservation、privacy-first router、survival modes、独立Recovery運用、durable scheduler ownershipの基礎を実装し、Stage Fとして検証している。Stage Gでは、実Provider dispatch、通貨・period安全な予算、survival policy、lease-fenced worker、独立接続の競合証明、recovery drillを責務別に統合検証している。現在G6O2〜G6O6はVERIFIED、G6O1のみ有償worst-case実証とdeployment-owned budget設定の外部保護確認待ちである。
 
-進行判定: Stage F foundation と Stage G operational を別々に自動判定し、Stage Gの通常系・独立競合系・fail-closed系・exact HEAD CI証跡が揃うこと。
+進行判定: Stage F foundation と Stage G operational を別々に自動判定する。Stage Gは責務別に判定し、全G6O項目がVERIFIEDになるまでPhase 7へ進まない。現行のexact-head CIは `spec/v2/GATE_STATUS.json` の外部証跡方針に従う。
 
 ## 3. フェーズ別ロードマップ
 
