@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..domain.protocol import Event
-from .escalation import BoundedEscalationPolicy, EscalationContext, EscalationPlan
+from .escalation import BoundedEscalationPolicy, EscalationContext, EscalationDispatchRequest, EscalationPlan
 from .evaluator import EvaluationEvidence, EvaluationRecorder, EvaluationResult, EvaluatorDecision, TaskEvaluator
 
 
@@ -103,16 +103,7 @@ class EvaluationCoordinator:
         """
         if not isinstance(cycle, EvaluationCycle):
             raise TypeError("cycle must be EvaluationCycle")
-        if cycle.plan is None or cycle.plan_event is None:
-            raise ValueError("cycle does not contain a plan to review")
-        plan = cycle.plan
-        plan_event = cycle.plan_event
-        if plan_event.event_type != "escalation.planned" or plan_event.task_id != plan.task_id:
-            raise ValueError("plan event does not match the plan")
-        if plan_event.payload.get("plan_id") != plan.plan_id:
-            raise ValueError("plan event identity does not match the plan")
-        if cycle.result.task_id != plan.task_id or cycle.result.decision is not plan.decision:
-            raise ValueError("evaluation result does not match the plan")
+        plan = self._validated_plan(cycle, purpose="review")
         if not isinstance(approved, bool):
             raise TypeError("approved must be a boolean")
         return self._recorder.record_review(
@@ -122,6 +113,55 @@ class EvaluationCoordinator:
             approval_reference=approval_reference,
             reason=reason,
         )
+
+    def prepare_dispatch(self, cycle: EvaluationCycle, review_event: Event) -> EscalationDispatchRequest:
+        """Create a durable, approved dispatch handoff without dispatching.
+
+        The returned request intentionally omits provider selection and model
+        input.  A later executor must re-check task state, policy, quota,
+        budget, and lease ownership through the existing control plane.
+        """
+        plan = self._validated_plan(cycle, purpose="dispatch")
+        if not isinstance(review_event, Event):
+            raise TypeError("review_event must be Event")
+        if review_event.event_type != "escalation.accepted":
+            raise ValueError("dispatch requires an accepted plan review")
+        if review_event.task_id != plan.task_id:
+            raise ValueError("review event task does not match the plan")
+        payload = review_event.payload
+        if payload.get("review") != "accepted":
+            raise ValueError("dispatch requires an accepted plan review")
+        if payload.get("plan_id") != plan.plan_id:
+            raise ValueError("review event plan does not match the plan")
+        approved_by = payload.get("actor")
+        approval_reference = payload.get("approval_reference")
+        request = EscalationDispatchRequest(
+            task_id=plan.task_id,
+            plan_id=plan.plan_id,
+            decision=plan.decision,
+            target=plan.target,
+            next_tier=plan.next_tier,
+            approved_by=approved_by,
+            approval_reference=approval_reference,
+        )
+        self._recorder.record_dispatch_ready(request)
+        return request
+
+    @staticmethod
+    def _validated_plan(cycle: EvaluationCycle, *, purpose: str) -> EscalationPlan:
+        if not isinstance(cycle, EvaluationCycle):
+            raise TypeError("cycle must be EvaluationCycle")
+        if cycle.plan is None or cycle.plan_event is None:
+            raise ValueError(f"cycle does not contain a plan to {purpose}")
+        plan = cycle.plan
+        plan_event = cycle.plan_event
+        if plan_event.event_type != "escalation.planned" or plan_event.task_id != plan.task_id:
+            raise ValueError("plan event does not match the plan")
+        if plan_event.payload.get("plan_id") != plan.plan_id:
+            raise ValueError("plan event identity does not match the plan")
+        if cycle.result.task_id != plan.task_id or cycle.result.decision is not plan.decision:
+            raise ValueError("evaluation result does not match the plan")
+        return plan
 
     @staticmethod
     def _validate_context(evidence: EvaluationEvidence, context: EscalationContext) -> None:

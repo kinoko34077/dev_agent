@@ -1,6 +1,8 @@
-from src.dev_agent.domain.protocol import IntelligenceTier
+import pytest
+
+from src.dev_agent.domain.protocol import Event, IntelligenceTier
 from src.dev_agent.intelligence.coordination import EvaluationCoordinator
-from src.dev_agent.intelligence.escalation import EscalationContext, EscalationTarget
+from src.dev_agent.intelligence.escalation import EscalationContext, EscalationDispatchRequest, EscalationTarget
 from src.dev_agent.intelligence.evaluator import EvaluationEvidence, EvaluatorDecision
 from src.dev_agent.state import JsonStateStore
 
@@ -165,3 +167,60 @@ def test_evaluation_coordinator_rejects_review_without_plan_or_rejection_reason(
         assert "reason" in str(exc)
     else:
         raise AssertionError("plan rejection without a reason was accepted")
+
+
+def test_evaluation_coordinator_prepares_dispatch_only_after_accepted_review(tmp_path):
+    store = JsonStateStore(tmp_path / "state.json")
+    coordinator = EvaluationCoordinator(store)
+    cycle = coordinator.evaluate_and_plan(_evidence(), escalation_context=_context())
+    review = coordinator.review_plan(
+        cycle,
+        actor="codex-reviewer",
+        approved=True,
+        approval_reference="review-dispatch-001",
+    )
+
+    request = coordinator.prepare_dispatch(cycle, review)
+
+    assert isinstance(request, EscalationDispatchRequest)
+    assert request.task_id == _TASK_ID
+    assert request.plan_id == cycle.plan.plan_id
+    assert request.approved_by == "codex-reviewer"
+    assert request.approval_reference == "review-dispatch-001"
+    assert request.to_dict()["target"] == "higher_tier"
+    ready = [item for item in store.snapshot()["events"] if item["event_type"] == "escalation.dispatch_ready"]
+    assert len(ready) == 1
+    assert ready[0]["payload"]["plan_id"] == cycle.plan.plan_id
+    assert ready[0]["payload"]["approval_reference"] == "review-dispatch-001"
+    assert not store.has_event(_TASK_ID, "provider.dispatched")
+
+
+def test_evaluation_coordinator_does_not_prepare_dispatch_from_rejected_or_forged_review(tmp_path):
+    store = JsonStateStore(tmp_path / "state.json")
+    coordinator = EvaluationCoordinator(store)
+    cycle = coordinator.evaluate_and_plan(_evidence(), escalation_context=_context())
+    rejected = coordinator.review_plan(
+        cycle,
+        actor="operator",
+        approved=False,
+        approval_reference="review-dispatch-002",
+        reason="requires more evidence",
+    )
+
+    with pytest.raises(ValueError, match="accepted"):
+        coordinator.prepare_dispatch(cycle, rejected)
+
+    forged = Event(
+        event_type="escalation.accepted",
+        task_id=_TASK_ID,
+        payload={
+            "review": "accepted",
+            "plan_id": "not-the-cycle-plan",
+            "actor": "operator",
+            "approval_reference": "forged",
+        },
+    )
+    with pytest.raises(ValueError, match="plan"):
+        coordinator.prepare_dispatch(cycle, forged)
+
+    assert not store.has_event(_TASK_ID, "escalation.dispatch_ready")

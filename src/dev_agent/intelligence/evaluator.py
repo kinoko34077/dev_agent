@@ -221,5 +221,30 @@ class EvaluationRecorder:
         self._store.append_event(event)
         return event
 
+    def record_dispatch_ready(self, request: Any) -> Event:
+        """Persist a reviewed plan handoff without executing it."""
+        if not hasattr(request, "to_dict") or not isinstance(getattr(request, "task_id", None), str):
+            raise TypeError("request must provide task_id and to_dict()")
+        request_payload = request.to_dict()
+        if not isinstance(request_payload, dict):
+            raise TypeError("request.to_dict() must return an object")
+        plan_id = request_payload.get("plan_id")
+        if not isinstance(plan_id, str) or not plan_id.strip():
+            raise ValueError("dispatch request must have a non-empty plan_id")
+        event = Event(
+            event_type="escalation.dispatch_ready",
+            task_id=request.task_id,
+            provider=self._actor,
+            payload={
+                "actor": self._actor,
+                "status": "ready",
+                "plan_id": plan_id,
+                "request": request_payload,
+                **request_payload,
+            },
+        )
+        self._store.append_event(event)
+        return event
+
 
 __all__ = ["EvaluationEvidence", "EvaluationRecorder", "EvaluationResult", "EvaluatorDecision", "TaskEvaluator"]

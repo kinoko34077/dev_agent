@@ -133,6 +133,64 @@ class EscalationPlan:
         return data
 
 
+@dataclass(frozen=True)
+class EscalationDispatchRequest:
+    """An immutable, explicitly approved handoff for a future dispatch.
+
+    This record carries no provider instance, request payload, or execution
+    callback.  It is deliberately only the bounded plan identity plus the
+    human/host approval reference, so a later executor must still perform its
+    own control-plane selection and resource checks.
+    """
+
+    task_id: str
+    plan_id: str
+    decision: EvaluatorDecision
+    target: EscalationTarget
+    next_tier: IntelligenceTier | None
+    approved_by: str
+    approval_reference: str
+
+    def __post_init__(self) -> None:
+        for name, value in (
+            ("task_id", self.task_id),
+            ("plan_id", self.plan_id),
+            ("approved_by", self.approved_by),
+            ("approval_reference", self.approval_reference),
+        ):
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{name} must be a non-empty string")
+            object.__setattr__(self, name, value.strip())
+        if self.decision not in {
+            EvaluatorDecision.RETRY_SAME,
+            EvaluatorDecision.RETRY_OTHER_PROVIDER,
+            EvaluatorDecision.ESCALATE,
+        }:
+            raise ValueError("dispatch request decision must be retry or escalation")
+        if not isinstance(self.target, EscalationTarget) or self.target in {
+            EscalationTarget.NONE,
+            EscalationTarget.HUMAN,
+        }:
+            raise ValueError("dispatch request target must be a provider or higher tier")
+        if self.next_tier is not None and not isinstance(self.next_tier, IntelligenceTier):
+            raise ValueError("dispatch request next_tier must be an IntelligenceTier or None")
+        if self.target is EscalationTarget.HIGHER_TIER and self.next_tier is None:
+            raise ValueError("higher-tier dispatch request requires next_tier")
+        if self.target is not EscalationTarget.HIGHER_TIER and self.next_tier is not None:
+            raise ValueError("provider retry dispatch request cannot carry next_tier")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "task_id": self.task_id,
+            "plan_id": self.plan_id,
+            "decision": self.decision.value,
+            "target": self.target.value,
+            "next_tier": self.next_tier.value if self.next_tier is not None else None,
+            "approved_by": self.approved_by,
+            "approval_reference": self.approval_reference,
+        }
+
+
 class BoundedEscalationPolicy:
     """Select a finite retry/escalation step from host-observed context."""
 
@@ -193,4 +251,10 @@ class BoundedEscalationPolicy:
         )
 
 
-__all__ = ["BoundedEscalationPolicy", "EscalationContext", "EscalationPlan", "EscalationTarget"]
+__all__ = [
+    "BoundedEscalationPolicy",
+    "EscalationContext",
+    "EscalationDispatchRequest",
+    "EscalationPlan",
+    "EscalationTarget",
+]

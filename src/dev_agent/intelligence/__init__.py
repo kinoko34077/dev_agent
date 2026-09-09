@@ -2,7 +2,7 @@
 
 from .policy import IntelligenceDecision, TaskIntelligencePolicy
 from .evaluator import EvaluationEvidence, EvaluationRecorder, EvaluationResult, EvaluatorDecision, TaskEvaluator
-from .escalation import BoundedEscalationPolicy, EscalationContext, EscalationPlan, EscalationTarget
+from .escalation import BoundedEscalationPolicy, EscalationContext, EscalationDispatchRequest, EscalationPlan, EscalationTarget
 from .coordination import EvaluationCoordinator, EvaluationCycle
 from .routing import IntelligenceRoutePolicy
 
@@ -15,6 +15,7 @@ __all__ = [
     "EvaluatorDecision",
     "BoundedEscalationPolicy",
     "EscalationContext",
+    "EscalationDispatchRequest",
     "EscalationPlan",
     "EscalationTarget",
     "IntelligenceDecision",
