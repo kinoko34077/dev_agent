@@ -80,9 +80,10 @@ def _patch(path="tests/v2/test_target.py"):
         f"diff --git a/{path} b/{path}\n"
         f"--- a/{path}\n"
         f"+++ b/{path}\n"
-        "@@ -1 +1,2 @@\n"
+        "@@ -1,2 +1,3 @@\n"
         " def test_target():\n"
-        "+    assert True\n"
+        "     assert True\n"
+        "+    return None\n"
     )
 
 
@@ -146,6 +147,26 @@ def test_worker_writes_validated_result_artifacts(tmp_path):
     assert (result_dir / "notes.md").read_text(encoding="utf-8") == "Focused test added.\n"
 
 
+def test_worker_normalizes_bounded_model_status_aliases_without_trusting_claims(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    output = {
+        "status": "success",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": True,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": _patch(),
+        "notes": "proposal ready",
+    }
+
+    result = run_worker(root, manifest_path, provider=_WorkerProvider(output))
+
+    assert result["status"] == "completed"
+    assert result["model_claims"]["status"] == "success"
+    assert result["tests_passed"] is False
+
+
 def test_worker_records_model_output_outside_manifest_scope_as_failed_artifact(tmp_path):
     root, manifest_path = _workspace(tmp_path)
     output = {
@@ -184,6 +205,45 @@ def test_worker_records_malformed_model_patch_as_failed_artifact(tmp_path):
     assert result["status"] == "failed"
     assert any("unified diff" in issue for issue in result["known_issues"])
     assert json.loads((root / ".devfarm/results/worker-test-001/tests.json").read_text(encoding="utf-8"))["host_verified_tests"] == []
+
+
+def test_worker_rejects_patch_that_is_path_safe_but_not_applicable(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": True,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": _patch().replace("@@ -1,2 +1,3 @@", "@@ -1,6 +1,7 @@"),
+        "notes": "invalid hunk proposal",
+    }
+
+    result = run_worker(root, manifest_path, provider=_WorkerProvider(output))
+
+    assert result["status"] == "failed"
+    assert any("patch apply check failed" in issue for issue in result["known_issues"])
+    assert (root / ".devfarm/results/worker-test-001/patch.diff").read_text(encoding="utf-8") == ""
+
+
+def test_worker_does_not_accept_completed_result_without_patch(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    output = {
+        "status": "completed",
+        "changed_files": [],
+        "tests_run": [],
+        "tests_passed": True,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": "",
+        "notes": "no change",
+    }
+
+    result = run_worker(root, manifest_path, provider=_WorkerProvider(output))
+
+    assert result["status"] == "failed"
+    assert any("non-empty patch" in issue for issue in result["known_issues"])
 
 
 def test_worker_requires_existing_clean_worktree_at_manifest_revision(tmp_path):

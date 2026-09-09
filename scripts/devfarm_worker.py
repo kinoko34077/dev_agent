@@ -24,6 +24,15 @@ from src.dev_agent.security.audit import AuditRecorder
 MAX_INPUT_FILE_BYTES = 64 * 1024
 MAX_OUTPUT_TEXT_CHARS = 32 * 1024
 MAX_TEST_OUTPUT_CHARS = 32 * 1024
+_MODEL_STATUS_ALIASES = {
+    "success": "completed",
+    "complete": "completed",
+    "done": "completed",
+    "ok": "completed",
+    "error": "failed",
+    "failure": "failed",
+    "blocked": "blocked_external",
+}
 
 
 class DevFarmActivationPolicy:
@@ -98,6 +107,15 @@ def _git(workspace: Path, *arguments: str) -> str:
         detail = result.stderr.strip() or result.stdout.strip() or "unknown Git error"
         raise DevFarmError(f"worker worktree Git validation failed: {detail}")
     return result.stdout.strip()
+
+
+def _validate_patch_application(workspace: Path, patch: str) -> None:
+    if not patch:
+        return
+    checked = _git_process(workspace, "apply", "--check", "--whitespace=error", "-", input_text=patch)
+    if checked.returncode != 0:
+        detail = checked.stderr.strip() or checked.stdout.strip() or "unknown patch check error"
+        raise DevFarmError(f"worker patch apply check failed: {detail}")
 
 
 def _workspace(root: Path, manifest: Mapping[str, Any]) -> Path:
@@ -199,6 +217,7 @@ def _prompt(manifest: Mapping[str, Any], inputs: str) -> str:
         "Do not request credentials, edit files, run commands, or claim tests you did not run. "
         "Return exactly one JSON object with keys: status, changed_files, tests_run, tests_passed, "
         "known_issues, assumptions, patch, tests, notes. `changed_files` is only your claim and must be a subset of allowed_files. "
+        "Set `status` to `completed` when you have a proposal, or `failed` when you cannot produce one. "
         "`tests_run` is only a proposed command list; the host will verify commands later and your test claims are not evidence. "
         "The `patch` must be either an empty string or begin with `diff --git` and contain a valid literal unified diff. "
         "Do not use Markdown fences, `*** Begin Patch`, prose, binary patches, or shell commands in the patch string. "
@@ -270,6 +289,13 @@ def _record_failed_model_output(root: Path, manifest: Mapping[str, Any], reason:
     return result
 
 
+def _normalize_model_status(value: Any) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise DevFarmError("worker status must be a non-empty string")
+    normalized = value.strip().lower()
+    return _MODEL_STATUS_ALIASES.get(normalized, normalized)
+
+
 def _read_result_artifact(root: Path, manifest: Mapping[str, Any]) -> dict[str, Any]:
     path = root / ".devfarm" / "results" / manifest["task_id"] / "result.json"
     try:
@@ -286,6 +312,8 @@ def apply_and_verify(root: str | Path, manifest_path: str | Path) -> dict[str, A
     manifest = validate_manifest(_read_json(Path(manifest_path)))
     workspace = _workspace(root, manifest)
     result = _read_result_artifact(root, manifest)
+    if result["status"] != "completed" or not result["changed_files"]:
+        raise DevFarmError("only a completed worker proposal with a non-empty patch may be applied")
     patch_path = root / ".devfarm" / "results" / manifest["task_id"] / "patch.diff"
     try:
         patch = patch_path.read_text(encoding="utf-8")
@@ -295,11 +323,8 @@ def apply_and_verify(root: str | Path, manifest_path: str | Path) -> dict[str, A
     if actual_changed_files != result["changed_files"]:
         raise DevFarmError("result changed_files does not match the patch artifact")
     if patch:
-        checked = _git_process(workspace, "apply", "--check", "--whitespace=error", "--recount", "-", input_text=patch)
-        if checked.returncode != 0:
-            detail = checked.stderr.strip() or checked.stdout.strip() or "unknown patch check error"
-            raise DevFarmError(f"worker patch apply check failed: {detail}")
-        applied = _git_process(workspace, "apply", "--whitespace=error", "--recount", "-", input_text=patch)
+        _validate_patch_application(workspace, patch)
+        applied = _git_process(workspace, "apply", "--whitespace=error", "-", input_text=patch)
         if applied.returncode != 0:
             detail = applied.stderr.strip() or applied.stdout.strip() or "unknown patch apply error"
             raise DevFarmError(f"worker patch apply failed: {detail}")
@@ -410,13 +435,18 @@ def run_worker(root: str | Path, manifest_path: str | Path, *, provider: ModelPr
     try:
         patch = output.get("patch", "")
         actual_changed_files = validate_patch(patch, manifest=manifest)
+        _validate_patch_application(workspace, patch)
+        status = _normalize_model_status(output.get("status"))
+        if status == "completed" and not actual_changed_files:
+            raise DevFarmError("completed worker proposal must include a non-empty patch")
         model_claims = {
+            "status": output.get("status"),
             "changed_files": output.get("changed_files"),
             "tests_run": output.get("tests_run"),
             "tests_passed": output.get("tests_passed"),
         }
         result = {
-            "status": output.get("status"),
+            "status": status,
             "base_revision": manifest["base_revision"],
             "changed_files": actual_changed_files,
             "tests_run": [],
