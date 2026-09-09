@@ -12,8 +12,11 @@ import argparse
 import json
 from pathlib import Path, PurePosixPath
 import re
+import shlex
 import subprocess
 from typing import Any, Mapping
+
+from src.dev_agent.security.audit import AuditRecorder
 
 
 class DevFarmError(ValueError):
@@ -36,6 +39,9 @@ _MANIFEST_FIELDS = {
     "allowed_files",
     "read_files",
     "forbidden_files",
+    "external_provider_allowed",
+    "approved_provider_ids",
+    "outbound_files",
     "requirements",
     "acceptance",
     "test_commands",
@@ -79,8 +85,57 @@ def _strings(value: Any, name: str) -> list[str]:
     return result
 
 
+def _test_commands(value: Any) -> list[str]:
+    commands = _strings(value, "test_commands")
+    normalized: list[str] = []
+    for command in commands:
+        if any(char in command for char in ";&|<>`$()\r\n"):
+            raise DevFarmError("test_commands contain shell syntax")
+        try:
+            tokens = shlex.split(command, posix=True)
+        except ValueError as exc:
+            raise DevFarmError("test_commands must be parseable without a shell") from exc
+        if len(tokens) < 3 or tokens[0] not in {"python", "python3", "py"} or tokens[1:2] != ["-m"] or tokens[2] not in {"pytest", "compileall"}:
+            raise DevFarmError("test_commands must use python -m pytest or python -m compileall")
+        if any(token in {"-c", "--config-file", "--rootdir", "--confcutdir", "--pyargs"} or token.startswith(("--config-file=", "--rootdir=", "--confcutdir=")) for token in tokens[3:]):
+            raise DevFarmError("test_commands contain an unsafe pytest option")
+        for token in tokens[3:]:
+            if token.startswith("-"):
+                continue
+            parsed = PurePosixPath(token.replace("\\", "/"))
+            if parsed.is_absolute() or ".." in parsed.parts:
+                raise DevFarmError("test_commands paths must stay relative to the worker worktree")
+        normalized.append(command)
+    return normalized
+
+
 def _is_protected(path: str) -> bool:
-    return path in _PROTECTED_FILES or path == "recovery" or path.startswith("recovery/") or path == ".devfarm" or path.startswith(".devfarm/")
+    parts = PurePosixPath(path).parts
+    protected_names = AuditRecorder.SECRET_KEYS | {
+        "credential",
+        "credentials",
+        "secret",
+        "secrets",
+        "private",
+        "password",
+        "token",
+        "tokens",
+    }
+    return (
+        path in _PROTECTED_FILES
+        or path == "recovery"
+        or path.startswith("recovery/")
+        or path == ".devfarm"
+        or path.startswith(".devfarm/")
+        or any(part == ".git" or part.startswith(".env") or part.lower() in protected_names for part in parts)
+    )
+
+
+def _revision(value: Any, name: str) -> str:
+    revision = _nonempty(value, name)
+    if revision.startswith("-") or any(char.isspace() or char in "\r\n" for char in revision) or len(revision) > 200:
+        raise DevFarmError(f"{name} must be a safe Git revision")
+    return revision
 
 
 def validate_manifest(value: Mapping[str, Any]) -> dict[str, Any]:
@@ -93,10 +148,28 @@ def validate_manifest(value: Mapping[str, Any]) -> dict[str, Any]:
     if not _TASK_ID.fullmatch(task_id):
         raise DevFarmError("task_id contains unsafe characters")
     objective = _nonempty(value["objective"], "objective")
-    base_revision = _nonempty(value["base_revision"], "base_revision")
+    base_revision = _revision(value["base_revision"], "base_revision")
     allowed = _paths(value["allowed_files"], "allowed_files")
     read = _paths(value["read_files"], "read_files")
     forbidden = _paths(value["forbidden_files"], "forbidden_files")
+    if not isinstance(value["external_provider_allowed"], bool):
+        raise DevFarmError("external_provider_allowed must be a boolean")
+    external_provider_allowed = value["external_provider_allowed"]
+    approved_provider_ids = _strings(value["approved_provider_ids"], "approved_provider_ids")
+    if len(approved_provider_ids) != len(set(approved_provider_ids)):
+        raise DevFarmError("approved_provider_ids must not contain duplicates")
+    outbound = _paths(value["outbound_files"], "outbound_files")
+    readable = set(read) | set(allowed)
+    outside_outbound = sorted(set(outbound) - readable)
+    if outside_outbound:
+        raise DevFarmError(f"outbound_files must be a subset of read_files and allowed_files: {', '.join(outside_outbound)}")
+    protected_read = sorted(path for path in [*allowed, *read, *outbound] if _is_protected(path))
+    if protected_read:
+        raise DevFarmError(f"protected files cannot be read or sent by a worker: {', '.join(dict.fromkeys(protected_read))}")
+    if external_provider_allowed and not approved_provider_ids:
+        raise DevFarmError("approved_provider_ids is required when external_provider_allowed is true")
+    if not external_provider_allowed and (approved_provider_ids or outbound):
+        raise DevFarmError("external provider approval and outbound_files require external_provider_allowed=true")
     protected = sorted(path for path in allowed if _is_protected(path))
     if protected:
         raise DevFarmError(f"protected files cannot be worker-owned: {', '.join(protected)}")
@@ -118,12 +191,99 @@ def validate_manifest(value: Mapping[str, Any]) -> dict[str, Any]:
         "allowed_files": allowed,
         "read_files": read,
         "forbidden_files": forbidden,
+        "external_provider_allowed": external_provider_allowed,
+        "approved_provider_ids": approved_provider_ids,
+        "outbound_files": outbound,
         "requirements": _strings(value["requirements"], "requirements"),
         "acceptance": _strings(value["acceptance"], "acceptance"),
-        "test_commands": _strings(value["test_commands"], "test_commands"),
+        "test_commands": _test_commands(value["test_commands"]),
         "max_attempts": value["max_attempts"],
         "output_contract": dict(value["output_contract"]),
     }
+
+
+def _diff_path(raw: str, prefix: str) -> str | None:
+    raw = raw.strip()
+    if raw == "/dev/null":
+        return None
+    if raw.startswith('"'):
+        try:
+            values = shlex.split(raw, posix=True)
+        except ValueError as exc:
+            raise DevFarmError(f"patch path is not valid: {raw}") from exc
+        if len(values) != 1:
+            raise DevFarmError(f"patch path is not valid: {raw}")
+        raw = values[0]
+    if not raw.startswith(prefix + "/"):
+        raise DevFarmError(f"patch path has an invalid prefix: {raw}")
+    return _path(raw[len(prefix) + 1 :], "patch path")
+
+
+def _marker_path(line: str, prefix: str) -> str | None:
+    raw = line[4:].split("\t", 1)[0].strip()
+    return _diff_path(raw, prefix)
+
+
+def validate_patch(patch: Any, *, manifest: Mapping[str, Any]) -> list[str]:
+    """Return actual changed paths after deterministic, fail-closed checks."""
+
+    normalized_manifest = validate_manifest(manifest)
+    if not isinstance(patch, str):
+        raise DevFarmError("worker patch must be a string")
+    if not patch:
+        return []
+    lines = patch.splitlines()
+    if any(line == "GIT binary patch" or line.startswith("Binary files ") for line in lines):
+        raise DevFarmError("binary patches are not allowed")
+    if any("Subproject commit " in line for line in lines):
+        raise DevFarmError("submodule patches are not allowed")
+    for line in lines:
+        match = re.search(r"(?:old mode|new mode|new file mode|deleted file mode) (\d{6})$", line)
+        if match and match.group(1) not in {"100644", "100664"}:
+            mode = match.group(1)
+            if mode == "120000":
+                raise DevFarmError("symlink patches are not allowed")
+            if mode == "160000":
+                raise DevFarmError("submodule patches are not allowed")
+            raise DevFarmError(f"unsafe file mode in patch: {mode}")
+
+    actual: set[str] = set()
+    saw_header = False
+    for line in lines:
+        if line.startswith("diff --git "):
+            saw_header = True
+            try:
+                values = shlex.split(line[len("diff --git ") :], posix=True)
+            except ValueError as exc:
+                raise DevFarmError("patch diff header is invalid") from exc
+            if len(values) != 2:
+                raise DevFarmError("patch diff header must contain exactly two paths")
+            old_path = _diff_path(values[0], "a")
+            new_path = _diff_path(values[1], "b")
+            if old_path is not None:
+                actual.add(old_path)
+            if new_path is not None:
+                actual.add(new_path)
+        elif line.startswith("--- "):
+            marker = _marker_path(line, "a")
+            if marker is not None:
+                actual.add(marker)
+        elif line.startswith("+++ "):
+            marker = _marker_path(line, "b")
+            if marker is not None:
+                actual.add(marker)
+    if not saw_header:
+        raise DevFarmError("patch is not a unified diff")
+    outside = sorted(actual - set(normalized_manifest["allowed_files"]))
+    if outside:
+        raise DevFarmError(f"patch changed files outside manifest allowed_files: {', '.join(outside)}")
+    forbidden = sorted(actual & set(normalized_manifest["forbidden_files"]))
+    if forbidden:
+        raise DevFarmError(f"patch changed forbidden files: {', '.join(forbidden)}")
+    protected = sorted(path for path in actual if _is_protected(path))
+    if protected:
+        raise DevFarmError(f"patch changed protected files: {', '.join(protected)}")
+    return sorted(actual)
 
 
 def validate_result(value: Mapping[str, Any], *, manifest: Mapping[str, Any]) -> dict[str, Any]:
@@ -136,7 +296,7 @@ def validate_result(value: Mapping[str, Any], *, manifest: Mapping[str, Any]) ->
     status = _nonempty(value["status"], "status")
     if status not in _STATUSES:
         raise DevFarmError(f"status must be one of: {', '.join(sorted(_STATUSES))}")
-    base_revision = _nonempty(value["base_revision"], "base_revision")
+    base_revision = _revision(value["base_revision"], "base_revision")
     if base_revision != manifest["base_revision"]:
         raise DevFarmError("result base_revision does not match manifest base_revision")
     changed = _paths(value["changed_files"], "changed_files")
@@ -147,6 +307,13 @@ def validate_result(value: Mapping[str, Any], *, manifest: Mapping[str, Any]) ->
         raise DevFarmError("changed_files include forbidden_files")
     if not isinstance(value["tests_passed"], bool):
         raise DevFarmError("tests_passed must be a boolean")
+    model_claims = value.get("model_claims", {})
+    if not isinstance(model_claims, Mapping):
+        raise DevFarmError("model_claims must be an object")
+    proposed_test_commands = value.get("proposed_test_commands", value["tests_run"])
+    host_verified_tests = value.get("host_verified_tests", [])
+    if not isinstance(host_verified_tests, list):
+        raise DevFarmError("host_verified_tests must be a list")
     return {
         "schema_version": 1,
         "status": status,
@@ -154,6 +321,9 @@ def validate_result(value: Mapping[str, Any], *, manifest: Mapping[str, Any]) ->
         "changed_files": changed,
         "tests_run": _strings(value["tests_run"], "tests_run"),
         "tests_passed": value["tests_passed"],
+        "model_claims": dict(model_claims),
+        "proposed_test_commands": _strings(proposed_test_commands, "proposed_test_commands"),
+        "host_verified_tests": list(host_verified_tests),
         "known_issues": _strings(value["known_issues"], "known_issues"),
         "assumptions": _strings(value["assumptions"], "assumptions"),
     }

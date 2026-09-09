@@ -19,13 +19,23 @@ Codex (Commander / integrator)
 
 Each worker receives a manifest with a fixed `base_revision`, `allowed_files`,
 `read_files`, `forbidden_files`, finite attempts, acceptance checks, and an
-output contract. `scripts.devfarm.validate_manifest()` rejects path escapes,
-overlapping ownership, and attempts to own the built-in protected files
-(`spec/v2/GATE_STATUS.json`, budget authority) or the `recovery/` and
-`.devfarm/` trees. A result must use the same base revision and may list only
-files from `allowed_files`; a Worker cannot modify `v2/bootstrap`, Gate status,
-budget authority, Recovery policy, credentials, or another Worker's worktree
-by convention and contract.
+output contract. External sending is a separate explicit boundary:
+`external_provider_allowed`, `approved_provider_ids`, and `outbound_files`.
+Only `outbound_files` are read into the Provider request, and they must be a
+subset of the manifest's readable scope. `scripts.devfarm.validate_manifest()`
+rejects path escapes, overlapping ownership, unsafe test commands, and attempts
+to own or send built-in protected files (`spec/v2/GATE_STATUS.json`, budget
+authority, `.env*`, credentials, private/token stores, `recovery/`, and
+`.devfarm/`).
+
+Before a request, the Runner requires the task worktree to exist, have a clean
+status, and resolve to the manifest's exact Git base revision. Input paths are
+resolved and symlink escapes are rejected; outbound contents are scanned for
+common secret patterns and fail closed. The result's `changed_files` is derived
+from the unified patch, not trusted from the model claim. A result must use the
+same base revision and may list only files from `allowed_files`; a Worker cannot
+modify `v2/bootstrap`, Gate status, budget authority, Recovery policy,
+credentials, or another Worker's worktree by convention and contract.
 
 Prepare a separate checkout with an `agent/<provider>/<task>` branch:
 
@@ -49,10 +59,11 @@ python scripts/devfarm.py validate-result .devfarm/results/<task-id>/result.json
 Both commands print the normalized contract and fail closed on malformed JSON,
 base-revision drift, protected ownership, or an out-of-scope changed file.
 
-The bounded worker runner can send the manifest-scoped input files to an
-explicitly selected qualified free Provider and writes only handoff artifacts.
-It never applies a patch, commits, promotes a Gate, or modifies the official
-branch. Review the outbound input scope before invoking it:
+The bounded worker runner can send the explicitly approved manifest-scoped
+outbound files to an approved qualified free Provider and writes only handoff
+artifacts. Automatic activation, unapproved sending, automatic patch
+application, commits, Gate promotion, and official-branch modification are not
+performed. Review the outbound input scope before invoking it:
 
 ```text
 python scripts/devfarm_worker.py \
@@ -61,9 +72,20 @@ python scripts/devfarm_worker.py \
   --model @cf/meta/llama-3.1-8b-instruct
 ```
 
-The runner is a development bootstrap boundary, not the formal Phase 7
-AgentBackend. Do not send repository contents to an external Provider unless
-the operator has explicitly approved that data boundary.
+After Codex reviews the proposal, deterministic validation and host-side test
+execution are explicit and restricted to the same worker worktree:
+
+```text
+python scripts/devfarm_worker.py \
+  --manifest .devfarm/tasks/<task-id>.json \
+  --apply-and-verify
+```
+
+This applies the validated patch only in `.devfarm/worktrees/<task-id>/` and
+runs only the manifest-approved `python -m pytest` / `python -m compileall`
+commands. `result.json` records `model_claims`, `proposed_test_commands`, and
+`host_verified_tests` separately. The runner is a development bootstrap
+boundary, not the formal Phase 7 AgentBackend.
 
 ## Provider qualification handoff
 
@@ -88,11 +110,12 @@ Worker activation.
 
 ## Current activation boundary
 
-The farm is scaffolded and contract-tested, but no free cloud Worker is
-activated until a real Provider qualification succeeds. In this workspace,
-Cloudflare has a successful live qualification artifact, while Groq returned
-HTTP 403 and SambaNova returned HTTP 429/402 after reaching the API. OpenRouter
-free-route qualification has completed successfully, but no Worker is activated
-automatically: activation still requires an explicit Codex manifest and review.
-Mistral remains unqualified when its credential is absent. No live or Gate
-evidence is inferred from adapter unit tests.
+The farm's isolation and host-verification boundary is implemented and
+contract-tested, but no Worker is activated automatically: activation requires
+an explicit Codex/operator launch, an approved manifest, and review. In this
+workspace, Cloudflare and OpenRouter have successful live qualification
+artifacts, while Groq returned HTTP 403 and SambaNova returned HTTP 429/402
+after reaching the API. Mistral remains subject to live qualification when its
+credential is available. No live or Gate evidence is inferred from adapter unit
+tests, and a Worker result does not become an official change until Codex
+reviews and integrates it.
