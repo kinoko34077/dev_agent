@@ -175,6 +175,19 @@ def test_recovery_reserve_requires_authorized_task_class(tmp_path):
     assert governor.snapshot()["recovery_committed_minor"] == 30
 
 
+def test_budget_admin_reads_only_protected_config_outside_agent_workspace(tmp_path):
+    workspace = tmp_path / "agent-workspace"
+    protected = tmp_path / "operator-config" / "budget.json"
+    protected.parent.mkdir()
+    protected.write_text('{"hard_cap_minor": 100, "recovery_reserve_minor": 25, "currency": "JPY"}', encoding="utf-8")
+    ledger = ResourceLedger(tmp_path / "protected-budget.sqlite3")
+
+    BudgetAuthority.configure_from_protected_file(ledger, protected, agent_root=workspace)
+    assert ledger.budget_config()["hard_cap_minor"] == 100
+    with pytest.raises(PermissionError, match="outside"):
+        BudgetAuthority.configure_from_protected_file(ledger, workspace / "budget.json", agent_root=workspace)
+
+
 def test_budget_reservation_is_atomic_across_independent_ledger_connections(tmp_path):
     first = _ledger(tmp_path)
     second = ResourceLedger(tmp_path / "resources.sqlite3")

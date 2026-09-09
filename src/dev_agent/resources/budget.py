@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import json
 import math
+from pathlib import Path
 from typing import Any
 
 from ..domain.protocol import Task, TaskClass
@@ -72,6 +74,58 @@ class BudgetAuthority:
             currency=MoneyAmount(policy.currency, 0).currency,
             period=period,
             _authority=_BUDGET_ADMIN_TOKEN,
+        )
+
+    @staticmethod
+    def configure_from_protected_file(
+        ledger: ResourceLedger,
+        config_path: str | Path,
+        *,
+        agent_root: str | Path | None = None,
+    ) -> None:
+        """Load budget policy from an operator-owned path outside Agent code.
+
+        The runtime has no write path for this file.  ``agent_root`` is
+        explicit so a supervisor can define the workspace boundary; by
+        default the current process directory is treated as that boundary.
+        OS ACLs or a secret-store mount must protect the external path in a
+        deployment.  A file inside the Agent workspace is rejected even when
+        its JSON is otherwise valid.
+        """
+        path = Path(config_path).expanduser().resolve()
+        root = Path(agent_root or Path.cwd()).expanduser().resolve()
+        try:
+            path.relative_to(root)
+        except ValueError:
+            pass
+        else:
+            raise PermissionError("budget config must be outside the Agent workspace")
+        if not path.is_file():
+            raise FileNotFoundError(path)
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(f"invalid protected budget config: {exc}") from exc
+        if not isinstance(value, dict):
+            raise ValueError("protected budget config must be an object")
+        period_value = value.get("period")
+        period = None
+        if period_value is not None:
+            if not isinstance(period_value, dict):
+                raise ValueError("protected budget period must be an object")
+            period = BudgetPeriod(
+                str(period_value.get("period_id", "")),
+                str(period_value.get("starts_at", "")),
+                str(period_value.get("ends_at", "")),
+            )
+        BudgetAuthority.configure(
+            ledger,
+            BudgetPolicy(
+                hard_cap_minor=value.get("hard_cap_minor"),
+                recovery_reserve_minor=value.get("recovery_reserve_minor"),
+                currency=value.get("currency", "JPY"),
+                period=period,
+            ),
         )
 
     @staticmethod
