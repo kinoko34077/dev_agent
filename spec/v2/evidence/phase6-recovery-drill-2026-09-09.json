@@ -2,8 +2,8 @@
   "schema_version": 1,
   "qualification": "phase6_recovery_operator_drill",
   "tested_at": "2026-09-09",
-  "tested_code_revision": "8b423e3218b3b6a4ed4f6affd4c2707eb070f5e5",
-  "tested_checkout_revision": "50013d0b789b0cdd9c5b1f195903475f21281fd6",
+  "tested_code_revision": "2319a219978b5fb18586a4e6d34a83b7e0196d49",
+  "tested_checkout_revision": "3a3244a7c1dc766a43b7ff02036444cea566e50e",
   "status": "completed",
   "environment": "isolated temporary Git repository and SQLite state; source checkout untouched",
   "sequence": [
