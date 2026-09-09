@@ -14,6 +14,8 @@
 - Provider qualificationの実行方法と、資格情報・result artifact・Gate昇格を分離する運用境界を`docs/DEVFARM.md`へ追記した。
 - 現行READMEと要件IndexのProvider quota観測状態を、実装済みGroq header正規化と未実装Providerの後段要件に同期した。
 - Adapter decoder、資格情報fail-closed、manifest ownership、保護領域拒否、Provider transcript、qualification pathの回帰を含むローカル全回帰は `288 passed, 1 skipped`。Groq／Cloudflareのlive qualificationは資格情報待ちで未取得。
+- `22c2654` を実装基準として、GitHub Actionsのexact-head CI（`v2-core` run `34327300092`、`v2 tests` run `34327300120`）がsuccessであることを外部確認した。`GATE_STATUS.json.evidence_head` はcode-baseline-onlyのまま維持し、後続の文書同期commitが自分自身を証明する構造は採らない。
+- Current Stateを `22c2654` の実装内容とCI観測へ同期した。資格情報未設定のGroq／Cloudflareは引き続き`blocked_external`で、実Free Workerの起動やGate昇格は行っていない。
 
 ### 2026-09-09 JST — Phase 6B/C quota operation and Phase 7A/B policy seam
 

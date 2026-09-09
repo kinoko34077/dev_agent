@@ -11,11 +11,14 @@ CI run IDs are external observations, not repository self-certification
 records. The documentation commit that records them is not itself presented
 as code evidence.
 
-The latest local baseline is
-`37e40b2207baaa26ab907633c30325b8d0fcca7d`; its exact-head CI is tracked
-externally while the workflows run. The latest local regression is
+The latest implementation baseline before this documentation synchronization
+is `22c26542323b80abeeeac51e31f835cfa1d6ab67`; its external exact-head CI
+(`v2-core` run `34327300092`, `v2 tests` run `34327300120`) completed
+successfully with matching `head_sha` values. The latest local regression is
 `288 passed, 1 skipped`; this does not turn absent live-provider credentials
-into qualification evidence.
+into qualification evidence. The documentation-only synchronization itself
+does not change the implementation baseline; its own exact-head CI remains an
+external check and is not written back into `GATE_STATUS.json`.
 
 Phase 6A〜6E is the current v2 work boundary. The phase is deliberately split
 into small control-plane components so that resource exhaustion, provider

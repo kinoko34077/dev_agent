@@ -43,9 +43,9 @@ Phase 0〜5 は current acceptance verified。Phase 3.5の後段要件、Phase 4
 
 ### 2026-09-09 の現在状態
 
-`v2/bootstrap` は `37e40b2207baaa26ab907633c30325b8d0fcca7d` まで、Groq／Cloudflare Workers AI の標準ライブラリHTTP Adapter、Groq rate-limit headerの正規化quota observation、fail-closedなlive qualification入口、開発専用Worker Farmのmanifest／result／worktree境界を実装している。通常のProvider経路は引き続き Controller -> ProviderDispatcher -> ProviderRegistry -> concrete Provider を正本とし、Controllerのdirect経路はcompatibility/legacyに限定する。Worker Farmは正式runtimeのScheduler／AgentBackend／Phase 7 Multi-Agentではなく、組み込み保護領域を含む契約検証済みの開発補助境界である。
+実装基準 `22c26542323b80abeeeac51e31f835cfa1d6ab67` まで、Groq／Cloudflare Workers AI の標準ライブラリHTTP Adapter、Groq rate-limit headerの正規化quota observation、fail-closedなlive qualification入口、開発専用Worker Farmのmanifest／result／worktree境界を実装している。通常のProvider経路は引き続き Controller -> ProviderDispatcher -> ProviderRegistry -> concrete Provider を正本とし、Controllerのdirect経路はcompatibility/legacyに限定する。Worker Farmは正式runtimeのScheduler／AgentBackend／Phase 7 Multi-Agentではなく、組み込み保護領域を含む契約検証済みの開発補助境界である。
 
-Groq／Cloudflareのlive qualificationは、それぞれ `GROQ_API_KEY`、`CLOUDFLARE_ACCOUNT_ID`／`CLOUDFLARE_API_TOKEN` の外部資格情報が未設定のため `blocked_external`。実ProviderのToolCall／ToolResult／quota観測証跡は未取得で、G6O1の有償Provider外部条件や既存Gate判定も変更していない。ControllerのProvider向けassistant tool-call transcriptとqualification scriptのcanonical往復もcheckpoint対象として固定した。ローカル回帰は `288 passed, 1 skipped`。実通信が可能になった後に、まず1 Providerを開発Workerへ限定投入し、Codexがreview・統合する。
+Groq／Cloudflareのlive qualificationは、それぞれ `GROQ_API_KEY`、`CLOUDFLARE_ACCOUNT_ID`／`CLOUDFLARE_API_TOKEN` の外部資格情報が未設定のため `blocked_external`。実ProviderのToolCall／ToolResult／quota観測証跡は未取得で、G6O1の有償Provider外部条件や既存Gate判定も変更していない。ControllerのProvider向けassistant tool-call transcriptとqualification scriptのcanonical往復もcheckpoint対象として固定した。ローカル回帰は `288 passed, 1 skipped`。実装基準 `22c2654` に対するGitHub Actionsのexact-head CIは `v2-core` run `34327300092` と `v2 tests` run `34327300120` がともにsuccessで、各runの `head_sha` は実装基準と一致する。このrun IDは外部CIの観測値であり、`GATE_STATUS.json.evidence_head` は自己参照を避けるためのcode-baseline-onlyポインタとして維持する。実通信が可能になった後に、まず1 Providerを開発Workerへ限定投入し、Codexがreview・統合する。
 
 ## 3. フェーズ別ロードマップ
 
