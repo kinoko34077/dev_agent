@@ -583,6 +583,32 @@ class Controller:
                         self._cancel(task, state, step=step, message="provider request was cancelled")
                     return task
                 except FutureTimeoutError:
+                    # Cancellation can race with the final provider timeout
+                    # check.  Once the request may still be running, an
+                    # already-recorded cancellation must win over the
+                    # ordinary terminal timeout path.
+                    if cancel_event.is_set():
+                        if reservation is not None:
+                            self.resource_policy.uncertain(reservation)
+                            self._provider_intent(
+                                provider_intent_key,
+                                status="unknown",
+                                result={"error_category": "cancelled", "cause": "unable_to_confirm"},
+                            )
+                            self._record_provider_audit(
+                                request,
+                                reservation,
+                                "unknown",
+                                provider_intent_key,
+                                details={"category": "cancelled", "cause": "unable_to_confirm"},
+                            )
+                        self._cancel_unable_to_confirm(
+                            task,
+                            state,
+                            step=step,
+                            message="provider request cancellation could not be confirmed",
+                        )
+                        return task
                     if reservation is not None:
                         self.resource_policy.uncertain(reservation)
                         self._provider_intent(provider_intent_key, status="unknown", result={"error_category": "timeout"})
