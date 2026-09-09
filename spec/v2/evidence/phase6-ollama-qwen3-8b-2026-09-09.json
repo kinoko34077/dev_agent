@@ -2,8 +2,8 @@
   "schema_version": 1,
   "qualification": "phase6_provider_dispatch",
   "tested_at": "2026-09-09",
-  "tested_code_revision": "2319a219978b5fb18586a4e6d34a83b7e0196d49",
-  "tested_checkout_revision": "3a3244a7c1dc766a43b7ff02036444cea566e50e",
+  "tested_code_revision": "653c4d8442aaf18407c49ac2aa27c7cba2743f35",
+  "tested_checkout_revision": "653c4d8442aaf18407c49ac2aa27c7cba2743f35",
   "provider": "ollama",
   "model": "qwen3:8b",
   "endpoint": "http://127.0.0.1:11434/api/chat",
@@ -18,5 +18,5 @@
   ],
   "reproduction": "python scripts/qualify_phase6_provider.py --model qwen3:8b --timeout-seconds 60",
   "scope": "isolated temporary SQLite state and resource stores; local non-billed provider only",
-  "notes": "The checkout revision only records documentation/evidence metadata after the tested code revision."
+  "notes": "The exact implementation revision was tested before this evidence record was committed; production must replace the temporary operator file with an ACL/Secret-Store-owned path."
 }
