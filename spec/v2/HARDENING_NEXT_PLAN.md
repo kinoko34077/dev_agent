@@ -3,9 +3,9 @@
 目的は、外部サービスが停止してもローカルで検証可能な境界を先に完了し、外部依存の項目を明確な保留として後回しにできる状態を作ること。
 
 Current State sync: Phase 3.5〜5 acceptance remains closed; the current Phase 6
-code evidence baseline is `e534b4a9a564ba94727025d9bfce6868ec68adf5`. External
-CI runs for that revision passed: `v2-core` run `34310308651` and `v2 tests` run
-`34310308652`. Phase 6 is
+code evidence baseline is `da74b3b934cde66060ecabe65916fb57442b5bd9`. External
+CI runs for that revision passed: `v2-core` run `34311452342` and `v2 tests` run
+`34311452341`. Phase 6 is
 documented separately in `docs/PHASE6_PLAN.md`; this document is the historical
 hardening record. Gate evidence distinguishes local, CI, and live Provider
 evidence. `GATE_STATUS.json.evidence_head` is a code-baseline pointer only;
