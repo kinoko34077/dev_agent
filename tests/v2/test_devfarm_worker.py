@@ -124,6 +124,8 @@ def test_worker_prompt_makes_patch_and_test_claim_boundaries_explicit(tmp_path):
 
     assert "Return exactly one JSON object" in prompt
     assert "The `patch` must be either an empty string or begin with `diff --git`" in prompt
+    assert "Every diff header must use `diff --git a/relative/path b/relative/path`" in prompt
+    assert "Do not include trailing whitespace" in prompt
     assert "Do not use Markdown fences, `*** Begin Patch`, prose" in prompt
     assert "`tests_run` is only a proposed command list" in prompt
 
