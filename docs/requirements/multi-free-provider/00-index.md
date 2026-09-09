@@ -16,15 +16,15 @@ Status: DRAFT -> ACCEPTED候補
 | [06 Workflow, Evaluator, Audit, Metrics, and Survival](06-workflow-evaluator-audit-metrics-and-survival.md) | 27-33 | Workflow promotion、Evaluator、Audit、Metric、Survival、障害耐性 |
 | [07 Phase Roadmap, Invariants, and Target State](07-phase-roadmap-invariants-and-target-state.md) | 34-42 | Phase 6更新、Phase 7条件、ロードマップ、完成像 |
 
-## 現行の移行前調整
+## 現行のPhase 6A実装境界
 
-この要件を投入する前の調整では、Provider追加やquota schema変更を行わない。
+Phase 6Aの第一バッチとして、ResourceLedger schema v6のquota_domain identity、quota_observations、operational observation fields、fresh quota headroom routingを実装した。Groq、Cloudflare Workers AI、Mistral、OpenRouter Freeは注入transportのAdapter/contract境界まで追加し、live qualificationはまだ取得していない。
 
 - G6O1は BLOCKED_EXTERNAL のまま維持する。
 - 通常Provider経路は Controller -> ProviderDispatcher -> ProviderRegistry -> Concrete Provider とする。
 - Controllerのdirect Provider処理は compatibility / legacy path として残す。
 - ExecutionContext、ToolRuntime.bound_to()、RuntimeState、AuditRecorderは既存境界を維持する。
-- Resource Schema、Provider追加、quota_domain、Intelligence Tier、Hedge、AgentBackend、MCP/API、Phase 7は次段階へ送る。
+- Intelligence Tier、Hedge、AgentBackend、MCP/API、Phase 7、Provider live qualificationとquota自動取得は次段階へ送る。
 
 ## 選択的ロードの目安
 
@@ -36,4 +36,4 @@ Status: DRAFT -> ACCEPTED候補
 
 ## 要件と現行実装の境界
 
-本章群は次段階の設計入力であり、ここに書かれた将来要件を現行Gateの達成として扱わない。現行Phase 6では、FoundationがVERIFIED、G6O2〜G6O6がVERIFIED、G6O1が外部条件待ちである。
+本章群は設計入力と実装進捗の境界を兼ねる。ここに書かれた将来要件を現行Gateの達成として扱わない。現行Phase 6では、FoundationがVERIFIED、G6O2〜G6O6がVERIFIED、G6O1が外部条件待ちである。Phase 6A quota基盤とAdapter contractの成功は、実Provider live qualificationとは別の証跡である。

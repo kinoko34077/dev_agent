@@ -50,18 +50,17 @@ Phase 7候補には、AgentBackend、Codex/MCP integration、workflow promotion�
 
 ## 39. Non-goals
 
-今回の移行前調整では、次を行わない。
+現行Phase 6A第一バッチでは、次を行わない。
 
-- quota_domain
-- quota observation schema
-- Groq、Cloudflare、Mistral、OpenRouterなどの新Adapter
-- Router scoring変更
+- 追加Providerのlive qualification、quota observation自動取り込み
+- Provider responseからのquota observation自動取り込み
+- task別成功率・provider diversityを含む後段Router scoring
 - intelligence tier
 - Hedged Request
 - AgentBackend、MCP/API
 - Phase 7、Self-Improvement
 - 大規模Controller rewrite
-- Resource schema拡張
+- quota/domain observationの複数Credential集約拡張
 
 ## 40. Invariants
 
@@ -108,4 +107,3 @@ Worker/run固有のExecutionContext、ToolRuntime binding、lease proofを共有
 Controller -> ProviderDispatcher -> ProviderRegistry -> ResourceControlPlane/Router -> Budget/Quota -> Concrete Provider/AgentBackend -> durable audit/reconciliation
 
 ControllerへProvider固有分岐、quota判断、fallback、外部Agent固有処理を再追加しない。実装済み境界と将来境界を混同せず、各段階のevidenceを独立して管理する。
-

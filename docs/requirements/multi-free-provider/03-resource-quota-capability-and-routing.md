@@ -96,4 +96,6 @@ Taskごとにmax_attempts、max_escalations、max_cost、deadlineを持ち、失
 
 ## 現行実装への適用境界
 
-今回の移行前調整ではquota_domain、quota observation、inflight、latency/failure metrics、Router scoring、Free-first routingを実装しない。Resource Schemaと現行migrationを変更せず、次段階の入力として保存する。
+Phase 6A第一バッチで、ResourceLedger schema v6へ quota_domain、durable quota observation、inflight、latency_ewma_ms、failure_ewma、concurrency_limit、quota_remaining_ratio、quota_reset_atを追加した。Routerはquota domain付きResourceについてfresh quota observationをhard filterし、同じprivacy条件ではquota headroomをcostより先に優先する。
+
+未実装の後段要件は、複数Credentialのquota集約、Provider responseからの自動quota observation ingestion、task別成功率、完全なFree-first escalation、provider diversity scoringである。

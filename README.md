@@ -4,7 +4,7 @@
 >
 > この `v2/bootstrap` は新しい Provider-neutral Kernel の開発ブランチです。v2 の起点・実装状態は [`docs/V2_EXECUTION_PLAN.md`](docs/V2_EXECUTION_PLAN.md) と [`spec/v2/INTEGRATION_HARDENING.md`](spec/v2/INTEGRATION_HARDENING.md) を正とします。以下の Gemini / `core/main.py` 手順は legacy v1 の記録であり、v2 Runtime の起動手順ではありません。
 
-このブランチでの現在の実行境界は `src/dev_agent`、v2 の運用設定は [`config/v2.yaml`](config/v2.yaml)、復旧操作は `python -m recovery.rescue diagnose --json` です。Phase 6 foundation は検証済みで、G6O2〜G6O6のoperational Gateも各責務内で検証済みです。G6O1のみ、有償Providerのworst-case実証とdeployment-owned budget設定の外部保護確認待ちです。
+このブランチでの現在の実行境界は `src/dev_agent`、v2 の運用設定は [`config/v2.yaml`](config/v2.yaml)、復旧操作は `python -m recovery.rescue diagnose --json` です。Phase 6 foundation は検証済みで、G6O2〜G6O6のoperational Gateも各責務内で検証済みです。G6O1のみ、有償Providerのworst-case実証とdeployment-owned budget設定の外部保護確認待ちです。Phase 6AではResourceLedger schema v6のquota domain/observationとquota-aware routing、Groq・Cloudflare・Mistral・OpenRouter Freeの注入transport Adapter契約を追加しています。
 
 ## v2 quickstart（現行）
 
@@ -38,9 +38,9 @@ Phase 6 の現在地と未完了の外部証跡は [`docs/PHASE6_PLAN.md`](docs/
 
 ## 次段階要件と移行前調整
 
-次段階の要件は requirements Index (docs/requirements/README.md) から参照してください。Multi-Free Provider、quota、Intelligence Hierarchy、AgentBackend/MCPは要件保存のみで、現行移行前調整では実装していません。
+次段階の要件は requirements Index (docs/requirements/README.md) から参照してください。Multi-Free ProviderのPhase 6A基盤のうち、quota identity/observation、operational resource observation、fresh quota routing、注入transport Adapter契約を実装済みです。live Provider qualification、quota自動取得、知能階層、AgentBackend/MCPは後段です。
 
-通常のProvider経路は Controller -> ProviderDispatcher -> ProviderRegistry -> concrete Provider です。Controller内のdirect経路は既存呼び出し向けのcompatibility/legacy pathとして維持しています。移行前調整後のローカル全テストは 253 passed, 1 skipped です。
+通常のProvider経路は Controller -> ProviderDispatcher -> ProviderRegistry -> concrete Provider です。Controller内のdirect経路は既存呼び出し向けのcompatibility/legacy pathとして維持しています。Phase 6A実装後のローカル全テストは 264 passed, 1 skipped です。
 
 ## legacy v1（履歴）
 

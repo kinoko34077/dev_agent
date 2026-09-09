@@ -97,13 +97,28 @@ class WorkerRunner:
             raise
         finally:
             heartbeat.stop()
-        if result.status == TaskStatus.COMPLETED:
-            self.queue.complete(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
-        elif result.status in self._DEFERRED_STATUSES:
-            # Waiting states require an external event (approval, budget
-            # replenishment, or reconciliation).  Requeueing immediately can
-            # duplicate an ambiguous external effect or spin forever.
-            self.queue.defer(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
-        else:
-            self.queue.fail(item.task_id, worker_id=self.worker_id, state_version=item.state_version, retry=result.status not in {TaskStatus.FAILED, TaskStatus.CANCELLED}, max_attempts=max_attempts)
+        try:
+            # A heartbeat may have failed after its last successful renewal.
+            # Confirm ownership synchronously immediately before publishing
+            # the Controller result; this also avoids finalization racing the
+            # lease deadline.  An expired lease must never be resurrected.
+            self.queue.renew(item.task_id, worker_id=self.worker_id, state_version=item.state_version, lease_seconds=self.lease_seconds)
+            if result.status == TaskStatus.COMPLETED:
+                self.queue.complete(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
+            elif result.status in self._DEFERRED_STATUSES:
+                # Waiting states require an external event (approval, budget
+                # replenishment, or reconciliation).  Requeueing immediately
+                # can duplicate an ambiguous external effect or spin forever.
+                self.queue.defer(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
+            else:
+                self.queue.fail(item.task_id, worker_id=self.worker_id, state_version=item.state_version, retry=result.status not in {TaskStatus.FAILED, TaskStatus.CANCELLED}, max_attempts=max_attempts)
+        except StaleLease:
+            # The result cannot be published after ownership is lost.  If the
+            # item is still ours and within its lease, return it to the finite
+            # retry path; otherwise a newer owner or the reaper is authoritative.
+            try:
+                self.queue.fail(item.task_id, worker_id=self.worker_id, state_version=item.state_version, retry=True, max_attempts=max_attempts)
+            except StaleLease:
+                pass
+            raise
         return result

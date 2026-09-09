@@ -1,11 +1,13 @@
 # Phase 6 — Resource / Survival / Recovery
 
-Status: foundation VERIFIED; operational integration IN PROGRESS
+Status: foundation VERIFIED; G6O2〜G6O6 VERIFIED; G6O1 BLOCKED_EXTERNAL; Phase 6A quota/provider expansion locally verified
 
-Current code evidence baseline: `da74b3b934cde66060ecabe65916fb57442b5bd9`
-(external exact-head CI: v2-core run `34311452342`, v2 tests run
-`34311452341`). These run IDs are external
-observations, not repository self-certification records.
+The earlier Phase 6 operational code evidence baseline is
+`da74b3b934cde66060ecabe65916fb57442b5bd9` (external exact-head CI:
+v2-core run `34311452342`, v2 tests run `34311452341`). The current
+Phase 6A quota/provider expansion is tracked by its own exact-head CI result
+after the final commit; CI run IDs are external observations, not repository
+self-certification records.
 
 Phase 6A〜6E is the current v2 work boundary. The phase is deliberately split
 into small control-plane components so that resource exhaustion, provider
@@ -13,11 +15,14 @@ failure, recovery mutation, and worker ownership remain deterministic and
 auditable.
 
 Next-stage requirements are indexed at docs/requirements/README.md. The
-migration-prep boundary records the canonical
-Controller -> ProviderDispatcher -> ProviderRegistry path and keeps the
-Controller direct-provider branch compatibility-only. It does not implement
-quota_domain, new Providers, Intelligence Tier, Hedging, AgentBackend, MCP, or
-Phase 7.
+current Phase 6A boundary adds durable `quota_domain` and quota observations,
+operational resource observations, and fresh quota-aware routing. Groq,
+Cloudflare Workers AI, Mistral, and OpenRouter Free are separate injected-
+transport Adapter contracts; live qualification and automatic quota-header
+ingestion remain later work. The canonical path stays
+Controller -> ProviderDispatcher -> ProviderRegistry -> concrete Provider,
+while the Controller direct-provider branch remains compatibility-only. It
+does not implement Intelligence Tier, Hedging, AgentBackend, MCP, or Phase 7.
 
 ## 6A — Resource Ledger and Budget Governor
 
@@ -26,6 +31,12 @@ Implemented in `src/dev_agent/resources/ledger.py` and `budget.py`.
 - Native units remain explicit (`request`, tokens, compute time, or another
   resource unit).
 - Observations persist capacity, availability, health, confidence, and time.
+- Resource identities may declare a `quota_domain`; quota observations are
+  durable and schema-migrated, with stale/missing domain observations rejected
+  by the quota-aware Router.
+- Current operational observations include quota headroom/reset, latency and
+  failure EWMA, inflight, and concurrency limit. Provider-specific quota header
+  ingestion is intentionally not part of this local foundation.
 - Paid dispatches reserve integer minor units before dispatch.
 - The normal budget cannot consume the recovery reserve.
 - Unknown price fails closed.
@@ -73,6 +84,9 @@ Implemented in `router.py` and `survival.py`.
 - Required capability, privacy, provider allow-list, health, circuit cooldown,
   availability, and cost are evaluated before selection.
 - Privacy compatibility outranks cost and latency.
+- When a Resource declares a quota domain, fresh positive quota headroom is
+  required and preferred before effective cost; missing, future, or stale
+  observations are ineligible.
 - `NORMAL`, `CONSERVE`, and `SURVIVAL` are derived from a deterministic
   `SurvivalSnapshot`; the model cannot select the mode.
 
@@ -131,6 +145,11 @@ record instead of relying only on the dispatcher's in-memory audit list.
 The budget reservation is keyed by that same provider intent, so the two
 durable records remain replay-compatible across the crash boundary between
 reservation and dispatch-intent persistence.
+
+Phase 6A's additional free-provider adapters (Groq, Cloudflare Workers AI,
+Mistral, and OpenRouter Free) use injected transports and the normalized
+contract only. Their contract tests do not constitute live provider or quota
+qualification evidence.
 
 The lease proof for the provider intent transition is checked inside the
 StateStore transaction. An independent-process test confirms that a reclaimed

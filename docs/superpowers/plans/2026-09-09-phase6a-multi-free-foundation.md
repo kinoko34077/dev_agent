@@ -31,11 +31,11 @@
 - Add resources.quota_domain and quota_observations table through ordered migration v4 -> v5, then operational observation columns through v6.
 - Return quota_domain through get_resource and list_resources.
 
-- [ ] Step 1: Add failing tests for quota_domain persistence, schema version 6, and legacy migration.
-- [ ] Step 2: Run those tests and confirm failure because quota_domain and migration v5 do not exist.
-- [ ] Step 3: Add the v5 migration, strict quota-domain validation, and persisted resource identity.
-- [ ] Step 4: Run the focused tests and confirm they pass.
-- [ ] Step 5: Run the existing resource migration tests and commit the ledger identity batch.
+- [x] Step 1: Add failing tests for quota_domain persistence, schema version 6, and legacy migration.
+- [x] Step 2: Run those tests and confirm failure because quota_domain and migration v5 do not exist.
+- [x] Step 3: Add the v5 migration, strict quota-domain validation, and persisted resource identity.
+- [x] Step 4: Run the focused tests and confirm they pass.
+- [x] Step 5: Run the existing resource migration tests and commit the ledger identity batch (`10b322d`).
 
 ### Task 2: Add durable quota observations
 
@@ -49,11 +49,11 @@
 - Add ResourceLedger.get_quota_observation(resource_id) -> dict[str, Any] | None.
 - Resource quota observations must be integer/non-negative where applicable, bounded by their limit, timestamped, and associated with the resource quota_domain.
 
-- [ ] Step 1: Add failing tests for durable observation, input validation, and restart reload.
-- [ ] Step 2: Run the focused tests and confirm failure because the API is absent.
-- [ ] Step 3: Implement the observation dataclass, validation, insert/update of the latest resource snapshot, and read API.
-- [ ] Step 4: Run focused tests and confirm they pass.
-- [ ] Step 5: Commit the quota observation batch.
+- [x] Step 1: Add failing tests for durable observation, input validation, and restart reload.
+- [x] Step 2: Run the focused tests and confirm failure because the API is absent.
+- [x] Step 3: Implement the observation dataclass, validation, insert/update of the latest resource snapshot, and read API.
+- [x] Step 4: Run focused tests and confirm they pass.
+- [x] Step 5: Commit the quota observation batch (`dd1a486`).
 
 ### Task 3: Expand operational resource observations and quota-aware routing
 
@@ -70,11 +70,11 @@
 - Add deterministic preference for higher fresh quota headroom before effective cost, while retaining privacy and capability hard filters.
 - Extend RouteSelection only when needed for existing callers; do not duplicate provider selection in Controller.
 
-- [ ] Step 1: Add failing tests for operational observation persistence, stale/future quota rejection, and higher-quota selection.
-- [ ] Step 2: Run focused tests and confirm failure.
-- [ ] Step 3: Implement validation, persistence, freshness checks, and deterministic routing.
-- [ ] Step 4: Run router/resource tests and confirm they pass.
-- [ ] Step 5: Commit the quota-aware routing batch.
+- [x] Step 1: Add failing tests for operational observation persistence, stale/future quota rejection, and higher-quota selection.
+- [x] Step 2: Run focused tests and confirm failure.
+- [x] Step 3: Implement validation, persistence, freshness checks, and deterministic routing.
+- [x] Step 4: Run router/resource tests and confirm they pass.
+- [x] Step 5: Commit the quota-aware routing batch (`dd1a486`).
 
 ### Task 4: Add separate free-provider adapter boundaries
 
@@ -83,20 +83,24 @@
 - Create: src/dev_agent/providers/groq/provider.py
 - Create: src/dev_agent/providers/cloudflare/__init__.py
 - Create: src/dev_agent/providers/cloudflare/provider.py
+- Create: src/dev_agent/providers/mistral/__init__.py
+- Create: src/dev_agent/providers/mistral/provider.py
+- Create: src/dev_agent/providers/openrouter/__init__.py
+- Create: src/dev_agent/providers/openrouter/provider.py
 - Test: tests/v2/test_provider_contracts.py
 - Modify: src/dev_agent/providers/__init__.py only if exports are required
 
 **Interfaces:**
-- GroqProvider and CloudflareWorkersAIProvider implement ModelProvider through injected transport callables.
-- Both adapters normalize ModelResponse and re-raise typed ProviderError before broad transport wrapping.
+- GroqProvider, CloudflareWorkersAIProvider, MistralProvider, and OpenRouterFreeProvider implement ModelProvider through injected transport callables.
+- All adapters normalize ModelResponse and re-raise typed ProviderError before broad transport wrapping.
 - Provider-specific payload construction is private to each adapter; no SDK objects cross the ModelProvider boundary.
 - No live cloud request is made by tests or CI. Live qualification remains separate evidence and G6O1 remains blocked.
 
-- [ ] Step 1: Add failing contract tests for both provider adapters and typed error preservation.
-- [ ] Step 2: Run focused tests and confirm failure because the modules do not exist.
-- [ ] Step 3: Implement the smallest injected-transport adapters using existing normalize_response behavior.
-- [ ] Step 4: Run provider contract tests and the complete v2 suite.
-- [ ] Step 5: Commit and push the adapters only after all local checks pass.
+- [x] Step 1: Add failing contract tests for the free-provider adapters and typed error preservation.
+- [x] Step 2: Run focused tests and confirm failure because the modules do not exist.
+- [x] Step 3: Implement the smallest injected-transport adapters using existing normalize_response behavior.
+- [x] Step 4: Run provider contract tests and the complete v2 suite.
+- [x] Step 5: Commit and push the adapters only after all local checks pass (`a414907`, cleanup `0a32d38`).
 
 ### Task 5: Update Phase 6A evidence and verify
 
@@ -111,8 +115,21 @@
 - Provider live evidence is not claimed from injected-transport tests.
 - G6O1 remains BLOCKED_EXTERNAL and Phase 7 remains deferred.
 
-- [ ] Step 1: Run full pytest, compileall, JSON validation, check_head, and relevant gate checks.
+- [x] Step 1: Run full pytest, compileall, JSON validation, and relevant gate checks; `check_head` follows the clean commit.
 - [ ] Step 2: Update Current State with exact local test count and external CI run IDs.
-- [ ] Step 3: Inspect diff and verify no forbidden future feature was added.
+- [x] Step 3: Inspect diff and verify no forbidden future feature was added.
 - [ ] Step 4: Commit, push, and confirm exact-head CI.
 - [ ] Step 5: Stop at a clean tested boundary and record remaining provider live qualification work.
+
+## Execution record
+
+- `7957dbd`: plan and scope record.
+- `10b322d`: quota-domain identity and ResourceLedger schema v5 migration.
+- `dd1a486`: durable quota observations, schema v6 operational observations, and quota-aware routing.
+- `a414907`, `0a32d38`: Groq/Cloudflare contract adapters and adapter file cleanup.
+- Working-tree follow-up: Mistral/OpenRouter Free contract adapters, Provider exports, and Phase 6A dispatch/documentation synchronization.
+
+Remaining after this batch: live qualification for the new cloud providers,
+provider-owned quota observation ingestion, multi-credential quota aggregation,
+and later task-specific scoring, hedging, and Phase 7 intelligence/backend
+features. G6O1 remains BLOCKED_EXTERNAL.

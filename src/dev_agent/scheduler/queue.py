@@ -189,7 +189,8 @@ class DurableQueue:
         if not worker_id.strip() or lease_seconds <= 0:
             raise ValueError("worker_id and positive lease_seconds are required")
         with self._lock:
-            cursor = self.connection.execute("UPDATE queue_items SET lease_until=? WHERE task_id=? AND state='leased' AND lease_owner=? AND state_version=?", (time.time() + lease_seconds, task_id, worker_id, state_version))
+            now = time.time()
+            cursor = self.connection.execute("UPDATE queue_items SET lease_until=? WHERE task_id=? AND state='leased' AND lease_owner=? AND state_version=? AND lease_until > ?", (now + lease_seconds, task_id, worker_id, state_version, now))
             self.connection.commit()
             if cursor.rowcount != 1:
                 raise StaleLease(task_id)

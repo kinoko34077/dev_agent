@@ -4,6 +4,13 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-09 JST — Phase 6A quota-aware Multi-Free provider foundation
+
+- ResourceLedgerをschema v6へ拡張し、`quota_domain`、durable quota observation、quota remaining/reset、latency/failure EWMA、inflight/concurrencyの観測値をordered migrationで保持できるようにした。
+- quota domainを宣言したResourceはmissing/future/stale observationをfail-closedで除外し、fresh quota headroomを優先してRouterが選択する。ProviderDispatcherの通常経路とControllerのcompatibility/legacy direct経路は変更していない。
+- Groq、Cloudflare Workers AI、Mistral、OpenRouter FreeのAdapter境界を、注入transportと既存のnormalized ModelProvider contractで追加した。CI/local testは実通信を行わず、live qualificationやquota header自動取得は未実施。
+- G6O1は実paid Providerのworst-case qualificationとdeployment-owned protected budget config待ちの`BLOCKED_EXTERNAL`を維持し、Phase 7は開始していない。ローカル全回帰は `264 passed, 1 skipped`。
+
 ### 2026-09-09 JST — Multi-Free Provider migration preparation
 
 - 添付要件を docs/requirements/ の7章とIndexへ分割し、必要章だけを参照できる導線を追加。将来要件は現行Gateの達成として扱わない。

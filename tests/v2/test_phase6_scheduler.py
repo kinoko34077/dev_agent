@@ -278,11 +278,23 @@ def test_worker_finalizes_terminal_result_when_heartbeat_fails_after_renewal(tmp
     with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
         store.save_task(task)
         queue.enqueue(task.task_id)
-        runner = WorkerRunner(queue, TerminalController(store), worker_id="worker-a", lease_seconds=0.3)
+        runner = WorkerRunner(queue, TerminalController(store), worker_id="worker-a", lease_seconds=0.6)
         result = runner.run_once()
 
     assert result is not None and result.status is TaskStatus.COMPLETED
     assert queue.snapshot(task.task_id).state == "completed"
+
+
+def test_renew_rejects_expired_lease_instead_of_resurrecting_it(tmp_path):
+    queue = DurableQueue(tmp_path / "queue.sqlite3")
+    task = Task(objective="expired lease")
+    queue.enqueue(task.task_id)
+    item = queue.claim("worker-a", lease_seconds=30.0)
+    queue.connection.execute("UPDATE queue_items SET lease_until=? WHERE task_id=?", (time.time() - 1, item.task_id))
+    queue.connection.commit()
+
+    with pytest.raises(StaleLease):
+        queue.renew(item.task_id, worker_id="worker-a", state_version=item.state_version, lease_seconds=30.0)
 
 
 def test_worker_requeues_when_heartbeat_failure_is_detected_before_transition(tmp_path):
