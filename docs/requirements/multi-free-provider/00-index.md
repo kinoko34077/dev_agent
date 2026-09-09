@@ -18,7 +18,7 @@ Status: DRAFT -> ACCEPTED候補
 
 ## 現行のPhase 6A実装境界
 
-Phase 6Aの第一バッチとして、ResourceLedger schema v6のquota_domain identity、quota_observations、operational observation fields、fresh quota headroom routing、provider-neutralなquota observation取り込みを実装した。同一quota domainの複数Credentialは残量を加算せず、fresh observationの保守的headroomとconcurrency hard filterを使う。Phase 7A/Bの移行境界として、Taskへtyped profileを追加し、決定的なIntelligence Policyの範囲をModelRequest metadataへ渡す。Groq、Cloudflare Workers AI、Mistral、OpenRouter Freeは注入transportのAdapter/contract境界まで追加し、live qualificationはまだ取得していない。
+Phase 6Aの第一バッチとして、ResourceLedger schema v6のquota_domain identity、quota_observations、operational observation fields、fresh quota headroom routing、provider-neutralなquota observation取り込みを実装した。同一quota domainの複数Credentialは残量を加算せず、fresh observationの保守的headroomとconcurrency hard filterを使う。Phase 7A/Bの移行境界として、Taskへtyped profileを追加し、決定的なIntelligence Policyの範囲をModelRequest metadataへ渡す。Groq、Cloudflare Workers AI、Mistral、OpenRouter Freeはnormalized Adapter/contract境界まで追加し、Groq／Cloudflareにはopt-in HTTP Adapterもあるが、live qualificationはまだ取得していない。
 
 - G6O1は BLOCKED_EXTERNAL のまま維持する。
 - 通常Provider経路は Controller -> ProviderDispatcher -> ProviderRegistry -> Concrete Provider とする。

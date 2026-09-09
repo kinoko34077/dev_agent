@@ -22,8 +22,9 @@ operational resource observations, fresh quota-aware routing, and normalized
 quota telemetry ingestion from a valid provider response. Shared domains use
 conservative fresh headroom rather than summing credentials; concurrency
 limits are hard filters before dispatch. Groq, Cloudflare Workers AI, Mistral,
-and OpenRouter Free are separate injected-transport Adapter contracts; live
-qualification and provider-specific header parsing remain later work. Phase
+and OpenRouter Free are separate normalized Adapter contracts. Groq and
+Cloudflare also have opt-in standard-library HTTP adapters; live qualification
+and provider-specific qualification evidence remain later work. Phase
 7A/B also carries a typed Task profile and deterministic intelligence-policy
 metadata into ModelRequest; it does not select a model or add an AgentBackend.
 The canonical path stays
@@ -161,9 +162,11 @@ reading a model-selected tier from task metadata; the decision is included in
 normalized request metadata for audit and later Evaluator integration.
 
 Phase 6A's additional free-provider adapters (Groq, Cloudflare Workers AI,
-Mistral, and OpenRouter Free) use injected transports and the normalized
-contract only. Their contract tests and normalized quota-ingestion tests do
-not constitute live provider or quota qualification evidence.
+Mistral, and OpenRouter Free) expose the normalized contract. Groq and
+Cloudflare HTTP adapters keep endpoint/auth/response details inside their
+provider modules, while their live qualification remains opt-in. Contract,
+HTTP-decoder, and normalized quota-ingestion tests do not constitute live
+provider or quota qualification evidence.
 
 The lease proof for the provider intent transition is checked inside the
 StateStore transaction. An independent-process test confirms that a reclaimed

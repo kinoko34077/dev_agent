@@ -11,3 +11,6 @@ __pycache__/
 # OSごとの不要ファイル
 .DS_Store
 Thumbs.db
+
+# Development-only Worker Farm artifacts (manifests, results, and worktrees)
+.devfarm/
