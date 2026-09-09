@@ -15,7 +15,9 @@ from typing import Any, Iterable
 from uuid import uuid4
 
 from .snapshot import RoutingSnapshot
+from .catalog import ResourceCatalogStore
 from .health import ProviderHealthStore
+from .observations import QuotaObservationStore, ResourceObservationStore
 
 
 # Capability held only by the explicit budget-administration facade. Runtime
@@ -221,6 +223,9 @@ class ResourceLedger:
         self.connection = sqlite3.connect(self.path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
         self._lock = RLock()
+        self._catalog_store = ResourceCatalogStore(self.connection, self._lock)
+        self._observation_store = ResourceObservationStore(self.connection, self._lock)
+        self._quota_store = QuotaObservationStore(self.connection, self._lock)
         self._health_store = ProviderHealthStore(self.connection, self._lock)
         existing_tables = {row[0] for row in self.connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")}
         try:
@@ -396,19 +401,19 @@ class ResourceLedger:
         if not capability_list:
             raise ValueError("at least one capability is required")
         now = _now()
-        with self._lock:
-            self.connection.execute(
-                """INSERT INTO resources(resource_id, provider_id, native_unit, capacity, capabilities_json,
-                   sensitivity, cost_minor, price_currency, quota_domain, available, health, confidence, observed_at, metadata_json)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unknown', 0, ?, ?)
-                   ON CONFLICT(resource_id) DO UPDATE SET provider_id=excluded.provider_id,
-                   native_unit=excluded.native_unit, capacity=excluded.capacity,
-                   capabilities_json=excluded.capabilities_json, sensitivity=excluded.sensitivity,
-                   cost_minor=excluded.cost_minor, price_currency=excluded.price_currency,
-                   quota_domain=excluded.quota_domain, metadata_json=excluded.metadata_json""",
-                (resource_id, provider_id, native_unit, capacity, json.dumps(capability_list), sensitivity, cost_minor, price_currency.upper() if price_currency else None, quota_domain, capacity, now, json.dumps(resource_metadata, ensure_ascii=False)),
-            )
-            self.connection.commit()
+        self._catalog_store.upsert(
+            resource_id=resource_id,
+            provider_id=provider_id,
+            native_unit=native_unit,
+            capacity=capacity,
+            capabilities=capability_list,
+            sensitivity=sensitivity,
+            cost_minor=cost_minor,
+            price_currency=price_currency.upper() if price_currency else None,
+            quota_domain=quota_domain,
+            metadata=resource_metadata,
+            observed_at=now,
+        )
         return ResourceSpec(resource_id, provider_id, native_unit, capacity, capability_list, sensitivity, cost_minor, price_currency.upper() if price_currency else None, quota_domain, provider_binding_id)
 
     def observe(
@@ -450,55 +455,19 @@ class ResourceLedger:
             if inflight > concurrency_limit:
                 raise ValueError("inflight cannot exceed concurrency_limit")
         timestamp = observed_at or _now()
-        with self._lock:
-            resource = self.connection.execute("SELECT capacity FROM resources WHERE resource_id = ?", (resource_id,)).fetchone()
-            if resource is None:
-                raise KeyError(resource_id)
-            if available > resource[0]:
-                raise ValueError(f"available capacity exceeds resource capacity: {resource_id}")
-            self.connection.execute(
-                """UPDATE resources
-                   SET available=?, health=?, confidence=?, observed_at=?,
-                       quota_remaining_ratio=?, quota_reset_at=?,
-                       latency_ewma_ms=?, failure_ewma=?, inflight=?,
-                       concurrency_limit=?
-                   WHERE resource_id=?""",
-                (
-                    available,
-                    health,
-                    confidence,
-                    timestamp,
-                    quota_remaining_ratio,
-                    quota_reset_at.strip() if isinstance(quota_reset_at, str) else None,
-                    latency_ewma_ms,
-                    failure_ewma,
-                    inflight,
-                    concurrency_limit,
-                    resource_id,
-                ),
-            )
-            self.connection.execute(
-                """INSERT INTO resource_observations(
-                    observation_id, resource_id, available, health, confidence,
-                    observed_at, quota_remaining_ratio, quota_reset_at,
-                    latency_ewma_ms, failure_ewma, inflight, concurrency_limit
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    str(uuid4()),
-                    resource_id,
-                    available,
-                    health,
-                    confidence,
-                    timestamp,
-                    quota_remaining_ratio,
-                    quota_reset_at.strip() if isinstance(quota_reset_at, str) else None,
-                    latency_ewma_ms,
-                    failure_ewma,
-                    inflight,
-                    concurrency_limit,
-                ),
-            )
-            self.connection.commit()
+        self._observation_store.record(
+            resource_id=resource_id,
+            available=available,
+            health=health,
+            confidence=confidence,
+            observed_at=timestamp,
+            quota_remaining_ratio=quota_remaining_ratio,
+            quota_reset_at=quota_reset_at.strip() if isinstance(quota_reset_at, str) else None,
+            latency_ewma_ms=latency_ewma_ms,
+            failure_ewma=failure_ewma,
+            inflight=inflight,
+            concurrency_limit=concurrency_limit,
+        )
 
     @staticmethod
     def _quota_integer(value: int | None, name: str) -> int | None:
@@ -571,60 +540,32 @@ class ResourceLedger:
         if not isinstance(source, str) or not source.strip():
             raise ValueError("source must be a non-empty string")
         timestamp = observed_at or _now()
-        with self._lock:
-            resource = self.connection.execute("SELECT quota_domain FROM resources WHERE resource_id = ?", (resource_id,)).fetchone()
-            if resource is None:
-                raise KeyError(resource_id)
-            quota_domain = resource["quota_domain"]
-            if not isinstance(quota_domain, str) or not quota_domain.strip():
-                raise ValueError("quota_domain is required for quota observations")
-            self.connection.execute(
-                """INSERT INTO quota_observations(
-                    observation_id, resource_id, quota_domain, unit, limit_value,
-                    remaining_value, consumed_value, authority, request_limit,
-                    request_remaining, token_limit, token_remaining, reset_at,
-                    daily_remaining, concurrency_limit, confidence, observed_at,
-                    source
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    str(uuid4()),
-                    resource_id,
-                    quota_domain,
-                    unit,
-                    limit,
-                    remaining,
-                    consumed,
-                    authority.strip(),
-                    request_limit,
-                    request_remaining,
-                    token_limit,
-                    token_remaining,
-                    reset_at.strip() if isinstance(reset_at, str) else None,
-                    daily_remaining,
-                    concurrency_limit,
-                    confidence,
-                    timestamp,
-                    source.strip(),
-                ),
-            )
-            self.connection.commit()
+        resource = self._catalog_store.get(resource_id)
+        quota_domain = resource.get("quota_domain")
+        if not isinstance(quota_domain, str) or not quota_domain.strip():
+            raise ValueError("quota_domain is required for quota observations")
+        self._quota_store.record(
+            resource_id=resource_id,
+            quota_domain=quota_domain.strip(),
+            unit=unit,
+            limit=limit,
+            remaining=remaining,
+            consumed=consumed,
+            authority=authority.strip(),
+            request_limit=request_limit,
+            request_remaining=request_remaining,
+            token_limit=token_limit,
+            token_remaining=token_remaining,
+            reset_at=reset_at.strip() if isinstance(reset_at, str) else None,
+            daily_remaining=daily_remaining,
+            concurrency_limit=concurrency_limit,
+            confidence=confidence,
+            observed_at=timestamp,
+            source=source.strip(),
+        )
 
     def get_quota_observation(self, resource_id: str) -> dict[str, Any] | None:
-        with self._lock:
-            row = self.connection.execute(
-                """SELECT resource_id, quota_domain, unit, limit_value,
-                          remaining_value, consumed_value, authority,
-                          request_limit,
-                          request_remaining, token_limit, token_remaining,
-                          reset_at, daily_remaining, concurrency_limit,
-                          confidence, observed_at, source
-                   FROM quota_observations
-                   WHERE resource_id=?
-                   ORDER BY observed_at DESC, rowid DESC
-                   LIMIT 1""",
-                (resource_id,),
-            ).fetchone()
-            return self._quota_from_row(row) if row is not None else None
+        return self._quota_store.get_latest(resource_id)
 
     def list_quota_observations(self, *, quota_domain: str | None = None) -> list[dict[str, Any]]:
         """Return the newest observation for each resource in a quota domain.
@@ -635,32 +576,11 @@ class ResourceLedger:
         """
         if quota_domain is not None and (not isinstance(quota_domain, str) or not quota_domain.strip()):
             raise ValueError("quota_domain must be a non-empty string or None")
-        with self._lock:
-            clauses = " WHERE quota_domain=?" if quota_domain is not None else ""
-            params: tuple[object, ...] = (quota_domain.strip(),) if quota_domain is not None else ()
-            rows = self.connection.execute(
-                """SELECT resource_id, quota_domain, unit, limit_value,
-                          remaining_value, consumed_value, authority,
-                          request_limit,
-                          request_remaining, token_limit, token_remaining,
-                          reset_at, daily_remaining, concurrency_limit,
-                          confidence, observed_at, source
-                   FROM quota_observations""" + clauses +
-                " ORDER BY observed_at DESC, rowid DESC",
-                params,
-            ).fetchall()
-            latest: dict[str, dict[str, Any]] = {}
-            for row in rows:
-                latest.setdefault(row["resource_id"], self._quota_from_row(row))
-            return [latest[resource_id] for resource_id in sorted(latest)]
+        return self._quota_store.list_latest(quota_domain=quota_domain.strip() if quota_domain is not None else None)
 
     @staticmethod
     def _quota_from_row(row: sqlite3.Row | Mapping[str, Any]) -> dict[str, Any]:
-        result = dict(row)
-        result["limit"] = result.pop("limit_value")
-        result["remaining"] = result.pop("remaining_value")
-        result["consumed"] = result.pop("consumed_value")
-        return result
+        return QuotaObservationStore.from_row(row)
 
     def ingest_quota_observation(
         self,
@@ -731,23 +651,14 @@ class ResourceLedger:
         return True
 
     def get_resource(self, resource_id: str) -> dict[str, Any]:
-        with self._lock:
-            row = self.connection.execute("SELECT * FROM resources WHERE resource_id = ?", (resource_id,)).fetchone()
-            if row is None:
-                raise KeyError(resource_id)
-            return self._resource_from_row(row)
+        return self._catalog_store.get(resource_id)
 
     @staticmethod
     def _resource_from_row(row: sqlite3.Row | Mapping[str, Any]) -> dict[str, Any]:
-        result = dict(row)
-        result["capabilities"] = tuple(json.loads(result.pop("capabilities_json")))
-        result["metadata"] = json.loads(result.pop("metadata_json"))
-        return result
+        return ResourceCatalogStore.from_row(row)
 
     def list_resources(self) -> list[dict[str, Any]]:
-        with self._lock:
-            rows = self.connection.execute("SELECT * FROM resources ORDER BY resource_id").fetchall()
-            return [self._resource_from_row(row) for row in rows]
+        return self._catalog_store.list()
 
     def routing_snapshot(self) -> RoutingSnapshot:
         """Read resources and current-domain quota observations in one batch.
@@ -758,26 +669,12 @@ class ResourceLedger:
         query and one quota query per routing decision.
         """
         with self._lock:
-            resource_rows = self.connection.execute("SELECT * FROM resources ORDER BY resource_id").fetchall()
+            resource_rows = self._catalog_store.rows()
             resources = tuple(self._resource_from_row(row) for row in resource_rows)
             domains = sorted({str(resource["quota_domain"]) for resource in resources if resource.get("quota_domain")})
             latest_by_resource: dict[str, dict[str, Any]] = {}
             if domains:
-                placeholders = ",".join("?" for _ in domains)
-                quota_rows = self.connection.execute(
-                    """SELECT q.resource_id, q.quota_domain, q.unit, q.limit_value,
-                              q.remaining_value, q.consumed_value, q.authority,
-                              q.request_limit,
-                              q.request_remaining, q.token_limit, q.token_remaining,
-                              q.reset_at, q.daily_remaining, q.concurrency_limit,
-                              q.confidence, q.observed_at, q.source
-                       FROM quota_observations AS q
-                       JOIN resources AS r
-                         ON r.resource_id = q.resource_id
-                        AND r.quota_domain = q.quota_domain
-                       WHERE q.quota_domain IN (""" + placeholders + ") ORDER BY q.observed_at DESC, q.rowid DESC",
-                    tuple(domains),
-                ).fetchall()
+                quota_rows = self._quota_store.rows_for_domains(domains)
                 for row in quota_rows:
                     latest_by_resource.setdefault(row["resource_id"], self._quota_from_row(row))
             observations_by_domain: dict[str, tuple[dict[str, Any], ...]] = {}
