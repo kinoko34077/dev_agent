@@ -61,6 +61,9 @@ Implemented in `recovery/phase6_recovery.py` and
   resource-ledger validation are explicit operations.
 - Restore publication and repair mutations require opt-in and maintenance
   locking.
+- `scripts/phase6_recovery_drill.py` runs the complete operator-equivalent
+  sequence in a temporary Git/SQLite environment without touching the source
+  checkout; the retained summary is under `spec/v2/evidence/`.
 
 ## 6D — Scheduler and worker ownership
 

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "qualification": "phase6_recovery_operator_drill",
+  "tested_at": "2026-09-09",
+  "status": "completed",
+  "environment": "isolated temporary Git repository and SQLite state; source checkout untouched",
+  "sequence": [
+    "maintenance lock acquired during restore publication",
+    "SQLite backup created and content/integrity validated",
+    "restore published to a new destination and independently validated",
+    "last-known-good commit recorded",
+    "isolated repository rolled back to the recorded commit",
+    "repair branch created at last-known-good",
+    "restored state reopened and task payload reloaded"
+  ],
+  "reproduction": "python scripts/phase6_recovery_drill.py --report <output.json>",
+  "scope": "operator mutation gates were explicitly enabled only inside the temporary fixture"
+}
