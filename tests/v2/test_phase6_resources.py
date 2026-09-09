@@ -6,6 +6,7 @@ import sqlite3
 
 import pytest
 
+from src.dev_agent.resources import ledger as ledger_module
 from src.dev_agent.resources.budget import BudgetAuthority, BudgetExceeded, BudgetGovernor, BudgetPolicy, ResourceUnavailable, UnknownPrice
 from src.dev_agent.resources.ledger import BudgetPeriod, MoneyAmount, ResourceLedger, ResourcePrice, _BUDGET_ADMIN_TOKEN
 from src.dev_agent.domain.protocol import RecoveryTaskAuthority, Task, TaskClass
@@ -211,6 +212,30 @@ def test_resource_ledger_lists_latest_quota_observation_per_resource_in_domain(t
         ("credential-a", 70),
         ("credential-b", 80),
     ]
+
+
+def test_quota_observation_timestamp_ties_use_ingestion_order(tmp_path, monkeypatch):
+    identifiers = iter(("00000000-0000-0000-0000-000000000003", "00000000-0000-0000-0000-000000000002", "00000000-0000-0000-0000-000000000001"))
+    monkeypatch.setattr(ledger_module, "uuid4", lambda: next(identifiers))
+    ledger = ResourceLedger(tmp_path / "quota-timestamp-ties.sqlite3")
+    ledger.register_resource(
+        "credential",
+        provider_id="provider",
+        native_unit="request",
+        capacity=10,
+        capabilities=["text"],
+        quota_domain="shared-domain",
+    )
+
+    for remaining in (90, 70, 80):
+        ledger.observe_quota(
+            "credential",
+            request_limit=100,
+            request_remaining=remaining,
+            observed_at="2026-01-01T00:00:00+00:00",
+        )
+
+    assert ledger.get_quota_observation("credential")["request_remaining"] == 80
 
 
 def test_quota_observation_rejects_invalid_limits_and_missing_domain(tmp_path):

@@ -606,7 +606,7 @@ class ResourceLedger:
                           confidence, observed_at, source
                    FROM quota_observations
                    WHERE resource_id=?
-                   ORDER BY observed_at DESC, observation_id DESC
+                   ORDER BY observed_at DESC, rowid DESC
                    LIMIT 1""",
                 (resource_id,),
             ).fetchone()
@@ -632,7 +632,7 @@ class ResourceLedger:
                           reset_at, daily_remaining, concurrency_limit,
                           confidence, observed_at, source
                    FROM quota_observations""" + clauses +
-                " ORDER BY observed_at DESC, observation_id DESC",
+                " ORDER BY observed_at DESC, rowid DESC",
                 params,
             ).fetchall()
             latest: dict[str, dict[str, Any]] = {}
@@ -761,7 +761,7 @@ class ResourceLedger:
                        JOIN resources AS r
                          ON r.resource_id = q.resource_id
                         AND r.quota_domain = q.quota_domain
-                       WHERE q.quota_domain IN (""" + placeholders + ") ORDER BY q.observed_at DESC, q.observation_id DESC",
+                       WHERE q.quota_domain IN (""" + placeholders + ") ORDER BY q.observed_at DESC, q.rowid DESC",
                     tuple(domains),
                 ).fetchall()
                 for row in quota_rows:
