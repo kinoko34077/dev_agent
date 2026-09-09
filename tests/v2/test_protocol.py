@@ -64,6 +64,13 @@ def test_recovery_task_requires_authority_and_trusted_persisted_reload(tmp_path)
     loaded_json = json_store.load_task(task.task_id)
     assert loaded_json is not None
     assert loaded_json.task_class is TaskClass.RECOVERY
+    normal = Task(objective="normal persisted task")
+    with SQLiteStateStore(tmp_path / "normal.sqlite3") as store:
+        store.save_task(normal)
+        loaded_normal = store.load_task(normal.task_id)
+    assert loaded_normal is not None
+    loaded_normal.task_class = TaskClass.RECOVERY
+    assert loaded_normal._authority is None
 
 
 def test_limits_reject_unbounded_or_invalid_values():

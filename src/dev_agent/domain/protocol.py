@@ -223,7 +223,9 @@ class Task:
     @classmethod
     def from_persisted_dict(cls, data: Mapping[str, Any]) -> "Task":
         """Rehydrate a task already accepted by a trusted durable StateStore."""
-        return cls._from_dict(data, authority=_RECOVERY_TASK_AUTHORITY)
+        persisted_class = _enum(data.get("task_class", TaskClass.NORMAL), TaskClass, "task_class")
+        authority = _RECOVERY_TASK_AUTHORITY if persisted_class is TaskClass.RECOVERY else None
+        return cls._from_dict(data, authority=authority)
 
     @classmethod
     def _from_dict(cls, data: Mapping[str, Any], *, authority: object | None) -> "Task":
