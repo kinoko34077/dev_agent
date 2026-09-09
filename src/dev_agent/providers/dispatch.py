@@ -306,13 +306,14 @@ class ProviderDispatcher(ModelProvider):
             return response
 
     def _selection(self, request: ModelRequest, excluded: set[str]) -> RouteSelection:
+        snapshot = self.control.router.snapshot()
         max_cost_minor = None
         if self.survival is not None:
             budget = self.control.governor.snapshot()
-            healthy = sum(resource["health"] in {"healthy", "degraded"} for resource in self.control.router.ledger.list_resources())
+            healthy = sum(resource["health"] in {"healthy", "degraded"} for resource in snapshot.resources)
             state = self.survival.evaluate(SurvivalSnapshot(budget["normal_available_minor"], budget["recovery_available_minor"], healthy))
             if state.mode in {SurvivalMode.CONSERVE, SurvivalMode.SURVIVAL}:
                 # Paid normal dispatch is prohibited in constrained modes.
                 # Recovery-only paid work requires a distinct future request type.
                 max_cost_minor = 0
-        return self.control.router.choose(RouteRequest(capabilities=set(request.requested_capabilities) or {"text"}, sensitivity=request.sensitivity, excluded_resource_ids=excluded, max_cost_minor=max_cost_minor))
+        return self.control.router.choose(RouteRequest(capabilities=set(request.requested_capabilities) or {"text"}, sensitivity=request.sensitivity, excluded_resource_ids=excluded, max_cost_minor=max_cost_minor), snapshot=snapshot)

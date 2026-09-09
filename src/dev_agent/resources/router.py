@@ -8,6 +8,7 @@ import math
 import time
 
 from .ledger import ResourceLedger
+from .snapshot import RoutingSnapshot
 
 
 class NoRoute(RuntimeError):
@@ -71,10 +72,10 @@ class ResourceRouter:
             ratios.append(0.0)
         return min(ratios) if ratios else None
 
-    def _fresh_domain_quota_ratio(self, quota_domain: str, max_age_seconds: float | None) -> float | None:
+    def _fresh_domain_quota_ratio(self, quota_domain: str, max_age_seconds: float | None, observations_by_domain) -> float | None:
         ratios: list[float] = []
         now = time.time()
-        for observation in self.ledger.list_quota_observations(quota_domain=quota_domain):
+        for observation in observations_by_domain.get(quota_domain, ()):
             try:
                 observed_at = datetime.fromisoformat(str(observation["observed_at"])).timestamp()
             except (TypeError, ValueError):
@@ -90,11 +91,17 @@ class ResourceRouter:
         # quota as additive capacity.
         return min(ratios) if ratios else None
 
-    def choose(self, request: RouteRequest) -> RouteSelection:
+    def snapshot(self) -> RoutingSnapshot:
+        return self.ledger.routing_snapshot()
+
+    def choose(self, request: RouteRequest, *, snapshot: RoutingSnapshot | None = None) -> RouteSelection:
+        return self._choose_from_snapshot(request, self.snapshot() if snapshot is None else snapshot)
+
+    def _choose_from_snapshot(self, request: RouteRequest, snapshot: RoutingSnapshot) -> RouteSelection:
         if request.sensitivity not in _SENSITIVITY:
             raise ValueError("invalid sensitivity")
         candidates = []
-        for resource in self.ledger.list_resources():
+        for resource in snapshot.resources:
             if resource["resource_id"] in request.excluded_resource_ids:
                 continue
             if request.allowed_providers is not None and resource["provider_id"] not in request.allowed_providers:
@@ -136,7 +143,7 @@ class ResourceRouter:
                 continue
             quota_ratio = None
             if resource.get("quota_domain"):
-                quota_ratio = self._fresh_domain_quota_ratio(resource["quota_domain"], request.max_quota_observation_age_seconds)
+                quota_ratio = self._fresh_domain_quota_ratio(resource["quota_domain"], request.max_quota_observation_age_seconds, snapshot.quota_observations_by_domain)
                 if quota_ratio is None or quota_ratio <= 0:
                     continue
             elif resource.get("quota_remaining_ratio") is not None:

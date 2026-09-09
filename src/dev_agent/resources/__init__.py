@@ -4,6 +4,7 @@ from .budget import BudgetAuthority, BudgetExceeded, BudgetGovernor, BudgetPolic
 from .control import DispatchDenied, DispatchReservation, ResourceControlPlane
 from .ledger import BudgetPeriod, MoneyAmount, QuotaObservation, ResourceLedger, ResourcePrice, ResourceSpec
 from .router import NoRoute, ResourceRouter, RouteRequest, RouteSelection
+from .snapshot import RoutingSnapshot
 from .survival import SurvivalGovernor, SurvivalMode, SurvivalSnapshot, SurvivalState
 
 __all__ = [
@@ -29,6 +30,7 @@ __all__ = [
     "QuotaObservation",
     "RouteRequest",
     "RouteSelection",
+    "RoutingSnapshot",
     "SurvivalGovernor",
     "SurvivalMode",
     "SurvivalSnapshot",

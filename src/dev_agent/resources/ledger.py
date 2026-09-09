@@ -14,6 +14,8 @@ import time
 from typing import Any, Iterable
 from uuid import uuid4
 
+from .snapshot import RoutingSnapshot
+
 
 # Capability held only by the explicit budget-administration facade. Runtime
 # reservation code may read the persisted policy but must not rewrite it.
@@ -636,14 +638,56 @@ class ResourceLedger:
             row = self.connection.execute("SELECT * FROM resources WHERE resource_id = ?", (resource_id,)).fetchone()
             if row is None:
                 raise KeyError(resource_id)
-            result = dict(row)
-            result["capabilities"] = tuple(json.loads(result.pop("capabilities_json")))
-            result["metadata"] = json.loads(result.pop("metadata_json"))
-            return result
+            return self._resource_from_row(row)
+
+    @staticmethod
+    def _resource_from_row(row: sqlite3.Row | Mapping[str, Any]) -> dict[str, Any]:
+        result = dict(row)
+        result["capabilities"] = tuple(json.loads(result.pop("capabilities_json")))
+        result["metadata"] = json.loads(result.pop("metadata_json"))
+        return result
 
     def list_resources(self) -> list[dict[str, Any]]:
         with self._lock:
-            return [self.get_resource(row[0]) for row in self.connection.execute("SELECT resource_id FROM resources ORDER BY resource_id")]
+            rows = self.connection.execute("SELECT * FROM resources ORDER BY resource_id").fetchall()
+            return [self._resource_from_row(row) for row in rows]
+
+    def routing_snapshot(self) -> RoutingSnapshot:
+        """Read resources and current-domain quota observations in one batch.
+
+        The router previously loaded each quota domain separately while
+        iterating resources.  This keeps the same conservative latest-per-
+        resource semantics while reducing the database work to one resource
+        query and one quota query per routing decision.
+        """
+        with self._lock:
+            resource_rows = self.connection.execute("SELECT * FROM resources ORDER BY resource_id").fetchall()
+            resources = tuple(self._resource_from_row(row) for row in resource_rows)
+            domains = sorted({str(resource["quota_domain"]) for resource in resources if resource.get("quota_domain")})
+            latest_by_resource: dict[str, dict[str, Any]] = {}
+            if domains:
+                placeholders = ",".join("?" for _ in domains)
+                quota_rows = self.connection.execute(
+                    """SELECT q.resource_id, q.quota_domain, q.request_limit,
+                              q.request_remaining, q.token_limit, q.token_remaining,
+                              q.reset_at, q.daily_remaining, q.concurrency_limit,
+                              q.confidence, q.observed_at, q.source
+                       FROM quota_observations AS q
+                       JOIN resources AS r
+                         ON r.resource_id = q.resource_id
+                        AND r.quota_domain = q.quota_domain
+                       WHERE q.quota_domain IN (""" + placeholders + ") ORDER BY q.observed_at DESC, q.observation_id DESC",
+                    tuple(domains),
+                ).fetchall()
+                for row in quota_rows:
+                    latest_by_resource.setdefault(row["resource_id"], dict(row))
+            observations_by_domain: dict[str, tuple[dict[str, Any], ...]] = {}
+            grouped: dict[str, list[dict[str, Any]]] = {}
+            for observation in latest_by_resource.values():
+                grouped.setdefault(str(observation["quota_domain"]), []).append(observation)
+            for domain, observations in grouped.items():
+                observations_by_domain[domain] = tuple(sorted(observations, key=lambda item: str(item["resource_id"])))
+            return RoutingSnapshot(resources, observations_by_domain)
 
     def configure_budget(self, *, hard_cap_minor: int, recovery_reserve_minor: int, currency: str, period: BudgetPeriod | None = None, _authority: object | None = None) -> None:
         if _authority is not _BUDGET_ADMIN_TOKEN:

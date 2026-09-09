@@ -127,6 +127,47 @@ def test_router_uses_conservative_shared_domain_headroom_without_summing_credent
     assert ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"})).resource_id == "credential-b"
 
 
+def test_router_snapshot_batches_resource_and_quota_reads(tmp_path):
+    ledger = ResourceLedger(tmp_path / "routing-snapshot.sqlite3")
+    for resource_id, remaining in (("a", 80), ("b", 60)):
+        ledger.register_resource(
+            resource_id,
+            provider_id=resource_id,
+            native_unit="request",
+            capacity=10,
+            capabilities=["text"],
+            cost_minor=0,
+            quota_domain="shared-domain",
+        )
+        ledger.observe(resource_id, available=10, health="healthy")
+        ledger.observe_quota(resource_id, request_limit=100, request_remaining=remaining)
+
+    statements = []
+    ledger.connection.set_trace_callback(statements.append)
+    snapshot = ResourceRouter(ledger).snapshot()
+    ledger.connection.set_trace_callback(None)
+
+    assert len(snapshot.resources) == 2
+    assert {row["resource_id"] for row in snapshot.quota_observations_by_domain["shared-domain"]} == {"a", "b"}
+    assert sum("FROM resources" in statement for statement in statements) == 1
+    assert sum("FROM quota_observations" in statement for statement in statements) == 1
+
+
+def test_router_selection_can_use_snapshot_without_reloading_ledger(tmp_path, monkeypatch):
+    ledger = _ledger(tmp_path)
+    router = ResourceRouter(ledger)
+    snapshot = router.snapshot()
+
+    def unexpected_read():
+        raise AssertionError("selection must use the supplied snapshot")
+
+    monkeypatch.setattr(ledger, "list_resources", unexpected_read)
+    monkeypatch.setattr(ledger, "list_quota_observations", lambda **_: unexpected_read())
+
+    selection = router.choose(RouteRequest(capabilities={"tool_call"}, sensitivity="sensitive"), snapshot=snapshot)
+    assert selection.resource_id == "private"
+
+
 def test_router_rejects_resource_at_concurrency_limit(tmp_path):
     ledger = ResourceLedger(tmp_path / "concurrency-limit.sqlite3")
     ledger.register_resource("busy", provider_id="busy", native_unit="request", capacity=10, capabilities=["text"], cost_minor=0)
