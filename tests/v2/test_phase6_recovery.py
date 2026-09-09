@@ -4,6 +4,8 @@ import pytest
 
 from recovery.phase6_recovery import RecoveryOperator
 from recovery.validate_resources import validate_resource_ledger
+from recovery.validate_queue import validate_scheduler_queue
+from src.dev_agent.scheduler.queue import DurableQueue
 from src.dev_agent.resources.budget import BudgetAuthority, BudgetGovernor, BudgetPolicy
 from src.dev_agent.resources.ledger import ResourceLedger
 
@@ -32,6 +34,39 @@ def test_recovery_validates_resource_ledger_without_runtime_import(tmp_path):
     BudgetAuthority.configure(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20))
     ledger.register_resource("local", provider_id="ollama", native_unit="request", capacity=1, capabilities=["text"])
     assert validate_resource_ledger(ledger_path) == (True, "Phase 6 resource ledger is readable")
+
+
+def test_recovery_validates_scheduler_queue_schema_and_attempt_ceiling(tmp_path):
+    queue_path = tmp_path / "queue.sqlite3"
+    queue = DurableQueue(queue_path)
+    queue.enqueue("task", max_attempts=2)
+
+    assert validate_scheduler_queue(queue_path) == (True, "Phase 6 scheduler queue is readable")
+
+
+def test_recovery_rejects_stale_scheduler_queue_schema(tmp_path):
+    queue_path = tmp_path / "queue.sqlite3"
+    queue = DurableQueue(queue_path)
+    queue.connection.execute("UPDATE scheduler_schema_meta SET value='2' WHERE key='schema_version'")
+    queue.connection.commit()
+
+    ok, detail = validate_scheduler_queue(queue_path)
+
+    assert not ok
+    assert "schema version" in detail
+
+
+def test_recovery_rejects_invalid_scheduler_attempt_ceiling(tmp_path):
+    queue_path = tmp_path / "queue.sqlite3"
+    queue = DurableQueue(queue_path)
+    queue.enqueue("task")
+    queue.connection.execute("UPDATE queue_items SET max_attempts=0 WHERE task_id='task'")
+    queue.connection.commit()
+
+    ok, detail = validate_scheduler_queue(queue_path)
+
+    assert not ok
+    assert "max_attempts" in detail
 
 
 def test_recovery_rejects_stale_resource_schema_version(tmp_path):

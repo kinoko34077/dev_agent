@@ -8,6 +8,7 @@ from recovery.phase6_recovery import RecoveryOperator
 from recovery.backup import backup_artifact_root, restore_artifact_root
 from recovery.test_results import parse_junit_report, validate_junit_report
 from recovery.validate_state import validate_state
+from src.dev_agent.scheduler.queue import DurableQueue
 import pytest
 from src.dev_agent.domain.protocol import Task
 from src.dev_agent.state.sqlite_store import SQLiteStateStore
@@ -39,6 +40,16 @@ def test_recovery_validates_persisted_junit_report(tmp_path):
     assert validate_junit_report(report)[0]
     checks = run_diagnostics(Path(__file__).parents[2], test_report=report)
     assert next(item for item in checks if item.name == "persisted_test_report").ok
+
+
+def test_recovery_diagnostics_validate_scheduler_queue(tmp_path):
+    queue_path = tmp_path / "queue.sqlite3"
+    queue = DurableQueue(queue_path)
+    queue.enqueue("task")
+
+    checks = run_diagnostics(Path(__file__).parents[2], scheduler_queue=queue_path)
+
+    assert next(item for item in checks if item.name == "scheduler_queue").ok
 
 
 def test_recovery_validates_event_artifact_root(tmp_path):

@@ -20,6 +20,7 @@ def main(argv: list[str] | None = None) -> int:
         command.add_argument("--json", action="store_true")
         command.add_argument("--allow-write", action="store_true")
     sub.choices["diagnose"].add_argument("--resource-ledger", type=Path)
+    sub.choices["diagnose"].add_argument("--scheduler-queue", type=Path)
     sub.choices["validate-ledger"].add_argument("database", type=Path)
     sub.choices["backup"].add_argument("source", type=Path)
     sub.choices["backup"].add_argument("destination", type=Path)
@@ -32,7 +33,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     operator = RecoveryOperator(args.root)
     if args.command == "diagnose":
-        value = [asdict(item) for item in run_diagnostics(args.root, resource_ledger=args.resource_ledger)]
+        value = [asdict(item) for item in run_diagnostics(args.root, resource_ledger=args.resource_ledger, scheduler_queue=args.scheduler_queue)]
     elif args.command == "validate-ledger":
         ok, detail = operator.validate_state(args.database)
         value = {"ok": ok, "detail": detail}
