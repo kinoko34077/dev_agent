@@ -183,11 +183,13 @@ reading a model-selected tier from task metadata; the decision is included in
 normalized request metadata for audit and later Evaluator integration.
 
 Phase 6A's additional free-provider adapters (Groq, Cloudflare Workers AI,
-Mistral, and OpenRouter Free) expose the normalized contract. Groq and
-Cloudflare HTTP adapters keep endpoint/auth/response details inside their
-provider modules, while their live qualification remains opt-in. Contract,
-HTTP-decoder, and normalized quota-ingestion tests do not constitute live
-provider or quota qualification evidence.
+Mistral, OpenRouter Free, and SambaNova) expose the normalized contract. Groq,
+Cloudflare, and SambaNova HTTP adapters keep endpoint/auth/response details
+inside their provider modules, while live qualification remains opt-in.
+Contract, HTTP-decoder, and normalized quota-ingestion tests do not constitute
+live provider or quota qualification evidence. SambaNova's current live probe
+reached the API and returned HTTP 429; it is recorded as an external failure,
+not as successful qualification.
 
 The lease proof for the provider intent transition is checked inside the
 StateStore transaction. An independent-process test confirms that a reclaimed
