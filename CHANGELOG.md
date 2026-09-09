@@ -4,6 +4,11 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-10 JST — Escalation handoff invariant hardening
+
+- `EscalationDispatchRequest`のdecision／target整合性を検証し、same provider、other provider、higher tier以外のhandoffを拒否する。SQLiteでも`escalation.dispatch_ready` eventがsnapshot経由で永続化されることを確認した。
+- Phase 7 focused testsは`18 passed`、全回帰は`375 passed, 1 skipped`。G6O1と既存Gate statusは変更していない。
+
 ### 2026-09-10 JST — Reviewed escalation dispatch handoff
 
 - `EvaluationCoordinator.prepare_dispatch()`を追加し、accepted reviewとplan identityを検証した受理済みplanだけを、Provider選択・予算再確認・Task mutation・実dispatchを行わない不変`EscalationDispatchRequest`へ変換する。`escalation.dispatch_ready` eventにはplan、reviewer、approval referenceをdurableに記録する。

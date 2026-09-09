@@ -3,10 +3,10 @@
 Status: foundation VERIFIED; G6O2〜G6O6 VERIFIED; G6O1 BLOCKED_EXTERNAL; Phase 6A quota/provider expansion locally verified; OpenRouter Free and Cloudflare canonical live qualification verified; Mistral live attempt HTTP 429 and unqualified; Groq models probe HTTP 403; Phase 7A/B opt-in tier routing and Phase 7C/D bounded evaluation coordinator / reviewed dispatch-ready handoff locally verified
 
 The current code baseline is
-`3bb5ba6e50e234e13b4e6c4b6b852085731ca8f1`. The latest exact-head GitHub
+`e6da2fd4c6aea1f581171df6d259f97bd1de0483`. The latest exact-head GitHub
 Actions evidence is for this commit:
-both workflows succeeded, `v2-core` run `34407852066` (Python 3.10 and 3.11
-matrix jobs) and `v2 tests` run `34407851906`. CI run IDs are external
+both workflows succeeded, `v2-core` run `34409192426` (Python 3.10 and 3.11
+matrix jobs) and `v2 tests` run `34409192395`. CI run IDs are external
 observations, not repository self-certification records.
 
 Historical baselines include the implementation before the refactor pass,
@@ -20,8 +20,8 @@ requirements file. Refactor R3 at
 RoutingSnapshot read boundary. The latest refactor pass also isolated the
 Router `ResourceReadView`, Provider `ProviderHealthStore`, and direct-provider
 `LegacyDirectProviderJournal` without changing the public Controller flow. The
-latest local regression for the current code baseline is `373 passed, 1
-skipped in 57.74s`; the latest DevFarm patch/host verification targeted run is
+latest local regression for the current code baseline is `375 passed, 1
+skipped in 61.53s`; the latest DevFarm patch/host verification targeted run is
 `16 passed in 17.51s`. The refactor baseline was `358 passed, 1 skipped in
 66.76s`. These results are external observations and do not create
 live-provider qualification evidence. Documentation-only synchronization does

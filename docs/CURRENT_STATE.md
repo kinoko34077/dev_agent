@@ -1,6 +1,6 @@
 # Current State — v2/bootstrap
 
-現在のコード基準は `3bb5ba6e50e234e13b4e6c4b6b852085731ca8f1` です。R2〜R7の
+現在のコード基準は `e6da2fd4c6aea1f581171df6d259f97bd1de0483` です。R2〜R7の
 リファクタとPhase 7A〜7Dの限定的な実装を完了し、公開Protocol、schema v7、
 Provider contract、Gate判定は変更していません。GATE_STATUSのstatusはこの同期でも
 変更しません。
@@ -15,11 +15,11 @@ Provider contract、Gate判定は変更していません。GATE_STATUSのstatus
 
 ## 検証
 
-- v2ローカル全回帰: `373 passed, 1 skipped in 57.74s`
+- v2ローカル全回帰: `375 passed, 1 skipped in 61.53s`
 - 最新のDevFarm patch/host verification targeted regression: `16 passed in 17.51s`
 - skip: `tests/v2/test_budget_reservations.py:142`（Windows ACLはdeployment-owned）
 - 変更前refactor baseline: `8bf7c2e`、`358 passed, 1 skipped in 66.76s`
-- exact-head GitHub Actions: `3bb5ba6e50e234e13b4e6c4b6b852085731ca8f1` に対する `v2-core` run `34407852066`（3.10 job `102655021420`、3.11 job `102655021527`）と `v2 tests` run `34407851906` はsuccess。現行HEADのCIはGitHub Actionsで外部観測し、repo内Gateへ自己記録しない
+- exact-head GitHub Actions: `e6da2fd4c6aea1f581171df6d259f97bd1de0483` に対する `v2-core` run `34409192426`（3.10 job `102659363295`、3.11 job `102659363080`）と `v2 tests` run `34409192395` はsuccess。現行HEADのCIはGitHub Actionsで外部観測し、repo内Gateへ自己記録しない
 - `v2-core` はPython 3.10/3.11 matrixでfull `tests/v2`、3.11のみcompileallを実行し、`v2 tests`は互換provider smokeを担います。重複full suiteとcollect-only実行は除去しました
 - import smoke: 主要runtime/resource/state/tool/provider/recovery/devfarm 12モジュールを `566ms` でimport、`compileall src recovery scripts` 成功
 
