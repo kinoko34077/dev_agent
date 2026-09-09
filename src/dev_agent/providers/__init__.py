@@ -10,9 +10,10 @@ from .openai_compatible import OpenAICompatibleHttpProvider, OpenAICompatibleHtt
 from .openrouter import OpenRouterFreeProvider, OpenRouterHttpProvider
 from .sambanova import SambaNovaHttpProvider, SambaNovaProvider
 
-from .dispatch import DispatchAudit, ProviderDispatcher, ProviderRegistry
+from .dispatch import DispatchAudit, ProviderDispatcher
 from .factory import ProviderDefinition, ProviderFactory
 from .journal import ProviderDispatchJournal
+from .registry import ProviderRegistry
 
 __all__ = [
     "CloudflareWorkersAIHttpProvider",
