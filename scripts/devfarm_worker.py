@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 import shlex
 import subprocess
 import sys
+import time
 from typing import Any, Mapping
+from uuid import NAMESPACE_URL, uuid5
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -44,7 +47,11 @@ class DevFarmActivationPolicy:
     concerns from construction.
     """
 
-    DEFAULT_ACTIVE_PROVIDER_IDS = frozenset({"cloudflare", "openrouter"})
+    # Gemini 3.5 Flash-Lite has an operator-run qualification artifact.  The
+    # allowlist is intentionally provider-level for this small bootstrap; the
+    # manifest still chooses the concrete model and the factory supplies its
+    # non-secret identity labels.
+    DEFAULT_ACTIVE_PROVIDER_IDS = frozenset({"cloudflare", "gemini", "openrouter"})
 
     def __init__(self, active_provider_ids: set[str] | frozenset[str] | None = None) -> None:
         selected = self.DEFAULT_ACTIVE_PROVIDER_IDS if active_provider_ids is None else active_provider_ids
@@ -258,7 +265,13 @@ def _provider(name: str, model: str, timeout_seconds: float) -> ModelProvider:
         raise DevFarmError(f"unsupported development worker provider: {name}") from exc
 
 
-def _write_auxiliary_artifacts(root: Path, task_id: str, output: Mapping[str, Any]) -> None:
+def _write_auxiliary_artifacts(
+    root: Path,
+    task_id: str,
+    output: Mapping[str, Any],
+    *,
+    worker_metrics: Mapping[str, Any] | None = None,
+) -> None:
     directory = root / ".devfarm" / "results" / task_id
     directory.mkdir(parents=True, exist_ok=True)
     patch = output.get("patch", "")
@@ -277,6 +290,7 @@ def _write_auxiliary_artifacts(root: Path, task_id: str, output: Mapping[str, An
             "tests_passed": output.get("tests_passed"),
         },
         "host_verified_tests": [],
+        "worker_metrics": dict(worker_metrics or {}),
     }
     directory.joinpath("tests.json").write_text(json.dumps(tests, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     notes = output.get("notes", "")
@@ -290,7 +304,13 @@ def _write_auxiliary_artifacts(root: Path, task_id: str, output: Mapping[str, An
     directory.joinpath("notes.md").write_text(notes + "\n", encoding="utf-8")
 
 
-def _record_failed_model_output(root: Path, manifest: Mapping[str, Any], reason: str) -> dict[str, Any]:
+def _record_failed_model_output(
+    root: Path,
+    manifest: Mapping[str, Any],
+    reason: str,
+    *,
+    worker_metrics: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     result = {
         "status": "failed",
         "base_revision": manifest["base_revision"],
@@ -300,11 +320,17 @@ def _record_failed_model_output(root: Path, manifest: Mapping[str, Any], reason:
         "model_claims": {},
         "proposed_test_commands": [],
         "host_verified_tests": [],
+        "worker_metrics": dict(worker_metrics or {}),
         "known_issues": [reason],
         "assumptions": ["The model proposal failed deterministic validation; no patch was accepted."],
     }
     write_result(root, result, manifest=manifest)
-    _write_auxiliary_artifacts(root, manifest["task_id"], {**result, "patch": "", "notes": reason})
+    _write_auxiliary_artifacts(
+        root,
+        manifest["task_id"],
+        {**result, "patch": "", "notes": reason},
+        worker_metrics=result["worker_metrics"],
+    )
     return result
 
 
@@ -390,6 +416,16 @@ def apply_and_verify(root: str | Path, manifest_path: str | Path) -> dict[str, A
     result["tests_passed"] = tests_passed
     result["host_verified_tests"] = verified
     result["status"] = "completed" if tests_passed else "failed"
+    metrics = dict(result.get("worker_metrics", {}))
+    metrics.update(
+        {
+            "host_verified": True,
+            "host_verified_test_count": len(verified),
+            "host_tests_passed": tests_passed,
+            "result_accepted": result["status"] == "completed" and tests_passed,
+        }
+    )
+    result["worker_metrics"] = metrics
     if not tests_passed:
         issues = list(result["known_issues"])
         issues.append("host verification did not pass")
@@ -402,6 +438,7 @@ def apply_and_verify(root: str | Path, manifest_path: str | Path) -> dict[str, A
                 "proposed_test_commands": result["proposed_test_commands"],
                 "model_claims": result["model_claims"],
                 "host_verified_tests": verified,
+                "worker_metrics": metrics,
             },
             ensure_ascii=False,
             indent=2,
@@ -418,6 +455,124 @@ def apply_and_verify(root: str | Path, manifest_path: str | Path) -> dict[str, A
     return result
 
 
+_USAGE_KEYS = frozenset(
+    {
+        "input_tokens",
+        "output_tokens",
+        "total_tokens",
+        "prompt_tokens",
+        "completion_tokens",
+        "candidatesTokenCount",
+        "promptTokenCount",
+        "thoughtsTokenCount",
+        "cost",
+        "cost_usd",
+        "cost_minor",
+        "native_units",
+        "unit",
+        "quota_remaining",
+        "quota_reset_at",
+        "remaining",
+        "reset_at",
+        "latency_ms",
+        "failure_count",
+    }
+)
+_QUOTA_OBSERVATION_KEYS = frozenset(
+    {
+        "unit",
+        "remaining",
+        "reset_at",
+        "observed_at",
+        "source",
+        "authority",
+        "confidence",
+        "stale_after_seconds",
+        "estimated",
+        "consumed",
+    }
+)
+
+
+def _safe_metric_value(value: Any) -> int | float | str | bool | None:
+    if value is None or isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, str):
+        return value[:512]
+    return None
+
+
+def _safe_usage(usage: Any) -> dict[str, Any]:
+    """Keep only provider-neutral usage/quota scalars in worker artifacts."""
+
+    if not isinstance(usage, Mapping):
+        return {}
+    normalized: dict[str, Any] = {}
+    for key, value in usage.items():
+        if key in _USAGE_KEYS:
+            safe = _safe_metric_value(value)
+            if safe is not None:
+                normalized[str(key)] = safe
+        elif key == "quota_observation" and isinstance(value, Mapping):
+            observation: dict[str, Any] = {}
+            for nested_key, nested_value in value.items():
+                if nested_key not in _QUOTA_OBSERVATION_KEYS:
+                    continue
+                safe = _safe_metric_value(nested_value)
+                if safe is not None:
+                    observation[str(nested_key)] = safe
+            if observation:
+                normalized["quota_observation"] = observation
+    return normalized
+
+
+def _worker_metrics(
+    provider: ModelProvider,
+    request: ModelRequest,
+    *,
+    response: Any = None,
+    elapsed_ms: int = 0,
+) -> dict[str, Any]:
+    provider_id = getattr(provider, "provider_id", None)
+    if not isinstance(provider_id, str) or not provider_id.strip():
+        provider_id = getattr(response, "provider", None)
+    provider_id = provider_id.strip() if isinstance(provider_id, str) and provider_id.strip() else "unknown"
+
+    binding = getattr(provider, "provider_binding_id", None) or provider_id
+    binding = binding.strip() if isinstance(binding, str) and binding.strip() else provider_id
+    model = getattr(provider, "model_id", None) or getattr(provider, "model", None) or getattr(response, "model", None)
+    model = model.strip() if isinstance(model, str) and model.strip() else "unknown"
+    tier = getattr(provider, "intelligence_tier", None)
+    tier = getattr(tier, "value", tier)
+    if not isinstance(tier, str) or not tier.strip():
+        tier = None
+    return {
+        "provider_id": provider_id,
+        "provider_binding_id": binding,
+        "model_id": model,
+        "intelligence_tier": tier.strip() if isinstance(tier, str) else None,
+        "request_id": request.request_id,
+        "elapsed_ms": max(0, int(elapsed_ms)),
+        "usage": _safe_usage(getattr(response, "usage", {})),
+        "attempt_count": 1,
+        "host_verified": False,
+        "host_verified_test_count": 0,
+        "host_tests_passed": None,
+        "result_accepted": None,
+        "codex_correction_chars": None,
+    }
+
+
+def _request_task_id(manifest: Mapping[str, Any]) -> str:
+    """Map a human-readable manifest id to the protocol's stable UUID task id."""
+
+    return str(uuid5(NAMESPACE_URL, f"dev_agent.devfarm/{manifest['task_id']}"))
+
+
 def run_worker(root: str | Path, manifest_path: str | Path, *, provider: ModelProvider) -> dict[str, Any]:
     root = Path(root).resolve()
     manifest = validate_manifest(_read_json(Path(manifest_path)))
@@ -428,15 +583,22 @@ def run_worker(root: str | Path, manifest_path: str | Path, *, provider: ModelPr
         raise DevFarmError(f"provider is not approved by manifest: {provider_id}")
     workspace = _workspace(root, manifest)
     request = ModelRequest(
+        # DevFarm task ids are intentionally readable and are validated by the
+        # manifest contract.  ModelRequest has a stricter UUID task identity;
+        # keep both identities without weakening either contract.
+        task_id=_request_task_id(manifest),
         messages=[
             {"role": "system", "content": "Return the bounded development-worker result as JSON only."},
             {"role": "user", "content": _prompt(manifest, _input_context(workspace, manifest))},
         ],
+        metadata={"devfarm_task_id": manifest["task_id"]},
         max_output_tokens=4096,
     )
+    started = time.perf_counter()
     try:
         response = provider.request(request)
     except ProviderError as exc:
+        metrics = _worker_metrics(provider, request, elapsed_ms=round((time.perf_counter() - started) * 1000))
         status = "blocked_external" if exc.category == "authentication" else "failed"
         result = {
             "status": status,
@@ -447,19 +609,22 @@ def run_worker(root: str | Path, manifest_path: str | Path, *, provider: ModelPr
             "model_claims": {},
             "proposed_test_commands": [],
             "host_verified_tests": [],
+            "worker_metrics": metrics,
             "known_issues": [str(exc)],
             "assumptions": ["The worker provider was unavailable; no patch was produced."],
         }
         write_result(root, result, manifest=manifest)
-        _write_auxiliary_artifacts(root, manifest["task_id"], {**result, "notes": str(exc)})
+        _write_auxiliary_artifacts(root, manifest["task_id"], {**result, "notes": str(exc)}, worker_metrics=metrics)
         return result
+    elapsed_ms = round((time.perf_counter() - started) * 1000)
+    metrics = _worker_metrics(provider, request, response=response, elapsed_ms=elapsed_ms)
     text = "".join(response.text_segments)
     if len(text) > MAX_OUTPUT_TEXT_CHARS:
-        return _record_failed_model_output(root, manifest, "worker response exceeds output limit")
+        return _record_failed_model_output(root, manifest, "worker response exceeds output limit", worker_metrics=metrics)
     try:
         output = _extract_json(text)
     except DevFarmError as exc:
-        return _record_failed_model_output(root, manifest, str(exc))
+        return _record_failed_model_output(root, manifest, str(exc), worker_metrics=metrics)
     try:
         patch = output.get("patch", "")
         actual_changed_files = validate_patch(patch, manifest=manifest)
@@ -482,14 +647,15 @@ def run_worker(root: str | Path, manifest_path: str | Path, *, provider: ModelPr
             "model_claims": model_claims,
             "proposed_test_commands": output.get("tests_run", []),
             "host_verified_tests": [],
+            "worker_metrics": metrics,
             "known_issues": output.get("known_issues"),
             "assumptions": output.get("assumptions"),
         }
         normalized = validate_result(result, manifest=manifest)
     except DevFarmError as exc:
-        return _record_failed_model_output(root, manifest, str(exc))
+        return _record_failed_model_output(root, manifest, str(exc), worker_metrics=metrics)
     write_result(root, normalized, manifest=manifest)
-    _write_auxiliary_artifacts(root, manifest["task_id"], output)
+    _write_auxiliary_artifacts(root, manifest["task_id"], output, worker_metrics=metrics)
     return normalized
 
 
@@ -497,7 +663,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path.cwd())
     parser.add_argument("--manifest", type=Path, required=True)
-    parser.add_argument("--provider", choices=("cloudflare", "openrouter"))
+    parser.add_argument("--provider", choices=("cloudflare", "gemini", "openrouter"))
     parser.add_argument("--model")
     parser.add_argument("--timeout-seconds", type=float, default=30.0)
     parser.add_argument("--apply-and-verify", action="store_true")

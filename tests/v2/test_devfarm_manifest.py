@@ -5,6 +5,7 @@ import pytest
 from scripts.devfarm import DevFarmError, validate_manifest
 from scripts.devfarm_worker import DevFarmActivationPolicy, _input_context, _prompt, _provider, run_worker
 from src.dev_agent.providers.cloudflare import CloudflareWorkersAIHttpProvider
+from src.dev_agent.providers.gemini import GeminiHttpProvider
 from src.dev_agent.providers.openrouter import OpenRouterHttpProvider
 from tests.v2.devfarm_test_support import _RawWorkerProvider, _WorkerProvider, _workspace, _patch
 
@@ -12,6 +13,7 @@ from tests.v2.devfarm_test_support import _RawWorkerProvider, _WorkerProvider, _
 def test_devfarm_provider_uses_factory_and_explicit_activation_allowlist():
     policy = DevFarmActivationPolicy()
     assert policy.is_active("cloudflare")
+    assert policy.is_active("gemini")
     assert policy.is_active("openrouter")
     assert not policy.is_active("mistral")
 
@@ -23,6 +25,11 @@ def test_devfarm_provider_uses_factory_and_explicit_activation_allowlist():
     openrouter = _provider("openrouter", "openrouter/free", 4)
     assert isinstance(openrouter, OpenRouterHttpProvider)
     assert openrouter.model == "openrouter/free"
+
+    gemini = _provider("gemini", "gemini-3.5-flash-lite", 4)
+    assert isinstance(gemini, GeminiHttpProvider)
+    assert gemini.model == "gemini-3.5-flash-lite"
+    assert gemini.provider_binding_id == "gemini"
 
     with pytest.raises(DevFarmError, match="not active"):
         _provider("mistral", "mistral-small-latest", 4)

@@ -319,6 +319,9 @@ def validate_result(value: Mapping[str, Any], *, manifest: Mapping[str, Any]) ->
     host_verified_tests = value.get("host_verified_tests", [])
     if not isinstance(host_verified_tests, list):
         raise DevFarmError("host_verified_tests must be a list")
+    worker_metrics = value.get("worker_metrics", {})
+    if not isinstance(worker_metrics, Mapping):
+        raise DevFarmError("worker_metrics must be an object")
     return {
         "schema_version": 1,
         "status": status,
@@ -329,6 +332,7 @@ def validate_result(value: Mapping[str, Any], *, manifest: Mapping[str, Any]) ->
         "model_claims": dict(model_claims),
         "proposed_test_commands": _strings(proposed_test_commands, "proposed_test_commands"),
         "host_verified_tests": list(host_verified_tests),
+        "worker_metrics": dict(worker_metrics),
         "known_issues": _strings(value["known_issues"], "known_issues"),
         "assumptions": _strings(value["assumptions"], "assumptions"),
     }

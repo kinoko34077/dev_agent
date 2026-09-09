@@ -5,7 +5,27 @@ import pytest
 from scripts import devfarm_worker
 from scripts.devfarm import DevFarmError, validate_patch
 from scripts.devfarm_worker import apply_and_verify, run_worker
+from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
+from src.dev_agent.providers.base import ModelProvider
 from tests.v2.devfarm_test_support import _RawWorkerProvider, _WorkerProvider, _workspace, _patch
+
+
+class _MeasuredWorkerProvider(ModelProvider):
+    provider_id = "cloudflare"
+    provider_binding_id = "cloudflare:test"
+    model_id = "test-model"
+    intelligence_tier = "L1"
+
+    def __init__(self, output):
+        self.output = output
+
+    def request(self, request: ModelRequest) -> ModelResponse:
+        return ModelResponse(
+            provider=self.provider_id,
+            model=self.model_id,
+            text_segments=[json.dumps(self.output)],
+            usage={"total_tokens": 7, "prompt_tokens": 3, "completion_tokens": 4},
+        )
 
 
 def test_worker_writes_validated_result_artifacts(tmp_path):
@@ -35,6 +55,44 @@ def test_worker_writes_validated_result_artifacts(tmp_path):
     assert tests_artifact["model_claims"]["tests_passed"] is True
     assert tests_artifact["host_verified_tests"] == []
     assert (result_dir / "notes.md").read_text(encoding="utf-8") == "Focused test added.\n"
+
+
+def test_worker_records_host_measurements_and_updates_acceptance_after_verification(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": True,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": _patch(),
+        "notes": "proposal ready",
+    }
+
+    proposed = run_worker(root, manifest_path, provider=_MeasuredWorkerProvider(output))
+
+    metrics = proposed["worker_metrics"]
+    assert metrics["provider_id"] == "cloudflare"
+    assert metrics["provider_binding_id"] == "cloudflare:test"
+    assert metrics["model_id"] == "test-model"
+    assert metrics["intelligence_tier"] == "L1"
+    assert isinstance(metrics["request_id"], str) and metrics["request_id"]
+    assert metrics["elapsed_ms"] >= 0
+    assert metrics["usage"] == {"total_tokens": 7, "prompt_tokens": 3, "completion_tokens": 4}
+    assert metrics["attempt_count"] == 1
+    assert metrics["host_verified"] is False
+    assert metrics["result_accepted"] is None
+
+    verified = apply_and_verify(root, manifest_path)
+
+    verified_metrics = verified["worker_metrics"]
+    assert verified_metrics["host_verified"] is True
+    assert verified_metrics["host_verified_test_count"] == 1
+    assert verified_metrics["host_tests_passed"] is True
+    assert verified_metrics["result_accepted"] is True
+    stored = json.loads((root / ".devfarm/results/worker-test-001/result.json").read_text(encoding="utf-8"))
+    assert stored["worker_metrics"]["result_accepted"] is True
 
 
 def test_worker_normalizes_bounded_model_status_aliases_without_trusting_claims(tmp_path):
