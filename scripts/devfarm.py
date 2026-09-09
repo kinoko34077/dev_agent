@@ -23,6 +23,12 @@ class DevFarmError(ValueError):
 _TASK_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,100}$")
 _BRANCH = re.compile(r"^agent/[A-Za-z0-9._/-]+$")
 _STATUSES = {"pending", "running", "completed", "failed", "blocked_external"}
+_PROTECTED_FILES = frozenset(
+    {
+        "spec/v2/GATE_STATUS.json",
+        "src/dev_agent/resources/budget.py",
+    }
+)
 _MANIFEST_FIELDS = {
     "task_id",
     "objective",
@@ -73,6 +79,10 @@ def _strings(value: Any, name: str) -> list[str]:
     return result
 
 
+def _is_protected(path: str) -> bool:
+    return path in _PROTECTED_FILES or path == "recovery" or path.startswith("recovery/") or path == ".devfarm" or path.startswith(".devfarm/")
+
+
 def validate_manifest(value: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise DevFarmError("manifest must be an object")
@@ -87,6 +97,12 @@ def validate_manifest(value: Mapping[str, Any]) -> dict[str, Any]:
     allowed = _paths(value["allowed_files"], "allowed_files")
     read = _paths(value["read_files"], "read_files")
     forbidden = _paths(value["forbidden_files"], "forbidden_files")
+    protected = sorted(path for path in allowed if _is_protected(path))
+    if protected:
+        raise DevFarmError(f"protected files cannot be worker-owned: {', '.join(protected)}")
+    for path in sorted(_PROTECTED_FILES):
+        if path not in forbidden:
+            forbidden.append(path)
     overlap = sorted(set(allowed) & set(forbidden))
     if overlap:
         raise DevFarmError(f"files cannot be both allowed and forbidden: {', '.join(overlap)}")
@@ -111,6 +127,7 @@ def validate_manifest(value: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def validate_result(value: Mapping[str, Any], *, manifest: Mapping[str, Any]) -> dict[str, Any]:
+    manifest = validate_manifest(manifest)
     if not isinstance(value, Mapping):
         raise DevFarmError("result must be an object")
     missing = sorted(_RESULT_FIELDS - set(value))
@@ -160,8 +177,9 @@ def write_manifest(root: str | Path, value: Mapping[str, Any]) -> Path:
 
 
 def write_result(root: str | Path, value: Mapping[str, Any], *, manifest: Mapping[str, Any]) -> Path:
-    result = validate_result(value, manifest=manifest)
-    directory = init_farm(root) / "results" / manifest["task_id"]
+    normalized_manifest = validate_manifest(manifest)
+    result = validate_result(value, manifest=normalized_manifest)
+    directory = init_farm(root) / "results" / normalized_manifest["task_id"]
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / "result.json"
     path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -174,6 +192,8 @@ def prepare_worktree(root: str | Path, *, task_id: str, branch: str, revision: s
         raise DevFarmError("task_id contains unsafe characters")
     if not _BRANCH.fullmatch(branch) or branch.endswith("/"):
         raise DevFarmError("worker branch must use the agent/<provider>/<task> form")
+    if revision is not None and (not isinstance(revision, str) or not revision.strip() or revision.lstrip().startswith("-") or any(char in revision for char in "\r\n")):
+        raise DevFarmError("revision must be a safe Git revision")
     worktree = init_farm(repository) / "worktrees" / task_id
     if worktree.exists():
         raise FileExistsError(worktree)

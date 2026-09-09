@@ -39,6 +39,18 @@ def test_devfarm_manifest_rejects_path_escape_and_ownership_overlap():
         validate_manifest(overlap)
 
 
+def test_devfarm_manifest_rejects_protected_runtime_ownership_even_when_omitted_from_forbidden():
+    protected = _manifest()
+    protected["allowed_files"] = ["spec/v2/GATE_STATUS.json"]
+    with pytest.raises(DevFarmError, match="protected"):
+        validate_manifest(protected)
+
+    recovery = _manifest()
+    recovery["allowed_files"] = ["recovery/git_recovery.py"]
+    with pytest.raises(DevFarmError, match="protected"):
+        validate_manifest(recovery)
+
+
 def test_devfarm_result_must_match_manifest_base_and_allowed_files():
     manifest = validate_manifest(_manifest())
     result = {
@@ -60,4 +72,20 @@ def test_devfarm_result_must_match_manifest_base_and_allowed_files():
     result["changed_files"] = []
     result["base_revision"] = "0" * 40
     with pytest.raises(DevFarmError, match="base_revision"):
+        validate_result(result, manifest=manifest)
+
+
+def test_devfarm_result_revalidates_manifest_before_using_task_path():
+    manifest = _manifest()
+    manifest["task_id"] = "../escape"
+    result = {
+        "status": "completed",
+        "base_revision": manifest["base_revision"],
+        "changed_files": [],
+        "tests_run": [],
+        "tests_passed": True,
+        "known_issues": [],
+        "assumptions": [],
+    }
+    with pytest.raises(DevFarmError, match="unsafe"):
         validate_result(result, manifest=manifest)
