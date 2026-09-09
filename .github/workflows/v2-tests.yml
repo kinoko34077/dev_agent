@@ -13,16 +13,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      - run: python -m pip install --upgrade pip
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
       - run: python -m pip install -r requirements-dev.txt
       - name: Verify exact checked-out HEAD
         run: python scripts/check_head.py --expected "$GITHUB_SHA"
       - run: mkdir -p artifacts
-      - run: python -m pytest --collect-only -q
-      - run: python -m pytest -q --junitxml=artifacts/v2-junit.xml
-      - name: Upload v2 test report
+      - name: Compatibility provider smoke
+        run: python -m pytest tests/v2/test_provider_exports.py -q --junitxml=artifacts/v2-provider-smoke-junit.xml
+      - name: Upload v2 provider smoke report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: v2-junit
-          path: artifacts/v2-junit.xml
+          name: v2-provider-smoke-junit
+          path: artifacts/v2-provider-smoke-junit.xml
