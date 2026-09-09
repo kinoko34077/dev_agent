@@ -22,6 +22,7 @@ from ..resources.budget import BudgetExceeded, BudgetReconciliationRequired
 from ..state.store import StateStore
 from ..tools.runtime import ToolRuntime
 from ..intelligence import TaskIntelligencePolicy
+from .legacy_provider import LegacyDirectProviderJournal
 from .state import RuntimeState
 
 
@@ -80,6 +81,11 @@ class Controller:
         self._cancellation_reasons: dict[str, str] = {}
         self._active_tasks: set[str] = set()
         self._running_tasks: dict[str, Task] = {}
+        self._legacy_provider_journal = LegacyDirectProviderJournal(
+            store,
+            provider_id=self.provider.provider_id,
+            lease_proof=self._active_lease_proof,
+        )
         binder = getattr(provider, "bind_runtime", None)
         if callable(binder):
             binder(state_store=store, lease_guard=self._active_lease_guard, lease_proof=self._active_lease_proof)
@@ -132,71 +138,16 @@ class Controller:
         return f"op:{task.task_id}:{step.order}:{index}:{digest}"
 
     def _prepare_provider_intent(self, request: ModelRequest, reservation: Any, *, intent_key: str | None = None) -> str:
-        key = intent_key or f"provider:{request.request_id}:{reservation.budget.resource_id}"
-        intent = self.store.get_effect_intent(key)
-        if intent is None:
-            self.store.create_effect_intent(
-                key,
-                task_id=request.task_id,
-                tool_name=f"provider:{self.provider.provider_id}",
-                arguments={
-                    "request_id": request.request_id,
-                    "task_id": request.task_id,
-                    "provider_id": self.provider.provider_id,
-                    "resource_id": reservation.budget.resource_id,
-                    "native_unit": getattr(reservation, "native_unit", "request"),
-                    "estimated_cost_minor": getattr(reservation, "estimated_cost_minor", reservation.budget.estimated_cost_minor),
-                    "price_currency": getattr(reservation, "price_currency", reservation.budget.estimated_cost.currency),
-                    "max_output_tokens": request.max_output_tokens,
-                },
-            )
-            self.store.transition_effect_intent(key, to_status="prepared")
-        elif intent.get("status") == "pending":
-            self.store.transition_effect_intent(key, to_status="prepared")
-        return key
+        return self._legacy_provider_journal.prepare_intent(request, reservation, intent_key=intent_key)
 
     def _record_provider_audit(self, request: ModelRequest, reservation: Any, outcome: str, intent_key: str | None, *, details: dict[str, Any] | None = None) -> None:
-        recorder = getattr(self.store, "record_provider_audit", None)
-        if recorder is None:
-            return
-        recorder(
-            task_id=request.task_id,
-            request_id=request.request_id,
-            intent_key=intent_key,
-            provider_id=self.provider.provider_id,
-            resource_id=reservation.budget.resource_id,
-            native_unit=getattr(reservation, "native_unit", "request"),
-            estimated_cost_minor=getattr(reservation, "estimated_cost_minor", reservation.budget.estimated_cost_minor),
-            price_currency=getattr(reservation, "price_currency", reservation.budget.estimated_cost.currency),
-            outcome=outcome,
-            details=details,
-        )
+        self._legacy_provider_journal.record_audit(request, reservation, outcome, intent_key, details=details)
 
     def _provider_intent(self, key: str | None, *, status: str, result: dict[str, Any]) -> None:
-        if key is not None:
-            lease_proof = self._active_lease_proof() if status in {"dispatching", "succeeded"} else None
-            payload = dict(result)
-            if status in {"dispatching", "succeeded"} and lease_proof is not None:
-                payload["dispatch_lease"] = {
-                    "task_id": lease_proof.task_id,
-                    "worker_id": lease_proof.worker_id,
-                    "lease_token": lease_proof.lease_token,
-                    "state_version": lease_proof.state_version,
-                }
-            self.store.transition_effect_intent(key, to_status=status, result=payload, lease_proof=lease_proof)
+        self._legacy_provider_journal.transition(key, status=status, result=result)
 
     def _provider_replay(self, key: str) -> ModelResponse:
-        intent = self.store.get_effect_intent(key)
-        if intent is None or intent.get("status") != "succeeded":
-            raise ProviderError("durable provider result is not replayable", category="provider_decode", retryable=False)
-        result = intent.get("result") or {}
-        response = result.get("response") if isinstance(result, dict) else None
-        if not isinstance(response, dict):
-            raise ProviderError("durable provider result is malformed", category="provider_decode", retryable=False)
-        try:
-            return ModelResponse.from_dict(response)
-        except Exception as exc:
-            raise ProviderError("durable provider result is malformed", category="provider_decode", retryable=False) from exc
+        return self._legacy_provider_journal.replay(key)
 
     def _fail(self, task: Task, state: dict[str, Any], category: str, message: str, *, step: Step | None = None, request_id: str | None = None, tool_result: ToolResult | None = None, extra_events: list[ProtocolEvent] | None = None) -> None:
         if step is not None:
