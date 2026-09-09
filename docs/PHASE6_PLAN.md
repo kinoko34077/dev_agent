@@ -19,7 +19,7 @@ isolated the v1 runtime, logs, memory, prompts, root configuration, and root
 v1 tests to `legacy/v1-final`, retaining only the v2 fixture and legacy
 requirements file. Refactor R3 at
 `3cfa3368af82a1ab852dbd1526a8073c95bfcd54` added the behavior-preserving
-RoutingSnapshot read boundary. The latest local regression is `295 passed, 1
+RoutingSnapshot read boundary. The latest local regression is `294 passed, 1
 skipped`; exact-head `v2 tests` run `34343823010` succeeded, while
 `v2-core` run `34343822905` failed in its pytest step. These results are
 external observations and do not change Gate status or create live-provider
@@ -43,9 +43,12 @@ and SambaNova also have opt-in standard-library HTTP adapters; SambaNova uses
 the SambaCloud OpenAI-compatible Chat Completions endpoint and normalizes its
 request/day rate-limit headers. Cloudflare remains live-qualified; Groq is
 currently rejected with HTTP 403 and SambaNova reached the API but returned
-HTTP 429, so both remain unqualified. The SambaNova failure artifact is
-`spec/v2/evidence/phase6-sambanova-free-2026-09-09.json`; it is not Gate
-evidence. Phase
+HTTP 429/402, so both remain unqualified. SambaNova is intentionally excluded
+from the no-charge qualification command until its billing tier and
+worst-case cost are explicitly qualified. Its failure artifacts are
+`spec/v2/evidence/phase6-sambanova-free-2026-09-09.json` and
+`spec/v2/evidence/phase6-sambanova-gpt-oss-120b-2026-09-09.json`; neither is
+Gate evidence. Phase
 7A/B also carries a typed Task profile and deterministic intelligence-policy
 metadata into ModelRequest; it does not select a model or add an AgentBackend.
 The canonical path stays

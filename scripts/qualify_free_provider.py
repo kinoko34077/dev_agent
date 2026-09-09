@@ -25,7 +25,6 @@ from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.cloudflare import CloudflareWorkersAIHttpProvider
 from src.dev_agent.providers.dispatch import ProviderDispatcher, ProviderRegistry
 from src.dev_agent.providers.groq import GroqHttpProvider
-from src.dev_agent.providers.sambanova import SambaNovaHttpProvider
 from src.dev_agent.resources.budget import BudgetAuthority, BudgetGovernor, BudgetPolicy
 from src.dev_agent.resources.control import ResourceControlPlane
 from src.dev_agent.resources.ledger import ResourceLedger
@@ -41,8 +40,6 @@ def _provider(name: str, model: str, timeout_seconds: float):
         return GroqHttpProvider(model=model, timeout_seconds=timeout_seconds)
     if name == "cloudflare":
         return CloudflareWorkersAIHttpProvider(model=model, timeout_seconds=timeout_seconds)
-    if name == "sambanova":
-        return SambaNovaHttpProvider(model=model, timeout_seconds=timeout_seconds)
     raise ValueError(f"unsupported provider: {name}")
 
 
@@ -146,7 +143,7 @@ def qualify(*, provider_name: str, model: str, timeout_seconds: float) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--provider", choices=("groq", "cloudflare", "sambanova"), required=True)
+    parser.add_argument("--provider", choices=("groq", "cloudflare"), required=True)
     parser.add_argument("--model", required=True)
     parser.add_argument("--timeout-seconds", type=float, default=30.0)
     parser.add_argument("--evidence-path", type=Path)

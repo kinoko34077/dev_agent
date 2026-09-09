@@ -1,0 +1,5 @@
+{
+  "status": "failed",
+  "category": "provider_http",
+  "message": "sambanova provider_http: HTTP 402"
+}

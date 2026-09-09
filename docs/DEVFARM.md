@@ -58,15 +58,13 @@ put them in a manifest, command argument, repository file, or result artifact.
 ```text
 python scripts/qualify_free_provider.py --provider groq --model <groq-model-id> --evidence-path .devfarm/results/groq-live.json
 python scripts/qualify_free_provider.py --provider cloudflare --model <cloudflare-model-id> --evidence-path .devfarm/results/cloudflare-live.json
-python scripts/qualify_free_provider.py --provider sambanova --model Meta-Llama-3.3-70B-Instruct --evidence-path .devfarm/results/sambanova-live.json
 ```
 
 The Groq probe uses `GROQ_API_KEY`; the Cloudflare probe uses
-`CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`; the SambaNova probe uses
-`SAMBANOVA_API_KEY`. Missing credentials are reported as `blocked_external`.
-SambaNova is included in this opt-in no-charge qualification path because the
-roadmap treats it as a free-tier candidate, but the script does not prove
-billing tier or paid worst-case cost. A successful result is still a
+`CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`. Missing credentials are
+reported as `blocked_external`. SambaNova has a separate HTTP Adapter, but is
+not included in this no-charge qualification command until its billing tier
+and worst-case cost are explicitly qualified. A successful result is still a
 qualification artifact for Codex review, not automatic Gate promotion or
 Worker activation.
 
@@ -75,6 +73,6 @@ Worker activation.
 The farm is scaffolded and contract-tested, but no free cloud Worker is
 activated until a real Provider qualification succeeds. In this workspace,
 Cloudflare has a successful live qualification artifact, while Groq returned
-HTTP 403 and SambaNova returned HTTP 429 after reaching the API. Therefore no
-Worker is activated yet. No live or Gate evidence is inferred from adapter
+HTTP 403 and SambaNova returned HTTP 429/402 after reaching the API. Therefore
+no Worker is activated yet. No live or Gate evidence is inferred from adapter
 unit tests.
