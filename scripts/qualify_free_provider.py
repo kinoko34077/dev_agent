@@ -22,11 +22,8 @@ if str(ROOT) not in sys.path:
 
 from src.dev_agent.domain.protocol import ModelRequest, Task, TaskStatus
 from src.dev_agent.providers.base import ProviderError
-from src.dev_agent.providers.cloudflare import CloudflareWorkersAIHttpProvider
 from src.dev_agent.providers.dispatch import ProviderDispatcher, ProviderRegistry
-from src.dev_agent.providers.groq import GroqHttpProvider
-from src.dev_agent.providers.mistral import MistralHttpProvider
-from src.dev_agent.providers.openrouter import OpenRouterHttpProvider
+from src.dev_agent.providers.factory import ProviderDefinition, ProviderFactory
 from src.dev_agent.resources.budget import BudgetAuthority, BudgetGovernor, BudgetPolicy
 from src.dev_agent.resources.control import ResourceControlPlane
 from src.dev_agent.resources.ledger import ResourceLedger
@@ -38,15 +35,14 @@ from src.dev_agent.tools.runtime import ToolRuntime
 
 
 def _provider(name: str, model: str, timeout_seconds: float):
-    if name == "groq":
-        return GroqHttpProvider(model=model, timeout_seconds=timeout_seconds)
-    if name == "cloudflare":
-        return CloudflareWorkersAIHttpProvider(model=model, timeout_seconds=timeout_seconds)
-    if name == "openrouter":
-        return OpenRouterHttpProvider(model=model, timeout_seconds=timeout_seconds)
-    if name == "mistral":
-        return MistralHttpProvider(model=model, timeout_seconds=timeout_seconds)
-    raise ValueError(f"unsupported provider: {name}")
+    return ProviderFactory().create(
+        ProviderDefinition(
+            provider_id=name,
+            model=model,
+            timeout_seconds=timeout_seconds,
+            provider_binding_id=f"{name}:qualification",
+        )
+    )
 
 
 def _has_routable_quota_headroom(observation: object) -> bool:
@@ -83,6 +79,7 @@ def qualify(*, provider_name: str, model: str, timeout_seconds: float) -> dict:
                 cost_minor=0,
                 price_currency="JPY",
                 quota_domain=quota_domain,
+                provider_binding_id=getattr(concrete, "provider_binding_id", provider_name),
             )
             ledger.observe(resource_id, available=1, health="healthy", confidence=1.0, concurrency_limit=1)
             if quota_domain is not None:
@@ -109,6 +106,10 @@ def qualify(*, provider_name: str, model: str, timeout_seconds: float) -> dict:
                     name="echo",
                     description="Return the supplied value unchanged.",
                     required_arguments=frozenset({"value"}),
+                    input_schema={
+                        "type": "object",
+                        "properties": {"value": {"type": "string"}},
+                    },
                     handler=lambda arguments: {"echo": arguments["value"]},
                 )
             )
@@ -128,6 +129,7 @@ def qualify(*, provider_name: str, model: str, timeout_seconds: float) -> dict:
             event_types = [event["event_type"] for event in snapshot["events"] if event.get("task_id") == task.task_id]
             tool_results = [item for item in snapshot["tool_results"].values() if item.get("call_id")]
             quota = ledger.get_quota_observation(resource_id)
+            transcript = concrete.transcript_diagnostics(task.task_id) if callable(getattr(concrete, "transcript_diagnostics", None)) else None
             output = {
                 "status": result.status.value,
                 "provider": provider_name,
@@ -145,6 +147,7 @@ def qualify(*, provider_name: str, model: str, timeout_seconds: float) -> dict:
                     if quota.get("authority") == "estimated"
                     else "observed"
                 ),
+                "gemini_transcript": transcript,
                 "budget": governor.snapshot(),
             }
             if result.status != TaskStatus.COMPLETED:
@@ -155,6 +158,9 @@ def qualify(*, provider_name: str, model: str, timeout_seconds: float) -> dict:
                 raise RuntimeError(f"qualification missing events: {', '.join(missing)}")
             if len(tool_results) != 1:
                 raise RuntimeError(f"qualification expected one tool result, got {len(tool_results)}")
+            if provider_name == "gemini" and model.startswith("gemini-3"):
+                if not transcript or transcript["thought_signatures_received"] < 1 or transcript["thought_signatures_replayed"] < 1:
+                    raise RuntimeError("qualification missing Gemini 3 thought signature roundtrip")
             return output
         finally:
             ledger.close()
@@ -162,7 +168,7 @@ def qualify(*, provider_name: str, model: str, timeout_seconds: float) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--provider", choices=("groq", "cloudflare", "mistral", "openrouter"), required=True)
+    parser.add_argument("--provider", choices=("gemini", "groq", "cloudflare", "mistral", "openrouter"), required=True)
     parser.add_argument("--model", required=True)
     parser.add_argument("--timeout-seconds", type=float, default=30.0)
     parser.add_argument("--evidence-path", type=Path)

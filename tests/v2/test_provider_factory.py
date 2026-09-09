@@ -7,6 +7,7 @@ from src.dev_agent.providers.ollama import OllamaProvider
 from src.dev_agent.providers.openrouter import OpenRouterHttpProvider
 from src.dev_agent.providers.dispatch import ProviderRegistry
 from src.dev_agent.providers.base import ProviderError
+from scripts.qualify_free_provider import _provider
 
 
 def test_provider_factory_creates_http_provider_without_embedding_credentials():
@@ -75,3 +76,9 @@ def test_provider_registry_allows_multiple_models_for_one_provider_without_ambig
 def test_provider_factory_constructs_gemini_and_ollama_without_resolving_credentials():
     assert isinstance(ProviderFactory().create(ProviderDefinition(provider_id="gemini", model="gemini-2.5-flash")), GeminiHttpProvider)
     assert isinstance(ProviderFactory().create(ProviderDefinition(provider_id="ollama", model="qwen3:8b")), OllamaProvider)
+
+
+def test_free_qualification_uses_factory_for_gemini():
+    provider = _provider("gemini", "gemini-3.5-flash-lite", 4)
+    assert isinstance(provider, GeminiHttpProvider)
+    assert provider.provider_binding_id == "gemini:qualification"

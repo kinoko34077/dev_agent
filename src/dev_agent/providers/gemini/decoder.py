@@ -7,13 +7,14 @@ from typing import Any
 
 from ...domain.protocol import ModelResponse, ToolCall
 from ..base import ProviderError
+from .transcript import extract_model_parts
 
 
 def decode_generate_content(raw: Mapping[str, Any], *, model: str, request_id: str | None = None) -> ModelResponse:
     try:
         candidate = raw["candidates"][0]
-        parts = candidate["content"]["parts"]
-    except (KeyError, IndexError, TypeError) as exc:
+        parts = extract_model_parts(raw)
+    except (KeyError, IndexError, TypeError, ValueError) as exc:
         raise ProviderError(f"gemini response decode failed: missing candidate content: {exc}", category="provider_decode", retryable=False) from exc
     text_segments: list[str] = []
     calls: list[ToolCall] = []

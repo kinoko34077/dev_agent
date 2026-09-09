@@ -40,7 +40,9 @@ def test_controller_cancellation_is_cooperative_and_durable(tmp_path):
 
         def request(self, request):
             started.set()
-            sleep(0.2)
+            # Keep the provider in flight well past the runtime deadline while
+            # leaving enough startup budget for slower Windows CI machines.
+            sleep(0.8)
             return ModelResponse(provider=self.provider_id, model="test", text_segments=["late"])
 
     from src.dev_agent.state import JsonStateStore
@@ -149,7 +151,7 @@ def test_cancellation_after_provider_deadline_preserves_unable_to_confirm(tmp_pa
 
     store = JsonStateStore(tmp_path / "deadline-cancel.json")
     controller = Controller(SlowProvider(), ToolRuntime(ToolRegistry()), store)
-    task = Task(objective="cancel at deadline", limits=ExecutionLimits(max_wall_time_seconds=0.1))
+    task = Task(objective="cancel at deadline", limits=ExecutionLimits(max_wall_time_seconds=0.5))
     result_box = []
     runner = Thread(target=lambda: result_box.append(controller.run(task)), daemon=True)
     runner.start()
