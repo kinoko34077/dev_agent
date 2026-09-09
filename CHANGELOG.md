@@ -4,6 +4,15 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-10 JST — Refactor Freeze and exact-head verification
+
+- R2〜R6の責務分離を完了した。ControllerのModel turn／legacy direct-provider executor、ResourceLedgerのBudgetReservationStore、SQLiteStateStoreのschema／core／effect repository、ToolRuntimeのexecutor／effect guard、ProviderRegistryを専用moduleへ分離し、公開API・transaction owner・schema v7・timeout／cancellation semanticsを維持した。
+- Dispatcherのrouting／budget Snapshot読出しをResourceControlPlaneへ閉じ、内部Ledger／Router／Governorへの層越えを除去した。
+- DevFarmとResourceの巨大テストを責務別へ分割した。`test_devfarm_manifest.py`、`test_devfarm_patch_validation.py`、`test_resource_migrations.py`、`test_resource_observations.py`、`test_budget_reservations.py`を追加し、`359 passed, 1 skipped`を維持した。
+- R8 import smoke（主要12 module）`566ms`、`compileall src recovery scripts`、旧v1トップレベルimport監査を確認した。v1実行資産は`legacy/v1-final`に隔離済みである。
+- `v2-core`をPython 3.10/3.11 matrixへ統合し、重複full suiteとcollect-onlyを除去した。`47191d4`のexact-head CIは`v2-core` run `34384890829`（3.10/3.11 success）と`v2 tests` run `34384890828`（success）である。
+- Cloudflare／OpenRouterのDevFarm実Worker試行はAPI到達後にstrict unified-diff検証で拒否された。host-verified Worker成功や自動統合は記録せず、G6O1および既存Gate statusは変更していない。
+
 ### 2026-09-10 JST — Refactor state and DevFarm evidence synchronization
 
 - ResourceLedgerの同一SQLite transaction境界を維持したまま、Resource Catalog、Resource Observation、Quota Observation、Provider Healthの内部storeを分離した。公開Facade、schema、budget semanticsは変更していない。

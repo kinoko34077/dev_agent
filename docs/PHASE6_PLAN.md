@@ -2,13 +2,11 @@
 
 Status: foundation VERIFIED; G6O2〜G6O6 VERIFIED; G6O1 BLOCKED_EXTERNAL; Phase 6A quota/provider expansion locally verified; OpenRouter Free and Cloudflare canonical live qualification verified; Mistral live attempt HTTP 429 and unqualified; Groq models probe HTTP 403; Phase 7C evaluator core locally verified
 
-The current implementation code baseline is
-`8b638a9`. This baseline adds durable Phase 7C Evaluator evidence after the
-refactor slices. The last externally observed exact-head CI was for the
-documentation/evidence sync commit `30a1cd3`: `v2-core` run `34374695007` and
-`v2 tests` run `34374695021` both succeeded. This observation is not reused as
-evidence for a later commit. CI run IDs are external observations, not
-repository self-certification records.
+The current refactor code baseline is
+`47191d4a8725af68848a43a0900af63afc4a42d8`. The exact-head GitHub Actions for
+that commit both succeeded: `v2-core` run `34384890829` (Python 3.10 and 3.11
+matrix jobs) and `v2 tests` run `34384890828`. CI run IDs are external
+observations, not repository self-certification records.
 
 Historical baselines include the implementation before the refactor pass,
 `22c26542323b80abeeeac51e31f835cfa1d6ab67`; its external exact-head CI
@@ -21,11 +19,12 @@ requirements file. Refactor R3 at
 RoutingSnapshot read boundary. The latest refactor pass also isolated the
 Router `ResourceReadView`, Provider `ProviderHealthStore`, and direct-provider
 `LegacyDirectProviderJournal` without changing the public Controller flow. The
-latest local regression for the current code baseline is `349 passed, 1 skipped`.
-The current code baseline's exact-head CI result is pending confirmation;
-these results are external observations and do not create live-provider
-qualification evidence. Documentation-only synchronization does not change
-the implementation baseline and is not written back into `GATE_STATUS.json`.
+latest local regression for the current code baseline is `359 passed, 1
+skipped in 67.97s`; the refactor baseline was `358 passed, 1 skipped in
+66.76s`. These results are external observations and do not create
+live-provider qualification evidence. Documentation-only synchronization does
+not change the implementation baseline and is not written back into
+`GATE_STATUS.json`.
 
 Phase 6A〜6E is the current v2 work boundary. The phase is deliberately split
 into small control-plane components so that resource exhaustion, provider
