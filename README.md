@@ -43,6 +43,8 @@ Phase 6 の現在地と未完了の外部証跡は [`docs/PHASE6_PLAN.md`](docs/
 
 通常のProvider経路は Controller -> ProviderDispatcher -> ProviderRegistry -> concrete Provider です。Controller内のdirect経路は既存呼び出し向けのcompatibility/legacy pathとして維持しています。Phase 7A/B境界、実HTTP Adapter、開発Worker Farm契約、Provider tool-call transcriptを含むローカル全テストは 288 passed, 1 skipped です。開発補助Workerのmanifest／result／worktree境界と組み込み保護領域は [`docs/DEVFARM.md`](docs/DEVFARM.md) を参照してください。
 
+資格情報を外部環境へ設定できる場合のlive qualification入口は、`scripts/qualify_free_provider.py`です。Groq／Cloudflareの実証結果は、canonical Dispatcher経路・quota観測の有無・ToolCall往復を含むJSON artifactとして出力します。資格情報未設定時は`blocked_external`で終了し、Gateを自動昇格しません。
+
 ## legacy v1（履歴）
 
 ## 🧠 概要

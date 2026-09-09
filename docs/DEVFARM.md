@@ -49,6 +49,22 @@ python scripts/devfarm.py validate-result .devfarm/results/<task-id>/result.json
 Both commands print the normalized contract and fail closed on malformed JSON,
 base-revision drift, protected ownership, or an out-of-scope changed file.
 
+## Provider qualification handoff
+
+Live qualification is an operator-invoked boundary and never runs in CI. Keep
+credentials in the process environment or an external secret store; do not
+put them in a manifest, command argument, repository file, or result artifact.
+
+```text
+python scripts/qualify_free_provider.py --provider groq --model <groq-model-id> --evidence-path .devfarm/results/groq-live.json
+python scripts/qualify_free_provider.py --provider cloudflare --model <cloudflare-model-id> --evidence-path .devfarm/results/cloudflare-live.json
+```
+
+The Groq probe uses `GROQ_API_KEY`; the Cloudflare probe uses
+`CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`. Missing credentials are
+reported as `blocked_external`. A successful result is still a qualification
+artifact for Codex review, not automatic Gate promotion or Worker activation.
+
 ## Current activation boundary
 
 The farm is scaffolded and contract-tested, but no free cloud Worker is
