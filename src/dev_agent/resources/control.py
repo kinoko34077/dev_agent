@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from ..domain.protocol import ModelRequest, ModelResponse
-from .budget import BudgetExceeded, BudgetGovernor, BudgetReservation, MaintenanceActive, ResourceUnavailable, UnknownPrice
+from .budget import BudgetExceeded, BudgetGovernor, BudgetReconciliationRequired, BudgetReservation, MaintenanceActive, ResourceUnavailable, UnknownPrice
 from .ledger import MoneyAmount
 from .router import NoRoute, ResourceRouter, RouteRequest, RouteSelection
 
@@ -88,8 +88,18 @@ class ResourceControlPlane:
     def reconcile_response(self, reservation: DispatchReservation, response: ModelResponse) -> None:
         observed = response.usage.get("cost_minor")
         if isinstance(observed, bool) or not isinstance(observed, int) or observed < 0:
+            # A resource whose protected price is exactly zero has no charge
+            # to reconcile even when a legacy/local adapter omits usage
+            # metadata.  Paid reservations must never receive that implicit
+            # default: their missing cost observation is an unresolved
+            # external accounting outcome.
+            if reservation.budget.estimated_cost_minor == 0:
+                self.governor.reconcile(reservation.budget.reservation_id, actual_cost_minor=0)
+                return
             self.governor.mark_unknown(reservation.budget.reservation_id)
-            return
+            raise BudgetReconciliationRequired(
+                "provider response did not include a valid non-negative usage.cost_minor"
+            )
         try:
             self.governor.reconcile(reservation.budget.reservation_id, actual_cost=MoneyAmount(reservation.budget.estimated_cost.currency, observed))
         except BudgetExceeded:

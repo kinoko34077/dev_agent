@@ -49,6 +49,15 @@ Implemented in `src/dev_agent/resources/ledger.py` and `budget.py`.
   HTTP provider, usage reconciliation, and durable provider audit. Its
   recorded evidence is kept under `spec/v2/evidence/`; paid-provider
   worst-case qualification remains a separate operational gate.
+- `scripts/qualify_phase6_paid_provider.py` is a fail-closed operator entry for
+  that separate gate. It requires both an explicit billing flag and an exact
+  confirmation phrase, reads budget policy only from an external protected
+  path, and refuses to promote a response that lacks provider-reported
+  `usage.cost_minor`; such a run remains reconciliation-required.
+- A zero-priced resource may reconcile a legacy response with omitted usage as
+  zero because its protected price is already no-charge; a paid reservation
+  with omitted or malformed `usage.cost_minor` is held as unknown and cannot
+  complete the dispatch.
 
 ## 6B — Router and Survival Modes
 

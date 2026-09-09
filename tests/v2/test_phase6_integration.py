@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from src.dev_agent.resources.budget import BudgetAuthority, BudgetExceeded, BudgetGovernor, BudgetPolicy
+from src.dev_agent.resources.budget import BudgetAuthority, BudgetExceeded, BudgetGovernor, BudgetPolicy, BudgetReconciliationRequired
 from src.dev_agent.resources.control import ResourceControlPlane
 from src.dev_agent.resources.control import DispatchDenied
 from src.dev_agent.resources.ledger import ResourceLedger
@@ -82,11 +82,17 @@ def test_controller_reserves_and_reconciles_before_each_provider_dispatch(tmp_pa
     ledger.observe("fake-resource", available=10, health="healthy")
     governor = _governor(ledger, BudgetPolicy(hard_cap_minor=30, recovery_reserve_minor=5))
     control = ResourceControlPlane(ResourceRouter(ledger), governor)
+    class CostedFakeProvider(FakeProvider):
+        def request(self, request):
+            response = super().request(request)
+            response.usage["cost_minor"] = 10
+            return response
+
     registry = ToolRegistry()
     registry.register(ToolSpec(name="echo", description="echo", handler=lambda args: args))
     task = Task(objective="phase 6", limits={"max_cost": 25})
     with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
-        result = Controller(FakeProvider(), ToolRuntime(registry), store, resource_policy=control).run(task)
+        result = Controller(CostedFakeProvider(), ToolRuntime(registry), store, resource_policy=control).run(task)
         assert result.status.value == "completed"
     assert governor.snapshot()["normal_committed_minor"] == 20
 
@@ -203,14 +209,15 @@ def test_controller_holds_direct_dispatching_intent_after_provider_process_crash
         assert ledger.connection.execute("SELECT COUNT(*) FROM budget_reservations").fetchone()[0] == 1
 
 
-def test_control_never_converts_generic_float_ceiling_and_holds_missing_charge_unknown(tmp_path):
+def test_control_never_converts_generic_float_ceiling_and_requires_missing_charge_reconciliation(tmp_path):
     ledger = ResourceLedger(tmp_path / "control.sqlite3")
     ledger.register_resource("paid", provider_id="remote", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10, price_currency="JPY")
     ledger.observe("paid", available=10, health="healthy")
     control = ResourceControlPlane(ResourceRouter(ledger), _governor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)))
     request = ModelRequest(task_id="00000000-0000-0000-0000-000000000001", messages=[{"role": "user", "content": "x"}], cost_ceiling=0.5)
     reservation = control.reserve_for_provider("task-1", "remote", request)
-    control.reconcile_response(reservation, ModelResponse(provider="remote", model="test", usage={}))
+    with pytest.raises(BudgetReconciliationRequired, match="usage.cost_minor"):
+        control.reconcile_response(reservation, ModelResponse(provider="remote", model="test", usage={}))
     assert ledger.reservation_row(reservation.budget.reservation_id)["status"] == "unknown"
     ledger.register_resource("usd", provider_id="usd", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10, price_currency="USD")
     ledger.observe("usd", available=10, health="healthy")
@@ -585,6 +592,33 @@ def test_controller_paid_dispatch_reserves_and_reconciles_actual_cost(tmp_path):
     assert governor.snapshot()["normal_committed_minor"] == 20
     assert [item["outcome"] for item in audits] == ["succeeded"]
     assert audits[0]["estimated_cost_minor"] == 20
+
+
+def test_dispatcher_does_not_accept_provider_response_without_observed_cost(tmp_path):
+    ledger = ResourceLedger(tmp_path / "paid-missing-cost.sqlite3")
+    ledger.register_resource("paid", provider_id="paid", native_unit="request", capacity=10, capabilities=["text"], cost_minor=20)
+    ledger.observe("paid", available=10, health="healthy")
+
+    class MissingCostProvider(FakeProvider):
+        provider_id = "paid"
+
+        def request(self, request):
+            return ModelResponse(provider="paid", model="test", text_segments=["not enough evidence"], usage={})
+
+    governor = _governor(ledger, BudgetPolicy(hard_cap_minor=30, recovery_reserve_minor=0))
+    control = ResourceControlPlane(ResourceRouter(ledger), governor)
+    dispatcher = ProviderDispatcher(ProviderRegistry([MissingCostProvider()]), control)
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        result = Controller(dispatcher, ToolRuntime(ToolRegistry()), store).run(Task(objective="missing cost"))
+        intent = store.connection.execute("SELECT status, result_payload FROM effect_intents").fetchone()
+        audits = store.list_provider_audits()
+
+    assert result.status is TaskStatus.WAITING_RECONCILIATION
+    assert intent["status"] == "unknown"
+    assert "cost_minor" in intent["result_payload"]
+    assert audits[0]["outcome"] == "budget_reconciliation"
+    assert ledger.reservation_totals()["active_reservations"] == 1
+    assert ledger.reservation_row(next(iter(ledger.connection.execute("SELECT reservation_id FROM budget_reservations").fetchone()))) ["status"] == "unknown"
 
 
 def test_paid_provider_timeout_waits_for_reconciliation_instead_of_failing(tmp_path):

@@ -67,6 +67,12 @@ see `docs/PHASE6_PLAN.md`.
 - Recovery now supports validated atomic backup and restore, non-destructive
   Git diagnostics, last-known-good recording, rollback planning, and explicit
   permission gates for rollback/repair-branch mutation.
+- A paid-provider qualification entrypoint is available, but it is fail-closed:
+  no network request occurs without two explicit billing confirmations, and a
+  response without observed `usage.cost_minor` cannot be treated as a passing
+  budget proof.
+- Zero-priced local resources explicitly reconcile omitted usage as zero for
+  legacy adapters; this compatibility does not apply to paid reservations.
 - Gate status schema v4 distinguishes `IMPLEMENTED`, `INTEGRATED`, external
   `BLOCKED`, and `VERIFIED`; only `VERIFIED` satisfies a gate.  Legacy `PASS`
   is accepted by the checker only for schema v1 callers.
