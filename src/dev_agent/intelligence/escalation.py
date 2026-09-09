@@ -174,6 +174,13 @@ class EscalationDispatchRequest:
             raise ValueError("dispatch request target must be a provider or higher tier")
         if self.next_tier is not None and not isinstance(self.next_tier, IntelligenceTier):
             raise ValueError("dispatch request next_tier must be an IntelligenceTier or None")
+        expected_targets = {
+            EvaluatorDecision.RETRY_SAME: EscalationTarget.SAME_PROVIDER,
+            EvaluatorDecision.RETRY_OTHER_PROVIDER: EscalationTarget.OTHER_PROVIDER,
+            EvaluatorDecision.ESCALATE: EscalationTarget.HIGHER_TIER,
+        }
+        if self.target is not expected_targets[self.decision]:
+            raise ValueError("dispatch request decision and target do not match")
         if self.target is EscalationTarget.HIGHER_TIER and self.next_tier is None:
             raise ValueError("higher-tier dispatch request requires next_tier")
         if self.target is not EscalationTarget.HIGHER_TIER and self.next_tier is not None:

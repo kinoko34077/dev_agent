@@ -4,6 +4,7 @@ from src.dev_agent.domain.protocol import IntelligenceTier
 from src.dev_agent.intelligence.escalation import (
     BoundedEscalationPolicy,
     EscalationContext,
+    EscalationDispatchRequest,
     EscalationTarget,
 )
 from src.dev_agent.intelligence.evaluator import EvaluatorDecision
@@ -111,3 +112,16 @@ def test_escalation_context_rejects_invalid_bounds():
         _context(current_tier=IntelligenceTier.L0, allowed_tiers=(IntelligenceTier.L1,))
     with pytest.raises(ValueError, match="deadline"):
         _context(deadline_epoch=99.0)
+
+
+def test_dispatch_request_rejects_incoherent_decision_and_target():
+    with pytest.raises(ValueError, match="decision"):
+        EscalationDispatchRequest(
+            task_id="task-1",
+            plan_id="plan-1",
+            decision=EvaluatorDecision.RETRY_SAME,
+            target=EscalationTarget.OTHER_PROVIDER,
+            next_tier=None,
+            approved_by="operator",
+            approval_reference="review-1",
+        )

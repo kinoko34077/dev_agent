@@ -4,7 +4,7 @@ from src.dev_agent.domain.protocol import Event, IntelligenceTier
 from src.dev_agent.intelligence.coordination import EvaluationCoordinator
 from src.dev_agent.intelligence.escalation import EscalationContext, EscalationDispatchRequest, EscalationTarget
 from src.dev_agent.intelligence.evaluator import EvaluationEvidence, EvaluatorDecision
-from src.dev_agent.state import JsonStateStore
+from src.dev_agent.state import JsonStateStore, SQLiteStateStore
 
 
 _TASK_ID = "00000000-0000-0000-0000-000000000001"
@@ -224,3 +224,25 @@ def test_evaluation_coordinator_does_not_prepare_dispatch_from_rejected_or_forge
         coordinator.prepare_dispatch(cycle, forged)
 
     assert not store.has_event(_TASK_ID, "escalation.dispatch_ready")
+
+
+def test_evaluation_coordinator_persists_dispatch_ready_handoff_in_sqlite(tmp_path):
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        coordinator = EvaluationCoordinator(store)
+        cycle = coordinator.evaluate_and_plan(_evidence(), escalation_context=_context())
+        review = coordinator.review_plan(
+            cycle,
+            actor="operator",
+            approved=True,
+            approval_reference="sqlite-review-001",
+        )
+
+        request = coordinator.prepare_dispatch(cycle, review)
+        persisted = [
+            item
+            for item in store.snapshot()["events"]
+            if item["event_type"] == "escalation.dispatch_ready"
+        ]
+
+        assert request.plan_id == cycle.plan.plan_id
+        assert len(persisted) == 1
