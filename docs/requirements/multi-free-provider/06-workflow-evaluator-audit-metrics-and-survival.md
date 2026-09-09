@@ -97,6 +97,8 @@ Provider outage、quota exhaustion、timeout、unknownを、無限retryや重複
 参照可能にするための保存である。Phase 7A/BのTask profileと決定的な
 Intelligence Policy、明示opt-inのresource tier routing、Phase 7C/Dのhost evaluator、
 独立したdurable event記録、有限なescalation plan coordinator、host/operatorによる
-planの明示review（accepted/rejected）記録、受理済みplanのdispatch-ready handoff
-記録は実装済みである。review後のplan dispatch実行、workflow promotion、
+planの明示review（accepted/rejected）記録、受理済みplanのdispatch-ready handoff、
+accepted handoffをcanonical ProviderDispatcherへ再検証付きで送る
+`EscalationExecutor`は実装済みである。Phase 7Eのbounded workflow promotion
+proposalも実装済みだが、自動promotion、Task lifecycleの自動循環、実績ベースrouting、
 AgentBackend、MCPは今回の境界外である。

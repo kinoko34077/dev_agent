@@ -25,6 +25,11 @@ G6O1の未達理由は、コード不足の推測ではなく、real paid Provid
 - actual provider E2E
 - recovery and rollback
 
+現行基準では、Cloudflare、OpenRouter Free、Ollama、Gemini 2.5、Gemini
+3.5 Flash-Lite、Gemini 3.8 Flashについて、Providerごとのlive qualification
+artifactを保持する。これはPhase 6全体のGateを変更せず、Provider実証の証跡を
+明示するためのものである。
+
 これらを今回の移行前調整で実装したことにはしない。
 
 ## 36. Phase 7 entry conditions
@@ -43,13 +48,15 @@ Phase 7の候補条件:
 ## 37. Phase 7 additions
 
 Phase 7A/Bの最初の境界として、Task profile (`task_type`、`risk`、
-`required_capabilities`) と決定的なIntelligence Policyを実装する。Policyは
-L0〜L3のbounded tierを算出し、model metadataによる自己昇格を受け付けない。
-明示opt-in時はresource metadataのtierとexact matchしてrouteを制約するが、
-通常routingは変更しない。Phase 7CのEvaluatorと7Dのbounded
-evaluation-to-plan coordinator、host/operatorによるplanの明示review記録、受理済みplanのdispatch-ready handoffまでは実装済みだが、planのdispatch実行、
-AgentBackend、Codex/MCP integration、workflow promotion、self-improvement、
-multi-agent orchestrationは後段である。
+`required_capabilities`) と決定的なIntelligence Policyを実装した。Policyは
+L0〜L3のbounded tierとthinking effortを算出し、model metadataによる自己昇格を
+受け付けない。明示opt-in時はresource metadataのtierとexact matchしてrouteを
+制約するが、通常routingは変更しない。Phase 7C/DのEvaluator、bounded
+evaluation-to-plan coordinator、host/operatorによるplanの明示review記録、受理済み
+planのdispatch-ready handoff、`EscalationExecutor`によるbounded canonical
+dispatchまで実装済みである。Phase 7Eのworkflow proposalはbounded proposalに留め、
+Task lifecycle自動循環、実績ベースrouting、AgentBackend、Codex/MCP integration、
+self-improvement、multi-agent orchestrationは後段である。
 
 ## 38. External agent timing
 
@@ -61,7 +68,7 @@ multi-agent orchestrationは後段である。
 
 - 追加Providerのlive qualification、未実装Providerの固有quota headerの解析
 - task別成功率・provider diversityを含む後段Router scoring
-- plan review後の実Provider選択、dispatch受理、escalation実行
+- evaluator結果からTask terminal stateまでを自動で循環するlifecycle orchestration
 - Hedged Request
 - AgentBackend、MCP/API
 - 後段のPhase 7（workflow promotion、Self-Improvement等）
@@ -96,15 +103,15 @@ Worker/run固有のExecutionContext、ToolRuntime binding、lease proofを共有
 
 要件移行後の推奨順序は次のとおり。
 
-1. ProviderRegistry/Dispatcherの既存境界を確認する。
+1. ProviderRegistry/Dispatcherの既存境界を確認する。完了。
 2. Provider contractとcapabilityを狭く固定する。
 3. Resource/quota observationを設計し、migrationを準備する。
 4. free-first、privacy、fallbackを実装する。
-5. Task profileとbounded intelligence policyを追加する。
-6. 独立Evaluatorとbounded escalationを追加する。
-7. live Provider E2Eとdurable evidenceを取得する。
-8. AgentBackend/Codex/MCPを別境界で追加する。
-9. workflow promotion、self-improvement、multi-agentを段階導入する。
+5. Task profileとbounded intelligence policyを追加する。完了。
+6. 独立Evaluatorとbounded escalationを追加する。bounded dispatchまで完了。
+7. live Provider E2Eとdurable evidenceを取得する。Gemini 3.xを含め一部完了。
+8. AgentBackend/Codex/MCPを別境界で追加する。未着手。
+9. workflow promotion、self-improvement、multi-agentを段階導入する。bounded proposal以外は未着手。
 
 この順序は、今回の「移行前軽量調整」後に新要件を投入する際の参照用である。
 

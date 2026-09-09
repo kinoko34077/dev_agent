@@ -1,13 +1,12 @@
 # Phase 6 — Resource / Survival / Recovery
 
-Status: foundation VERIFIED; G6O2〜G6O6 VERIFIED; G6O1 BLOCKED_EXTERNAL; Phase 6A quota/provider expansion locally verified; OpenRouter Free and Cloudflare canonical live qualification verified; Mistral live attempt HTTP 429 and unqualified; Groq models probe HTTP 403; Phase 7A/B opt-in tier routing and Phase 7C/D bounded evaluation coordinator / reviewed dispatch-ready handoff locally verified
+Status: foundation VERIFIED; G6O2〜G6O6 VERIFIED; G6O1 BLOCKED_EXTERNAL; Phase 6A quota/provider expansion locally verified; Cloudflare, OpenRouter Free, Ollama, Gemini 2.5, Gemini 3.5 Flash-Lite, and Gemini 3.8 Flash canonical qualification verified; Mistral live attempt HTTP 429 and unqualified; Groq models probe HTTP 403; Phase 7A〜7E bounded routing, evaluator, reviewed dispatch, execution, and workflow proposal boundaries locally verified
 
-The current code baseline is
-`e6da2fd4c6aea1f581171df6d259f97bd1de0483`. The latest exact-head GitHub
-Actions evidence is for this commit:
-both workflows succeeded, `v2-core` run `34409192426` (Python 3.10 and 3.11
-matrix jobs) and `v2 tests` run `34409192395`. CI run IDs are external
-observations, not repository self-certification records.
+The current implementation baseline is `2ed0a22`. The latest local full
+regression for this baseline is `393 passed, 1 skipped in 74.50s`. Exact-head
+GitHub Actions for the subsequent documentation synchronization is observed
+externally after push; CI run IDs are external observations, not repository
+self-certification records.
 
 Historical baselines include the implementation before the refactor pass,
 `22c26542323b80abeeeac51e31f835cfa1d6ab67`; its external exact-head CI
@@ -19,14 +18,16 @@ requirements file. Refactor R3 at
 `3cfa3368af82a1ab852dbd1526a8073c95bfcd54` added the behavior-preserving
 RoutingSnapshot read boundary. The latest refactor pass also isolated the
 Router `ResourceReadView`, Provider `ProviderHealthStore`, and direct-provider
-`LegacyDirectProviderJournal` without changing the public Controller flow. The
-latest local regression for the current code baseline is `375 passed, 1
-skipped in 61.53s`; the latest DevFarm patch/host verification targeted run is
-`16 passed in 17.51s`. The refactor baseline was `358 passed, 1 skipped in
-66.76s`. These results are external observations and do not create
-live-provider qualification evidence. Documentation-only synchronization does
-not change the implementation baseline and is not written back into
-`GATE_STATUS.json`.
+`LegacyDirectProviderJournal` without changing the public Controller flow.
+Gemini 3.5 Flash-Lite and Gemini 3.8 Flash qualification artifacts record
+text, ToolCall, ToolResult, multi-turn, thoughtSignature replay, Controller
+E2E, durable audit, and budget reconciliation. DevFarm Gemini task
+`gemini-worker-phase7-003` and independent parallel tasks
+`gemini-worker-parallel-a` / `gemini-worker-parallel-b` each passed their
+manifest-approved host test (`7 passed`) in isolated worktrees. These results
+are external observations and do not create a Phase 6 Gate promotion.
+Documentation-only synchronization does not change the implementation
+baseline and is not written back into `GATE_STATUS.json`.
 
 Phase 6A〜6E is the current v2 work boundary. The phase is deliberately split
 into small control-plane components so that resource exhaustion, provider
@@ -64,8 +65,9 @@ official-branch integration. Cloudflare task `cloudflare-worker-smoke-007`
 failed response decoding before proposal generation. Phase
 7A/B also carries a typed Task profile and deterministic intelligence-policy
 metadata into ModelRequest. An explicit bounded-routing opt-in can constrain
-selection to exactly labelled resource tiers; default routing remains unchanged
-and this is not an AgentBackend.
+selection to exactly labelled resource tiers; model identity and thinking effort
+are separate fields; default routing remains unchanged and this is not an
+AgentBackend.
 The canonical path stays
 Controller -> ProviderDispatcher -> ProviderRegistry -> concrete Provider,
 while the Controller direct-provider branch remains compatibility-only. Phase
@@ -73,10 +75,12 @@ while the Controller direct-provider branch remains compatibility-only. Phase
 Phase 7D adds a coordinator that records that evidence before returning one
 bounded escalation plan. The plan event is durable, and an explicit host
 review records acceptance or rejection with actor, reference, and reason. An
-accepted plan can now be recorded as a dispatch-ready handoff without
-selecting a Provider or executing it. It does not yet implement plan dispatch
-execution, Hedging,
-AgentBackend, MCP, evaluator promotion, or later Phase 7 stages.
+accepted plan can now be recorded as a dispatch-ready handoff. The dedicated
+`EscalationExecutor` revalidates identity, task state, lease, policy, resource,
+quota, budget, and binding before delegating to `ProviderDispatcher`; duplicate
+success is replayed and uncertain dispatch is held for reconciliation. It does
+not implement Hedging, AgentBackend, MCP, evaluator promotion, or later Phase 7
+stages.
 
 ## 6A — Resource Ledger and Budget Governor
 
@@ -239,7 +243,10 @@ deployment-owned budget administration. All Stage G records must be VERIFIED
 before Phase 6 is considered complete.
 Explicitly deferred Phase 6/7 work includes qualification against a real paid
 Provider, production-environment recovery drills with retained artifacts,
-plan dispatch, unrestricted model-tier routing, and generated Tool lifecycle.
-Bounded tier routing, Evaluator evidence, and explicit plan review are already implemented.
+unrestricted model-tier routing, and generated Tool lifecycle. Bounded tier
+routing, separate thinking-effort metadata, Evaluator evidence, explicit plan
+review, and the dedicated bounded `EscalationExecutor` are implemented. The
+Executor dispatches only an accepted durable handoff through the canonical
+ProviderDispatcher and holds uncertain outcomes for reconciliation.
 Artifact-root backup/restore is implemented through
 the RecoveryOperator, but its production retention policy remains operator work.

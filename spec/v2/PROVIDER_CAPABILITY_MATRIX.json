@@ -4,6 +4,9 @@
     {
       "provider": "gemini",
       "model": "gemini-2.5-flash",
+      "provider_binding_id": "gemini:compat",
+      "intelligence_tier": null,
+      "role": "compatibility / verified fallback",
       "api_version": "v1beta generateContent",
       "adapter_version": "dev_agent GeminiHttpProvider",
       "tested_at": "2026-09-08T20:48:33+09:00",
@@ -16,6 +19,9 @@
     {
       "provider": "ollama",
       "model": "qwen3:8b",
+      "provider_binding_id": "ollama",
+      "intelligence_tier": null,
+      "role": "privacy / survival",
       "api_version": "local /api/chat",
       "adapter_version": "dev_agent OllamaProvider",
       "tested_at": "2026-09-08T21:30:04+09:00",
@@ -28,6 +34,9 @@
     {
       "provider": "cloudflare",
       "model": "@cf/meta/llama-3.1-8b-instruct",
+      "provider_binding_id": "cloudflare",
+      "intelligence_tier": "L1",
+      "role": "free cloud worker",
       "api_version": "Workers AI REST run",
       "adapter_version": "dev_agent CloudflareWorkersAIHttpProvider",
       "tested_at": "2026-09-09T20:30:33+09:00",
@@ -40,6 +49,9 @@
     {
       "provider": "openrouter",
       "model": "openrouter/free",
+      "provider_binding_id": "openrouter:free",
+      "intelligence_tier": "L1",
+      "role": "late free fallback",
       "api_version": "v1 chat/completions",
       "adapter_version": "dev_agent OpenRouterHttpProvider",
       "tested_at": "2026-09-09T21:41:55+09:00",
@@ -48,7 +60,37 @@
       "capabilities": ["text", "model_generated_tool_call", "tool_result_roundtrip", "final_response", "controller_e2e"],
       "known_quirks": ["free router qualification did not report quota telemetry; quota remains unknown_not_reported"],
       "errors": []
+    },
+    {
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "provider_binding_id": "gemini:worker",
+      "intelligence_tier": "L1",
+      "role": "bounded development worker",
+      "api_version": "v1beta generateContent",
+      "adapter_version": "dev_agent GeminiHttpProvider + GeminiTranscriptStore",
+      "tested_at": "2026-09-09T22:43:14.027814+00:00",
+      "expires_at": "2026-10-09T22:43:14.027814+00:00",
+      "confidence": "high",
+      "capabilities": ["text", "model_generated_tool_call", "tool_result_roundtrip", "final_response", "controller_e2e", "thought_signature_roundtrip", "durable_provider_audit", "budget_reconciliation"],
+      "known_quirks": ["Gemini 3.x thoughtSignature and model functionCall parts are replayed by the adapter-local transcript; quota remains unknown_not_reported"],
+      "errors": []
+    },
+    {
+      "provider": "gemini",
+      "model": "gemini-3.8-flash",
+      "provider_binding_id": "gemini:core",
+      "intelligence_tier": "L2",
+      "role": "core reasoner",
+      "api_version": "v1beta generateContent",
+      "adapter_version": "dev_agent GeminiHttpProvider + GeminiTranscriptStore",
+      "tested_at": "2026-09-09T22:43:43.684803+00:00",
+      "expires_at": "2026-10-09T22:43:43.684803+00:00",
+      "confidence": "high",
+      "capabilities": ["text", "model_generated_tool_call", "tool_result_roundtrip", "final_response", "controller_e2e", "thought_signature_roundtrip", "durable_provider_audit", "budget_reconciliation"],
+      "known_quirks": ["Gemini 3.x thoughtSignature and model functionCall parts are replayed by the adapter-local transcript; quota remains unknown_not_reported"],
+      "errors": []
     }
   ],
-  "entry_contract": ["provider", "model", "api_version", "adapter_version", "tested_at", "expires_at", "confidence", "capabilities", "known_quirks", "errors"]
+  "entry_contract": ["provider", "model", "provider_binding_id", "intelligence_tier", "role", "api_version", "adapter_version", "tested_at", "expires_at", "confidence", "capabilities", "known_quirks", "errors"]
 }

@@ -72,6 +72,17 @@ python scripts/devfarm_worker.py \
   --model @cf/meta/llama-3.1-8b-instruct
 ```
 
+Gemini 3.5 Flash-Lite is also an explicitly activated L1 Worker model after
+its live qualification. The Runner binds it to `gemini:worker`; other Gemini
+models are not implicitly activated for DevFarm work:
+
+```text
+python scripts/devfarm_worker.py \
+  --manifest .devfarm/tasks/<task-id>.json \
+  --provider gemini \
+  --model gemini-3.5-flash-lite
+```
+
 After Codex reviews the proposal, deterministic validation and host-side test
 execution are explicit and restricted to the same worker worktree:
 
@@ -85,7 +96,10 @@ This applies the validated patch only in `.devfarm/worktrees/<task-id>/` and
 runs only the manifest-approved `python -m pytest` / `python -m compileall`
 commands. `result.json` records `model_claims`, `proposed_test_commands`, and
 `host_verified_tests` separately. The runner is a development bootstrap
-boundary, not the formal Phase 7 AgentBackend.
+boundary, not the formal Phase 7 AgentBackend. It also records host-side
+`worker_metrics` (provider, binding, model, tier, request id, elapsed time,
+safe usage scalars, attempt count, and acceptance). Model-reported test claims
+are never copied into the verified result.
 
 ## Provider qualification handoff
 
@@ -97,6 +111,7 @@ put them in a manifest, command argument, repository file, or result artifact.
 python scripts/qualify_free_provider.py --provider groq --model <groq-model-id> --evidence-path .devfarm/results/groq-live.json
 python scripts/qualify_free_provider.py --provider cloudflare --model <cloudflare-model-id> --evidence-path .devfarm/results/cloudflare-live.json
 python scripts/qualify_free_provider.py --provider openrouter --model openrouter/free --evidence-path .devfarm/results/openrouter-live.json
+python scripts/qualify_free_provider.py --provider gemini --model gemini-3.5-flash-lite --evidence-path .devfarm/results/gemini-live.json
 python scripts/qualify_free_provider.py --provider mistral --model <mistral-model-id> --evidence-path .devfarm/results/mistral-live.json
 ```
 
@@ -115,15 +130,15 @@ Worker activation.
 The farm's isolation and host-verification boundary is implemented and
 contract-tested, but no Worker is activated automatically: activation requires
 an explicit Codex/operator launch, an approved manifest, and review. In this
-workspace, Cloudflare and OpenRouter have successful live qualification
-artifacts, while Groq returned HTTP 403 and SambaNova returned HTTP 429/402
-after reaching the API. Mistral's latest live attempt returned HTTP 429 and is
-not a qualification. The OpenRouter task `openrouter-worker-smoke-005` produced
-a valid patch, was applied only in its dedicated worktree, and passed the
-manifest-approved host test (`1 passed`). Its ignored result artifact remains
-under `.devfarm/results/openrouter-worker-smoke-005/`; it is not an official
-branch change or Gate evidence. The Cloudflare task
-`cloudflare-worker-smoke-007` reached the API but failed response decoding and
-produced no proposal. No live or Gate evidence is inferred from adapter unit
-tests, and a Worker result does not become an official change until Codex
-reviews and integrates it.
+workspace, Cloudflare, OpenRouter, and Gemini 3.5 Flash-Lite have successful
+qualification artifacts. Gemini task `gemini-worker-phase7-003` produced a
+valid patch and passed its manifest-approved host test (`7 passed`). The
+independent tasks `gemini-worker-parallel-a` and
+`gemini-worker-parallel-b` were run concurrently in separate worktrees and
+both passed host verification (`7 passed` each). Their ignored result
+artifacts remain under `.devfarm/results/`; they are not official branch
+changes or Gate evidence. Groq returned HTTP 403, SambaNova returned HTTP
+429/402, and Mistral returned HTTP 429; none is activated as a Worker.
+No live or Gate evidence is inferred from adapter unit tests, and a Worker
+result does not become an official change until Codex reviews and integrates
+it.

@@ -69,8 +69,9 @@ Phase 7A/Bの移行境界として、`Task`は `task_type`、`risk`、
 minimum/maximum/allowed tierを決定的に算出し、Controllerはその結果を
 ModelRequest metadataとaudit-visible requestへ渡す。明示opt-in時はresource
 metadataのtierとexact matchしてrouteを制約するが、通常routingは変更せず、
-モデルが自己申告で昇格できないpolicy seamを維持する。Phase 7Dでは、host側の
-Evaluator結果をdurable eventへ記録し、有限なescalation planを返すcoordinator
-まで追加した。planの明示review（accepted/rejected）と、受理済みplanを
-dispatch-ready handoffとしてdurable記録する境界も実装済みだが、review後の
-dispatch実行、workflow promotion、AgentBackend/MCPは後段である。
+モデルが自己申告で昇格できないpolicy seamを維持する。Phase 7C/Dでは、host側の
+Evaluator結果をdurable eventへ記録し、有限なescalation plan、明示review
+（accepted/rejected）、受理済みplanのdispatch-ready handoffを実装した。
+`EscalationExecutor`はaccepted handoffを再検証してcanonical ProviderDispatcherへ
+bounded dispatchする。Task lifecycleとの自動循環、実績ベースrouting、workflow
+promotion、AgentBackend/MCPは後段である。

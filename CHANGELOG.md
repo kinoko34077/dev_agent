@@ -4,6 +4,14 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-10 JST — Phase 7 execution, Gemini 3.x qualification, and DevFarm metrics
+
+- `EscalationExecutor`を追加し、acceptedな`dispatch_ready` handoffを、Task／plan／dispatch identity、lease、Intelligence policy、tier、resource、quota、budget、Provider bindingの再検証後にcanonical `ProviderDispatcher`へ委譲する。`RETRY_SAME`、`RETRY_OTHER_PROVIDER`、`ESCALATE`を有限attemptへ閉じ、succeededの再送と不確実dispatchの再実行を拒否して既存effect intent／reconciliationへ接続した。
+- Gemini `gemini-3.5-flash-lite`（L1 Worker）と`gemini-3.8-flash`（L2 core）を、ToolCall／ToolResult／multi-turn／thoughtSignature roundtrip、Controller E2E、durable audit、budget reconciliationを含むcanonical qualification artifactへ記録した。Gemini固有transcriptとthinking変換はAdapter内に保持する。
+- Intelligence tierとthinking effortを別metadataとして扱い、L1 minimal、通常L2 low、難しいL2/L3 highのbounded mappingを追加した。Gemini 3.7は未qualificationの候補としてactivateしていない。
+- DevFarmはGemini 3.5 Flash-Liteをmodel-awareにL1 Workerとしてactivateし、入力ゼロのhost-verified taskを1件、独立file ownershipの2 Worker並列を1組実証した。各Workerは隔離worktreeでmanifest-approved host test `7 passed`、binding/model/tier/request/duration/safe usage/acceptanceのhost metricsを記録した。生成物は公式branchへ自動統合していない。
+- このsliceのローカルv2全回帰は`393 passed, 1 skipped`。G6O1と既存Gate statusは変更していない。現行コード基準は`2ed0a22`で、exact-head CIは文書同期push後にGitHub Actionsを外部観測する。
+
 ### 2026-09-10 JST — Escalation handoff invariant hardening
 
 - `EscalationDispatchRequest`のdecision／target整合性を検証し、same provider、other provider、higher tier以外のhandoffを拒否する。SQLiteでも`escalation.dispatch_ready` eventがsnapshot経由で永続化されることを確認した。

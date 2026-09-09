@@ -1,41 +1,55 @@
 # Current State — v2/bootstrap
 
-現在のコード基準は `e6da2fd4c6aea1f581171df6d259f97bd1de0483` です。R2〜R7の
-リファクタとPhase 7A〜7Dの限定的な実装を完了し、公開Protocol、schema v7、
-Provider contract、Gate判定は変更していません。GATE_STATUSのstatusはこの同期でも
-変更しません。
+実装基準は `2ed0a22` です。本書はそのコードと、直近の外部資格化・DevFarm
+実行結果を同期したCurrent Stateです。GATE_STATUSの既存statusは変更していません。
 
 ## 判定
 
 - Phase 6 foundation: `VERIFIED`
 - Phase 6 operational: `G6O2`〜`G6O6` は `VERIFIED`
 - `G6O1`: `BLOCKED_EXTERNAL`（実paid Providerのworst-case課金実証と、deployment-owned budget設定の外部保護が必要）
-- Phase 7A/B/C/D: Task profile、bounded policy、明示opt-inのtier/resource routing、決定的host evaluator、durable evidence、有限なescalation planの生成、明示host review（accepted/rejected）、受理済みplanのdispatch-ready handoff記録まで実装済み。planの実dispatch、AgentBackend、MCPは未実装
-- Gate昇格やlive qualificationの成功は、local testやWorker proposalから推測しません
+- Phase 7A/B: typed task profile、bounded tier policy、明示opt-in resource routing、model identityとthinking effortの分離を実装済み
+- Phase 7C/D: deterministic host evaluator、durable evidence、有限escalation plan、明示review、dispatch-ready handoffを実装済み
+- Phase 7 execution: `EscalationExecutor`がaccepted `dispatch_ready`を再検証し、既存ProviderDispatcher・effect intent・budget/resource境界を通る有限dispatchを実装済み。重複再送とunknown/reconciliationをfail-closedに扱う
+- Phase 7E: bounded workflow promotion proposalの生成境界を実装済み。自動promotionは行わない
+- Gate昇格やlive qualificationの成功は、local test・model自己申告・Worker proposalだけから推測しない
 
 ## 検証
 
-- v2ローカル全回帰: `375 passed, 1 skipped in 61.53s`
-- 最新のDevFarm patch/host verification targeted regression: `16 passed in 17.51s`
+- v2ローカル全回帰: `393 passed, 1 skipped in 74.50s`（`python -m pytest tests/v2 -q --durations=10`）
+- intelligence routing / escalation execution focused: `26 passed in 1.28s`
+- DevFarm manifest / patch / host verification focused: `24 passed in 27.50s`
+- DevFarm host verification: Gemini 3.5 Flash-Lite `gemini-worker-phase7-003` が、入力ファイルを外部送信せず、隔離worktreeへpatchを適用し、許可済みhost test `7 passed` を確認
+- DevFarm 2 Worker並列: `gemini-worker-parallel-a` と `gemini-worker-parallel-b` が別worktree・別所有ファイルで同時実行され、各 `7 passed`、`result_accepted=true` を確認。実測はそれぞれ1.528秒、1.278秒
+- Worker metricsはhost側で `provider_id`、`provider_binding_id`、`model_id`、`intelligence_tier`、request id、elapsed、許可されたusage scalar、host test結果を記録する。Modelのtests claimは証拠に採用しない
 - skip: `tests/v2/test_budget_reservations.py:142`（Windows ACLはdeployment-owned）
-- 変更前refactor baseline: `8bf7c2e`、`358 passed, 1 skipped in 66.76s`
-- exact-head GitHub Actions: `e6da2fd4c6aea1f581171df6d259f97bd1de0483` に対する `v2-core` run `34409192426`（3.10 job `102659363295`、3.11 job `102659363080`）と `v2 tests` run `34409192395` はsuccess。現行HEADのCIはGitHub Actionsで外部観測し、repo内Gateへ自己記録しない
-- `v2-core` はPython 3.10/3.11 matrixでfull `tests/v2`、3.11のみcompileallを実行し、`v2 tests`は互換provider smokeを担います。重複full suiteとcollect-only実行は除去しました
-- import smoke: 主要runtime/resource/state/tool/provider/recovery/devfarm 12モジュールを `566ms` でimport、`compileall src recovery scripts` 成功
+- 最新コード基準のexact-head GitHub Actionsは、push後に`v2-core`（Python 3.10/3.11）と`v2 tests`を外部観測する。repo内GATE_STATUSへCI結果を書き戻してexact-headを自己参照しない
 
 ## Provider状態
 
-| Provider | 状態 | 備考 |
-| --- | --- | --- |
-| Cloudflare Workers AI | `QUALIFIED` | Phase 6 canonical経路、ToolCall往復、audit、budget reconciliationを確認。quotaは未報告値をunknownのまま保持 |
-| OpenRouter Free | `QUALIFIED` | `openrouter/free`のcanonical経路とToolCall往復を確認。quotaは未報告 |
-| Ollama | `QUALIFIED` | local / privacy / survival用途 |
-| Groq | `UNQUALIFIED` | `/v1/models` probeがHTTP 403。permission/account状態を推測しない |
-| Mistral | `UNQUALIFIED` | `MISTRAL_API_KEY` 読込み後のlive attemptはAPI HTTP 429。証跡は `spec/v2/evidence/phase7-mistral-2026-09-10.json`。成功や無料枠を推測しない |
-| SambaNova | `INACTIVE` | `/v1/models`は到達したが推論HTTP 429/402。free/no-charge qualification対象外 |
+| Provider / binding | 状態 | tier / role | 備考 |
+| --- | --- | --- | --- |
+| Gemini `gemini:core` / `gemini-3.8-flash` | `QUALIFIED` | L2 / core | text、ToolCall、ToolResult、multi-turn、thoughtSignature roundtrip、Controller E2E、audit、budget reconciliation。証跡: [`gemini-3.8`](../spec/v2/evidence/gemini-3.8-flash-qualification.json) |
+| Gemini `gemini:worker` / `gemini-3.5-flash-lite` | `QUALIFIED` | L1 / Worker | 同上のcanonical qualification。証跡: [`gemini-3.5-Lite`](../spec/v2/evidence/gemini-3.5-flash-lite-qualification.json) |
+| Gemini `gemini:compat` / `gemini-2.5-flash` | `QUALIFIED` | compatibility / verified fallback | 既存live evidenceを維持 |
+| Cloudflare Workers AI / `cloudflare` | `QUALIFIED` | L1 / free cloud | canonical経路、ToolCall、audit、budget reconciliation。quotaは未報告値をunknownのまま保持 |
+| OpenRouter Free / `openrouter:free` | `QUALIFIED` | L1 / late fallback | `openrouter/free`のcanonical経路、ToolCall、audit、budget reconciliation。quotaは未報告 |
+| Ollama / `ollama` | `QUALIFIED` | privacy / survival | local実Provider |
+| Groq | `UNQUALIFIED` | — | `/v1/models` probeがHTTP 403。permission/account状態を推測しない |
+| Mistral | `UNQUALIFIED` | — | 推論HTTP 429。成功や無料枠を推測しない |
+| SambaNova | `INACTIVE` | — | `/v1/models`は到達したが推論HTTP 429/402。free/no-charge qualification対象外 |
+| Gemini `gemini:fast-fallback` / `gemini-3.7-flash` | `UNQUALIFIED` | L1/L2 candidate | 構成候補としてのみ文書化し、DevFarm/Routerへactivateしていない |
 
 資格情報は環境変数または外部secret storeからのみ読み込み、repo・manifest・audit・
-証跡へ値を書き込みません。
+証跡へ値を書き込みません。Gemini固有のFunctionCall part、FunctionResponse、
+thoughtSignature、thinking設定はAdapter内部で保持・変換し、Kernel protocolへ漏らしません。
+
+## Phase 7 実行境界
+
+- `EscalationExecutor`はControllerへ実装を追加せず、accepted review、exact plan/dispatch identity、Task state、lease、Intelligence policy、tier、capability、privacy、quota、budget、bindingを再確認してからcanonical `ProviderDispatcher`へ委譲します
+- `RETRY_SAME`は同一binding、`RETRY_OTHER_PROVIDER`は同tierの別binding、`ESCALATE`はdurable allowed tier内のnext tierを選びます。`plan_id`、`dispatch_id`、`task_id`、attempt、bindingをeffect intentとdurable eventへ結合し、succeededは再送せず、dispatching/unknown/reconcilingは再実行せずreconciliationへ残します
+- `IntelligenceRoutePolicy`はtierとthinking effortを別フィールドで出力します。L1はminimal、通常L2はlow、難しいL2/L3はhigh。Gemini AdapterだけがGemini 3.xの`thinkingConfig.thinkingLevel`へ変換します
+- evaluator結果後のhost test、retry、escalation、Task terminal transitionは引き続き別責務です。自動無限retry、model自己昇格、自動mergeはありません
 
 ## Refactor Freezeの内容
 
@@ -44,26 +58,32 @@ Provider contract、Gate判定は変更していません。GATE_STATUSのstatus
 - SQLiteStateStoreはconnection / transaction ownerを維持し、`state/schema.py`、`state/core_repository.py`、`state/effects_repository.py`へ内部整理しました
 - ToolRuntimeは `tools/executor.py` と `tools/effect_guard.py`へ実行／副作用責務を分離し、timeout、process-tree kill、cancellation、approval、idempotency、reconciliation semanticsを維持しました
 - ProviderRegistryは `providers/registry.py` を責務所有者とし、DispatcherはControlPlaneのSnapshot API経由でrouting/budget viewを取得します
-- DevFarmテストをmanifest/outbound境界とpatch/host verificationへ、Resourceテストをmigration/control、observation/quota、budgetへ分割しました。Model自己申告tests claimは正式証拠ではなく、host側検証だけを採用します
+- DevFarmはworktree不存在・base revision不一致・dirty状態・symlink/out-of-root・protected path・secret outbound・scope外patch・binary/submodule/symlink patch・patch上限超過をfail-closedで拒否します
 - `src` と `tests/v2` の旧v1トップレベルimportは0件。v1実行資産は `legacy/v1-final` に隔離済みです
 
 ## DevFarm状態
 
-worktree不存在、base revision不一致、dirty状態、symlink/out-of-root、protected path、
-secret outbound、scope外patch、binary/submodule/symlink patch、patch上限超過を
-fail-closedで拒否します。OpenRouterの明示Worker `openrouter-worker-smoke-005` は、
-valid unified diffを専用worktreeへ適用し、manifest許可済みhost testを `1 passed` で
-検証した最初のhost-verified結果です。成果は無視対象の`.devfarm/results/`に保持し、
-公式branchへは統合していません。Cloudflare `cloudflare-worker-smoke-007` は応答decode
-失敗でproposal未生成、2 Worker並列の実績もまだありません。Modelのtests claimは証拠に
-採用せず、notesの型不正もartifact生成時に安全に正規化します。
+開発WorkerはCodex/operatorが明示起動した場合だけ動作し、manifestの`external_provider_allowed`、
+`approved_provider_ids`、`outbound_files`を境界にします。read可能範囲と外部送信範囲は別で、
+workspace外へresolveするpath、protected/credential/secret path、secret候補を含むsourceは拒否します。
+patchは実変更pathをunified diffから決定し、worktreeへだけ適用します。patch末尾LFのような
+非意味的transport正規化はmetricsへ記録し、silent truncateは行いません。
 
-## 次の作業（Refactor後）
+`gemini-worker-phase7-003` は入力ゼロの新規doc patchをhost-verifiedしました。さらに
+`gemini-worker-parallel-a` / `gemini-worker-parallel-b` は独立file ownershipの2 Worker並列を
+host-verifiedしました。いずれも生成物は`.devfarm/results/`（ignore対象）に保持し、smoke用の
+dummy docを公式branchへ自動統合していません。実装成果の公式統合はCodexがreviewし、必要性を
+確認した変更だけを行います。
 
-1. DevFarmは、承認済みmanifestで2件目の独立Workerを実証する。成功成果もCodex review後にのみ公式branchへ統合する
-2. Phase 7A/Bのtier/resource routingは明示opt-inとし、通常routing・Task metadataによる自己昇格・自動activationを変更しない
-3. Phase 7Dのplan生成、host側review（accepted/rejected）、受理済みplanのdispatch-ready handoffはdurable eventとして記録済み。次段階は既存ControlPlaneを通る明示的なdispatch受理・実行境界であり、自動dispatchではない
-4. G6O1、Groq、Mistral、SambaNovaの外部状態は、実証が得られるまで現在の判定を維持する
+## 次の作業
 
-READMEは入口、`PHASE6_PLAN.md`はPhase 6の受入条件、`V2_EXECUTION_PLAN.md`はロードマップ、
-`CHANGELOG.md`は履歴、`TRACEABILITY.md`は要求と実装所有者の追跡に限定します。
+1. 外部資格情報が実行環境へ読み込まれた場合だけ、OpenRouter/CloudflareをGeminiと異なるProviderとして再度DevFarm実証する。未読込み状態で送信や成功判定を捏造しない
+2. Worker metricsを一定数蓄積し、`Task Type × tier × capability × quota × latency/failure`の実績ベースroutingを、最小サンプル数・期限・rollback条件付きで導入する
+3. Phase 7 evaluator結果を実Task lifecycleへ接続し、host PASS / bounded retry / escalation / WAIT_HUMANを有限に循環させる
+4. Gemini 3.7はlive qualification後でなければfallbackへ登録しない。Groq/Mistral/SambaNovaの外部状態も現在の判定を維持する
+5. AgentBackend / Codex、MCP、Self-Improvementは前段のPhase 7 acceptanceが揃うまで着手しない
+
+G6O1は実paid Providerとdeployment-owned budget configurationという外部条件待ちであり、
+コード不足として勝手に昇格しません。`README.md`は入口、`PHASE6_PLAN.md`はPhase 6受入条件、
+`V2_EXECUTION_PLAN.md`はロードマップ、`CHANGELOG.md`は履歴、`TRACEABILITY.md`は要求と実装所有者の
+追跡に限定します。

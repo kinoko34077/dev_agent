@@ -35,17 +35,17 @@ v1 は移植元ではなく、知見・ログ・失敗の回帰資料である�
 
 ### 現在フェーズ
 
-**Phase 6 — Resource / Survival / Recovery（foundation verified・G6O1のみ外部blocked）**
+**Phase 7 — bounded intelligence execution（Phase 6 foundation / G6O2〜G6O6 verified・G6O1のみ外部blocked）**
 
 Phase 0〜5 は current acceptance verified。Phase 3.5の後段要件、Phase 4 local実Provider、Phase 5 remote実Providerの証跡は `spec/v2/GATE_STATUS.json` を正とする。Phase 6A〜6Eで resource ledger、budget reservation、privacy-first router、survival modes、独立Recovery運用、durable scheduler ownershipの基礎を実装し、Stage Fとして検証している。Stage Gでは、実Provider dispatch、通貨・period安全な予算、survival policy、lease-fenced worker、独立接続の競合証明、recovery drillを責務別に統合検証している。現在G6O2〜G6O6はVERIFIED、G6O1のみ有償worst-case実証とdeployment-owned budget設定の外部保護確認待ちである。
 
-進行判定: Stage F foundation と Stage G operational を別々に自動判定する。G6O2〜G6O6は各責務の証拠でVERIFIED、G6O1は実paid Providerとdeployment-owned設定という外部条件でBLOCKED_EXTERNALのまま維持する。Phase 7C/DのEvaluatorとbounded coordinatorは、Gateを昇格させず、実行系へ自動接続しない限定的な統合境界として進める。exact-head CIは `spec/v2/GATE_STATUS.json` の外部証跡方針に従う。
+進行判定: Stage F foundation と Stage G operational を別々に自動判定する。G6O2〜G6O6は各責務の証拠でVERIFIED、G6O1は実paid Providerとdeployment-owned設定という外部条件でBLOCKED_EXTERNALのまま維持する。Phase 7A〜7Eは、bounded intelligence policy、thinking effort、deterministic evaluator、explicit review、EscalationExecutor、workflow proposal、Gemini 3.x qualification、DevFarm host verificationを実装済みとして進める。Task lifecycle接続、実績ベースrouting、AgentBackend、MCP、Self-Improvementは後段である。exact-head CIは `spec/v2/GATE_STATUS.json` の外部証跡方針に従う。
 
 ### 2026-09-10 の現在状態
 
-現行コード基準 `e6da2fd4c6aea1f581171df6d259f97bd1de0483` では、Provider共通HTTP層、RoutingSnapshot、Resource Catalog / Observation / Quota / Health / Budget store、Phase 7C/Dの決定的Evaluator・durable evidence・bounded plan coordinator・明示host review・受理済みplanのdispatch-ready handoff、Phase 7A/Bの明示opt-in tier routing、DevFarmのfail-closedなmanifest／result／worktree境界を実装している。通常のProvider経路は Controller -> ProviderDispatcher -> ProviderRegistry -> concrete Provider を正本とし、Controllerのdirect経路は`LegacyDirectProviderExecutor`によるcompatibility/legacyに限定する。ProviderRegistryは`providers/registry.py`、Model turnは`runtime/model_turn.py`、SQLiteのschema/core/effectは`state/`内の専用repository、Tool実行と副作用guardは`tools/executor.py`／`tools/effect_guard.py`へ分離した。DevFarmとv1実行資産は正式runtimeから独立している。
+現行実装基準 `2ed0a22` では、Provider共通HTTP層、RoutingSnapshot、Resource Catalog / Observation / Quota / Health / Budget store、Phase 7A〜7Eのdeterministic evaluator・durable evidence・bounded plan coordinator・明示host review・EscalationExecutor・thinking effort routing、Gemini 3.x transcript/qualification、DevFarmのfail-closed manifest／result／worktree境界を実装している。通常のProvider経路は Controller -> ProviderDispatcher -> ProviderRegistry -> concrete Provider を正本とし、Controllerのdirect経路は`LegacyDirectProviderExecutor`によるcompatibility/legacyに限定する。ProviderRegistryは`providers/registry.py`、Model turnは`runtime/model_turn.py`、SQLiteのschema/core/effectは`state/`内の専用repository、Tool実行と副作用guardは`tools/executor.py`／`tools/effect_guard.py`へ分離した。DevFarmとv1実行資産は正式runtimeから独立している。
 
-Cloudflare Workers AIは `spec/v2/evidence/phase6-cloudflare-free-2026-09-09.json` でcanonical live qualification済み。OpenRouter Freeも `spec/v2/evidence/phase6-openrouter-free-2026-09-09.json` で同経路のToolCall往復、durable audit、budget reconciliationまで確認済みだが、quota残量は未報告である。Groqはmodels endpoint HTTP 403、SambaNovaは推論HTTP 429/402、Mistralはキー読込み後の推論HTTP 429で、いずれも未 qualificationのまま維持する。SambaNovaの無償tier・課金状態・Gate昇格は推測しない。OpenRouterのDevFarm task `openrouter-worker-smoke-005` はvalid patchを専用worktreeへ適用し、host test `1 passed`まで確認したが、公式branch統合はしていない。Cloudflare `cloudflare-worker-smoke-007` は応答decode失敗でproposal未生成である。直近のローカル全回帰は `375 passed, 1 skipped in 61.53s`、DevFarm patch/host verification targeted regressionは`16 passed in 17.51s`。現行コード基準のexact-head CIはGitHub Actionsで外部観測し、repo内Gateへ自己記録しない。`e6da2fd`のCIは`v2-core` run `34409192426`（3.10/3.11 matrix）と`v2 tests` run `34409192395`がsuccessである。G6O1と既存Gate判定は変更していない。
+Cloudflare Workers AIは `spec/v2/evidence/phase6-cloudflare-free-2026-09-09.json` でcanonical live qualification済み。OpenRouter Freeも `spec/v2/evidence/phase6-openrouter-free-2026-09-09.json` で同経路のToolCall往復、durable audit、budget reconciliationまで確認済みだが、quota残量は未報告である。Gemini 3.5 Flash-Liteと3.8 Flashは `spec/v2/evidence/gemini-3.5-flash-lite-qualification.json` / `gemini-3.8-flash-qualification.json` でthoughtSignature roundtripを含むcanonical qualification済みである。Groqはmodels endpoint HTTP 403、SambaNovaは推論HTTP 429/402、Mistralはキー読込み後の推論HTTP 429で、いずれも未 qualificationのまま維持する。直近のローカル全回帰は `393 passed, 1 skipped in 74.50s`。GeminiのDevFarm `gemini-worker-phase7-003` と、独立所有ファイルの`gemini-worker-parallel-a` / `gemini-worker-parallel-b` はhost test `7 passed`である。現行コード基準のexact-head CIはGitHub Actionsで外部観測し、repo内Gateへ自己記録しない。G6O1と既存Gate判定は変更していない。
 
 ## 3. フェーズ別ロードマップ
 
@@ -59,7 +59,7 @@ Cloudflare Workers AIは `spec/v2/evidence/phase6-cloudflare-free-2026-09-09.jso
 | 4. ローカル実行基盤 | Local Provider adapter、provider contract harness、v1 ログ / 入出力 fixture の整備 | クラウドなしで実 Local Provider が代表タスクを完了する | Ollama `qwen3:8b` real text/tool E2E verified |
 | 5. Provider 多重化 | Gemini adapter、新しい独立 Provider、ライブ Contract Probe、capability matrix | Provider の追加で Core を変更せず、実 response を normalize し live probe を記録する | Gemini `gemini-2.5-flash` real text/tool E2E verified |
 | 6. 資源・生存・外部復旧 | 資源 ledger、budget governor、NORMAL / CONSERVE / SURVIVAL、Rescue CLI / MCP、復旧 drill | 支払上限を呼出前に遮断し、通常 router を壊しても外部 Agent が診断・修復できる | `v2-survival-alpha` |
-| 7. 安全な拡張 | evaluator / critic workflow、自己修復候補、Tool / Skill 生成、Workflow library と昇格 | main を直接変更せず、候補生成 → 検証 → rollback を証明。繰返し作業を tested workflow 候補へ昇格できる | 拡張基盤 |
+| 7. 安全な拡張 | bounded intelligence policy、deterministic evaluator、reviewed escalation dispatch、Gemini 3.x qualification、host-verified DevFarm、Workflow proposal | Task lifecycleへ有限に接続し、実績ベースrouting・workflow promotion・rollback可能な候補を証明する。AgentBackend/MCPは別Gate | Phase 7A〜7Eの基盤完了、後段実装中 |
 | 8. 複数役割・事業検証 | manifest-defined roles、bounded handoff、AI Company benchmark、収益 ledger / 再投資規則 | 一 Provider 停止下で、実タスクの artifact・検証・状態保存・approval handoff が完了する | 統合検証 |
 | 9. Virtual Office UI | 運用状態、approval、audit、resource を表示する UI | Runtime の正式 API のみを用い、制御・監査・復旧を妨げない | 最終 UI |
 
