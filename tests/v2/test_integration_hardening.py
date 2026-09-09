@@ -656,6 +656,7 @@ def test_process_timeout_terminates_descendant_after_worker_exit(tmp_path):
             handler=isolated_detached_child_handler,
             isolation="subprocess",
             timeout_seconds=0.05,
+            handler_ref="tests.v2.test_integration_hardening:isolated_detached_child_handler",
         )
     )
     call = ToolCall(tool_name="detached", arguments={"marker": str(marker)})
