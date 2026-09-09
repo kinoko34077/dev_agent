@@ -648,6 +648,60 @@ def test_dispatcher_persists_provider_intent_and_selection_audit(tmp_path):
     assert audits[0]["outcome"] == "succeeded"
 
 
+def test_dispatcher_holds_result_when_durable_success_audit_fails(tmp_path):
+    ledger = ResourceLedger(tmp_path / "dispatcher-audit-failure.sqlite3")
+    ledger.register_resource("paid", provider_id="paid", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
+    ledger.observe("paid", available=10, health="healthy")
+    control = ResourceControlPlane(ResourceRouter(ledger), _governor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)))
+
+    class PaidProvider(FakeProvider):
+        provider_id = "paid"
+
+        def request(self, request):
+            return ModelResponse(provider="paid", model="test", text_segments=["durable"], usage={"cost_minor": 10})
+
+    dispatcher = ProviderDispatcher(ProviderRegistry([PaidProvider()]), control)
+
+    def fail_durable_audit(*args, **kwargs):
+        raise OSError("audit store unavailable")
+
+    dispatcher._record_audit = fail_durable_audit
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        result = Controller(dispatcher, ToolRuntime(ToolRegistry()), store).run(Task(objective="audit persistence"))
+        intent = store.connection.execute("SELECT status FROM effect_intents").fetchone()
+
+    assert result.status.value == "waiting_reconciliation"
+    assert intent["status"] == "succeeded"
+    assert ledger.reservation_totals()["active_reservations"] == 0
+
+
+def test_direct_provider_holds_result_when_durable_success_audit_fails(tmp_path):
+    ledger = ResourceLedger(tmp_path / "direct-audit-failure.sqlite3")
+    ledger.register_resource("paid", provider_id="paid", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
+    ledger.observe("paid", available=10, health="healthy")
+    control = ResourceControlPlane(ResourceRouter(ledger), _governor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)))
+
+    class PaidProvider(FakeProvider):
+        provider_id = "paid"
+
+        def request(self, request):
+            return ModelResponse(provider="paid", model="test", text_segments=["durable"], usage={"cost_minor": 10})
+
+    class AuditFailureController(Controller):
+        def _record_provider_audit(self, request, reservation, outcome, intent_key, *, details=None):
+            if outcome == "succeeded":
+                raise OSError("audit store unavailable")
+            return super()._record_provider_audit(request, reservation, outcome, intent_key, details=details)
+
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        result = AuditFailureController(PaidProvider(), ToolRuntime(ToolRegistry()), store, resource_policy=control).run(Task(objective="direct audit persistence"))
+        intent = store.connection.execute("SELECT status FROM effect_intents").fetchone()
+
+    assert result.status.value == "waiting_reconciliation"
+    assert intent["status"] == "succeeded"
+    assert ledger.reservation_totals()["active_reservations"] == 0
+
+
 def test_stale_provider_dispatch_is_fenced_across_independent_processes(tmp_path):
     resource_path = tmp_path / "resources.sqlite3"
     state_path = tmp_path / "shared-state.sqlite3"

@@ -559,8 +559,24 @@ class Controller:
                         self._provider_intent(provider_intent_key, status="unknown", result={"error_category": "reconciliation_required", "message": str(exc)})
                         self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="budget_reconciliation", message=str(exc))
                         return task
-                    self._provider_intent(provider_intent_key, status="succeeded", result={"provider_id": response.provider, "resource_id": reservation.budget.resource_id, "outcome": "succeeded", "response": response.to_dict()})
-                    self._record_provider_audit(request, reservation, "succeeded", provider_intent_key)
+                    try:
+                        self._provider_intent(provider_intent_key, status="succeeded", result={"provider_id": response.provider, "resource_id": reservation.budget.resource_id, "outcome": "succeeded", "response": response.to_dict()})
+                        self._record_provider_audit(request, reservation, "succeeded", provider_intent_key)
+                    except Exception as exc:
+                        # The provider response and budget reconciliation are
+                        # already real.  If durable success/audit persistence
+                        # is lost at this boundary, never let a retry issue a
+                        # second paid request or classify it as provider
+                        # decode failure.
+                        self._provider_waiting_reconciliation(
+                            task,
+                            state,
+                            step=step,
+                            request_id=request.request_id,
+                            cause="result_persistence",
+                            message=f"provider result persistence requires reconciliation: {exc}",
+                        )
+                        return task
                 if cancel_event.is_set():
                     self._cancel(task, state, step=step, message="provider request completed after cancellation")
                     return task

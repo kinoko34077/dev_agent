@@ -251,9 +251,22 @@ class ProviderDispatcher(ModelProvider):
                 self._intent(intent_key, status="unknown", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id, "error_category": "provider_decode", "message": str(exc)})
                 self._record_audit(request, selection, "provider_decode", intent_key, details={"category": "provider_decode"})
                 raise ProviderError(f"provider response could not be decoded: {exc}", category="provider_decode", retryable=False) from exc
-            self._intent(intent_key, status="succeeded", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id, "outcome": "succeeded", "response": response.to_dict()})
-            self.control.router.ledger.record_provider_success(selection.provider_id)
-            self._record_audit(request, selection, "succeeded", intent_key)
+            try:
+                self._intent(intent_key, status="succeeded", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id, "outcome": "succeeded", "response": response.to_dict()})
+                self.control.router.ledger.record_provider_success(selection.provider_id)
+                self._record_audit(request, selection, "succeeded", intent_key)
+            except Exception as exc:
+                # The concrete provider has already returned and the budget
+                # result was accepted.  Losing the durable result/audit here
+                # must not become a local provider_decode failure: a retry
+                # could duplicate a paid external request.  Keep the intent
+                # boundary fail-closed and let Controller persist a waiting
+                # reconciliation state.
+                raise ProviderError(
+                    f"provider result persistence requires reconciliation: {exc}",
+                    category="reconciliation_required",
+                    retryable=False,
+                ) from exc
             return response
 
     def _selection(self, request: ModelRequest, excluded: set[str]) -> RouteSelection:
