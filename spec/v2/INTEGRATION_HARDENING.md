@@ -64,9 +64,9 @@ see `docs/PHASE6_PLAN.md`.
 - Recovery now supports validated atomic backup and restore, non-destructive
   Git diagnostics, last-known-good recording, rollback planning, and explicit
   permission gates for rollback/repair-branch mutation.
-- Gate status schema v3 distinguishes `IMPLEMENTED`, `INTEGRATED`, and
-  `VERIFIED`; only `VERIFIED` satisfies a gate.  Legacy `PASS` is accepted by
-  the checker only for schema v1 callers.
+- Gate status schema v4 distinguishes `IMPLEMENTED`, `INTEGRATED`, external
+  `BLOCKED`, and `VERIFIED`; only `VERIFIED` satisfies a gate.  Legacy `PASS`
+  is accepted by the checker only for schema v1 callers.
 
 ## Deferred follow-up during Phase 6 / Phase 7
 
