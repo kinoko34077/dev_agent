@@ -27,11 +27,11 @@
 **Interfaces:**
 - Extend ResourceSpec with optional quota_domain: str | None.
 - Extend register_resource with quota_domain: str | None.
-- Add ResourceLedger.SCHEMA_VERSION 5.
-- Add resources.quota_domain and quota_observations table through ordered migration v4 -> v5.
+- Add ResourceLedger.SCHEMA_VERSION 6.
+- Add resources.quota_domain and quota_observations table through ordered migration v4 -> v5, then operational observation columns through v6.
 - Return quota_domain through get_resource and list_resources.
 
-- [ ] Step 1: Add failing tests for quota_domain persistence, schema version 5, and legacy migration.
+- [ ] Step 1: Add failing tests for quota_domain persistence, schema version 6, and legacy migration.
 - [ ] Step 2: Run those tests and confirm failure because quota_domain and migration v5 do not exist.
 - [ ] Step 3: Add the v5 migration, strict quota-domain validation, and persisted resource identity.
 - [ ] Step 4: Run the focused tests and confirm they pass.

@@ -106,7 +106,7 @@ class QuotaObservation:
 class ResourceLedger:
     """SQLite-backed resource observations and budget reservation records."""
 
-    SCHEMA_VERSION = 5
+    SCHEMA_VERSION = 6
     _SCHEMA = """
     CREATE TABLE IF NOT EXISTS resources (
         resource_id TEXT PRIMARY KEY,
@@ -118,6 +118,12 @@ class ResourceLedger:
         cost_minor INTEGER,
         price_currency TEXT,
         quota_domain TEXT,
+        quota_remaining_ratio REAL,
+        quota_reset_at TEXT,
+        latency_ewma_ms REAL,
+        failure_ewma REAL,
+        inflight REAL NOT NULL DEFAULT 0,
+        concurrency_limit REAL,
         available REAL NOT NULL,
         health TEXT NOT NULL,
         confidence REAL NOT NULL,
@@ -132,7 +138,13 @@ class ResourceLedger:
         available REAL NOT NULL,
         health TEXT NOT NULL,
         confidence REAL NOT NULL,
-        observed_at TEXT NOT NULL
+        observed_at TEXT NOT NULL,
+        quota_remaining_ratio REAL,
+        quota_reset_at TEXT,
+        latency_ewma_ms REAL,
+        failure_ewma REAL,
+        inflight REAL NOT NULL DEFAULT 0,
+        concurrency_limit REAL
     );
     CREATE TABLE IF NOT EXISTS quota_observations (
         observation_id TEXT PRIMARY KEY,
@@ -253,6 +265,19 @@ class ResourceLedger:
                 )
                 self.connection.execute("CREATE INDEX IF NOT EXISTS idx_quota_observations_resource_observed_at ON quota_observations(resource_id, observed_at)")
                 self.connection.execute("UPDATE resource_schema_meta SET value='5' WHERE key='schema_version'")
+                current = 5
+            if current < 6:
+                for column, definition in (
+                    ("quota_remaining_ratio", "REAL"),
+                    ("quota_reset_at", "TEXT"),
+                    ("latency_ewma_ms", "REAL"),
+                    ("failure_ewma", "REAL"),
+                    ("inflight", "REAL NOT NULL DEFAULT 0"),
+                    ("concurrency_limit", "REAL"),
+                ):
+                    self._ensure_column("resources", column, definition)
+                    self._ensure_column("resource_observations", column, definition)
+                self.connection.execute("UPDATE resource_schema_meta SET value='6' WHERE key='schema_version'")
             self.connection.commit()
         except Exception:
             self.connection.rollback()
@@ -342,13 +367,44 @@ class ResourceLedger:
             self.connection.commit()
         return ResourceSpec(resource_id, provider_id, native_unit, capacity, capability_list, sensitivity, cost_minor, price_currency.upper() if price_currency else None, quota_domain)
 
-    def observe(self, resource_id: str, *, available: int | float, health: str, confidence: float = 1.0, observed_at: str | None = None) -> None:
+    def observe(
+        self,
+        resource_id: str,
+        *,
+        available: int | float,
+        health: str,
+        confidence: float = 1.0,
+        observed_at: str | None = None,
+        quota_remaining_ratio: float | None = None,
+        quota_reset_at: str | None = None,
+        latency_ewma_ms: int | float | None = None,
+        failure_ewma: float | None = None,
+        inflight: int | float = 0,
+        concurrency_limit: int | float | None = None,
+    ) -> None:
         self._number(available, "available")
         self._number(confidence, "confidence")
         if confidence > 1:
             raise ValueError("confidence must be at most 1")
         if health not in {"healthy", "degraded", "unhealthy", "unknown"}:
             raise ValueError("invalid resource health")
+        if quota_remaining_ratio is not None:
+            self._number(quota_remaining_ratio, "quota_remaining_ratio")
+            if quota_remaining_ratio > 1:
+                raise ValueError("quota_remaining_ratio must be at most 1")
+        if quota_reset_at is not None and (not isinstance(quota_reset_at, str) or not quota_reset_at.strip()):
+            raise ValueError("quota_reset_at must be a non-empty string or None")
+        if latency_ewma_ms is not None:
+            self._number(latency_ewma_ms, "latency_ewma_ms")
+        if failure_ewma is not None:
+            self._number(failure_ewma, "failure_ewma")
+            if failure_ewma > 1:
+                raise ValueError("failure_ewma must be at most 1")
+        self._number(inflight, "inflight")
+        if concurrency_limit is not None:
+            self._number(concurrency_limit, "concurrency_limit")
+            if inflight > concurrency_limit:
+                raise ValueError("inflight cannot exceed concurrency_limit")
         timestamp = observed_at or _now()
         with self._lock:
             resource = self.connection.execute("SELECT capacity FROM resources WHERE resource_id = ?", (resource_id,)).fetchone()
@@ -356,8 +412,48 @@ class ResourceLedger:
                 raise KeyError(resource_id)
             if available > resource[0]:
                 raise ValueError(f"available capacity exceeds resource capacity: {resource_id}")
-            self.connection.execute("UPDATE resources SET available=?, health=?, confidence=?, observed_at=? WHERE resource_id=?", (available, health, confidence, timestamp, resource_id))
-            self.connection.execute("INSERT INTO resource_observations VALUES (?, ?, ?, ?, ?, ?)", (str(uuid4()), resource_id, available, health, confidence, timestamp))
+            self.connection.execute(
+                """UPDATE resources
+                   SET available=?, health=?, confidence=?, observed_at=?,
+                       quota_remaining_ratio=?, quota_reset_at=?,
+                       latency_ewma_ms=?, failure_ewma=?, inflight=?,
+                       concurrency_limit=?
+                   WHERE resource_id=?""",
+                (
+                    available,
+                    health,
+                    confidence,
+                    timestamp,
+                    quota_remaining_ratio,
+                    quota_reset_at.strip() if isinstance(quota_reset_at, str) else None,
+                    latency_ewma_ms,
+                    failure_ewma,
+                    inflight,
+                    concurrency_limit,
+                    resource_id,
+                ),
+            )
+            self.connection.execute(
+                """INSERT INTO resource_observations(
+                    observation_id, resource_id, available, health, confidence,
+                    observed_at, quota_remaining_ratio, quota_reset_at,
+                    latency_ewma_ms, failure_ewma, inflight, concurrency_limit
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    str(uuid4()),
+                    resource_id,
+                    available,
+                    health,
+                    confidence,
+                    timestamp,
+                    quota_remaining_ratio,
+                    quota_reset_at.strip() if isinstance(quota_reset_at, str) else None,
+                    latency_ewma_ms,
+                    failure_ewma,
+                    inflight,
+                    concurrency_limit,
+                ),
+            )
             self.connection.commit()
 
     @staticmethod

@@ -7,12 +7,15 @@ import sqlite3
 import math
 
 
+SCHEMA_VERSION = 6
+
+
 def validate_resource_ledger(path: str | Path) -> tuple[bool, str]:
     database = Path(path).expanduser()
     try:
         with sqlite3.connect(database) as connection:
             tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-            required = {"resources", "resource_observations", "budget_config", "budget_reservations", "resource_reservations", "resource_schema_meta"}
+            required = {"resources", "resource_observations", "quota_observations", "budget_config", "budget_reservations", "resource_reservations", "resource_schema_meta"}
             missing = required - tables
             if missing:
                 return False, f"resource ledger missing tables: {', '.join(sorted(missing))}"
@@ -23,18 +26,42 @@ def validate_resource_ledger(path: str | Path) -> tuple[bool, str]:
                 schema_version = int(version_row[0])
             except (TypeError, ValueError):
                 return False, "resource ledger schema version is invalid"
-            if schema_version != 4:
+            if schema_version != SCHEMA_VERSION:
                 return False, f"unsupported or stale resource ledger schema version: {schema_version}"
+            resource_columns = {row[1] for row in connection.execute("PRAGMA table_info(resources)")}
+            if not {"quota_domain", "quota_remaining_ratio", "latency_ewma_ms", "failure_ewma", "inflight", "concurrency_limit"} <= resource_columns:
+                return False, "resource ledger resources table lacks operational observation columns"
+            quota_columns = {row[1] for row in connection.execute("PRAGMA table_info(quota_observations)")}
+            if not {"resource_id", "quota_domain", "request_limit", "request_remaining", "token_limit", "token_remaining", "confidence", "observed_at", "source"} <= quota_columns:
+                return False, "resource ledger quota observations table is incomplete"
             reservation_columns = {row[1] for row in connection.execute("PRAGMA table_info(budget_reservations)")}
             if "intent_key" not in reservation_columns:
                 return False, "resource ledger budget reservations lack intent_key binding"
             budget = connection.execute("SELECT hard_cap_minor, recovery_reserve_minor FROM budget_config WHERE id=1").fetchone()
             if budget is None or budget[0] < 0 or budget[1] < 0 or budget[1] > budget[0]:
                 return False, "resource ledger budget configuration is invalid"
-            resources = connection.execute("SELECT resource_id, capacity, available, confidence, health FROM resources").fetchall()
-            for resource_id, capacity, available, confidence, health in resources:
+            resources = connection.execute("SELECT resource_id, quota_domain, capacity, available, confidence, health FROM resources").fetchall()
+            resource_domains: dict[str, str | None] = {}
+            for resource_id, quota_domain, capacity, available, confidence, health in resources:
                 if not all(math.isfinite(float(value)) for value in (capacity, available, confidence)) or capacity < 0 or available < 0 or available > capacity or confidence < 0 or confidence > 1 or health not in {"healthy", "degraded", "unhealthy", "unknown"}:
                     return False, f"resource record is invalid: {resource_id}"
+                resource_domains[resource_id] = quota_domain
+            quota_observations = connection.execute(
+                """SELECT resource_id, quota_domain, request_limit, request_remaining,
+                          token_limit, token_remaining, confidence, source
+                   FROM quota_observations"""
+            ).fetchall()
+            for resource_id, quota_domain, request_limit, request_remaining, token_limit, token_remaining, confidence, source in quota_observations:
+                if resource_id not in resource_domains or resource_domains[resource_id] != quota_domain:
+                    return False, f"quota observation has an invalid resource/domain binding: {resource_id}"
+                if any(value is not None and (not isinstance(value, int) or value < 0) for value in (request_limit, request_remaining, token_limit, token_remaining)):
+                    return False, f"quota observation has invalid limits: {resource_id}"
+                if request_limit is not None and request_remaining is not None and request_remaining > request_limit:
+                    return False, f"quota observation request remaining exceeds limit: {resource_id}"
+                if token_limit is not None and token_remaining is not None and token_remaining > token_limit:
+                    return False, f"quota observation token remaining exceeds limit: {resource_id}"
+                if not math.isfinite(float(confidence)) or confidence < 0 or confidence > 1 or not isinstance(source, str) or not source.strip():
+                    return False, f"quota observation metadata is invalid: {resource_id}"
             reservations = connection.execute("SELECT reservation_id, task_id, resource_id, intent_key, estimated_minor, actual_minor, recovery, status FROM budget_reservations").fetchall()
             valid_statuses = {"prepared", "dispatching", "unknown", "reconciled", "confirmed_no_charge", "released"}
             budget_records = {row[0]: row for row in reservations}

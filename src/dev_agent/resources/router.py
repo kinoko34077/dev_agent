@@ -23,6 +23,7 @@ class RouteRequest:
     max_latency_ms: int | None = None
     excluded_resource_ids: set[str] = field(default_factory=set)
     max_observation_age_seconds: float | None = 300.0
+    max_quota_observation_age_seconds: float | None = 300.0
 
     def __post_init__(self) -> None:
         for name, value in (("max_cost_minor", self.max_cost_minor), ("max_latency_ms", self.max_latency_ms)):
@@ -31,6 +32,9 @@ class RouteRequest:
         if self.max_observation_age_seconds is not None:
             if isinstance(self.max_observation_age_seconds, bool) or not isinstance(self.max_observation_age_seconds, (int, float)) or not math.isfinite(self.max_observation_age_seconds) or self.max_observation_age_seconds < 0:
                 raise ValueError("max_observation_age_seconds must be a non-negative number or None")
+        if self.max_quota_observation_age_seconds is not None:
+            if isinstance(self.max_quota_observation_age_seconds, bool) or not isinstance(self.max_quota_observation_age_seconds, (int, float)) or not math.isfinite(self.max_quota_observation_age_seconds) or self.max_quota_observation_age_seconds < 0:
+                raise ValueError("max_quota_observation_age_seconds must be a non-negative number or None")
 
 
 @dataclass(frozen=True)
@@ -48,6 +52,24 @@ _SENSITIVITY = {"public": 0, "normal": 1, "internal": 2, "sensitive": 3}
 class ResourceRouter:
     def __init__(self, ledger: ResourceLedger) -> None:
         self.ledger = ledger
+
+    @staticmethod
+    def _quota_ratio(observation: dict[str, object]) -> float | None:
+        ratios: list[float] = []
+        for limit_name, remaining_name in (
+            ("request_limit", "request_remaining"),
+            ("token_limit", "token_remaining"),
+        ):
+            limit = observation.get(limit_name)
+            remaining = observation.get(remaining_name)
+            if isinstance(remaining, int) and remaining == 0:
+                ratios.append(0.0)
+            if isinstance(limit, int) and limit > 0 and isinstance(remaining, int):
+                ratios.append(remaining / limit)
+        daily_remaining = observation.get("daily_remaining")
+        if isinstance(daily_remaining, int) and daily_remaining == 0:
+            ratios.append(0.0)
+        return min(ratios) if ratios else None
 
     def choose(self, request: RouteRequest) -> RouteSelection:
         if request.sensitivity not in _SENSITIVITY:
@@ -84,9 +106,45 @@ class ResourceRouter:
                 continue
             if request.max_cost_minor is not None and resource["cost_minor"] is None:
                 continue
-            # Minimize exposure first, then cost, then stable resource id.
-            candidates.append((_SENSITIVITY[resource["sensitivity"]], resource["cost_minor"] if resource["cost_minor"] is not None else 10**18, resource["resource_id"], resource))
+            quota_ratio = None
+            if resource.get("quota_domain"):
+                quota = self.ledger.get_quota_observation(resource["resource_id"])
+                if quota is None:
+                    continue
+                try:
+                    quota_observed_at = datetime.fromisoformat(str(quota["observed_at"])).timestamp()
+                except (TypeError, ValueError):
+                    continue
+                quota_age = time.time() - quota_observed_at
+                if quota_age < 0:
+                    continue
+                if request.max_quota_observation_age_seconds is not None and quota_age > request.max_quota_observation_age_seconds:
+                    continue
+                quota_ratio = self._quota_ratio(quota)
+                if quota_ratio is None or quota_ratio <= 0:
+                    continue
+            elif resource.get("quota_remaining_ratio") is not None:
+                quota_ratio = float(resource["quota_remaining_ratio"])
+            latency = resource.get("latency_ewma_ms")
+            if latency is None:
+                latency = resource["metadata"].get("latency_ms")
+            latency_rank = float(latency) if isinstance(latency, (int, float)) and not isinstance(latency, bool) and math.isfinite(float(latency)) and latency >= 0 else 10**18
+            failure_rank = float(resource["failure_ewma"]) if isinstance(resource.get("failure_ewma"), (int, float)) and not isinstance(resource["failure_ewma"], bool) else 1.0
+            inflight_rank = float(resource["inflight"]) if isinstance(resource.get("inflight"), (int, float)) and not isinstance(resource["inflight"], bool) else 10**18
+            # Minimize exposure first, then maximize known quota headroom,
+            # then prefer free/low-cost, healthy, fast, lightly loaded resources.
+            quota_rank = -quota_ratio if quota_ratio is not None else 0.0
+            candidates.append((
+                _SENSITIVITY[resource["sensitivity"]],
+                quota_rank,
+                resource["cost_minor"] if resource["cost_minor"] is not None else 10**18,
+                failure_rank,
+                latency_rank,
+                inflight_rank,
+                resource["resource_id"],
+                resource,
+            ))
         if not candidates:
             raise NoRoute("no eligible resource")
-        _, _, _, chosen = min(candidates)
+        *_, chosen = min(candidates)
         return RouteSelection(chosen["resource_id"], chosen["provider_id"], chosen["native_unit"], chosen["cost_minor"], chosen["price_currency"])

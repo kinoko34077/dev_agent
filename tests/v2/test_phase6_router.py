@@ -64,6 +64,51 @@ def test_router_rejects_future_dated_observation_even_without_age_override(tmp_p
         ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}, max_observation_age_seconds=None))
 
 
+def test_router_rejects_stale_quota_observation_for_quota_domain(tmp_path):
+    ledger = ResourceLedger(tmp_path / "stale-quota.sqlite3")
+    ledger.register_resource(
+        "cloud",
+        provider_id="gemini",
+        native_unit="request",
+        capacity=10,
+        capabilities=["text"],
+        quota_domain="google-project-123",
+        cost_minor=0,
+    )
+    ledger.observe("cloud", available=10, health="healthy")
+    ledger.observe_quota(
+        "cloud",
+        request_limit=100,
+        request_remaining=90,
+        observed_at="2020-01-01T00:00:00+00:00",
+    )
+
+    with pytest.raises(NoRoute, match="no eligible resource"):
+        ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}))
+
+
+def test_router_prefers_higher_fresh_quota_before_cost(tmp_path):
+    ledger = ResourceLedger(tmp_path / "quota-priority.sqlite3")
+    for resource_id, remaining in (("a", 10), ("b", 90)):
+        ledger.register_resource(
+            resource_id,
+            provider_id=resource_id,
+            native_unit="request",
+            capacity=10,
+            capabilities=["text"],
+            quota_domain=f"domain-{resource_id}",
+            cost_minor=0,
+        )
+        ledger.observe(resource_id, available=10, health="healthy")
+        ledger.observe_quota(
+            resource_id,
+            request_limit=100,
+            request_remaining=remaining,
+        )
+
+    assert ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"})).resource_id == "b"
+
+
 def test_router_enforces_max_latency_from_resource_metadata(tmp_path):
     ledger = ResourceLedger(tmp_path / "latency-filter.sqlite3")
     ledger.register_resource("fast", provider_id="fast", native_unit="request", capacity=1, capabilities=["text"], cost_minor=0, metadata={"latency_ms": 40})

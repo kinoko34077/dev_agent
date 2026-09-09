@@ -36,7 +36,7 @@ def test_resource_ledger_runs_ordered_migrations_for_legacy_database(tmp_path):
     assert "quota_domain" in columns
     assert config["period_id"] != "legacy"
     assert config["period_starts_at"] < config["period_ends_at"]
-    assert version == "5"
+    assert version == "6"
 
 
 def _ledger(tmp_path):
@@ -102,7 +102,7 @@ def test_resource_ledger_persists_quota_domain_identity(tmp_path):
 
     assert spec.quota_domain == "google-project-123"
     assert ledger.get_resource("gemini-free")["quota_domain"] == "google-project-123"
-    assert ledger.connection.execute("SELECT value FROM resource_schema_meta WHERE key='schema_version'").fetchone()[0] == "5"
+    assert ledger.connection.execute("SELECT value FROM resource_schema_meta WHERE key='schema_version'").fetchone()[0] == "6"
 
     reopened = ResourceLedger(tmp_path / "quota-domain.sqlite3")
     assert reopened.get_resource("gemini-free")["quota_domain"] == "google-project-123"
@@ -167,6 +167,37 @@ def test_quota_observation_rejects_invalid_limits_and_missing_domain(tmp_path):
     with pytest.raises(ValueError, match="quota_domain"):
         ledger.observe_quota("local", request_remaining=1)
 
+
+def test_resource_observation_persists_operational_metrics(tmp_path):
+    ledger = ResourceLedger(tmp_path / "operational-observation.sqlite3")
+    ledger.register_resource(
+        "gemini-free",
+        provider_id="gemini",
+        native_unit="request",
+        capacity=100,
+        capabilities=["text"],
+        quota_domain="google-project-123",
+    )
+
+    ledger.observe(
+        "gemini-free",
+        available=8,
+        health="healthy",
+        quota_remaining_ratio=0.8,
+        quota_reset_at="2026-09-10T00:00:00+00:00",
+        latency_ewma_ms=42.5,
+        failure_ewma=0.1,
+        inflight=2,
+        concurrency_limit=4,
+    )
+
+    resource = ledger.get_resource("gemini-free")
+    assert resource["quota_remaining_ratio"] == pytest.approx(0.8)
+    assert resource["quota_reset_at"] == "2026-09-10T00:00:00+00:00"
+    assert resource["latency_ewma_ms"] == pytest.approx(42.5)
+    assert resource["failure_ewma"] == pytest.approx(0.1)
+    assert resource["inflight"] == pytest.approx(2)
+    assert resource["concurrency_limit"] == pytest.approx(4)
 def test_resource_observation_cannot_exceed_registered_capacity(tmp_path):
     ledger = ResourceLedger(tmp_path / "resources.sqlite3")
     ledger.register_resource("small", provider_id="local", native_unit="request", capacity=1, capabilities=["text"])
