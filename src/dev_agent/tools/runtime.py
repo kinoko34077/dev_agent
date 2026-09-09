@@ -2,14 +2,8 @@
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 import json
-import os
-from pathlib import Path
-import subprocess
-import sys
-from threading import Event, Thread
-from time import monotonic
+from threading import Event
 from typing import Any
 
 from ..domain.protocol import ToolCall, ToolResult, ToolResultStatus
@@ -17,22 +11,24 @@ from ..policy.approvals import ApprovalPolicy, canonical_arguments_hash
 from ..policy.permissions import PathPolicy
 from .registry import ToolRegistry, ToolSpec
 from .schema import SchemaValidationError, validate
+from .effect_guard import EffectGuard
+from .executor import (
+    ToolCancelled,
+    ToolExecutor,
+    ToolProcessError,
+    ToolResponseDecodeError,
+    ToolTimedOut,
+    handler_reference,
+    run_in_process,
+    run_subprocess,
+    terminate_process_tree,
+)
 
 
-class _ToolTimedOut(Exception):
-    pass
-
-
-class _ToolCancelled(Exception):
-    pass
-
-
-class _ToolResponseDecodeError(Exception):
-    pass
-
-
-class _ToolProcessError(Exception):
-    pass
+_ToolTimedOut = ToolTimedOut
+_ToolCancelled = ToolCancelled
+_ToolResponseDecodeError = ToolResponseDecodeError
+_ToolProcessError = ToolProcessError
 
 
 def _json_size(value: Any) -> int:
@@ -40,99 +36,16 @@ def _json_size(value: Any) -> int:
 
 
 def _handler_reference(spec: ToolSpec) -> str | None:
-    if spec.handler_ref:
-        return spec.handler_ref
-    module = getattr(spec.handler, "__module__", None)
-    qualname = getattr(spec.handler, "__qualname__", None)
-    if not module or not qualname or "<locals>" in qualname:
-        return None
-    return f"{module}:{qualname}"
+    return handler_reference(spec)
 
 
-def _terminate_process_tree(process: subprocess.Popen[str]) -> None:
-    """Terminate the worker and descendants, then leave reaping to caller."""
-    if process.poll() is not None:
-        return
-    if os.name == "nt":
-        # CREATE_NEW_PROCESS_GROUP alone does not guarantee descendant
-        # termination on Windows; taskkill's /T closes the whole tree.
-        subprocess.run(
-            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=False,
-        )
-    else:
-        try:
-            os.killpg(process.pid, 9)
-        except (ProcessLookupError, PermissionError):
-            pass
-    if process.poll() is None:
-        process.kill()
+def _terminate_process_tree(process: Any) -> None:
+    """Compatibility alias for process-tree containment."""
+    terminate_process_tree(process)
 
 
 def _run_subprocess(handler_ref: str, arguments: dict[str, Any], timeout_seconds: float, cancel_event: Event | None) -> dict[str, Any]:
-    worker = Path(__file__).with_name("process_worker.py")
-    creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) if os.name == "nt" else 0
-    process = subprocess.Popen(
-        [sys.executable, str(worker), handler_ref],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        cwd=str(Path.cwd()),
-        start_new_session=os.name != "nt",
-        creationflags=creationflags,
-    )
-    payload = json.dumps(arguments, ensure_ascii=False, separators=(",", ":"))
-    result_box: dict[str, Any] = {}
-
-    def communicate() -> None:
-        try:
-            result_box["output"] = process.communicate(input=payload)
-        except BaseException as exc:  # pragma: no cover - OS-level failures vary
-            result_box["exception"] = exc
-        finally:
-            # Record when the worker actually finished.  On a busy CI runner
-            # the reader thread can observe a short-lived worker just after
-            # the parent deadline; classifying that late completion as a
-            # generic process failure would violate the hard timeout contract.
-            result_box["finished_at"] = monotonic()
-
-    reader = Thread(target=communicate, name="dev-agent-tool-worker-io", daemon=True)
-    reader.start()
-    deadline = monotonic() + timeout_seconds
-    while reader.is_alive():
-        if cancel_event is not None and cancel_event.is_set():
-            _terminate_process_tree(process)
-            reader.join(timeout=2.0)
-            raise _ToolCancelled()
-        remaining = deadline - monotonic()
-        if remaining <= 0:
-            _terminate_process_tree(process)
-            reader.join(timeout=2.0)
-            raise _ToolTimedOut()
-        reader.join(timeout=min(0.05, remaining))
-    reader.join()
-    if result_box.get("finished_at", monotonic()) > deadline:
-        raise _ToolTimedOut()
-    if "exception" in result_box:
-        raise _ToolProcessError("isolated tool process communication failed") from result_box["exception"]
-    stdout, _stderr = result_box.get("output", ("", ""))
-    if process.returncode != 0 and not stdout.strip():
-        raise _ToolProcessError("isolated tool process failed")
-    try:
-        packet = json.loads(stdout)
-    except (TypeError, json.JSONDecodeError) as exc:
-        raise _ToolResponseDecodeError("isolated tool returned malformed JSON") from exc
-    if not isinstance(packet, dict) or packet.get("ok") is not True:
-        detail = packet.get("error", {}) if isinstance(packet, dict) else {}
-        message = detail.get("message", "isolated tool failed") if isinstance(detail, dict) else "isolated tool failed"
-        raise _ToolProcessError(str(message))
-    value = packet.get("result")
-    if not isinstance(value, dict):
-        raise _ToolResponseDecodeError("isolated tool result must be an object")
-    return value
+    return run_subprocess(handler_ref, arguments, timeout_seconds, cancel_event)
 
 
 class ToolRuntime:
@@ -145,6 +58,8 @@ class ToolRuntime:
         self.result_store = None
         self.approvals = approvals or ApprovalPolicy()
         self.paths = paths
+        self._executor = ToolExecutor()
+        self._effect_guard = EffectGuard()
 
     def with_result_store(self, result_store):
         """Compatibility alias for the immutable ``bound_to`` binding."""
@@ -154,6 +69,7 @@ class ToolRuntime:
         """Return a new runtime bound to one durable result store."""
         bound = ToolRuntime(self.registry, approvals=self.approvals, paths=self.paths)
         bound.result_store = result_store
+        bound._effect_guard = EffectGuard(result_store)
         return bound
 
     def effective_arguments(self, call: ToolCall) -> dict[str, Any]:
@@ -172,58 +88,10 @@ class ToolRuntime:
 
     @staticmethod
     def _reconciliation_result(call: ToolCall, *, cause: str, message: str, status: ToolResultStatus = ToolResultStatus.FAILED) -> ToolResult:
-        return ToolResult(
-            call_id=call.call_id,
-            tool_name=call.tool_name,
-            status=status,
-            error={"category": "reconciliation_required", "cause": cause, "message": message},
-        )
+        return EffectGuard.reconciliation_result(call, cause=cause, message=message, status=status)
 
     def _mark_unknown(self, call: ToolCall, *, cause: str, message: str, status: ToolResultStatus = ToolResultStatus.FAILED) -> ToolResult:
-        # Only a claimed intent can be moved to unknown.  Validation and
-        # policy failures happen before dispatch and must remain ordinary
-        # failures rather than producing a reconciliation record with no
-        # external operation behind it.
-        intent = self.result_store.get_effect_intent(call.idempotency_key)
-        if intent is None:
-            return ToolResult(call_id=call.call_id, tool_name=call.tool_name, status=ToolResultStatus.FAILED, error={"category": "tool_execution", "message": message})
-        if intent.get("status") in {"succeeded", "confirmed_failed", "reconciled"}:
-            result_payload = intent.get("result")
-            if isinstance(result_payload, dict) and "call_id" in result_payload and "status" in result_payload:
-                try:
-                    return ToolResult.from_dict(result_payload)
-                except Exception:
-                    pass
-            return self._reconciliation_result(call, cause="terminal_effect_without_result", message="effect is terminal but its normalized result cannot be decoded")
-        self.result_store.mark_effect_unknown(call.idempotency_key, reason=f"{cause}: {message}")
-        return self._reconciliation_result(call, cause=cause, message=message, status=status)
-
-    @staticmethod
-    def _run_in_process(handler, arguments: dict[str, Any], timeout_seconds: float, cancel_event: Event | None) -> dict[str, Any]:
-        executor = ThreadPoolExecutor(max_workers=1)
-        future = executor.submit(handler, arguments)
-        deadline = monotonic() + timeout_seconds
-        try:
-            while True:
-                remaining = deadline - monotonic()
-                if remaining <= 0:
-                    future.cancel()  # best effort only; running Python threads cannot be killed
-                    raise _ToolTimedOut()
-                try:
-                    value = future.result(timeout=min(0.05, remaining))
-                    # A handler may finish concurrently with the deadline.
-                    # Do not accept a value observed after the runtime budget;
-                    # guarded effects must become reconciliation-required and
-                    # pure tools must remain a hard timeout.
-                    if monotonic() >= deadline:
-                        raise _ToolTimedOut()
-                    return value
-                except FutureTimeoutError:
-                    if cancel_event is not None and cancel_event.is_set():
-                        future.cancel()
-                        raise _ToolCancelled()
-        finally:
-            executor.shutdown(wait=False, cancel_futures=True)
+        return self._effect_guard.mark_unknown(call, cause=cause, message=message, status=status)
 
     def execute(self, call: ToolCall, *, approval_id: str | None = None, task_id: str | None = None, cancel_event: Event | None = None) -> ToolResult:
         if cancel_event is not None and cancel_event.is_set():
@@ -323,10 +191,7 @@ class ToolRuntime:
                     return self._reconciliation_result(call, cause="claim_lost", message="external effect claim lost; reconcile before retry", status=ToolResultStatus.DENIED)
                 self.result_store.transition_effect_intent(call.idempotency_key, to_status="dispatching")
                 effect_dispatched = True
-            if spec.requires_subprocess:
-                value = _run_subprocess(_handler_reference(spec), arguments, spec.timeout_seconds, cancel_event)  # type: ignore[arg-type]
-            else:
-                value = self._run_in_process(spec.handler, arguments, spec.timeout_seconds, cancel_event)
+            value = self._executor.execute(spec, arguments, cancel_event)
             if not isinstance(value, dict):
                 raise _ToolResponseDecodeError("tool handler must return a dict")
             if _json_size(value) > spec.max_result_bytes:
