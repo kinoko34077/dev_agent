@@ -36,6 +36,22 @@ def test_ollama_payload_preserves_normalized_tool_result_identity():
     assert json.loads(tool_message["content"])["call_id"] == request.tool_results[0].call_id
 
 
+def test_ollama_response_records_explicit_zero_local_cost(monkeypatch):
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def read(self):
+            return b'{"model":"local-test","done_reason":"stop","message":{"role":"assistant","content":"ok"},"prompt_eval_count":1,"eval_count":2}'
+
+    monkeypatch.setattr("src.dev_agent.providers.ollama.provider.urlopen", lambda request, timeout: Response())
+    response = OllamaProvider(model="local-test").request(ModelRequest(task_id=_id(), messages=[{"role": "user", "content": "x"}]))
+    assert response.usage["cost_minor"] == 0
+
+
 def test_gemini_http_provider_fails_closed_without_key(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     with pytest.raises(ProviderError, match="GEMINI_API_KEY is not configured"):

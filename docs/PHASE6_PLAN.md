@@ -32,6 +32,11 @@ Implemented in `src/dev_agent/resources/ledger.py` and `budget.py`.
 - Provider reservations can be bound to a durable effect-intent key. A restart
   after the budget transition but before the intent transition reuses the
   existing reservation instead of creating a second charge hold.
+- The isolated live qualification script exercises the full local Ollama path
+  through Controller, ProviderDispatcher, ResourceRouter, Budget, concrete
+  HTTP provider, usage reconciliation, and durable provider audit. Its
+  recorded evidence is kept under `spec/v2/evidence/`; paid-provider
+  worst-case qualification remains a separate operational gate.
 
 ## 6B — Router and Survival Modes
 

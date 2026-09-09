@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "qualification": "phase6_provider_dispatch",
+  "tested_at": "2026-09-09",
+  "provider": "ollama",
+  "model": "qwen3:8b",
+  "endpoint": "http://127.0.0.1:11434/api/chat",
+  "status": "completed",
+  "assertions": [
+    "ProviderDispatcher selected the real Ollama adapter through ResourceRouter",
+    "budget reservation was prepared and reconciled with explicit cost_minor=0",
+    "model.requested -> model.responded -> tool.completed -> model.requested -> model.responded -> task.completed",
+    "two provider effect intents reached succeeded",
+    "two durable provider audits reached succeeded",
+    "normal and recovery committed budget totals returned to zero"
+  ],
+  "reproduction": "python scripts/qualify_phase6_provider.py --model qwen3:8b --timeout-seconds 60",
+  "scope": "isolated temporary SQLite state and resource stores; local non-billed provider only"
+}

@@ -49,6 +49,11 @@ class OllamaProvider(ModelProvider):
                 calls.append(ToolCall(tool_name=function["name"], arguments=function.get("arguments", {}), provider_call_id=item.get("id"), originating_request_id=request.request_id))
             text = message.get("content", "")
             usage = {key: raw[key] for key in ("prompt_eval_count", "eval_count", "total_duration") if key in raw}
+            # Ollama is a local, non-billed resource in the Phase 6 router.
+            # Emit an explicit zero charge so the budget lifecycle can
+            # reconcile the dispatch instead of treating absent billing data
+            # as an ambiguous paid outcome.
+            usage["cost_minor"] = 0
             return ModelResponse(provider=self.provider_id, model=raw.get("model", self.model), finish_reason=raw.get("done_reason", "stop"), text_segments=[text] if text else [], tool_calls=calls, usage=usage)
         except (KeyError, TypeError, ValueError) as exc:
             raise ProviderError(f"ollama response decode failed: {exc}", category="provider_decode", retryable=False) from exc
