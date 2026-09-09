@@ -4,6 +4,16 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-09 JST — Shared compatible HTTP, OpenRouter qualification, and quota units
+
+- Groq／SambaNovaの重複HTTP実装を共通 `OpenAICompatibleHttpTransport`／`OpenAICompatibleHttpProvider` へ集約し、Mistral／OpenRouterを同じ境界へ追加した。Mistral固有の `max_tokens` 差分はAdapter内に限定し、Provider SDK型をKernelへ漏らさない。
+- 共通HTTP層にsafe error decoderと `/models` 読出しを追加した。Groqの `/v1/models` probeはHTTP 403（permission診断）で、推論成功やmodel permissionを推測していない。
+- OpenRouter `openrouter/free` をcanonical Controller -> ProviderDispatcher -> ProviderRegistry経路で実通信qualificationし、ToolCall／ToolResult／final、durable audit、budget reconciliationを確認した。quota残量は未報告のためunknownのまま。
+- ResourceLedgerをschema v7へordered migrationし、`unit`（requests／tokens／neurons）、generic limit／remaining／consumed、`authority`を追加した。Cloudflareの既知モデルについてtoken usageからのNeuron消費推定は`authority=estimated`・低confidenceで保持し、残量観測とは分離した。
+- Provider health記録をResourceControlPlane APIへ閉じ、DispatcherがRouter内部のLedgerへ直接到達しない依存方向へ修正した。
+- `test_phase6_integration.py`をbudget、provider dispatch、provider reconciliation、provider fencing、terminal stateの5ファイルへ責務別に分割し、Gate／Traceabilityのテスト参照を同期した。
+- ローカルv2全回帰は `309 passed, 1 skipped`。Mistralは資格情報未設定、GroqはHTTP 403、SambaNovaはHTTP 429/402のため、いずれもlive無料Providerの成功とは扱っていない。G6O1はBLOCKED_EXTERNALのまま。
+
 ### 2026-09-09 JST — Free Provider HTTP boundary and development Worker Farm
 
 - Groq Chat CompletionsとCloudflare Workers AI RESTのopt-in HTTP Adapterを追加し、endpoint／認証／Provider固有envelopeをAdapter内へ閉じ込めた。Groqのrate-limit headerは正規化 `usage.quota_observation` として返し、存在しないCloudflare quota値は推測しない。

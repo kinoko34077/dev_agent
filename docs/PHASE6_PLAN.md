@@ -1,6 +1,6 @@
 # Phase 6 — Resource / Survival / Recovery
 
-Status: foundation VERIFIED; G6O2〜G6O6 VERIFIED; G6O1 BLOCKED_EXTERNAL; Phase 6A quota/provider expansion locally verified; SambaNova adapter connected, live qualification externally rate-limited
+Status: foundation VERIFIED; G6O2〜G6O6 VERIFIED; G6O1 BLOCKED_EXTERNAL; Phase 6A quota/provider expansion locally verified; OpenRouter Free canonical live qualification verified; Mistral credential待ち; Groq models probe externally forbidden
 
 The earlier Phase 6 operational code evidence baseline is
 `da74b3b934cde66060ecabe65916fb57442b5bd9` (external exact-head CI:
@@ -33,22 +33,29 @@ failure, recovery mutation, and worker ownership remain deterministic and
 auditable.
 
 Next-stage requirements are indexed at docs/requirements/README.md. The
-current Phase 6A boundary adds durable `quota_domain` and quota observations,
+current Phase 6A boundary adds durable `quota_domain` and generic quota
+observations,
 operational resource observations, fresh quota-aware routing, and normalized
 quota telemetry ingestion from a valid provider response. Shared domains use
 conservative fresh headroom rather than summing credentials; concurrency
 limits are hard filters before dispatch. Groq, Cloudflare Workers AI, Mistral,
-and OpenRouter Free are separate normalized Adapter contracts. Groq, Cloudflare,
-and SambaNova also have opt-in standard-library HTTP adapters; SambaNova uses
+and OpenRouter Free are separate normalized Adapter contracts. Groq, Mistral,
+OpenRouter, Cloudflare, and SambaNova also have opt-in standard-library HTTP
+adapters; SambaNova uses
 the SambaCloud OpenAI-compatible Chat Completions endpoint and normalizes its
-request/day rate-limit headers. Cloudflare remains live-qualified; Groq is
-currently rejected with HTTP 403 and SambaNova reached the API but returned
-HTTP 429/402, so both remain unqualified. SambaNova is intentionally excluded
+request/day rate-limit headers. Cloudflare and OpenRouter Free are
+live-qualified; Groq's models probe is currently rejected with HTTP 403 and
+SambaNova reached the API but returned HTTP 429/402, so both remain
+unqualified. Mistral has no configured credential in the current environment.
+SambaNova is intentionally excluded
 from the no-charge qualification command until its billing tier and
 worst-case cost are explicitly qualified. Its failure artifacts are
 `spec/v2/evidence/phase6-sambanova-free-2026-09-09.json` and
-`spec/v2/evidence/phase6-sambanova-gpt-oss-120b-2026-09-09.json`; neither is
-Gate evidence. Phase
+`spec/v2/evidence/phase6-sambanova-gpt-oss-120b-2026-09-09.json`. The Groq
+probe is recorded at `spec/v2/evidence/groq-models-2026-09-09.json`, and the
+OpenRouter success artifact is
+`spec/v2/evidence/phase6-openrouter-free-2026-09-09.json`; these are not Gate
+evidence. Phase
 7A/B also carries a typed Task profile and deterministic intelligence-policy
 metadata into ModelRequest; it does not select a model or add an AgentBackend.
 The canonical path stays

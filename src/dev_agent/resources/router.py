@@ -57,6 +57,25 @@ class ResourceRouter:
     @staticmethod
     def _quota_ratio(observation: dict[str, object]) -> float | None:
         ratios: list[float] = []
+        generic_limit = observation.get("limit")
+        generic_remaining = observation.get("remaining")
+        if (
+            isinstance(generic_limit, (int, float))
+            and not isinstance(generic_limit, bool)
+            and math.isfinite(float(generic_limit))
+            and generic_limit > 0
+            and isinstance(generic_remaining, (int, float))
+            and not isinstance(generic_remaining, bool)
+            and math.isfinite(float(generic_remaining))
+        ):
+            ratios.append(float(generic_remaining) / float(generic_limit))
+        elif (
+            isinstance(generic_remaining, (int, float))
+            and not isinstance(generic_remaining, bool)
+            and math.isfinite(float(generic_remaining))
+            and generic_remaining == 0
+        ):
+            ratios.append(0.0)
         for limit_name, remaining_name in (
             ("request_limit", "request_remaining"),
             ("token_limit", "token_remaining"),

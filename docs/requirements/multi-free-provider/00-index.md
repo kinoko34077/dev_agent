@@ -18,13 +18,13 @@ Status: DRAFT -> ACCEPTED候補
 
 ## 現行のPhase 6A実装境界
 
-Phase 6Aの第一バッチとして、ResourceLedger schema v6のquota_domain identity、quota_observations、operational observation fields、fresh quota headroom routing、provider-neutralなquota observation取り込みを実装した。同一quota domainの複数Credentialは残量を加算せず、fresh observationの保守的headroomとconcurrency hard filterを使う。Phase 7A/Bの移行境界として、Taskへtyped profileを追加し、決定的なIntelligence Policyの範囲をModelRequest metadataへ渡す。Groq、Cloudflare Workers AI、Mistral、OpenRouter Free、SambaNovaはnormalized Adapter/contract境界まで追加し、Groq／Cloudflare／SambaNovaにはopt-in HTTP Adapterもある。Cloudflare Workers AIはcanonical live qualificationを取得済み、GroqはHTTP 403、SambaNovaはmodels endpoint HTTP 200後の推論HTTP 429/402、Mistral/OpenRouterはlive HTTP未実証である。
+Phase 6Aの第一バッチとして、ResourceLedger schema v7のquota_domain identity、generic quota observation、operational observation fields、fresh quota headroom routing、provider-neutralなquota observation取り込みを実装した。同一quota domainの複数Credentialは残量を加算せず、fresh observationの保守的headroomとconcurrency hard filterを使う。Phase 7A/Bの移行境界として、Taskへtyped profileを追加し、決定的なIntelligence Policyの範囲をModelRequest metadataへ渡す。Groq、Cloudflare Workers AI、Mistral、OpenRouter Free、SambaNovaはnormalized Adapter/contract境界まで追加し、Groq／Mistral／OpenRouter／SambaNovaには共通OpenAI互換HTTP Adapterを使う。Cloudflare Workers AIとOpenRouter Freeはcanonical live qualificationを取得済み、Groqはmodels endpoint HTTP 403、SambaNovaはmodels endpoint HTTP 200後の推論HTTP 429/402、Mistralは資格情報未設定でlive未実証である。
 
 - G6O1は BLOCKED_EXTERNAL のまま維持する。
 - 通常Provider経路は Controller -> ProviderDispatcher -> ProviderRegistry -> Concrete Provider とする。
 - Controllerのdirect Provider処理は compatibility / legacy path として残す。
 - ExecutionContext、ToolRuntime.bound_to()、RuntimeState、AuditRecorderは既存境界を維持する。
-- Model tierによる実Provider選択、Hedge、AgentBackend、MCP/API、Phase 7C以降、未実装Providerの固有header解析は次段階へ送る。GroqとSambaNovaのrate-limit headerを正規化した `usage.quota_observation` の取り込みとPhase 7A/BのTask profile policyは現行境界に含む。Cloudflare live qualificationはToolCall往復とdurable auditを確認したが、quota情報未報告のためquota observationはunknownである。SambaNovaは `/v1/models` 接続を確認したが、推論はHTTP 429/402で停止しているためfree-provider qualificationから除外し、成功・無償tier・paid worst-caseを推測しない。
+- Model tierによる実Provider選択、Hedge、AgentBackend、MCP/API、Phase 7C以降、未実装Providerの固有header解析は次段階へ送る。GroqとSambaNovaのrate-limit headerを正規化した `usage.quota_observation` の取り込み、CloudflareのNeuron消費推定（`authority=estimated`）とPhase 7A/BのTask profile policyは現行境界に含む。CloudflareとOpenRouter Freeのlive qualificationはToolCall往復とdurable auditを確認したが、quota残量は未報告のためunknownである。SambaNovaは `/v1/models` 接続を確認したが、推論はHTTP 429/402で停止しているためfree-provider qualificationから除外し、成功・無償tier・paid worst-caseを推測しない。MistralはAdapterと資格化入口のみで、キー未設定のためlive結果はない。
 
 ## 選択的ロードの目安
 

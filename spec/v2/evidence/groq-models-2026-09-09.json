@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "probe": "groq_models",
+  "provider": "groq",
+  "checked_at": "2026-09-09T12:37:01.953255+00:00",
+  "status": "failed",
+  "category": "authorization",
+  "diagnosis": "models_endpoint_permission_denied",
+  "message": "groq authorization: HTTP 403: error code: 1010"
+}

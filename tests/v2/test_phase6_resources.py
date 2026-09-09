@@ -36,7 +36,7 @@ def test_resource_ledger_runs_ordered_migrations_for_legacy_database(tmp_path):
     assert "quota_domain" in columns
     assert config["period_id"] != "legacy"
     assert config["period_starts_at"] < config["period_ends_at"]
-    assert version == "6"
+    assert version == "7"
 
 
 def _ledger(tmp_path):
@@ -102,7 +102,7 @@ def test_resource_ledger_persists_quota_domain_identity(tmp_path):
 
     assert spec.quota_domain == "google-project-123"
     assert ledger.get_resource("gemini-free")["quota_domain"] == "google-project-123"
-    assert ledger.connection.execute("SELECT value FROM resource_schema_meta WHERE key='schema_version'").fetchone()[0] == "6"
+    assert ledger.connection.execute("SELECT value FROM resource_schema_meta WHERE key='schema_version'").fetchone()[0] == "7"
 
     reopened = ResourceLedger(tmp_path / "quota-domain.sqlite3")
     assert reopened.get_resource("gemini-free")["quota_domain"] == "google-project-123"
@@ -142,6 +142,52 @@ def test_resource_ledger_persists_quota_observation_and_reloads_it(tmp_path):
 
     reopened = ResourceLedger(tmp_path / "quota-observation.sqlite3")
     assert reopened.get_quota_observation("gemini-free")["request_remaining"] == 80
+
+
+def test_resource_ledger_persists_generic_quota_units_and_authority(tmp_path):
+    ledger = ResourceLedger(tmp_path / "generic-quota.sqlite3")
+    ledger.register_resource(
+        "cloudflare-free",
+        provider_id="cloudflare",
+        native_unit="request",
+        capacity=1,
+        capabilities=["text"],
+        cost_minor=0,
+        quota_domain="cloudflare-account",
+    )
+
+    ledger.observe_quota(
+        "cloudflare-free",
+        unit="neurons",
+        consumed=1234,
+        authority="estimated",
+        confidence=0.25,
+        source="cloudflare-neuron-estimate",
+    )
+
+    observation = ledger.get_quota_observation("cloudflare-free")
+    assert observation["unit"] == "neurons"
+    assert observation["consumed"] == 1234
+    assert observation["limit"] is None
+    assert observation["remaining"] is None
+    assert observation["authority"] == "estimated"
+    assert observation["source"] == "cloudflare-neuron-estimate"
+
+
+def test_resource_ledger_rejects_unknown_generic_quota_unit(tmp_path):
+    ledger = ResourceLedger(tmp_path / "generic-quota-validation.sqlite3")
+    ledger.register_resource(
+        "resource",
+        provider_id="provider",
+        native_unit="request",
+        capacity=1,
+        capabilities=["text"],
+        cost_minor=0,
+        quota_domain="domain",
+    )
+
+    with pytest.raises(ValueError, match="unit"):
+        ledger.observe_quota("resource", unit="credits", consumed=1)
 
 
 def test_resource_ledger_lists_latest_quota_observation_per_resource_in_domain(tmp_path):

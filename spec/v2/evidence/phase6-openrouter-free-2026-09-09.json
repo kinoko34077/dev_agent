@@ -1,0 +1,39 @@
+{
+  "status": "completed",
+  "provider": "openrouter",
+  "model": "openrouter/free",
+  "checked_at": "2026-09-09T12:41:55.360381+00:00",
+  "event_types": [
+    "model.requested",
+    "model.responded",
+    "tool.completed",
+    "model.requested",
+    "model.responded",
+    "task.completed"
+  ],
+  "tool_result_count": 1,
+  "provider_audit_count": 2,
+  "effect_intents": [
+    {
+      "idempotency_key": "provider:19d0f630-5809-4b70-9a96-d1ddcf9edadf:openrouter-free",
+      "status": "succeeded"
+    },
+    {
+      "idempotency_key": "provider:21010f33-ace8-4618-a8ef-74249aaadd3b:openrouter-free",
+      "status": "succeeded"
+    }
+  ],
+  "quota_observation": null,
+  "quota_status": "unknown_not_reported",
+  "budget": {
+    "normal_committed_minor": 0,
+    "recovery_committed_minor": 0,
+    "active_reservations": 0,
+    "hard_cap_minor": 100,
+    "recovery_reserve_minor": 10,
+    "normal_available_minor": 90,
+    "recovery_available_minor": 10,
+    "currency": "JPY",
+    "period_id": "2026-09"
+  }
+}

@@ -6,6 +6,8 @@ from src.dev_agent.domain.protocol import ModelRequest, ToolResult
 from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.cloudflare import CloudflareWorkersAIHttpProvider
 from src.dev_agent.providers.groq import GroqHttpProvider
+from src.dev_agent.providers.mistral import MistralHttpProvider
+from src.dev_agent.providers.openrouter import OpenRouterHttpProvider
 from src.dev_agent.providers.sambanova import SambaNovaHttpProvider
 
 
@@ -118,6 +120,38 @@ def test_cloudflare_http_adapter_normalizes_rest_envelope_without_inventing_quot
     assert "quota_observation" not in response.usage
 
 
+def test_cloudflare_http_adapter_marks_neuron_usage_as_estimated(monkeypatch):
+    def fake_urlopen(request, timeout):
+        return _Response(
+            {
+                "success": True,
+                "result": {
+                    "response": "cloud answer",
+                    "usage": {"prompt_tokens": 1000, "completion_tokens": 2000, "total_tokens": 3000},
+                },
+            }
+        )
+
+    monkeypatch.setattr("src.dev_agent.providers.cloudflare.provider.urlopen", fake_urlopen)
+    request = ModelRequest(
+        task_id="00000000-0000-0000-0000-000000000001",
+        messages=[{"role": "user", "content": "hello"}],
+    )
+
+    response = CloudflareWorkersAIHttpProvider(
+        model="@cf/meta/llama-3.1-8b-instruct",
+        account_id="account",
+        api_token="token",
+    ).request(request)
+
+    quota = response.usage["quota_observation"]
+    assert quota["unit"] == "neurons"
+    assert quota["consumed"] == 177
+    assert quota["authority"] == "estimated"
+    assert quota["source"] == "cloudflare-neuron-estimate"
+    assert quota["confidence"] < 1
+
+
 def test_groq_live_http_adapter_fails_closed_when_credentials_are_missing(monkeypatch):
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
     provider = GroqHttpProvider(model="m")
@@ -217,3 +251,72 @@ def test_sambanova_http_adapter_fails_closed_when_credentials_are_missing(monkey
         provider.request(request)
 
     assert exc.value.category == "authentication"
+
+
+def test_openrouter_http_adapter_uses_openai_compatible_endpoint(monkeypatch):
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["headers"] = dict(request.header_items())
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        captured["timeout"] = timeout
+        return _Response(
+            {
+                "model": "openrouter/free",
+                "choices": [{"message": {"content": "ready"}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+            }
+        )
+
+    monkeypatch.setattr("src.dev_agent.providers.openrouter.provider.urlopen", fake_urlopen)
+    request = ModelRequest(
+        task_id="00000000-0000-0000-0000-000000000001",
+        messages=[{"role": "user", "content": "hello"}],
+        max_output_tokens=13,
+    )
+
+    response = OpenRouterHttpProvider(model="openrouter/free", api_key="secret", timeout_seconds=4).request(request)
+
+    assert captured["url"] == "https://openrouter.ai/api/v1/chat/completions"
+    assert captured["headers"]["Authorization"] == "Bearer secret"
+    assert captured["payload"]["model"] == "openrouter/free"
+    assert captured["payload"]["max_completion_tokens"] == 13
+    assert captured["timeout"] == 4.0
+    assert response.provider == "openrouter"
+    assert response.text_segments == ["ready"]
+
+
+def test_mistral_http_adapter_uses_shared_transport_with_mistral_token_field(monkeypatch):
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["headers"] = dict(request.header_items())
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        captured["timeout"] = timeout
+        return _Response(
+            {
+                "model": "mistral-small-latest",
+                "choices": [{"message": {"content": "ready"}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+            }
+        )
+
+    monkeypatch.setattr("src.dev_agent.providers.mistral.provider.urlopen", fake_urlopen)
+    request = ModelRequest(
+        task_id="00000000-0000-0000-0000-000000000001",
+        messages=[{"role": "user", "content": "hello"}],
+        max_output_tokens=13,
+    )
+
+    response = MistralHttpProvider(model="mistral-small-latest", api_key="secret", timeout_seconds=4).request(request)
+
+    assert captured["url"] == "https://api.mistral.ai/v1/chat/completions"
+    assert captured["headers"]["Authorization"] == "Bearer secret"
+    assert captured["payload"]["model"] == "mistral-small-latest"
+    assert captured["payload"]["max_tokens"] == 13
+    assert "max_completion_tokens" not in captured["payload"]
+    assert captured["timeout"] == 4.0
+    assert response.provider == "mistral"
+    assert response.text_segments == ["ready"]

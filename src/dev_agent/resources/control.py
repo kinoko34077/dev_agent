@@ -35,6 +35,8 @@ class ResourcePolicy(Protocol):
     def observe_provider_response(self, reservation: DispatchReservation, response: ModelResponse) -> bool: ...
     def release(self, reservation: DispatchReservation) -> None: ...
     def uncertain(self, reservation: DispatchReservation) -> None: ...
+    def record_provider_success(self, provider_id: str) -> None: ...
+    def record_provider_failure(self, provider_id: str, *, threshold: int = 3, cooldown_seconds: float = 60.0) -> None: ...
 
 
 class ResourceControlPlane:
@@ -124,11 +126,19 @@ class ResourceControlPlane:
     def uncertain(self, reservation: DispatchReservation) -> None:
         self.governor.mark_unknown(reservation.budget.reservation_id)
 
+    def record_provider_success(self, provider_id: str) -> None:
+        """Record provider health without exposing the ledger to callers."""
+        self.router.ledger.record_provider_success(provider_id)
+
+    def record_provider_failure(self, provider_id: str, *, threshold: int = 3, cooldown_seconds: float = 60.0) -> None:
+        """Record provider health through the control-plane boundary."""
+        self.router.ledger.record_provider_failure(provider_id, threshold=threshold, cooldown_seconds=cooldown_seconds)
+
     def record_provider_error(self, provider_id: str, reservation: DispatchReservation, error: Exception) -> None:
         category = getattr(error, "category", "provider_error")
         requires_reconciliation = bool(getattr(error, "requires_reconciliation", False))
         if category in {"transport", "rate_limit", "quota"} or requires_reconciliation:
-            self.router.ledger.record_provider_failure(provider_id)
+            self.record_provider_failure(provider_id)
         if requires_reconciliation:
             self.uncertain(reservation)
         else:

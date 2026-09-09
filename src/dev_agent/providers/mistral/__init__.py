@@ -1,5 +1,5 @@
 """Mistral provider adapter boundary."""
 
-from .provider import MistralProvider
+from .provider import MistralHttpProvider, MistralProvider
 
-__all__ = ["MistralProvider"]
+__all__ = ["MistralHttpProvider", "MistralProvider"]

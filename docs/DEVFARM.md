@@ -58,6 +58,8 @@ put them in a manifest, command argument, repository file, or result artifact.
 ```text
 python scripts/qualify_free_provider.py --provider groq --model <groq-model-id> --evidence-path .devfarm/results/groq-live.json
 python scripts/qualify_free_provider.py --provider cloudflare --model <cloudflare-model-id> --evidence-path .devfarm/results/cloudflare-live.json
+python scripts/qualify_free_provider.py --provider openrouter --model openrouter/free --evidence-path .devfarm/results/openrouter-live.json
+python scripts/qualify_free_provider.py --provider mistral --model <mistral-model-id> --evidence-path .devfarm/results/mistral-live.json
 ```
 
 The Groq probe uses `GROQ_API_KEY`; the Cloudflare probe uses
@@ -73,6 +75,8 @@ Worker activation.
 The farm is scaffolded and contract-tested, but no free cloud Worker is
 activated until a real Provider qualification succeeds. In this workspace,
 Cloudflare has a successful live qualification artifact, while Groq returned
-HTTP 403 and SambaNova returned HTTP 429/402 after reaching the API. Therefore
-no Worker is activated yet. No live or Gate evidence is inferred from adapter
-unit tests.
+HTTP 403 and SambaNova returned HTTP 429/402 after reaching the API. OpenRouter
+free-route qualification has completed successfully, but no Worker is activated
+automatically: activation still requires an explicit Codex manifest and review.
+Mistral remains unqualified when its credential is absent. No live or Gate
+evidence is inferred from adapter unit tests.

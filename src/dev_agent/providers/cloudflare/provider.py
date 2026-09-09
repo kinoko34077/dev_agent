@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 import json
+import math
 import os
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -36,6 +37,13 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
     """
 
     provider_id = "cloudflare"
+    # Cloudflare publishes model-specific token prices and a common neuron
+    # price.  These constants are intentionally an estimate for models where
+    # the response does not report neurons directly; they are never treated
+    # as an authoritative remaining quota.
+    _NEURON_RATES_PER_MILLION = {
+        "@cf/meta/llama-3.1-8b-instruct": (25455, 75455),
+    }
 
     def __init__(
         self,
@@ -88,6 +96,25 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
             payload["tools"] = [{"type": "function", "function": dict(definition)} for definition in request.tool_definitions]
         return payload
 
+    @classmethod
+    def _neuron_observation(cls, model: str, usage: Mapping[str, Any]) -> dict[str, Any] | None:
+        rates = cls._NEURON_RATES_PER_MILLION.get(model)
+        prompt_tokens = usage.get("prompt_tokens")
+        completion_tokens = usage.get("completion_tokens")
+        if rates is None or any(
+            isinstance(value, bool) or not isinstance(value, int) or value < 0
+            for value in (prompt_tokens, completion_tokens)
+        ):
+            return None
+        consumed = math.ceil((prompt_tokens * rates[0] + completion_tokens * rates[1]) / 1_000_000)
+        return {
+            "unit": "neurons",
+            "consumed": consumed,
+            "authority": "estimated",
+            "source": "cloudflare-neuron-estimate",
+            "confidence": 0.25,
+        }
+
     @staticmethod
     def _tool_calls(value: Any, request: ModelRequest) -> list[ToolCall]:
         if value is None:
@@ -117,7 +144,7 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
         return result
 
     @classmethod
-    def _decode(cls, raw: Any, request: ModelRequest) -> ModelResponse:
+    def _decode(cls, raw: Any, request: ModelRequest, model: str | None = None) -> ModelResponse:
         if not isinstance(raw, Mapping) or raw.get("success") is not True:
             raise ProviderError("cloudflare provider returned an unsuccessful response", category="provider_http", retryable=False)
         result = raw.get("result")
@@ -131,11 +158,15 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
         if text is not None and not isinstance(text, str):
             raise ProviderError("cloudflare response decode failed: response is not text", category="provider_decode", retryable=False)
         usage = dict(result.get("usage")) if isinstance(result.get("usage"), Mapping) else {}
+        model_name = str(result.get("model") or model or cls.provider_id)
+        neuron_observation = cls._neuron_observation(model_name, usage)
+        if neuron_observation is not None:
+            usage["quota_observation"] = neuron_observation
         if not calls and not text:
             raise ProviderError("cloudflare response has no normalized content", category="provider_decode", retryable=False)
         return ModelResponse(
             provider="cloudflare",
-            model=str(result.get("model") or cls.provider_id),
+            model=model_name,
             finish_reason=str(result.get("finish_reason") or "stop"),
             text_segments=[text] if text else [],
             tool_calls=calls,
@@ -162,7 +193,7 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
             raise ProviderError(f"cloudflare transport failed: {exc}", category="transport", retryable=True) from exc
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise ProviderError("cloudflare response decode failed", category="provider_decode", retryable=False) from exc
-        return self._decode(raw, request)
+        return self._decode(raw, request, self.model)
 
 
 __all__ = ["CloudflareWorkersAIHttpProvider", "CloudflareWorkersAIProvider"]

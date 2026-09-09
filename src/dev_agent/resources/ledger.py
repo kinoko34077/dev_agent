@@ -104,12 +104,17 @@ class QuotaObservation:
     confidence: float
     observed_at: str
     source: str
+    unit: str = "requests"
+    limit_value: int | float | None = None
+    remaining_value: int | float | None = None
+    consumed_value: int | float | None = None
+    authority: str = "provider"
 
 
 class ResourceLedger:
     """SQLite-backed resource observations and budget reservation records."""
 
-    SCHEMA_VERSION = 6
+    SCHEMA_VERSION = 7
     _SCHEMA = """
     CREATE TABLE IF NOT EXISTS resources (
         resource_id TEXT PRIMARY KEY,
@@ -153,6 +158,11 @@ class ResourceLedger:
         observation_id TEXT PRIMARY KEY,
         resource_id TEXT NOT NULL,
         quota_domain TEXT NOT NULL,
+        unit TEXT NOT NULL DEFAULT 'requests',
+        limit_value REAL,
+        remaining_value REAL,
+        consumed_value REAL,
+        authority TEXT NOT NULL DEFAULT 'provider',
         request_limit INTEGER,
         request_remaining INTEGER,
         token_limit INTEGER,
@@ -281,6 +291,23 @@ class ResourceLedger:
                     self._ensure_column("resources", column, definition)
                     self._ensure_column("resource_observations", column, definition)
                 self.connection.execute("UPDATE resource_schema_meta SET value='6' WHERE key='schema_version'")
+                current = 6
+            if current < 7:
+                for column, definition in (
+                    ("unit", "TEXT NOT NULL DEFAULT 'requests'"),
+                    ("limit_value", "REAL"),
+                    ("remaining_value", "REAL"),
+                    ("consumed_value", "REAL"),
+                    ("authority", "TEXT NOT NULL DEFAULT 'provider'"),
+                ):
+                    self._ensure_column("quota_observations", column, definition)
+                self.connection.execute(
+                    "UPDATE quota_observations SET unit='tokens', limit_value=token_limit, remaining_value=token_remaining WHERE request_limit IS NULL AND request_remaining IS NULL AND token_limit IS NOT NULL"
+                )
+                self.connection.execute(
+                    "UPDATE quota_observations SET unit='requests', limit_value=request_limit, remaining_value=request_remaining WHERE request_limit IS NOT NULL OR request_remaining IS NOT NULL"
+                )
+                self.connection.execute("UPDATE resource_schema_meta SET value='7' WHERE key='schema_version'")
             self.connection.commit()
         except Exception:
             self.connection.rollback()
@@ -471,6 +498,11 @@ class ResourceLedger:
         self,
         resource_id: str,
         *,
+        unit: str | None = None,
+        limit: int | float | None = None,
+        remaining: int | float | None = None,
+        consumed: int | float | None = None,
+        authority: str = "provider",
         request_limit: int | None = None,
         request_remaining: int | None = None,
         token_limit: int | None = None,
@@ -482,6 +514,20 @@ class ResourceLedger:
         observed_at: str | None = None,
         source: str = "provider",
     ) -> None:
+        if unit is None:
+            unit = "requests" if request_limit is not None or request_remaining is not None or daily_remaining is not None else "tokens" if token_limit is not None or token_remaining is not None else "requests"
+        if not isinstance(unit, str) or unit not in {"requests", "tokens", "neurons"}:
+            raise ValueError("unit must be one of requests, tokens, or neurons")
+        if limit is not None:
+            limit = self._number(limit, "limit")
+        if remaining is not None:
+            remaining = self._number(remaining, "remaining")
+        if consumed is not None:
+            consumed = self._number(consumed, "consumed")
+        if limit is not None and remaining is not None and remaining > limit:
+            raise ValueError("remaining cannot exceed limit")
+        if not isinstance(authority, str) or not authority.strip():
+            raise ValueError("authority must be a non-empty string")
         request_limit = self._quota_integer(request_limit, "request_limit")
         request_remaining = self._quota_integer(request_remaining, "request_remaining")
         token_limit = self._quota_integer(token_limit, "token_limit")
@@ -491,6 +537,16 @@ class ResourceLedger:
             raise ValueError("request_remaining cannot exceed request_limit")
         if token_limit is not None and token_remaining is not None and token_remaining > token_limit:
             raise ValueError("token_remaining cannot exceed token_limit")
+        if limit is None:
+            if unit == "requests":
+                limit = request_limit
+            elif unit == "tokens":
+                limit = token_limit
+        if remaining is None:
+            if unit == "requests":
+                remaining = request_remaining if request_remaining is not None else daily_remaining
+            elif unit == "tokens":
+                remaining = token_remaining
         if isinstance(concurrency_limit, bool) or (concurrency_limit is not None and (not isinstance(concurrency_limit, (int, float)) or not math.isfinite(float(concurrency_limit)) or concurrency_limit < 0)):
             raise ValueError("concurrency_limit must be non-negative or None")
         self._number(confidence, "confidence")
@@ -510,15 +566,21 @@ class ResourceLedger:
                 raise ValueError("quota_domain is required for quota observations")
             self.connection.execute(
                 """INSERT INTO quota_observations(
-                    observation_id, resource_id, quota_domain, request_limit,
+                    observation_id, resource_id, quota_domain, unit, limit_value,
+                    remaining_value, consumed_value, authority, request_limit,
                     request_remaining, token_limit, token_remaining, reset_at,
                     daily_remaining, concurrency_limit, confidence, observed_at,
                     source
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     str(uuid4()),
                     resource_id,
                     quota_domain,
+                    unit,
+                    limit,
+                    remaining,
+                    consumed,
+                    authority.strip(),
                     request_limit,
                     request_remaining,
                     token_limit,
@@ -536,7 +598,9 @@ class ResourceLedger:
     def get_quota_observation(self, resource_id: str) -> dict[str, Any] | None:
         with self._lock:
             row = self.connection.execute(
-                """SELECT resource_id, quota_domain, request_limit,
+                """SELECT resource_id, quota_domain, unit, limit_value,
+                          remaining_value, consumed_value, authority,
+                          request_limit,
                           request_remaining, token_limit, token_remaining,
                           reset_at, daily_remaining, concurrency_limit,
                           confidence, observed_at, source
@@ -546,7 +610,7 @@ class ResourceLedger:
                    LIMIT 1""",
                 (resource_id,),
             ).fetchone()
-            return dict(row) if row is not None else None
+            return self._quota_from_row(row) if row is not None else None
 
     def list_quota_observations(self, *, quota_domain: str | None = None) -> list[dict[str, Any]]:
         """Return the newest observation for each resource in a quota domain.
@@ -561,7 +625,9 @@ class ResourceLedger:
             clauses = " WHERE quota_domain=?" if quota_domain is not None else ""
             params: tuple[object, ...] = (quota_domain.strip(),) if quota_domain is not None else ()
             rows = self.connection.execute(
-                """SELECT resource_id, quota_domain, request_limit,
+                """SELECT resource_id, quota_domain, unit, limit_value,
+                          remaining_value, consumed_value, authority,
+                          request_limit,
                           request_remaining, token_limit, token_remaining,
                           reset_at, daily_remaining, concurrency_limit,
                           confidence, observed_at, source
@@ -571,8 +637,16 @@ class ResourceLedger:
             ).fetchall()
             latest: dict[str, dict[str, Any]] = {}
             for row in rows:
-                latest.setdefault(row["resource_id"], dict(row))
+                latest.setdefault(row["resource_id"], self._quota_from_row(row))
             return [latest[resource_id] for resource_id in sorted(latest)]
+
+    @staticmethod
+    def _quota_from_row(row: sqlite3.Row | Mapping[str, Any]) -> dict[str, Any]:
+        result = dict(row)
+        result["limit"] = result.pop("limit_value")
+        result["remaining"] = result.pop("remaining_value")
+        result["consumed"] = result.pop("consumed_value")
+        return result
 
     def ingest_quota_observation(
         self,
@@ -600,6 +674,10 @@ class ResourceLedger:
         if not isinstance(payload, Mapping):
             return False
         fields = (
+            "unit",
+            "limit",
+            "remaining",
+            "consumed",
             "request_limit",
             "request_remaining",
             "token_limit",
@@ -618,6 +696,11 @@ class ResourceLedger:
                     return False
             self.observe_quota(
                 resource_id,
+                unit=payload.get("unit"),
+                limit=payload.get("limit"),
+                remaining=payload.get("remaining"),
+                consumed=payload.get("consumed"),
+                authority=payload.get("authority", "provider"),
                 request_limit=payload.get("request_limit"),
                 request_remaining=payload.get("request_remaining"),
                 token_limit=payload.get("token_limit"),
@@ -668,7 +751,9 @@ class ResourceLedger:
             if domains:
                 placeholders = ",".join("?" for _ in domains)
                 quota_rows = self.connection.execute(
-                    """SELECT q.resource_id, q.quota_domain, q.request_limit,
+                    """SELECT q.resource_id, q.quota_domain, q.unit, q.limit_value,
+                              q.remaining_value, q.consumed_value, q.authority,
+                              q.request_limit,
                               q.request_remaining, q.token_limit, q.token_remaining,
                               q.reset_at, q.daily_remaining, q.concurrency_limit,
                               q.confidence, q.observed_at, q.source
@@ -680,7 +765,7 @@ class ResourceLedger:
                     tuple(domains),
                 ).fetchall()
                 for row in quota_rows:
-                    latest_by_resource.setdefault(row["resource_id"], dict(row))
+                    latest_by_resource.setdefault(row["resource_id"], self._quota_from_row(row))
             observations_by_domain: dict[str, tuple[dict[str, Any], ...]] = {}
             grouped: dict[str, list[dict[str, Any]]] = {}
             for observation in latest_by_resource.values():

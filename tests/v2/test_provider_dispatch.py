@@ -142,3 +142,25 @@ def test_dispatcher_ignores_malformed_quota_telemetry_without_failing_result(tmp
 
     assert result.status is TaskStatus.COMPLETED
     assert ledger.get_quota_observation("groq-free")["request_remaining"] == 90
+
+
+def test_dispatcher_records_provider_health_through_control_plane(tmp_path, monkeypatch):
+    ledger, control = _free_control(tmp_path)
+    ledger.observe_quota("groq-free", request_limit=100, request_remaining=90)
+    health_calls = []
+
+    monkeypatch.setattr(control, "record_provider_success", lambda provider_id: health_calls.append(("success", provider_id)))
+    monkeypatch.setattr(ledger, "record_provider_success", lambda provider_id: (_ for _ in ()).throw(AssertionError("dispatcher crossed into ledger")))
+
+    class HealthyProvider(FakeProvider):
+        provider_id = "groq"
+
+        def request(self, request):
+            return ModelResponse(provider="groq", model="free", text_segments=["ok"], usage={"cost_minor": 0})
+
+    dispatcher = ProviderDispatcher(ProviderRegistry([HealthyProvider()]), control)
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        result = Controller(dispatcher, ToolRuntime(ToolRegistry()), store).run(Task(objective="health boundary"))
+
+    assert result.status is TaskStatus.COMPLETED
+    assert health_calls == [("success", "groq")]

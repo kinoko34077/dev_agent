@@ -7,7 +7,7 @@ import sqlite3
 import math
 
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 
 def validate_resource_ledger(path: str | Path) -> tuple[bool, str]:
@@ -32,7 +32,7 @@ def validate_resource_ledger(path: str | Path) -> tuple[bool, str]:
             if not {"quota_domain", "quota_remaining_ratio", "latency_ewma_ms", "failure_ewma", "inflight", "concurrency_limit"} <= resource_columns:
                 return False, "resource ledger resources table lacks operational observation columns"
             quota_columns = {row[1] for row in connection.execute("PRAGMA table_info(quota_observations)")}
-            if not {"resource_id", "quota_domain", "request_limit", "request_remaining", "token_limit", "token_remaining", "confidence", "observed_at", "source"} <= quota_columns:
+            if not {"resource_id", "quota_domain", "unit", "limit_value", "remaining_value", "consumed_value", "authority", "request_limit", "request_remaining", "token_limit", "token_remaining", "confidence", "observed_at", "source"} <= quota_columns:
                 return False, "resource ledger quota observations table is incomplete"
             reservation_columns = {row[1] for row in connection.execute("PRAGMA table_info(budget_reservations)")}
             if "intent_key" not in reservation_columns:
@@ -47,13 +47,23 @@ def validate_resource_ledger(path: str | Path) -> tuple[bool, str]:
                     return False, f"resource record is invalid: {resource_id}"
                 resource_domains[resource_id] = quota_domain
             quota_observations = connection.execute(
-                """SELECT resource_id, quota_domain, request_limit, request_remaining,
-                          token_limit, token_remaining, confidence, source
+                """SELECT resource_id, quota_domain, unit, limit_value,
+                          remaining_value, consumed_value, authority,
+                          request_limit, request_remaining, token_limit,
+                          token_remaining, confidence, source
                    FROM quota_observations"""
             ).fetchall()
-            for resource_id, quota_domain, request_limit, request_remaining, token_limit, token_remaining, confidence, source in quota_observations:
+            for resource_id, quota_domain, unit, limit_value, remaining_value, consumed_value, authority, request_limit, request_remaining, token_limit, token_remaining, confidence, source in quota_observations:
                 if resource_id not in resource_domains or resource_domains[resource_id] != quota_domain:
                     return False, f"quota observation has an invalid resource/domain binding: {resource_id}"
+                if unit not in {"requests", "tokens", "neurons"}:
+                    return False, f"quota observation unit is invalid: {resource_id}"
+                if any(value is not None and (not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(float(value)) or value < 0) for value in (limit_value, remaining_value, consumed_value)):
+                    return False, f"quota observation generic values are invalid: {resource_id}"
+                if limit_value is not None and remaining_value is not None and remaining_value > limit_value:
+                    return False, f"quota observation remaining exceeds limit: {resource_id}"
+                if not isinstance(authority, str) or not authority.strip():
+                    return False, f"quota observation authority is invalid: {resource_id}"
                 if any(value is not None and (not isinstance(value, int) or value < 0) for value in (request_limit, request_remaining, token_limit, token_remaining)):
                     return False, f"quota observation has invalid limits: {resource_id}"
                 if request_limit is not None and request_remaining is not None and request_remaining > request_limit:

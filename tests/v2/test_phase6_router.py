@@ -168,6 +168,24 @@ def test_router_selection_can_use_snapshot_without_reloading_ledger(tmp_path, mo
     assert selection.resource_id == "private"
 
 
+def test_router_uses_generic_quota_headroom_for_neurons(tmp_path):
+    ledger = ResourceLedger(tmp_path / "generic-quota-routing.sqlite3")
+    for resource_id, remaining in (("low", 10), ("high", 80)):
+        ledger.register_resource(
+            resource_id,
+            provider_id=resource_id,
+            native_unit="request",
+            capacity=10,
+            capabilities=["text"],
+            cost_minor=0,
+            quota_domain=f"domain-{resource_id}",
+        )
+        ledger.observe(resource_id, available=10, health="healthy")
+        ledger.observe_quota(resource_id, unit="neurons", limit=100, remaining=remaining)
+
+    assert ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"})).resource_id == "high"
+
+
 def test_router_rejects_resource_at_concurrency_limit(tmp_path):
     ledger = ResourceLedger(tmp_path / "concurrency-limit.sqlite3")
     ledger.register_resource("busy", provider_id="busy", native_unit="request", capacity=10, capabilities=["text"], cost_minor=0)

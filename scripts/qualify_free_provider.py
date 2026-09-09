@@ -25,6 +25,8 @@ from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.cloudflare import CloudflareWorkersAIHttpProvider
 from src.dev_agent.providers.dispatch import ProviderDispatcher, ProviderRegistry
 from src.dev_agent.providers.groq import GroqHttpProvider
+from src.dev_agent.providers.mistral import MistralHttpProvider
+from src.dev_agent.providers.openrouter import OpenRouterHttpProvider
 from src.dev_agent.resources.budget import BudgetAuthority, BudgetGovernor, BudgetPolicy
 from src.dev_agent.resources.control import ResourceControlPlane
 from src.dev_agent.resources.ledger import ResourceLedger
@@ -40,7 +42,18 @@ def _provider(name: str, model: str, timeout_seconds: float):
         return GroqHttpProvider(model=model, timeout_seconds=timeout_seconds)
     if name == "cloudflare":
         return CloudflareWorkersAIHttpProvider(model=model, timeout_seconds=timeout_seconds)
+    if name == "openrouter":
+        return OpenRouterHttpProvider(model=model, timeout_seconds=timeout_seconds)
+    if name == "mistral":
+        return MistralHttpProvider(model=model, timeout_seconds=timeout_seconds)
     raise ValueError(f"unsupported provider: {name}")
+
+
+def _has_routable_quota_headroom(observation: object) -> bool:
+    """Only authoritative remaining/limit telemetry gates a quota domain."""
+    if not isinstance(observation, dict):
+        return False
+    return any(observation.get(field) is not None for field in ("limit", "remaining", "request_remaining", "token_remaining", "daily_remaining"))
 
 
 def qualify(*, provider_name: str, model: str, timeout_seconds: float) -> dict:
@@ -59,7 +72,7 @@ def qualify(*, provider_name: str, model: str, timeout_seconds: float) -> dict:
                 ModelRequest(messages=[{"role": "user", "content": "Reply with the single word ready."}])
             )
             preflight_quota = preflight.usage.get("quota_observation") if isinstance(preflight.usage, dict) else None
-            quota_domain = f"{provider_name}-account" if isinstance(preflight_quota, dict) else None
+            quota_domain = f"{provider_name}-account" if _has_routable_quota_headroom(preflight_quota) else None
             ledger.register_resource(
                 resource_id,
                 provider_id=provider_name,
@@ -125,7 +138,13 @@ def qualify(*, provider_name: str, model: str, timeout_seconds: float) -> dict:
                 "provider_audit_count": len(audits),
                 "effect_intents": intents,
                 "quota_observation": quota,
-                "quota_status": "observed" if quota else "unknown_not_reported",
+                "quota_status": (
+                    "unknown_not_reported"
+                    if not quota
+                    else "estimated"
+                    if quota.get("authority") == "estimated"
+                    else "observed"
+                ),
                 "budget": governor.snapshot(),
             }
             if result.status != TaskStatus.COMPLETED:
@@ -143,7 +162,7 @@ def qualify(*, provider_name: str, model: str, timeout_seconds: float) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--provider", choices=("groq", "cloudflare"), required=True)
+    parser.add_argument("--provider", choices=("groq", "cloudflare", "mistral", "openrouter"), required=True)
     parser.add_argument("--model", required=True)
     parser.add_argument("--timeout-seconds", type=float, default=30.0)
     parser.add_argument("--evidence-path", type=Path)

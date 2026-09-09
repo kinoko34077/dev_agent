@@ -1,5 +1,5 @@
 """OpenRouter free provider adapter boundary."""
 
-from .provider import OpenRouterFreeProvider
+from .provider import OpenRouterFreeProvider, OpenRouterHttpProvider
 
-__all__ = ["OpenRouterFreeProvider"]
+__all__ = ["OpenRouterFreeProvider", "OpenRouterHttpProvider"]

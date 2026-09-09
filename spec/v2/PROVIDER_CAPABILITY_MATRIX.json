@@ -36,6 +36,18 @@
       "capabilities": ["text", "model_generated_tool_call", "tool_result_roundtrip", "final_response", "controller_e2e"],
       "known_quirks": ["qualification response did not report quota telemetry; quota remains unknown_not_reported"],
       "errors": []
+    },
+    {
+      "provider": "openrouter",
+      "model": "openrouter/free",
+      "api_version": "v1 chat/completions",
+      "adapter_version": "dev_agent OpenRouterHttpProvider",
+      "tested_at": "2026-09-09T21:41:55+09:00",
+      "expires_at": "2026-10-09T21:41:55+09:00",
+      "confidence": "high",
+      "capabilities": ["text", "model_generated_tool_call", "tool_result_roundtrip", "final_response", "controller_e2e"],
+      "known_quirks": ["free router qualification did not report quota telemetry; quota remains unknown_not_reported"],
+      "errors": []
     }
   ],
   "entry_contract": ["provider", "model", "api_version", "adapter_version", "tested_at", "expires_at", "confidence", "capabilities", "known_quirks", "errors"]
