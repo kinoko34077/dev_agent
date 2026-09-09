@@ -2,6 +2,8 @@
   "schema_version": 1,
   "qualification": "phase6_provider_dispatch",
   "tested_at": "2026-09-09",
+  "tested_code_revision": "8b423e3218b3b6a4ed4f6affd4c2707eb070f5e5",
+  "tested_checkout_revision": "50013d0b789b0cdd9c5b1f195903475f21281fd6",
   "provider": "ollama",
   "model": "qwen3:8b",
   "endpoint": "http://127.0.0.1:11434/api/chat",
@@ -15,5 +17,6 @@
     "normal and recovery committed budget totals returned to zero"
   ],
   "reproduction": "python scripts/qualify_phase6_provider.py --model qwen3:8b --timeout-seconds 60",
-  "scope": "isolated temporary SQLite state and resource stores; local non-billed provider only"
+  "scope": "isolated temporary SQLite state and resource stores; local non-billed provider only",
+  "notes": "The checkout revision only records documentation/evidence metadata after the tested code revision."
 }
