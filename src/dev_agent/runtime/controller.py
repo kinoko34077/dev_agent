@@ -94,6 +94,9 @@ class Controller:
             record_audit=lambda request, reservation, outcome, intent_key, **kwargs: self._record_provider_audit(request, reservation, outcome, intent_key, **kwargs),
             transition_intent=lambda key, **kwargs: self._provider_intent(key, **kwargs),
             replay=lambda key: self._provider_replay(key),
+            request_provider=lambda request, deadline, cancel_event: self._provider_request(request, deadline, cancel_event),
+            lease_guard=self._active_lease_guard,
+            has_lease_guard=lambda: self.lease_guard is not None,
         )
         binder = getattr(provider, "bind_runtime", None)
         if callable(binder):
@@ -457,6 +460,7 @@ class Controller:
                 reservation = None
                 provider_intent_key = None
                 replayed_response = None
+                legacy_execution = None
                 if self._legacy_provider_executor.applies():
                     preparation = self._legacy_provider_executor.prepare(request)
                     reservation = preparation.reservation
@@ -484,8 +488,51 @@ class Controller:
                     if preparation.status == "blocked_budget":
                         self._block_budget(task, state, step=step, message=preparation.message or "provider budget preparation failed")
                         return task
+                    legacy_execution = self._legacy_provider_executor.execute(
+                        request,
+                        reservation=reservation,
+                        intent_key=provider_intent_key,
+                        replayed_response=replayed_response,
+                        deadline_epoch=state["deadline_epoch"],
+                        cancel_event=cancel_event,
+                    )
+                    if legacy_execution.status == "waiting_reconciliation":
+                        self._provider_waiting_reconciliation(
+                            task,
+                            state,
+                            step=step,
+                            request_id=request.request_id,
+                            cause=legacy_execution.cause or "provider_reconciliation",
+                            message=legacy_execution.message or "provider effect requires reconciliation",
+                        )
+                        return task
+                    if legacy_execution.status == "cancelled_unable_to_confirm":
+                        self._cancel_unable_to_confirm(
+                            task,
+                            state,
+                            step=step,
+                            message=legacy_execution.message or "provider request cancellation could not be confirmed",
+                        )
+                        return task
+                    if legacy_execution.status == "cancelled":
+                        self._cancel(task, state, step=step, message=legacy_execution.message or "provider request was cancelled")
+                        return task
+                    if legacy_execution.status == "blocked_budget":
+                        self._block_budget(task, state, step=step, message=legacy_execution.message or "provider budget dispatch was denied")
+                        return task
+                    if legacy_execution.status == "failed":
+                        self._fail(
+                            task,
+                            state,
+                            legacy_execution.category or "provider_decode",
+                            legacy_execution.message or "provider request failed",
+                            step=step,
+                            request_id=request.request_id,
+                        )
+                    if legacy_execution.status != "succeeded" or legacy_execution.response is None:
+                        self._fail(task, state, "provider_decode", "legacy provider execution returned no response", step=step, request_id=request.request_id)
                 try:
-                    response = replayed_response if replayed_response is not None else self._provider_request(request, state["deadline_epoch"], cancel_event)
+                    response = legacy_execution.response if legacy_execution is not None else (replayed_response if replayed_response is not None else self._provider_request(request, state["deadline_epoch"], cancel_event))
                     if not isinstance(response, ModelResponse):
                         raise TypeError("provider must return ModelResponse")
                 except DispatchDenied as exc:
@@ -589,7 +636,7 @@ class Controller:
                         self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="provider_decode", message=str(exc))
                         return task
                     self._fail(task, state, "provider_decode", str(exc), step=step, request_id=request.request_id)
-                if reservation is not None and self.lease_guard is not None:
+                if legacy_execution is None and reservation is not None and self.lease_guard is not None:
                     try:
                         self._active_lease_guard()
                     except Exception as exc:
@@ -603,7 +650,7 @@ class Controller:
                         self._record_provider_audit(request, reservation, "unknown", provider_intent_key, details={"category": "reconciliation_required", "cause": "lease_lost"})
                         self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="lease_lost", message="provider response arrived after lease loss")
                         return task
-                if reservation is not None:
+                if legacy_execution is None and reservation is not None:
                     try:
                         quota_observed = False
                         observer = getattr(self.resource_policy, "observe_provider_response", None)

@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from collections.abc import Callable
 from dataclasses import dataclass
+from threading import Event
 from typing import Any, TYPE_CHECKING
 
 from ..domain.protocol import ModelRequest, ModelResponse
 from ..providers.base import ProviderError
-from ..resources.budget import BudgetReconciliationRequired
+from ..resources.budget import BudgetExceeded, BudgetReconciliationRequired
+from ..resources.control import DispatchDenied
+from .model_turn import ProviderRequestCancelled
 
 if TYPE_CHECKING:
     from ..state.store import StateStore
@@ -123,13 +127,23 @@ class LegacyProviderPreparation:
     message: str | None = None
 
 
+@dataclass(frozen=True)
+class LegacyProviderExecution:
+    """Normalized outcome of one compatibility-provider dispatch."""
+
+    status: str
+    response: ModelResponse | None = None
+    category: str | None = None
+    cause: str | None = None
+    message: str | None = None
+
+
 class LegacyDirectProviderExecutor:
-    """Own the resource/intent preparation boundary of the legacy path.
+    """Own the compatibility-provider boundary outside Controller.
 
     The canonical multi-provider path is still owned by ProviderDispatcher.
-    This object exists only to keep compatibility preparation out of
-    Controller.  Provider execution and task-state transitions remain
-    explicit at the Controller boundary until the next refactor slice.
+    This object handles preparation, provider execution, and resource/effect
+    reconciliation. Task-state transitions remain owned by Controller.
     """
 
     def __init__(
@@ -143,6 +157,9 @@ class LegacyDirectProviderExecutor:
         record_audit: Callable[..., None],
         transition_intent: Callable[..., None],
         replay: Callable[[str], ModelResponse],
+        request_provider: Callable[[ModelRequest, float, Event], ModelResponse],
+        lease_guard: Callable[[], None],
+        has_lease_guard: Callable[[], bool],
     ) -> None:
         self._provider_id = provider_id
         self._provider = provider
@@ -152,6 +169,9 @@ class LegacyDirectProviderExecutor:
         self._record_audit = record_audit
         self._transition_intent = transition_intent
         self._replay = replay
+        self._request_provider = request_provider
+        self._lease_guard = lease_guard
+        self._has_lease_guard = has_lease_guard
 
     def applies(self) -> bool:
         return self._resource_policy is not None and not getattr(self._provider, "handles_resource_policy", False)
@@ -210,5 +230,193 @@ class LegacyDirectProviderExecutor:
         except Exception as exc:
             return LegacyProviderPreparation(status="blocked_budget", message=str(exc))
 
+    def execute(
+        self,
+        request: ModelRequest,
+        *,
+        reservation: Any | None,
+        intent_key: str | None,
+        replayed_response: ModelResponse | None,
+        deadline_epoch: float,
+        cancel_event: Event,
+    ) -> LegacyProviderExecution:
+        """Execute and reconcile a prepared legacy provider request.
 
-__all__ = ["LegacyDirectProviderExecutor", "LegacyDirectProviderJournal", "LegacyProviderPreparation"]
+        The method never mutates task state. It returns a small outcome for
+        Controller to map to completion, failure, cancellation, or waiting
+        reconciliation. Once a provider call has started, ambiguous failures
+        keep the reservation unknown and never pretend that no charge occurred.
+        """
+
+        try:
+            response = replayed_response if replayed_response is not None else self._request_provider(request, deadline_epoch, cancel_event)
+            if not isinstance(response, ModelResponse):
+                raise TypeError("provider must return ModelResponse")
+        except DispatchDenied as exc:
+            return LegacyProviderExecution(status="blocked_budget", category=exc.category, message=str(exc))
+        except ProviderRequestCancelled as exc:
+            if reservation is not None:
+                if exc.unable_to_confirm:
+                    self._mark_unknown(
+                        request,
+                        reservation,
+                        intent_key,
+                        result={"error_category": "cancelled", "cause": "unable_to_confirm"},
+                        details={"category": "cancelled", "cause": "unable_to_confirm"},
+                    )
+                else:
+                    self._resource_policy.release(reservation)
+                    self._transition_intent(
+                        intent_key,
+                        status="confirmed_failed",
+                        result={"error_category": "cancelled", "cause": "confirmed_no_charge"},
+                    )
+                    self._record_audit(request, reservation, "confirmed_no_charge", intent_key, details={"category": "cancelled"})
+            return LegacyProviderExecution(
+                status="cancelled_unable_to_confirm" if exc.unable_to_confirm else "cancelled",
+                cause="cancelled",
+                message="provider request cancellation could not be confirmed" if exc.unable_to_confirm else "provider request was cancelled",
+            )
+        except FutureTimeoutError:
+            if cancel_event.is_set():
+                if reservation is not None:
+                    self._mark_unknown(
+                        request,
+                        reservation,
+                        intent_key,
+                        result={"error_category": "cancelled", "cause": "unable_to_confirm"},
+                        details={"category": "cancelled", "cause": "unable_to_confirm"},
+                    )
+                return LegacyProviderExecution(
+                    status="cancelled_unable_to_confirm",
+                    cause="cancelled",
+                    message="provider request cancellation could not be confirmed",
+                )
+            if reservation is not None:
+                self._mark_unknown(
+                    request,
+                    reservation,
+                    intent_key,
+                    result={"error_category": "timeout"},
+                    details={"category": "timeout"},
+                )
+                return LegacyProviderExecution(
+                    status="waiting_reconciliation",
+                    cause="timeout",
+                    message="model request timed out",
+                )
+            return LegacyProviderExecution(status="failed", category="timeout", message="model request timed out")
+        except ProviderError as exc:
+            if reservation is not None:
+                if exc.requires_reconciliation:
+                    self._mark_unknown(
+                        request,
+                        reservation,
+                        intent_key,
+                        result={"error_category": exc.category, "message": str(exc)},
+                        details={"category": exc.category},
+                    )
+                    cause = "budget_reconciliation" if exc.category == "reconciliation_required" else exc.category
+                    return LegacyProviderExecution(status="waiting_reconciliation", cause=cause, message=str(exc))
+                self._resource_policy.release(reservation)
+                self._transition_intent(
+                    intent_key,
+                    status="confirmed_failed",
+                    result={"error_category": exc.category, "message": str(exc)},
+                )
+                self._record_audit(request, reservation, "confirmed_no_charge", intent_key, details={"category": exc.category})
+            return LegacyProviderExecution(status="failed", category=exc.category, message=str(exc))
+        except Exception as exc:
+            if reservation is not None:
+                self._mark_unknown(
+                    request,
+                    reservation,
+                    intent_key,
+                    result={"error_category": "provider_decode", "message": str(exc)},
+                    details={"category": "provider_decode"},
+                )
+                return LegacyProviderExecution(status="waiting_reconciliation", cause="provider_decode", message=str(exc))
+            return LegacyProviderExecution(status="failed", category="provider_decode", message=str(exc))
+
+        if reservation is not None and self._has_lease_guard():
+            try:
+                self._lease_guard()
+            except Exception as exc:
+                self._mark_unknown(
+                    request,
+                    reservation,
+                    intent_key,
+                    result={"error_category": "reconciliation_required", "cause": "lease_lost", "message": str(exc)},
+                    details={"category": "reconciliation_required", "cause": "lease_lost"},
+                )
+                return LegacyProviderExecution(
+                    status="waiting_reconciliation",
+                    cause="lease_lost",
+                    message="provider response arrived after lease loss",
+                )
+
+        if reservation is not None:
+            try:
+                quota_observed = False
+                observer = getattr(self._resource_policy, "observe_provider_response", None)
+                if callable(observer):
+                    quota_observed = bool(observer(reservation, response))
+                self._resource_policy.reconcile_response(reservation, response)
+            except BudgetExceeded as exc:
+                self._mark_unknown(
+                    request,
+                    reservation,
+                    intent_key,
+                    result={"error_category": "reconciliation_required", "message": str(exc)},
+                    details={"category": "reconciliation_required"},
+                )
+                return LegacyProviderExecution(status="waiting_reconciliation", cause="budget_reconciliation", message=str(exc))
+            except Exception as exc:
+                self._mark_unknown(
+                    request,
+                    reservation,
+                    intent_key,
+                    result={"error_category": "reconciliation_required", "message": str(exc)},
+                    details={"category": "reconciliation_required"},
+                )
+                return LegacyProviderExecution(status="waiting_reconciliation", cause="budget_reconciliation", message=str(exc))
+            try:
+                self._transition_intent(
+                    intent_key,
+                    status="succeeded",
+                    result={
+                        "provider_id": response.provider,
+                        "resource_id": reservation.budget.resource_id,
+                        "outcome": "succeeded",
+                        "response": response.to_dict(),
+                    },
+                )
+                self._record_audit(request, reservation, "succeeded", intent_key, details={"quota_observed": quota_observed})
+            except Exception as exc:
+                return LegacyProviderExecution(
+                    status="waiting_reconciliation",
+                    cause="result_persistence",
+                    message=f"provider result persistence requires reconciliation: {exc}",
+                )
+        return LegacyProviderExecution(status="succeeded", response=response)
+
+    def _mark_unknown(
+        self,
+        request: ModelRequest,
+        reservation: Any,
+        intent_key: str | None,
+        *,
+        result: dict[str, Any],
+        details: dict[str, Any],
+    ) -> None:
+        self._resource_policy.uncertain(reservation)
+        self._transition_intent(intent_key, status="unknown", result=result)
+        self._record_audit(request, reservation, "unknown", intent_key, details=details)
+
+
+__all__ = [
+    "LegacyDirectProviderExecutor",
+    "LegacyDirectProviderJournal",
+    "LegacyProviderExecution",
+    "LegacyProviderPreparation",
+]
