@@ -124,7 +124,6 @@ class ProviderDispatcher(ModelProvider):
 
     def _record_audit(self, request: ModelRequest, selection: RouteSelection, outcome: str, intent_key: str | None, *, details: dict[str, Any] | None = None) -> None:
         entry = DispatchAudit(selection.provider_id, selection.resource_id, outcome)
-        self.audits.append(entry)
         if self._state_store is not None:
             self._state_store.record_provider_audit(
                 task_id=request.task_id,
@@ -138,6 +137,10 @@ class ProviderDispatcher(ModelProvider):
                 outcome=outcome,
                 details=details,
             )
+        # Keep the compatibility in-memory view only after the durable audit
+        # has committed; it must never report a success that exists solely in
+        # RAM after a persistence failure.
+        self.audits.append(entry)
 
     def request(self, request_or_task_id: ModelRequest | str, explicit_request: ModelRequest | None = None) -> ModelResponse:
         """Dispatch one request, accepting both canonical and legacy call shapes.

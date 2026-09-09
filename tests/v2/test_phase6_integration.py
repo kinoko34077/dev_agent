@@ -662,17 +662,22 @@ def test_dispatcher_holds_result_when_durable_success_audit_fails(tmp_path):
 
     dispatcher = ProviderDispatcher(ProviderRegistry([PaidProvider()]), control)
 
-    def fail_durable_audit(*args, **kwargs):
-        raise OSError("audit store unavailable")
-
-    dispatcher._record_audit = fail_durable_audit
     with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        original_record_audit = store.record_provider_audit
+
+        def fail_durable_audit(**kwargs):
+            if kwargs.get("outcome") == "succeeded":
+                raise OSError("audit store unavailable")
+            return original_record_audit(**kwargs)
+
+        store.record_provider_audit = fail_durable_audit
         result = Controller(dispatcher, ToolRuntime(ToolRegistry()), store).run(Task(objective="audit persistence"))
         intent = store.connection.execute("SELECT status FROM effect_intents").fetchone()
 
     assert result.status.value == "waiting_reconciliation"
     assert intent["status"] == "succeeded"
     assert ledger.reservation_totals()["active_reservations"] == 0
+    assert dispatcher.audits == []
 
 
 def test_direct_provider_holds_result_when_durable_success_audit_fails(tmp_path):

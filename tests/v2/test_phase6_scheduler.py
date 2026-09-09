@@ -115,6 +115,17 @@ def test_expired_worker_crashes_are_finite_and_terminal(tmp_path):
     assert queue.snapshot("crash-loop").attempts == 2
 
 
+def test_reap_expired_terminalizes_exhausted_crash_loop(tmp_path):
+    queue = DurableQueue(tmp_path / "queue.sqlite3")
+    queue.enqueue("reaped-loop", max_attempts=1)
+    item = queue.claim("worker-a", lease_seconds=30)
+
+    assert queue.reap_expired(now=item.lease_until.timestamp() + 1) == 1
+    assert queue.snapshot("reaped-loop").state == "failed"
+    with pytest.raises(QueueEmpty):
+        queue.claim("worker-b")
+
+
 def test_worker_uses_task_retry_limit_as_total_attempt_bound(tmp_path):
     queue = DurableQueue(tmp_path / "queue.sqlite3")
     task = Task(objective="bounded worker", limits={"max_retries": 1})
