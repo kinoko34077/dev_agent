@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any, TYPE_CHECKING
 
 from ..domain.protocol import ModelRequest, ModelResponse
 from ..providers.base import ProviderError
+from ..resources.budget import BudgetReconciliationRequired
 
 if TYPE_CHECKING:
     from ..state.store import StateStore
@@ -108,4 +110,105 @@ class LegacyDirectProviderJournal:
             raise ProviderError("durable provider result is malformed", category="provider_decode", retryable=False) from exc
 
 
-__all__ = ["LegacyDirectProviderJournal"]
+@dataclass(frozen=True)
+class LegacyProviderPreparation:
+    """Result of preparing one compatibility-provider dispatch."""
+
+    status: str
+    intent_key: str | None = None
+    reservation: Any | None = None
+    replayed_response: ModelResponse | None = None
+    cause: str | None = None
+    category: str | None = None
+    message: str | None = None
+
+
+class LegacyDirectProviderExecutor:
+    """Own the resource/intent preparation boundary of the legacy path.
+
+    The canonical multi-provider path is still owned by ProviderDispatcher.
+    This object exists only to keep compatibility preparation out of
+    Controller.  Provider execution and task-state transitions remain
+    explicit at the Controller boundary until the next refactor slice.
+    """
+
+    def __init__(
+        self,
+        *,
+        provider_id: str,
+        provider: Any,
+        resource_policy: Any | None,
+        state_store: StateStore,
+        prepare_intent: Callable[..., str],
+        record_audit: Callable[..., None],
+        transition_intent: Callable[..., None],
+        replay: Callable[[str], ModelResponse],
+    ) -> None:
+        self._provider_id = provider_id
+        self._provider = provider
+        self._resource_policy = resource_policy
+        self._state_store = state_store
+        self._prepare_intent = prepare_intent
+        self._record_audit = record_audit
+        self._transition_intent = transition_intent
+        self._replay = replay
+
+    def applies(self) -> bool:
+        return self._resource_policy is not None and not getattr(self._provider, "handles_resource_policy", False)
+
+    def prepare(self, request: ModelRequest) -> LegacyProviderPreparation:
+        if not self.applies():
+            return LegacyProviderPreparation(status="not_applicable")
+
+        intent_key = f"provider:{request.request_id}:{self._provider_id}"
+        existing_intent = self._state_store.get_effect_intent(intent_key)
+        existing_status = existing_intent.get("status") if existing_intent is not None else None
+        if existing_status in {"dispatching", "unknown", "reconciling"}:
+            return LegacyProviderPreparation(
+                status="waiting_reconciliation",
+                intent_key=intent_key,
+                cause="provider_intent_pending",
+                message="provider effect intent requires reconciliation before retry",
+            )
+        if existing_status in {"confirmed_failed", "reconciled"}:
+            return LegacyProviderPreparation(
+                status="terminal",
+                intent_key=intent_key,
+                category="provider_effect_terminal",
+                message="provider effect intent is already terminal",
+            )
+        if existing_status == "succeeded":
+            return LegacyProviderPreparation(
+                status="replay",
+                intent_key=intent_key,
+                replayed_response=self._replay(intent_key),
+            )
+
+        try:
+            reservation = self._resource_policy.reserve_for_provider(
+                request.task_id,
+                self._provider_id,
+                request,
+                intent_key=intent_key,
+            )
+            intent_key = self._prepare_intent(request, reservation, intent_key=intent_key)
+            self._resource_policy.mark_dispatching(reservation)
+            self._transition_intent(
+                intent_key,
+                status="dispatching",
+                result={"provider_id": self._provider_id, "resource_id": reservation.budget.resource_id},
+            )
+            self._record_audit(request, reservation, "dispatching", intent_key)
+            return LegacyProviderPreparation(status="dispatch", intent_key=intent_key, reservation=reservation)
+        except BudgetReconciliationRequired as exc:
+            return LegacyProviderPreparation(
+                status="waiting_reconciliation",
+                intent_key=intent_key,
+                cause="budget_reconciliation",
+                message=str(exc),
+            )
+        except Exception as exc:
+            return LegacyProviderPreparation(status="blocked_budget", message=str(exc))
+
+
+__all__ = ["LegacyDirectProviderExecutor", "LegacyDirectProviderJournal", "LegacyProviderPreparation"]

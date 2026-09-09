@@ -22,7 +22,7 @@ from ..resources.budget import BudgetExceeded, BudgetReconciliationRequired
 from ..state.store import StateStore
 from ..tools.runtime import ToolRuntime
 from ..intelligence import TaskIntelligencePolicy
-from .legacy_provider import LegacyDirectProviderJournal
+from .legacy_provider import LegacyDirectProviderExecutor, LegacyDirectProviderJournal
 from .state import RuntimeState
 
 
@@ -85,6 +85,16 @@ class Controller:
             store,
             provider_id=self.provider.provider_id,
             lease_proof=self._active_lease_proof,
+        )
+        self._legacy_provider_executor = LegacyDirectProviderExecutor(
+            provider_id=self.provider.provider_id,
+            provider=self.provider,
+            resource_policy=resource_policy,
+            state_store=store,
+            prepare_intent=lambda request, reservation, **kwargs: self._prepare_provider_intent(request, reservation, **kwargs),
+            record_audit=lambda request, reservation, outcome, intent_key, **kwargs: self._record_provider_audit(request, reservation, outcome, intent_key, **kwargs),
+            transition_intent=lambda key, **kwargs: self._provider_intent(key, **kwargs),
+            replay=lambda key: self._provider_replay(key),
         )
         binder = getattr(provider, "bind_runtime", None)
         if callable(binder):
@@ -484,32 +494,32 @@ class Controller:
                 reservation = None
                 provider_intent_key = None
                 replayed_response = None
-                # Compatibility/legacy path: a direct ModelProvider is kept
-                # for existing callers. New multi-provider behavior belongs
-                # in ProviderDispatcher, not in another Controller branch.
-                if self.resource_policy is not None and not getattr(self.provider, "handles_resource_policy", False):
-                    try:
-                        provider_intent_key = f"provider:{request.request_id}:{self.provider.provider_id}"
-                        existing_intent = self.store.get_effect_intent(provider_intent_key)
-                        existing_status = existing_intent.get("status") if existing_intent is not None else None
-                        if existing_status in {"dispatching", "unknown", "reconciling"}:
-                            self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="provider_intent_pending", message="provider effect intent requires reconciliation before retry")
-                            return task
-                        if existing_status in {"confirmed_failed", "reconciled"}:
-                            self._fail(task, state, "provider_effect_terminal", "provider effect intent is already terminal", step=step, request_id=request.request_id)
-                        if existing_status == "succeeded":
-                            replayed_response = self._provider_replay(provider_intent_key)
-                        else:
-                            reservation = self.resource_policy.reserve_for_provider(task.task_id, self.provider.provider_id, request, intent_key=provider_intent_key)
-                            provider_intent_key = self._prepare_provider_intent(request, reservation, intent_key=provider_intent_key)
-                            self.resource_policy.mark_dispatching(reservation)
-                            self._provider_intent(provider_intent_key, status="dispatching", result={"provider_id": self.provider.provider_id, "resource_id": reservation.budget.resource_id})
-                            self._record_provider_audit(request, reservation, "dispatching", provider_intent_key)
-                    except BudgetReconciliationRequired as exc:
-                        self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="budget_reconciliation", message=str(exc))
+                if self._legacy_provider_executor.applies():
+                    preparation = self._legacy_provider_executor.prepare(request)
+                    reservation = preparation.reservation
+                    provider_intent_key = preparation.intent_key
+                    replayed_response = preparation.replayed_response
+                    if preparation.status == "waiting_reconciliation":
+                        self._provider_waiting_reconciliation(
+                            task,
+                            state,
+                            step=step,
+                            request_id=request.request_id,
+                            cause=preparation.cause or "provider_intent_pending",
+                            message=preparation.message or "provider effect intent requires reconciliation before retry",
+                        )
                         return task
-                    except Exception as exc:
-                        self._block_budget(task, state, step=step, message=str(exc))
+                    if preparation.status == "terminal":
+                        self._fail(
+                            task,
+                            state,
+                            preparation.category or "provider_effect_terminal",
+                            preparation.message or "provider effect intent is already terminal",
+                            step=step,
+                            request_id=request.request_id,
+                        )
+                    if preparation.status == "blocked_budget":
+                        self._block_budget(task, state, step=step, message=preparation.message or "provider budget preparation failed")
                         return task
                 try:
                     response = replayed_response if replayed_response is not None else self._provider_request(request, state["deadline_epoch"], cancel_event)
