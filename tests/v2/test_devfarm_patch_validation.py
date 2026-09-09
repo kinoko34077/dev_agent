@@ -95,6 +95,26 @@ def test_worker_records_host_measurements_and_updates_acceptance_after_verificat
     assert stored["worker_metrics"]["result_accepted"] is True
 
 
+def test_worker_records_nonsemantic_final_newline_normalization(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": True,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": _patch().rstrip("\n"),
+        "notes": "proposal ready",
+    }
+
+    result = run_worker(root, manifest_path, provider=_WorkerProvider(output))
+
+    assert result["status"] == "completed"
+    assert result["worker_metrics"]["patch_normalizations"] == ["appended_final_newline"]
+    assert (root / ".devfarm/results/worker-test-001/patch.diff").read_bytes().endswith(b"\n")
+
+
 def test_worker_normalizes_bounded_model_status_aliases_without_trusting_claims(tmp_path):
     root, manifest_path = _workspace(tmp_path)
     output = {
