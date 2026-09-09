@@ -57,6 +57,27 @@ def test_worker_normalizes_bounded_model_status_aliases_without_trusting_claims(
     assert result["tests_passed"] is False
 
 
+def test_worker_preserves_valid_proposal_when_notes_are_not_text(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": True,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": _patch(),
+        "notes": ["proposal", {"host_verified": False}],
+    }
+
+    result = run_worker(root, manifest_path, provider=_WorkerProvider(output))
+
+    assert result["status"] == "completed"
+    notes = (root / ".devfarm/results/worker-test-001/notes.md").read_text(encoding="utf-8")
+    assert notes.startswith("[MODEL_NOTES_NORMALIZED type=list]")
+    assert '"host_verified": false' in notes
+
+
 def test_worker_records_model_output_outside_manifest_scope_as_failed_artifact(tmp_path):
     root, manifest_path = _workspace(tmp_path)
     output = {
@@ -220,3 +241,26 @@ def test_host_verification_applies_patch_only_in_worker_worktree(tmp_path):
 
     stored = json.loads((root / ".devfarm/results/worker-test-001/result.json").read_text(encoding="utf-8"))
     assert stored["host_verified_tests"][0]["command"] == "python -m pytest tests/v2/test_target.py -q"
+
+
+def test_host_verification_backfills_missing_notes_artifact(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": False,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": _patch(),
+        "notes": "proposal ready",
+    }
+    run_worker(root, manifest_path, provider=_WorkerProvider(output))
+    (root / ".devfarm/results/worker-test-001/notes.md").unlink()
+
+    verified = apply_and_verify(root, manifest_path)
+
+    assert verified["status"] == "completed"
+    assert (root / ".devfarm/results/worker-test-001/notes.md").read_text(encoding="utf-8") == (
+        "Host verification completed; no model notes artifact was available.\n"
+    )

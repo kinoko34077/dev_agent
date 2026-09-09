@@ -281,7 +281,10 @@ def _write_auxiliary_artifacts(root: Path, task_id: str, output: Mapping[str, An
     directory.joinpath("tests.json").write_text(json.dumps(tests, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     notes = output.get("notes", "")
     if not isinstance(notes, str):
-        raise DevFarmError("worker notes must be a string")
+        notes = (
+            f"[MODEL_NOTES_NORMALIZED type={type(notes).__name__}]\n"
+            f"{json.dumps(notes, ensure_ascii=False, sort_keys=True)}"
+        )
     if len(notes) > MAX_OUTPUT_TEXT_CHARS:
         notes = notes[:MAX_OUTPUT_TEXT_CHARS] + f"\n...[TRUNCATED original_chars={len(notes)}]"
     directory.joinpath("notes.md").write_text(notes + "\n", encoding="utf-8")
@@ -406,6 +409,12 @@ def apply_and_verify(root: str | Path, manifest_path: str | Path) -> dict[str, A
         + "\n",
         encoding="utf-8",
     )
+    notes_path = directory / "notes.md"
+    if not notes_path.exists():
+        notes_path.write_text(
+            "Host verification completed; no model notes artifact was available.\n",
+            encoding="utf-8",
+        )
     return result
 
 
