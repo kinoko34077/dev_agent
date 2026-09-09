@@ -118,8 +118,8 @@
 - [x] Step 1: Run full pytest, compileall, JSON validation, and relevant gate checks; `check_head` follows the clean commit.
 - [x] Step 2: Update Current State with exact local test count and external CI run IDs (`267 passed, 1 skipped`; v2-core `34318901211`; v2 tests `34318901190`; code baseline `0d690d8`).
 - [x] Step 3: Inspect diff and verify no forbidden future feature was added.
-- [ ] Step 4: Commit, push, and confirm exact-head CI for the final documentation commit.
-- [ ] Step 5: Stop at a clean tested boundary and record remaining provider live qualification work.
+- [x] Step 4: Commit, push, and confirm exact-head CI for the final documentation commit (`5ce4a92`; v2-core `34319216207`; v2 tests `34319216218`).
+- [x] Step 5: Stop at a clean tested boundary and record remaining provider live qualification work.
 
 ## Execution record
 
