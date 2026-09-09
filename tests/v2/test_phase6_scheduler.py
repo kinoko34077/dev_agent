@@ -31,8 +31,8 @@ def test_queue_runs_ordered_migration_for_legacy_lease_schema(tmp_path):
     columns = {row[1] for row in queue.connection.execute("PRAGMA table_info(queue_items)")}
     version = queue.connection.execute("SELECT value FROM scheduler_schema_meta WHERE key='schema_version'").fetchone()[0]
 
-    assert "lease_token" in columns
-    assert version == "2"
+    assert {"lease_token", "max_attempts"} <= columns
+    assert version == "3"
 
 
 def _claim_in_process(path, worker_id, result_queue):
@@ -99,6 +99,20 @@ def test_queue_fails_after_finite_default_attempts(tmp_path):
             assert queue.snapshot("bounded").state == "queued"
     assert queue.snapshot("bounded").state == "failed"
     assert queue.snapshot("bounded").attempts == DurableQueue.DEFAULT_MAX_ATTEMPTS
+
+
+def test_expired_worker_crashes_are_finite_and_terminal(tmp_path):
+    queue = DurableQueue(tmp_path / "queue.sqlite3")
+    queue.enqueue("crash-loop", max_attempts=2)
+
+    first = queue.claim("worker-a", lease_seconds=30)
+    second = queue.claim("worker-b", now=first.lease_until.timestamp() + 1, lease_seconds=30)
+    assert second.attempts == 2
+
+    with pytest.raises(QueueEmpty):
+        queue.claim("worker-c", now=second.lease_until.timestamp() + 1, lease_seconds=30)
+    assert queue.snapshot("crash-loop").state == "failed"
+    assert queue.snapshot("crash-loop").attempts == 2
 
 
 def test_worker_uses_task_retry_limit_as_total_attempt_bound(tmp_path):

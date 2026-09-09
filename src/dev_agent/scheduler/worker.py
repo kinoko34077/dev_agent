@@ -70,6 +70,8 @@ class WorkerRunner:
         if task is None:
             self.queue.fail(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
             raise RuntimeError(f"queued task is missing from StateStore: {item.task_id}")
+        max_attempts = self.max_attempts if self.max_attempts is not None else task.limits.max_retries + 1
+        item = self.queue.set_max_attempts(item.task_id, worker_id=self.worker_id, state_version=item.state_version, max_attempts=max_attempts)
         self.queue.renew(item.task_id, worker_id=self.worker_id, state_version=item.state_version, lease_seconds=self.lease_seconds)
         previous_guard = self.controller.lease_guard
         previous_proof = self.controller.lease_proof
@@ -99,6 +101,5 @@ class WorkerRunner:
             # duplicate an ambiguous external effect or spin forever.
             self.queue.defer(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
         else:
-            max_attempts = self.max_attempts if self.max_attempts is not None else task.limits.max_retries + 1
             self.queue.fail(item.task_id, worker_id=self.worker_id, state_version=item.state_version, retry=result.status not in {TaskStatus.FAILED, TaskStatus.CANCELLED}, max_attempts=max_attempts)
         return result
