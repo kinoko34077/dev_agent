@@ -24,7 +24,7 @@ Phase 6Aの第一バッチとして、ResourceLedger schema v6のquota_domain id
 - 通常Provider経路は Controller -> ProviderDispatcher -> ProviderRegistry -> Concrete Provider とする。
 - Controllerのdirect Provider処理は compatibility / legacy path として残す。
 - ExecutionContext、ToolRuntime.bound_to()、RuntimeState、AuditRecorderは既存境界を維持する。
-- Model tierによる実Provider選択、Hedge、AgentBackend、MCP/API、Phase 7C以降、Provider固有headerの解析、Provider live qualificationは次段階へ送る。正規化済み `usage.quota_observation` の取り込みとPhase 7A/BのTask profile policyは現行境界に含む。
+- Model tierによる実Provider選択、Hedge、AgentBackend、MCP/API、Phase 7C以降、未実装Providerの固有header解析、Provider live qualificationは次段階へ送る。Groqのrate-limit headerを正規化した `usage.quota_observation` の取り込みとPhase 7A/BのTask profile policyは現行境界に含む。
 
 ## 選択的ロードの目安
 

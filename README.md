@@ -39,7 +39,7 @@ Phase 6 の現在地と未完了の外部証跡は [`docs/PHASE6_PLAN.md`](docs/
 
 ## 次段階要件と移行前調整
 
-次段階の要件は requirements Index (docs/requirements/README.md) から参照してください。Multi-Free ProviderのPhase 6A基盤のうち、quota identity/observation、operational resource observation、fresh quota routing、正規化quota telemetry取り込み、注入transport Adapter契約を実装済みです。Task profileとbounded intelligence policyはPhase 7A/Bの最初の境界として実装済みです。live Provider qualification、Provider固有header解析、実Providerのtier routing、Evaluator、AgentBackend/MCPは後段です。
+次段階の要件は requirements Index (docs/requirements/README.md) から参照してください。Multi-Free ProviderのPhase 6A基盤のうち、quota identity/observation、operational resource observation、fresh quota routing、正規化quota telemetry取り込み、注入transport Adapter契約を実装済みです。Groqのrate-limit header正規化も実装済みですが、live Provider qualification、未実装Providerの固有quota観測、実Providerのtier routing、Evaluator、AgentBackend/MCPは後段です。
 
 通常のProvider経路は Controller -> ProviderDispatcher -> ProviderRegistry -> concrete Provider です。Controller内のdirect経路は既存呼び出し向けのcompatibility/legacy pathとして維持しています。Phase 7A/B境界、実HTTP Adapter、開発Worker Farm契約、Provider tool-call transcriptを含むローカル全テストは 288 passed, 1 skipped です。開発補助Workerのmanifest／result／worktree境界と組み込み保護領域は [`docs/DEVFARM.md`](docs/DEVFARM.md) を参照してください。
 

@@ -12,6 +12,7 @@
 - Controllerがassistant tool-call turnをcheckpoint可能な会話履歴へ保持し、Groq等のOpenAI互換wire contractでToolResult直前に再送できるようにした。資格確認スクリプトのcanonical Dispatcher往復もモック回帰で固定した。
 - Worker Farmにmanifest/resultの正規化検証CLIを追加し、Codexのreview前にbase revision、保護領域、変更範囲を再検証できるようにした。
 - Provider qualificationの実行方法と、資格情報・result artifact・Gate昇格を分離する運用境界を`docs/DEVFARM.md`へ追記した。
+- 現行READMEと要件IndexのProvider quota観測状態を、実装済みGroq header正規化と未実装Providerの後段要件に同期した。
 - Adapter decoder、資格情報fail-closed、manifest ownership、保護領域拒否、Provider transcript、qualification pathの回帰を含むローカル全回帰は `288 passed, 1 skipped`。Groq／Cloudflareのlive qualificationは資格情報待ちで未取得。
 
 ### 2026-09-09 JST — Phase 6B/C quota operation and Phase 7A/B policy seam

@@ -57,7 +57,7 @@ self-improvement、multi-agent orchestrationは後段である。
 
 現行Phase 6A第一バッチでは、次を行わない。
 
-- 追加Providerのlive qualification、Provider固有quota headerの解析
+- 追加Providerのlive qualification、未実装Providerの固有quota headerの解析
 - task別成功率・provider diversityを含む後段Router scoring
 - model-tierによる実Provider選択、Evaluator、escalation
 - Hedged Request
