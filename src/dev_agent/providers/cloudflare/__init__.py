@@ -3,4 +3,3 @@
 from .provider import CloudflareWorkersAIProvider
 
 __all__ = ["CloudflareWorkersAIProvider"]
-

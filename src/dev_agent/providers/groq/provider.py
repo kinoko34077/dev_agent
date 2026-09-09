@@ -18,4 +18,3 @@ class GroqProvider(OpenAICompatibleProvider):
 
     def __init__(self, transport: Callable[[dict[str, Any]], ModelResponse | Mapping[str, Any]], *, model: str = "groq") -> None:
         super().__init__(transport, model=model)
-
