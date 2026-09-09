@@ -1,7 +1,7 @@
 # Current State — v2/bootstrap
 
 最終同期時点の実装基準は `8b638a9`（Evaluator証跡のdurable記録を追加した
-code commit）です。この文書は現在の実装・検証・外部状態をまとめる正本であり、
+code commit）です。直前の文書・証跡同期commitは `30a1cd3` です。この文書は現在の実装・検証・外部状態をまとめる正本であり、
 Gate判定は [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) を正とします。
 
 ## 判定
@@ -15,8 +15,8 @@ Gate判定は [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) を正�
 
 - v2ローカル全回帰: `349 passed, 1 skipped`
 - skip: Windows ACLはdeployment-owned
-- `8b638a9`に対する最新exact-head GitHub Actions結果: この同期時点では未確認
-- 過去のCI結果は過去のcode baselineの証跡であり、現HEADの成功とは扱いません
+- 最後に外部確認したexact-head GitHub Actions: `30a1cd3`に対する `v2-core` run `34374695007` と `v2 tests` run `34374695021` がsuccess
+- このCI観測は`30a1cd3`のGITHUB_SHAに対するものです。以後のcommitは新しいrunが完了するまでCI成功済みとは扱いません
 
 ## Provider状態
 
@@ -46,7 +46,7 @@ Gate判定は [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) を正�
 
 ## 次の作業
 
-1. `8b638a9`以降のexact-head CIを外部確認し、この文書のCI状態を更新する。
+1. 次のコード変更後は、そのcommitのexact-head CIを外部確認する。直近の観測は`30a1cd3`である。
 2. DevFarm Workerの成功条件を満たす小さなpatch proposalを、同じfail-closed境界で再試行する（無理に成功扱いしない）。
 3. ResourceLedgerの残存Budget store、Controllerのlegacy executor、StateStore / ToolRuntimeの内部整理を小さなsliceで継続する。
 4. Phase 7はEvaluatorから、有限なescalation policyと実行統合へ進める。ただしmodel-tier routing、AgentBackend、MCP、自己改善の自動化は未実装です。

@@ -11,6 +11,7 @@
 - DevFarmのWorker proposalはCloudflare／OpenRouterともAPI到達後にstrict unified-diff validationで拒否された。host-verified test、公式branch統合、実Worker成功とは扱っていない。
 - `MISTRAL_API_KEY` を環境から再読込みしてlive qualificationを試行したが、推論HTTP 429で未資格化。証跡を `spec/v2/evidence/phase6-mistral-2026-09-09.json` に保存した。G6O1とProvider Gate判定は変更していない。
 - 現在状態の正本を `docs/CURRENT_STATE.md` に追加し、README／Phase 6計画／DevFarm説明／Traceabilityの古いテスト件数、credential状態、実装所有者、外部送信表現を同期した。
+- 文書同期commit `30a1cd3` のGitHub Actions exact-head CIを外部確認し、`v2-core` run `34374695007` と `v2 tests` run `34374695021` がsuccessであることを記録した。これは同commitの外部観測であり、後続commitのCI成功を意味しない。
 
 ### 2026-09-09 JST — Shared compatible HTTP, OpenRouter qualification, and quota units
 

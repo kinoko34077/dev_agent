@@ -4,11 +4,11 @@ Status: foundation VERIFIED; G6O2〜G6O6 VERIFIED; G6O1 BLOCKED_EXTERNAL; Phase 
 
 The current implementation code baseline is
 `8b638a9`. This baseline adds durable Phase 7C Evaluator evidence after the
-refactor slices. Its latest external exact-head CI result is pending
-confirmation in this checkout; older CI run IDs are not reused as evidence for
-this baseline. CI run IDs are external observations, not repository
-self-certification records. A later documentation-only commit that records
-them is not itself presented as code evidence.
+refactor slices. The last externally observed exact-head CI was for the
+documentation/evidence sync commit `30a1cd3`: `v2-core` run `34374695007` and
+`v2 tests` run `34374695021` both succeeded. This observation is not reused as
+evidence for a later commit. CI run IDs are external observations, not
+repository self-certification records.
 
 Historical baselines include the implementation before the refactor pass,
 `22c26542323b80abeeeac51e31f835cfa1d6ab67`; its external exact-head CI
