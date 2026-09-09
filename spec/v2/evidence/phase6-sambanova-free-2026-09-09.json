@@ -1,0 +1,5 @@
+{
+  "status": "failed",
+  "category": "rate_limit",
+  "message": "sambanova rate_limit: HTTP 429"
+}

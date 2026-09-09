@@ -4,7 +4,7 @@
 
 ## 15. Provider追加方針
 
-将来の候補は Gemini、Groq、Cloudflare、Mistral、OpenRouter などとする。ただし、候補列挙は実装完了を意味しない。
+将来の候補は Gemini、Groq、Cloudflare、Mistral、OpenRouter、SambaNova などとする。ただし、候補列挙は実装完了を意味しない。
 
 - 新Providerは src/dev_agent/providers/ 配下へ追加する。
 - Adapterの外側へSDK/API固有仕様を漏らさない。
@@ -77,4 +77,4 @@ Meta ProviderはProviderを束ねる抽象として将来検討するが、通�
 
 ## 現行実装への適用境界
 
-Groq、Cloudflare Workers AI、Mistral、OpenRouter FreeはProvider-neutralな注入transport AdapterとContractHarness検証まで実装した。さらにGroq／Cloudflareには標準ライブラリHTTP Adapterを追加し、Groqのrate-limit headerを正規化quota observationへ変換する。Cloudflare Workers AIは `spec/v2/evidence/phase6-cloudflare-free-2026-09-09.json` でcanonical live通信、ToolCall往復、durable audit、budget reconciliationを確認済みだが、quota値は未報告である。GroqはHTTP 403、Mistral/OpenRouterはlive HTTP未実証である。privacy分類、hedging、Meta Providerは未実装で、Adapter contract／decoderテストをlive qualificationやGate VERIFIEDの証拠に読み替えない。
+Groq、Cloudflare Workers AI、Mistral、OpenRouter Free、SambaNovaはProvider-neutralな注入transport AdapterとContractHarness検証まで実装した。さらにGroq／Cloudflare／SambaNovaには標準ライブラリHTTP Adapterを追加し、各Providerが報告するrate-limit headerをAdapter内で正規化quota observationへ変換する。Cloudflare Workers AIは `spec/v2/evidence/phase6-cloudflare-free-2026-09-09.json` でcanonical live通信、ToolCall往復、durable audit、budget reconciliationを確認済みだが、quota値は未報告である。GroqはHTTP 403、SambaNovaはHTTP 429、Mistral/OpenRouterはlive HTTP未実証である。SambaNovaの429証跡は `spec/v2/evidence/phase6-sambanova-free-2026-09-09.json` に保存し、成功・無償tier・paid worst-caseを推測しない。privacy分類、hedging、Meta Providerは未実装で、Adapter contract／decoderテストをlive qualificationやGate VERIFIEDの証拠に読み替えない。

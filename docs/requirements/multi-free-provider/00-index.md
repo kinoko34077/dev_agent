@@ -18,13 +18,13 @@ Status: DRAFT -> ACCEPTED候補
 
 ## 現行のPhase 6A実装境界
 
-Phase 6Aの第一バッチとして、ResourceLedger schema v6のquota_domain identity、quota_observations、operational observation fields、fresh quota headroom routing、provider-neutralなquota observation取り込みを実装した。同一quota domainの複数Credentialは残量を加算せず、fresh observationの保守的headroomとconcurrency hard filterを使う。Phase 7A/Bの移行境界として、Taskへtyped profileを追加し、決定的なIntelligence Policyの範囲をModelRequest metadataへ渡す。Groq、Cloudflare Workers AI、Mistral、OpenRouter Freeはnormalized Adapter/contract境界まで追加し、Groq／Cloudflareにはopt-in HTTP Adapterもある。Cloudflare Workers AIはcanonical live qualificationを取得済み、GroqはHTTP 403、Mistral/OpenRouterはlive HTTP未実証である。
+Phase 6Aの第一バッチとして、ResourceLedger schema v6のquota_domain identity、quota_observations、operational observation fields、fresh quota headroom routing、provider-neutralなquota observation取り込みを実装した。同一quota domainの複数Credentialは残量を加算せず、fresh observationの保守的headroomとconcurrency hard filterを使う。Phase 7A/Bの移行境界として、Taskへtyped profileを追加し、決定的なIntelligence Policyの範囲をModelRequest metadataへ渡す。Groq、Cloudflare Workers AI、Mistral、OpenRouter Free、SambaNovaはnormalized Adapter/contract境界まで追加し、Groq／Cloudflare／SambaNovaにはopt-in HTTP Adapterもある。Cloudflare Workers AIはcanonical live qualificationを取得済み、GroqはHTTP 403、SambaNovaはHTTP 429、Mistral/OpenRouterはlive HTTP未実証である。
 
 - G6O1は BLOCKED_EXTERNAL のまま維持する。
 - 通常Provider経路は Controller -> ProviderDispatcher -> ProviderRegistry -> Concrete Provider とする。
 - Controllerのdirect Provider処理は compatibility / legacy path として残す。
 - ExecutionContext、ToolRuntime.bound_to()、RuntimeState、AuditRecorderは既存境界を維持する。
-- Model tierによる実Provider選択、Hedge、AgentBackend、MCP/API、Phase 7C以降、未実装Providerの固有header解析は次段階へ送る。Groqのrate-limit headerを正規化した `usage.quota_observation` の取り込みとPhase 7A/BのTask profile policyは現行境界に含む。Cloudflare live qualificationはToolCall往復とdurable auditを確認したが、quota情報未報告のためquota observationはunknownである。
+- Model tierによる実Provider選択、Hedge、AgentBackend、MCP/API、Phase 7C以降、未実装Providerの固有header解析は次段階へ送る。GroqとSambaNovaのrate-limit headerを正規化した `usage.quota_observation` の取り込みとPhase 7A/BのTask profile policyは現行境界に含む。Cloudflare live qualificationはToolCall往復とdurable auditを確認したが、quota情報未報告のためquota observationはunknownである。SambaNovaのlive qualificationはAPI到達後のHTTP 429で停止しており、成功や無償tierを推測しない。
 
 ## 選択的ロードの目安
 

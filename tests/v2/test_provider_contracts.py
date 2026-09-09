@@ -7,6 +7,7 @@ from src.dev_agent.providers.groq import GroqProvider
 from src.dev_agent.providers.harness import ContractHarness
 from src.dev_agent.providers.mistral import MistralProvider
 from src.dev_agent.providers.openrouter import OpenRouterFreeProvider
+from src.dev_agent.providers.sambanova import SambaNovaProvider
 
 
 def _backend(request):
@@ -20,6 +21,7 @@ def _backend(request):
         (CloudflareWorkersAIProvider, "cloudflare"),
         (MistralProvider, "mistral"),
         (OpenRouterFreeProvider, "openrouter"),
+        (SambaNovaProvider, "sambanova"),
     ),
 )
 def test_free_provider_adapters_satisfy_normalized_contract(provider_type, provider_id):
@@ -42,6 +44,7 @@ def test_free_provider_adapters_preserve_typed_provider_errors():
         CloudflareWorkersAIProvider(failing_backend),
         MistralProvider(failing_backend),
         OpenRouterFreeProvider(failing_backend),
+        SambaNovaProvider(failing_backend),
     ):
         with pytest.raises(ProviderError) as exc:
             provider.request(request)

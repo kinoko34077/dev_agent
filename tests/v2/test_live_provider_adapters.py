@@ -6,6 +6,7 @@ from src.dev_agent.domain.protocol import ModelRequest, ToolResult
 from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.cloudflare import CloudflareWorkersAIHttpProvider
 from src.dev_agent.providers.groq import GroqHttpProvider
+from src.dev_agent.providers.sambanova import SambaNovaHttpProvider
 
 
 class _Response:
@@ -132,6 +133,84 @@ def test_cloudflare_live_http_adapter_fails_closed_when_credentials_are_missing(
     monkeypatch.delenv("CLOUDFLARE_API_TOKEN", raising=False)
     monkeypatch.delenv("CLOUDFLARE_ACCOUNT_ID", raising=False)
     provider = CloudflareWorkersAIHttpProvider(model="m")
+    request = ModelRequest(task_id="00000000-0000-0000-0000-000000000001", messages=[{"role": "user", "content": "x"}])
+
+    with pytest.raises(ProviderError) as exc:
+        provider.request(request)
+
+    assert exc.value.category == "authentication"
+
+
+def test_sambanova_http_adapter_normalizes_tool_calls_usage_and_rate_limit_headers(monkeypatch):
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["headers"] = dict(request.header_items())
+        captured["timeout"] = timeout
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        return _Response(
+            {
+                "id": "chatcmpl-sn-1",
+                "model": "Meta-Llama-3.3-70B-Instruct",
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "call_sn_1",
+                                    "type": "function",
+                                    "function": {"name": "echo", "arguments": '{"value":"ok"}'},
+                                }
+                            ],
+                        },
+                        "finish_reason": "tool_calls",
+                    }
+                ],
+                "usage": {"prompt_tokens": 3, "completion_tokens": 4, "total_tokens": 7},
+            },
+            {
+                "x-ratelimit-limit-requests": "20",
+                "x-ratelimit-remaining-requests": "19",
+                "x-ratelimit-limit-requests-day": "20",
+                "x-ratelimit-remaining-requests-day": "18",
+                "x-ratelimit-reset-requests": "30s",
+                "x-ratelimit-reset-requests-day": "2h",
+            },
+        )
+
+    monkeypatch.setattr("src.dev_agent.providers.sambanova.provider.urlopen", fake_urlopen)
+    request = ModelRequest(
+        task_id="00000000-0000-0000-0000-000000000001",
+        messages=[{"role": "user", "content": "call echo"}],
+        tool_definitions=[{"name": "echo", "description": "echo", "parameters": {"type": "object"}}],
+        tool_results=[ToolResult(call_id="00000000-0000-0000-0000-000000000002", tool_name="echo", structured_result={"value": "old"})],
+        max_output_tokens=17,
+    )
+
+    response = SambaNovaHttpProvider(model="Meta-Llama-3.3-70B-Instruct", api_key="secret", timeout_seconds=4).request(request)
+
+    assert captured["url"] == "https://api.sambanova.ai/v1/chat/completions"
+    assert captured["headers"]["Authorization"] == "Bearer secret"
+    assert captured["payload"]["model"] == "Meta-Llama-3.3-70B-Instruct"
+    assert captured["payload"]["max_completion_tokens"] == 17
+    assert captured["payload"]["tools"][0]["type"] == "function"
+    assert response.provider == "sambanova"
+    assert response.tool_calls[0].tool_name == "echo"
+    assert response.tool_calls[0].arguments == {"value": "ok"}
+    assert response.usage["total_tokens"] == 7
+    quota = response.usage["quota_observation"]
+    assert quota["request_limit"] == 20
+    assert quota["request_remaining"] == 19
+    assert quota["daily_remaining"] == 18
+    assert quota["source"] == "sambanova-rate-limit-header"
+
+
+def test_sambanova_http_adapter_fails_closed_when_credentials_are_missing(monkeypatch):
+    monkeypatch.delenv("SAMBANOVA_API_KEY", raising=False)
+    provider = SambaNovaHttpProvider(model="m")
     request = ModelRequest(task_id="00000000-0000-0000-0000-000000000001", messages=[{"role": "user", "content": "x"}])
 
     with pytest.raises(ProviderError) as exc:
