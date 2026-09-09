@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "evidence_head": "6ffc8ba68ad9ebd1684c37c5783348177db5e2de",
+  "evidence_head": "e4464c8953eabc726033a79268cb15f855c81221",
   "evidence_head_role": "code_baseline_only",
   "evidence_policy": {
     "source": "external_ci",
@@ -80,7 +80,7 @@
     "E": {
       "E29": {"status": "VERIFIED", "evidence": ["remote branch legacy/v1-final"]},
       "E30": {"status": "VERIFIED", "evidence": ["requirements-v2-dev.txt and requirements-v1-legacy.txt"]},
-      "E31": {"status": "VERIFIED", "phase": "phase3_5", "evidence": ["scripts/check_head.py", ".github/workflows/v2-core.yml:exact HEAD check", ".github/workflows/v2-tests.yml:exact HEAD check", "GitHub Actions v2-core run 34295564143 passed on 6ffc8ba68ad9ebd1684c37c5783348177db5e2de", "GitHub Actions v2 tests run 34295564105 passed on 6ffc8ba68ad9ebd1684c37c5783348177db5e2de"], "responsibility": "Repository CI exact-head verification; runtime transition correctness remains B11."},
+      "E31": {"status": "VERIFIED", "phase": "phase3_5", "evidence": ["scripts/check_head.py", ".github/workflows/v2-core.yml:exact HEAD check", ".github/workflows/v2-tests.yml:exact HEAD check", "GitHub Actions v2-core run 34303157036 passed with GITHUB_SHA=e4464c8953eabc726033a79268cb15f855c81221", "GitHub Actions v2 tests run 34303157026 passed with GITHUB_SHA=e4464c8953eabc726033a79268cb15f855c81221", "evidence_policy=external_ci"], "responsibility": "Repository CI exact-head verification; runtime transition correctness remains B11. The CI provider is the source of truth for run result and GITHUB_SHA."},
       "E32": {"status": "VERIFIED", "phase": "phase3_5", "evidence": ["recovery/diagnose.py:configuration/git/test-runner/persisted-report/artifact-root/scheduler-queue checks", "recovery/test_results.py:JUnit parser", "recovery/validate_artifacts.py:event artifact validator", "recovery/validate_queue.py:schema v3 and lease/retry validation", "tests/v2/test_recovery.py::test_recovery_validates_persisted_junit_report", "tests/v2/test_recovery.py::test_recovery_validates_event_artifact_root", "tests/v2/test_phase6_recovery.py::test_recovery_validates_scheduler_queue_schema_and_attempt_ceiling", "GitHub Actions v2-core run 34295564143 passed on exact evidence_head", "GitHub Actions v2 tests run 34295564105 passed on exact evidence_head"]},
       "E33": {"status": "VERIFIED", "phase": "phase3_5", "evidence": ["recovery/backup.py:backup_sqlite, restore_sqlite, validate_backup", "tests/v2/test_recovery_sqlite.py::test_recovery_backup_restore_and_maintenance_lock", "tests/v2/test_recovery.py::test_phase6_recovery_operator_drill_runs_restore_lkg_rollback_and_repair"], "deferred_requirements": ["phase6_future/E33/live operator restore drill"]},
       "E34": {"status": "VERIFIED", "evidence": ["recovery/git_recovery.py:record_last_known_good", "tests/v2/test_recovery.py::test_git_recovery_records_lkg_and_requires_explicit_mutation"]},

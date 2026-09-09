@@ -3,9 +3,12 @@
 目的は、外部サービスが停止してもローカルで検証可能な境界を先に完了し、外部依存の項目を明確な保留として後回しにできる状態を作ること。
 
 Current State sync: Phase 3.5〜5 acceptance remains closed; the current Phase 6
-code evidence baseline is `6ffc8ba`. Phase 6 is documented separately in `docs/PHASE6_PLAN.md`; this document is the
-historical hardening record. Gate evidence distinguishes local, CI, and live
-Provider evidence.
+code evidence baseline is `e4464c8`. External CI runs for that revision passed:
+`v2-core` run `34303157036` and `v2 tests` run `34303157026`. Phase 6 is
+documented separately in `docs/PHASE6_PLAN.md`; this document is the historical
+hardening record. Gate evidence distinguishes local, CI, and live Provider
+evidence. `GATE_STATUS.json.evidence_head` is a code-baseline pointer only;
+the CI provider's `GITHUB_SHA` and run result are the exact-head source of truth.
 
 ## 現在の実行範囲（2026-09-09 JST）
 
@@ -83,16 +86,28 @@ Phase 6 recovery progress: RuntimeState, StateStore, ResourceLedger, and Durable
 migrations. `recovery/validate_resources.py` and `recovery/validate_queue.py` independently validate the
 resource and scheduler schemas, lease shape, and retry ceilings. The RecoveryOperator drill exercises validated SQLite restore, LKG
 recording, rollback, and repair-branch creation in an isolated temporary Git
-checkout; production mutations remain explicit operator actions.
+checkout; `scripts/phase6_recovery_drill.py` records the same operator-equivalent
+sequence, while production mutations remain explicit operator actions.
+
+Phase 6 operational progress: a shared Controller now accepts an immutable
+per-run `ExecutionContext` for lease guard/proof isolation, and ToolRuntime
+binding is non-mutating through `bound_to()`. Recovery Reserve use is formally
+classified and authority-gated. The live local qualification script verified
+Controller -> ProviderDispatcher -> ResourceRouter -> Budget -> Ollama HTTP ->
+usage reconciliation -> durable audit with `qwen3:8b`. G6O3/G6O4/G6O5/G6O6
+are verified within their stated scopes; G6O1 remains pending paid-provider
+worst-case evidence and protected operator budget administration.
 
 Approval progress: approval records bind to one exact internal call ID and canonical hash of the effective arguments after path canonicalization. Broad task/level reuse is rejected. One-shot consumption, expiry, revoke, and duplicate-insert rejection are enforced; SQLite consumption now uses `BEGIN IMMEDIATE` so validation, expiry/revoke check, and consumption commit are one transaction. Reconciliation audit insertion and intent transition are also one transaction. Reconciliation inspection remains available for an already-claimed side effect.
 
-Gate governance progress: `spec/v2/GATE_STATUS.json` schema v4 uses `IMPLEMENTED`, `INTEGRATED`, and `VERIFIED`; only `VERIFIED` is accepted as complete. B11 runtime transition evidence and E31 exact-head CI evidence are tracked separately; current Phase 3.5/4/5 acceptance gates are now all verified, with Phase 6/7 deferred requirements listed separately.
+Gate governance progress: `spec/v2/GATE_STATUS.json` schema v4 uses `IMPLEMENTED`, `INTEGRATED`, and `VERIFIED`; only `VERIFIED` is accepted as complete. B11 runtime transition evidence and E31 exact-head CI evidence are tracked separately; current Phase 3.5/4/5 acceptance gates are now all verified, with Phase 6/7 deferred requirements listed separately. Phase 6 operational gates are separated by responsibility, so live Provider and production Recovery requirements do not contaminate the Scheduler or Fencing gates.
 
 Responsibility boundary: B11 is the runtime guarantee that critical Controller
 state transitions use `commit_transition()` with crash/restart coverage. E31 is
 the repository/CI guarantee that the exact commit is checked and its test
-evidence is retained. Passing one does not promote the other.
+evidence is retained. CI run metadata is external evidence; writing it back to
+the repository never promotes the commit that writes the metadata. Passing one
+does not promote the other.
 
 ## Gate D — Provider contract
 
