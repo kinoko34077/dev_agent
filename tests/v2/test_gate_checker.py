@@ -4,11 +4,11 @@ import json
 from scripts.check_gate import check, load_status
 
 
-def test_current_gate_status_reports_phase6_operational_work_in_progress():
+def test_current_gate_status_reports_only_external_phase6_blocker():
     value = load_status(Path("spec/v2/GATE_STATUS.json"))
     code, details = check(value)
-    assert code == 1
-    assert any(detail.startswith("G/G6O") for detail in details)
+    assert code == 2
+    assert details == ["G/G6O1: requires a real paid-provider worst-case qualification and deployment-owned protected budget configuration"]
 
 
 def test_gate_checker_distinguishes_all_external_blockers():

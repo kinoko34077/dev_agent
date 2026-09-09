@@ -95,12 +95,13 @@ binding is non-mutating through `bound_to()`. Recovery Reserve use is formally
 classified and authority-gated. The live local qualification script verified
 Controller -> ProviderDispatcher -> ResourceRouter -> Budget -> Ollama HTTP ->
 usage reconciliation -> durable audit with `qwen3:8b`. G6O3/G6O4/G6O5/G6O6
-are verified within their stated scopes; G6O1 remains pending paid-provider
-worst-case evidence and protected operator budget administration.
+are verified within their stated scopes; G6O1 is externally blocked pending
+paid-provider worst-case evidence and deployment-owned protected operator
+budget administration.
 
 Approval progress: approval records bind to one exact internal call ID and canonical hash of the effective arguments after path canonicalization. Broad task/level reuse is rejected. One-shot consumption, expiry, revoke, and duplicate-insert rejection are enforced; SQLite consumption now uses `BEGIN IMMEDIATE` so validation, expiry/revoke check, and consumption commit are one transaction. Reconciliation audit insertion and intent transition are also one transaction. Reconciliation inspection remains available for an already-claimed side effect.
 
-Gate governance progress: `spec/v2/GATE_STATUS.json` schema v4 uses `IMPLEMENTED`, `INTEGRATED`, and `VERIFIED`; only `VERIFIED` is accepted as complete. B11 runtime transition evidence and E31 exact-head CI evidence are tracked separately; current Phase 3.5/4/5 acceptance gates are now all verified, with Phase 6/7 deferred requirements listed separately. Phase 6 operational gates are separated by responsibility, so live Provider and production Recovery requirements do not contaminate the Scheduler or Fencing gates.
+Gate governance progress: `spec/v2/GATE_STATUS.json` schema v4 uses `IMPLEMENTED`, `INTEGRATED`, `BLOCKED`, and `VERIFIED`; only `VERIFIED` is accepted as complete. B11 runtime transition evidence and E31 exact-head CI evidence are tracked separately; current Phase 3.5/4/5 acceptance gates are now all verified, with Phase 6/7 deferred requirements listed separately. Phase 6 operational gates are separated by responsibility, so live Provider and production Recovery requirements do not contaminate the Scheduler or Fencing gates. G6O1 is marked non-actionable `BLOCKED` because its remaining proof requires deployment credentials, billing authority, and protected operator configuration.
 
 Responsibility boundary: B11 is the runtime guarantee that critical Controller
 state transitions use `commit_transition()` with crash/restart coverage. E31 is
