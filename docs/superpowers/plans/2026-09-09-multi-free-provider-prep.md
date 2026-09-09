@@ -35,10 +35,10 @@
 **Interfaces:**
 - Produces one index with chapter summaries and section mappings; each chapter is independently readable and states which items are future/non-goal.
 
-- [ ] Step 1: Create the top-level and chapter indexes with links only to chapter files and a short loading guide.
-- [ ] Step 2: Transcribe the supplied requirements into seven focused chapters without adding implementation requirements beyond the source.
-- [ ] Step 3: Validate that every source section 1-42 is mapped once and every index link resolves.
-- [ ] Step 4: Commit the requirements documentation.
+- [x] Step 1: Create the top-level and chapter indexes with links only to chapter files and a short loading guide.
+- [x] Step 2: Transcribe the supplied requirements into seven focused chapters without adding implementation requirements beyond the source.
+- [x] Step 3: Validate that every source section 1-42 is mapped once and every index link resolves.
+- [x] Step 4: Commit the requirements documentation.
 
 ### Task 2: Make the Provider runtime boundary explicit
 
@@ -53,19 +53,17 @@
 - Consumes existing ProviderDispatcher, ProviderRegistry, ModelProvider, ResourceControlPlane, and ExecutionContext APIs.
 - Produces explicit comments/docstrings and tests distinguishing the preferred dispatcher path from the compatibility direct-provider path; no behavior change.
 
-- [ ] Step 1: Add or adjust a failing boundary assertion that the dispatcher advertises the canonical provider path and the Controller direct branch is compatibility-only.
-- [ ] Step 2: Run the focused test and confirm the assertion fails.
-- [ ] Step 3: Add minimal documentation-level code markers/docstrings at the existing branch and dispatcher contract; do not rewrite dispatch logic.
-- [ ] Step 4: Run the focused test and confirm it passes.
-- [ ] Step 5: Update Phase 6 docs to state the boundary and list direct-provider behavior as compatibility.
-- [ ] Step 6: Commit the boundary clarification.
+- [x] Step 1: Add or adjust a failing boundary assertion that the dispatcher advertises the canonical provider path and the Controller direct branch is compatibility-only.
+- [x] Step 2: Run the focused test and confirm the assertion fails.
+- [x] Step 3: Add minimal documentation-level code markers/docstrings at the existing branch and dispatcher contract; do not rewrite dispatch logic.
+- [x] Step 4: Run the focused test and confirm it passes.
+- [x] Step 5: Update Phase 6 docs to state the boundary and list direct-provider behavior as compatibility.
+- [x] Step 6: Commit the boundary clarification.
 
 ### Task 3: Split oversized provider-related integration tests without semantic edits
 
 **Files:**
 - Create: tests/v2/test_provider_dispatch.py
-- Create: tests/v2/test_provider_reconciliation.py
-- Create: tests/v2/test_provider_crash_replay.py
 - Create: tests/v2/test_budget_dispatch.py
 - Modify: tests/v2/test_phase6_integration.py
 - Modify: tests/v2/test_integration_hardening.py only if a provider test is moved.
@@ -73,11 +71,16 @@
 **Interfaces:**
 - Produces the same pytest node IDs only where practical; moved tests must preserve bodies and assertions, while any unavoidable node-ID change is recorded in the changelog.
 
-- [ ] Step 1: Inventory provider, budget, and crash test functions and map each to exactly one destination file.
-- [ ] Step 2: Move only complete test functions and required imports/helpers using a mechanical, reviewable patch; do not change assertions.
-- [ ] Step 3: Run the moved modules and compare collected test counts with the pre-move count.
-- [ ] Step 4: Run the complete v2 test suite.
-- [ ] Step 5: Commit the test organization change.
+- [x] Step 1: Inventory provider, budget, and crash test functions and map each to exactly one destination file.
+- [x] Step 2: Move only complete budget/resource-control test functions and required imports/helpers using a mechanical, reviewable patch; do not change assertions.
+- [x] Step 3: Run the moved modules and compare collected test counts with the pre-move count.
+- [x] Step 4: Run the complete v2 test suite.
+- [x] Step 5: Commit the test organization change.
+
+The split is intentionally light for this migration-prep boundary: three
+resource/budget tests moved to test_budget_dispatch.py, while the existing
+provider reconciliation and crash/replay tests remain together so that this
+documentation-only transition does not create a large mechanical diff.
 
 ### Task 4: Synchronize Current State and verify the migration-prep boundary
 
@@ -91,9 +94,16 @@
 **Interfaces:**
 - Produces an accurate statement that Phase 6 foundation is VERIFIED, G6O2-G6O6 are VERIFIED, G6O1 is BLOCKED_EXTERNAL, and the new requirements are accepted-candidate documentation for the next implementation stage.
 
-- [ ] Step 1: Re-read the chapter index and current Gate state.
-- [ ] Step 2: Update Current State without changing Gate status or inventing future evidence.
-- [ ] Step 3: Run full local verification and inspect all diffs.
-- [ ] Step 4: Commit and push the final migration-prep batch.
-- [ ] Step 5: Record remaining future work without starting it.
+- [x] Step 1: Re-read the chapter index and current Gate state.
+- [x] Step 2: Update Current State without changing Gate status or inventing future evidence.
+- [x] Step 3: Run full local verification and inspect all diffs.
+- [x] Step 4: Commit and push the final migration-prep batch.
+- [x] Step 5: Record remaining future work without starting it.
 
+## Execution record
+
+- Requirements documentation commit: 6bf82c8
+- Provider boundary, test split, and Current State commit: 3e1cf3f
+- Local verification: 253 passed, 1 skipped; compileall passed.
+- Exact-head CI: v2-core run 34314830597 and v2 tests run 34314830596 both passed for 3e1cf3f6d871f61437993d8429eb287b6911fab9.
+- G6O1 remains BLOCKED_EXTERNAL. No paid Provider request or future feature implementation was started.
