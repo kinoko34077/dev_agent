@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 import math
+import os
 from pathlib import Path
 from typing import Any
 
@@ -92,7 +93,14 @@ class BudgetAuthority:
         deployment.  A file inside the Agent workspace is rejected even when
         its JSON is otherwise valid.
         """
-        path = Path(config_path).expanduser().resolve()
+        raw_path = Path(config_path).expanduser()
+        # A symlink can be swapped between validation and read, or can point
+        # at an Agent-controlled location.  The deployment-owned file must be
+        # a directly addressed regular file; its parent may still be a
+        # supervisor-managed mount or junction.
+        if raw_path.is_symlink():
+            raise PermissionError("protected budget config must not be a symlink")
+        path = raw_path.resolve()
         root = Path(agent_root or Path.cwd()).expanduser().resolve()
         try:
             path.relative_to(root)
@@ -102,28 +110,44 @@ class BudgetAuthority:
             raise PermissionError("budget config must be outside the Agent workspace")
         if not path.is_file():
             raise FileNotFoundError(path)
+        if os.name != "nt":
+            # On POSIX deployments, a protected config that is writable by a
+            # group or by other users is not an operator boundary.  Windows
+            # ACLs are intentionally left to the deployment verifier rather
+            # than guessed from POSIX mode bits.
+            if path.stat().st_mode & 0o022:
+                raise PermissionError("protected budget config must not be group/world writable")
         try:
             value = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise ValueError(f"invalid protected budget config: {exc}") from exc
         if not isinstance(value, dict):
             raise ValueError("protected budget config must be an object")
+        for key in ("hard_cap_minor", "recovery_reserve_minor"):
+            number = value.get(key)
+            if isinstance(number, bool) or not isinstance(number, int):
+                raise ValueError(f"protected budget {key} must be an integer")
+        currency = value.get("currency", "JPY")
+        if not isinstance(currency, str):
+            raise ValueError("protected budget currency must be a string")
         period_value = value.get("period")
         period = None
         if period_value is not None:
             if not isinstance(period_value, dict):
                 raise ValueError("protected budget period must be an object")
+            if not all(isinstance(period_value.get(key), str) for key in ("period_id", "starts_at", "ends_at")):
+                raise ValueError("protected budget period fields must be strings")
             period = BudgetPeriod(
-                str(period_value.get("period_id", "")),
-                str(period_value.get("starts_at", "")),
-                str(period_value.get("ends_at", "")),
+                period_value["period_id"],
+                period_value["starts_at"],
+                period_value["ends_at"],
             )
         BudgetAuthority.configure(
             ledger,
             BudgetPolicy(
                 hard_cap_minor=value.get("hard_cap_minor"),
                 recovery_reserve_minor=value.get("recovery_reserve_minor"),
-                currency=value.get("currency", "JPY"),
+                currency=currency,
                 period=period,
             ),
         )

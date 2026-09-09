@@ -28,7 +28,9 @@ Implemented in `src/dev_agent/resources/ledger.py` and `budget.py`.
 - Deployments can expose `BudgetAuthority.configure_from_protected_file()` to
   an operator supervisor using a config path outside the Agent workspace; the
   runtime has no file-write path, while OS ACL/Secret Store protection of that
-  external path remains a deployment prerequisite.
+  external path remains a deployment prerequisite. The loader rejects
+  symlinked config files, type coercion, and group/world-writable files on
+  POSIX; Windows ACL verification remains deployment-owned.
 - Recovery Reserve is not a caller-controlled boolean: direct
   `recovery=True` reservations are rejected, and only
   `BudgetAuthority.reserve_recovery(governor, recovery_task, ...)` can use a

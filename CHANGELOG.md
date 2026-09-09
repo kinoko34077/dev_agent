@@ -17,6 +17,7 @@
 - Workerのlease contextをper-run immutable `ExecutionContext`へ移し、Recovery Reserveの直接 `recovery=True` を拒否して `BudgetAuthority.reserve_recovery()` に限定。後者は永続Taskの `task_class="recovery"` を要求する。
 - resource-ledgerのnative reservation整合性をRecovery validatorで検査。
 - Phase 6 operational Gateは引き続き `IN_PROGRESS`。G6O2〜G6O6は各責務の受入をVERIFIED済みで、G6O1のみ実Providerのpaid worst-case dispatchと保護operator budget設定の外部実証待ち。
+- Protected budget config loaderがsymlink、型の暗黙変換、POSIXのgroup/world書込を拒否し、Phase 6のlocal qualificationも外部設定経路を通すよう同期。
 
 ### 現在の到達点（2026-09-08 JST）
 

@@ -49,7 +49,20 @@ def qualify(*, model: str, base_url: str, timeout_seconds: float) -> dict:
             )
             ledger.observe("ollama-local", available=1, health="healthy", confidence=1.0)
             policy = BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=10)
-            BudgetAuthority.configure(ledger, policy)
+            # Exercise the deployment-facing configuration boundary even in
+            # this isolated qualification.  The temporary operator file is
+            # outside the repository root; production must replace it with an
+            # ACL/Secret-Store owned path.
+            protected_config = root / "operator-budget.json"
+            protected_config.write_text(
+                json.dumps({
+                    "hard_cap_minor": policy.hard_cap_minor,
+                    "recovery_reserve_minor": policy.recovery_reserve_minor,
+                    "currency": policy.currency,
+                }),
+                encoding="utf-8",
+            )
+            BudgetAuthority.configure_from_protected_file(ledger, protected_config, agent_root=ROOT)
             governor = BudgetGovernor(ledger, policy)
             control = ResourceControlPlane(ResourceRouter(ledger), governor)
             provider = ProviderDispatcher(

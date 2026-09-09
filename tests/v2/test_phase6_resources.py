@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import inspect
 import multiprocessing
+import os
 import sqlite3
 
 import pytest
@@ -186,6 +187,52 @@ def test_budget_admin_reads_only_protected_config_outside_agent_workspace(tmp_pa
     assert ledger.budget_config()["hard_cap_minor"] == 100
     with pytest.raises(PermissionError, match="outside"):
         BudgetAuthority.configure_from_protected_file(ledger, workspace / "budget.json", agent_root=workspace)
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ('{"hard_cap_minor": true, "recovery_reserve_minor": 0}', "hard_cap_minor"),
+        ('{"hard_cap_minor": 100, "recovery_reserve_minor": "25"}', "recovery_reserve_minor"),
+        ('{"hard_cap_minor": 100, "recovery_reserve_minor": 25, "currency": 1}', "currency"),
+        ('{"hard_cap_minor": 100, "recovery_reserve_minor": 25, "period": {"period_id": 1, "starts_at": "a", "ends_at": "b"}}', "period fields"),
+    ],
+)
+def test_protected_budget_config_rejects_type_coercion(tmp_path, payload, message):
+    protected = tmp_path / "operator-config" / "budget.json"
+    protected.parent.mkdir()
+    protected.write_text(payload, encoding="utf-8")
+    ledger = ResourceLedger(tmp_path / "protected-budget-types.sqlite3")
+
+    with pytest.raises(ValueError, match=message):
+        BudgetAuthority.configure_from_protected_file(ledger, protected, agent_root=tmp_path / "agent")
+
+
+def test_protected_budget_config_rejects_symlink(tmp_path):
+    protected = tmp_path / "operator-config" / "budget.json"
+    target = tmp_path / "real-budget.json"
+    protected.parent.mkdir()
+    target.write_text('{"hard_cap_minor": 100, "recovery_reserve_minor": 25}', encoding="utf-8")
+    try:
+        protected.symlink_to(target)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation is unavailable")
+    ledger = ResourceLedger(tmp_path / "protected-budget-link.sqlite3")
+
+    with pytest.raises(PermissionError, match="symlink"):
+        BudgetAuthority.configure_from_protected_file(ledger, protected, agent_root=tmp_path / "agent")
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows ACLs are deployment-owned")
+def test_protected_budget_config_rejects_group_or_world_writable_file(tmp_path):
+    protected = tmp_path / "operator-config" / "budget.json"
+    protected.parent.mkdir()
+    protected.write_text('{"hard_cap_minor": 100, "recovery_reserve_minor": 25}', encoding="utf-8")
+    protected.chmod(0o666)
+    ledger = ResourceLedger(tmp_path / "protected-budget-mode.sqlite3")
+
+    with pytest.raises(PermissionError, match="group/world"):
+        BudgetAuthority.configure_from_protected_file(ledger, protected, agent_root=tmp_path / "agent")
 
 
 def test_budget_reservation_is_atomic_across_independent_ledger_connections(tmp_path):

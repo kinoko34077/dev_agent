@@ -61,6 +61,9 @@ see `docs/PHASE6_PLAN.md`.
 - Cancellation of an in-flight Provider request is persisted as
   `WAITING_RECONCILIATION` with `unable_to_confirm`; only a request that has
   not started can be durably marked `terminated`.
+- Protected budget configuration rejects workspace-local paths, symlinked
+  files, JSON type coercion, and group/world-writable files on POSIX. Windows
+  ACL/Secret-Store ownership remains an explicit deployment prerequisite.
 - Recovery now supports validated atomic backup and restore, non-destructive
   Git diagnostics, last-known-good recording, rollback planning, and explicit
   permission gates for rollback/repair-branch mutation.
