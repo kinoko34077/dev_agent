@@ -2,8 +2,9 @@
 
 The evaluator consumes host-observed evidence.  It does not call the model
 that produced a result, infer success from a model claim, or grant itself a
-higher intelligence tier.  Persistence and orchestration are deliberately
-left to a later integration slice.
+higher intelligence tier.  The :class:`EvaluationCoordinator` supplies the
+small integration seam that records the result and returns a bounded plan;
+the evaluator itself remains pure and provider-independent.
 """
 
 from __future__ import annotations

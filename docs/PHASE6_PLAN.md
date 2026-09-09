@@ -1,10 +1,11 @@
 # Phase 6 — Resource / Survival / Recovery
 
-Status: foundation VERIFIED; G6O2〜G6O6 VERIFIED; G6O1 BLOCKED_EXTERNAL; Phase 6A quota/provider expansion locally verified; OpenRouter Free and Cloudflare canonical live qualification verified; Mistral live attempt HTTP 429 and unqualified; Groq models probe HTTP 403; Phase 7C evaluator core locally verified
+Status: foundation VERIFIED; G6O2〜G6O6 VERIFIED; G6O1 BLOCKED_EXTERNAL; Phase 6A quota/provider expansion locally verified; OpenRouter Free and Cloudflare canonical live qualification verified; Mistral live attempt HTTP 429 and unqualified; Groq models probe HTTP 403; Phase 7C evaluator core and Phase 7D bounded coordinator locally verified
 
-The current refactor code baseline is
-`47191d4a8725af68848a43a0900af63afc4a42d8`. The exact-head GitHub Actions for
-that commit both succeeded: `v2-core` run `34384890829` (Python 3.10 and 3.11
+The current code baseline is
+`b6e2892a8729dbef453d28161d98def2ea63383d`. The latest exact-head GitHub
+Actions evidence is for the prior refactor commit `47191d4a8725af68848a43a0900af63afc4a42d8`:
+both workflows succeeded, `v2-core` run `34384890829` (Python 3.10 and 3.11
 matrix jobs) and `v2 tests` run `34384890828`. CI run IDs are external
 observations, not repository self-certification records.
 
@@ -62,7 +63,9 @@ The canonical path stays
 Controller -> ProviderDispatcher -> ProviderRegistry -> concrete Provider,
 while the Controller direct-provider branch remains compatibility-only. Phase
 7C now has a deterministic host-evidence evaluator and durable event recorder;
-it does not yet implement model-tier routing, escalation execution, Hedging,
+Phase 7D adds a coordinator that records that evidence before returning one
+bounded escalation plan. It does not yet implement model-tier routing,
+escalation execution, Hedging,
 AgentBackend, MCP, evaluator promotion, or later Phase 7 stages.
 
 ## 6A — Resource Ledger and Budget Governor

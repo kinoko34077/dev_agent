@@ -1,6 +1,6 @@
 # Current State — v2/bootstrap
 
-現在のコード基準は `47191d4a8725af68848a43a0900af63afc4a42d8` です。R2〜R7の
+現在のコード基準は `b6e2892a8729dbef453d28161d98def2ea63383d` です。R2〜R7の
 リファクタを完了し、公開Protocol、schema v7、Provider contract、Gate判定は
 変更していません。GATE_STATUSのstatusはこの同期でも変更しません。
 
@@ -9,12 +9,13 @@
 - Phase 6 foundation: `VERIFIED`
 - Phase 6 operational: `G6O2`〜`G6O6` は `VERIFIED`
 - `G6O1`: `BLOCKED_EXTERNAL`（実paid Providerのworst-case課金実証と、deployment-owned budget設定の外部保護が必要）
-- Phase 7A/B/C: Task profile、bounded policy、決定的host evaluatorとdurable evidenceまで実装済み。実Model tier routing、escalation execution、AgentBackend、MCPは未実装
+- Phase 7A/B/C/D: Task profile、bounded policy、決定的host evaluator、durable evidence、Evaluatorから有限なescalation planを返すcoordinatorまで実装済み。実Model tier routing、planのdispatch実行、AgentBackend、MCPは未実装
 - Gate昇格やlive qualificationの成功は、local testやWorker proposalから推測しません
 
 ## 検証
 
 - v2ローカル全回帰: `359 passed, 1 skipped in 67.97s`
+- Phase 7D coordinator targeted regression: `18 passed in 0.30s`
 - skip: `tests/v2/test_budget_reservations.py:142`（Windows ACLはdeployment-owned）
 - 変更前refactor baseline: `8bf7c2e`、`358 passed, 1 skipped in 66.76s`
 - exact-head GitHub Actions: `47191d4` に対し `v2-core` run `34384890829`（kernel 3.10 job `102578562036`、3.11 job `102578562331`）と `v2 tests` run `34384890828` がsuccess
@@ -57,8 +58,8 @@ Model生成patchがstrict unified-diff検証で拒否され、host-verified Work
 ## 次の作業（Refactor後）
 
 1. DevFarmは、承認済みmanifestで生成品質が満たせる小taskを再試行する。成功しない場合も失敗artifactを正本として保持する
-2. Phase 7Dとして、決定的Evaluatorを実行結果へ接続し、有限なretry/escalation policyを追加する。自動patch適用、無制限retry、Gate自動昇格は行わない
-3. Phase 7A/BのTask profileと、実Providerをbinding/model単位で選ぶbounded routingを段階導入する
+2. Phase 7A/Bとして、Task profileのbounded tierを明示的なresource metadataへ接続するmodel routingを段階導入する
+3. Phase 7Dのplanは、実際のretry/escalation dispatchへ自動接続せず、host側review・policy・既存ControlPlaneを経由する境界を追加する
 4. G6O1、Groq、Mistral、SambaNovaの外部状態は、実証が得られるまで現在の判定を維持する
 
 READMEは入口、`PHASE6_PLAN.md`はPhase 6の受入条件、`V2_EXECUTION_PLAN.md`はロードマップ、

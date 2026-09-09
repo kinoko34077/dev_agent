@@ -45,9 +45,10 @@ Phase 7の候補条件:
 Phase 7A/Bの最初の境界として、Task profile (`task_type`、`risk`、
 `required_capabilities`) と決定的なIntelligence Policyを実装する。Policyは
 L0〜L3のbounded tierを算出し、model metadataによる自己昇格を受け付けない。
-これは実Providerのmodel selectionをまだ変更しない。Phase 7CのEvaluator、
-7Dのescalation、AgentBackend、Codex/MCP integration、workflow promotion、
-self-improvement、multi-agent orchestrationは後段である。
+これは実Providerのmodel selectionをまだ変更しない。Phase 7CのEvaluatorと
+7Dのbounded evaluation-to-plan coordinatorまでは実装済みだが、planの実行、
+AgentBackend、Codex/MCP integration、workflow promotion、self-improvement、
+multi-agent orchestrationは後段である。
 
 ## 38. External agent timing
 

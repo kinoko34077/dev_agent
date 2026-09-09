@@ -69,5 +69,6 @@ Phase 7A/Bの移行境界として、`Task`は `task_type`、`risk`、
 minimum/maximum/allowed tierを決定的に算出し、Controllerはその結果を
 ModelRequest metadataとaudit-visible requestへ渡す。これはモデル選択や
 実Providerのtier qualificationではなく、モデルが自己申告で昇格できない
-policy seamである。Evaluator、escalation、workflow promotion、
-AgentBackend/MCPは後段である。
+policy seamである。Phase 7Dでは、host側のEvaluator結果をdurable eventへ
+記録し、有限なescalation planを返すcoordinatorまで追加した。planの実行、
+workflow promotion、AgentBackend/MCPは後段である。

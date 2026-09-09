@@ -4,7 +4,7 @@
 >
 > この `v2/bootstrap` は新しい Provider-neutral Kernel の開発ブランチです。v2 の起点・実装状態は [`docs/V2_EXECUTION_PLAN.md`](docs/V2_EXECUTION_PLAN.md) と [`spec/v2/INTEGRATION_HARDENING.md`](spec/v2/INTEGRATION_HARDENING.md) を正とします。以下の Gemini / `core/main.py` 手順は legacy v1 の記録であり、v2 Runtime の起動手順ではありません。
 
-このブランチでの現在の実行境界は `src/dev_agent`、v2 の運用設定は [`config/v2.yaml`](config/v2.yaml)、復旧操作は `python -m recovery.rescue diagnose --json` です。Phase 6 foundation は検証済みで、G6O2〜G6O6のoperational Gateも各責務内で検証済みです。G6O1のみ、有償Providerのworst-case実証とdeployment-owned budget設定の外部保護確認待ちです。Phase 6AではResourceLedger schema v7のquota domain/generic observation、quota-aware routing、正規化quota telemetry取り込み、Groq・Cloudflare・Mistral・OpenRouter Free・SambaNovaのProvider-neutral Adapter境界を追加しています。Cloudflare Workers AIとOpenRouter Freeは現行Phase 6 canonical経路でlive qualification成功、Groqはmodels endpoint HTTP 403、Mistralはキー読込み後の推論HTTP 429、SambaNovaはmodels endpoint HTTP 200後の推論HTTP 429/402で未 qualificationです。quota非報告時は`unknown_not_reported`のままです。Phase 7Cではhost側の決定的Evaluatorとdurable evidence記録まで実装済みですが、実Providerのmodel-tier選択はまだ行いません。詳細な現在状態は [`docs/CURRENT_STATE.md`](docs/CURRENT_STATE.md) を参照してください。
+このブランチでの現在の実行境界は `src/dev_agent`、v2 の運用設定は [`config/v2.yaml`](config/v2.yaml)、復旧操作は `python -m recovery.rescue diagnose --json` です。Phase 6 foundation は検証済みで、G6O2〜G6O6のoperational Gateも各責務内で検証済みです。G6O1のみ、有償Providerのworst-case実証とdeployment-owned budget設定の外部保護確認待ちです。Phase 6AではResourceLedger schema v7のquota domain/generic observation、quota-aware routing、正規化quota telemetry取り込み、Groq・Cloudflare・Mistral・OpenRouter Free・SambaNovaのProvider-neutral Adapter境界を追加しています。Cloudflare Workers AIとOpenRouter Freeは現行Phase 6 canonical経路でlive qualification成功、Groqはmodels endpoint HTTP 403、Mistralはキー読込み後の推論HTTP 429、SambaNovaはmodels endpoint HTTP 200後の推論HTTP 429/402で未 qualificationです。quota非報告時は`unknown_not_reported`のままです。Phase 7C/Dではhost側の決定的Evaluator、durable evidence、有限なescalation planを返すcoordinatorまで実装済みですが、実Providerのmodel-tier選択やplanの自動実行はまだ行いません。詳細な現在状態は [`docs/CURRENT_STATE.md`](docs/CURRENT_STATE.md) を参照してください。
 
 ## v2 quickstart（現行）
 
@@ -33,7 +33,7 @@ src/dev_agent/
 └── security/     # audit sanitizer、event artifact
 ```
 
-Phase 6 の現在地と未完了の外部証跡は [`docs/CURRENT_STATE.md`](docs/CURRENT_STATE.md)、[`docs/PHASE6_PLAN.md`](docs/PHASE6_PLAN.md)、[`spec/v2/GATE_STATUS.json`](spec/v2/GATE_STATUS.json) を参照してください。Phase 7A/BのTask profile / policy seamとPhase 7Cの決定的Evaluator / durable evidenceは開始済みですが、実Providerのmodel-tier routing、bounded escalation execution、AgentBackend/MCPは未着手です。
+Phase 6 の現在地と未完了の外部証跡は [`docs/CURRENT_STATE.md`](docs/CURRENT_STATE.md)、[`docs/PHASE6_PLAN.md`](docs/PHASE6_PLAN.md)、[`spec/v2/GATE_STATUS.json`](spec/v2/GATE_STATUS.json) を参照してください。Phase 7A/BのTask profile / policy seamとPhase 7C/Dの決定的Evaluator / durable evidence / bounded plan coordinatorは開始済みですが、実Providerのmodel-tier routing、bounded planの実行、AgentBackend/MCPは未着手です。
 
 以下は v1 の履歴・互換運用情報です。
 

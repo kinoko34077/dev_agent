@@ -4,6 +4,11 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-10 JST — Phase 7D bounded evaluation coordination
+
+- `EvaluationCoordinator`を追加し、host側の`EvaluationEvidence`を既存のdurable Eventへ記録してから、`RETRY_SAME`／`RETRY_OTHER_PROVIDER`／`ESCALATE`だけに有限な`EscalationPlan`を返す境界を実装した。PASS／WAIT_HUMAN／FAILは自動dispatchへ変換しない。
+- evaluatorの判定、escalation context、task/attempt identityの一致を検証し、Provider dispatch、Task mutation、model自身のtier昇格はこのsliceへ持ち込んでいない。targeted regressionは`18 passed`。
+
 ### 2026-09-10 JST — Refactor Freeze and exact-head verification
 
 - R2〜R6の責務分離を完了した。ControllerのModel turn／legacy direct-provider executor、ResourceLedgerのBudgetReservationStore、SQLiteStateStoreのschema／core／effect repository、ToolRuntimeのexecutor／effect guard、ProviderRegistryを専用moduleへ分離し、公開API・transaction owner・schema v7・timeout／cancellation semanticsを維持した。
