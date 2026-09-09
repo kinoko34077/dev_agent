@@ -1,4 +1,5 @@
 import multiprocessing
+import json
 import time
 
 import pytest
@@ -8,7 +9,7 @@ from src.dev_agent.resources.control import ResourceControlPlane
 from src.dev_agent.resources.control import DispatchDenied
 from src.dev_agent.resources.ledger import ResourceLedger
 from src.dev_agent.resources.router import ResourceRouter
-from src.dev_agent.domain.protocol import Task
+from src.dev_agent.domain.protocol import Task, TaskStatus
 from src.dev_agent.providers.fake.provider import FakeProvider
 from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.dispatch import ProviderDispatcher, ProviderRegistry
@@ -16,7 +17,7 @@ from src.dev_agent.resources.survival import SurvivalGovernor
 from src.dev_agent.state.sqlite_store import SQLiteStateStore
 from src.dev_agent.tools.registry import ToolRegistry, ToolSpec
 from src.dev_agent.tools.runtime import ToolRuntime
-from src.dev_agent.runtime.controller import Controller
+from src.dev_agent.runtime.controller import Controller, ExecutionContext
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.scheduler.queue import DurableQueue
 
@@ -308,6 +309,40 @@ def test_dispatcher_persists_dispatching_before_provider_call(tmp_path):
     assert dispatcher.request(request).provider == "paid"
     assert observed_statuses == ["dispatching"]
     assert ledger.reservation_totals()["active_reservations"] == 0
+
+
+def test_controller_persists_dispatch_lease_with_provider_intent(tmp_path):
+    ledger = ResourceLedger(tmp_path / "dispatch-lease-resource.sqlite3")
+    ledger.register_resource("paid", provider_id="paid", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
+    ledger.observe("paid", available=10, health="healthy")
+    control = ResourceControlPlane(ResourceRouter(ledger), _governor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)))
+    queue = DurableQueue(tmp_path / "dispatch-lease-state.sqlite3")
+    task = Task(objective="lease-bound dispatch")
+    queue.enqueue(task.task_id)
+    item = queue.claim("worker-a", lease_seconds=30)
+
+    class PaidProvider(FakeProvider):
+        provider_id = "paid"
+
+        def request(self, request):
+            return ModelResponse(provider="paid", model="test", text_segments=["ok"], usage={"cost_minor": 10})
+
+    dispatcher = ProviderDispatcher(ProviderRegistry([PaidProvider()]), control)
+    with SQLiteStateStore(tmp_path / "dispatch-lease-state.sqlite3") as store:
+        store.save_task(task)
+        controller = Controller(dispatcher, ToolRuntime(ToolRegistry()), store)
+
+        def assert_active_lease():
+            queue.assert_lease(task.task_id, worker_id="worker-a", state_version=item.state_version, lease_token=item.lease_token)
+
+        result = controller.run(task, execution_context=ExecutionContext(lease_guard=assert_active_lease, lease_proof=item.lease_proof))
+        assert result.status == TaskStatus.COMPLETED
+        queue.complete(task.task_id, worker_id="worker-a", state_version=item.state_version)
+        intent = store.connection.execute("SELECT result_payload FROM effect_intents").fetchone()
+        assert intent is not None
+        payload = json.loads(intent["result_payload"])
+        assert payload["dispatch_lease"]["worker_id"] == "worker-a"
+        assert payload["dispatch_lease"]["state_version"] == item.state_version
 
 
 def test_dispatcher_converts_unknown_budget_replay_into_reconciliation_required(tmp_path):

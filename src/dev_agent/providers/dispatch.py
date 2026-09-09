@@ -107,8 +107,16 @@ class ProviderDispatcher(ModelProvider):
 
     def _intent(self, key: str | None, *, status: str, result: dict[str, Any]) -> None:
         if key is not None:
-            proof = self._lease_proof() if self._lease_proof is not None and status == "dispatching" else None
-            self._state_store.transition_effect_intent(key, to_status=status, result=result, lease_proof=proof)
+            proof = self._lease_proof() if self._lease_proof is not None and status in {"dispatching", "succeeded"} else None
+            payload = dict(result)
+            if status in {"dispatching", "succeeded"} and proof is not None:
+                payload["dispatch_lease"] = {
+                    "task_id": proof.task_id,
+                    "worker_id": proof.worker_id,
+                    "lease_token": proof.lease_token,
+                    "state_version": proof.state_version,
+                }
+            self._state_store.transition_effect_intent(key, to_status=status, result=payload, lease_proof=proof)
 
     def _intent_result(self, key: str | None) -> ModelResponse | None:
         if key is None or self._state_store is None:

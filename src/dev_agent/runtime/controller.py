@@ -166,7 +166,16 @@ class Controller:
 
     def _provider_intent(self, key: str | None, *, status: str, result: dict[str, Any]) -> None:
         if key is not None:
-            self.store.transition_effect_intent(key, to_status=status, result=result, lease_proof=self._active_lease_proof() if status == "dispatching" else None)
+            lease_proof = self._active_lease_proof() if status in {"dispatching", "succeeded"} else None
+            payload = dict(result)
+            if status in {"dispatching", "succeeded"} and lease_proof is not None:
+                payload["dispatch_lease"] = {
+                    "task_id": lease_proof.task_id,
+                    "worker_id": lease_proof.worker_id,
+                    "lease_token": lease_proof.lease_token,
+                    "state_version": lease_proof.state_version,
+                }
+            self.store.transition_effect_intent(key, to_status=status, result=payload, lease_proof=lease_proof)
 
     def _provider_replay(self, key: str) -> ModelResponse:
         intent = self.store.get_effect_intent(key)
