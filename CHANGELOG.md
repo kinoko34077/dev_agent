@@ -11,6 +11,7 @@
 - OpenRouter `openrouter/free` をcanonical Controller -> ProviderDispatcher -> ProviderRegistry経路で実通信qualificationし、ToolCall／ToolResult／final、durable audit、budget reconciliationを確認した。quota残量は未報告のためunknownのまま。
 - ResourceLedgerをschema v7へordered migrationし、`unit`（requests／tokens／neurons）、generic limit／remaining／consumed、`authority`を追加した。Cloudflareの既知モデルについてtoken usageからのNeuron消費推定は`authority=estimated`・低confidenceで保持し、残量観測とは分離した。
 - Provider health記録をResourceControlPlane APIへ閉じ、DispatcherがRouter内部のLedgerへ直接到達しない依存方向へ修正した。
+- Provider intent／replay／durable auditの責務を `ProviderDispatchJournal` へ分離し、Dispatcherは選択・実行・ControlPlane連携に集中するFacade境界へ整理した。
 - `test_phase6_integration.py`をbudget、provider dispatch、provider reconciliation、provider fencing、terminal stateの5ファイルへ責務別に分割し、Gate／Traceabilityのテスト参照を同期した。
 - ローカルv2全回帰は `309 passed, 1 skipped`。Mistralは資格情報未設定、GroqはHTTP 403、SambaNovaはHTTP 429/402のため、いずれもlive無料Providerの成功とは扱っていない。G6O1はBLOCKED_EXTERNALのまま。
 

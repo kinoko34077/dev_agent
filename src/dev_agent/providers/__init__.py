@@ -11,6 +11,7 @@ from .openrouter import OpenRouterFreeProvider, OpenRouterHttpProvider
 from .sambanova import SambaNovaHttpProvider, SambaNovaProvider
 
 from .dispatch import DispatchAudit, ProviderDispatcher, ProviderRegistry
+from .journal import ProviderDispatchJournal
 
 __all__ = [
     "CloudflareWorkersAIHttpProvider",
@@ -28,6 +29,7 @@ __all__ = [
     "OpenRouterFreeProvider",
     "OpenRouterHttpProvider",
     "ProviderDispatcher",
+    "ProviderDispatchJournal",
     "ProviderError",
     "ProviderRegistry",
     "SambaNovaHttpProvider",

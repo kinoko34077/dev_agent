@@ -1,12 +1,13 @@
-from src.dev_agent.domain.protocol import ModelResponse, Task, TaskStatus
+from src.dev_agent.domain.protocol import ModelRequest, ModelResponse, Task, TaskStatus
 from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.dispatch import ProviderDispatcher, ProviderRegistry
+from src.dev_agent.providers.journal import ProviderDispatchJournal
 from src.dev_agent.providers.fake.provider import FakeProvider
 from src.dev_agent.providers.groq import GroqProvider as GroqAdapter
 from src.dev_agent.resources.budget import BudgetAuthority, BudgetGovernor, BudgetPolicy
 from src.dev_agent.resources.control import ResourceControlPlane
 from src.dev_agent.resources.ledger import ResourceLedger
-from src.dev_agent.resources.router import ResourceRouter
+from src.dev_agent.resources.router import ResourceRouter, RouteSelection
 from src.dev_agent.runtime.controller import Controller
 from src.dev_agent.state.sqlite_store import SQLiteStateStore
 from src.dev_agent.tools.registry import ToolRegistry
@@ -16,6 +17,22 @@ from src.dev_agent.tools.runtime import ToolRuntime
 def test_provider_runtime_path_roles_are_explicit():
     assert ProviderDispatcher.PROVIDER_PATH_ROLE == "canonical_dispatcher_registry"
     assert Controller.DIRECT_PROVIDER_PATH_ROLE == "compatibility_legacy"
+
+
+def test_provider_dispatch_journal_persists_prepared_intent(tmp_path):
+    ledger, _control = _free_control(tmp_path)
+    request = ModelRequest(task_id="00000000-0000-0000-0000-000000000001", messages=[{"role": "user", "content": "hello"}])
+    selection = RouteSelection("groq-free", "groq", "request", 0, None)
+
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        journal = ProviderDispatchJournal()
+        journal.bind(state_store=store)
+        key = journal.prepare_intent(request, selection)
+
+        assert key == f"provider:{request.request_id}:groq-free"
+        assert store.get_effect_intent(key)["status"] == "prepared"
+
+    ledger.close()
 
 
 def _free_control(tmp_path):
