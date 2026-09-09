@@ -13,7 +13,7 @@
 - Provider health記録をResourceControlPlane APIへ閉じ、DispatcherがRouter内部のLedgerへ直接到達しない依存方向へ修正した。
 - Provider intent／replay／durable auditの責務を `ProviderDispatchJournal` へ分離し、Dispatcherは選択・実行・ControlPlane連携に集中するFacade境界へ整理した。
 - `test_phase6_integration.py`をbudget、provider dispatch、provider reconciliation、provider fencing、terminal stateの5ファイルへ責務別に分割し、Gate／Traceabilityのテスト参照を同期した。
-- ローカルv2全回帰は `315 passed, 1 skipped`。Mistralは資格情報未設定、GroqはHTTP 403、SambaNovaはHTTP 429/402のため、いずれもlive無料Providerの成功とは扱っていない。G6O1はBLOCKED_EXTERNALのまま。
+- ローカルv2全回帰は `316 passed, 1 skipped`。同一timestampのquota観測は挿入順をtie-breakerとして最新値を決定する。Mistralは資格情報未設定、GroqはHTTP 403、SambaNovaはHTTP 429/402のため、いずれもlive無料Providerの成功とは扱っていない。G6O1はBLOCKED_EXTERNALのまま。実装baseline `8c8176b783dcb145065de9116958b0192620755c` のexact-head CIは `v2-core` run `34357779353` と `v2 tests` run `34357779324` がsuccess。
 - `ProviderDefinition → ProviderFactory → ProviderRegistry`を追加し、Provider固有の構築配線と資格情報解決を分離した。開発Worker Runnerはmanifest-scoped入力、result／patch／tests／notes artifact、範囲外変更拒否を提供するが、外部モデルへの内部ファイル送信とパッチ適用は自動化しない。
 
 ### 2026-09-09 JST — Free Provider HTTP boundary and development Worker Farm

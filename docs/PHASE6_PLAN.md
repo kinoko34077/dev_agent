@@ -1,17 +1,16 @@
 # Phase 6 — Resource / Survival / Recovery
 
-Status: foundation VERIFIED; G6O2〜G6O6 VERIFIED; G6O1 BLOCKED_EXTERNAL; Phase 6A quota/provider expansion locally verified; OpenRouter Free canonical live qualification verified; Mistral credential待ち; Groq models probe externally forbidden
+Status: foundation VERIFIED; G6O2〜G6O6 VERIFIED; G6O1 BLOCKED_EXTERNAL; Phase 6A quota/provider expansion locally verified; OpenRouter Free canonical live qualification verified; Mistral credential待ち; Groq models probe HTTP 403
 
-The earlier Phase 6 operational code evidence baseline is
-`da74b3b934cde66060ecabe65916fb57442b5bd9` (external exact-head CI:
-v2-core run `34311452342`, v2 tests run `34311452341`). The current Phase 6A
-code baseline is `0d690d888b58574b721572b81c16de20ee324066`; its external
-exact-head CI is v2-core run `34318901211` and v2 tests run `34318901190`.
-CI run IDs are external observations, not repository self-certification
-records. The documentation commit that records them is not itself presented
-as code evidence.
+The current implementation code baseline is
+`8c8176b783dcb145065de9116958b0192620755c`. Its external exact-head CI
+completed successfully: `v2-core` run `34357779353` and `v2 tests` run
+`34357779324`, both with `GITHUB_SHA` equal to that code baseline. CI run IDs
+are external observations, not repository self-certification records. A later
+documentation-only commit that records them is not itself presented as code
+evidence.
 
-The implementation baseline before the refactor pass was
+Historical baselines include the implementation before the refactor pass,
 `22c26542323b80abeeeac51e31f835cfa1d6ab67`; its external exact-head CI
 (`v2-core` run `34327300092`, `v2 tests` run `34327300120`) completed
 successfully. Refactor R2 at `9a612ebf784e88e1ed3c866e7cfacba2029e2aa6`
@@ -19,13 +18,11 @@ isolated the v1 runtime, logs, memory, prompts, root configuration, and root
 v1 tests to `legacy/v1-final`, retaining only the v2 fixture and legacy
 requirements file. Refactor R3 at
 `3cfa3368af82a1ab852dbd1526a8073c95bfcd54` added the behavior-preserving
-RoutingSnapshot read boundary. The latest local regression is `294 passed, 1
-skipped`; exact-head `v2 tests` run `34343823010` succeeded, while
-`v2-core` run `34343822905` failed in its pytest step. These results are
-external observations and do not change Gate status or create live-provider
+RoutingSnapshot read boundary. The latest local regression is `316 passed, 1
+skipped`. The current code baseline's exact-head CI results are recorded above;
+these results are external observations and do not create live-provider
 qualification evidence. Documentation-only synchronization does not change
-the implementation baseline; its own exact-head CI remains an external check
-and is not written back into `GATE_STATUS.json`.
+the implementation baseline and is not written back into `GATE_STATUS.json`.
 
 Phase 6A〜6E is the current v2 work boundary. The phase is deliberately split
 into small control-plane components so that resource exhaustion, provider
