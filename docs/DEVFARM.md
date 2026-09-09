@@ -49,6 +49,22 @@ python scripts/devfarm.py validate-result .devfarm/results/<task-id>/result.json
 Both commands print the normalized contract and fail closed on malformed JSON,
 base-revision drift, protected ownership, or an out-of-scope changed file.
 
+The bounded worker runner can send the manifest-scoped input files to an
+explicitly selected qualified free Provider and writes only handoff artifacts.
+It never applies a patch, commits, promotes a Gate, or modifies the official
+branch. Review the outbound input scope before invoking it:
+
+```text
+python scripts/devfarm_worker.py \
+  --manifest .devfarm/tasks/<task-id>.json \
+  --provider cloudflare \
+  --model @cf/meta/llama-3.1-8b-instruct
+```
+
+The runner is a development bootstrap boundary, not the formal Phase 7
+AgentBackend. Do not send repository contents to an external Provider unless
+the operator has explicitly approved that data boundary.
+
 ## Provider qualification handoff
 
 Live qualification is an operator-invoked boundary and never runs in CI. Keep

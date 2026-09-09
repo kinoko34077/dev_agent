@@ -18,6 +18,14 @@ if TYPE_CHECKING:
 
 
 class ProviderRegistry:
+    @classmethod
+    def from_definitions(cls, definitions, *, factory=None) -> "ProviderRegistry":
+        if factory is None:
+            from .factory import ProviderFactory
+
+            factory = ProviderFactory()
+        return cls([factory.create(definition) for definition in definitions])
+
     def __init__(self, providers: list[ModelProvider] | tuple[ModelProvider, ...]) -> None:
         self._providers: dict[str, ModelProvider] = {}
         for provider in providers:
