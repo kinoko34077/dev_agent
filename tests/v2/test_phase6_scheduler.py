@@ -1,7 +1,7 @@
 from datetime import datetime, timezone, timedelta
 import multiprocessing
 import sqlite3
-from threading import Barrier, Thread
+from threading import Barrier, Thread, current_thread, main_thread
 import time
 
 import pytest
@@ -250,6 +250,71 @@ def test_worker_renews_lease_during_long_controller_execution(tmp_path):
 
     assert completed is not None and completed.status == TaskStatus.COMPLETED
     assert queue.snapshot(task.task_id).state == "completed"
+
+
+def test_worker_finalizes_terminal_result_when_heartbeat_fails_after_renewal(tmp_path):
+    queue = DurableQueue(tmp_path / "queue.sqlite3")
+    task = Task(objective="heartbeat race")
+
+    class LateFailingRenewQueue(DurableQueue):
+        def renew(self, *args, **kwargs):
+            item = super().renew(*args, **kwargs)
+            if current_thread() is not main_thread():
+                raise OSError("heartbeat backend failed after renewal")
+            return item
+
+    queue.close()
+    queue = LateFailingRenewQueue(tmp_path / "queue.sqlite3")
+
+    class TerminalController:
+        def __init__(self, store):
+            self.store = store
+
+        def resume(self, task_id, *, execution_context=None):
+            time.sleep(0.3)
+            completed = Task(task_id=task_id, objective="heartbeat race", status=TaskStatus.COMPLETED)
+            return completed
+
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        store.save_task(task)
+        queue.enqueue(task.task_id)
+        runner = WorkerRunner(queue, TerminalController(store), worker_id="worker-a", lease_seconds=0.3)
+        result = runner.run_once()
+
+    assert result is not None and result.status is TaskStatus.COMPLETED
+    assert queue.snapshot(task.task_id).state == "completed"
+
+
+def test_worker_requeues_when_heartbeat_failure_is_detected_before_transition(tmp_path):
+    queue = DurableQueue(tmp_path / "queue.sqlite3")
+    task = Task(objective="heartbeat retry")
+
+    class FailingRenewQueue(DurableQueue):
+        def renew(self, *args, **kwargs):
+            if current_thread() is not main_thread():
+                raise OSError("heartbeat backend unavailable")
+            return super().renew(*args, **kwargs)
+
+    queue.close()
+    queue = FailingRenewQueue(tmp_path / "queue.sqlite3")
+
+    class GuardedController:
+        def __init__(self, store):
+            self.store = store
+
+        def resume(self, task_id, *, execution_context=None):
+            time.sleep(0.4)
+            execution_context.lease_guard()
+            return self.store.load_task(task_id)
+
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        store.save_task(task)
+        queue.enqueue(task.task_id)
+        runner = WorkerRunner(queue, GuardedController(store), worker_id="worker-a", lease_seconds=1.0)
+        with pytest.raises(StaleLease):
+            runner.run_once()
+
+    assert queue.snapshot(task.task_id).state == "queued"
 
 
 def test_shared_controller_keeps_worker_execution_contexts_isolated(tmp_path):

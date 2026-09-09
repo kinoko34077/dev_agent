@@ -666,6 +666,27 @@ def test_paid_provider_transport_error_waits_for_reconciliation(tmp_path):
     assert result.status.value == "waiting_reconciliation"
 
 
+def test_paid_provider_server_error_waits_for_reconciliation(tmp_path):
+    ledger = ResourceLedger(tmp_path / "provider-server-error.sqlite3")
+    ledger.register_resource("paid", provider_id="broken", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
+    ledger.observe("paid", available=10, health="healthy")
+    control = ResourceControlPlane(ResourceRouter(ledger), _governor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)))
+
+    class BrokenProvider(FakeProvider):
+        provider_id = "broken"
+
+        def request(self, request):
+            raise ProviderError("provider returned HTTP 503", category="provider_http", retryable=False, http_status=503)
+
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        result = Controller(BrokenProvider(), ToolRuntime(ToolRegistry()), store, resource_policy=control).run(Task(objective="server error"))
+        intent = store.connection.execute("SELECT status FROM effect_intents").fetchone()
+
+    assert result.status is TaskStatus.WAITING_RECONCILIATION
+    assert intent["status"] == "unknown"
+    assert ledger.reservation_totals()["active_reservations"] == 1
+
+
 def test_paid_provider_decode_failure_after_dispatch_waits_for_reconciliation(tmp_path):
     ledger = ResourceLedger(tmp_path / "provider-decode.sqlite3")
     ledger.register_resource("paid", provider_id="broken", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)

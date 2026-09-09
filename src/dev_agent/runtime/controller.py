@@ -295,6 +295,12 @@ class Controller:
             while True:
                 remaining = deadline_epoch - time()
                 if remaining <= 0:
+                    if cancel_event.is_set():
+                        # The deadline and an operator cancellation can race.
+                        # Preserve the cancellation state instead of turning
+                        # an in-flight provider into an ordinary timeout.
+                        cancelled = future.cancel()
+                        raise _ProviderCancelled(unable_to_confirm=not cancelled)
                     future.cancel()  # best effort; arbitrary provider threads are not killable
                     raise FutureTimeoutError()
                 try:
@@ -572,7 +578,7 @@ class Controller:
                     self._fail(task, state, "timeout", "model request timed out", step=step, request_id=request.request_id)
                 except ProviderError as exc:
                     if reservation is not None:
-                        if exc.category in {"reconciliation_required", "transport", "provider_decode"}:
+                        if exc.requires_reconciliation:
                             self.resource_policy.uncertain(reservation)
                             self._provider_intent(provider_intent_key, status="unknown", result={"error_category": exc.category, "message": str(exc)})
                             self._record_provider_audit(request, reservation, "unknown", provider_intent_key, details={"category": exc.category})
@@ -582,7 +588,7 @@ class Controller:
                         self.resource_policy.release(reservation)
                         self._provider_intent(provider_intent_key, status="confirmed_failed", result={"error_category": exc.category, "message": str(exc)})
                         self._record_provider_audit(request, reservation, "confirmed_failed", provider_intent_key, details={"category": exc.category})
-                    elif getattr(self.provider, "handles_resource_policy", False) and exc.category == "transport":
+                    elif getattr(self.provider, "handles_resource_policy", False) and exc.requires_reconciliation:
                         # A dispatcher-owned reservation has already been
                         # moved to unknown by the dispatcher.  Preserve the
                         # same task-level ambiguity even though Controller has

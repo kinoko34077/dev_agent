@@ -17,6 +17,20 @@ class ProviderError(RuntimeError):
         self.retryable = retryable if retryable is not None else self.category in {"transport", "rate_limit", "quota"}
         self.http_status = http_status
 
+    @property
+    def requires_reconciliation(self) -> bool:
+        """Whether the provider boundary may have produced an external effect.
+
+        Transport/decode failures and unknown HTTP failures happen after an
+        external request may have crossed the provider boundary.  A normal
+        client-side rejection (for example HTTP 400/401/403/429) is treated as
+        a confirmed no-charge outcome, while server errors and status-less
+        adapter failures remain ambiguous.
+        """
+        if self.category in {"transport", "provider_decode", "reconciliation_required"}:
+            return True
+        return self.category == "provider_http" and (self.http_status is None or self.http_status == 408 or self.http_status >= 500)
+
 
 class ModelProvider(ABC):
     provider_id: str = "unknown"

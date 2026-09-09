@@ -82,7 +82,16 @@ class WorkerRunner:
         execution_context = ExecutionContext(lease_guard=assert_active_lease, lease_proof=item.lease_proof)
         try:
             result = self.controller.resume(task.task_id, execution_context=execution_context)
-            heartbeat.assert_healthy()
+        except StaleLease:
+            # A heartbeat/ownership failure is not a task failure.  If this
+            # worker still owns the lease, return the item to the finite retry
+            # queue; if another worker reclaimed it, the queue fence rejects
+            # this write and the new owner remains authoritative.
+            try:
+                self.queue.fail(item.task_id, worker_id=self.worker_id, state_version=item.state_version, retry=True, max_attempts=max_attempts)
+            except StaleLease:
+                pass
+            raise
         except Exception:
             self.queue.fail(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
             raise

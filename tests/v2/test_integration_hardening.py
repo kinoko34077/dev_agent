@@ -38,6 +38,12 @@ def isolated_child_handler(args):
     return {"ok": True}
 
 
+def isolated_detached_child_handler(args):
+    child_code = "import time; from pathlib import Path; time.sleep(0.5); Path(r'" + args["marker"] + "').write_text('late', encoding='utf-8')"
+    subprocess.Popen([sys.executable, "-c", child_code], close_fds=False)
+    return {"ok": True}
+
+
 def isolated_generated_echo_handler(args):
     return {"echo": args["value"]}
 
@@ -640,6 +646,27 @@ def test_process_timeout_terminates_descendant_processes(tmp_path):
     assert not marker.exists()
 
 
+def test_process_timeout_terminates_descendant_after_worker_exit(tmp_path):
+    marker = tmp_path / "detached-child-marker"
+    registry = ToolRegistry()
+    registry.register(
+        ToolSpec(
+            name="detached",
+            description="detached child",
+            handler=isolated_detached_child_handler,
+            isolation="subprocess",
+            timeout_seconds=0.05,
+        )
+    )
+    call = ToolCall(tool_name="detached", arguments={"marker": str(marker)})
+    with SQLiteStateStore(tmp_path / "detached-timeout.sqlite3") as store:
+        result = ToolRuntime(registry).with_result_store(store).execute(call)
+
+    assert result.status is ToolResultStatus.TIMEOUT
+    sleep(0.1)
+    assert not marker.exists()
+
+
 def test_untrusted_and_generated_tools_cannot_opt_into_in_process_execution():
     with pytest.raises(ValueError, match="subprocess isolation"):
         ToolSpec(name="untrusted", description="", trust_level="untrusted", handler=lambda args: {})
@@ -719,6 +746,36 @@ def test_provider_cancellation_during_request_requires_reconciliation(tmp_path):
     assert checkpoint["state"]["cancellation"]["state"] == "unable_to_confirm"
     assert controller.resume(task.task_id).status == TaskStatus.WAITING_RECONCILIATION
     assert len(calls) == 1
+    waiting = [event for event in store.snapshot()["events"] if event["event_type"] == "task.waiting_reconciliation"]
+    assert waiting[-1]["payload"]["cancellation_state"] == "unable_to_confirm"
+
+
+def test_cancellation_after_provider_deadline_preserves_unable_to_confirm(tmp_path):
+    started = ThreadEvent()
+
+    class SlowProvider(ModelProvider):
+        provider_id = "deadline-cancellable"
+
+        def request(self, request):
+            started.set()
+            sleep(0.2)
+            return ModelResponse(provider=self.provider_id, model="test", text_segments=["late"])
+
+    store = JsonStateStore(tmp_path / "deadline-cancel.json")
+    controller = Controller(SlowProvider(), ToolRuntime(ToolRegistry()), store)
+    task = Task(objective="cancel at deadline", limits=ExecutionLimits(max_wall_time_seconds=0.1))
+    result_box = []
+    runner = Thread(target=lambda: result_box.append(controller.run(task)), daemon=True)
+    runner.start()
+    assert started.wait(2)
+    sleep(0.05)
+    controller.cancel(task.task_id, reason="operator cancelled at deadline")
+    runner.join(2)
+
+    assert not runner.is_alive()
+    assert result_box[0].status == TaskStatus.WAITING_RECONCILIATION
+    checkpoint = store.load_latest_checkpoint(task.task_id)
+    assert checkpoint["state"]["cancellation"]["state"] == "unable_to_confirm"
     waiting = [event for event in store.snapshot()["events"] if event["event_type"] == "task.waiting_reconciliation"]
     assert waiting[-1]["payload"]["cancellation_state"] == "unable_to_confirm"
 

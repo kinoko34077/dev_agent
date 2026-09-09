@@ -219,7 +219,7 @@ class ProviderDispatcher(ModelProvider):
                 response = provider.request(request)
             except ProviderError as exc:
                 self.control.record_provider_error(selection.provider_id, reservation, exc)
-                outcome = "unknown" if exc.category in {"transport", "provider_decode", "reconciliation_required"} else "confirmed_failed"
+                outcome = "unknown" if exc.requires_reconciliation else "confirmed_failed"
                 self._intent(intent_key, status=outcome, result={"provider_id": selection.provider_id, "resource_id": selection.resource_id, "error_category": exc.category, "message": str(exc)})
                 self._record_audit(request, selection, exc.category, intent_key, details={"category": exc.category, "retryable": exc.retryable})
                 # A transport failure occurs after the concrete provider was
@@ -227,7 +227,7 @@ class ProviderDispatcher(ModelProvider):
                 # when the provider labels the error retryable; fail closed
                 # and require reconciliation instead of sending a duplicate
                 # request through another route.
-                if exc.category == "transport":
+                if exc.requires_reconciliation:
                     raise
                 last_error = exc
                 excluded.add(selection.resource_id)
