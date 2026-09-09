@@ -3,9 +3,9 @@
 Status: foundation VERIFIED; G6O2〜G6O6 VERIFIED; G6O1 BLOCKED_EXTERNAL; Phase 6A quota/provider expansion locally verified; OpenRouter Free canonical live qualification verified; Mistral credential待ち; Groq models probe HTTP 403
 
 The current implementation code baseline is
-`8c8176b783dcb145065de9116958b0192620755c`. Its external exact-head CI
-completed successfully: `v2-core` run `34357779353` and `v2 tests` run
-`34357779324`, both with `GITHUB_SHA` equal to that code baseline. CI run IDs
+`9cfac134a1e34c2228acde75ba5b49c65111a57a`. Its external exact-head CI
+completed successfully: `v2-core` run `34360260517` and `v2 tests` run
+`34360260443`, both with `GITHUB_SHA` equal to that code baseline. CI run IDs
 are external observations, not repository self-certification records. A later
 documentation-only commit that records them is not itself presented as code
 evidence.
@@ -18,8 +18,11 @@ isolated the v1 runtime, logs, memory, prompts, root configuration, and root
 v1 tests to `legacy/v1-final`, retaining only the v2 fixture and legacy
 requirements file. Refactor R3 at
 `3cfa3368af82a1ab852dbd1526a8073c95bfcd54` added the behavior-preserving
-RoutingSnapshot read boundary. The latest local regression is `316 passed, 1
-skipped`. The current code baseline's exact-head CI results are recorded above;
+RoutingSnapshot read boundary. The latest refactor pass also isolated the
+Router `ResourceReadView`, Provider `ProviderHealthStore`, and direct-provider
+`LegacyDirectProviderJournal` without changing the public Controller flow. The
+latest local regression is `317 passed, 1 skipped`. The current code baseline's
+exact-head CI results are recorded above;
 these results are external observations and do not create live-provider
 qualification evidence. Documentation-only synchronization does not change
 the implementation baseline and is not written back into `GATE_STATUS.json`.
