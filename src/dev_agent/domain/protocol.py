@@ -40,6 +40,36 @@ class TaskClass(str, Enum):
     RECOVERY = "recovery"
 
 
+class TaskType(str, Enum):
+    """Semantic work class used by the Phase 7 intelligence policy."""
+
+    DETERMINISTIC = "deterministic"
+    WORKER = "worker"
+    REASONING = "reasoning"
+    EXPERT = "expert"
+    DELEGATED_AGENT = "delegated_agent"
+    RECOVERY = "recovery"
+    PROTECTED = "protected"
+
+
+class RiskLevel(str, Enum):
+    """Risk classification independent from the execution authority class."""
+
+    LOW = "low"
+    NORMAL = "normal"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class IntelligenceTier(str, Enum):
+    """Bounded intelligence hierarchy; a model cannot set this field itself."""
+
+    L0 = "L0"
+    L1 = "L1"
+    L2 = "L2"
+    L3 = "L3"
+
+
 _RECOVERY_TASK_AUTHORITY = object()
 
 
@@ -192,6 +222,9 @@ class Task:
     limits: ExecutionLimits = field(default_factory=ExecutionLimits)
     metadata: dict[str, Any] = field(default_factory=dict)
     task_class: TaskClass = TaskClass.NORMAL
+    task_type: TaskType = TaskType.WORKER
+    required_capabilities: list[str] = field(default_factory=list)
+    risk: RiskLevel = RiskLevel.NORMAL
     _authority: object | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -203,11 +236,25 @@ class Task:
             raise ProtocolError("depth must be a non-negative integer")
         self.status = _enum(self.status, TaskStatus, "status")  # type: ignore[assignment]
         self.task_class = _enum(self.task_class, TaskClass, "task_class")  # type: ignore[assignment]
+        self.task_type = _enum(self.task_type, TaskType, "task_type")  # type: ignore[assignment]
+        self.risk = _enum(self.risk, RiskLevel, "risk")  # type: ignore[assignment]
         if self.task_class is TaskClass.RECOVERY and self._authority is not _RECOVERY_TASK_AUTHORITY:
             raise ProtocolError("recovery tasks must be created by RecoveryTaskAuthority")
+        if self.task_class is TaskClass.RECOVERY and self.task_type is not TaskType.RECOVERY:
+            raise ProtocolError("recovery tasks must use task_type=recovery")
         self.inputs = _mapping(self.inputs, "inputs")
         self.constraints = _mapping(self.constraints, "constraints")
         self.metadata = _mapping(self.metadata, "metadata")
+        if not isinstance(self.required_capabilities, list):
+            raise ProtocolError("required_capabilities must be a list of non-empty strings")
+        capabilities: list[str] = []
+        for capability in self.required_capabilities:
+            if not isinstance(capability, str) or not capability.strip():
+                raise ProtocolError("required_capabilities must be a list of non-empty strings")
+            normalized = capability.strip()
+            if normalized not in capabilities:
+                capabilities.append(normalized)
+        self.required_capabilities = capabilities
         if not isinstance(self.limits, ExecutionLimits):
             self.limits = ExecutionLimits.from_dict(self.limits)  # type: ignore[arg-type]
 
@@ -232,6 +279,8 @@ class Task:
         values = dict(data)
         values["status"] = _enum(values.get("status", TaskStatus.QUEUED), TaskStatus, "status")
         values["limits"] = ExecutionLimits.from_dict(values.get("limits", {}))
+        if authority is _RECOVERY_TASK_AUTHORITY and "task_type" not in values:
+            values["task_type"] = TaskType.RECOVERY
         values["_authority"] = authority
         try:
             return cls(**values)
@@ -247,7 +296,11 @@ class RecoveryTaskAuthority:
         requested = values.pop("task_class", TaskClass.RECOVERY)
         if _enum(requested, TaskClass, "task_class") is not TaskClass.RECOVERY:
             raise ProtocolError("RecoveryTaskAuthority can create only recovery tasks")
+        requested_type = values.pop("task_type", TaskType.RECOVERY)
+        if _enum(requested_type, TaskType, "task_type") is not TaskType.RECOVERY:
+            raise ProtocolError("RecoveryTaskAuthority can create only recovery task types")
         values["task_class"] = TaskClass.RECOVERY
+        values["task_type"] = TaskType.RECOVERY
         values["_authority"] = _RECOVERY_TASK_AUTHORITY
         return Task(**values)
 
@@ -500,13 +553,16 @@ def dumps(record: Any, *, indent: int | None = None) -> str:
 __all__ = [
     "Event",
     "ExecutionLimits",
+    "IntelligenceTier",
     "ModelRequest",
     "ModelResponse",
     "ProtocolError",
+    "RiskLevel",
     "Step",
     "StepStatus",
     "Task",
     "TaskStatus",
+    "TaskType",
     "ToolCall",
     "ToolResult",
     "ToolResultStatus",

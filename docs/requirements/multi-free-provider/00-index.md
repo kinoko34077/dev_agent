@@ -18,13 +18,13 @@ Status: DRAFT -> ACCEPTED候補
 
 ## 現行のPhase 6A実装境界
 
-Phase 6Aの第一バッチとして、ResourceLedger schema v6のquota_domain identity、quota_observations、operational observation fields、fresh quota headroom routing、provider-neutralなquota observation取り込みを実装した。同一quota domainの複数Credentialは残量を加算せず、fresh observationの保守的headroomとconcurrency hard filterを使う。Groq、Cloudflare Workers AI、Mistral、OpenRouter Freeは注入transportのAdapter/contract境界まで追加し、live qualificationはまだ取得していない。
+Phase 6Aの第一バッチとして、ResourceLedger schema v6のquota_domain identity、quota_observations、operational observation fields、fresh quota headroom routing、provider-neutralなquota observation取り込みを実装した。同一quota domainの複数Credentialは残量を加算せず、fresh observationの保守的headroomとconcurrency hard filterを使う。Phase 7A/Bの移行境界として、Taskへtyped profileを追加し、決定的なIntelligence Policyの範囲をModelRequest metadataへ渡す。Groq、Cloudflare Workers AI、Mistral、OpenRouter Freeは注入transportのAdapter/contract境界まで追加し、live qualificationはまだ取得していない。
 
 - G6O1は BLOCKED_EXTERNAL のまま維持する。
 - 通常Provider経路は Controller -> ProviderDispatcher -> ProviderRegistry -> Concrete Provider とする。
 - Controllerのdirect Provider処理は compatibility / legacy path として残す。
 - ExecutionContext、ToolRuntime.bound_to()、RuntimeState、AuditRecorderは既存境界を維持する。
-- Intelligence Tier、Hedge、AgentBackend、MCP/API、Phase 7、Provider固有headerの解析、Provider live qualificationは次段階へ送る。正規化済み `usage.quota_observation` の取り込みは現行基盤に含む。
+- Model tierによる実Provider選択、Hedge、AgentBackend、MCP/API、Phase 7C以降、Provider固有headerの解析、Provider live qualificationは次段階へ送る。正規化済み `usage.quota_observation` の取り込みとPhase 7A/BのTask profile policyは現行境界に含む。
 
 ## 選択的ロードの目安
 

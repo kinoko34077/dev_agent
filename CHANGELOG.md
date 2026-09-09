@@ -4,6 +4,14 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-09 JST — Phase 6B/C quota operation and Phase 7A/B policy seam
+
+- 同一 `quota_domain` の複数Credentialを加算せず、fresh observationの最小headroomとしてRouterへ適用。`concurrency_limit` をdispatch前のhard filterにした。
+- Provider responseの正規化済み `usage.quota_observation` だけをResourceLedgerへ取り込み、壊れた補助telemetryは有効なmodel resultを失敗扱いにしない。Provider固有header解析はAdapter側の後段作業として維持。
+- `TaskType`、`RiskLevel`、`required_capabilities` をTask JSONへ後方互換に追加し、`TaskIntelligencePolicy` がL0〜L3のbounded minimum/maximumを決定する。model metadataによる自己昇格は参照しない。
+- ControllerはTask profileをModelRequestの要求capabilityとpolicy metadataへ渡すが、実Providerのmodel selectionは変更していない。Evaluator、escalation、AgentBackend/MCPは後段。
+- ローカル全回帰は `277 passed, 1 skipped`。直前のquota基盤commit `fb793fe5b57f1b6ce04e54e6cc6af05ff676742b` のGitHub Actions exact-head CIは `v2-core` run `34321435614` / `v2 tests` run `34321435595` がsuccess。G6O1は引き続き`BLOCKED_EXTERNAL`。
+
 ### 2026-09-09 JST — Phase 6A quota-aware Multi-Free provider foundation
 
 - ResourceLedgerをschema v6へ拡張し、`quota_domain`、durable quota observation、quota remaining/reset、latency/failure EWMA、inflight/concurrencyの観測値をordered migrationで保持できるようにした。

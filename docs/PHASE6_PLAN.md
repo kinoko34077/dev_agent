@@ -23,10 +23,14 @@ quota telemetry ingestion from a valid provider response. Shared domains use
 conservative fresh headroom rather than summing credentials; concurrency
 limits are hard filters before dispatch. Groq, Cloudflare Workers AI, Mistral,
 and OpenRouter Free are separate injected-transport Adapter contracts; live
-qualification and provider-specific header parsing remain later work. The canonical path stays
+qualification and provider-specific header parsing remain later work. Phase
+7A/B also carries a typed Task profile and deterministic intelligence-policy
+metadata into ModelRequest; it does not select a model or add an AgentBackend.
+The canonical path stays
 Controller -> ProviderDispatcher -> ProviderRegistry -> concrete Provider,
 while the Controller direct-provider branch remains compatibility-only. It
-does not implement Intelligence Tier, Hedging, AgentBackend, MCP, or Phase 7.
+does not implement model-tier routing, Hedging, AgentBackend, MCP, evaluator
+promotion, or later Phase 7 stages.
 
 ## 6A — Resource Ledger and Budget Governor
 
@@ -151,6 +155,11 @@ The budget reservation is keyed by that same provider intent, so the two
 durable records remain replay-compatible across the crash boundary between
 reservation and dispatch-intent persistence.
 
+Task requests carry typed `task_type`, `risk`, and `required_capabilities`.
+`TaskIntelligencePolicy` derives bounded minimum and maximum tiers without
+reading a model-selected tier from task metadata; the decision is included in
+normalized request metadata for audit and later Evaluator integration.
+
 Phase 6A's additional free-provider adapters (Groq, Cloudflare Workers AI,
 Mistral, and OpenRouter Free) use injected transports and the normalized
 contract only. Their contract tests and normalized quota-ingestion tests do
@@ -178,6 +187,7 @@ responsibilities; G6O1 remains the final gate for paid worst-case dispatch and
 deployment-owned budget administration. All Stage G records must be VERIFIED
 before Phase 6 is considered complete.
 Explicitly deferred Phase 6/7 work includes qualification against a real paid
-Provider, production-environment recovery drills with retained artifacts, and
-generated Tool lifecycle. Artifact-root backup/restore is implemented through
+Provider, production-environment recovery drills with retained artifacts,
+actual model-tier routing, independent Evaluator persistence, and generated
+Tool lifecycle. Artifact-root backup/restore is implemented through
 the RecoveryOperator, but its production retention policy remains operator work.

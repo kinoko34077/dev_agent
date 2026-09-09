@@ -42,7 +42,12 @@ Phase 7の候補条件:
 
 ## 37. Phase 7 additions
 
-Phase 7候補には、AgentBackend、Codex/MCP integration、workflow promotion、self-improvement、multi-agent orchestrationなどを含む。ただし本章では計画対象として記録するだけで、今回実装しない。
+Phase 7A/Bの最初の境界として、Task profile (`task_type`、`risk`、
+`required_capabilities`) と決定的なIntelligence Policyを実装する。Policyは
+L0〜L3のbounded tierを算出し、model metadataによる自己昇格を受け付けない。
+これは実Providerのmodel selectionをまだ変更しない。Phase 7CのEvaluator、
+7Dのescalation、AgentBackend、Codex/MCP integration、workflow promotion、
+self-improvement、multi-agent orchestrationは後段である。
 
 ## 38. External agent timing
 
@@ -54,7 +59,7 @@ Phase 7候補には、AgentBackend、Codex/MCP integration、workflow promotion�
 
 - 追加Providerのlive qualification、Provider固有quota headerの解析
 - task別成功率・provider diversityを含む後段Router scoring
-- intelligence tier
+- model-tierによる実Provider選択、Evaluator、escalation
 - Hedged Request
 - AgentBackend、MCP/API
 - Phase 7、Self-Improvement
@@ -93,9 +98,11 @@ Worker/run固有のExecutionContext、ToolRuntime binding、lease proofを共有
 2. Provider contractとcapabilityを狭く固定する。
 3. Resource/quota observationを設計し、migrationを準備する。
 4. free-first、privacy、fallbackを実装する。
-5. live Provider E2Eとdurable evidenceを取得する。
-6. AgentBackend/Codex/MCPを別境界で追加する。
-7. evaluator、workflow promotion、multi-agentを段階導入する。
+5. Task profileとbounded intelligence policyを追加する。
+6. 独立Evaluatorとbounded escalationを追加する。
+7. live Provider E2Eとdurable evidenceを取得する。
+8. AgentBackend/Codex/MCPを別境界で追加する。
+9. workflow promotion、self-improvement、multi-agentを段階導入する。
 
 この順序は、今回の「移行前軽量調整」後に新要件を投入する際の参照用である。
 

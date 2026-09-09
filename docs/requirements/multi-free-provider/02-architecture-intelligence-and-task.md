@@ -63,4 +63,11 @@ Routerは最も賢いModelではなく、Task要求を満たす最小能力Class
 
 ## 現行実装への適用境界
 
-本章のL0〜L3、Role、Task Typeは次段階の設計要件である。今回の移行前調整では分類・Tier routingを実装しない。
+Phase 7A/Bの移行境界として、`Task`は `task_type`、`risk`、
+`required_capabilities` をtyped profileとして保持し、既存JSON payloadへ
+後方互換に保存する。`TaskIntelligencePolicy`はこのprofileからL0〜L3の
+minimum/maximum/allowed tierを決定的に算出し、Controllerはその結果を
+ModelRequest metadataとaudit-visible requestへ渡す。これはモデル選択や
+実Providerのtier qualificationではなく、モデルが自己申告で昇格できない
+policy seamである。Evaluator、escalation、workflow promotion、
+AgentBackend/MCPは後段である。

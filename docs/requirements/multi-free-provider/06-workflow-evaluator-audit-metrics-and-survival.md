@@ -93,5 +93,7 @@ Provider outage、quota exhaustion、timeout、unknownを、無限retryや重複
 
 ## 移行前調整での扱い
 
-この章は将来のWorkflow、Evaluator、metrics、survival、multi-agent要件を参照可能にするための保存である。Phase 7、AgentBackend、MCP、quota_domain、追加Providerは今回着手しない。
-
+この章は将来のWorkflow、Evaluator、metrics、survival、multi-agent要件を
+参照可能にするための保存である。Phase 7A/BのTask profileと決定的な
+Intelligence Policyは実装済みだが、Evaluatorの独立永続記録、escalation、
+workflow promotion、AgentBackend、MCPは今回の境界外である。
