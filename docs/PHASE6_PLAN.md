@@ -124,10 +124,11 @@ also checkpointed, so a crash after provider dispatch cannot silently create a
 new external request on resume.
 
 The machine-readable evidence is maintained in
-`spec/v2/GATE_STATUS.json` under Stage F (`F6A`–`F6E`). Stage G records the
-remaining operational integration: money-safe dispatch, real provider routing,
-survival enforcement, lease-fenced workers, independent concurrency proof, and
-recovery drills. It must be VERIFIED before Phase 6 is considered complete.
+`spec/v2/GATE_STATUS.json` under Stage F (`F6A`–`F6E`) and Stage G
+(`G6O1`–`G6O6`). G6O2–G6O6 are verified within their stated operational
+responsibilities; G6O1 remains the final gate for paid worst-case dispatch and
+deployment-owned budget administration. All Stage G records must be VERIFIED
+before Phase 6 is considered complete.
 Explicitly deferred Phase 6/7 work includes qualification against a real paid
 Provider, production-environment recovery drills with retained artifacts, and
 generated Tool lifecycle. Artifact-root backup/restore is implemented through

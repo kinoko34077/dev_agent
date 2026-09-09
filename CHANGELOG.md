@@ -16,7 +16,7 @@
 - Phase 6のG6O3/G6O4/G6O5を各責務のローカル受入でVERIFIEDへ再分類し、実Ollama Dispatcher経路と隔離Recovery operator drillを追加。Phase 6全体は有償Providerのworst-case費用実証待ちでIN_PROGRESSを維持。
 - Workerのlease contextをper-run immutable `ExecutionContext`へ移し、Recovery Reserveの直接 `recovery=True` を拒否して `BudgetAuthority.reserve_recovery()` に限定。後者は永続Taskの `task_class="recovery"` を要求する。
 - resource-ledgerのnative reservation整合性をRecovery validatorで検査。
-- Phase 6 operational Gateは引き続き `IN_PROGRESS`。実Providerのpaid dispatch、独立queue/state authority、operator recovery drill、exact-head CIの最新証跡を継続取得する。
+- Phase 6 operational Gateは引き続き `IN_PROGRESS`。G6O2〜G6O6は各責務の受入をVERIFIED済みで、G6O1のみ実Providerのpaid worst-case dispatchと保護operator budget設定の外部実証待ち。
 
 ### 現在の到達点（2026-09-08 JST）
 
