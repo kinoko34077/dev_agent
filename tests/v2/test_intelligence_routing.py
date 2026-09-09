@@ -1,6 +1,8 @@
 import pytest
 
 from src.dev_agent.domain.protocol import IntelligenceTier, ModelResponse, Task, TaskType
+from src.dev_agent.intelligence.policy import TaskIntelligencePolicy
+from src.dev_agent.intelligence.routing import IntelligenceRoutePolicy
 from src.dev_agent.providers.base import ModelProvider
 from src.dev_agent.providers.dispatch import ProviderDispatcher, ProviderRegistry
 from src.dev_agent.providers.factory import ProviderDefinition, ProviderFactory
@@ -121,3 +123,21 @@ def test_provider_factory_preserves_optional_intelligence_tier_label():
     )
 
     assert provider.intelligence_tier == "L1"
+
+
+def test_intelligence_routing_keeps_model_tier_and_thinking_effort_separate():
+    policy = TaskIntelligencePolicy()
+    worker = policy.decide(Task(objective="write a small test", task_type=TaskType.WORKER))
+    difficult = policy.decide(
+        Task(objective="analyze a risky design", task_type=TaskType.REASONING, risk="high")
+    )
+
+    worker_metadata = IntelligenceRoutePolicy.metadata_for(worker)
+    difficult_metadata = IntelligenceRoutePolicy.metadata_for(difficult)
+
+    assert worker_metadata["allowed_intelligence_tiers"] == ["L1"]
+    assert worker_metadata["thinking_effort"] == "minimal"
+    assert worker_metadata["minimum_thinking_effort"] == "minimal"
+    assert difficult_metadata["allowed_intelligence_tiers"] == ["L2"]
+    assert difficult_metadata["thinking_effort"] == "high"
+    assert difficult_metadata["thinking_effort"] != difficult_metadata["allowed_intelligence_tiers"][0]

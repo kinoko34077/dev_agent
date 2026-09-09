@@ -23,6 +23,7 @@ from ..state.store import StateStore
 from .escalation import EscalationDispatchRequest, EscalationTarget
 from .evaluator import EvaluatorDecision
 from .policy import TaskIntelligencePolicy
+from .routing import IntelligenceRoutePolicy
 
 
 _TIER_ORDER = (IntelligenceTier.L0, IntelligenceTier.L1, IntelligenceTier.L2, IntelligenceTier.L3)
@@ -303,10 +304,15 @@ class EscalationExecutor:
         )
         if dispatch_request.target is EscalationTarget.HIGHER_TIER:
             allowed_tiers = (dispatch_request.next_tier.value,)
+            selected_tier = dispatch_request.next_tier
         else:
             tier = dispatch_request.current_tier or intelligence.minimum_tier
             allowed_tiers = (tier.value,)
+            selected_tier = tier
         metadata["allowed_intelligence_tiers"] = list(allowed_tiers)
+        difficult = any(reason in {"risk:high", "risk:critical"} for reason in intelligence.reasons)
+        metadata["thinking_effort"] = IntelligenceRoutePolicy.thinking_effort_for_tier(selected_tier, difficult=difficult)
+        metadata["minimum_thinking_effort"] = metadata["thinking_effort"]
         if dispatch_request.target is EscalationTarget.SAME_PROVIDER:
             if dispatch_request.provider_binding_id is None:
                 raise EscalationExecutionDenied("same-provider retry requires provider_binding_id", category="provider_binding")

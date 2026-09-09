@@ -204,6 +204,7 @@ def test_escalation_executor_routes_higher_tier_only_with_durable_allowed_tier(t
     assert not worker.requests
     assert len(core.requests) == 1
     assert core.requests[0].metadata["allowed_intelligence_tiers"] == ["L2"]
+    assert core.requests[0].metadata["thinking_effort"] == "low"
     ledger.close()
 
 
