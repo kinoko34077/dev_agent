@@ -47,10 +47,10 @@ class ResourceControlPlane:
 
     def set_maintenance(self, enabled: bool) -> None:
         self._maintenance = bool(enabled)
-        self.router.ledger.set_maintenance(self._maintenance)
+        self.governor.ledger.set_maintenance(self._maintenance)
 
     def _ensure_dispatch_allowed(self) -> None:
-        if self._maintenance or self.router.ledger.maintenance_enabled():
+        if self._maintenance or self.governor.ledger.maintenance_enabled():
             raise DispatchDenied("maintenance", "new provider dispatch is disabled during maintenance")
 
     def reserve_for_provider(self, task_id: str, provider_id: str, request: ModelRequest, *, intent_key: str | None = None) -> DispatchReservation:
@@ -115,7 +115,7 @@ class ResourceControlPlane:
 
     def observe_provider_response(self, reservation: DispatchReservation, response: ModelResponse) -> bool:
         """Ingest only the normalized, provider-neutral quota telemetry."""
-        return self.router.ledger.ingest_quota_observation(reservation.budget.resource_id, response.usage)
+        return self.governor.ledger.ingest_quota_observation(reservation.budget.resource_id, response.usage)
 
     def mark_dispatching(self, reservation: DispatchReservation) -> None:
         self.governor.mark_dispatching(reservation.budget.reservation_id)
@@ -128,11 +128,11 @@ class ResourceControlPlane:
 
     def record_provider_success(self, provider_id: str) -> None:
         """Record provider health without exposing the ledger to callers."""
-        self.router.ledger.record_provider_success(provider_id)
+        self.governor.ledger.record_provider_success(provider_id)
 
     def record_provider_failure(self, provider_id: str, *, threshold: int = 3, cooldown_seconds: float = 60.0) -> None:
         """Record provider health through the control-plane boundary."""
-        self.router.ledger.record_provider_failure(provider_id, threshold=threshold, cooldown_seconds=cooldown_seconds)
+        self.governor.ledger.record_provider_failure(provider_id, threshold=threshold, cooldown_seconds=cooldown_seconds)
 
     def record_provider_error(self, provider_id: str, reservation: DispatchReservation, error: Exception) -> None:
         category = getattr(error, "category", "provider_error")

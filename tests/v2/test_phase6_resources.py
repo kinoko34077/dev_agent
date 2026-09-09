@@ -8,6 +8,7 @@ import pytest
 
 from src.dev_agent.resources import ledger as ledger_module
 from src.dev_agent.resources.budget import BudgetAuthority, BudgetExceeded, BudgetGovernor, BudgetPolicy, ResourceUnavailable, UnknownPrice
+from src.dev_agent.resources.control import ResourceControlPlane
 from src.dev_agent.resources.ledger import BudgetPeriod, MoneyAmount, ResourceLedger, ResourcePrice, _BUDGET_ADMIN_TOKEN
 from src.dev_agent.domain.protocol import RecoveryTaskAuthority, Task, TaskClass
 
@@ -38,6 +39,20 @@ def test_resource_ledger_runs_ordered_migrations_for_legacy_database(tmp_path):
     assert config["period_id"] != "legacy"
     assert config["period_starts_at"] < config["period_ends_at"]
     assert version == "7"
+
+
+def test_control_plane_maintenance_uses_governor_store_not_router_ledger(tmp_path):
+    ledger = ResourceLedger(tmp_path / "control-plane-maintenance.sqlite3")
+    BudgetAuthority.configure(ledger, BudgetPolicy(hard_cap_minor=10, recovery_reserve_minor=0))
+    governor = BudgetGovernor(ledger)
+
+    class ReadOnlyRouter:
+        pass
+
+    control = ResourceControlPlane(ReadOnlyRouter(), governor)
+    control.set_maintenance(True)
+
+    assert ledger.maintenance_enabled() is True
 
 
 def _ledger(tmp_path):

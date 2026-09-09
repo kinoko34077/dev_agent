@@ -6,13 +6,19 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import math
 import time
+from typing import Protocol
 
-from .ledger import ResourceLedger
 from .snapshot import RoutingSnapshot
 
 
 class NoRoute(RuntimeError):
     pass
+
+
+class ResourceReadView(Protocol):
+    """Read-only boundary required by deterministic resource selection."""
+
+    def routing_snapshot(self) -> RoutingSnapshot: ...
 
 
 @dataclass(frozen=True)
@@ -51,8 +57,13 @@ _SENSITIVITY = {"public": 0, "normal": 1, "internal": 2, "sensitive": 3}
 
 
 class ResourceRouter:
-    def __init__(self, ledger: ResourceLedger) -> None:
-        self.ledger = ledger
+    def __init__(self, read_view: ResourceReadView) -> None:
+        self._read_view = read_view
+
+    @property
+    def ledger(self) -> ResourceReadView:
+        """Compatibility view; routing itself only requires read access."""
+        return self._read_view
 
     @staticmethod
     def _quota_ratio(observation: dict[str, object]) -> float | None:
@@ -111,7 +122,7 @@ class ResourceRouter:
         return min(ratios) if ratios else None
 
     def snapshot(self) -> RoutingSnapshot:
-        return self.ledger.routing_snapshot()
+        return self._read_view.routing_snapshot()
 
     def choose(self, request: RouteRequest, *, snapshot: RoutingSnapshot | None = None) -> RouteSelection:
         return self._choose_from_snapshot(request, self.snapshot() if snapshot is None else snapshot)
