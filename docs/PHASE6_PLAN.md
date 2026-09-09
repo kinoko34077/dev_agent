@@ -11,14 +11,21 @@ CI run IDs are external observations, not repository self-certification
 records. The documentation commit that records them is not itself presented
 as code evidence.
 
-The latest implementation baseline before this documentation synchronization
-is `22c26542323b80abeeeac51e31f835cfa1d6ab67`; its external exact-head CI
+The implementation baseline before the refactor pass was
+`22c26542323b80abeeeac51e31f835cfa1d6ab67`; its external exact-head CI
 (`v2-core` run `34327300092`, `v2 tests` run `34327300120`) completed
-successfully with matching `head_sha` values. The latest local regression is
-`288 passed, 1 skipped`; this does not turn absent live-provider credentials
-into qualification evidence. The documentation-only synchronization itself
-does not change the implementation baseline; its own exact-head CI remains an
-external check and is not written back into `GATE_STATUS.json`.
+successfully. Refactor R2 at `9a612ebf784e88e1ed3c866e7cfacba2029e2aa6`
+isolated the v1 runtime, logs, memory, prompts, root configuration, and root
+v1 tests to `legacy/v1-final`, retaining only the v2 fixture and legacy
+requirements file. Refactor R3 at
+`3cfa3368af82a1ab852dbd1526a8073c95bfcd54` added the behavior-preserving
+RoutingSnapshot read boundary. The latest local regression is `291 passed, 1
+skipped`; exact-head `v2 tests` run `34343823010` succeeded, while
+`v2-core` run `34343822905` failed in its pytest step. These results are
+external observations and do not change Gate status or create live-provider
+qualification evidence. Documentation-only synchronization does not change
+the implementation baseline; its own exact-head CI remains an external check
+and is not written back into `GATE_STATUS.json`.
 
 Phase 6A〜6E is the current v2 work boundary. The phase is deliberately split
 into small control-plane components so that resource exhaustion, provider

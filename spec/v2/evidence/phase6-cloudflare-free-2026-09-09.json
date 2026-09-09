@@ -1,0 +1,39 @@
+{
+  "status": "completed",
+  "provider": "cloudflare",
+  "model": "@cf/meta/llama-3.1-8b-instruct",
+  "checked_at": "2026-09-09T11:30:33.599963+00:00",
+  "event_types": [
+    "model.requested",
+    "model.responded",
+    "tool.completed",
+    "model.requested",
+    "model.responded",
+    "task.completed"
+  ],
+  "tool_result_count": 1,
+  "provider_audit_count": 2,
+  "effect_intents": [
+    {
+      "idempotency_key": "provider:349c6b8c-11eb-445a-9276-85f0473c79d4:cloudflare-free",
+      "status": "succeeded"
+    },
+    {
+      "idempotency_key": "provider:e51db454-4eda-4d05-9d8f-f61fe841b172:cloudflare-free",
+      "status": "succeeded"
+    }
+  ],
+  "quota_observation": null,
+  "quota_status": "unknown_not_reported",
+  "budget": {
+    "normal_committed_minor": 0,
+    "recovery_committed_minor": 0,
+    "active_reservations": 0,
+    "hard_cap_minor": 100,
+    "recovery_reserve_minor": 10,
+    "normal_available_minor": 90,
+    "recovery_available_minor": 10,
+    "currency": "JPY",
+    "period_id": "2026-09"
+  }
+}

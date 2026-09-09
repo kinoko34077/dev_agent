@@ -77,4 +77,4 @@ Meta ProviderはProviderを束ねる抽象として将来検討するが、通�
 
 ## 現行実装への適用境界
 
-Groq、Cloudflare Workers AI、Mistral、OpenRouter FreeはProvider-neutralな注入transport AdapterとContractHarness検証まで実装した。さらにGroq／Cloudflareには標準ライブラリHTTP Adapterを追加し、Groqのrate-limit headerを正規化quota observationへ変換する。資格情報を用いたlive通信、Cloudflareのquota値が未報告の場合の実証、privacy分類、hedging、Meta Providerは未実装である。Adapter contract／decoderテストをlive qualificationやGate VERIFIEDの証拠に読み替えない。
+Groq、Cloudflare Workers AI、Mistral、OpenRouter FreeはProvider-neutralな注入transport AdapterとContractHarness検証まで実装した。さらにGroq／Cloudflareには標準ライブラリHTTP Adapterを追加し、Groqのrate-limit headerを正規化quota observationへ変換する。Cloudflare Workers AIは `spec/v2/evidence/phase6-cloudflare-free-2026-09-09.json` でcanonical live通信、ToolCall往復、durable audit、budget reconciliationを確認済みだが、quota値は未報告である。GroqはHTTP 403、Mistral/OpenRouterはlive HTTP未実証である。privacy分類、hedging、Meta Providerは未実装で、Adapter contract／decoderテストをlive qualificationやGate VERIFIEDの証拠に読み替えない。

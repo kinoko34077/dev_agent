@@ -18,6 +18,7 @@
 - Current Stateを `22c2654` の実装内容とCI観測へ同期した。資格情報未設定のGroq／Cloudflareは引き続き`blocked_external`で、実Free Workerの起動やGate昇格は行っていない。
 - v2 checkoutの探索ノイズを減らすため、旧v1 runtime、logs、memory、prompts、root v1 config、root v1 testsを削除した。v1の正本は`legacy/v1-final`、v2で必要な失敗fixtureは`tests/v2/fixtures/v1/`、v1依存は`requirements-v1-legacy.txt`に分離した。v2のrecovery diagnosticsは`config/v2.yaml`のみを確認する。
 - ResourceRouterにresource/quota観測を一括取得するRoutingSnapshotを追加し、同一判断内のquota domain別DB読出しとProviderDispatcherのSurvival用resource再読出しを削減した。選択条件とshared quotaの保守的な最新観測semanticsは維持している。
+- 明示的に再読込した資格情報でCloudflare Workers AIのcanonical Phase 6 live qualificationを実行し、ToolCall／ToolResult／final response、durable audit、budget reconciliationを確認した。quotaは応答未報告のため`unknown_not_reported`。GroqはHTTP 403で未 qualification、OpenRouterは現状live HTTP未実装のまま維持した。
 
 ### 2026-09-09 JST — Phase 6B/C quota operation and Phase 7A/B policy seam
 
