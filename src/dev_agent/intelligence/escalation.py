@@ -8,10 +8,11 @@ the existing control-plane boundaries.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 import math
 from typing import Any
+from uuid import uuid4
 
 from ..domain.protocol import IntelligenceTier
 from .evaluator import EvaluatorDecision
@@ -105,6 +106,23 @@ class EscalationPlan:
     target: EscalationTarget
     next_tier: IntelligenceTier | None
     reasons: tuple[str, ...]
+    plan_id: str = field(default_factory=lambda: str(uuid4()))
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.task_id, str) or not self.task_id.strip():
+            raise ValueError("plan task_id must be a non-empty string")
+        if not isinstance(self.decision, EvaluatorDecision):
+            raise ValueError("plan decision must be an EvaluatorDecision")
+        if not isinstance(self.target, EscalationTarget):
+            raise ValueError("plan target must be an EscalationTarget")
+        if self.next_tier is not None and not isinstance(self.next_tier, IntelligenceTier):
+            raise ValueError("plan next_tier must be an IntelligenceTier or None")
+        if not isinstance(self.reasons, tuple) or any(not isinstance(reason, str) for reason in self.reasons):
+            raise ValueError("plan reasons must be a tuple of strings")
+        if not isinstance(self.plan_id, str) or not self.plan_id.strip():
+            raise ValueError("plan_id must be a non-empty string")
+        object.__setattr__(self, "task_id", self.task_id.strip())
+        object.__setattr__(self, "plan_id", self.plan_id.strip())
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)

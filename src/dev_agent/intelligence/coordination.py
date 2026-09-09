@@ -86,6 +86,43 @@ class EvaluationCoordinator:
         plan_event = self._recorder.record_plan(plan) if plan is not None else None
         return EvaluationCycle(result=result, event=event, plan=plan, plan_event=plan_event)
 
+    def review_plan(
+        self,
+        cycle: EvaluationCycle,
+        *,
+        actor: str,
+        approved: bool,
+        approval_reference: str,
+        reason: str | None = None,
+    ) -> Event:
+        """Record explicit host acceptance or rejection of a returned plan.
+
+        Review is intentionally the final operation in this boundary.  It
+        records authority and the exact plan identity, but it never dispatches
+        a Provider, mutates a Task, or applies a Worker artifact.
+        """
+        if not isinstance(cycle, EvaluationCycle):
+            raise TypeError("cycle must be EvaluationCycle")
+        if cycle.plan is None or cycle.plan_event is None:
+            raise ValueError("cycle does not contain a plan to review")
+        plan = cycle.plan
+        plan_event = cycle.plan_event
+        if plan_event.event_type != "escalation.planned" or plan_event.task_id != plan.task_id:
+            raise ValueError("plan event does not match the plan")
+        if plan_event.payload.get("plan_id") != plan.plan_id:
+            raise ValueError("plan event identity does not match the plan")
+        if cycle.result.task_id != plan.task_id or cycle.result.decision is not plan.decision:
+            raise ValueError("evaluation result does not match the plan")
+        if not isinstance(approved, bool):
+            raise TypeError("approved must be a boolean")
+        return self._recorder.record_review(
+            plan,
+            actor=actor,
+            approved=approved,
+            approval_reference=approval_reference,
+            reason=reason,
+        )
+
     @staticmethod
     def _validate_context(evidence: EvaluationEvidence, context: EscalationContext) -> None:
         if not isinstance(context, EscalationContext):

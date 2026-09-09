@@ -175,5 +175,51 @@ class EvaluationRecorder:
         self._store.append_event(event)
         return event
 
+    def record_review(
+        self,
+        plan: Any,
+        *,
+        actor: str,
+        approved: bool,
+        approval_reference: str,
+        reason: str | None = None,
+    ) -> Event:
+        """Persist an explicit host review without dispatching the plan."""
+        if not hasattr(plan, "to_dict") or not isinstance(getattr(plan, "task_id", None), str):
+            raise TypeError("plan must provide task_id and to_dict()")
+        if not isinstance(actor, str) or not actor.strip():
+            raise ValueError("actor must be a non-empty string")
+        if not isinstance(approved, bool):
+            raise TypeError("approved must be a boolean")
+        if not isinstance(approval_reference, str) or not approval_reference.strip():
+            raise ValueError("approval_reference must be a non-empty string")
+        if reason is not None and (not isinstance(reason, str) or not reason.strip()):
+            raise ValueError("reason must be a non-empty string when provided")
+        if not approved and reason is None:
+            raise ValueError("reason is required when a plan is rejected")
+
+        plan_payload = plan.to_dict()
+        if not isinstance(plan_payload, dict):
+            raise TypeError("plan.to_dict() must return an object")
+        plan_id = getattr(plan, "plan_id", None)
+        if not isinstance(plan_id, str) or not plan_id.strip():
+            raise ValueError("plan must have a non-empty plan_id")
+        status = "accepted" if approved else "rejected"
+        event = Event(
+            event_type=f"escalation.{status}",
+            task_id=plan.task_id,
+            provider=self._actor,
+            payload={
+                "actor": actor.strip(),
+                "approval_reference": approval_reference.strip(),
+                "review": status,
+                "plan_id": plan_id,
+                "plan": plan_payload,
+                "reason": reason.strip() if reason is not None else None,
+            },
+        )
+        self._store.append_event(event)
+        return event
+
 
 __all__ = ["EvaluationEvidence", "EvaluationRecorder", "EvaluationResult", "EvaluatorDecision", "TaskEvaluator"]

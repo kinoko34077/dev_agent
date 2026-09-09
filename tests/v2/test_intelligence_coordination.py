@@ -91,3 +91,77 @@ def test_evaluation_coordinator_rejects_context_for_a_different_attempt_or_task(
         raise AssertionError("mismatched evaluation context was accepted")
 
     assert store.snapshot()["events"] == []
+
+
+def test_evaluation_coordinator_requires_explicit_review_before_plan_acceptance(tmp_path):
+    store = JsonStateStore(tmp_path / "state.json")
+    coordinator = EvaluationCoordinator(store)
+    cycle = coordinator.evaluate_and_plan(_evidence(), escalation_context=_context())
+
+    assert not store.has_event(_TASK_ID, "escalation.accepted")
+    review = coordinator.review_plan(
+        cycle,
+        actor="codex-reviewer",
+        approved=True,
+        approval_reference="review-001",
+    )
+
+    assert review.event_type == "escalation.accepted"
+    assert review.payload["actor"] == "codex-reviewer"
+    assert review.payload["approval_reference"] == "review-001"
+    assert review.payload["plan_id"] == cycle.plan.plan_id
+    assert review.payload["plan"]["task_id"] == _TASK_ID
+    assert store.has_event(_TASK_ID, "escalation.accepted")
+    assert not store.has_event(_TASK_ID, "task.completed")
+
+
+def test_evaluation_coordinator_records_explicit_plan_rejection_with_reason(tmp_path):
+    store = JsonStateStore(tmp_path / "state.json")
+    coordinator = EvaluationCoordinator(store)
+    cycle = coordinator.evaluate_and_plan(_evidence(), escalation_context=_context())
+
+    review = coordinator.review_plan(
+        cycle,
+        actor="operator",
+        approved=False,
+        approval_reference="review-002",
+        reason="hold for additional evidence",
+    )
+
+    assert review.event_type == "escalation.rejected"
+    assert review.payload["reason"] == "hold for additional evidence"
+    assert store.has_event(_TASK_ID, "escalation.rejected")
+    assert not store.has_event(_TASK_ID, "task.completed")
+
+
+def test_evaluation_coordinator_rejects_review_without_plan_or_rejection_reason(tmp_path):
+    store = JsonStateStore(tmp_path / "state.json")
+    coordinator = EvaluationCoordinator(store)
+    terminal = coordinator.evaluate_and_plan(
+        _evidence(objective_met=True, deterministic_checks_passed=True)
+    )
+
+    try:
+        coordinator.review_plan(
+            terminal,
+            actor="operator",
+            approved=True,
+            approval_reference="review-003",
+        )
+    except ValueError as exc:
+        assert "plan" in str(exc)
+    else:
+        raise AssertionError("terminal evaluation was reviewable as a plan")
+
+    planned = coordinator.evaluate_and_plan(_evidence(), escalation_context=_context())
+    try:
+        coordinator.review_plan(
+            planned,
+            actor="operator",
+            approved=False,
+            approval_reference="review-004",
+        )
+    except ValueError as exc:
+        assert "reason" in str(exc)
+    else:
+        raise AssertionError("plan rejection without a reason was accepted")
