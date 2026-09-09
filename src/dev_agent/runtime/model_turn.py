@@ -1,0 +1,74 @@
+"""Provider request execution for one bounded model turn."""
+
+from __future__ import annotations
+
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from contextvars import copy_context
+from threading import Event
+from time import time
+from typing import Any, Callable
+
+from ..domain.protocol import ModelRequest, ModelResponse
+from ..providers.base import ModelProvider
+
+
+class ProviderRequestCancelled(Exception):
+    """A provider request stopped after cancellation was requested."""
+
+    def __init__(self, *, unable_to_confirm: bool) -> None:
+        super().__init__("provider request cancellation")
+        self.unable_to_confirm = unable_to_confirm
+
+
+class ModelTurnExecutor:
+    """Run one provider request without owning task-state transitions.
+
+    The executor deliberately keeps the one-thread-per-call boundary used by
+    the legacy runtime.  A running Python thread cannot be killed safely, so
+    callers must classify a timeout or ambiguous cancellation as an external
+    outcome and reconcile it at the higher lifecycle boundary.
+    """
+
+    def __init__(self, provider: ModelProvider, *, lease_guard: Callable[[], None]) -> None:
+        self._provider = provider
+        self._lease_guard = lease_guard
+
+    def request(self, request: ModelRequest, deadline_epoch: float, cancel_event: Event) -> ModelResponse:
+        self._lease_guard()
+        executor = ThreadPoolExecutor(max_workers=1)
+        # ProviderDispatcher may consult the run's lease proof from inside
+        # its provider thread. ContextVars do not propagate through a new
+        # thread implicitly, so capture the immutable run context explicitly.
+        provider_context = copy_context()
+        future = executor.submit(provider_context.run, self._provider.request, request)
+        try:
+            while True:
+                remaining = deadline_epoch - time()
+                if remaining <= 0:
+                    if cancel_event.is_set():
+                        # The deadline and an operator cancellation can race.
+                        # Preserve the cancellation state instead of turning
+                        # an in-flight provider into an ordinary timeout.
+                        cancelled = future.cancel()
+                        raise ProviderRequestCancelled(unable_to_confirm=not cancelled)
+                    future.cancel()  # best effort; arbitrary provider threads are not killable
+                    raise FutureTimeoutError()
+                try:
+                    response = future.result(timeout=min(0.05, remaining))
+                    # A provider can complete concurrently with the deadline
+                    # boundary. Do not accept a response that arrived after
+                    # the runtime lease expired: the caller must reconcile it.
+                    if time() >= deadline_epoch:
+                        raise FutureTimeoutError()
+                    return response
+                except FutureTimeoutError:
+                    if cancel_event.is_set():
+                        if future.done():
+                            return future.result(timeout=0)
+                        cancelled = future.cancel()
+                        raise ProviderRequestCancelled(unable_to_confirm=not cancelled)
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
+
+
+__all__ = ["ModelTurnExecutor", "ProviderRequestCancelled"]

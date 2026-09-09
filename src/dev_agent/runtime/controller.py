@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
-from contextvars import ContextVar, copy_context
+from concurrent.futures import TimeoutError as FutureTimeoutError
+from contextvars import ContextVar
 from dataclasses import dataclass
 import hashlib
 import json
@@ -23,6 +23,7 @@ from ..state.store import StateStore
 from ..tools.runtime import ToolRuntime
 from ..intelligence import TaskIntelligencePolicy
 from .legacy_provider import LegacyDirectProviderExecutor, LegacyDirectProviderJournal
+from .model_turn import ModelTurnExecutor, ProviderRequestCancelled
 from .state import RuntimeState
 
 
@@ -30,10 +31,7 @@ class RuntimeFailure(RuntimeError):
     """A terminal, normalized runtime failure."""
 
 
-class _ProviderCancelled(Exception):
-    def __init__(self, *, unable_to_confirm: bool) -> None:
-        super().__init__("provider request cancellation")
-        self.unable_to_confirm = unable_to_confirm
+_ProviderCancelled = ProviderRequestCancelled
 
 
 @dataclass(frozen=True)
@@ -81,6 +79,7 @@ class Controller:
         self._cancellation_reasons: dict[str, str] = {}
         self._active_tasks: set[str] = set()
         self._running_tasks: dict[str, Task] = {}
+        self._model_turn_executor = ModelTurnExecutor(self.provider, lease_guard=self._active_lease_guard)
         self._legacy_provider_journal = LegacyDirectProviderJournal(
             store,
             provider_id=self.provider.provider_id,
@@ -253,43 +252,7 @@ class Controller:
         state.setdefault("active_request_id", None)
 
     def _provider_request(self, request: ModelRequest, deadline_epoch: float, cancel_event: Event) -> ModelResponse:
-        self._active_lease_guard()
-        executor = ThreadPoolExecutor(max_workers=1)
-        # ProviderDispatcher may consult the run's lease proof from inside
-        # its provider thread. ContextVars do not propagate through a new
-        # thread implicitly, so capture the immutable run context explicitly.
-        provider_context = copy_context()
-        future = executor.submit(provider_context.run, self.provider.request, request)
-        try:
-            while True:
-                remaining = deadline_epoch - time()
-                if remaining <= 0:
-                    if cancel_event.is_set():
-                        # The deadline and an operator cancellation can race.
-                        # Preserve the cancellation state instead of turning
-                        # an in-flight provider into an ordinary timeout.
-                        cancelled = future.cancel()
-                        raise _ProviderCancelled(unable_to_confirm=not cancelled)
-                    future.cancel()  # best effort; arbitrary provider threads are not killable
-                    raise FutureTimeoutError()
-                try:
-                    response = future.result(timeout=min(0.05, remaining))
-                    # A provider can complete concurrently with the deadline
-                    # boundary.  Do not accept a response that arrived after
-                    # the runtime lease expired: for an external provider the
-                    # outcome is no longer safe to classify as an ordinary
-                    # timeout or success, so the caller must reconcile it.
-                    if time() >= deadline_epoch:
-                        raise FutureTimeoutError()
-                    return response
-                except FutureTimeoutError:
-                    if cancel_event.is_set():
-                        if future.done():
-                            return future.result(timeout=0)
-                        cancelled = future.cancel()
-                        raise _ProviderCancelled(unable_to_confirm=not cancelled)
-        finally:
-            executor.shutdown(wait=False, cancel_futures=True)
+        return self._model_turn_executor.request(request, deadline_epoch, cancel_event)
 
     def cancel(self, task_id: str, *, reason: str = "task cancellation requested") -> Task:
         """Request cooperative cancellation and persist it when not running."""
