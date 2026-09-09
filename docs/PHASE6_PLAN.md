@@ -45,6 +45,9 @@ Implemented in `recovery/phase6_recovery.py` and
 `recovery/validate_resources.py`.
 
 - Recovery inspection is independent of Controller and Provider imports.
+- `recovery/validate_resources.py` and `recovery/validate_queue.py` validate
+  current resource/scheduler schema versions and binding/lease invariants
+  without importing the runtime.
 - Backup, restore, LKG, rollback planning, repair-branch planning, and
   resource-ledger validation are explicit operations.
 - Restore publication and repair mutations require opt-in and maintenance

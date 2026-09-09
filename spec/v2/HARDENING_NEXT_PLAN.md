@@ -3,7 +3,7 @@
 目的は、外部サービスが停止してもローカルで検証可能な境界を先に完了し、外部依存の項目を明確な保留として後回しにできる状態を作ること。
 
 Current State sync: Phase 3.5〜5 acceptance remains closed; the current Phase 6
-code evidence baseline is `b4f2669`. Phase 6 is documented separately in `docs/PHASE6_PLAN.md`; this document is the
+code evidence baseline is `75b41c1`. Phase 6 is documented separately in `docs/PHASE6_PLAN.md`; this document is the
 historical hardening record. Gate evidence distinguishes local, CI, and live
 Provider evidence.
 
@@ -80,7 +80,8 @@ an explicit operator backup/retention input rather than an implicit database
 sidecar.
 
 Phase 6 recovery progress: RuntimeState, StateStore, ResourceLedger, and DurableQueue now use ordered schema
-migrations. The RecoveryOperator drill exercises validated SQLite restore, LKG
+migrations. `recovery/validate_resources.py` and `recovery/validate_queue.py` independently validate the
+resource and scheduler schemas, lease shape, and retry ceilings. The RecoveryOperator drill exercises validated SQLite restore, LKG
 recording, rollback, and repair-branch creation in an isolated temporary Git
 checkout; production mutations remain explicit operator actions.
 
