@@ -14,7 +14,12 @@ from pathlib import Path, PurePosixPath
 import re
 import shlex
 import subprocess
+import sys
 from typing import Any, Mapping
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from src.dev_agent.security.audit import AuditRecorder
 

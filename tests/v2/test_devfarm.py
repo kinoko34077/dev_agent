@@ -1,3 +1,8 @@
+import json
+from pathlib import Path
+import subprocess
+import sys
+
 import pytest
 
 from scripts.devfarm import DevFarmError, validate_manifest, validate_result
@@ -114,3 +119,16 @@ def test_devfarm_manifest_rejects_protected_outbound_source():
     manifest["outbound_files"] = [".env.local"]
     with pytest.raises(DevFarmError, match="protected"):
         validate_manifest(manifest)
+
+
+def test_devfarm_direct_cli_can_validate_manifest(tmp_path):
+    path = tmp_path / "manifest.json"
+    path.write_text(json.dumps(_manifest()), encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, "scripts/devfarm.py", "validate-manifest", str(path)],
+        cwd=Path(__file__).resolve().parents[2],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
