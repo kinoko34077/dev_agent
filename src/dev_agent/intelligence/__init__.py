@@ -5,6 +5,15 @@ from .evaluator import EvaluationEvidence, EvaluationRecorder, EvaluationResult,
 from .escalation import BoundedEscalationPolicy, EscalationContext, EscalationDispatchRequest, EscalationPlan, EscalationTarget
 from .coordination import EvaluationCoordinator, EvaluationCycle
 from .routing import IntelligenceRoutePolicy
+from .workflow import (
+    WorkflowPromotionCandidate,
+    WorkflowPromotionCoordinator,
+    WorkflowPromotionCycle,
+    WorkflowPromotionDecision,
+    WorkflowPromotionEvidence,
+    WorkflowPromotionPolicy,
+    WorkflowPromotionRecorder,
+)
 
 __all__ = [
     "EvaluationEvidence",
@@ -22,4 +31,11 @@ __all__ = [
     "IntelligenceRoutePolicy",
     "TaskEvaluator",
     "TaskIntelligencePolicy",
+    "WorkflowPromotionCandidate",
+    "WorkflowPromotionCoordinator",
+    "WorkflowPromotionCycle",
+    "WorkflowPromotionDecision",
+    "WorkflowPromotionEvidence",
+    "WorkflowPromotionPolicy",
+    "WorkflowPromotionRecorder",
 ]
