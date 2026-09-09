@@ -17,14 +17,38 @@ if str(ROOT) not in sys.path:
 from scripts.devfarm import DevFarmError, _is_protected, validate_manifest, validate_patch, validate_result, write_result
 from src.dev_agent.domain.protocol import ModelRequest
 from src.dev_agent.providers.base import ModelProvider, ProviderError
-from src.dev_agent.providers.cloudflare import CloudflareWorkersAIHttpProvider
-from src.dev_agent.providers.openrouter import OpenRouterHttpProvider
+from src.dev_agent.providers.factory import ProviderDefinition, ProviderFactory
 from src.dev_agent.security.audit import AuditRecorder
 
 
 MAX_INPUT_FILE_BYTES = 64 * 1024
 MAX_OUTPUT_TEXT_CHARS = 32 * 1024
 MAX_TEST_OUTPUT_CHARS = 32 * 1024
+
+
+class DevFarmActivationPolicy:
+    """Explicit allowlist for providers allowed to receive Worker tasks.
+
+    ProviderFactory is the construction boundary for all runtime adapters,
+    but factory support alone must not activate a provider for outbound
+    development work.  Qualification and operator approval remain separate
+    concerns from construction.
+    """
+
+    DEFAULT_ACTIVE_PROVIDER_IDS = frozenset({"cloudflare", "openrouter"})
+
+    def __init__(self, active_provider_ids: set[str] | frozenset[str] | None = None) -> None:
+        selected = self.DEFAULT_ACTIVE_PROVIDER_IDS if active_provider_ids is None else active_provider_ids
+        if not isinstance(selected, (set, frozenset)) or not all(isinstance(item, str) and item.strip() for item in selected):
+            raise ValueError("active_provider_ids must be a set of non-empty strings")
+        self._active_provider_ids = frozenset(item.strip() for item in selected)
+
+    def is_active(self, provider_id: str) -> bool:
+        return isinstance(provider_id, str) and provider_id.strip() in self._active_provider_ids
+
+    def ensure_active(self, provider_id: str) -> None:
+        if not self.is_active(provider_id):
+            raise DevFarmError(f"development worker provider is not active: {provider_id}")
 
 
 def _read_json(path: Path) -> Any:
@@ -183,11 +207,17 @@ def _prompt(manifest: Mapping[str, Any], inputs: str) -> str:
 
 
 def _provider(name: str, model: str, timeout_seconds: float) -> ModelProvider:
-    if name == "cloudflare":
-        return CloudflareWorkersAIHttpProvider(model=model, timeout_seconds=timeout_seconds)
-    if name == "openrouter":
-        return OpenRouterHttpProvider(model=model, timeout_seconds=timeout_seconds)
-    raise DevFarmError(f"unsupported development worker provider: {name}")
+    DevFarmActivationPolicy().ensure_active(name)
+    try:
+        return ProviderFactory().create(
+            ProviderDefinition(
+                provider_id=name,
+                model=model,
+                timeout_seconds=timeout_seconds,
+            )
+        )
+    except (TypeError, ValueError) as exc:
+        raise DevFarmError(f"unsupported development worker provider: {name}") from exc
 
 
 def _write_auxiliary_artifacts(root: Path, task_id: str, output: Mapping[str, Any]) -> None:

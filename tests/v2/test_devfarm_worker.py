@@ -4,9 +4,11 @@ import subprocess
 import pytest
 
 from scripts.devfarm import DevFarmError, prepare_worktree, validate_manifest, validate_patch, write_manifest
-from scripts.devfarm_worker import _input_context, apply_and_verify, run_worker
+from scripts.devfarm_worker import DevFarmActivationPolicy, _input_context, _provider, apply_and_verify, run_worker
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.providers.base import ModelProvider
+from src.dev_agent.providers.cloudflare import CloudflareWorkersAIHttpProvider
+from src.dev_agent.providers.openrouter import OpenRouterHttpProvider
 
 
 class _WorkerProvider(ModelProvider):
@@ -82,6 +84,25 @@ def _patch(path="tests/v2/test_target.py"):
         " def test_target():\n"
         "+    assert True\n"
     )
+
+
+def test_devfarm_provider_uses_factory_and_explicit_activation_allowlist():
+    policy = DevFarmActivationPolicy()
+    assert policy.is_active("cloudflare")
+    assert policy.is_active("openrouter")
+    assert not policy.is_active("mistral")
+
+    cloudflare = _provider("cloudflare", "@cf/meta/llama-3.1-8b-instruct", 4)
+    assert isinstance(cloudflare, CloudflareWorkersAIHttpProvider)
+    assert cloudflare.model == "@cf/meta/llama-3.1-8b-instruct"
+    assert cloudflare.provider_binding_id == "cloudflare"
+
+    openrouter = _provider("openrouter", "openrouter/free", 4)
+    assert isinstance(openrouter, OpenRouterHttpProvider)
+    assert openrouter.model == "openrouter/free"
+
+    with pytest.raises(DevFarmError, match="not active"):
+        _provider("mistral", "mistral-small-latest", 4)
 
 
 def test_worker_writes_validated_result_artifacts(tmp_path):
