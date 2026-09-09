@@ -15,6 +15,7 @@ from typing import Any, Iterable
 from uuid import uuid4
 
 from .snapshot import RoutingSnapshot
+from .health import ProviderHealthStore
 
 
 # Capability held only by the explicit budget-administration facade. Runtime
@@ -219,6 +220,7 @@ class ResourceLedger:
         self.connection = sqlite3.connect(self.path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
         self._lock = RLock()
+        self._health_store = ProviderHealthStore(self.connection, self._lock)
         existing_tables = {row[0] for row in self.connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")}
         try:
             self.connection.executescript(self._SCHEMA)
@@ -809,20 +811,10 @@ class ResourceLedger:
             return dict(row)
 
     def record_provider_failure(self, provider_id: str, *, threshold: int = 3, cooldown_seconds: float = 60.0) -> None:
-        if threshold <= 0 or cooldown_seconds < 0:
-            raise ValueError("threshold and cooldown must be positive")
-        with self._lock:
-            rows = self.connection.execute("SELECT resource_id, consecutive_failures FROM resources WHERE provider_id=?", (provider_id,)).fetchall()
-            for row in rows:
-                failures = int(row["consecutive_failures"]) + 1
-                opened = time.time() + cooldown_seconds if failures >= threshold else 0
-                self.connection.execute("UPDATE resources SET consecutive_failures=?, circuit_open_until=? WHERE resource_id=?", (failures, opened, row["resource_id"]))
-            self.connection.commit()
+        self._health_store.record_failure(provider_id, threshold=threshold, cooldown_seconds=cooldown_seconds)
 
     def record_provider_success(self, provider_id: str) -> None:
-        with self._lock:
-            self.connection.execute("UPDATE resources SET consecutive_failures=0, circuit_open_until=0 WHERE provider_id=?", (provider_id,))
-            self.connection.commit()
+        self._health_store.record_success(provider_id)
 
     def reservation_row(self, reservation_id: str) -> dict[str, Any]:
         with self._lock:
