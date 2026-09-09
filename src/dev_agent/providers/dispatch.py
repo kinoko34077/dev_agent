@@ -240,6 +240,8 @@ class ProviderDispatcher(ModelProvider):
                 # Recovery-only paid work requires a distinct future request type.
                 max_cost_minor = 0
         allowed_tiers = None
+        allowed_provider_binding_ids = request.metadata.get("allowed_provider_binding_ids")
+        excluded_provider_binding_ids = request.metadata.get("excluded_provider_binding_ids", ())
         if request.metadata.get("intelligence_routing") == "bounded":
             if "allowed_intelligence_tiers" not in request.metadata:
                 raise DispatchDenied("invalid_request", "bounded intelligence routing requires allowed_intelligence_tiers")
@@ -251,6 +253,8 @@ class ProviderDispatcher(ModelProvider):
                 excluded_resource_ids=excluded,
                 max_cost_minor=max_cost_minor,
                 allowed_intelligence_tiers=allowed_tiers,
+                allowed_provider_binding_ids=allowed_provider_binding_ids,
+                excluded_provider_binding_ids=excluded_provider_binding_ids,
             )
         except ValueError as exc:
             raise DispatchDenied("invalid_request", str(exc)) from exc

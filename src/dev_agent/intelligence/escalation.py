@@ -12,7 +12,7 @@ from dataclasses import asdict, dataclass, field
 from enum import Enum
 import math
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from ..domain.protocol import IntelligenceTier
 from .evaluator import EvaluatorDecision
@@ -150,6 +150,11 @@ class EscalationDispatchRequest:
     next_tier: IntelligenceTier | None
     approved_by: str
     approval_reference: str
+    dispatch_id: str = field(default_factory=lambda: str(uuid4()))
+    attempt: int = 1
+    provider_binding_id: str | None = None
+    current_tier: IntelligenceTier | None = None
+    allowed_tiers: tuple[IntelligenceTier, ...] | None = None
 
     def __post_init__(self) -> None:
         for name, value in (
@@ -157,10 +162,35 @@ class EscalationDispatchRequest:
             ("plan_id", self.plan_id),
             ("approved_by", self.approved_by),
             ("approval_reference", self.approval_reference),
+            ("dispatch_id", self.dispatch_id),
         ):
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{name} must be a non-empty string")
             object.__setattr__(self, name, value.strip())
+        try:
+            UUID(self.dispatch_id)
+        except (ValueError, AttributeError, TypeError) as exc:
+            raise ValueError("dispatch_id must be a UUID string") from exc
+        if isinstance(self.attempt, bool) or not isinstance(self.attempt, int) or self.attempt <= 0:
+            raise ValueError("attempt must be a positive integer")
+        if self.provider_binding_id is not None:
+            if not isinstance(self.provider_binding_id, str) or not self.provider_binding_id.strip():
+                raise ValueError("provider_binding_id must be a non-empty string or None")
+            object.__setattr__(self, "provider_binding_id", self.provider_binding_id.strip())
+        if self.current_tier is not None and not isinstance(self.current_tier, IntelligenceTier):
+            raise ValueError("current_tier must be an IntelligenceTier or None")
+        if self.allowed_tiers is not None:
+            if not isinstance(self.allowed_tiers, tuple) or not self.allowed_tiers:
+                raise ValueError("allowed_tiers must be a non-empty tuple or None")
+            if any(not isinstance(tier, IntelligenceTier) for tier in self.allowed_tiers):
+                raise ValueError("allowed_tiers must contain IntelligenceTier values")
+            if len(set(self.allowed_tiers)) != len(self.allowed_tiers):
+                raise ValueError("allowed_tiers must not contain duplicates")
+            positions = [_TIER_ORDER.index(tier) for tier in self.allowed_tiers]
+            if positions != sorted(positions):
+                raise ValueError("allowed_tiers must be ordered from lower to higher tier")
+            if self.current_tier is not None and self.current_tier not in self.allowed_tiers:
+                raise ValueError("current_tier must be included in allowed_tiers")
         if self.decision not in {
             EvaluatorDecision.RETRY_SAME,
             EvaluatorDecision.RETRY_OTHER_PROVIDER,
@@ -185,6 +215,11 @@ class EscalationDispatchRequest:
             raise ValueError("higher-tier dispatch request requires next_tier")
         if self.target is not EscalationTarget.HIGHER_TIER and self.next_tier is not None:
             raise ValueError("provider retry dispatch request cannot carry next_tier")
+        if self.target is EscalationTarget.HIGHER_TIER and self.allowed_tiers is not None:
+            if self.next_tier not in self.allowed_tiers:
+                raise ValueError("next_tier must be included in allowed_tiers")
+            if self.current_tier is not None and _TIER_ORDER.index(self.next_tier) <= _TIER_ORDER.index(self.current_tier):
+                raise ValueError("next_tier must be higher than current_tier")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -195,6 +230,11 @@ class EscalationDispatchRequest:
             "next_tier": self.next_tier.value if self.next_tier is not None else None,
             "approved_by": self.approved_by,
             "approval_reference": self.approval_reference,
+            "dispatch_id": self.dispatch_id,
+            "attempt": self.attempt,
+            "provider_binding_id": self.provider_binding_id,
+            "current_tier": self.current_tier.value if self.current_tier is not None else None,
+            "allowed_tiers": [tier.value for tier in self.allowed_tiers] if self.allowed_tiers is not None else None,
         }
 
 

@@ -32,6 +32,8 @@ class RouteRequest:
     max_observation_age_seconds: float | None = 300.0
     max_quota_observation_age_seconds: float | None = 300.0
     allowed_intelligence_tiers: set[str] | frozenset[str] | tuple[str, ...] | None = None
+    allowed_provider_binding_ids: set[str] | frozenset[str] | tuple[str, ...] | None = None
+    excluded_provider_binding_ids: set[str] | frozenset[str] | tuple[str, ...] = field(default_factory=set)
 
     def __post_init__(self) -> None:
         for name, value in (("max_cost_minor", self.max_cost_minor), ("max_latency_ms", self.max_latency_ms)):
@@ -54,6 +56,22 @@ class RouteRequest:
             if not normalized:
                 raise ValueError("allowed_intelligence_tiers must not be empty")
             object.__setattr__(self, "allowed_intelligence_tiers", frozenset(normalized))
+        for name, value in (
+            ("allowed_provider_binding_ids", self.allowed_provider_binding_ids),
+            ("excluded_provider_binding_ids", self.excluded_provider_binding_ids),
+        ):
+            if name == "allowed_provider_binding_ids" and value is None:
+                continue
+            if not isinstance(value, (set, frozenset, tuple, list)):
+                raise ValueError(f"{name} must be a collection of non-empty strings")
+            normalized = set()
+            for binding_id in value:
+                if not isinstance(binding_id, str) or not binding_id.strip():
+                    raise ValueError(f"{name} must be a collection of non-empty strings")
+                normalized.add(binding_id.strip())
+            if name == "allowed_provider_binding_ids" and not normalized:
+                raise ValueError("allowed_provider_binding_ids must not be empty")
+            object.__setattr__(self, name, frozenset(normalized))
 
 
 @dataclass(frozen=True)
@@ -150,10 +168,15 @@ class ResourceRouter:
                 continue
             if request.allowed_providers is not None and resource["provider_id"] not in request.allowed_providers:
                 continue
+            metadata = resource.get("metadata") if isinstance(resource.get("metadata"), dict) else {}
+            provider_binding_id = resource.get("provider_binding_id") or metadata.get("provider_binding_id") or resource["provider_id"]
+            if request.allowed_provider_binding_ids is not None and provider_binding_id not in request.allowed_provider_binding_ids:
+                continue
+            if provider_binding_id in request.excluded_provider_binding_ids:
+                continue
             if not request.capabilities.issubset(set(resource["capabilities"])):
                 continue
             if request.allowed_intelligence_tiers is not None:
-                metadata = resource.get("metadata") if isinstance(resource.get("metadata"), dict) else {}
                 resource_tier = metadata.get("intelligence_tier")
                 if resource_tier not in request.allowed_intelligence_tiers:
                     continue

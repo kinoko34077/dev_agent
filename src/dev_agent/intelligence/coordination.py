@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+from uuid import uuid4
 
 from ..domain.protocol import Event
 from .escalation import BoundedEscalationPolicy, EscalationContext, EscalationDispatchRequest, EscalationPlan
@@ -24,6 +25,7 @@ class EvaluationCycle:
     event: Event
     plan: EscalationPlan | None = None
     plan_event: Event | None = None
+    escalation_context: EscalationContext | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -84,7 +86,13 @@ class EvaluationCoordinator:
             if plan.decision is not result.decision:
                 raise ValueError("evaluation and escalation decisions diverged")
         plan_event = self._recorder.record_plan(plan) if plan is not None else None
-        return EvaluationCycle(result=result, event=event, plan=plan, plan_event=plan_event)
+        return EvaluationCycle(
+            result=result,
+            event=event,
+            plan=plan,
+            plan_event=plan_event,
+            escalation_context=escalation_context,
+        )
 
     def review_plan(
         self,
@@ -114,7 +122,15 @@ class EvaluationCoordinator:
             reason=reason,
         )
 
-    def prepare_dispatch(self, cycle: EvaluationCycle, review_event: Event) -> EscalationDispatchRequest:
+    def prepare_dispatch(
+        self,
+        cycle: EvaluationCycle,
+        review_event: Event,
+        *,
+        provider_binding_id: str | None = None,
+        dispatch_id: str | None = None,
+        attempt: int | None = None,
+    ) -> EscalationDispatchRequest:
         """Create a durable, approved dispatch handoff without dispatching.
 
         The returned request intentionally omits provider selection and model
@@ -143,6 +159,11 @@ class EvaluationCoordinator:
             next_tier=plan.next_tier,
             approved_by=approved_by,
             approval_reference=approval_reference,
+            dispatch_id=dispatch_id or str(uuid4()),
+            attempt=(attempt if attempt is not None else (cycle.escalation_context.attempt + 1 if cycle.escalation_context is not None else 1)),
+            provider_binding_id=provider_binding_id,
+            current_tier=cycle.escalation_context.current_tier if cycle.escalation_context is not None else None,
+            allowed_tiers=cycle.escalation_context.allowed_tiers if cycle.escalation_context is not None else None,
         )
         self._recorder.record_dispatch_ready(request)
         return request
