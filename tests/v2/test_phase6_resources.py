@@ -5,7 +5,7 @@ import sqlite3
 
 import pytest
 
-from src.dev_agent.resources.budget import BudgetAuthority, BudgetExceeded, BudgetGovernor, BudgetPolicy, ResourceUnavailable, UnknownPrice
+from src.dev_agent.resources.budget import BudgetAuthority, BudgetExceeded, BudgetGovernor, BudgetPolicy, BudgetTaskClass, ResourceUnavailable, UnknownPrice
 from src.dev_agent.resources.ledger import BudgetPeriod, MoneyAmount, ResourceLedger, ResourcePrice, _BUDGET_ADMIN_TOKEN
 
 
@@ -153,6 +153,26 @@ def test_budget_reservation_is_atomic_under_concurrency(tmp_path):
     assert [item for item in reservations if item] and sum(item is not None for item in reservations) == 1
 
 
+def test_recovery_reserve_requires_authorized_task_class(tmp_path):
+    ledger = _ledger(tmp_path)
+    governor = _governor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=40))
+
+    with pytest.raises(PermissionError, match="BudgetAuthority"):
+        governor.reserve("task-recovery", "remote-gemini", estimated_cost_minor=30, recovery=True)
+    with pytest.raises(PermissionError, match="task class"):
+        BudgetAuthority.reserve_recovery(governor, "task-recovery", "remote-gemini", task_class=BudgetTaskClass.NORMAL, estimated_cost_minor=30)
+
+    reservation = BudgetAuthority.reserve_recovery(
+        governor,
+        "task-recovery",
+        "remote-gemini",
+        task_class=BudgetTaskClass.RECOVERY,
+        estimated_cost_minor=30,
+    )
+    assert reservation.recovery is True
+    assert governor.snapshot()["recovery_committed_minor"] == 30
+
+
 def test_budget_reservation_is_atomic_across_independent_ledger_connections(tmp_path):
     first = _ledger(tmp_path)
     second = ResourceLedger(tmp_path / "resources.sqlite3")
@@ -194,7 +214,13 @@ def test_budget_rejects_unknown_price_and_preserves_recovery_reserve(tmp_path):
     assert reservation.reservation_id
     with pytest.raises(BudgetExceeded):
         governor.reserve("task-normal-2", "remote-gemini", estimated_cost_minor=1)
-    recovery = governor.reserve("task-recovery", "remote-gemini", estimated_cost_minor=30, recovery=True)
+    recovery = BudgetAuthority.reserve_recovery(
+        governor,
+        "task-recovery",
+        "remote-gemini",
+        task_class=BudgetTaskClass.RECOVERY,
+        estimated_cost_minor=30,
+    )
     assert recovery.recovery
 
 

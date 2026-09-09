@@ -38,6 +38,21 @@ class BudgetPolicy:
     period: BudgetPeriod | None = None
 
 
+class BudgetTaskClass:
+    """Task classes allowed to request a budget slice.
+
+    Recovery is intentionally represented by a named class rather than a
+    caller-controlled boolean.  The authority method below still requires a
+    private capability, so merely spelling ``"recovery"`` is insufficient.
+    """
+
+    NORMAL = "normal"
+    RECOVERY = "recovery"
+
+
+_RECOVERY_RESERVE_TOKEN = object()
+
+
 def _current_month() -> BudgetPeriod:
     now = datetime.now(timezone.utc)
     start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -68,6 +83,37 @@ class BudgetAuthority:
             currency=MoneyAmount(policy.currency, 0).currency,
             period=period,
             _authority=_BUDGET_ADMIN_TOKEN,
+        )
+
+    @staticmethod
+    def reserve_recovery(
+        governor: "BudgetGovernor",
+        task_id: str,
+        resource_id: str,
+        *,
+        task_class: str,
+        estimated_cost: MoneyAmount | None = None,
+        estimated_cost_minor: int | None = None,
+        native_units: int | float = 1,
+        intent_key: str | None = None,
+    ) -> "BudgetReservation":
+        """Reserve the protected slice for an explicitly classified task.
+
+        Normal runtime code must not call ``BudgetGovernor.reserve(...,
+        recovery=True)``.  Only this authority-controlled path can provide
+        the internal capability required by the Governor.
+        """
+        if task_class != BudgetTaskClass.RECOVERY:
+            raise PermissionError("recovery reserve requires the recovery task class")
+        return governor.reserve(
+            task_id,
+            resource_id,
+            estimated_cost=estimated_cost,
+            estimated_cost_minor=estimated_cost_minor,
+            recovery=True,
+            native_units=native_units,
+            intent_key=intent_key,
+            _authority=_RECOVERY_RESERVE_TOKEN,
         )
 
 
@@ -110,7 +156,9 @@ class BudgetGovernor:
     def _current_month() -> BudgetPeriod:
         return _current_month()
 
-    def reserve(self, task_id: str, resource_id: str, *, estimated_cost: MoneyAmount | None = None, estimated_cost_minor: int | None = None, recovery: bool = False, native_units: int | float = 1, intent_key: str | None = None) -> BudgetReservation:
+    def reserve(self, task_id: str, resource_id: str, *, estimated_cost: MoneyAmount | None = None, estimated_cost_minor: int | None = None, recovery: bool = False, native_units: int | float = 1, intent_key: str | None = None, _authority: object | None = None) -> BudgetReservation:
+        if recovery and _authority is not _RECOVERY_RESERVE_TOKEN:
+            raise PermissionError("recovery reserve requires BudgetAuthority.reserve_recovery")
         if not task_id.strip():
             raise ValueError("task_id is required")
         if estimated_cost is not None and estimated_cost_minor is not None:
