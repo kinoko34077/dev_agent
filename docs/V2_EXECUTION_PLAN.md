@@ -70,7 +70,7 @@ Groq／Cloudflareのlive qualificationは、それぞれ `GROQ_API_KEY`、`CLOUD
 - [x] `spec/v2/` に `INVARIANTS.md`、requirements / behavior / data / API / implementation / test spec の骨格を置く。
 - [x] 各不変条件に ID（例: `INV-001`）を与え、要件 → 実装 → 試験の追跡表を作る。
 - [x] `MIGRATION_MATRIX.md` に v1 資産を「fixture / concept only / archive / no import」で分類する。
-- [ ] `logs/` と `memory/` から v1 failure fixture 候補を採取し、秘密情報を除外する（Phase 4 の replay slice で実施）。
+- [x] v1 failure fixture候補を秘密情報なしで `tests/v2/fixtures/v1/` へ抽出し、残りのlogs/memoryは `legacy/v1-final` に隔離する。
 - [x] Python バージョン、依存、テスト起動方法を決定し、ローカルで test collection を再現可能にする。
 - [x] ADR-001〜010 の accepted decision を短く正文化する。
 

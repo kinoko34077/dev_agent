@@ -2,9 +2,9 @@
 
 Phase 0 で依存を増やし過ぎないための判断記録。本書は実装計画の補助であり、Provider の採用決定ではない。
 
-## 現行 v1
+## Frozen v1 reference
 
-`requirements.txt` にある次の三つは、既存 v1 の実行・回帰資料を動かすために保持する。
+v1の実行依存は `requirements-v1-legacy.txt` に隔離し、通常のv2 checkoutやkernel CIから参照しない。v1の実行資産と履歴は `legacy/v1-final` branchを正本とする。
 
 | パッケージ | 用途 | v2 Core への扱い |
 | --- | --- | --- |
@@ -33,7 +33,7 @@ alpha0 はこの範囲で実装する。Pydantic、ORM、キュー、Agent frame
 
 ## 再現コマンド
 
-開発環境の初期化:
+v2開発環境の初期化:
 
 ```bash
 python -m venv .venv
@@ -47,7 +47,7 @@ python -m venv .venv
 python -m pytest --collect-only -q
 ```
 
-v2 のテストが増えたら、旧テスト（`tests/`）と v2 テスト（`tests/v2/`）を別ジョブまたは別コマンドで実行し、v1 fixture の失敗と v2 Gate の失敗を混同しない。
+通常のv2テスト対象は `tests/v2/` のみとする。v1の回帰を再実行する場合は、`legacy/v1-final` checkoutと `requirements-v1-legacy.txt` を明示的に使用し、v2 Gateの失敗と混同しない。
 
 ## 現環境の確認（2026-09-07）
 

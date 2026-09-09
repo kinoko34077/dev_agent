@@ -21,6 +21,17 @@ def test_recovery_diagnostics_are_read_only_and_network_free():
     assert all(item.ok for item in checks)
 
 
+def test_recovery_diagnostics_use_v2_configuration_without_legacy_files(tmp_path):
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "v2.yaml").write_text("budget:\n  currency: JPY\n", encoding="utf-8")
+
+    checks = run_diagnostics(tmp_path)
+
+    configuration = next(item for item in checks if item.name == "configuration")
+    assert configuration.ok
+    assert configuration.detail == "config/v2.yaml exists; contents not read"
+
+
 def test_recovery_state_validator_checks_minimum_shape(tmp_path):
     state_path = tmp_path / "state.json"
     state_path.write_text(json.dumps({"task_id": "t", "status": "queued"}), encoding="utf-8")
