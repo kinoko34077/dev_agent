@@ -33,9 +33,10 @@ def test_resource_ledger_runs_ordered_migrations_for_legacy_database(tmp_path):
     version = ledger.connection.execute("SELECT value FROM resource_schema_meta WHERE key='schema_version'").fetchone()[0]
 
     assert "price_currency" in columns
+    assert "quota_domain" in columns
     assert config["period_id"] != "legacy"
     assert config["period_starts_at"] < config["period_ends_at"]
-    assert version == "4"
+    assert version == "5"
 
 
 def _ledger(tmp_path):
@@ -86,6 +87,25 @@ def test_resource_ledger_persists_native_unit_observations(tmp_path):
     assert resource["available"] == 87
     assert resource["health"] == "degraded"
     assert resource["confidence"] == pytest.approx(0.8)
+
+
+def test_resource_ledger_persists_quota_domain_identity(tmp_path):
+    ledger = ResourceLedger(tmp_path / "quota-domain.sqlite3")
+    spec = ledger.register_resource(
+        "gemini-free",
+        provider_id="gemini",
+        native_unit="request",
+        capacity=100,
+        capabilities=["text"],
+        quota_domain="google-project-123",
+    )
+
+    assert spec.quota_domain == "google-project-123"
+    assert ledger.get_resource("gemini-free")["quota_domain"] == "google-project-123"
+    assert ledger.connection.execute("SELECT value FROM resource_schema_meta WHERE key='schema_version'").fetchone()[0] == "5"
+
+    reopened = ResourceLedger(tmp_path / "quota-domain.sqlite3")
+    assert reopened.get_resource("gemini-free")["quota_domain"] == "google-project-123"
 
 
 def test_resource_observation_cannot_exceed_registered_capacity(tmp_path):

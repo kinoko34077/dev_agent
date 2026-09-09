@@ -84,12 +84,13 @@ class ResourceSpec:
     sensitivity: str
     cost_minor: int | None
     price_currency: str | None = None
+    quota_domain: str | None = None
 
 
 class ResourceLedger:
     """SQLite-backed resource observations and budget reservation records."""
 
-    SCHEMA_VERSION = 4
+    SCHEMA_VERSION = 5
     _SCHEMA = """
     CREATE TABLE IF NOT EXISTS resources (
         resource_id TEXT PRIMARY KEY,
@@ -100,6 +101,7 @@ class ResourceLedger:
         sensitivity TEXT NOT NULL,
         cost_minor INTEGER,
         price_currency TEXT,
+        quota_domain TEXT,
         available REAL NOT NULL,
         health TEXT NOT NULL,
         confidence REAL NOT NULL,
@@ -115,6 +117,21 @@ class ResourceLedger:
         health TEXT NOT NULL,
         confidence REAL NOT NULL,
         observed_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS quota_observations (
+        observation_id TEXT PRIMARY KEY,
+        resource_id TEXT NOT NULL,
+        quota_domain TEXT NOT NULL,
+        request_limit INTEGER,
+        request_remaining INTEGER,
+        token_limit INTEGER,
+        token_remaining INTEGER,
+        reset_at TEXT,
+        daily_remaining INTEGER,
+        concurrency_limit REAL,
+        confidence REAL NOT NULL,
+        observed_at TEXT NOT NULL,
+        source TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS budget_config (
         id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -198,6 +215,28 @@ class ResourceLedger:
                 self._ensure_column("budget_reservations", "intent_key", "TEXT")
                 self.connection.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_budget_reservations_intent_key ON budget_reservations(intent_key) WHERE intent_key IS NOT NULL")
                 self.connection.execute("UPDATE resource_schema_meta SET value='4' WHERE key='schema_version'")
+                current = 4
+            if current < 5:
+                self._ensure_column("resources", "quota_domain", "TEXT")
+                self.connection.execute(
+                    """CREATE TABLE IF NOT EXISTS quota_observations (
+                        observation_id TEXT PRIMARY KEY,
+                        resource_id TEXT NOT NULL,
+                        quota_domain TEXT NOT NULL,
+                        request_limit INTEGER,
+                        request_remaining INTEGER,
+                        token_limit INTEGER,
+                        token_remaining INTEGER,
+                        reset_at TEXT,
+                        daily_remaining INTEGER,
+                        concurrency_limit REAL,
+                        confidence REAL NOT NULL,
+                        observed_at TEXT NOT NULL,
+                        source TEXT NOT NULL
+                    )"""
+                )
+                self.connection.execute("CREATE INDEX IF NOT EXISTS idx_quota_observations_resource_observed_at ON quota_observations(resource_id, observed_at)")
+                self.connection.execute("UPDATE resource_schema_meta SET value='5' WHERE key='schema_version'")
             self.connection.commit()
         except Exception:
             self.connection.rollback()
@@ -250,10 +289,15 @@ class ResourceLedger:
         sensitivity: str = "normal",
         cost_minor: int | None = None,
         price_currency: str | None = None,
+        quota_domain: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> ResourceSpec:
         if not resource_id.strip() or not provider_id.strip() or not native_unit.strip():
             raise ValueError("resource_id, provider_id, and native_unit are required")
+        if quota_domain is not None:
+            if not isinstance(quota_domain, str) or not quota_domain.strip():
+                raise ValueError("quota_domain must be a non-empty string or None")
+            quota_domain = quota_domain.strip()
         self._number(capacity, "capacity")
         if cost_minor is not None:
             if isinstance(cost_minor, bool) or not isinstance(cost_minor, int) or cost_minor < 0:
@@ -270,16 +314,17 @@ class ResourceLedger:
         with self._lock:
             self.connection.execute(
                 """INSERT INTO resources(resource_id, provider_id, native_unit, capacity, capabilities_json,
-                   sensitivity, cost_minor, price_currency, available, health, confidence, observed_at, metadata_json)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'unknown', 0, ?, ?)
+                   sensitivity, cost_minor, price_currency, quota_domain, available, health, confidence, observed_at, metadata_json)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unknown', 0, ?, ?)
                    ON CONFLICT(resource_id) DO UPDATE SET provider_id=excluded.provider_id,
                    native_unit=excluded.native_unit, capacity=excluded.capacity,
                    capabilities_json=excluded.capabilities_json, sensitivity=excluded.sensitivity,
-                   cost_minor=excluded.cost_minor, price_currency=excluded.price_currency, metadata_json=excluded.metadata_json""",
-                (resource_id, provider_id, native_unit, capacity, json.dumps(capability_list), sensitivity, cost_minor, price_currency.upper() if price_currency else None, capacity, now, json.dumps(metadata or {}, ensure_ascii=False)),
+                   cost_minor=excluded.cost_minor, price_currency=excluded.price_currency,
+                   quota_domain=excluded.quota_domain, metadata_json=excluded.metadata_json""",
+                (resource_id, provider_id, native_unit, capacity, json.dumps(capability_list), sensitivity, cost_minor, price_currency.upper() if price_currency else None, quota_domain, capacity, now, json.dumps(metadata or {}, ensure_ascii=False)),
             )
             self.connection.commit()
-        return ResourceSpec(resource_id, provider_id, native_unit, capacity, capability_list, sensitivity, cost_minor, price_currency.upper() if price_currency else None)
+        return ResourceSpec(resource_id, provider_id, native_unit, capacity, capability_list, sensitivity, cost_minor, price_currency.upper() if price_currency else None, quota_domain)
 
     def observe(self, resource_id: str, *, available: int | float, health: str, confidence: float = 1.0, observed_at: str | None = None) -> None:
         self._number(available, "available")
