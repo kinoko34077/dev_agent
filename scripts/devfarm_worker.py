@@ -430,8 +430,11 @@ def run_worker(root: str | Path, manifest_path: str | Path, *, provider: ModelPr
         return result
     text = "".join(response.text_segments)
     if len(text) > MAX_OUTPUT_TEXT_CHARS:
-        raise DevFarmError("worker response exceeds output limit")
-    output = _extract_json(text)
+        return _record_failed_model_output(root, manifest, "worker response exceeds output limit")
+    try:
+        output = _extract_json(text)
+    except DevFarmError as exc:
+        return _record_failed_model_output(root, manifest, str(exc))
     try:
         patch = output.get("patch", "")
         actual_changed_files = validate_patch(patch, manifest=manifest)

@@ -25,6 +25,16 @@ class _WorkerProvider(ModelProvider):
         )
 
 
+class _RawWorkerProvider(ModelProvider):
+    provider_id = "cloudflare"
+
+    def __init__(self, text: str):
+        self.text = text
+
+    def request(self, request: ModelRequest) -> ModelResponse:
+        return ModelResponse(provider=self.provider_id, model="test-model", text_segments=[self.text])
+
+
 def _manifest(root, *, base_revision):
     return write_manifest(
         root,
@@ -205,6 +215,19 @@ def test_worker_records_malformed_model_patch_as_failed_artifact(tmp_path):
     assert result["status"] == "failed"
     assert any("unified diff" in issue for issue in result["known_issues"])
     assert json.loads((root / ".devfarm/results/worker-test-001/tests.json").read_text(encoding="utf-8"))["host_verified_tests"] == []
+
+
+def test_worker_records_malformed_model_json_as_failed_artifact(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    malformed = '{"status":"completed","patch":"line\nbreak"}'
+
+    result = run_worker(root, manifest_path, provider=_RawWorkerProvider(malformed))
+
+    assert result["status"] == "failed"
+    assert any("JSON" in issue for issue in result["known_issues"])
+    result_dir = root / ".devfarm/results/worker-test-001"
+    assert json.loads((result_dir / "result.json").read_text(encoding="utf-8"))["changed_files"] == []
+    assert (result_dir / "patch.diff").read_text(encoding="utf-8") == ""
 
 
 def test_worker_rejects_patch_that_is_path_safe_but_not_applicable(tmp_path):
