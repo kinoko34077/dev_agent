@@ -31,6 +31,7 @@ class RouteRequest:
     excluded_resource_ids: set[str] = field(default_factory=set)
     max_observation_age_seconds: float | None = 300.0
     max_quota_observation_age_seconds: float | None = 300.0
+    allowed_intelligence_tiers: set[str] | frozenset[str] | tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         for name, value in (("max_cost_minor", self.max_cost_minor), ("max_latency_ms", self.max_latency_ms)):
@@ -42,6 +43,17 @@ class RouteRequest:
         if self.max_quota_observation_age_seconds is not None:
             if isinstance(self.max_quota_observation_age_seconds, bool) or not isinstance(self.max_quota_observation_age_seconds, (int, float)) or not math.isfinite(self.max_quota_observation_age_seconds) or self.max_quota_observation_age_seconds < 0:
                 raise ValueError("max_quota_observation_age_seconds must be a non-negative number or None")
+        if self.allowed_intelligence_tiers is not None:
+            if not isinstance(self.allowed_intelligence_tiers, (set, frozenset, tuple, list)):
+                raise ValueError("allowed_intelligence_tiers must be a collection of L0-L3 strings or None")
+            normalized: set[str] = set()
+            for tier in self.allowed_intelligence_tiers:
+                if not isinstance(tier, str) or tier.strip() not in {"L0", "L1", "L2", "L3"}:
+                    raise ValueError("allowed_intelligence_tiers must contain only L0, L1, L2, or L3")
+                normalized.add(tier.strip())
+            if not normalized:
+                raise ValueError("allowed_intelligence_tiers must not be empty")
+            object.__setattr__(self, "allowed_intelligence_tiers", frozenset(normalized))
 
 
 @dataclass(frozen=True)
@@ -140,6 +152,11 @@ class ResourceRouter:
                 continue
             if not request.capabilities.issubset(set(resource["capabilities"])):
                 continue
+            if request.allowed_intelligence_tiers is not None:
+                metadata = resource.get("metadata") if isinstance(resource.get("metadata"), dict) else {}
+                resource_tier = metadata.get("intelligence_tier")
+                if resource_tier not in request.allowed_intelligence_tiers:
+                    continue
             if _SENSITIVITY.get(resource["sensitivity"], -1) < _SENSITIVITY[request.sensitivity]:
                 continue
             if resource["health"] not in {"healthy", "degraded"} or resource["available"] <= 0:

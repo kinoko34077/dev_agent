@@ -239,4 +239,19 @@ class ProviderDispatcher(ModelProvider):
                 # Paid normal dispatch is prohibited in constrained modes.
                 # Recovery-only paid work requires a distinct future request type.
                 max_cost_minor = 0
-        return self.control.router.choose(RouteRequest(capabilities=set(request.requested_capabilities) or {"text"}, sensitivity=request.sensitivity, excluded_resource_ids=excluded, max_cost_minor=max_cost_minor), snapshot=snapshot)
+        allowed_tiers = None
+        if request.metadata.get("intelligence_routing") == "bounded":
+            if "allowed_intelligence_tiers" not in request.metadata:
+                raise DispatchDenied("invalid_request", "bounded intelligence routing requires allowed_intelligence_tiers")
+            allowed_tiers = request.metadata["allowed_intelligence_tiers"]
+        try:
+            route_request = RouteRequest(
+                capabilities=set(request.requested_capabilities) or {"text"},
+                sensitivity=request.sensitivity,
+                excluded_resource_ids=excluded,
+                max_cost_minor=max_cost_minor,
+                allowed_intelligence_tiers=allowed_tiers,
+            )
+        except ValueError as exc:
+            raise DispatchDenied("invalid_request", str(exc)) from exc
+        return self.control.router.choose(route_request, snapshot=snapshot)

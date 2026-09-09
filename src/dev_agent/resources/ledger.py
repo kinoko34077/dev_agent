@@ -83,6 +83,7 @@ class ResourceSpec:
     price_currency: str | None = None
     quota_domain: str | None = None
     provider_binding_id: str | None = None
+    intelligence_tier: str | None = None
 
 
 @dataclass(frozen=True)
@@ -363,6 +364,7 @@ class ResourceLedger:
         quota_domain: str | None = None,
         provider_binding_id: str | None = None,
         metadata: dict[str, Any] | None = None,
+        intelligence_tier: str | None = None,
     ) -> ResourceSpec:
         if not resource_id.strip() or not provider_id.strip() or not native_unit.strip():
             raise ValueError("resource_id, provider_id, and native_unit are required")
@@ -375,6 +377,16 @@ class ResourceLedger:
                 raise ValueError("provider_binding_id must be a non-empty string or None")
             provider_binding_id = provider_binding_id.strip()
         resource_metadata = dict(metadata or {})
+        metadata_tier = resource_metadata.get("intelligence_tier")
+        if intelligence_tier is None:
+            intelligence_tier = metadata_tier
+        if intelligence_tier is not None:
+            if hasattr(intelligence_tier, "value"):
+                intelligence_tier = intelligence_tier.value
+            if not isinstance(intelligence_tier, str) or intelligence_tier.strip() not in {"L0", "L1", "L2", "L3"}:
+                raise ValueError("intelligence_tier must be one of L0, L1, L2, or L3")
+            intelligence_tier = intelligence_tier.strip()
+            resource_metadata["intelligence_tier"] = intelligence_tier
         metadata_binding = resource_metadata.get("provider_binding_id")
         if provider_binding_id is None and isinstance(metadata_binding, str) and metadata_binding.strip():
             provider_binding_id = metadata_binding.strip()
@@ -406,7 +418,7 @@ class ResourceLedger:
             metadata=resource_metadata,
             observed_at=now,
         )
-        return ResourceSpec(resource_id, provider_id, native_unit, capacity, capability_list, sensitivity, cost_minor, price_currency.upper() if price_currency else None, quota_domain, provider_binding_id)
+        return ResourceSpec(resource_id, provider_id, native_unit, capacity, capability_list, sensitivity, cost_minor, price_currency.upper() if price_currency else None, quota_domain, provider_binding_id, intelligence_tier)
 
     def observe(
         self,

@@ -21,7 +21,7 @@ from ..resources.control import DispatchDenied, ResourcePolicy
 from ..resources.budget import BudgetExceeded, BudgetReconciliationRequired
 from ..state.store import StateStore
 from ..tools.runtime import ToolRuntime
-from ..intelligence import TaskIntelligencePolicy
+from ..intelligence import IntelligenceRoutePolicy, TaskIntelligencePolicy
 from .legacy_provider import LegacyDirectProviderExecutor, LegacyDirectProviderJournal
 from .model_turn import ModelTurnExecutor, ProviderRequestCancelled
 from .state import RuntimeState
@@ -64,13 +64,16 @@ class Controller:
     _SECRET_KEY_WORDS = tuple(AuditRecorder.SECRET_KEYS)
     _SECRET_PATTERNS = AuditRecorder.SECRET_PATTERNS
 
-    def __init__(self, provider: ModelProvider, tools: ToolRuntime, store: StateStore, *, event_artifacts: EventArtifactStore | None = None, resource_policy: ResourcePolicy | None = None, lease_guard: Callable[[], None] | None = None, lease_proof: Any | None = None, intelligence_policy: TaskIntelligencePolicy | None = None) -> None:
+    def __init__(self, provider: ModelProvider, tools: ToolRuntime, store: StateStore, *, event_artifacts: EventArtifactStore | None = None, resource_policy: ResourcePolicy | None = None, lease_guard: Callable[[], None] | None = None, lease_proof: Any | None = None, intelligence_policy: TaskIntelligencePolicy | None = None, intelligence_routing: bool = False) -> None:
         self.provider = provider
         self.tools = tools.bound_to(store)
         self.store = store
         self.event_artifacts = event_artifacts
         self.resource_policy = resource_policy
         self.intelligence_policy = intelligence_policy or TaskIntelligencePolicy()
+        if not isinstance(intelligence_routing, bool):
+            raise TypeError("intelligence_routing must be a boolean")
+        self.intelligence_routing = intelligence_routing
         self._default_execution_context = ExecutionContext(lease_guard=lease_guard, lease_proof=lease_proof)
         self._execution_context: ContextVar[ExecutionContext | None] = ContextVar(
             f"dev_agent_execution_context:{id(self)}", default=None
@@ -426,6 +429,17 @@ class Controller:
                 replaying_request = bool(state.get("active_request_id"))
                 try:
                     intelligence = self.intelligence_policy.decide(task)
+                    request_metadata = {
+                        "task_type": task.task_type.value,
+                        "risk": task.risk.value,
+                        "minimum_intelligence_tier": intelligence.minimum_tier.value,
+                        "maximum_intelligence_tier": intelligence.maximum_tier.value,
+                        "allowed_intelligence_tiers": [tier.value for tier in intelligence.allowed_tiers],
+                        "requires_human_approval": intelligence.requires_human_approval,
+                        "intelligence_policy_reasons": list(intelligence.reasons),
+                    }
+                    if self.intelligence_routing:
+                        request_metadata.update(IntelligenceRoutePolicy.metadata_for(intelligence))
                     request = ModelRequest(
                         request_id=state.get("active_request_id") or None,
                         task_id=task.task_id,
@@ -436,15 +450,7 @@ class Controller:
                         tool_results=state["tool_results"],
                         max_output_tokens=task.limits.max_output_tokens,
                         cost_ceiling=task.limits.max_cost,
-                        metadata={
-                            "task_type": task.task_type.value,
-                            "risk": task.risk.value,
-                            "minimum_intelligence_tier": intelligence.minimum_tier.value,
-                            "maximum_intelligence_tier": intelligence.maximum_tier.value,
-                            "allowed_intelligence_tiers": [tier.value for tier in intelligence.allowed_tiers],
-                            "requires_human_approval": intelligence.requires_human_approval,
-                            "intelligence_policy_reasons": list(intelligence.reasons),
-                        },
+                        metadata=request_metadata,
                     )
                 except Exception as exc:
                     self._fail(task, state, "protocol", str(exc), step=step)

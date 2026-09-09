@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import math
 from typing import Any
 
+from ..domain.protocol import IntelligenceTier
 from .cloudflare import CloudflareWorkersAIHttpProvider
 from .gemini import GeminiHttpProvider
 from .groq import GroqHttpProvider
@@ -29,6 +30,7 @@ class ProviderDefinition:
     timeout_seconds: float = 30.0
     provider_binding_id: str | None = None
     credential_id: str | None = None
+    intelligence_tier: str | IntelligenceTier | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.provider_id, str) or not self.provider_id.strip():
@@ -40,6 +42,11 @@ class ProviderDefinition:
         for name, value in (("provider_binding_id", self.provider_binding_id), ("credential_id", self.credential_id)):
             if value is not None and (not isinstance(value, str) or not value.strip()):
                 raise ValueError(f"{name} must be a non-empty string or None")
+        if self.intelligence_tier is not None:
+            tier = self.intelligence_tier.value if isinstance(self.intelligence_tier, IntelligenceTier) else self.intelligence_tier
+            if not isinstance(tier, str) or tier.strip() not in {item.value for item in IntelligenceTier}:
+                raise ValueError("intelligence_tier must be one of L0, L1, L2, or L3")
+            object.__setattr__(self, "intelligence_tier", tier.strip())
         if isinstance(self.timeout_seconds, bool) or not isinstance(self.timeout_seconds, (int, float)) or not math.isfinite(float(self.timeout_seconds)) or self.timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
         object.__setattr__(self, "provider_id", self.provider_id.strip())
@@ -85,6 +92,7 @@ class ProviderFactory:
         setattr(provider, "provider_binding_id", definition.provider_binding_id or definition.provider_id)
         setattr(provider, "model_id", definition.model)
         setattr(provider, "credential_id", definition.credential_id)
+        setattr(provider, "intelligence_tier", definition.intelligence_tier)
         return provider
 
 
