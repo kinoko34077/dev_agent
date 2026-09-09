@@ -4,7 +4,7 @@ import subprocess
 import pytest
 
 from scripts.devfarm import DevFarmError, prepare_worktree, validate_manifest, validate_patch, write_manifest
-from scripts.devfarm_worker import DevFarmActivationPolicy, _input_context, _provider, apply_and_verify, run_worker
+from scripts.devfarm_worker import DevFarmActivationPolicy, _input_context, _prompt, _provider, apply_and_verify, run_worker
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.providers.base import ModelProvider
 from src.dev_agent.providers.cloudflare import CloudflareWorkersAIHttpProvider
@@ -103,6 +103,18 @@ def test_devfarm_provider_uses_factory_and_explicit_activation_allowlist():
 
     with pytest.raises(DevFarmError, match="not active"):
         _provider("mistral", "mistral-small-latest", 4)
+
+
+def test_worker_prompt_makes_patch_and_test_claim_boundaries_explicit(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    prompt = _prompt(manifest, "--- BEGIN FILE tests/v2/test_target.py ---\ncontent\n--- END FILE ---")
+
+    assert "Return exactly one JSON object" in prompt
+    assert "The `patch` must be either an empty string or begin with `diff --git`" in prompt
+    assert "Do not use Markdown fences, `*** Begin Patch`, prose" in prompt
+    assert "`tests_run` is only a proposed command list" in prompt
 
 
 def test_worker_writes_validated_result_artifacts(tmp_path):
