@@ -12,9 +12,10 @@ import sqlite3
 from threading import RLock
 import time
 from typing import Any, Iterable
-from uuid import uuid4
+from uuid import uuid4  # compatibility export for legacy observation tests
 
 from .snapshot import RoutingSnapshot
+from .budget_store import BudgetReservationStore, _BUDGET_TRANSITIONS
 from .catalog import ResourceCatalogStore
 from .health import ProviderHealthStore
 from .observations import QuotaObservationStore, ResourceObservationStore
@@ -23,16 +24,6 @@ from .observations import QuotaObservationStore, ResourceObservationStore
 # Capability held only by the explicit budget-administration facade. Runtime
 # reservation code may read the persisted policy but must not rewrite it.
 _BUDGET_ADMIN_TOKEN = object()
-
-_BUDGET_TRANSITIONS = {
-    "prepared": {"dispatching", "unknown", "confirmed_no_charge"},
-    "dispatching": {"unknown", "reconciled", "confirmed_no_charge"},
-    "unknown": {"reconciled", "confirmed_no_charge"},
-    "reconciled": set(),
-    "confirmed_no_charge": set(),
-    "released": set(),
-}
-
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -227,6 +218,7 @@ class ResourceLedger:
         self._observation_store = ResourceObservationStore(self.connection, self._lock)
         self._quota_store = QuotaObservationStore(self.connection, self._lock)
         self._health_store = ProviderHealthStore(self.connection, self._lock)
+        self._budget_store = BudgetReservationStore(self.connection, self._lock)
         existing_tables = {row[0] for row in self.connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")}
         try:
             self.connection.executescript(self._SCHEMA)
@@ -726,130 +718,38 @@ class ResourceLedger:
         self._health_store.record_success(provider_id)
 
     def reservation_row(self, reservation_id: str) -> dict[str, Any]:
-        with self._lock:
-            row = self.connection.execute("SELECT * FROM budget_reservations WHERE reservation_id=?", (reservation_id,)).fetchone()
-            if row is None:
-                raise KeyError(reservation_id)
-            return dict(row)
+        return self._budget_store.reservation_row(reservation_id)
 
     def reservation_totals(self, *, period_id: str | None = None) -> dict[str, int]:
-        with self._lock:
-            query = "SELECT recovery, status, COALESCE(actual_minor, estimated_minor) AS amount FROM budget_reservations WHERE status IN ('prepared', 'dispatching', 'unknown', 'reconciled')"
-            params: tuple[str, ...] = ()
-            if period_id is not None:
-                query += " AND period_id=?"
-                params = (period_id,)
-            rows = self.connection.execute(query, params).fetchall()
-            normal_committed = sum(int(row["amount"]) for row in rows if not row["recovery"])
-            recovery_committed = sum(int(row["amount"]) for row in rows if row["recovery"])
-            active = sum(1 for row in rows if row["status"] in {"prepared", "dispatching", "unknown"})
-            return {"normal_committed_minor": normal_committed, "recovery_committed_minor": recovery_committed, "active_reservations": active}
+        return self._budget_store.reservation_totals(period_id=period_id)
 
     def reserve_budget(self, *, task_id: str, resource_id: str, amount: MoneyAmount, recovery: bool, period: BudgetPeriod, normal_limit_minor: int, recovery_limit_minor: int, native_units: int | float = 1, intent_key: str | None = None) -> str:
-        """Atomically check and create a reservation behind the ledger boundary."""
-        if intent_key is not None and (not isinstance(intent_key, str) or not intent_key.strip()):
-            raise ValueError("intent_key must be a non-empty string or None")
-        with self._lock:
-            self.connection.execute("BEGIN IMMEDIATE")
-            try:
-                if self.maintenance_enabled():
-                    raise ValueError("maintenance mode")
-                if intent_key is not None:
-                    existing = self.connection.execute("SELECT * FROM budget_reservations WHERE intent_key=?", (intent_key,)).fetchone()
-                    if existing is not None:
-                        if (
-                            existing["task_id"] != task_id
-                            or existing["resource_id"] != resource_id
-                            or int(existing["estimated_minor"]) != amount.minor_units
-                            or bool(existing["recovery"]) != bool(recovery)
-                            or existing["period_id"] != period.period_id
-                            or existing["currency"] != amount.currency
-                        ):
-                            raise ValueError("intent key is bound to a different budget reservation")
-                        if existing["status"] in {"reconciled", "confirmed_no_charge", "released"}:
-                            raise ValueError("intent key is bound to a terminal budget reservation")
-                        resource_reservation = self.connection.execute("SELECT native_units, status FROM resource_reservations WHERE reservation_id=?", (existing["reservation_id"],)).fetchone()
-                        if resource_reservation is None or resource_reservation["status"] != "reserved" or float(resource_reservation["native_units"]) != float(native_units):
-                            raise ValueError("intent key is bound to an invalid resource reservation")
-                        self.connection.commit()
-                        return existing["reservation_id"]
-                totals = self.reservation_totals(period_id=period.period_id)
-                resource = self.connection.execute("SELECT available, health, price_currency FROM resources WHERE resource_id=?", (resource_id,)).fetchone()
-                if resource is None:
-                    raise KeyError(resource_id)
-                if resource["health"] == "unhealthy":
-                    raise ValueError(f"resource is unhealthy: {resource_id}")
-                if resource["price_currency"] is not None and resource["price_currency"] != amount.currency:
-                    raise ValueError(f"currency mismatch for resource: {resource_id}")
-                used = self.connection.execute("SELECT COALESCE(SUM(native_units), 0) FROM resource_reservations WHERE resource_id=? AND status='reserved'", (resource_id,)).fetchone()[0]
-                if float(used) + float(native_units) > float(resource["available"]):
-                    raise ValueError(f"resource capacity exceeded: {resource_id}")
-                remaining = (recovery_limit_minor if recovery else normal_limit_minor) - (totals["recovery_committed_minor"] if recovery else totals["normal_committed_minor"])
-                if amount.minor_units > remaining:
-                    raise ValueError(f"budget exceeded: requested {amount.minor_units}, remaining {remaining}")
-                reservation_id = str(uuid4())
-                self.connection.execute("INSERT INTO budget_reservations(reservation_id, task_id, resource_id, intent_key, estimated_minor, actual_minor, recovery, status, created_at, reconciled_at, period_id, currency) VALUES (?, ?, ?, ?, ?, NULL, ?, 'prepared', ?, NULL, ?, ?)", (reservation_id, task_id, resource_id, intent_key, amount.minor_units, int(recovery), datetime.now(timezone.utc).isoformat(), period.period_id, amount.currency))
-                self.connection.execute("INSERT INTO resource_reservations(reservation_id, resource_id, native_units, status) VALUES (?, ?, ?, 'reserved')", (reservation_id, resource_id, native_units))
-                self.connection.commit()
-                return reservation_id
-            except Exception:
-                if self.connection.in_transaction:
-                    self.connection.rollback()
-                raise
+        return self._budget_store.reserve_budget(
+            task_id=task_id,
+            resource_id=resource_id,
+            amount=amount,
+            recovery=recovery,
+            period=period,
+            normal_limit_minor=normal_limit_minor,
+            recovery_limit_minor=recovery_limit_minor,
+            native_units=native_units,
+            intent_key=intent_key,
+        )
 
     def reconcile_budget(self, reservation_id: str, *, actual: MoneyAmount, period: BudgetPeriod, normal_limit_minor: int, recovery_limit_minor: int) -> None:
-        with self._lock:
-            self.connection.execute("BEGIN IMMEDIATE")
-            try:
-                row = self.connection.execute("SELECT * FROM budget_reservations WHERE reservation_id=?", (reservation_id,)).fetchone()
-                if row is None:
-                    raise KeyError(reservation_id)
-                if row["status"] not in {"prepared", "dispatching", "unknown"}:
-                    raise ValueError(f"reservation is not active: {reservation_id}")
-                if row["period_id"] != period.period_id or row["currency"] != actual.currency:
-                    raise ValueError("reservation does not belong to current budget period or currency")
-                totals = self.reservation_totals(period_id=period.period_id)
-                current_total = totals["recovery_committed_minor"] if row["recovery"] else totals["normal_committed_minor"]
-                current_total -= int(row["estimated_minor"])
-                limit = recovery_limit_minor if row["recovery"] else normal_limit_minor
-                if current_total + actual.minor_units > limit:
-                    raise ValueError("actual usage exceeds the protected budget")
-                self.connection.execute("UPDATE budget_reservations SET actual_minor=?, status='reconciled', reconciled_at=? WHERE reservation_id=?", (actual.minor_units, datetime.now(timezone.utc).isoformat(), reservation_id))
-                self.connection.execute("UPDATE resource_reservations SET status='released' WHERE reservation_id=?", (reservation_id,))
-                self.connection.commit()
-            except Exception:
-                self.connection.rollback()
-                raise
+        self._budget_store.reconcile_budget(
+            reservation_id,
+            actual=actual,
+            period=period,
+            normal_limit_minor=normal_limit_minor,
+            recovery_limit_minor=recovery_limit_minor,
+        )
 
     def transition_budget(self, reservation_id: str, *, to_status: str, expected_from: set[str] | None = None) -> None:
-        with self._lock:
-            self.connection.execute("BEGIN IMMEDIATE")
-            try:
-                row = self.connection.execute("SELECT status FROM budget_reservations WHERE reservation_id=?", (reservation_id,)).fetchone()
-                if row is None:
-                    raise KeyError(reservation_id)
-                current = row["status"]
-                if expected_from is not None and current not in expected_from:
-                    raise ValueError(f"budget reservation is not in an expected state: {current}")
-                if to_status not in _BUDGET_TRANSITIONS or to_status not in _BUDGET_TRANSITIONS.get(current, set()):
-                    raise ValueError(f"invalid budget reservation transition: {current} -> {to_status}")
-                terminal = to_status in {"reconciled", "confirmed_no_charge", "released"}
-                self.connection.execute("UPDATE budget_reservations SET status=?, reconciled_at=CASE WHEN ? THEN ? ELSE reconciled_at END WHERE reservation_id=?", (to_status, int(terminal), datetime.now(timezone.utc).isoformat(), reservation_id))
-                if terminal:
-                    self.connection.execute("UPDATE resource_reservations SET status='released' WHERE reservation_id=?", (reservation_id,))
-                self.connection.commit()
-            except BaseException:
-                self.connection.rollback()
-                raise
+        self._budget_store.transition_budget(reservation_id, to_status=to_status, expected_from=expected_from)
 
     def release_budget(self, reservation_id: str) -> None:
-        self.transition_budget(reservation_id, to_status="confirmed_no_charge", expected_from={"prepared", "dispatching"})
+        self._budget_store.release_budget(reservation_id)
 
     def mark_budget_unknown(self, reservation_id: str) -> None:
-        with self._lock:
-            row = self.connection.execute("SELECT status FROM budget_reservations WHERE reservation_id=?", (reservation_id,)).fetchone()
-            if row is None:
-                raise KeyError(reservation_id)
-            if row["status"] == "unknown":
-                return
-        self.transition_budget(reservation_id, to_status="unknown", expected_from={"prepared", "dispatching"})
+        self._budget_store.mark_budget_unknown(reservation_id)
