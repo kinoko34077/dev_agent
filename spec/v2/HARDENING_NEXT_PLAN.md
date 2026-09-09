@@ -1,13 +1,13 @@
-# Hardening next plan (completed / frozen)
+# Hardening next plan (historical baseline, kept current)
 
 目的は、外部サービスが停止してもローカルで検証可能な境界を先に完了し、外部依存の項目を明確な保留として後回しにできる状態を作ること。
 
 Current State sync: Phase 3.5〜5 acceptance remains closed; the current Phase 6
-code evidence baseline is `a3f2b9d`. Phase 6 is documented separately in `docs/PHASE6_PLAN.md`; this document is the
+code evidence baseline is `b4f2669`. Phase 6 is documented separately in `docs/PHASE6_PLAN.md`; this document is the
 historical hardening record. Gate evidence distinguishes local, CI, and live
 Provider evidence.
 
-## 現在の実行範囲（2026-09-08 JST）
+## 現在の実行範囲（2026-09-09 JST）
 
 追加された v2 roadmap / foundation 要件に合わせた Phase 3.5
 （Kernel Trust Boundary Closure）の完了記録である。Phase 3.5 / 4 / 5 の
@@ -57,7 +57,7 @@ Phase 6 着手条件は満たされ、`GATE_STATUS.json` の `phase6_entry` は
 
 進捗: SQLite / JSON の effect intent と、全ローカル precondition 後の作成、原子的 claim、外部処理後のローカル保存前停止を `reconciliation_required` として再実行禁止にする基礎契約を実装済み。timeout、connection failure、response decode、result byte limit、output schema failure も同じ契約へ統一した。曖昧な外部状態は Task の `waiting_reconciliation` として永続化し、照合で intent を succeeded に確定した後に安全再開できる。Controller は active model request ID を checkpoint へ保存し、Provider dispatch では Budget reservation も intent key に永続結合するため、budget 状態だけ保存されたクラッシュ後に新しい外部 request / 二重予約を作らず再利用する。実外部APIの照合アダプタ自体は未実装。
 
-Execution progress: task wall-clock deadline is now persisted in checkpoint state and survives resume; expired resumed work fails closed. Input token estimates, provider-reported output/cost usage, and TaskGraph limits are enforced. Trusted in-process handlers retain a documented soft timeout; untrusted/generated/process handlers use a subprocess boundary with process-tree termination. Scheduler retries are now finite: WorkerRunner derives total attempts from `max_retries + 1`, and DurableQueue applies a default cap when callers omit a limit.
+Execution progress: task wall-clock deadline is now persisted in checkpoint state and survives resume; expired resumed work fails closed. Input token estimates, provider-reported output/cost usage, and TaskGraph limits are enforced. Trusted in-process handlers retain a documented soft timeout; untrusted/generated/process handlers use a subprocess boundary with process-tree termination. Scheduler retries are now finite: DurableQueue schema v3 persists `max_attempts`, claim/reap expiry paths terminalize exhausted crash loops, and WorkerRunner binds the queue item to `max_retries + 1`.
 
 Cancellation progress: `Controller.cancel()` is cooperative and durable at the next runtime boundary. In-flight trusted Python handlers and Provider request threads cannot be force-killed; both now persist `unable_to_confirm` and remain reconciliation-gated, while cancellation before execution persists `terminated`.
 
@@ -86,7 +86,7 @@ checkout; production mutations remain explicit operator actions.
 
 Approval progress: approval records bind to one exact internal call ID and canonical hash of the effective arguments after path canonicalization. Broad task/level reuse is rejected. One-shot consumption, expiry, revoke, and duplicate-insert rejection are enforced; SQLite consumption now uses `BEGIN IMMEDIATE` so validation, expiry/revoke check, and consumption commit are one transaction. Reconciliation audit insertion and intent transition are also one transaction. Reconciliation inspection remains available for an already-claimed side effect.
 
-Gate governance progress: `spec/v2/GATE_STATUS.json` schema v3 uses `IMPLEMENTED`, `INTEGRATED`, and `VERIFIED`; only `VERIFIED` is accepted as complete. B11 runtime transition evidence and E31 exact-head CI evidence are tracked separately; current Phase 3.5/4/5 acceptance gates are now all verified, with Phase 6/7 deferred requirements listed separately.
+Gate governance progress: `spec/v2/GATE_STATUS.json` schema v4 uses `IMPLEMENTED`, `INTEGRATED`, and `VERIFIED`; only `VERIFIED` is accepted as complete. B11 runtime transition evidence and E31 exact-head CI evidence are tracked separately; current Phase 3.5/4/5 acceptance gates are now all verified, with Phase 6/7 deferred requirements listed separately.
 
 Responsibility boundary: B11 is the runtime guarantee that critical Controller
 state transitions use `commit_transition()` with crash/restart coverage. E31 is

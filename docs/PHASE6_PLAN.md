@@ -55,6 +55,8 @@ Implemented in `recovery/phase6_recovery.py` and
 Implemented in `src/dev_agent/scheduler/queue.py`.
 
 - Queue state is durable in SQLite.
+- Queue schema migrations are ordered through v3; `max_attempts` is persisted
+  per item so lease expiry and worker crash recovery cannot retry forever.
 - Claims are exclusive through an atomic transaction.
 - `lease_owner`, `lease_until`, `state_version`, and `attempts` fence stale
   workers and support expiry/reclaim after restart.
@@ -86,6 +88,11 @@ reservation and dispatch-intent persistence.
 The lease proof for the provider intent transition is checked inside the
 StateStore transaction. An independent-process test confirms that a reclaimed
 queue lease prevents the stale process from entering the concrete provider.
+The provider boundary is also checked after the concrete call returns: if the
+worker loses its lease, the response and charge-bearing reservation remain
+unknown and the task requires reconciliation. Loss of durable success/audit
+persistence after an accepted response is handled the same way rather than as
+a local provider decode failure.
 
 Checkpoint JSON is exposed through `src/dev_agent/runtime/state.py:RuntimeState`;
 the Controller deep-copies resumed state before mutation while retaining the
