@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import pytest
+
 from src.dev_agent.domain.protocol import IntelligenceTier, ModelRequest, TaskStatus, TaskType
 from src.dev_agent.intelligence.escalation import EscalationContext
 from src.dev_agent.intelligence.evaluator import EvaluationEvidence
-from src.dev_agent.operation import OperationConfig, OperationService
+from src.dev_agent.operation import OperationConfig, OperationProviderBinding, OperationService
+from src.dev_agent.providers.base import ModelProvider, ProviderError
+from src.dev_agent.domain.protocol import ModelResponse
 
 
 def _config(tmp_path):
@@ -126,6 +130,204 @@ def test_operation_reviewed_lifecycle_dispatch_is_lease_fenced(tmp_path):
                 human_approval_required=False,
             ),
             max_cycles=3,
+            lease_proof=item.lease_proof,
+        )
+        assert completed.transition.task.status is TaskStatus.COMPLETED
+        service.queue.complete(
+            task.task_id,
+            worker_id=item.lease_owner,
+            state_version=item.state_version,
+            execution_attempt=True,
+        )
+
+    status = OperationService.read_status(config, task.task_id)
+    assert status["state"] == TaskStatus.COMPLETED.value
+    assert status["queue_state"] == "completed"
+
+
+class _OperationTierProvider(ModelProvider):
+    def __init__(self, provider_id, binding_id, model_id, tier, *, failure=None):
+        self.provider_id = provider_id
+        self.provider_binding_id = binding_id
+        self.model_id = model_id
+        self.model = model_id
+        self.intelligence_tier = tier
+        self.failure = failure
+        self.requests = []
+
+    def request(self, request):
+        self.requests.append(request)
+        if self.failure is not None:
+            raise self.failure
+        return ModelResponse(
+            provider=self.provider_id,
+            model=self.model_id,
+            text_segments=[self.provider_binding_id],
+            usage={"cost_minor": 0},
+        )
+
+
+def test_operation_lifecycle_runs_l1_alternate_then_reviewed_l2(tmp_path, monkeypatch):
+    config = OperationConfig(
+        data_dir=tmp_path,
+        provider_id="fake",
+        model="deterministic",
+        provider_pool=(
+            OperationProviderBinding(
+                "gemini",
+                "gemini-3.5-flash-lite",
+                "gemini:worker",
+                quota_domain="gemini-project",
+            ),
+            OperationProviderBinding(
+                "cloudflare",
+                "@cf/meta/llama-3.1-8b-instruct",
+                "cloudflare",
+                quota_domain="cloudflare-account",
+            ),
+            OperationProviderBinding(
+                "gemini",
+                "gemini-3.8-flash",
+                "gemini:core",
+                # Model the reviewed L2 fallback as a separately admitted
+                # quota domain.  An UNKNOWN-quota admission is intentionally
+                # not reusable after the first external boundary on the same
+                # domain until telemetry/requalification is available.
+                quota_domain="gemini-core-project",
+            ),
+        ),
+        worker_id="operation-hierarchy-e2e",
+        idle_sleep_seconds=0.01,
+    )
+    providers = {}
+
+    def build(binding):
+        failure = None
+        if binding.binding_id == "gemini:worker":
+            failure = ProviderError("primary unavailable", category="provider_error", retryable=True)
+        provider = _OperationTierProvider(
+            binding.provider_id,
+            binding.binding_id,
+            binding.model,
+            binding.intelligence_tier or ("L1" if binding.binding_id != "gemini:core" else "L2"),
+            failure=failure,
+        )
+        providers[binding.binding_id] = provider
+        return provider
+
+    monkeypatch.setattr(OperationService, "_build_provider", staticmethod(build))
+    task = OperationService.submit(config, "complete a tiered operation", task_type=TaskType.WORKER)
+
+    with OperationService.open(config) as service:
+        request = ModelRequest(
+            task_id=task.task_id,
+            messages=[{"role": "user", "content": "initial"}],
+            metadata={
+                "intelligence_routing": "bounded",
+                "allowed_intelligence_tiers": ["L1"],
+                "allowed_provider_binding_ids": ["gemini:worker"],
+                "allow_unknown_quota": True,
+            },
+        )
+        with pytest.raises(ProviderError):
+            service.dispatcher.request(request)
+
+        first = service.evaluate_task(
+            EvaluationEvidence(
+                task_id=task.task_id,
+                attempt=1,
+                max_attempts=3,
+                objective_met=False,
+                deterministic_checks_passed=False,
+                policy_compliant=True,
+                external_outcome_known=True,
+                retryable_failure=True,
+                alternate_provider_available=True,
+                human_approval_required=False,
+            ),
+            escalation_context=EscalationContext(
+                task_id=task.task_id,
+                current_tier=IntelligenceTier.L1,
+                allowed_tiers=(IntelligenceTier.L1, IntelligenceTier.L2),
+                attempt=1,
+                max_attempts=3,
+                escalation_count=0,
+                max_escalations=1,
+                now_epoch=1.0,
+                deadline_epoch=100.0,
+                budget_remaining=0.0,
+                estimated_cost=0.0,
+                retryable_failure=True,
+                same_provider_available=False,
+                alternate_provider_available=True,
+            ),
+        )
+        review = service.review_task(first, actor="operator", approved=True, approval_reference="l1-alt")
+        item = service.queue.claim("operation-hierarchy-e2e-lease", lease_seconds=30)
+        alternate = service.dispatch_reviewed(
+            first,
+            review,
+            model_request=request,
+            lease_proof=item.lease_proof,
+            provider_binding_id="gemini:worker",
+        )
+        assert alternate.transition.task.status is TaskStatus.RUNNING
+        assert providers["cloudflare"].requests[0].metadata["allowed_intelligence_tiers"] == ["L1"]
+
+        second = service.evaluate_task(
+            EvaluationEvidence(
+                task_id=task.task_id,
+                attempt=2,
+                max_attempts=3,
+                objective_met=False,
+                deterministic_checks_passed=False,
+                policy_compliant=True,
+                external_outcome_known=True,
+                retryable_failure=False,
+                alternate_provider_available=False,
+                human_approval_required=False,
+            ),
+            escalation_context=EscalationContext(
+                task_id=task.task_id,
+                current_tier=IntelligenceTier.L1,
+                allowed_tiers=(IntelligenceTier.L1, IntelligenceTier.L2),
+                attempt=2,
+                max_attempts=3,
+                escalation_count=0,
+                max_escalations=1,
+                now_epoch=2.0,
+                deadline_epoch=100.0,
+                budget_remaining=0.0,
+                estimated_cost=0.0,
+                retryable_failure=False,
+                same_provider_available=False,
+                alternate_provider_available=False,
+            ),
+            lease_proof=item.lease_proof,
+        )
+        l2_review = service.review_task(second, actor="operator", approved=True, approval_reference="l2-review")
+        l2 = service.dispatch_reviewed(
+            second,
+            l2_review,
+            model_request=request,
+            lease_proof=item.lease_proof,
+        )
+        assert l2.transition.task.status is TaskStatus.RUNNING
+        assert providers["gemini:core"].requests[0].metadata["allowed_intelligence_tiers"] == ["L2"]
+
+        completed = service.evaluate_task(
+            EvaluationEvidence(
+                task_id=task.task_id,
+                attempt=3,
+                max_attempts=3,
+                objective_met=True,
+                deterministic_checks_passed=True,
+                policy_compliant=True,
+                external_outcome_known=True,
+                retryable_failure=False,
+                alternate_provider_available=False,
+                human_approval_required=False,
+            ),
             lease_proof=item.lease_proof,
         )
         assert completed.transition.task.status is TaskStatus.COMPLETED
