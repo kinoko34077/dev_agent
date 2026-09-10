@@ -1,5 +1,11 @@
-# v2 Kernel operational contract. Provider secrets stay in environment/config
-# adapters; this file contains only bounded control-plane policy.
+# v2 Kernel policy reference / example (non-secret).
+#
+# Operation runtime does NOT load this file. It opens the persisted SQLite
+# resource/budget configuration and accepts only explicit non-secret provider
+# selection from environment variables or CLI flags. Hard-budget changes
+# belong to BudgetAuthority and a deployment-owned protected configuration
+# path; editing this reference file cannot change a running runtime policy.
+# Provider secrets stay in environment/config adapters.
 budget:
   currency: JPY
   hard_cap_minor: 10000

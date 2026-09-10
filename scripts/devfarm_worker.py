@@ -519,6 +519,38 @@ def _read_result_artifact(root: Path, manifest: Mapping[str, Any]) -> dict[str, 
     return validate_result(value, manifest=manifest)
 
 
+def _attempt_artifact_path(
+    root: Path,
+    task_id: str,
+    attempt_id: str,
+    name: str,
+    *,
+    required: bool = True,
+) -> Path | None:
+    """Resolve an artifact within the immutable attempt directory.
+
+    The root-level files are only a latest-result projection.  Once a result
+    identifies an attempt, verification must read the matching attempt
+    artifacts so a later retry or a stale projection cannot change what is
+    applied to the worker worktree.
+    """
+
+    safe_attempt = _attempt_id(attempt_id)
+    if name not in {"patch.diff", "notes.md"}:
+        raise DevFarmError("unsupported worker attempt artifact")
+    attempt_path = root / ".devfarm" / "results" / task_id / "attempts" / safe_attempt / name
+    if attempt_path.is_file():
+        return attempt_path
+    if safe_attempt != "legacy":
+        if not required:
+            return None
+        raise DevFarmError(f"worker {name} artifact is missing for attempt: {safe_attempt}")
+    legacy_path = root / ".devfarm" / "results" / task_id / name
+    if required or legacy_path.is_file():
+        return legacy_path
+    return None
+
+
 def apply_and_verify(root: str | Path, manifest_path: str | Path) -> dict[str, Any]:
     """Create an isolated worktree, apply a validated proposal, and run tests."""
 
@@ -528,7 +560,7 @@ def apply_and_verify(root: str | Path, manifest_path: str | Path) -> dict[str, A
     attempt_id = _attempt_id(result.get("attempt_id") or "legacy")
     if result["status"] != "completed" or not result["changed_files"]:
         raise DevFarmError("only a completed worker proposal with a non-empty patch may be applied")
-    patch_path = root / ".devfarm" / "results" / manifest["task_id"] / "patch.diff"
+    patch_path = _attempt_artifact_path(root, manifest["task_id"], attempt_id, "patch.diff")
     try:
         patch = patch_path.read_text(encoding="utf-8")
     except OSError as exc:
@@ -614,8 +646,14 @@ def apply_and_verify(root: str | Path, manifest_path: str | Path) -> dict[str, A
         metrics["durable_recorded"] = True
     result["worker_metrics"] = metrics
     write_result(root, result, manifest=manifest)
-    notes_path = root / ".devfarm" / "results" / manifest["task_id"] / "notes.md"
-    notes = notes_path.read_text(encoding="utf-8") if notes_path.exists() else "Host verification completed; no model notes artifact was available."
+    notes_path = _attempt_artifact_path(
+        root,
+        manifest["task_id"],
+        attempt_id,
+        "notes.md",
+        required=False,
+    )
+    notes = notes_path.read_text(encoding="utf-8") if notes_path is not None else "Host verification completed; no model notes artifact was available."
     _write_auxiliary_artifacts(
         root,
         manifest["task_id"],

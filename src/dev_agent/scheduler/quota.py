@@ -273,6 +273,19 @@ class QuotaRequalificationCoordinator:
         payload = self._payload(raw, domain)
         if payload is None:
             return QuotaProbeResult(resource_id, domain, QuotaProbeStatus.INVALID_OBSERVATION)
+        reported_block = payload.get("block_reason")
+        has_reported_block = isinstance(reported_block, str) and bool(reported_block.strip())
+        if not has_reported_block and not self._has_routable_headroom(payload):
+            # A successful HTTP response is not sufficient to clear a quota
+            # block.  The router requires a fresh positive limit/remaining
+            # pair; accepting only ``unit`` or reset metadata here would wake
+            # parked work into an immediate no-route loop.
+            return QuotaProbeResult(
+                resource_id,
+                domain,
+                QuotaProbeStatus.INVALID_OBSERVATION,
+                error_category="quota_headroom_unavailable",
+            )
         observed_at = _iso(current)
         payload["observed_at"] = observed_at
         try:
@@ -314,6 +327,30 @@ class QuotaRequalificationCoordinator:
     def _domain(observation: Mapping[str, Any]) -> str | None:
         domain = observation.get("quota_domain")
         return domain.strip() if isinstance(domain, str) and domain.strip() else None
+
+    @staticmethod
+    def _has_routable_headroom(observation: Mapping[str, Any]) -> bool:
+        def positive_pair(limit: Any, remaining: Any) -> bool:
+            return (
+                isinstance(limit, (int, float))
+                and not isinstance(limit, bool)
+                and math.isfinite(float(limit))
+                and limit > 0
+                and isinstance(remaining, (int, float))
+                and not isinstance(remaining, bool)
+                and math.isfinite(float(remaining))
+                and 0 < remaining <= limit
+            )
+
+        if positive_pair(observation.get("limit"), observation.get("remaining")):
+            return True
+        return any(
+            positive_pair(observation.get(limit_name), observation.get(remaining_name))
+            for limit_name, remaining_name in (
+                ("request_limit", "request_remaining"),
+                ("token_limit", "token_remaining"),
+            )
+        )
 
     @staticmethod
     def _payload(raw: Mapping[str, Any], domain: str) -> dict[str, Any] | None:

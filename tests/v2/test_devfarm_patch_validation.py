@@ -132,6 +132,60 @@ def test_worker_retries_keep_immutable_attempt_artifacts(tmp_path):
     assert [json.loads(line)["attempt_id"] for line in history] == [first["attempt_id"], second["attempt_id"]]
 
 
+def test_host_verification_reads_patch_from_the_selected_attempt(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": True,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": _patch(),
+        "notes": "proposal ready",
+    }
+
+    proposed = run_worker(root, manifest_path, provider=_WorkerProvider(output))
+    result_dir = root / ".devfarm/results/worker-test-001"
+    # The root result/patch files are only the latest projection.  A stale or
+    # concurrently replaced projection must not change which attempt is
+    # applied during host verification.
+    (result_dir / "patch.diff").write_text("not a unified diff\n", encoding="utf-8")
+
+    verified = apply_and_verify(root, manifest_path)
+
+    assert proposed["attempt_id"]
+    assert verified["status"] == "completed"
+    assert verified["attempt_id"] == proposed["attempt_id"]
+    assert verified["tests_passed"] is True
+
+
+def test_host_verification_rejects_missing_selected_attempt_artifact(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": True,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": _patch(),
+        "notes": "proposal ready",
+    }
+
+    proposed = run_worker(root, manifest_path, provider=_WorkerProvider(output))
+    attempt_patch = (
+        root
+        / ".devfarm/results/worker-test-001/attempts"
+        / proposed["attempt_id"]
+        / "patch.diff"
+    )
+    attempt_patch.unlink()
+
+    with pytest.raises(DevFarmError, match="artifact is missing"):
+        apply_and_verify(root, manifest_path)
+
+
 def test_worker_records_nonsemantic_final_newline_normalization(tmp_path):
     root, manifest_path = _workspace(tmp_path)
     output = {
@@ -447,6 +501,10 @@ def test_host_verification_backfills_missing_notes_artifact(tmp_path):
     }
     run_worker(root, manifest_path, provider=_WorkerProvider(output))
     (root / ".devfarm/results/worker-test-001/notes.md").unlink()
+    attempts_notes = next(
+        (root / ".devfarm/results/worker-test-001/attempts").glob("*/notes.md")
+    )
+    attempts_notes.unlink()
 
     verified = apply_and_verify(root, manifest_path)
 

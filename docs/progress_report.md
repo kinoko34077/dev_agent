@@ -1,5 +1,13 @@
 # dev_agent 開発進捗報告書
 
+> **STATUS: LEGACY / SUPERSEDED**
+>
+> This document is a historical v1 progress report. It is not a description of
+> the current v2 implementation and must not be used as an execution guide.
+> For the current v2 state, read [`CURRENT_STATE.md`](CURRENT_STATE.md), then
+> [`SYSTEM_MAP.md`](SYSTEM_MAP.md), [`V2_EXECUTION_PLAN.md`](V2_EXECUTION_PLAN.md),
+> and the relevant `spec/v2/` contract.
+
 ## 1. 概要
 本プロジェクトは、Google Gemini APIを活用した自律型エージェントの開発を進めています。特に、自己認識能力の向上と内的対話システムの実装に重点を置いています。
 
@@ -68,4 +76,4 @@
 - 新機能の追加と拡張
 
 ## 5. 結論
-現在の実装により、エージェントは自身の機能と制約をより深く理解し、効果的な内的対話を通じて自己改善を行うことができるようになりました。今後の開発では、これらの基盤を活かしながら、より高度な機能の実装を進めていく予定です。 
+現在の実装により、エージェントは自身の機能と制約をより深く理解し、効果的な内的対話を通じて自己改善を行うことができるようになりました。今後の開発では、これらの基盤を活かしながら、より高度な機能の実装を進めていく予定です。

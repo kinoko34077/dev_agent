@@ -385,6 +385,23 @@ class OperationService:
                 # caller supplied one in the current environment; an operator
                 # must repair the persisted resource explicitly.
                 raise OperationError(f"existing resource requires an operator quota_domain configuration: {binding_id}")
+            if profile is not None and existing_model is None:
+                # A binding without a persisted model identity cannot prove
+                # that its price belongs to this exact catalog entry.  Do not
+                # reinterpret a historical provider-level free row as a
+                # model-qualified free resource during normal startup.
+                raise OperationError(
+                    f"existing resource model identity is not trusted for binding/model: {binding_id}/{model_id}"
+                )
+            if profile is None and existing.get("cost_minor") == 0:
+                # A historical/provider-name bootstrap may have marked an
+                # unqualified model as free.  Preserve the record for an
+                # explicit admin repair, but never let normal Operation use a
+                # zero-cost assumption that is not backed by the exact
+                # binding/model catalog.
+                raise OperationError(
+                    f"existing resource billing metadata is not trusted for binding/model: {binding_id}/{model_id}"
+                )
             # Existing catalog, pricing, quota, health, and operator metadata
             # are authoritative.  Opening Operation must never upsert them.
             return
@@ -409,10 +426,10 @@ class OperationService:
             intelligence_tier=tier,
         )
         if existing is None:
-            # Catalog registration is not a provider health probe.  Keep the
-            # resource dispatchable for the first bounded request, but record
-            # that startup has only a bootstrap observation rather than
-            # claiming a healthy live connection.
+            # Catalog registration is not a provider health probe.  A remote
+            # binding with a quota domain remains unroutable until a fresh
+            # quota observation exists; local/fake bindings without quota can
+            # use this degraded bootstrap row for their first bounded request.
             ledger.observe(binding_id, available=1, health="degraded", confidence=0.0, concurrency_limit=1)
 
     @staticmethod

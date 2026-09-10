@@ -211,6 +211,33 @@ def test_quota_requalification_keeps_provider_blocked_after_one_failed_probe(tmp
     assert ledger.get_quota_observation("cloud")["block_reason"] == "rate_limit"
 
 
+def test_quota_requalification_does_not_wake_without_routable_headroom(tmp_path):
+    ledger = _blocked_ledger(tmp_path)
+    queue = DurableQueue(tmp_path / "queue.sqlite3")
+    queue.enqueue("quota-task")
+    item = queue.claim("quota-worker", lease_seconds=30)
+    scheduler = QuotaWakeScheduler(ledger, queue)
+    scheduler.park(
+        item.task_id,
+        worker_id="quota-worker",
+        state_version=item.state_version,
+        wake_at=datetime(2026, 9, 10, 11, 59, tzinfo=timezone.utc),
+        quota_domain="project",
+    )
+
+    result = QuotaRequalificationCoordinator(ledger, scheduler).probe_once(
+        "cloud",
+        lambda *_: {"unit": "requests", "metric": "rpm", "window": "minute"},
+        now=datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc),
+    )
+
+    assert result.status is QuotaProbeStatus.INVALID_OBSERVATION
+    assert result.observation_persisted is False
+    assert result.woken_tasks == 0
+    assert ledger.get_quota_observation("cloud")["block_reason"] == "rate_limit"
+    assert queue.snapshot("quota-task").state == "waiting"
+
+
 def test_quota_requalification_persists_conservative_cooldown_for_typed_probe_failure(tmp_path):
     ledger = _blocked_ledger(tmp_path)
 
