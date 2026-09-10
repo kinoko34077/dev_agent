@@ -70,10 +70,36 @@ class ResourceControlPlane:
         """Return the budget view needed by survival policy evaluation."""
         return self.governor.snapshot()
 
+    @staticmethod
+    def _route_request(request: ModelRequest, provider_id: str) -> RouteRequest:
+        """Translate the request's host policy into the compatibility route.
+
+        The canonical ``ProviderDispatcher`` builds this filter itself.  The
+        legacy direct-provider path still enters through this facade, so it
+        must receive the same exact-tier and unknown-quota constraints rather
+        than silently falling back to an unbounded provider-name lookup.
+        """
+
+        metadata = request.metadata
+        allowed_tiers = None
+        if metadata.get("intelligence_routing") == "bounded":
+            if "allowed_intelligence_tiers" not in metadata:
+                raise ValueError("bounded intelligence routing requires allowed_intelligence_tiers")
+            allowed_tiers = metadata["allowed_intelligence_tiers"]
+        return RouteRequest(
+            capabilities=set(request.requested_capabilities) or {"text"},
+            sensitivity=request.sensitivity,
+            allowed_providers={provider_id},
+            allow_unknown_quota=metadata.get("allow_unknown_quota") is True,
+            allowed_intelligence_tiers=allowed_tiers,
+            allowed_provider_binding_ids=metadata.get("allowed_provider_binding_ids"),
+            excluded_provider_binding_ids=metadata.get("excluded_provider_binding_ids", ()),
+        )
+
     def reserve_for_provider(self, task_id: str, provider_id: str, request: ModelRequest, *, intent_key: str | None = None) -> DispatchReservation:
         self._ensure_dispatch_allowed()
         try:
-            selection = self.router.choose(RouteRequest(capabilities=set(request.requested_capabilities) or {"text"}, sensitivity=request.sensitivity, allowed_providers={provider_id}))
+            selection = self.router.choose(self._route_request(request, provider_id))
             price = None if selection.estimated_cost_minor is None or selection.price_currency is None else MoneyAmount(selection.price_currency, selection.estimated_cost_minor)
             reservation = self.governor.reserve(task_id, selection.resource_id, estimated_cost=price, intent_key=intent_key)
         except NoRoute as exc:
