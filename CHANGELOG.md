@@ -4,6 +4,11 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-10 JST — Automatic quota maintenance bridge
+
+- Operationの`start`／`start --once`が既存`QuotaWakeScheduler`と`QuotaRequalificationCoordinator`のbounded maintenance boundaryを毎回通るようにした。OpenAI互換Providerは既存`/models` probeから取得できるrate-limit headerだけをprovider-neutral observationへ渡し、telemetryが無い場合はquota blockを推測解除しない。
+- focused suite `16 passed`、v2全回帰 `462 passed, 1 skipped`。G6O1、Provider qualification、Evidence routingのadvisory-only方針は変更していない。
+
 ### 2026-09-10 JST — Commander dogfood integration boundary
 
 - 固定revision `aa2f819`を使うCommander Planで、決定的local harnessのproposal、隔離worktree Host Verification、Codex review、明示integrationを完了した。host側focused testは`1 passed`で、Worker結果にはModel自己申告ではなくhost_verified_testsとdurable metricsを記録した。

@@ -1,6 +1,6 @@
 # Current State — v2/bootstrap
 
-実装基準は `11a9e09` です。本書はそのコードと、直近の外部資格化・DevFarm
+実装基準は `4eb73e5` です。本書はそのコードと、直近の外部資格化・DevFarm
 実行結果を同期したCurrent Stateです。GATE_STATUSの既存statusは変更していません。
 
 ## 判定
@@ -17,7 +17,7 @@
 - Phase 7 integration: CommanderのWorker proposalはmanifestに固定されたGit commit objectを読み、作業中のcheckout HEAD進行に影響されない。通常のcode dependencyは依存Taskの`INTEGRATED`までreleaseせず、FiniteLifecycleのcycle使用数はdurable evaluation historyから再構築する
 - Phase 7 evidence routing: `EvidenceBasedRoutingPolicy`がhost-verified Worker metricsを、最小sample数・証拠期限・受入率／retry rollback条件付きで、呼出側から渡されたhard-filter済みbindingの範囲だけで順位付けする。証拠不足・期限切れ・回帰は採用せず、ResourceRouterのcapability／privacy／quota／budget hard filterや通常routingを上書きしない。自動routingへの接続は未実施
 - Phase 7 Operation Layer: `python -m src.dev_agent` の`start`／`submit`／`status`／`stop`を追加し、既存のSQLiteStateStore・DurableQueue・WorkerRunner・Controller・ProviderDispatcherをcompositionした。StateStoreとQueueは同じSQLiteファイルを共有し、CLI停止は実行中Taskを即時失敗扱いせず、durableな協調キャンセル要求または既存のreconciliation状態を維持する
-- Phase 6 quota operation: ResourceLedger schema v8でmetric／window／reset source／blocked-until／block reasonを保持し、ProviderErrorの429／quota／transport分類をrouting blockへ接続済み。blocked observationは新しい正常観測で明示的に復帰する。Scheduler queue schema v4と`QuotaWakeScheduler`はreset boundaryへのdurable parking／wakeを提供し、`QuotaRequalificationCoordinator`は呼出側が明示した一回のbounded probeについて、freshな正常観測の保存後だけdue taskをwakeする。Operation Layerの`maintenance_tick`がdue domainだけを対象にprobe上限を適用し、typed probe failureには保守的cooldownを永続化する。Provider再probeの自動loopやclockだけによるblock解除は行わない
+- Phase 6 quota operation: ResourceLedger schema v8でmetric／window／reset source／blocked-until／block reasonを保持し、ProviderErrorの429／quota／transport分類をrouting blockへ接続済み。blocked observationは新しい正常観測で明示的に復帰する。Scheduler queue schema v4と`QuotaWakeScheduler`はreset boundaryへのdurable parking／wakeを提供し、`QuotaRequalificationCoordinator`は呼出側が明示した一回のbounded probeについて、freshな正常観測の保存後だけdue taskをwakeする。Operation Layerの`maintenance_tick`がdue domainだけを対象にprobe上限を適用し、`start`／`start --once`からも同じmaintenance boundaryを通る。OpenAI互換adapterはtelemetryを返す場合だけ既存`/models` probeからquota observationを返し、typed probe failureには保守的cooldownを永続化する。Provider再probeの無制限loopやclockだけによるblock解除は行わない
 - DevFarm orchestration: Remote proposalとHost verificationを分離し、remote inference枠とworktree verification枠を別Governorでboundedに制御する。proposal失敗時にworktreeを作成せず、自動mergeもしない
 - Development Commander: `scripts/devfarm_commander.py`が既存DevFarmの上にdevelopment-only親Planを提供する。`.devfarm/plans/<run-id>.json`へobjective、base revision、Task、依存、非重複ownership、assignment、result参照をdurably保存し、plan／dispatch／status／collect／verify／resume／reassign／mark-integratedを既存境界のcompositionで提供する。Taskごとの固定revisionを許容し、code dependencyは明示的な`mark-integrated`後だけreleaseする。Production Runtimeのstate／Scheduler／authorityやAgentBackendではない
 - Commander dogfood: `phase7-commander-local-dogfood-004`で、`aa2f819`固定のproposal、隔離worktreeでのHost Verification（許可済みfocused test `1 passed`）、Codex review、明示integrationを一連のPlanとして完了した。これはCommanderの計画・依存・検証・統合境界の実証であり、外部Cloud Workerの資格化や成功を意味しない
@@ -25,7 +25,7 @@
 
 ## 検証
 
-- v2ローカル全回帰: `460 passed, 1 skipped`（`python -m pytest tests/v2 -q --durations=10`、118.48秒。所要時間は実行環境依存）
+- v2ローカル全回帰: `462 passed, 1 skipped`（`python -m pytest tests/v2 -q --durations=10`、106.86秒。所要時間は実行環境依存）
 - Operation Layer focused: `11 passed`（submit／status、canonical Dispatcher経由のstart、queue復旧、process restart、terminal／waiting reconciliation、provider非依存safe stop、durable cancellation request、due quota maintenance／wake）
 - Evaluator→dispatch cycle focused: `18 passed in 2.62s`
 - finite lifecycle focused: `11 passed`（明示review、dispatch、terminal transition、評価cycle上限、process restart後のdurable cycle／waiting boundary）
