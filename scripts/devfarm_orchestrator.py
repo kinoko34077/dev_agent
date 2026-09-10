@@ -66,10 +66,70 @@ class ConcurrencyGovernor:
 
 
 class RemoteConcurrencyGovernor(ConcurrencyGovernor):
-    """Bound remote inference waits independently from local verification."""
+    """Bound remote waits globally and, optionally, per Provider binding."""
 
-    def __init__(self, max_inflight: int = 4) -> None:
+    def __init__(self, max_inflight: int = 4, *, per_binding_limits: Mapping[str, int] | None = None) -> None:
         super().__init__(max_inflight, name="remote_inference")
+        if per_binding_limits is not None and not isinstance(per_binding_limits, Mapping):
+            raise ValueError("per_binding_limits must be a mapping or None")
+        self._per_binding_limits: dict[str, int] = {}
+        self._per_binding_semaphores: dict[str, threading.BoundedSemaphore] = {}
+        self._per_binding_stats: dict[str, dict[str, int]] = {}
+        for binding_id, limit in (per_binding_limits or {}).items():
+            if not isinstance(binding_id, str) or not binding_id.strip():
+                raise ValueError("per_binding_limits keys must be non-empty strings")
+            if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
+                raise ValueError("per_binding_limits values must be positive integers")
+            normalized = binding_id.strip()
+            self._per_binding_limits[normalized] = limit
+            self._per_binding_semaphores[normalized] = threading.BoundedSemaphore(limit)
+            self._per_binding_stats[normalized] = {"active": 0, "peak": 0}
+
+    @contextmanager
+    def slot(self, provider_binding_id: str | None = None) -> Iterator[None]:
+        """Acquire global capacity and then the binding-local capacity.
+
+        The global limit remains the main backpressure control.  A configured
+        binding limit is only a local admission cap to avoid self-induced
+        bursts against one provider/quota identity; it is not quota telemetry.
+        """
+
+        binding = None
+        if provider_binding_id is not None:
+            if not isinstance(provider_binding_id, str) or not provider_binding_id.strip():
+                raise ValueError("provider_binding_id must be a non-empty string or None")
+            binding = provider_binding_id.strip()
+        with super().slot():
+            semaphore = self._per_binding_semaphores.get(binding) if binding is not None else None
+            if binding is not None and binding in self._per_binding_limits and semaphore is None:
+                raise ConcurrencyLimitError(f"remote binding concurrency is disabled: {binding}")
+            if semaphore is None:
+                yield
+                return
+            semaphore.acquire()
+            stats = self._per_binding_stats[binding]
+            with self._lock:
+                stats["active"] += 1
+                stats["peak"] = max(stats["peak"], stats["active"])
+            try:
+                yield
+            finally:
+                with self._lock:
+                    stats["active"] -= 1
+                semaphore.release()
+
+    def snapshot(self) -> dict[str, Any]:
+        snapshot = super().snapshot()
+        with self._lock:
+            snapshot["per_binding"] = {
+                binding: {
+                    "max_inflight": self._per_binding_limits[binding],
+                    "active": values["active"],
+                    "peak": values["peak"],
+                }
+                for binding, values in self._per_binding_stats.items()
+            }
+        return snapshot
 
 
 class HostConcurrencyGovernor:
@@ -163,7 +223,8 @@ class DevFarmOrchestrator:
         return normalized
 
     def _propose(self, root: Path, assignment: WorkerAssignment) -> dict[str, Any]:
-        with self.remote_governor.slot():
+        binding_id = getattr(assignment.provider, "provider_binding_id", None) or getattr(assignment.provider, "provider_id", None)
+        with self.remote_governor.slot(binding_id):
             return run_worker(root, assignment.manifest_path, provider=assignment.provider)
 
     def propose(

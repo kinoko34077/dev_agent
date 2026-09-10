@@ -19,9 +19,11 @@ from src.dev_agent.providers.base import ModelProvider
 class _ConcurrentProvider(ModelProvider):
     provider_id = "cloudflare"
 
-    def __init__(self, output, tracker=None):
+    def __init__(self, output, tracker=None, binding_id=None):
         self.output = output
         self.tracker = tracker
+        if binding_id is not None:
+            self.provider_binding_id = binding_id
 
     def request(self, request: ModelRequest) -> ModelResponse:
         if self.tracker is not None:
@@ -29,7 +31,8 @@ class _ConcurrentProvider(ModelProvider):
                 self.tracker["active"] += 1
                 self.tracker["peak"] = max(self.tracker["peak"], self.tracker["active"])
             try:
-                self.tracker["barrier"].wait(timeout=3)
+                if self.tracker.get("barrier") is not None:
+                    self.tracker["barrier"].wait(timeout=3)
                 time.sleep(0.03)
             finally:
                 with self.tracker["lock"]:
@@ -168,3 +171,46 @@ def test_disabled_remote_resource_is_fail_closed(tmp_path):
     orchestrator = DevFarmOrchestrator(remote_governor=RemoteConcurrencyGovernor(max_inflight=0))
     with pytest.raises(ConcurrencyLimitError, match="remote inference"):
         orchestrator.propose(root, [(manifests[0], _ConcurrentProvider(_output("tests/v2/worker.py")))])
+
+
+def test_remote_binding_limit_serializes_same_quota_identity(tmp_path):
+    targets = ["tests/v2/worker_a.py", "tests/v2/worker_b.py"]
+    root, manifests = _repo(tmp_path, targets)
+    tracker = {"lock": threading.Lock(), "barrier": None, "active": 0, "peak": 0}
+    orchestrator = DevFarmOrchestrator(
+        remote_governor=RemoteConcurrencyGovernor(max_inflight=2, per_binding_limits={"cloudflare:shared": 1}),
+        host_governor=HostConcurrencyGovernor(worktree_verification_slots=1),
+    )
+
+    proposals = orchestrator.propose(
+        root,
+        [
+            (manifests[0], _ConcurrentProvider(_output(targets[0]), tracker, "cloudflare:shared")),
+            (manifests[1], _ConcurrentProvider(_output(targets[1]), tracker, "cloudflare:shared")),
+        ],
+    )
+
+    assert [item["status"] for item in proposals] == ["completed", "completed"]
+    assert tracker["peak"] == 1
+    assert orchestrator.remote_governor.snapshot()["per_binding"]["cloudflare:shared"]["peak"] == 1
+
+
+def test_remote_binding_limits_allow_independent_quota_identities_in_parallel(tmp_path):
+    targets = ["tests/v2/worker_a.py", "tests/v2/worker_b.py"]
+    root, manifests = _repo(tmp_path, targets)
+    tracker = {"lock": threading.Lock(), "barrier": threading.Barrier(2), "active": 0, "peak": 0}
+    orchestrator = DevFarmOrchestrator(
+        remote_governor=RemoteConcurrencyGovernor(max_inflight=2, per_binding_limits={"cloudflare:a": 1, "cloudflare:b": 1}),
+        host_governor=HostConcurrencyGovernor(worktree_verification_slots=1),
+    )
+
+    proposals = orchestrator.propose(
+        root,
+        [
+            (manifests[0], _ConcurrentProvider(_output(targets[0]), tracker, "cloudflare:a")),
+            (manifests[1], _ConcurrentProvider(_output(targets[1]), tracker, "cloudflare:b")),
+        ],
+    )
+
+    assert [item["status"] for item in proposals] == ["completed", "completed"]
+    assert tracker["peak"] == 2
