@@ -11,6 +11,7 @@ from threading import RLock
 import time
 from typing import Any
 
+from .._sqlite import connect
 from ..domain.protocol import Event, Step, Task, TaskStatus, ToolResult
 from .core_repository import CoreStateRepository
 from .effects_repository import EffectAuditRepository
@@ -51,7 +52,7 @@ class SQLiteStateStore:
         # loop is executing.  All durable mutations still pass through the
         # store's transactions; allowing the connection across threads avoids
         # a Python-only thread-affinity failure at that boundary.
-        self.connection = sqlite3.connect(self.path, check_same_thread=False)
+        self.connection = connect(self.path)
         self.connection.row_factory = sqlite3.Row
         self._lock = RLock()
         self._core = CoreStateRepository(self.connection)

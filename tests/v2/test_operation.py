@@ -250,6 +250,7 @@ def test_operation_maintenance_tick_requalifies_due_quota_and_wakes_queue(tmp_pa
         assert results[0]["status"] == "requalified"
         assert calls == [("fake:default", "fake-domain")]
         assert service.ledger.get_quota_observation("fake:default")["block_reason"] is None
+        assert service.ledger.get_resource("fake:default")["observed_at"] == "2026-09-10T12:00:00+00:00"
         assert results[0]["woken_tasks"] == 1
 
 
@@ -354,6 +355,50 @@ def test_operation_requires_quota_domain_for_remote_resource(tmp_path):
     with ResourceLedger(tmp_path / "resources.sqlite3") as ledger:
         with pytest.raises(OperationError, match="quota_domain"):
             OperationService._ensure_resource(ledger, provider, config)
+
+
+def test_operation_does_not_fill_missing_existing_quota_domain_from_runtime_config(tmp_path):
+    from src.dev_agent.operation import OperationError, OperationService
+    from src.dev_agent.providers.cloudflare import CloudflareWorkersAIHttpProvider
+    from src.dev_agent.resources.ledger import ResourceLedger
+
+    config = OperationConfig(
+        data_dir=tmp_path,
+        provider_id="cloudflare",
+        model="@cf/meta/llama-3.1-8b-instruct",
+        provider_binding_id="cloudflare",
+        quota_domain="cloudflare-account",
+    )
+    provider = CloudflareWorkersAIHttpProvider(model=config.model)
+    with ResourceLedger(tmp_path / "resources.sqlite3") as ledger:
+        ledger.register_resource(
+            "cloudflare",
+            provider_id="cloudflare",
+            provider_binding_id="cloudflare",
+            native_unit="request",
+            capacity=1,
+            capabilities=["text"],
+            sensitivity="normal",
+            cost_minor=0,
+            price_currency="JPY",
+        )
+        with pytest.raises(OperationError, match="operator quota_domain"):
+            OperationService._ensure_resource(ledger, provider, config)
+        assert ledger.get_resource("cloudflare")["quota_domain"] is None
+
+
+def test_new_operation_resource_is_degraded_until_a_real_provider_observation(tmp_path):
+    from src.dev_agent.operation import OperationService
+    from src.dev_agent.providers.fake import FakeProvider
+    from src.dev_agent.resources.ledger import ResourceLedger
+
+    config = _config(tmp_path)
+    with ResourceLedger(tmp_path / "resources.sqlite3") as ledger:
+        provider = FakeProvider()
+        OperationService._ensure_resource(ledger, provider, config)
+        observation = ledger.get_resource("fake:default")
+        assert observation["health"] == "degraded"
+        assert observation["confidence"] == 0
 
 
 def test_successful_provider_observation_refreshes_resource_freshness(tmp_path):

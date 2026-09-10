@@ -15,9 +15,10 @@ import math
 import os
 from pathlib import Path
 import sqlite3
-from threading import Event
+from threading import Event, RLock
 from typing import Any, Callable, Mapping
 
+from ._sqlite import connect
 from .domain.protocol import Task, TaskStatus
 from .providers.dispatch import ProviderDispatcher
 from .providers.factory import ProviderDefinition, ProviderFactory
@@ -212,25 +213,30 @@ class OperationControl:
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.connection = sqlite3.connect(self.path, check_same_thread=False)
+        self.connection = connect(self.path)
+        self._lock = RLock()
         self.connection.executescript(self._SCHEMA)
         self.connection.execute("INSERT OR IGNORE INTO operation_control(id, stop_requested) VALUES (1, 0)")
         self.connection.commit()
 
     def request_stop(self) -> None:
-        self.connection.execute("UPDATE operation_control SET stop_requested=1 WHERE id=1")
-        self.connection.commit()
+        with self._lock:
+            self.connection.execute("UPDATE operation_control SET stop_requested=1 WHERE id=1")
+            self.connection.commit()
 
     def clear_stop(self) -> None:
-        self.connection.execute("UPDATE operation_control SET stop_requested=0 WHERE id=1")
-        self.connection.commit()
+        with self._lock:
+            self.connection.execute("UPDATE operation_control SET stop_requested=0 WHERE id=1")
+            self.connection.commit()
 
     def stop_requested(self) -> bool:
-        row = self.connection.execute("SELECT stop_requested FROM operation_control WHERE id=1").fetchone()
-        return bool(row and row[0])
+        with self._lock:
+            row = self.connection.execute("SELECT stop_requested FROM operation_control WHERE id=1").fetchone()
+            return bool(row and row[0])
 
     def close(self) -> None:
-        self.connection.close()
+        with self._lock:
+            self.connection.close()
 
 
 def _echo(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -372,8 +378,13 @@ class OperationService:
             existing_domain = existing.get("quota_domain")
             if config.quota_domain is not None and existing_domain not in {None, config.quota_domain}:
                 raise OperationError(f"resource quota_domain is operator-owned and differs: {binding_id}")
-            if profile is not None and profile.quota_required and not (existing_domain or config.quota_domain):
-                raise OperationError(f"quota_domain is required for cloud resource binding: {binding_id}")
+            if profile is not None and profile.quota_required and not existing_domain:
+                # Opening the service is not an administrative catalog
+                # migration.  Do not silently leave a known cloud binding
+                # without its account/project quota domain just because the
+                # caller supplied one in the current environment; an operator
+                # must repair the persisted resource explicitly.
+                raise OperationError(f"existing resource requires an operator quota_domain configuration: {binding_id}")
             # Existing catalog, pricing, quota, health, and operator metadata
             # are authoritative.  Opening Operation must never upsert them.
             return
@@ -398,10 +409,14 @@ class OperationService:
             intelligence_tier=tier,
         )
         if existing is None:
-            ledger.observe(binding_id, available=1, health="healthy", confidence=1.0, concurrency_limit=1)
+            # Catalog registration is not a provider health probe.  Keep the
+            # resource dispatchable for the first bounded request, but record
+            # that startup has only a bootstrap observation rather than
+            # claiming a healthy live connection.
+            ledger.observe(binding_id, available=1, health="degraded", confidence=0.0, concurrency_limit=1)
 
     @staticmethod
-    def submit(config: OperationConfig | None, objective: str, *, priority: int = 0) -> Task:
+    def submit(config: OperationConfig | None, objective: str, *, priority: int = 0, sensitivity: str = "normal") -> Task:
         config = config or OperationConfig.from_environment()
         if not isinstance(objective, str) or not objective.strip():
             raise ValueError("objective must be a non-empty string")
@@ -410,7 +425,7 @@ class OperationService:
         store = SQLiteStateStore(config.state_path)
         queue = DurableQueue(config.queue_path)
         try:
-            task = Task(objective=objective.strip())
+            task = Task(objective=objective.strip(), sensitivity=sensitivity)
             store.save_task(task)
             try:
                 queue.enqueue(task.task_id, priority=priority, max_attempts=task.limits.max_retries + 1)
@@ -679,6 +694,7 @@ def _add_common_arguments(parser) -> None:
     parser.add_argument("--provider", dest="provider_id", default=None)
     parser.add_argument("--model", default=None)
     parser.add_argument("--binding", dest="provider_binding_id", default=None)
+    parser.add_argument("--quota-domain", dest="quota_domain", default=None)
     parser.add_argument("--worker-id", default=None)
     parser.add_argument("--lease-seconds", type=float, default=None)
     parser.add_argument("--idle-sleep-seconds", type=float, default=None)
@@ -696,6 +712,7 @@ def build_parser():
     _add_common_arguments(submit)
     submit.add_argument("objective")
     submit.add_argument("--priority", type=int, default=0)
+    submit.add_argument("--sensitivity", choices=("public", "normal", "internal", "sensitive"), default="normal")
     status = subparsers.add_parser("status", help="show durable Task state")
     _add_common_arguments(status)
     status.add_argument("task_id")
@@ -714,12 +731,13 @@ def main(argv: list[str] | None = None) -> int:
             provider_id=getattr(args, "provider_id", None),
             model=getattr(args, "model", None),
             provider_binding_id=getattr(args, "provider_binding_id", None),
+            quota_domain=getattr(args, "quota_domain", None),
             worker_id=getattr(args, "worker_id", None),
             lease_seconds=getattr(args, "lease_seconds", None),
             idle_sleep_seconds=getattr(args, "idle_sleep_seconds", None),
         )
         if args.command == "submit":
-            task = OperationService.submit(config, args.objective, priority=args.priority)
+            task = OperationService.submit(config, args.objective, priority=args.priority, sensitivity=args.sensitivity)
             print(json.dumps({"task_id": task.task_id, "state": task.status.value}, ensure_ascii=False))
             return 0
         if args.command == "status":

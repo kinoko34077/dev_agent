@@ -301,6 +301,11 @@ def test_budget_rollover_is_admin_only_and_preserves_caps(tmp_path):
     assert BudgetGovernor(resource_ledger).period.period_id == "2026-10"
     assert resource_governor.period.period_id == "2026-09"
 
+    with pytest.raises(BudgetExceeded, match="period is stale"):
+        resource_governor.reserve("stale-task", "remote-gemini", estimated_cost_minor=1)
+    with pytest.raises(BudgetExceeded, match="period is stale"):
+        resource_governor.snapshot()
+
 
 def test_budget_rollover_rejects_active_reservations_and_backwards_period(tmp_path):
     resource_ledger = ledger(tmp_path)

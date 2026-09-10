@@ -250,7 +250,24 @@ class BudgetGovernor:
     def _current_month() -> BudgetPeriod:
         return _current_month()
 
+    def _ensure_current_period(self) -> None:
+        """Reject a long-lived governor after an administrative rollover.
+
+        Rollover is intentionally owned by ``BudgetAuthority``.  A runtime
+        governor that was constructed before that operation must not continue
+        reserving against the retired period, otherwise a resident worker
+        could bypass the supervisor's period boundary simply by retaining an
+        old object.
+        """
+
+        current = self.ledger.budget_config()
+        if current["period_id"] != self.period.period_id:
+            raise BudgetExceeded(
+                "budget governor period is stale; reopen the governor after rollover"
+            )
+
     def reserve(self, task_id: str, resource_id: str, *, estimated_cost: MoneyAmount | None = None, estimated_cost_minor: int | None = None, recovery: bool = False, native_units: int | float = 1, intent_key: str | None = None, _authority: object | None = None) -> BudgetReservation:
+        self._ensure_current_period()
         if recovery and _authority is not _RECOVERY_RESERVE_TOKEN:
             raise PermissionError("recovery reserve requires BudgetAuthority.reserve_recovery")
         if not task_id.strip():
@@ -282,6 +299,7 @@ class BudgetGovernor:
         return BudgetReservation(reservation_id, task_id, resource_id, estimated_cost, recovery, native_units)
 
     def reconcile(self, reservation_id: str, *, actual_cost: MoneyAmount | None = None, actual_cost_minor: int | None = None) -> dict[str, Any]:
+        self._ensure_current_period()
         if actual_cost is not None and actual_cost_minor is not None:
             raise ValueError("provide actual_cost, not both money and minor units")
         if actual_cost is None and actual_cost_minor is not None:
@@ -318,5 +336,6 @@ class BudgetGovernor:
         self.ledger.mark_budget_unknown(reservation_id)
 
     def snapshot(self) -> dict[str, Any]:
+        self._ensure_current_period()
         totals = self.ledger.reservation_totals(period_id=self.period.period_id)
         return {**totals, "hard_cap_minor": self.policy.hard_cap_minor, "recovery_reserve_minor": self.policy.recovery_reserve_minor, "normal_available_minor": self.policy.hard_cap_minor - self.policy.recovery_reserve_minor - totals["normal_committed_minor"], "recovery_available_minor": self.policy.recovery_reserve_minor - totals["recovery_committed_minor"], "currency": self.currency, "period_id": self.period.period_id}

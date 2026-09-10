@@ -11,6 +11,8 @@ from threading import RLock
 import time
 from uuid import uuid4
 
+from .._sqlite import connect
+
 
 class QueueEmpty(RuntimeError):
     pass
@@ -87,7 +89,7 @@ class DurableQueue:
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.connection = sqlite3.connect(self.path, check_same_thread=False)
+        self.connection = connect(self.path)
         self.connection.row_factory = sqlite3.Row
         self._lock = RLock()
         existing_tables = {row[0] for row in self.connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")}

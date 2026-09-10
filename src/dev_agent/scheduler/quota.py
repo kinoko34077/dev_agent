@@ -23,6 +23,15 @@ class QuotaWriteView(QuotaReadView, Protocol):
 
     def get_resource(self, resource_id: str) -> dict[str, Any]: ...
 
+    def refresh_resource_observation(
+        self,
+        resource_id: str,
+        *,
+        health: str = "healthy",
+        observed_at: str | None = None,
+        confidence: float = 1.0,
+    ) -> None: ...
+
     def ingest_quota_observation(
         self,
         resource_id: str,
@@ -284,6 +293,16 @@ class QuotaRequalificationCoordinator:
         if isinstance(refreshed_reason, str) and refreshed_reason.strip():
             status = QuotaProbeStatus.BLOCKED_EXTERNAL if refreshed_reason.strip().lower() in _EXTERNAL_BLOCKS else QuotaProbeStatus.STILL_BLOCKED
             return QuotaProbeResult(resource_id, domain, status, observed_at=observed_at, observation_persisted=True, error_category=refreshed_reason.strip().lower())
+        # A successful bounded probe is also a current resource-liveness
+        # observation.  Without this update, a resource whose catalog row was
+        # older than the router freshness window would remain unroutable even
+        # though the reset-aware probe just confirmed it.
+        self.ledger.refresh_resource_observation(
+            resource_id,
+            health="healthy",
+            observed_at=observed_at,
+            confidence=1.0,
+        )
         woken = (
             self.wake_scheduler.wake_due(now=current, quota_domain=domain)
             if self.wake_scheduler is not None and self.wake_scheduler.queue is not None
