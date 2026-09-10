@@ -4,6 +4,13 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-10 JST — Minimum Operation Layer
+
+- `python -m src.dev_agent`へ`start`／`submit`／`status`／`stop`を追加し、CLI専用runtimeを増やさず、SQLiteStateStore、DurableQueue、WorkerRunner、Controller、ProviderDispatcherをcompositionした。既定Providerは無課金のdeterministic fakeで、実Providerは明示設定時だけ構築する。
+- StateStoreとQueueは同じSQLiteファイルを共有し、Workerのlease proofをStateStoreのtransaction境界で検証できるようにした。submitの途中失敗でTaskだけ残った場合はstart時にqueued itemを復旧する。
+- Queueへlease所有者付き／未leaseのcancel境界を追加し、WorkerはControllerの`CANCELLED`結果をqueueの`cancelled`へ反映する。別processのstopはrunning Taskを即時失敗扱いせず、durable cancellation requestとして所有Workerへ伝播する。`WAITING_RECONCILIATION`はcancelで上書きしない。
+- Operation focused `7 passed`、v2全回帰 `433 passed, 1 skipped`。G6O1と既存Gate判定は変更していない。
+
 ### 2026-09-10 JST — Reset-aware quota metadata and bounded DevFarm stages
 
 - ResourceLedgerをschema v8へordered migrationし、quota observationにmetric／window／reset source／blocked-until／block reasonを追加した。429／quota／transportのtyped ProviderErrorはProvider-neutralな保守的blockへ変換し、古いblocked observationを時計経過だけでroutingへ戻さない。Recovery validatorもschema v8と新しいquota metadataを検証する。

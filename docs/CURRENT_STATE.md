@@ -1,6 +1,6 @@
 # Current State — v2/bootstrap
 
-実装基準は `b71d9ba` です。本書はそのコードと、直近の外部資格化・DevFarm
+実装基準は `e8618d7` です。本書はそのコードと、直近の外部資格化・DevFarm
 実行結果を同期したCurrent Stateです。GATE_STATUSの既存statusは変更していません。
 
 ## 判定
@@ -13,13 +13,15 @@
 - Phase 7 execution: `EscalationExecutor`がaccepted `dispatch_ready`を再検証し、既存ProviderDispatcher・effect intent・budget/resource境界を通る有限dispatchを実装済み。`EvaluationDispatchCoordinator`がhost evaluator→明示review→dispatchの一回のcycleを接続し、PASS／拒否／unknownを別状態で返す。重複再送とunknown/reconciliationをfail-closedに扱う
 - Phase 7E: bounded workflow promotion proposalの生成境界を実装済み。自動promotionは行わない
 - Phase 7 lifecycle: host evaluator／reviewed dispatchの結果を、`TaskLifecycleCoordinator`が冪等な`commit_transition()`でterminal／retry／approval／reconciliation状態へ適用する境界を実装済み
+- Phase 7 Operation Layer: `python -m src.dev_agent` の`start`／`submit`／`status`／`stop`を追加し、既存のSQLiteStateStore・DurableQueue・WorkerRunner・Controller・ProviderDispatcherをcompositionした。StateStoreとQueueは同じSQLiteファイルを共有し、CLI停止は実行中Taskを即時失敗扱いせず、durableな協調キャンセル要求または既存のreconciliation状態を維持する
 - Phase 6 quota operation: ResourceLedger schema v8でmetric／window／reset source／blocked-until／block reasonを保持し、ProviderErrorの429／quota／transport分類をrouting blockへ接続済み。blocked observationは新しい正常観測で明示的に復帰する。Scheduler queue schema v4と`QuotaWakeScheduler`はreset boundaryへのdurable parking／wakeを提供するが、Provider再probe・block解除は自動化していない
 - DevFarm orchestration: Remote proposalとHost verificationを分離し、remote inference枠とworktree verification枠を別Governorでboundedに制御する。proposal失敗時にworktreeを作成せず、自動mergeもしない
 - Gate昇格やlive qualificationの成功は、local test・model自己申告・Worker proposalだけから推測しない
 
 ## 検証
 
-- v2ローカル全回帰: `419 passed, 1 skipped in 77.54s`（`python -m pytest tests/v2 -q --durations=10`）
+- v2ローカル全回帰: `433 passed, 1 skipped in 107.68s`（`python -m pytest tests/v2 -q --durations=10`）
+- Operation Layer focused: `7 passed`（submit／status、canonical Dispatcher経由のstart、queue復旧、safe stop、durable cancellation request）
 - Evaluator→dispatch cycle focused: `18 passed in 2.62s`
 - intelligence routing / escalation execution focused: `26 passed in 1.28s`
 - DevFarm manifest / patch / host verification focused: `24 passed in 27.50s`
@@ -87,10 +89,10 @@ dummy docを公式branchへ自動統合していません。実装成果の公�
 
 ## 次の作業
 
-1. reset-aware quotaをProvider別の実観測・blocked_until・bounded probe／wakeへ接続し、429をblind retryしないScheduler境界を完成させる
-2. Worker metricsを一定数蓄積し、`Task Type × tier × capability × quota × latency/failure`の実績ベースroutingを、最小サンプル数・期限・rollback条件付きで導入する
-3. `TaskLifecycleCoordinator`の結果を次cycleのhost evidenceと有限のPASS / retry / escalation / WAIT_HUMAN循環へ接続し、再開時のacceptanceを追加する
-4. Gemini 3.7はlive qualification後でなければfallbackへ登録しない。Groq/Mistral/SambaNovaの外部状態も現在の判定を維持する
+1. Operation Layerのprocess restart／resumeとterminal／waiting／reconciliation E2Eを追加し、外部providerを使う明示operator実行でもstatus／auditを確認できるようにする
+2. reset-aware quotaをProvider別の実観測・blocked_until・bounded probe／wakeへ接続し、429をblind retryしないScheduler境界を完成させる
+3. Worker metricsを一定数蓄積し、`Task Type × tier × capability × quota × latency/failure`の実績ベースroutingを、最小サンプル数・期限・rollback条件付きで導入する
+4. `TaskLifecycleCoordinator`の結果を次cycleのhost evidenceと有限のPASS / retry / escalation / WAIT_HUMAN循環へ接続し、再開時のacceptanceを追加する
 5. AgentBackend / Codex、MCP、Self-Improvementは前段のPhase 7 acceptanceが揃うまで着手しない
 
 G6O1は実paid Providerとdeployment-owned budget configurationという外部条件待ちであり、

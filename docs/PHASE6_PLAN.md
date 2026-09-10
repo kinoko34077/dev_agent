@@ -2,8 +2,8 @@
 
 Status: foundation VERIFIED; G6O2〜G6O6 VERIFIED; G6O1 BLOCKED_EXTERNAL; Phase 6A quota/provider expansion locally verified; Cloudflare, OpenRouter Free, Ollama, Gemini 2.5, Gemini 3.5 Flash-Lite, and Gemini 3.8 Flash canonical qualification verified; Mistral live attempt HTTP 429 and unqualified; Groq models probe HTTP 403; Phase 7A〜7E bounded routing, evaluator, reviewed dispatch, execution, and workflow proposal boundaries locally verified
 
-The current implementation baseline is `b71d9ba`. The latest local full
-regression for this baseline is `419 passed, 1 skipped in 77.54s`. ResourceLedger
+The current implementation baseline is `e8618d7`. The latest local full
+regression for this baseline is `433 passed, 1 skipped in 107.68s`. ResourceLedger
 schema v8 now persists generic quota metric/window/reset/block metadata and
 typed rate-limit failures create conservative routing blocks. Exact-head
 GitHub Actions for the subsequent documentation synchronization is observed
