@@ -32,6 +32,22 @@ def test_unknown_task_capability_fails_fast():
         classify_task_capabilities(["text", "typo_tool_call"])
 
 
+def test_operation_submit_rejects_unknown_capability_before_persisting(tmp_path):
+    config = OperationConfig(data_dir=tmp_path)
+
+    with pytest.raises(CapabilityClassificationError, match="unknown task capability"):
+        OperationService.submit(config, "reject invalid capability", required_capabilities=["typo_tool_call"])
+
+    assert not (tmp_path / "state.sqlite3").exists()
+
+
+def test_intelligence_policy_rejects_unknown_capability_before_tier_selection():
+    from src.dev_agent.intelligence import TaskIntelligencePolicy
+
+    with pytest.raises(CapabilityClassificationError, match="unknown task capability"):
+        TaskIntelligencePolicy().decide(Task(objective="reject invalid policy input", required_capabilities=["typo_tool_call"]))
+
+
 def test_operation_projects_local_resource_as_privacy_qualified(tmp_path):
     config = OperationConfig(
         data_dir=tmp_path,

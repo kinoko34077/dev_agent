@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..domain.protocol import IntelligenceTier, RiskLevel, Task, TaskType
+from .capabilities import classify_task_capabilities
 
 
 _TIER_ORDER = (IntelligenceTier.L0, IntelligenceTier.L1, IntelligenceTier.L2, IntelligenceTier.L3)
@@ -61,6 +62,12 @@ class TaskIntelligencePolicy:
     def decide(self, task: Task) -> IntelligenceDecision:
         if not isinstance(task, Task):
             raise TypeError("task must be a Task")
+        # Validate the durable task vocabulary before deriving a tier.  A
+        # policy decision must not silently accept a misspelled provider
+        # capability and defer the failure until ModelRequest construction.
+        # This remains validation only; competency and policy traits still do
+        # not become ResourceRouter capabilities.
+        classify_task_capabilities(task.required_capabilities)
         minimum, _base_maximum = _BASE_BOUNDS[task.task_type]
         maximum = _ESCALATION_CEILINGS[task.task_type]
         reasons = [f"task_type:{task.task_type.value}"]

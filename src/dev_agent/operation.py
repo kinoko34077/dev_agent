@@ -58,6 +58,7 @@ from .intelligence.planner import (
     RootPlanningProposal,
     RootPlanningValidator,
 )
+from .intelligence.capabilities import classify_task_capabilities
 
 
 class OperationError(RuntimeError):
@@ -479,7 +480,12 @@ class OperationService:
         """
 
         if isinstance(binding_id, str) and binding_id.strip():
-            queue.wake_waiting_prefix("resource:provider_execution_saturated:")
+            # A lane becoming available must not wake every other saturated
+            # binding.  Those tasks would immediately contend for a still
+            # occupied lane and create avoidable claim/defer churn.  The
+            # generic reason remains a compatibility fallback for older
+            # callers that did not preserve a binding identity.
+            queue.wake_waiting(reason=f"resource:provider_execution_saturated:{binding_id.strip()}")
             return
         queue.wake_waiting(reason="resource:provider_execution_saturated")
 
@@ -892,6 +898,7 @@ class OperationService:
             raise ValueError("objective must be a non-empty string")
         if isinstance(priority, bool) or not isinstance(priority, int):
             raise ValueError("priority must be an integer")
+        classify_task_capabilities(required_capabilities or [])
         store = SQLiteStateStore(config.state_path)
         queue = DurableQueue(config.queue_path)
         try:
@@ -933,6 +940,7 @@ class OperationService:
             raise ValueError("objective must be a non-empty string")
         if isinstance(priority, bool) or not isinstance(priority, int):
             raise ValueError("priority must be an integer")
+        classify_task_capabilities(required_capabilities or [])
         store = SQLiteStateStore(config.state_path)
         queue = DurableQueue(config.queue_path)
         try:
