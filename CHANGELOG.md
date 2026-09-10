@@ -4,6 +4,12 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-10 JST — Operation hardening audit closure
+
+- Operation起動時のResource設定をread-onlyで保持し、binding×modelのtrusted billing catalog、operator-owned `quota_domain`、degraded bootstrap、正常応答／quota probeによるfreshness更新を導入した。`DispatchDenied`はbudget／quota／maintenance／resource wait／invalid failureへ意味別に分類する。
+- cross-process cancellationをappend-only `task_controls` とterminal commit時の再読込でfenceし、Provider healthをresource/binding単位、quota wakeを`quota:<domain>`単位へ限定した。Commander PlanのCAS、Worker attempt artifactのimmutable参照、共有protected policy、semantic audit sanitizer、Budget rollover、SQLite WAL/busy timeoutとprocess contention testも同期した。
+- `dfc34f6`の実装と`0582abc`のtest-contract同期を対象に、v2全回帰は`511 passed, 1 skipped`（95.89秒）。G6O1、Provider qualification、Evidence routing advisory-only、AgentBackend実adapter／MCPの判定は変更していない。
+
 ### 2026-09-10 JST — AgentBackend dispatch authority boundary
 
 - `AgentBackendDispatcher`を追加し、既存Task／scope／注入authorityの検証後に、SQLiteStateStoreのeffect intentをdispatch identityとしてsession開始、Event、result、cancel、明示reconciliationへ接続した。完了済みdispatchは冪等に再利用し、UNKNOWN／RECONCILINGはblind retryせず、Fake Backendでrestart／sequence conflict／reconciliationを検証した。

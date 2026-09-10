@@ -12,6 +12,7 @@
 | Providers | `src/dev_agent/providers/` | Adapter、Factory、Registry、Dispatcher、journal | domain / resources | Provider intent、audit、reconciliation | `tests/v2/test_phase6_provider_*.py` |
 | Resources | `src/dev_agent/resources/` | Resource、quota、health、router、budget | domain / state | Hard Budget、quota、privacy、survival | `tests/v2/test_resource_*.py`, `test_quota_*.py` |
 | Tools | `src/dev_agent/tools/` | policy、executor、subprocess、effect guard | domain / state | approval、scope、process containment | `tests/v2/test_tool_*.py` |
+| Security | `src/dev_agent/security/protected_paths.py`, `src/dev_agent/security/` | protected responsibility path、PathPolicy、audit sanitizer | domain / policy | protected authority、secret boundary | `tests/v2/test_security_boundaries.py` |
 | Intelligence | `src/dev_agent/intelligence/` | tier policy、Evaluator、escalation、lifecycle | domain / providers / resources / state | finite execution、explicit review | `tests/v2/test_intelligence_*.py` |
 | AgentBackend | `src/dev_agent/backends/` | thin typed contract、effect intent接続dispatcher | domain / state | dispatch authorityは注入Control Plane、contractは所有しない | `tests/v2/test_agent_backend_protocol.py`, `test_agent_backend_dispatcher.py`, requirements §20-22 |
 | Recovery | `recovery/` | runtime-independent diagnose、backup、restore、rollback | durable artifacts / Git | external recovery authority | `tests/v2/test_recovery*.py` |

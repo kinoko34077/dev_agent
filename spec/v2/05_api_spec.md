@@ -88,6 +88,8 @@
 - 入力/出力: task objective、Task ID、durable status JSON。CLI 独自の Task 状態を持たない。
 - 権限: 起動/投入/停止の operator boundary。stop は未知の外部効果を FAILED に偽装しない。
 - 禁止: 新しい scheduler/state machine、busy polling、budget/quota/approval の bypass。
+- Resource 起動規則: 既存 Resource catalog、価格、quota domain、health、operator metadata は read-only で扱う。free 判定は trusted な binding×model catalog に限定し、未知価格は推測せず拒否する。cloud Resource の quota domain は operator-owned 設定として明示され、正常な Provider 応答または bounded probe だけが freshness を更新する。
+- 拒否/停止規則: `DispatchDenied` は budget、quota、maintenance、resource wait、invalid failure の意味を保持して Task 状態へ写像する。cross-process cancellation は durable control と terminal commit 時の再確認を通り、外部効果不明時は `WAITING_RECONCILIATION` を維持する。
 
 ## Development-only DevFarm / Commander
 
@@ -97,6 +99,7 @@
 - `DevFarm`: Remote Proposal と Host Verification を分離し、outbound file、provider allowlist、patch path、secret、protected path、test command を検証する。
 - 入力: manifest の base revision、read/outbound scope、allowed/forbidden files、acceptance、bounded test command。
 - 出力: proposal、validated patch、host-verified result、metrics artifact。
+- retry artifact: proposal/result は attempt identity ごとの immutable artifact を正本とし、root の latest projection を検証対象へフォールバックしない。
 - 権限: 指定 worktree/proposal artifact のみ。公式 branch への自動 apply/merge はしない。
 - 禁止: root fallback、未承認送信、worker 間直接通信、Model 自己申告 test の証拠化。
 

@@ -44,6 +44,7 @@ scheduler / operation composition
 - `runtime` は上記 facade/public protocol を composition する。Provider 通信は `ProviderDispatcher`、Resource 操作は `ResourceControlPlane` を経由する。
 - `scheduler` は Queue/Worker/lease と runtime lifecycle を接続するが、Provider SDK の分岐や新しい Task state machine を所有しない。
 - `operation` は既存部品を composition する薄い入口であり、production scheduler を並立させない。
+- `operation` は起動時に既存 Resource を再構成・上書きせず、trusted billing catalog と operator-owned quota domain を検証する。Provider の正常応答／bounded quota probe が Resource observation freshness の唯一の更新入口であり、未知価格・未観測quotaは fail-closed とする。
 - `backends` は外部Agent harnessのidentity、session、event、cancellation、resultをtyped化し、既存StateStoreのeffect intent／Event／reconciliationへ接続する薄い境界である。Runtime/State/Scheduler/Budget/Recoveryの所有権を持たず、Backend固有adapterはこの境界の外側に置く。
 - `recovery/` は runtime/controller から独立し、durable artifact と operator authority を扱う。Recovery が Controller の内部状態を書き換える設計にしない。
 - `devfarm` は production scheduler/state/authority と独立した development-only 層で、既存 WorkerRunner/ProviderFactory 等の公開境界を composition できるが、公式 branch を自動変更しない。
@@ -65,6 +66,7 @@ scheduler / operation composition
 - 外部 dispatch は intent、budget reservation、provider audit、lease/fencing を結び、timeout/decode/ownership不明は UNKNOWN/reconciliation として保存する。
 - FiniteLifecycle の使用数は durable Task/Event history から復元し、process restart で retry 上限をリセットしない。
 - Quota は observation の `quota_domain` と reset/blocked_until を正本とし、reset 到達だけで復帰させず、bounded probe と正常観測の永続化後に routing へ戻す。
+- cancellation は Task payload の競合する全置換だけに依存せず、append-only control record を terminal transition 直前に再読込する。Provider health は selected resource/binding、quota wake は `quota:<domain>` に限定する。
 - Evidence-based routing は現段階では advisory とし、minimum sample、freshness、rollback 条件を満たすまで hard routing policy に接続しない。
 
 ## 実装・検証ルール
