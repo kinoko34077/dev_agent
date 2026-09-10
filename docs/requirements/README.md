@@ -5,6 +5,13 @@
 ## 現行の要件
 
 - [Multi-Free Provider / Intelligence Hierarchy / External Agent Integration](multi-free-provider/00-index.md)
+- [Autonomous Hierarchy / Cross-cutting Hardening Audit](autonomous-hierarchy-hardening/00-index.md)
+
+「Autonomous Hierarchy / Cross-cutting Hardening Audit」は、既存の
+Multi-Free Provider要件を置き換えず、Phase 7後半へ進む前の横断hardening作業を
+分離して記録する実装入力である。実装状態・検証結果・Gate判定の正本は、引き続き
+`docs/CURRENT_STATE.md`、`spec/v2/GATE_STATUS.json`、`spec/v2/TRACEABILITY.md`
+および各evidenceである。
 
 ## 読み方
 
