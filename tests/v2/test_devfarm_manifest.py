@@ -3,7 +3,7 @@ import json
 import pytest
 
 from scripts.devfarm import DevFarmError, validate_manifest
-from scripts.devfarm_worker import DevFarmActivationPolicy, _input_context, _prompt, _provider, run_worker
+from scripts.devfarm_worker import DevFarmActivationPolicy, _input_context, _prompt, _provider, apply_and_verify, run_worker
 from src.dev_agent.providers.cloudflare import CloudflareWorkersAIHttpProvider
 from src.dev_agent.providers.gemini import GeminiHttpProvider
 from src.dev_agent.providers.openrouter import OpenRouterHttpProvider
@@ -52,14 +52,24 @@ def test_worker_prompt_makes_patch_and_test_claim_boundaries_explicit(tmp_path):
     assert "`tests_run` is only a proposed command list" in prompt
 
 
-def test_worker_requires_existing_clean_worktree_at_manifest_revision(tmp_path):
+def test_worker_proposal_does_not_require_a_worktree_but_binds_clean_inputs(tmp_path):
     root, manifest_path = _workspace(tmp_path, prepare=False)
-    with pytest.raises(DevFarmError, match="worktree"):
-        run_worker(root, manifest_path, provider=_WorkerProvider({}))
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": False,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": _patch(),
+        "notes": "proposal only",
+    }
+    result = run_worker(root, manifest_path, provider=_WorkerProvider(output))
+    assert result["status"] == "completed"
+    assert not (root / ".devfarm/worktrees/worker-test-001").exists()
 
-    root, manifest_path = _workspace(tmp_path / "dirty", prepare=True)
-    workspace = root / ".devfarm/worktrees/worker-test-001"
-    (workspace / "untracked.txt").write_text("dirty\n", encoding="utf-8")
+    root, manifest_path = _workspace(tmp_path / "dirty", prepare=False)
+    (root / "tests/v2/test_target.py").write_text("dirty\n", encoding="utf-8")
     with pytest.raises(DevFarmError, match="dirty"):
         run_worker(root, manifest_path, provider=_WorkerProvider({}))
 
@@ -69,6 +79,30 @@ def test_worker_requires_existing_clean_worktree_at_manifest_revision(tmp_path):
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     with pytest.raises(DevFarmError, match="base_revision"):
         run_worker(root, manifest_path, provider=_WorkerProvider({}))
+
+
+def test_host_verification_rejects_dirty_existing_worktree(tmp_path):
+    root, manifest_path = _workspace(tmp_path, prepare=True)
+    run_worker(
+        root,
+        manifest_path,
+        provider=_WorkerProvider(
+            {
+                "status": "completed",
+                "changed_files": ["tests/v2/test_target.py"],
+                "tests_run": [],
+                "tests_passed": False,
+                "known_issues": [],
+                "assumptions": [],
+                "patch": _patch(),
+                "notes": "proposal ready",
+            }
+        ),
+    )
+    workspace = root / ".devfarm/worktrees/worker-test-001"
+    (workspace / "untracked.txt").write_text("dirty\n", encoding="utf-8")
+    with pytest.raises(DevFarmError, match="dirty"):
+        apply_and_verify(root, manifest_path)
 
 
 def test_worker_reads_only_approved_outbound_files_and_rejects_symlink_escape(tmp_path):

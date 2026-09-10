@@ -17,7 +17,15 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.devfarm import DevFarmError, _is_protected, validate_manifest, validate_patch, validate_result, write_result
+from scripts.devfarm import (
+    DevFarmError,
+    _is_protected,
+    prepare_worktree,
+    validate_manifest,
+    validate_patch,
+    validate_result,
+    write_result,
+)
 from src.dev_agent.domain.protocol import ModelRequest
 from src.dev_agent.providers.base import ModelProvider, ProviderError
 from src.dev_agent.providers.factory import ProviderDefinition, ProviderFactory
@@ -188,6 +196,68 @@ def _workspace(root: Path, manifest: Mapping[str, Any]) -> Path:
     return workspace
 
 
+def _proposal_workspace(root: Path, manifest: Mapping[str, Any]) -> Path:
+    """Return the read-only proposal source without requiring a worktree.
+
+    Proposal generation may inspect only the operator-scoped files in the
+    repository checkout.  It still binds the request to the exact manifest
+    revision and refuses dirty outbound inputs, so a model cannot silently
+    receive an uncommitted version of a file.  Git worktrees are deliberately
+    not created here; they belong to the host-verification stage.
+    """
+
+    root = root.resolve()
+    try:
+        top_level = Path(_git(root, "rev-parse", "--show-toplevel")).resolve()
+    except DevFarmError as exc:
+        raise DevFarmError("proposal source is not a Git repository") from exc
+    if top_level != root:
+        raise DevFarmError("proposal source must be the repository root")
+    head = _git(root, "rev-parse", "HEAD")
+    try:
+        expected = _git(root, "rev-parse", "--verify", f"{manifest['base_revision']}^{{commit}}")
+    except DevFarmError as exc:
+        raise DevFarmError("proposal base_revision cannot be resolved") from exc
+    if head != expected:
+        raise DevFarmError(f"proposal repository HEAD does not match manifest base_revision: {head} != {expected}")
+    outbound = list(manifest.get("outbound_files", ()))
+    if outbound:
+        status = _git(root, "status", "--porcelain", "--", *outbound)
+        if status:
+            raise DevFarmError("proposal outbound input files are dirty before execution")
+    return root
+
+
+def _verification_workspace(root: Path, manifest: Mapping[str, Any]) -> Path:
+    """Load or create the isolated worktree used by host verification."""
+
+    farm_path = root / ".devfarm"
+    worktree_path = farm_path / "worktrees"
+    if farm_path.is_symlink() or worktree_path.is_symlink():
+        raise DevFarmError("worker farm paths cannot be symlinks")
+    farm_root = farm_path.resolve()
+    if not _is_within(root, farm_root):
+        raise DevFarmError("worker farm resolves outside repository")
+    worktree_root = worktree_path.resolve()
+    if not _is_within(farm_root, worktree_root):
+        raise DevFarmError("worker worktrees resolve outside .devfarm")
+    candidate = worktree_root / str(manifest["task_id"])
+    if candidate.is_symlink():
+        raise DevFarmError("worker worktree symlinks are not allowed")
+    if not candidate.exists():
+        branch = f"agent/devfarm/{manifest['task_id']}"
+        try:
+            prepare_worktree(
+                root,
+                task_id=str(manifest["task_id"]),
+                branch=branch,
+                revision=str(manifest["base_revision"]),
+            )
+        except (DevFarmError, FileExistsError, OSError, RuntimeError) as exc:
+            raise DevFarmError(f"worker verification worktree could not be created: {exc}") from exc
+    return _workspace(root, manifest)
+
+
 def _resolve_input_file(workspace: Path, relative: str) -> Path:
     if _is_protected(relative):
         raise DevFarmError(f"protected worker input cannot be sent: {relative}")
@@ -265,7 +335,8 @@ def _prompt(manifest: Mapping[str, Any], inputs: str) -> str:
         "diff --git a/docs/EXAMPLE.md b/docs/EXAMPLE.md\\nnew file mode 100644\\n--- /dev/null\\n+++ b/docs/EXAMPLE.md\\n@@ -0,0 +1,1 @@\\n+# example\\n. "
         "Do not use Markdown fences, `*** Begin Patch`, prose, binary patches, or shell commands in the patch string. "
         "Only the explicitly listed outbound_files were sent. The patch is a proposed unified diff only; "
-        "the orchestrator will validate and apply it only inside this task's worker worktree.\n\n"
+        "this is a proposal stage; no worker worktree was created for this request. "
+        "The host will validate and apply it only inside this task's worker worktree during verification.\n\n"
         f"MANIFEST:\n{json.dumps(handoff, ensure_ascii=False, indent=2)}\n"
         f"INPUT FILES:\n{inputs}"
     )
@@ -375,11 +446,10 @@ def _read_result_artifact(root: Path, manifest: Mapping[str, Any]) -> dict[str, 
 
 
 def apply_and_verify(root: str | Path, manifest_path: str | Path) -> dict[str, Any]:
-    """Apply a validated proposal in its worker worktree and run host tests."""
+    """Create an isolated worktree, apply a validated proposal, and run tests."""
 
     root = Path(root).resolve()
     manifest = validate_manifest(_read_json(Path(manifest_path)))
-    workspace = _workspace(root, manifest)
     result = _read_result_artifact(root, manifest)
     if result["status"] != "completed" or not result["changed_files"]:
         raise DevFarmError("only a completed worker proposal with a non-empty patch may be applied")
@@ -391,6 +461,7 @@ def apply_and_verify(root: str | Path, manifest_path: str | Path) -> dict[str, A
     actual_changed_files = validate_patch(patch, manifest=manifest)
     if actual_changed_files != result["changed_files"]:
         raise DevFarmError("result changed_files does not match the patch artifact")
+    workspace = _verification_workspace(root, manifest)
     if patch:
         _validate_patch_application(workspace, patch)
         applied = _git_process(workspace, "apply", "--whitespace=error", "-", input_text=patch)
@@ -605,7 +676,9 @@ def run_worker(root: str | Path, manifest_path: str | Path, *, provider: ModelPr
         raise DevFarmError("external provider execution is not approved by manifest")
     if provider_id not in manifest["approved_provider_ids"]:
         raise DevFarmError(f"provider is not approved by manifest: {provider_id}")
-    workspace = _workspace(root, manifest)
+    # Stage A is remote proposal only.  Do not require or create a Git
+    # worktree until a valid proposal reaches apply_and_verify().
+    workspace = _proposal_workspace(root, manifest)
     request = ModelRequest(
         # DevFarm task ids are intentionally readable and are validated by the
         # manifest contract.  ModelRequest has a stricter UUID task identity;
@@ -658,7 +731,6 @@ def run_worker(root: str | Path, manifest_path: str | Path, *, provider: ModelPr
             patch = patch + "\n"
             output = {**output, "patch": patch, "patch_normalizations": ["appended_final_newline"]}
         actual_changed_files = validate_patch(patch, manifest=manifest)
-        _validate_patch_application(workspace, patch)
         status = _normalize_model_status(output.get("status"))
         if status == "completed" and not actual_changed_files:
             raise DevFarmError("completed worker proposal must include a non-empty patch")

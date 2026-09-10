@@ -1,9 +1,9 @@
 """Small development-only Worker Farm boundary.
 
 This is not a runtime scheduler or a Phase 7 AgentBackend.  It validates
-narrow task/result contracts and prepares one Git worktree per worker so a
-free model never needs write access to ``v2/bootstrap`` or another worker's
-checkout.
+narrow task/result contracts and prepares an isolated Git worktree only for
+host verification, so a free model never needs write access to ``v2/bootstrap``
+or another worker's checkout.
 """
 
 from __future__ import annotations

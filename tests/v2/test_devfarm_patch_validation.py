@@ -224,9 +224,33 @@ def test_worker_rejects_patch_that_is_path_safe_but_not_applicable(tmp_path):
 
     result = run_worker(root, manifest_path, provider=_WorkerProvider(output))
 
-    assert result["status"] == "failed"
-    assert any("patch apply check failed" in issue for issue in result["known_issues"])
-    assert (root / ".devfarm/results/worker-test-001/patch.diff").read_text(encoding="utf-8") == ""
+    assert result["status"] == "completed"
+    assert (root / ".devfarm/results/worker-test-001/patch.diff").read_text(encoding="utf-8").startswith("diff --git")
+    with pytest.raises(DevFarmError, match="patch apply check failed"):
+        apply_and_verify(root, manifest_path)
+
+
+def test_worker_proposal_without_worktree_is_verified_after_late_worktree_creation(tmp_path):
+    root, manifest_path = _workspace(tmp_path, prepare=False)
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": True,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": _patch(),
+        "notes": "proposal ready",
+    }
+
+    proposed = run_worker(root, manifest_path, provider=_WorkerProvider(output))
+    assert proposed["status"] == "completed"
+    assert not (root / ".devfarm/worktrees/worker-test-001").exists()
+
+    verified = apply_and_verify(root, manifest_path)
+    assert verified["status"] == "completed"
+    assert verified["tests_passed"] is True
+    assert (root / ".devfarm/worktrees/worker-test-001").is_dir()
 
 
 def test_worker_does_not_accept_completed_result_without_patch(tmp_path):
