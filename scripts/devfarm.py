@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.dev_agent.security.audit import AuditRecorder
+from src.dev_agent.security.protected_paths import PROTECTED_AUTHORITY_PATHS, is_protected_path
 
 
 class DevFarmError(ValueError):
@@ -33,12 +33,7 @@ class DevFarmError(ValueError):
 _TASK_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,100}$")
 _BRANCH = re.compile(r"^agent/[A-Za-z0-9._/-]+$")
 _STATUSES = {"pending", "running", "completed", "failed", "blocked_external"}
-_PROTECTED_FILES = frozenset(
-    {
-        "spec/v2/GATE_STATUS.json",
-        "src/dev_agent/resources/budget.py",
-    }
-)
+_PROTECTED_FILES = PROTECTED_AUTHORITY_PATHS
 _MANIFEST_FIELDS = {
     "task_id",
     "objective",
@@ -119,25 +114,7 @@ def _test_commands(value: Any) -> list[str]:
 
 
 def _is_protected(path: str) -> bool:
-    parts = PurePosixPath(path).parts
-    protected_names = AuditRecorder.SECRET_KEYS | {
-        "credential",
-        "credentials",
-        "secret",
-        "secrets",
-        "private",
-        "password",
-        "token",
-        "tokens",
-    }
-    return (
-        path in _PROTECTED_FILES
-        or path == "recovery"
-        or path.startswith("recovery/")
-        or path == ".devfarm"
-        or path.startswith(".devfarm/")
-        or any(part == ".git" or part.startswith(".env") or part.lower() in protected_names for part in parts)
-    )
+    return is_protected_path(path)
 
 
 def _revision(value: Any, name: str) -> str:

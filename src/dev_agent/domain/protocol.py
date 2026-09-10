@@ -225,6 +225,10 @@ class Task:
     task_type: TaskType = TaskType.WORKER
     required_capabilities: list[str] = field(default_factory=list)
     risk: RiskLevel = RiskLevel.NORMAL
+    # Privacy classification is part of the durable Task contract.  Resource
+    # routing uses the same ordered vocabulary, so a caller cannot silently
+    # fall back to normal cloud routing by omitting it from ModelRequest.
+    sensitivity: str = "normal"
     _authority: object | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -238,6 +242,9 @@ class Task:
         self.task_class = _enum(self.task_class, TaskClass, "task_class")  # type: ignore[assignment]
         self.task_type = _enum(self.task_type, TaskType, "task_type")  # type: ignore[assignment]
         self.risk = _enum(self.risk, RiskLevel, "risk")  # type: ignore[assignment]
+        if not isinstance(self.sensitivity, str) or self.sensitivity.strip().lower() not in {"public", "normal", "internal", "sensitive"}:
+            raise ProtocolError("sensitivity must be one of public, normal, internal, or sensitive")
+        self.sensitivity = self.sensitivity.strip().lower()
         if self.task_class is TaskClass.RECOVERY and self._authority is not _RECOVERY_TASK_AUTHORITY:
             raise ProtocolError("recovery tasks must be created by RecoveryTaskAuthority")
         if self.task_class is TaskClass.RECOVERY and self.task_type is not TaskType.RECOVERY:

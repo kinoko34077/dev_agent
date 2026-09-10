@@ -23,6 +23,7 @@ import uuid
 from scripts.devfarm import DevFarmError, init_farm, validate_manifest, validate_result
 from scripts.devfarm_orchestrator import DevFarmOrchestrator, WorkerAssignment
 from src.dev_agent.providers.base import ModelProvider
+from src.dev_agent.security.protected_paths import PROTECTED_AUTHORITY_PATHS, is_protected_path
 
 
 PLAN_SCHEMA_VERSION = 1
@@ -43,12 +44,7 @@ _PLAN_STATUSES = frozenset(
 _OWNERS = frozenset({"codex", "worker"})
 _DEPENDENCY_COMPLETE = frozenset({"INTEGRATED"})
 _DEPENDENCY_FAILURE = frozenset({"REJECTED", "BLOCKED", "SUPERSEDED"})
-_PROTECTED_PATHS = frozenset(
-    {
-        "spec/v2/GATE_STATUS.json",
-        "src/dev_agent/resources/budget.py",
-    }
-)
+_PROTECTED_PATHS = PROTECTED_AUTHORITY_PATHS
 
 
 class PlanConflictError(DevFarmError):
@@ -102,16 +98,7 @@ def _revision(value: Any) -> str:
 
 
 def _is_protected(path: str) -> bool:
-    parts = PurePosixPath(path).parts
-    names = {"credential", "credentials", "secret", "secrets", "private", "password", "token", "tokens"}
-    return (
-        path in _PROTECTED_PATHS
-        or path == "recovery"
-        or path.startswith("recovery/")
-        or path == ".devfarm"
-        or path.startswith(".devfarm/")
-        or any(part == ".git" or part.startswith(".env") or part.lower() in names for part in parts)
-    )
+    return is_protected_path(path)
 
 
 def _read_json(path: Path) -> Any:

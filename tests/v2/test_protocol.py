@@ -20,7 +20,7 @@ from src.dev_agent.state.json_store import JsonStateStore
 
 
 def test_protocol_records_round_trip_without_provider_objects():
-    task = Task(objective="simulate one harmless tool", inputs={"value": 2})
+    task = Task(objective="simulate one harmless tool", inputs={"value": 2}, sensitivity="sensitive")
     request = ModelRequest(
         task_id=task.task_id,
         messages=[{"role": "user", "content": task.objective}],
@@ -46,6 +46,13 @@ def test_protocol_records_round_trip_without_provider_objects():
     assert ToolResult.from_dict(result.to_dict()).to_dict() == result.to_dict()
     assert Event.from_dict(event.to_dict()).to_dict() == event.to_dict()
     assert json.loads(dumps(response))["provider"] == "fake"
+
+
+def test_task_privacy_classification_is_durable_and_rejects_unknown_values():
+    task = Task(objective="classified", sensitivity="internal")
+    assert Task.from_dict(task.to_dict()).sensitivity == "internal"
+    with pytest.raises(ProtocolError, match="sensitivity"):
+        Task(objective="invalid", sensitivity="cloud")
 
 
 def test_recovery_task_requires_authority_and_trusted_persisted_reload(tmp_path):

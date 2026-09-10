@@ -65,11 +65,15 @@ class DevFarmActivationPolicy:
     ACTIVE_MODEL_IDS = {
         "gemini": frozenset({"gemini-3.5-flash-lite"}),
         "openrouter": frozenset({"openrouter/free"}),
-        "cloudflare": None,
+        # Activation follows the currently qualified capability-matrix
+        # binding.  Factory support alone must not turn an arbitrary model
+        # identifier into an active external Worker.
+        "cloudflare": frozenset({"@cf/meta/llama-3.1-8b-instruct"}),
     }
     WORKER_BINDINGS = {
         ("gemini", "gemini-3.5-flash-lite"): ("gemini:worker", "L1"),
         ("openrouter", "openrouter/free"): ("openrouter:free", "L1"),
+        ("cloudflare", "@cf/meta/llama-3.1-8b-instruct"): ("cloudflare", "L1"),
     }
 
     def __init__(self, active_provider_ids: set[str] | frozenset[str] | None = None) -> None:

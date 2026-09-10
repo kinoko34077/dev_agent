@@ -547,8 +547,16 @@ class Controller:
                         tool_definitions=self.tools.registry.definitions(),
                         tool_results=state["tool_results"],
                         max_output_tokens=task.limits.max_output_tokens,
+                        sensitivity=task.sensitivity,
                         cost_ceiling=task.limits.max_cost,
-                        metadata=request_metadata,
+                        metadata={
+                            **request_metadata,
+                            "task_context": {
+                                "type": "dev_agent.task_context.v1",
+                                "inputs": task.inputs,
+                                "constraints": task.constraints,
+                            },
+                        },
                     )
                 except Exception as exc:
                     self._fail(task, state, "protocol", str(exc), step=step)

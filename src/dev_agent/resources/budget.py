@@ -78,6 +78,34 @@ class BudgetAuthority:
         )
 
     @staticmethod
+    def rollover(ledger: ResourceLedger, period: BudgetPeriod) -> None:
+        """Advance accounting to an operator-selected period without changing caps.
+
+        Period rollover is deliberately an administrative operation.  The
+        runtime never changes the hard cap based on its wall clock, and this
+        method does not accept replacement limits.  ``ResourceLedger`` still
+        performs the atomic check that no active reservation belongs to the
+        previous period before switching the persisted period.
+        """
+
+        if not isinstance(period, BudgetPeriod):
+            raise ValueError("period must be a BudgetPeriod")
+        current = ledger.budget_config()
+        if period.period_id == current["period_id"]:
+            raise ValueError("budget is already in the requested period")
+        if period.starts_at < current["period_ends_at"]:
+            raise ValueError("budget rollover period must start after the current period")
+        BudgetAuthority.configure(
+            ledger,
+            BudgetPolicy(
+                hard_cap_minor=int(current["hard_cap_minor"]),
+                recovery_reserve_minor=int(current["recovery_reserve_minor"]),
+                currency=str(current["currency"]),
+                period=period,
+            ),
+        )
+
+    @staticmethod
     def configure_from_protected_file(
         ledger: ResourceLedger,
         config_path: str | Path,

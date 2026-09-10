@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import json
 from typing import Any, Mapping
 
 from ..domain.protocol import Task
@@ -18,8 +19,28 @@ class RuntimeState(dict[str, Any]):
 
     @classmethod
     def initial(cls, task: Task, *, now: float) -> "RuntimeState":
+        messages = [{"role": "user", "content": task.objective}]
+        if task.inputs or task.constraints:
+            # Keep the envelope provider-neutral and deterministic.  Adapters
+            # receive it as ordinary context text, while Task remains the
+            # durable source of truth for privacy and policy decisions.
+            messages.append(
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {
+                            "type": "dev_agent.task_context.v1",
+                            "inputs": task.inputs,
+                            "constraints": task.constraints,
+                        },
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ),
+                }
+            )
         return cls(
-            messages=[{"role": "user", "content": task.objective}],
+            messages=messages,
             tool_results=[],
             model_calls=0,
             tool_calls=0,

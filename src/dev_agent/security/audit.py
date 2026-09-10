@@ -12,7 +12,11 @@ class AuditRecorder:
     MAX_STRING_CHARS = 4096
     MAX_PAYLOAD_BYTES = 32 * 1024
     RETENTION_SECONDS = 24 * 60 * 60
-    SECRET_KEYS = frozenset({"token", "secret", "password", "api_key", "apikey", "authorization", "cookie", "private_key", "client_secret", "credential", "access_key", "refresh_token", "id_token", "session"})
+    # These are semantic secret fields, not substring fragments.  In
+    # particular, input_tokens/output_tokens and session_id are telemetry or
+    # correlation data and must remain available to audit consumers.
+    SECRET_KEYS = frozenset({"token", "secret", "password", "api_key", "apikey", "authorization", "cookie", "private_key", "client_secret", "credential", "access_key", "refresh_token", "id_token"})
+    SECRET_KEY_SUFFIXES = ("_token", "_secret", "_api_key", "_apikey", "_password", "_credential", "_private_key", "_authorization", "_cookie")
     SECRET_PATTERNS = (
         re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{8,}"),
         re.compile(r"(?i)\b(?:api[_-]?key|secret|token|password)\s*[:=]\s*[^\s,;]+"),
@@ -24,7 +28,7 @@ class AuditRecorder:
     def sanitize_payload(cls, payload: dict[str, Any], *, artifact_store: Any | None = None) -> dict[str, Any]:
         def scrub(value: Any, key: str = "") -> Any:
             normalized_key = key.lower().replace("-", "_")
-            if any(word in normalized_key for word in cls.SECRET_KEYS):
+            if normalized_key in cls.SECRET_KEYS or normalized_key.endswith(cls.SECRET_KEY_SUFFIXES):
                 return "[REDACTED]"
             if isinstance(value, dict):
                 return {str(k): scrub(v, str(k)) for k, v in value.items()}

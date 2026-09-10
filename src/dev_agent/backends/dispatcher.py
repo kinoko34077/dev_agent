@@ -16,7 +16,7 @@ from pathlib import PurePosixPath
 from typing import Any
 
 from ..domain.protocol import Event, Task, TaskStatus
-from ..security.audit import AuditRecorder
+from ..security.protected_paths import is_protected_path
 from ..state.store import StateStore
 from .protocol import (
     AgentBackend,
@@ -66,17 +66,6 @@ class AgentBackendDispatcher:
     }
     _TERMINAL_EFFECT_STATES = {"succeeded", "confirmed_failed"}
     _UNCERTAIN_EFFECT_STATES = {"unknown", "reconciling"}
-    _PROTECTED_PARTS = AuditRecorder.SECRET_KEYS | {
-        "credential",
-        "credentials",
-        "private",
-        "secret",
-        "secrets",
-        "password",
-        "token",
-        "tokens",
-    }
-
     def __init__(self, store: StateStore, *, authorize: AuthorizeBackend | None = None) -> None:
         self._store = store
         self._authorize = authorize or (lambda task, request: False)
@@ -311,7 +300,7 @@ class AgentBackendDispatcher:
             parsed = PurePosixPath(normalized)
             if parsed.is_absolute() or any(part in {"", ".", ".."} for part in parsed.parts):
                 raise AgentBackendDispatchError("backend scope contains an unsafe path")
-            if any(part == ".git" or part.startswith(".env") or part.lower() in self._PROTECTED_PARTS for part in parsed.parts):
+            if is_protected_path(normalized):
                 raise AgentBackendDispatchError("backend scope contains a protected path")
 
     @staticmethod

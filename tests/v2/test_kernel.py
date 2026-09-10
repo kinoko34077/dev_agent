@@ -58,6 +58,32 @@ def test_fake_provider_completes_one_tool_task_with_full_trace(tmp_path):
     assert {checkpoint["phase"] for checkpoint in snapshot["checkpoints"]} >= {"before_model", "pending_tools", "after_tool_result", "after_tools", "after_model"}
 
 
+def test_controller_propagates_task_sensitivity_and_context_to_model_request(tmp_path):
+    class CaptureProvider(FakeProvider):
+        def __init__(self):
+            super().__init__()
+            self.captured = None
+
+        def request(self, request):
+            self.captured = request
+            return super().request(request)
+
+    provider = CaptureProvider()
+    controller = make_controller(tmp_path, provider)
+    task = Task(
+        objective="use context",
+        inputs={"value": "hello"},
+        constraints={"format": "short"},
+        sensitivity="internal",
+    )
+    controller.run(task)
+
+    assert provider.captured is not None
+    assert provider.captured.sensitivity == "internal"
+    assert "dev_agent.task_context.v1" in provider.captured.messages[1]["content"]
+    assert provider.captured.metadata["task_context"]["constraints"] == {"format": "short"}
+
+
 def test_step_limit_stops_before_unbounded_provider_calls(tmp_path):
     controller = make_controller(tmp_path, max_steps=1)
     task = Task(objective="must stop", limits={"max_steps": 1})
