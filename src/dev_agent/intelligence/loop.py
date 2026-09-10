@@ -16,7 +16,12 @@ from ..domain.protocol import Event, ModelRequest
 from .coordination import EvaluationCoordinator, EvaluationCycle
 from .escalation import EscalationContext, EscalationDispatchRequest
 from .evaluator import EvaluationEvidence
-from .execution import EscalationExecutionResult, EscalationExecutor
+from .execution import (
+    EscalationExecutionError,
+    EscalationExecutionResult,
+    EscalationExecutionStatus,
+    EscalationExecutor,
+)
 
 
 class EvaluationDispatchStatus(str, Enum):
@@ -138,7 +143,32 @@ class EvaluationDispatchCoordinator:
             dispatch_id=dispatch_id,
             attempt=attempt,
         )
-        execution = self._executor.execute(request, model_request)
+        try:
+            execution = self._executor.execute(request, model_request)
+        except EscalationExecutionError as exc:
+            if not exc.requires_reconciliation:
+                raise
+            # EscalationExecutor deliberately raises for an unresolved
+            # external outcome so direct callers cannot mistake it for
+            # success.  At this explicit lifecycle boundary, preserve that
+            # safety signal as a typed cycle that TaskLifecycleCoordinator can
+            # durably park in WAITING_RECONCILIATION.
+            execution = EscalationExecutionResult(
+                dispatch_id=request.dispatch_id,
+                plan_id=request.plan_id,
+                task_id=request.task_id,
+                attempt=request.attempt,
+                status=EscalationExecutionStatus.UNKNOWN,
+                provider_binding_id=request.provider_binding_id,
+                error_category=exc.category,
+            )
+            return EvaluationDispatchCycle(
+                evaluation=cycle.evaluation,
+                status=EvaluationDispatchStatus.RECONCILIATION_REQUIRED,
+                review_event=review_event,
+                dispatch_request=request,
+                execution=execution,
+            )
         status = (
             EvaluationDispatchStatus.RECONCILIATION_REQUIRED
             if execution.status.value == "unknown"

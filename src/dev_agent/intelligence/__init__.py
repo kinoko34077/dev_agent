@@ -22,6 +22,7 @@ from .workflow import (
     WorkflowPromotionRecorder,
 )
 from .loop import EvaluationDispatchCoordinator, EvaluationDispatchCycle, EvaluationDispatchStatus
+from .lifecycle import TaskLifecycleCoordinator, TaskLifecycleTransition
 
 __all__ = [
     "EvaluationEvidence",
@@ -54,4 +55,6 @@ __all__ = [
     "EvaluationDispatchCoordinator",
     "EvaluationDispatchCycle",
     "EvaluationDispatchStatus",
+    "TaskLifecycleCoordinator",
+    "TaskLifecycleTransition",
 ]

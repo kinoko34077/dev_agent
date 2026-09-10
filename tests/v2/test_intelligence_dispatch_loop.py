@@ -5,8 +5,9 @@ from src.dev_agent.intelligence.coordination import EvaluationCoordinator
 from src.dev_agent.intelligence.escalation import EscalationContext
 from src.dev_agent.intelligence.evaluator import EvaluationEvidence, EvaluatorDecision
 from src.dev_agent.intelligence.execution import EscalationExecutor
+from src.dev_agent.intelligence.lifecycle import TaskLifecycleCoordinator
 from src.dev_agent.intelligence.loop import EvaluationDispatchCoordinator, EvaluationDispatchStatus
-from src.dev_agent.providers.base import ModelProvider
+from src.dev_agent.providers.base import ModelProvider, ProviderError
 from src.dev_agent.providers.dispatch import ProviderDispatcher, ProviderRegistry
 from src.dev_agent.resources.budget import BudgetAuthority, BudgetGovernor, BudgetPolicy
 from src.dev_agent.resources.control import ResourceControlPlane
@@ -195,4 +196,97 @@ def test_evaluation_dispatch_cycle_records_rejected_review_without_dispatch(tmp_
     assert result.execution is None
     assert not provider.requests
     assert not store.has_event(_TASK_ID, "escalation.dispatch_ready")
+    ledger.close()
+
+
+def test_task_lifecycle_applies_terminal_evaluation_idempotently(tmp_path):
+    store, ledger, _provider, dispatcher = _setup(tmp_path)
+    loop = EvaluationDispatchCoordinator(store, executor=EscalationExecutor(store, dispatcher))
+    cycle = loop.evaluate(_evidence(objective_met=True, deterministic_checks_passed=True))
+    lifecycle = TaskLifecycleCoordinator(store)
+
+    first = lifecycle.apply_evaluation(cycle)
+    second = lifecycle.apply_evaluation(cycle)
+
+    assert first.task.status is TaskStatus.COMPLETED
+    assert first.event.event_type == "task.completed"
+    assert second.replayed is True
+    matching = [
+        item
+        for item in store.snapshot()["events"]
+        if item["event_type"] == "task.completed"
+    ]
+    assert len(matching) == 1
+    ledger.close()
+
+
+def test_task_lifecycle_moves_retry_to_ready_then_dispatch_to_running(tmp_path):
+    store, ledger, provider, dispatcher = _setup(tmp_path)
+    evaluation = EvaluationCoordinator(store)
+    loop = EvaluationDispatchCoordinator(
+        store,
+        evaluation_coordinator=evaluation,
+        executor=EscalationExecutor(store, dispatcher),
+    )
+    cycle = loop.evaluate(_evidence(), escalation_context=_context())
+    lifecycle = TaskLifecycleCoordinator(store)
+
+    scheduled = lifecycle.apply_evaluation(cycle)
+    review = evaluation.review_plan(
+        cycle.evaluation,
+        actor="operator",
+        approved=True,
+        approval_reference="lifecycle-review-001",
+    )
+    dispatched = loop.dispatch(
+        cycle,
+        review,
+        model_request=_request(),
+        provider_binding_id="primary",
+    )
+    running = lifecycle.apply_dispatch(dispatched)
+
+    assert scheduled.task.status is TaskStatus.READY
+    assert scheduled.event.event_type == "task.retry_scheduled"
+    assert running.task.status is TaskStatus.RUNNING
+    assert running.event.event_type == "task.dispatch_started"
+    assert len(provider.requests) == 1
+    ledger.close()
+
+
+def test_task_lifecycle_parks_unknown_dispatch_for_reconciliation(tmp_path):
+    store, ledger, provider, dispatcher = _setup(tmp_path)
+
+    def fail(_request):
+        raise ProviderError("connection lost", category="transport", retryable=True)
+
+    provider.request = fail
+    evaluation = EvaluationCoordinator(store)
+    loop = EvaluationDispatchCoordinator(
+        store,
+        evaluation_coordinator=evaluation,
+        executor=EscalationExecutor(store, dispatcher),
+    )
+    cycle = loop.evaluate(_evidence(), escalation_context=_context())
+    lifecycle = TaskLifecycleCoordinator(store)
+    lifecycle.apply_evaluation(cycle)
+    review = evaluation.review_plan(
+        cycle.evaluation,
+        actor="operator",
+        approved=True,
+        approval_reference="lifecycle-review-002",
+    )
+    dispatched = loop.dispatch(
+        cycle,
+        review,
+        model_request=_request(),
+        provider_binding_id="primary",
+    )
+
+    parked = lifecycle.apply_dispatch(dispatched)
+
+    assert dispatched.status is EvaluationDispatchStatus.RECONCILIATION_REQUIRED
+    assert parked.task.status is TaskStatus.WAITING_RECONCILIATION
+    assert parked.event.payload["dispatch_id"] == dispatched.execution.dispatch_id
+    assert store.has_event(_TASK_ID, "task.waiting_reconciliation")
     ledger.close()
