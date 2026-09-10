@@ -2,8 +2,8 @@
 
 Status: foundation VERIFIED; G6O2〜G6O6 VERIFIED; G6O1 BLOCKED_EXTERNAL; Phase 6A quota/provider expansion locally verified; Cloudflare, OpenRouter Free, Ollama, Gemini 2.5, Gemini 3.5 Flash-Lite, and Gemini 3.8 Flash canonical qualification verified; Mistral live attempt HTTP 429 and unqualified; Groq models probe HTTP 403; Phase 7A〜7E bounded routing, evaluator, reviewed dispatch, execution, and workflow proposal boundaries locally verified
 
-The current implementation baseline is `eb6f304`. The latest local full
-regression for this baseline is `440 passed, 1 skipped in 83.17s`. ResourceLedger
+The current implementation baseline is `4eb73e5`. The latest local full
+regression for this baseline is `462 passed, 1 skipped in 106.86s`. ResourceLedger
 schema v8 now persists generic quota metric/window/reset/block metadata and
 typed rate-limit failures create conservative routing blocks. Exact-head
 GitHub Actions for the subsequent documentation synchronization is observed
@@ -30,6 +30,12 @@ manifest-approved host test (`7 passed`) in isolated worktrees. These results
 are external observations and do not create a Phase 6 Gate promotion.
 Documentation-only synchronization does not change the implementation
 baseline and is not written back into `GATE_STATUS.json`.
+
+The development-only Commander dogfood Plan
+`phase7-commander-local-dogfood-004` also completed its fixed-revision
+proposal, isolated Host Verification (`1 passed`), Codex review, and explicit
+integration. This local harness evidence validates Commander composition; it
+does not qualify an external Cloud Worker or promote a Gate.
 
 Phase 6A〜6E is the current v2 work boundary. The phase is deliberately split
 into small control-plane components so that resource exhaustion, provider

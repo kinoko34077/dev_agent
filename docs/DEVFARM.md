@@ -152,6 +152,13 @@ No live or Gate evidence is inferred from adapter unit tests, and a Worker
 result does not become an official change until Codex reviews and integrates
 it.
 
+The Commander dogfood Plan `phase7-commander-local-dogfood-004` used a
+source-free deterministic local harness at fixed revision `aa2f819`. Its
+proposal was Host Verified in an isolated worktree (`1 passed`) and then
+explicitly integrated by Codex. External Cloudflare/OpenRouter/Gemini
+proposal attempts that did not reach Host Verification remain rejected or
+failed artifacts and are not counted as external Worker success.
+
 ## Commander parent plans
 
 `python scripts/devfarm.py plan` creates a development-only parent Plan above

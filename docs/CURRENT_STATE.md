@@ -26,7 +26,7 @@
 ## 検証
 
 - v2ローカル全回帰: `462 passed, 1 skipped`（`python -m pytest tests/v2 -q --durations=10`、106.86秒。所要時間は実行環境依存）
-- Operation Layer focused: `11 passed`（submit／status、canonical Dispatcher経由のstart、queue復旧、process restart、terminal／waiting reconciliation、provider非依存safe stop、durable cancellation request、due quota maintenance／wake）
+- Operation Layer focused: `12 passed`（submit／status、canonical Dispatcher経由のstart、queue復旧、process restart、terminal／waiting reconciliation、provider非依存safe stop、durable cancellation request、due quota maintenance／wake、startからのmaintenance境界）
 - Evaluator→dispatch cycle focused: `18 passed in 2.62s`
 - finite lifecycle focused: `11 passed`（明示review、dispatch、terminal transition、評価cycle上限、process restart後のdurable cycle／waiting boundary）
 - intelligence routing / escalation execution focused: `26 passed in 1.28s`
