@@ -24,6 +24,7 @@ from .workflow import (
 from .loop import EvaluationDispatchCoordinator, EvaluationDispatchCycle, EvaluationDispatchStatus
 from .lifecycle import TaskLifecycleCoordinator, TaskLifecycleTransition
 from .lifecycle_loop import FiniteLifecycleLoop, LifecycleLimitExceeded, LifecycleStep
+from .planner import ChildTaskProposal, PlanningValidationError, RootPlanningProposal, RootPlanningValidator
 from .evidence_routing import EvidenceBasedRoutingPolicy, EvidenceRouteDecision, EvidenceRoutingError
 from .target import ExecutionTarget, ExecutionTargetDecision, ExecutionTargetError, ExecutionTargetPolicy
 from .capabilities import (
@@ -71,6 +72,10 @@ __all__ = [
     "FiniteLifecycleLoop",
     "LifecycleLimitExceeded",
     "LifecycleStep",
+    "ChildTaskProposal",
+    "PlanningValidationError",
+    "RootPlanningProposal",
+    "RootPlanningValidator",
     "EvidenceBasedRoutingPolicy",
     "EvidenceRouteDecision",
     "EvidenceRoutingError",

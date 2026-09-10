@@ -70,6 +70,7 @@ scheduler / operation composition
 - cancellation は Task payload の競合する全置換だけに依存せず、append-only control record を terminal transition 直前に再読込する。Provider health は selected resource/binding、quota wake は `quota:<domain>` に限定する。
 - Evidence-based routing は現段階では advisory とし、minimum sample、freshness、rollback 条件を満たすまで hard routing policy に接続しない。
 - Operation の lifecycle composition は `OperationService` が `EvaluationCoordinator`、`FiniteLifecycleLoop`、`TaskLifecycleCoordinator`、`EscalationExecutor` を composition する。Operation はこれらの内部state machineを複製せず、reviewed dispatchには `DurableQueue` の lease proofを要求する。
+- Root planning は `src/dev_agent/intelligence/planner.py` のproposal／validatorを使い、Task作成前に既存`TaskGraph`制約と親子privacyを検証する。依存childは独立schedulerを作らず、`WAITING_DEPENDENCY`としてStateStoreに保存する。
 
 ## 実装・検証ルール
 

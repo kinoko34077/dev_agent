@@ -50,6 +50,12 @@ from .intelligence.execution import EscalationExecutor
 from .intelligence.lifecycle import TaskLifecycleCoordinator
 from .intelligence.lifecycle_loop import FiniteLifecycleLoop, LifecycleStep
 from .intelligence.loop import EvaluationDispatchCoordinator
+from .intelligence.planner import (
+    ChildTaskProposal,
+    PlanningValidationError,
+    RootPlanningProposal,
+    RootPlanningValidator,
+)
 
 
 class OperationError(RuntimeError):
@@ -563,6 +569,96 @@ class OperationService:
             attempt=attempt,
             lease_proof=lease_proof,
         )
+
+    def validate_planning_proposal(self, proposal: RootPlanningProposal) -> tuple[ChildTaskProposal, ...]:
+        """Validate a root decomposition against durable TaskGraph context."""
+
+        if not isinstance(proposal, RootPlanningProposal):
+            raise TypeError("proposal must be a RootPlanningProposal")
+        parent = self.store.load_task(proposal.parent_task_id)
+        if parent is None:
+            raise PlanningValidationError(f"parent task not found: {proposal.parent_task_id}")
+        persisted = tuple(
+            Task.from_persisted_dict(payload)
+            for payload in self.store.snapshot().get("tasks", {}).values()
+            if isinstance(payload, dict)
+        )
+        return RootPlanningValidator.validate(
+            parent,
+            proposal,
+            existing_tasks=persisted,
+        )
+
+    def apply_planning_proposal(
+        self,
+        proposal: RootPlanningProposal,
+        *,
+        priority: int = 0,
+    ) -> tuple[Task, ...]:
+        """Host-validate and persist a finite root decomposition.
+
+        Children with planner dependencies are durably parked as
+        ``WAITING_DEPENDENCY`` and are not enqueued until an explicit
+        dependency-release authority is added.  Independent children use the
+        existing Queue; this method does not create a second scheduler.
+        """
+
+        children = self.validate_planning_proposal(proposal)
+        parent = self.store.load_task(proposal.parent_task_id)
+        assert parent is not None
+        existing = self.store.snapshot().get("tasks", {})
+        if any(
+            isinstance(payload, dict)
+            and isinstance(payload.get("metadata"), dict)
+            and payload["metadata"].get("planning_proposal_id") == proposal.proposal_id
+            for payload in existing.values()
+        ):
+            raise PlanningValidationError("planning proposal has already been applied")
+
+        persisted = tuple(
+            Task.from_persisted_dict(payload)
+            for payload in existing.values()
+            if isinstance(payload, dict)
+        )
+        graph = TaskGraph.from_tasks(persisted)
+        created: list[Task] = []
+        for child in children:
+            dependencies = list(child.dependencies)
+            status = TaskStatus.WAITING_DEPENDENCY if dependencies else TaskStatus.QUEUED
+            metadata = {
+                "planning_proposal_id": proposal.proposal_id,
+                "planner_child_key": child.child_key,
+            }
+            if dependencies:
+                metadata["wait_reason"] = "planner_dependency"
+            task = Task(
+                objective=child.objective,
+                parent_task_id=parent.task_id,
+                root_task_id=parent.task_id,
+                depth=parent.depth + 1,
+                status=status,
+                task_type=child.task_type,
+                risk=child.risk,
+                sensitivity=child.sensitivity or parent.sensitivity,
+                required_capabilities=list(child.required_capabilities),
+                constraints={
+                    "planner_proposal_id": proposal.proposal_id,
+                    "planner_child_key": child.child_key,
+                    "planner_dependencies": dependencies,
+                },
+                metadata=metadata,
+            )
+            try:
+                graph.add(task)
+            except TaskGraphError as exc:
+                raise PlanningValidationError(str(exc)) from exc
+            created.append(task)
+
+        for task in created:
+            self.store.save_task(task)
+            if task.status is TaskStatus.QUEUED:
+                self.queue.enqueue(task.task_id, priority=priority, max_attempts=task.limits.max_retries + 1)
+        return tuple(created)
 
     @staticmethod
     def _ensure_budget(ledger: ResourceLedger) -> None:
