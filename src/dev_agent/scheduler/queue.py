@@ -251,6 +251,46 @@ class DurableQueue:
     def complete(self, task_id: str, *, worker_id: str, state_version: int) -> QueueItem:
         return self._finish(task_id, worker_id=worker_id, state_version=state_version, state="completed")
 
+    def cancel(self, task_id: str, *, worker_id: str | None = None, state_version: int | None = None) -> QueueItem:
+        """Terminalize a task as cancelled without turning it into a failure.
+
+        A leased item must be cancelled by its current owner so the normal
+        lease fence remains authoritative.  An unleased queued/waiting item
+        may be cancelled by an operation or API process.  A running item is
+        intentionally left alone when no owner proof is supplied; the worker
+        will observe the durable cancellation request and publish the
+        cancellation at its own execution boundary.
+        """
+
+        if worker_id is not None:
+            if state_version is None:
+                raise ValueError("state_version is required when worker_id is supplied")
+            return self._finish(task_id, worker_id=worker_id, state_version=state_version, state="cancelled")
+        if state_version is not None:
+            raise ValueError("worker_id is required when state_version is supplied")
+        with self._lock:
+            row = self.connection.execute("SELECT state FROM queue_items WHERE task_id=?", (task_id,)).fetchone()
+            if row is None:
+                raise KeyError(task_id)
+            if row["state"] in {"completed", "failed", "cancelled"}:
+                return self.snapshot(task_id)
+            if row["state"] not in {"queued", "waiting"}:
+                # The owner still has to publish the result.  Do not bypass
+                # its lease proof from an unrelated operation process.
+                return self.snapshot(task_id)
+            cursor = self.connection.execute(
+                """UPDATE queue_items
+                   SET state='cancelled', lease_owner=NULL, lease_until=NULL,
+                       lease_token=NULL, wake_at=NULL, wake_reason=NULL,
+                       state_version=state_version+1
+                   WHERE task_id=? AND state IN ('queued', 'waiting')""",
+                (task_id,),
+            )
+            self.connection.commit()
+            if cursor.rowcount != 1:
+                return self.snapshot(task_id)
+            return self.snapshot(task_id)
+
     def fail(self, task_id: str, *, worker_id: str, state_version: int, retry: bool = False, max_attempts: int | None = None) -> QueueItem:
         if max_attempts is not None:
             self._validate_max_attempts(max_attempts)

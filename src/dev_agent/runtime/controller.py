@@ -176,7 +176,7 @@ class Controller:
         raise RuntimeFailure(f"{category}: {message}")
 
     def _cancel(self, task: Task, state: dict[str, Any], *, step: Step | None = None, message: str = "task execution was cancelled", tool_result: ToolResult | None = None, extra_events: list[ProtocolEvent] | None = None) -> None:
-        message = self._cancellation_reasons.get(task.task_id, message)
+        message = self._cancellation_reasons.get(task.task_id, task.metadata.get("cancellation_reason", message))
         if step is not None:
             step.status = StepStatus.CANCELLED
             state["active_step"] = step.to_dict()
@@ -279,6 +279,24 @@ class Controller:
         if task is None:
             raise RuntimeFailure(f"task not found: {task_id}")
         if task.status in {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED, TaskStatus.WAITING_RECONCILIATION}:
+            return task
+        if task.status is TaskStatus.RUNNING:
+            # A CLI/API process may not share the in-memory cancellation
+            # Event with the WorkerRunner process.  Persist only a request;
+            # the owning run loop will observe it and preserve the existing
+            # unknown/unable_to_confirm semantics at the provider boundary.
+            task.metadata["cancellation_requested"] = True
+            task.metadata["cancellation_reason"] = reason
+            self._commit(
+                task=task,
+                events=[
+                    self._event_record(
+                        task,
+                        "task.cancellation_requested",
+                        {"category": "cancelled", "message": reason, "cancellation_state": "requested"},
+                    )
+                ],
+            )
             return task
         task.status = TaskStatus.CANCELLED
         self._commit(task=task, events=[self._event_record(task, "task.cancelled", {"category": "cancelled", "message": reason, "cancellation_state": "terminated"})])
@@ -399,12 +417,23 @@ class Controller:
         self._active_tasks.add(task.task_id)
         self._running_tasks[task.task_id] = task
         try:
+            persisted = self.store.load_task(task.task_id)
+            if persisted is not None:
+                if persisted.status in {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED}:
+                    return persisted
+                if persisted.metadata.get("cancellation_requested"):
+                    task.metadata.update(persisted.metadata)
+                    cancel_event.set()
             task.status = TaskStatus.RUNNING
             # Register the cancellation event before the first durable write so
             # an API/UI cancellation racing with startup cannot be overwritten
             # by a later RUNNING record.
             self._commit(task=task)
             while task.status == TaskStatus.RUNNING:
+                persisted = self.store.load_task(task.task_id)
+                if persisted is not None and persisted.metadata.get("cancellation_requested"):
+                    task.metadata.update(persisted.metadata)
+                    cancel_event.set()
                 if cancel_event.is_set():
                     step = Step.from_dict(state["active_step"]) if state.get("active_step") else None
                     self._cancel(task, state, step=step)

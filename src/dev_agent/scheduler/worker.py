@@ -105,6 +105,8 @@ class WorkerRunner:
             self.queue.renew(item.task_id, worker_id=self.worker_id, state_version=item.state_version, lease_seconds=self.lease_seconds)
             if result.status == TaskStatus.COMPLETED:
                 self.queue.complete(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
+            elif result.status == TaskStatus.CANCELLED:
+                self.queue.cancel(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
             elif result.status in self._DEFERRED_STATUSES:
                 # Waiting states require an external event (approval, budget
                 # replenishment, or reconciliation).  Requeueing immediately
