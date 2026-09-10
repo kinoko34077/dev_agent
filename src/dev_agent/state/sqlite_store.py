@@ -226,6 +226,29 @@ class SQLiteStateStore:
         return created
 
     @_serialized
+    def claim_effect_intent(
+        self,
+        key: str,
+        *,
+        expected_statuses: set[str] | frozenset[str] | tuple[str, ...],
+        result: dict[str, Any] | None = None,
+    ) -> bool:
+        """CAS an effect intent into dispatching under one SQLite lock."""
+
+        try:
+            self.connection.execute("BEGIN IMMEDIATE")
+            claimed = self._effects.claim_effect_intent(
+                key,
+                expected_statuses=expected_statuses,
+                result=result,
+            )
+            self.connection.commit()
+            return claimed
+        except BaseException:
+            self.connection.rollback()
+            raise
+
+    @_serialized
     def complete_effect_intent(self, key: str, result: ToolResult) -> None:
         self.transition_effect_intent(key, to_status="succeeded", result=result.to_dict())
 

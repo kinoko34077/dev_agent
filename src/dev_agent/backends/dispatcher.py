@@ -195,9 +195,30 @@ class AgentBackendDispatcher:
             if not self._store.create_effect_intent(key, task_id=task.task_id, tool_name="agent_backend_dispatch", arguments=expected):
                 raise AgentBackendDispatchUncertain(f"backend dispatch identity raced: {dispatch_id}")
 
-        # Persist intent before crossing the external side-effect boundary.
-        self._store.transition_effect_intent(key, to_status="prepared", result={"request_fingerprint": fingerprint})
-        self._store.transition_effect_intent(key, to_status="dispatching", result={"request_fingerprint": fingerprint})
+        # Persist and claim the intent in one conditional transition. A
+        # second process may observe the same pending/prepared row, but only
+        # the connection that wins this CAS may call backend.start.
+        claimed = self._store.claim_effect_intent(
+            key,
+            expected_statuses={"pending", "prepared"},
+            result={"request_fingerprint": fingerprint},
+        )
+        if not claimed:
+            raced = self._store.get_effect_intent(key)
+            if raced is None:
+                raise BackendDispatchUncertain(f"backend dispatch identity raced: {dispatch_id}")
+            self._verify_existing(raced, expected)
+            status = raced.get("status")
+            if status in self._TERMINAL_EFFECT_STATES:
+                session = self._session_from_intent(raced)
+                if session is None:
+                    raise AgentBackendDispatchError("completed backend dispatch has no durable session")
+                return session
+            if status in self._UNCERTAIN_EFFECT_STATES:
+                raise BackendDispatchUncertain(f"backend dispatch outcome is {status}: {dispatch_id}")
+            # A dispatching row without a durable session belongs to the
+            # winning caller. Reconcile it instead of starting a second one.
+            raise BackendDispatchUncertain(f"backend dispatch claim was lost: {dispatch_id}")
         self._append_event(
             task,
             "agent_backend.dispatching",

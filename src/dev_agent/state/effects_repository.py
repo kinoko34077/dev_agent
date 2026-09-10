@@ -90,6 +90,41 @@ class EffectAuditRepository:
         )
         return cursor.rowcount == 1
 
+    def claim_effect_intent(
+        self,
+        key: str,
+        *,
+        expected_statuses: set[str] | frozenset[str] | tuple[str, ...],
+        result: dict[str, Any] | None,
+    ) -> bool:
+        """Atomically claim the right to cross an external effect boundary.
+
+        The caller must hold the StateStore transaction lock.  A conditional
+        UPDATE is the claim: exactly one connection can move a pending or
+        prepared intent to ``dispatching``.  The claim deliberately does not
+        add a second scheduler/ownership table; a caller that loses the CAS
+        re-reads the existing intent and follows its durable outcome.
+        """
+
+        allowed = {"pending", "prepared"}
+        statuses = tuple(sorted(set(expected_statuses) & allowed))
+        if not statuses:
+            raise ValueError("expected_statuses must contain pending or prepared")
+        if result is not None:
+            payload = json.dumps(result, ensure_ascii=False)
+            cursor = self.connection.execute(
+                f"UPDATE effect_intents SET status='dispatching', result_payload=? "
+                f"WHERE idempotency_key=? AND status IN ({','.join('?' for _ in statuses)})",
+                (payload, key, *statuses),
+            )
+        else:
+            cursor = self.connection.execute(
+                f"UPDATE effect_intents SET status='dispatching' "
+                f"WHERE idempotency_key=? AND status IN ({','.join('?' for _ in statuses)})",
+                (key, *statuses),
+            )
+        return cursor.rowcount == 1
+
     def transition_effect_intent(
         self,
         key: str,

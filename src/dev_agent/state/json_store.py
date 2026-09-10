@@ -177,6 +177,27 @@ class JsonStateStore:
         self._flush()
         return True
 
+    def claim_effect_intent(
+        self,
+        key: str,
+        *,
+        expected_statuses: set[str] | frozenset[str] | tuple[str, ...],
+        result: dict[str, Any] | None = None,
+    ) -> bool:
+        """Conditionally claim a pending/prepared intent for compatibility."""
+
+        statuses = set(expected_statuses) & {"pending", "prepared"}
+        if not statuses:
+            raise ValueError("expected_statuses must contain pending or prepared")
+        intent = self._data.setdefault("effect_intents", {}).get(key)
+        if intent is None or intent.get("status") not in statuses:
+            return False
+        intent["status"] = "dispatching"
+        if result is not None:
+            intent["result"] = result
+        self._flush()
+        return True
+
     def complete_effect_intent(self, key: str, result: ToolResult) -> None:
         self.transition_effect_intent(key, to_status="succeeded", result=result.to_dict())
 

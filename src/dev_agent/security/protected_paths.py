@@ -17,10 +17,18 @@ from typing import Any
 PROTECTED_AUTHORITY_PATHS = frozenset(
     {
         "spec/v2/GATE_STATUS.json",
+        "spec/v2/PROVIDER_CAPABILITY_MATRIX.json",
         "src/dev_agent/resources/budget.py",
         "src/dev_agent/resources/budget_store.py",
+        "src/dev_agent/resources/billing_catalog.py",
+        "src/dev_agent/resources/qualification.py",
         "src/dev_agent/resources/control.py",
+        "src/dev_agent/backends/dispatcher.py",
         "config/v2.yaml",
+        "scripts/devfarm.py",
+        "scripts/devfarm_worker.py",
+        "scripts/devfarm_commander.py",
+        "scripts/devfarm_orchestrator.py",
     }
 )
 

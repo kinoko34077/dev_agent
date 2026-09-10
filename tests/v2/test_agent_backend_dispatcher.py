@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+import time
 from uuid import uuid4
 
 import pytest
@@ -165,6 +167,56 @@ def test_start_persistence_crash_without_discovery_becomes_unknown_without_resta
         dispatcher.reconcile_start(dispatch_id, FakeAgentBackend(), actor="operator", source="restart-reconcile")
 
     assert store.get_effect_intent(dispatcher.effect_key(dispatch_id))["status"] == "unknown"
+    assert backend.start_calls == 1
+
+
+def test_pending_intent_is_atomically_claimed_before_concurrent_backend_start(store, task):
+    backend = FakeAgentBackend()
+    request = _request(task.task_id)
+    dispatch_id = str(uuid4())
+    first = _dispatcher(store)
+    task_value, identity, fingerprint, key, admission = first._validate(
+        request,
+        backend,
+        dispatch_id=dispatch_id,
+        attempt=1,
+    )
+    expected = {
+        **first._identity_arguments(identity),
+        "admission": admission.to_dict(),
+    }
+    assert store.create_effect_intent(
+        key,
+        task_id=task_value.task_id,
+        tool_name="agent_backend_dispatch",
+        arguments=expected,
+    ) is True
+
+    other_store = SQLiteStateStore(store.path)
+    second = _dispatcher(other_store)
+    errors = []
+
+    def invoke(dispatcher):
+        try:
+            dispatcher.dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
+        except BaseException as exc:  # both uncertain and successful replay are valid race outcomes
+            errors.append(exc)
+
+    original_start = backend.start
+
+    def slow_start(start_request):
+        time.sleep(0.15)
+        return original_start(start_request)
+
+    backend.start = slow_start
+    threads = [threading.Thread(target=invoke, args=(dispatcher,)) for dispatcher in (first, second)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=2)
+    other_store.close()
+
+    assert all(not thread.is_alive() for thread in threads)
     assert backend.start_calls == 1
 
 
