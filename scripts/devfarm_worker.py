@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 import math
@@ -34,7 +35,7 @@ from scripts.devfarm import (
 from src.dev_agent.domain.protocol import ModelRequest
 from src.dev_agent.providers.base import ModelProvider, ProviderError
 from src.dev_agent.providers.factory import ProviderDefinition, ProviderFactory
-from src.dev_agent.resources.billing_catalog import profile_for as _catalog_profile_for
+from src.dev_agent.resources.billing_catalog import TRUSTED_RESOURCE_CATALOG
 from src.dev_agent.security.audit import AuditRecorder
 from scripts.devfarm_metrics import WorkerMetricsError, WorkerMetricsStore
 
@@ -51,6 +52,30 @@ _MODEL_STATUS_ALIASES = {
     "failure": "failed",
     "blocked": "blocked_external",
 }
+
+
+@dataclass(frozen=True)
+class DevFarmWorkerEligibility:
+    """The independent evidence used to admit one remote Worker binding.
+
+    Provider construction, capability qualification, billing facts, and
+    operator activation deliberately remain separate inputs.  This record is
+    only their resolved development-side admission result; it is not a
+    production budget or quota authority.
+    """
+
+    provider_id: str
+    model_id: str
+    provider_binding_id: str | None
+    intelligence_tier: str | None
+    operator_activated: bool
+    capability_qualified: bool
+    capability_expires_at: str | None
+    billing_admitted: bool
+    billing_source: str | None
+    billing_expires_at: str | None
+    eligible: bool
+    reason: str
 
 
 class DevFarmActivationPolicy:
@@ -114,19 +139,105 @@ class DevFarmActivationPolicy:
             return entry
         return None
 
+    def eligibility_for(self, provider_id: str, model_id: str) -> DevFarmWorkerEligibility:
+        """Resolve activation, qualification, and billing without a wildcard.
+
+        ``is_active`` is intentionally a compatibility boolean wrapper around
+        this evidence record.  Callers that need an audit explanation should
+        use this method instead of inferring eligibility from a provider name.
+        """
+
+        normalized_provider = provider_id.strip() if isinstance(provider_id, str) else ""
+        normalized_model = model_id.strip() if isinstance(model_id, str) else ""
+        operator_activated = bool(normalized_provider and normalized_provider in self._active_provider_ids)
+        if not operator_activated:
+            return DevFarmWorkerEligibility(
+                normalized_provider,
+                normalized_model,
+                None,
+                None,
+                False,
+                False,
+                None,
+                False,
+                None,
+                None,
+                False,
+                "operator_inactive",
+            )
+        entry = self._qualified_worker_entry(normalized_provider, normalized_model) if normalized_model else None
+        if entry is None:
+            return DevFarmWorkerEligibility(
+                normalized_provider,
+                normalized_model,
+                None,
+                None,
+                True,
+                False,
+                None,
+                False,
+                None,
+                None,
+                False,
+                "capability_unqualified_or_expired",
+            )
+
+        binding_id = str(entry["provider_binding_id"])
+        tier = str(entry["intelligence_tier"])
+        capability_expiry = str(entry.get("expires_at")) if entry.get("expires_at") is not None else None
+        profile = TRUSTED_RESOURCE_CATALOG.get((normalized_provider, binding_id, normalized_model))
+        if profile is None:
+            return DevFarmWorkerEligibility(
+                normalized_provider,
+                normalized_model,
+                binding_id,
+                tier,
+                True,
+                True,
+                capability_expiry,
+                False,
+                None,
+                None,
+                False,
+                "billing_unknown",
+            )
+        billing_current = profile.is_current(now=self._now)
+        billing_admitted = profile.cost_minor == 0 and billing_current
+        if not billing_admitted:
+            reason = "billing_expired" if not billing_current else "billing_not_no_charge"
+            return DevFarmWorkerEligibility(
+                normalized_provider,
+                normalized_model,
+                binding_id,
+                tier,
+                True,
+                True,
+                capability_expiry,
+                False,
+                profile.source,
+                profile.expires_at,
+                False,
+                reason,
+            )
+        return DevFarmWorkerEligibility(
+            normalized_provider,
+            normalized_model,
+            binding_id,
+            tier,
+            True,
+            True,
+            capability_expiry,
+            True,
+            profile.source,
+            profile.expires_at,
+            True,
+            "eligible",
+        )
+
     def is_active(self, provider_id: str, model_id: str | None = None) -> bool:
-        if not isinstance(provider_id, str) or provider_id.strip() not in self._active_provider_ids:
-            return False
-        # A provider allowlist is not sufficient evidence for an outbound
-        # Worker.  Activation is model-qualified so an omitted model cannot
-        # silently select an arbitrary or newly billable deployment.
         if not isinstance(model_id, str) or not model_id.strip():
             return False
-        entry = self._qualified_worker_entry(provider_id, model_id)
-        if entry is None:
-            return False
-        profile = _catalog_profile_for(provider_id.strip(), str(entry["provider_binding_id"]), model_id.strip())
-        return profile is not None and profile.cost_minor == 0 and profile.is_current(now=self._now)
+        return self.eligibility_for(provider_id, model_id).eligible
 
     def ensure_active(self, provider_id: str, model_id: str | None = None) -> None:
         if not self.is_active(provider_id, model_id):
@@ -135,10 +246,10 @@ class DevFarmActivationPolicy:
 
     def binding_for(self, provider_id: str, model_id: str) -> tuple[str, str | None]:
         self.ensure_active(provider_id, model_id)
-        entry = self._qualified_worker_entry(provider_id, model_id)
-        if entry is None:
+        eligibility = self.eligibility_for(provider_id, model_id)
+        if eligibility.provider_binding_id is None:
             raise DevFarmError(f"development worker qualification is unavailable: {provider_id}/{model_id}")
-        return str(entry["provider_binding_id"]), str(entry["intelligence_tier"])
+        return eligibility.provider_binding_id, eligibility.intelligence_tier
 
 
 def _read_json(path: Path) -> Any:

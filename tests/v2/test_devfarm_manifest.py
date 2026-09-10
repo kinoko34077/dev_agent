@@ -76,6 +76,46 @@ def test_devfarm_activation_requires_current_capability_and_billing_evidence(tmp
     assert current.is_active("gemini", "gemini-3.5-flash-lite") is True
     assert expired.is_active("gemini", "gemini-3.5-flash-lite") is False
     assert current.binding_for("gemini", "gemini-3.5-flash-lite") == ("gemini:worker", "L1")
+    eligible = current.eligibility_for("gemini", "gemini-3.5-flash-lite")
+    assert eligible.eligible is True
+    assert eligible.operator_activated is True
+    assert eligible.capability_qualified is True
+    assert eligible.billing_admitted is True
+    assert eligible.reason == "eligible"
+    expired_evidence = expired.eligibility_for("gemini", "gemini-3.5-flash-lite")
+    assert expired_evidence.eligible is False
+    assert expired_evidence.reason == "capability_unqualified_or_expired"
+
+
+def test_devfarm_eligibility_does_not_collapse_unknown_billing_into_free(tmp_path):
+    matrix = tmp_path / "matrix.json"
+    matrix.write_text(
+        json.dumps(
+            {
+                "entries": [
+                    {
+                        "provider": "cloudflare",
+                        "model": "unlisted-model",
+                        "provider_binding_id": "cloudflare:unlisted",
+                        "intelligence_tier": "L1",
+                        "expires_at": "2026-09-11T00:00:00+00:00",
+                        "capabilities": ["text"],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    policy = DevFarmActivationPolicy(
+        capability_matrix_path=matrix,
+        now=datetime(2026, 9, 10, tzinfo=timezone.utc),
+    )
+    evidence = policy.eligibility_for("cloudflare", "unlisted-model")
+    assert evidence.operator_activated is True
+    assert evidence.capability_qualified is True
+    assert evidence.billing_admitted is False
+    assert evidence.reason == "billing_unknown"
+    assert policy.is_active("cloudflare", "unlisted-model") is False
 
 
 def test_worker_prompt_makes_patch_and_test_claim_boundaries_explicit(tmp_path):
