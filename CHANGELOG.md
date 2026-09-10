@@ -4,6 +4,12 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-11 JST — Late provider reconciliation and attempt accounting
+
+- timeout後に遅れて到着したProvider応答を、同じdurable effect intent／budget reservationへ一度だけreconcileし、保存済み応答のreplayでTaskを再開できるようにした。結果不明は引き続き`WAITING_RECONCILIATION`へ留め、blind retryしない。
+- Operation maintenanceからreconciliation済みの待機Taskをboundedにwakeし、status APIではlogical execution attemptsとlease claim／crash-loop countersを分離した。
+- `tests/v2` 全回帰は `596 passed, 1 skipped`（115.90秒）。G6O1、外部Provider資格化、Gate statusは変更していない。
+
 ### 2026-09-11 JST — Operation quota maintenance ordering
 
 - 同一quota domainに複数Resourceがある場合、正常な最新観測がbounded probe枠を消費しないよう、期限到来したblocked ResourceだけをOperation maintenance対象へ絞った。reset前、authorization／permission、invalid observationは引き続きprobeしない。

@@ -42,9 +42,9 @@ scheduler / operation composition
 - `policy/security` は domain を利用できるが、runtime の具体実装を所有しない。
 - `state`、`tools`、`resources`、`providers`、`intelligence` は domain と policy の typed 契約を利用できるが、互いの内部実体を直接参照しない。
 - `runtime` は上記 facade/public protocol を composition する。Provider 通信は `ProviderDispatcher`、Resource 操作は `ResourceControlPlane` を経由する。
-- `scheduler` は Queue/Worker/lease と runtime lifecycle を接続するが、Provider SDK の分岐や新しい Task state machine を所有しない。
+- `scheduler` は Queue/Worker/lease と runtime lifecycle を接続するが、Provider SDK の分岐や新しい Task state machine を所有しない。lease claim統計とlogical execution retryは別カウンタとして保持する。
 - `operation` は既存部品を composition する薄い入口であり、production scheduler を並立させない。
-- `operation` は起動時に既存 Resource を再構成・上書きせず、trusted billing catalog と operator-owned quota domain を検証する。Provider の正常応答／bounded quota probe が Resource observation freshness の唯一の更新入口であり、未知価格・未観測quotaは fail-closed とする。
+- `operation` は起動時に既存 Resource を再構成・上書きせず、trusted billing catalog と operator-owned quota domain を検証する。Provider の正常応答／bounded quota probe が Resource observation freshness の唯一の更新入口であり、未知価格・未観測quotaは fail-closed とする。timeout後のlate provider successは同一effect intentへreconcileしてから、保存済み応答を通常Controller経路へreplayする。
 - `backends` は外部Agent harnessのidentity、session、event、cancellation、resultをtyped化し、既存StateStoreのeffect intent／Event／reconciliationへ接続する薄い境界である。`AgentBackendDispatcher`は既存authorityの証拠を`BackendAdmission`として要求し、lease／budget／approval／privacyの各strict-`True` flagとTask／Backend identityのcapability coverageをstart前に検証する。Runtime/State/Scheduler/Budget/Recoveryの所有権を持たず、Backend固有adapterはこの境界の外側に置く。
 - `intelligence/target.py` の `ExecutionTargetPolicy` は ModelProvider と AgentBackend の実行先を分離する。通常はModelProviderを選び、AgentBackendは明示autonomy、approval、budget、privacy、capabilityの既存証拠が揃った場合だけ許可する。tierだけを理由に自動昇格しない。
 - `recovery/` は runtime/controller から独立し、durable artifact と operator authority を扱う。Recovery が Controller の内部状態を書き換える設計にしない。
@@ -64,7 +64,7 @@ scheduler / operation composition
 
 - schema migration は既存の ordered migration owner を通し、不要な schema version を追加しない。
 - critical transition は StateStore の transaction owner と `commit_transition` を通す。
-- 外部 dispatch は intent、budget reservation、provider audit、lease/fencing を結び、timeout/decode/ownership不明は UNKNOWN/reconciliation として保存する。
+- 外部 dispatch は intent、budget reservation、provider audit、lease/fencing を結び、timeout/decode/ownership不明は UNKNOWN/reconciliation として保存する。late completionがknown successになった場合は同じintentをatomicにreconcileし、Queue wake後に新規外部dispatchなしでdurable responseを再処理する。unknownのままならwakeせず、再送もしない。
 - FiniteLifecycle の使用数は durable Task/Event history から復元し、process restart で retry 上限をリセットしない。
 - Quota は observation の `quota_domain` と reset/blocked_until を正本とし、reset 到達だけで復帰させず、bounded probe と正常観測の永続化後に routing へ戻す。
 - cancellation は Task payload の競合する全置換だけに依存せず、append-only control record を terminal transition 直前に再読込する。Provider health は selected resource/binding、quota wake は `quota:<domain>` に限定する。

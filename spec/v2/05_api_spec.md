@@ -22,10 +22,10 @@
 ### `ProviderRegistry` / `ProviderDispatcher`
 
 - `ProviderRegistry`: `provider_binding_id` で具体的な ModelProvider を解決する。`provider_id`（vendor）、`model_id`、binding、resource、credential、quota domain を混同しない。同一 provider の複数 binding を許可する。
-- `ProviderDispatcher`: selection、provider intent、resource/budget reservation、fallback、provider audit、reconciliation の canonical 実行境界。
+- `ProviderDispatcher`: selection、provider intent、resource/budget reservation、fallback、provider audit、reconciliation の canonical 実行境界。timeout後のlate provider completionも同じintent／reservationへreconcileし、新しいProvider requestを発行しない。
 - 公開入口: `request(ModelRequest) -> ModelResponse`。Dispatcher は内部で `ResourceControlPlane` と Registry を利用する。
 - 権限: Resource/Provider の dispatch authority。ただし Hard Budget、Human Authority、protected config を自己昇格させない。
-- 禁止: Controller への provider 固有分岐の追加、Router/ledger の内部実体を `A.B.C` で直接操作すること、UNKNOWN の無条件再送。
+- 禁止: Controller への provider 固有分岐の追加、Router/ledger の内部実体を `A.B.C` で直接操作すること、UNKNOWN の無条件再送、late completionを別bindingへblind retryすること。
 
 ### `ResourceControlPlane`
 
@@ -85,21 +85,21 @@
 ### `DurableQueue`
 
 - 責務: Task の enqueue、claim、lease、defer/wake、bounded retry、cancel。
-- 入力/出力: Task ID と durable queue item。lease/fencing を検証可能な形で扱う。
+- 入力/出力: Task ID と durable queue item。lease/fencing を検証可能な形で扱う。`claim_count`／`claim_streak`（lease claim）と`execution_attempts`（実行開始）は別カウンタで返す。
 - 権限: scheduler/worker の queue ownership。
 - 禁止: Task の正本状態を queue 内だけに持つこと、expired lease の無条件実行。
 
 ### `Operation Layer`
 
 - 公開入口: `dev-agent start|submit|status|stop`、`OperationService`。
-- 責務: 人間の操作を既存 StateStore、Queue、WorkerRunner、Controller、Dispatcher、Evaluator/Lifecycle へ composition する。`maintenance_tick` は既存 quota wake / one-shot requalification を bounded に接続する。
+- 責務: 人間の操作を既存 StateStore、Queue、WorkerRunner、Controller、Dispatcher、Evaluator/Lifecycle へ composition する。`maintenance_tick` は既存 quota wake / one-shot requalification と、durable provider intentがlate completionで確定したTaskのbounded wakeを接続する。
 - Lifecycle composition: `OperationService.evaluate_task(...)` は既存 `FiniteLifecycleLoop`、`EvaluationCoordinator`、`TaskLifecycleCoordinator` を使って host evidence を一回の有限 cycleへ接続する。`review_task(...)` は明示 reviewだけを記録し、`dispatch_reviewed(...)` は queue の lease proof を必須として既存 `EscalationExecutor`／`ProviderDispatcher`へ委譲する。Higher-tier dispatchは既存のexplicit review境界を越えない。
 - Planning composition: `validate_planning_proposal(...)` は root Task、capability vocabulary、TaskGraph上限、dependency cycle、protected owner、sensitivity monotonicityをHost側で検証する。`apply_planning_proposal(...)` は検証済みproposalだけを既存TaskGraph／StateStore／Queueへ反映し、依存childは`WAITING_DEPENDENCY`へdurably parkする。Planner出力はbudget、approval、privacy、Gate authorityを発行しない。
 - 入力/出力: task objective、Task ID、durable status JSON。CLI 独自の Task 状態を持たない。
 - 権限: 起動/投入/停止の operator boundary。stop は未知の外部効果を FAILED に偽装しない。
 - 禁止: 新しい scheduler/state machine、busy polling、budget/quota/approval の bypass。
 - Resource 起動規則: 既存 Resource catalog、価格、quota domain、health、operator metadata は read-only で扱う。free 判定は trusted な binding×model catalog に限定し、未知価格は推測せず拒否する。cloud Resource の quota domain は operator-owned 設定として明示され、正常な Provider 応答または bounded probe だけが freshness を更新する。
-- 拒否/停止規則: `DispatchDenied` は budget、quota、maintenance、resource wait、invalid failure の意味を保持して Task 状態へ写像する。cross-process cancellation は durable control と terminal commit 時の再確認を通り、外部効果不明時は `WAITING_RECONCILIATION` を維持する。
+- 拒否/停止規則: `DispatchDenied` は budget、quota、maintenance、resource wait、invalid failure の意味を保持して Task 状態へ写像する。cross-process cancellation は durable control と terminal commit 時の再確認を通り、外部効果不明時は `WAITING_RECONCILIATION` を維持する。late provider successは保存済み応答のlifecycle replayへ戻し、blind retryしない。
 - Provider composition: 通常運用は複数のqualified bindingを`ProviderFactory`／`ProviderRegistry`へ登録でき、exact current intelligence tierをhard filterしたうえで同Tierの別bindingへbounded fallbackする。単一provider指定はdebug／qualification／manual pinとして扱う。
 
 ## Development-only DevFarm / Commander

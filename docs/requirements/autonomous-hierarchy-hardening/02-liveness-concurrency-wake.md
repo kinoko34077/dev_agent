@@ -59,6 +59,9 @@ quota、budget、approval、saturation、maintenance待ちなど、外部実行�
 
 ## B4 — late completion
 
+実装状態: `ProviderDispatcher`、`ModelTurnExecutor`、`Controller`、`Operation.maintenance_tick()`へ接続済み。focused testは
+`test_late_provider_completion_reconciles_once_and_resumes_task`。
+
 外側ControllerがtimeoutしてTaskをWAITING_RECONCILIATIONへ送った後、裏のProvider callが
 late completionする場合を明示的に扱う。
 

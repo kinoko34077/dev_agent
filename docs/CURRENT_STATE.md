@@ -1,6 +1,6 @@
 # Current State — v2/bootstrap
 
-実装基準は `ead4dfe` です。直近のローカル全回帰もこのHEADで検証し、
+実装基準は `85bfadf` です。直近のローカル全回帰もこのコード基準で検証し、
 本書はそのコードと、直近の外部資格化・DevFarm実行結果を同期したCurrent Stateです。
 GATE_STATUSの既存statusは変更していません。
 
@@ -21,6 +21,8 @@ GATE_STATUSの既存statusは変更していません。
 - Phase 7 Operation lifecycle composition: `OperationService.evaluate_task()`／`review_task()`／`dispatch_reviewed()`を追加し、既存の`FiniteLifecycleLoop`、`EvaluationCoordinator`、`TaskLifecycleCoordinator`、`EscalationExecutor`、`ProviderDispatcher`を明示review境界のまま接続した。reviewed dispatchは`DurableQueue`のlease proofでeffect intent、Provider dispatch、Task transitionをfenceする。自動昇格・自動承認・新Schedulerは追加していない
 - Phase 7 root planning boundary: `RootPlanningProposal`／`RootPlanningValidator`を追加し、reasoning rootからの有限child proposalをTask作成前に検証する。TaskGraph上限、dependency cycle、未知capability、protected worker assignment、sensitivity downgradeをfail-closedで拒否し、依存childは既存StateStoreへ`WAITING_DEPENDENCY`として保存する。Plannerはauthorityを発行しない
 - Planner dependency lifecycle: 依存childは既存Operation maintenance境界で前段Taskの完了を再評価し、全依存が`COMPLETED`のときだけ既存Durable Queueへreleaseする。失敗／取消依存はchildを実行せずterminalizeし、独立Schedulerは追加していない
+- Late provider completion: timeout後も生存するprovider callの結果を同じdurable effect intent／budget reservationへ一度だけreconcileし、既知の成功応答は新しいProvider requestなしでControllerが保存済み応答をreplayできる。`Operation.maintenance_tick()`はreconciliation済みの待機TaskだけをQueueへwakeし、結果不明は`WAITING_RECONCILIATION`に留める
+- Queue attempt accounting: statusの`current_attempt`／`execution_attempts`は実行回数、`claim_count`／`claim_streak`はlease claimの統計・crash-loop fenceとして分離し、waiting・wakeだけではlogical execution budgetを消費しない
 - Phase 7 hierarchy Operation E2E: 通常の`OperationService` compositionで、L1 primary failure→別quota domainのL1 fallback→明示review済みL2 dispatch→terminal completionを確認する。各dispatchはexact current tier、既存effect identity、lease proof、Task／Queue lifecycleを通過する。同一UNKNOWN quota domainのadmissionを無制限に再利用しない境界も維持する
 - Operation hardening: Operation起動時の既存Resourceはread-onlyで保持し、binding×model×trusted catalogにない価格を無料と推測しない。Cloud Resourceはoperator-ownedな`quota_domain`を明示し、初回はlive probeなしでhealthy扱いせず、正常Provider応答／正常quota probeだけがResource freshnessを更新する。`DispatchDenied`はbudget／quota／maintenance／resource wait／invalid failureへ意味別に遷移し、canonicalなrate-limit／quota ProviderErrorも`BLOCKED_QUOTA`へparkする
 - Operation quota maintenance hardening: 同一quota domainに複数Resourceがある場合も、正常な観測がbounded probe枠を消費しないよう、期限到来したblocked Resourceだけを選択して一回probeする。reset境界前、authorization／permission、invalid observationはprobe対象にしない
@@ -35,7 +37,7 @@ GATE_STATUSの既存statusは変更していません。
 
 ## 検証
 
-- v2ローカル全回帰: `563 passed, 1 skipped`（`python -m pytest -q tests/v2 --durations=10`、115.54秒。所要時間は実行環境依存）
+- v2ローカル全回帰: `596 passed, 1 skipped`（`python -m pytest -q tests/v2`、115.90秒。所要時間は実行環境依存）
 - DevFarm admission／hierarchy focused: `54 passed`（qualified bindingの送信前再検証、未資格model拒否、L1 alternate→L2横断証拠を含む）
 - 追加監査focused: Provider quota分類／DevFarm model-qualified activation／trusted free qualificationを含む`45 passed`
 - Operation hardening focused: `94 passed, 1 skipped`（Operation、quota、DevFarm attempt、SQLite contention、security、budget境界）
