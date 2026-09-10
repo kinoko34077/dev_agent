@@ -173,7 +173,7 @@ Implemented in `recovery/phase6_recovery.py` and
 Implemented in `src/dev_agent/scheduler/queue.py`.
 
 - Queue state is durable in SQLite.
-- Queue schema migrations are ordered through v3; `max_attempts` is persisted
+- Queue schema migrations are ordered through v4; `max_attempts` and reset-aware `wake_at`／`wake_reason` are persisted. `QuotaWakeScheduler` exposes durable wake boundaries without probing or clearing a Provider block.
   per item so lease expiry and worker crash recovery cannot retry forever.
 - Claims are exclusive through an atomic transaction.
 - `lease_owner`, `lease_until`, `state_version`, and `attempts` fence stale

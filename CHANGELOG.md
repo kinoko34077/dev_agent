@@ -7,6 +7,7 @@
 ### 2026-09-10 JST — Reset-aware quota metadata and bounded DevFarm stages
 
 - ResourceLedgerをschema v8へordered migrationし、quota observationにmetric／window／reset source／blocked-until／block reasonを追加した。429／quota／transportのtyped ProviderErrorはProvider-neutralな保守的blockへ変換し、古いblocked observationを時計経過だけでroutingへ戻さない。Recovery validatorもschema v8と新しいquota metadataを検証する。
+- Scheduler queueをschema v4へordered migrationし、quota reset boundaryへparkingする`wake_at`／`wake_reason`を永続化した。`QuotaWakeScheduler`は期限到来Taskを起こす境界だけを担い、Providerの再qualificationやblocked解除は自動で行わない。
 - DevFarmのRemote proposalとHost verificationを分離し、proposal段階ではworktreeを作成せず、検証段階だけ専用worktreeへ限定適用する。remote inferenceとHost verificationを別Governorでboundedに制御し、無効化された枠はfail-closedとした。
 - `TaskLifecycleCoordinator`を追加し、Evaluator／reviewed dispatchの結果を冪等な`commit_transition()`でTaskへ適用する境界を実装した。G6O1と既存Gate statusは変更していない。ローカル全回帰は`419 passed, 1 skipped`。
 
