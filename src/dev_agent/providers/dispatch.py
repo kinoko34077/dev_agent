@@ -8,7 +8,7 @@ from typing import Any, Callable, TYPE_CHECKING
 from ..domain.protocol import ModelRequest, ModelResponse
 from ..resources.budget import BudgetExceeded, BudgetReconciliationRequired
 from ..resources.control import DispatchDenied, DispatchReservation, ResourceControlPlane
-from ..resources.router import NoRoute, RouteRequest, RouteSelection
+from ..resources.router import NoRoute, RouteSelection
 from ..resources.survival import SurvivalGovernor, SurvivalMode, SurvivalSnapshot
 from .base import ModelProvider, ProviderError
 from .journal import ProviderDispatchJournal
@@ -255,25 +255,9 @@ class ProviderDispatcher(ModelProvider):
                 # Paid normal dispatch is prohibited in constrained modes.
                 # Recovery-only paid work requires a distinct future request type.
                 max_cost_minor = 0
-        allowed_tiers = None
-        allow_unknown_quota = request.metadata.get("allow_unknown_quota") is True
-        allowed_provider_binding_ids = request.metadata.get("allowed_provider_binding_ids")
-        excluded_provider_binding_ids = request.metadata.get("excluded_provider_binding_ids", ())
-        if request.metadata.get("intelligence_routing") == "bounded":
-            if "allowed_intelligence_tiers" not in request.metadata:
-                raise DispatchDenied("invalid_request", "bounded intelligence routing requires allowed_intelligence_tiers")
-            allowed_tiers = request.metadata["allowed_intelligence_tiers"]
-        try:
-            route_request = RouteRequest(
-                capabilities=set(request.requested_capabilities) or {"text"},
-                sensitivity=request.sensitivity,
-                excluded_resource_ids=excluded,
-                max_cost_minor=max_cost_minor,
-                allow_unknown_quota=allow_unknown_quota,
-                allowed_intelligence_tiers=allowed_tiers,
-                allowed_provider_binding_ids=allowed_provider_binding_ids,
-                excluded_provider_binding_ids=excluded_provider_binding_ids,
-            )
-        except ValueError as exc:
-            raise DispatchDenied("invalid_request", str(exc)) from exc
-        return self.control.router.choose(route_request, snapshot=snapshot)
+        return self.control.select_route(
+            request,
+            excluded_resource_ids=excluded,
+            max_cost_minor=max_cost_minor,
+            snapshot=snapshot,
+        )

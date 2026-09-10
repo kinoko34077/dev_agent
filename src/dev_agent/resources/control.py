@@ -71,7 +71,13 @@ class ResourceControlPlane:
         return self.governor.snapshot()
 
     @staticmethod
-    def _route_request(request: ModelRequest, provider_id: str) -> RouteRequest:
+    def _route_request(
+        request: ModelRequest,
+        provider_id: str | None = None,
+        *,
+        excluded_resource_ids: set[str] | frozenset[str] | tuple[str, ...] = (),
+        max_cost_minor: int | None = None,
+    ) -> RouteRequest:
         """Translate the request's host policy into the compatibility route.
 
         The canonical ``ProviderDispatcher`` builds this filter itself.  The
@@ -89,11 +95,44 @@ class ResourceControlPlane:
         return RouteRequest(
             capabilities=set(request.requested_capabilities) or {"text"},
             sensitivity=request.sensitivity,
-            allowed_providers={provider_id},
+            allowed_providers={provider_id} if provider_id is not None else None,
+            max_cost_minor=max_cost_minor,
+            excluded_resource_ids=set(excluded_resource_ids),
             allow_unknown_quota=metadata.get("allow_unknown_quota") is True,
             allowed_intelligence_tiers=allowed_tiers,
             allowed_provider_binding_ids=metadata.get("allowed_provider_binding_ids"),
             excluded_provider_binding_ids=metadata.get("excluded_provider_binding_ids", ()),
+        )
+
+    def select_route(
+        self,
+        request: ModelRequest,
+        *,
+        excluded_resource_ids: set[str] | frozenset[str] | tuple[str, ...] = (),
+        max_cost_minor: int | None = None,
+        snapshot=None,
+    ) -> RouteSelection:
+        """Select a resource without exposing the Router to dispatchers.
+
+        Routing policy is owned by the ResourceControlPlane boundary.  The
+        optional snapshot lets a caller that already evaluated survival state
+        reuse the same read, while the Router remains the only component that
+        performs deterministic candidate selection.
+        """
+
+        if not isinstance(request, ModelRequest):
+            raise TypeError("request must be a ModelRequest")
+        try:
+            route_request = self._route_request(
+                request,
+                excluded_resource_ids=excluded_resource_ids,
+                max_cost_minor=max_cost_minor,
+            )
+        except ValueError as exc:
+            raise DispatchDenied("invalid_request", str(exc)) from exc
+        return self.router.choose(
+            route_request,
+            snapshot=self.routing_snapshot() if snapshot is None else snapshot,
         )
 
     def reserve_for_provider(self, task_id: str, provider_id: str, request: ModelRequest, *, intent_key: str | None = None) -> DispatchReservation:

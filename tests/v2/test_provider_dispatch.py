@@ -266,3 +266,29 @@ def test_dispatcher_reads_routing_and_budget_snapshots_from_control_plane(tmp_pa
 
     assert result.status is TaskStatus.COMPLETED
     assert calls == ["routing", "budget"]
+
+
+def test_dispatcher_selects_routes_through_control_plane_boundary(tmp_path, monkeypatch):
+    ledger, control = _free_control(tmp_path)
+    ledger.observe_quota("groq-free", request_limit=100, request_remaining=90)
+    selected = []
+    original = control.select_route
+
+    def select_route(request, **kwargs):
+        selected.append(kwargs.get("excluded_resource_ids"))
+        return original(request, **kwargs)
+
+    monkeypatch.setattr(control, "select_route", select_route)
+
+    class HealthyProvider(FakeProvider):
+        provider_id = "groq"
+
+        def request(self, request):
+            return ModelResponse(provider="groq", model="free", text_segments=["ok"], usage={"cost_minor": 0})
+
+    dispatcher = ProviderDispatcher(ProviderRegistry([HealthyProvider()]), control)
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        result = Controller(dispatcher, ToolRuntime(ToolRegistry()), store).run(Task(objective="control route boundary"))
+
+    assert result.status is TaskStatus.COMPLETED
+    assert selected == [set()]
