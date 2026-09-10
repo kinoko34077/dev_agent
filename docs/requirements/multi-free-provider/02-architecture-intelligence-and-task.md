@@ -74,5 +74,6 @@ Evaluator結果をdurable eventへ記録し、有限なescalation plan、明示r
 （accepted/rejected）、受理済みplanのdispatch-ready handoffを実装した。
 `EscalationExecutor`はaccepted handoffを再検証してcanonical ProviderDispatcherへ
 bounded dispatchする。`EvaluationDispatchCoordinator`は一回のhost evaluationを
-明示review済みdispatchへ接続するが、Task lifecycleのterminal/waiting遷移、次cycleの
-evidence生成、実績ベースrouting、workflow promotion、AgentBackend/MCPは後段である。
+明示review済みdispatchへ接続し、`FiniteLifecycleLoop`で既存のTask lifecycleへ
+明示的な有限cycleとして合成できる。ただし、自動的な次cycle evidence生成、実績ベース
+routing、workflow promotion、AgentBackend/MCPは後段である。

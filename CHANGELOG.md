@@ -4,6 +4,11 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-10 JST — Explicit finite evaluator lifecycle
+
+- `FiniteLifecycleLoop`を追加し、既存のEvaluator／明示review／Escalation dispatch／`TaskLifecycleCoordinator`を、評価回数上限付きの明示的な有限cycleへ合成した。呼出側がevidenceとapprovalを供給し、自動承認・無限retry・model自己昇格・unknown再送は行わない。
+- focused lifecycle regressionは`9 passed`、v2全回帰は`442 passed, 1 skipped`。Gate statusとG6O1の判定は変更していない。
+
 ### 2026-09-10 JST — Minimum Operation Layer
 
 - `python -m src.dev_agent`へ`start`／`submit`／`status`／`stop`を追加し、CLI専用runtimeを増やさず、SQLiteStateStore、DurableQueue、WorkerRunner、Controller、ProviderDispatcherをcompositionした。既定Providerは無課金のdeterministic fakeで、実Providerは明示設定時だけ構築する。
