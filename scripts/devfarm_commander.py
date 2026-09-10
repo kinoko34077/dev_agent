@@ -726,7 +726,21 @@ def verify_plan(
         return plan
     farm = orchestrator or DevFarmOrchestrator()
     manifest_paths = [_manifest_for(root_path, task)[0] for task in selected]
-    results = farm.verify(root_path, manifest_paths)
+    try:
+        results = farm.verify(root_path, manifest_paths)
+    except Exception as exc:
+        # A verifier/provider boundary failure must become a durable rejected
+        # attempt, not leave the parent Plan indefinitely PROPOSED.  The
+        # bounded reassign path can then make an explicit next assignment.
+        plan = store.load(run_id)
+        for task in selected:
+            current = _task(plan, task["task_id"])
+            current["status"] = "REJECTED"
+            current["last_result_status"] = "failed"
+            current["block_reason"] = "host_verification_failed"
+            current["last_error"] = str(exc)[:1000]
+            _record_result(plan, current["task_id"], "host_verification", "failed", _result_ref(current["task_id"]))
+        return store.save(refresh_plan(plan))
     plan = store.load(run_id)
     for task, result in zip(selected, results):
         current = _task(plan, task["task_id"])

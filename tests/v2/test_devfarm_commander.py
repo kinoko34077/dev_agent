@@ -33,6 +33,11 @@ class _WorkerProvider(ModelProvider):
         )
 
 
+class _FailingVerifier:
+    def verify(self, root, manifest_paths):
+        raise RuntimeError("verification boundary unavailable")
+
+
 def _git(cwd, *args):
     return subprocess.run(
         ["git", "-c", f"safe.directory={cwd.as_posix()}", *args],
@@ -214,6 +219,40 @@ def test_commander_reassigns_a_failed_worker_within_attempt_limit(tmp_path):
     )
     assert reassigned["tasks"][0]["status"] == "READY"
     assert reassigned["tasks"][0]["assignment"]["provider_id"] == "openrouter"
+
+
+def test_commander_persists_host_verification_boundary_failure(tmp_path):
+    root, targets, revision = _repo(tmp_path)
+    _manifest(root, revision, "worker-a", targets[0])
+    create_plan(
+        root,
+        {
+            "run_id": "verification-failure-run",
+            "objective": "persist verifier failure",
+            "base_revision": revision,
+            "tasks": [
+                {
+                    "task_id": "worker-a",
+                    "owner": "worker",
+                    "manifest_path": ".devfarm/tasks/worker-a.json",
+                    "ownership": [targets[0]],
+                    "assignment": {"provider_id": "cloudflare", "model_id": "test-model"},
+                }
+            ],
+        },
+    )
+    dispatch_plan(
+        root,
+        "verification-failure-run",
+        providers={"worker-a": _WorkerProvider({"status": "completed", "changed_files": [targets[0]], "tests_run": [], "tests_passed": True, "known_issues": [], "assumptions": [], "patch": _patch(targets[0]), "notes": "ready"})},
+    )
+
+    result = verify_plan(root, "verification-failure-run", orchestrator=_FailingVerifier())
+
+    assert result["tasks"][0]["status"] == "REJECTED"
+    assert result["tasks"][0]["block_reason"] == "host_verification_failed"
+    assert "verification boundary unavailable" in result["tasks"][0]["last_error"]
+    assert any(item["stage"] == "host_verification" and item["status"] == "failed" for item in result["results"])
 
 
 def test_commander_rejects_dependency_cycles_and_cli_can_read_status(tmp_path, capsys):
