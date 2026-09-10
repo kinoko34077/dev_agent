@@ -13,13 +13,13 @@ from tests.v2.devfarm_test_support import _RawWorkerProvider, _WorkerProvider, _
 
 def test_devfarm_provider_uses_factory_and_explicit_activation_allowlist():
     policy = DevFarmActivationPolicy()
-    assert policy.is_active("cloudflare")
+    assert not policy.is_active("cloudflare")
     assert policy.is_active("cloudflare", "@cf/meta/llama-3.1-8b-instruct")
     assert not policy.is_active("cloudflare", "arbitrary-unqualified-model")
-    assert policy.is_active("gemini")
+    assert not policy.is_active("gemini")
     assert policy.is_active("gemini", "gemini-3.5-flash-lite")
     assert not policy.is_active("gemini", "gemini-3.8-flash")
-    assert policy.is_active("openrouter")
+    assert not policy.is_active("openrouter")
     assert not policy.is_active("mistral")
 
     cloudflare = _provider("cloudflare", "@cf/meta/llama-3.1-8b-instruct", 4)

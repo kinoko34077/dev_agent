@@ -752,6 +752,15 @@ class Controller:
                         # or allow a duplicate provider request.
                         self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="budget_reconciliation", message=str(exc))
                         return task
+                    elif getattr(self.provider, "handles_resource_policy", False) and exc.category in {"quota", "rate_limit"}:
+                        # A canonical dispatcher may exhaust every eligible
+                        # binding after recording a provider-side quota/rate
+                        # limit.  The dispatcher has already parked the
+                        # resource; keep the task parked as well so the
+                        # reset-aware wake path can resume it instead of
+                        # turning a recoverable quota condition into FAILED.
+                        self._block_quota(task, state, step=step, message=str(exc))
+                        return task
                     self._fail(task, state, exc.category, str(exc), step=step, request_id=request.request_id)
                 except Exception as exc:
                     if reservation is not None:

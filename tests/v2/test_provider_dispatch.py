@@ -187,6 +187,38 @@ def test_dispatcher_records_conservative_quota_block_after_rate_limit(tmp_path):
     assert observation["reset_source"] == "conservative-cooldown"
 
 
+def test_controller_parks_task_when_all_resource_routes_hit_rate_limit(tmp_path):
+    ledger = ResourceLedger(tmp_path / "rate-limit-task.sqlite3")
+    ledger.register_resource(
+        "limited",
+        provider_id="limited",
+        native_unit="request",
+        capacity=1,
+        capabilities=["text"],
+        quota_domain="limited-project",
+        cost_minor=0,
+    )
+    ledger.observe("limited", available=1, health="healthy")
+    ledger.observe_quota("limited", unit="requests", metric="rpm", window="minute", request_limit=10, request_remaining=10)
+    BudgetAuthority.configure(ledger, BudgetPolicy(hard_cap_minor=0, recovery_reserve_minor=0))
+    control = ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger))
+
+    class LimitedProvider(FakeProvider):
+        provider_id = "limited"
+
+        def request(self, request):
+            raise ProviderError("rate limited", category="rate_limit", retryable=True, http_status=429)
+
+    dispatcher = ProviderDispatcher(ProviderRegistry([LimitedProvider()]), control)
+    with SQLiteStateStore(tmp_path / "rate-limit-task-state.sqlite3") as store:
+        result = Controller(dispatcher, ToolRuntime(ToolRegistry()), store).run(Task(objective="park after rate limit"))
+        events = store.snapshot()["events"]
+
+    assert result.status is TaskStatus.BLOCKED_QUOTA
+    assert events[-1]["event_type"] == "task.blocked_quota"
+    assert events[-1]["payload"]["category"] == "quota"
+
+
 def test_dispatcher_records_provider_health_through_control_plane(tmp_path, monkeypatch):
     ledger, control = _free_control(tmp_path)
     ledger.observe_quota("groq-free", request_limit=100, request_remaining=90)

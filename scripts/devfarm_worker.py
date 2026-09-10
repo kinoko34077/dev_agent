@@ -85,10 +85,13 @@ class DevFarmActivationPolicy:
     def is_active(self, provider_id: str, model_id: str | None = None) -> bool:
         if not isinstance(provider_id, str) or provider_id.strip() not in self._active_provider_ids:
             return False
-        if model_id is None:
-            return True
+        # A provider allowlist is not sufficient evidence for an outbound
+        # Worker.  Activation is model-qualified so an omitted model cannot
+        # silently select an arbitrary or newly billable deployment.
+        if not isinstance(model_id, str) or not model_id.strip():
+            return False
         allowed_models = self.ACTIVE_MODEL_IDS.get(provider_id.strip())
-        return allowed_models is None or model_id.strip() in allowed_models
+        return allowed_models is not None and model_id.strip() in allowed_models
 
     def ensure_active(self, provider_id: str, model_id: str | None = None) -> None:
         if not self.is_active(provider_id, model_id):
