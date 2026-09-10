@@ -2,13 +2,16 @@
 
 Status: foundation VERIFIED; G6O2〜G6O6 VERIFIED; G6O1 BLOCKED_EXTERNAL; Phase 6A quota/provider expansion locally verified; Cloudflare, OpenRouter Free, Ollama, Gemini 2.5, Gemini 3.5 Flash-Lite, and Gemini 3.8 Flash canonical qualification verified; Mistral live attempt HTTP 429 and unqualified; Groq models probe HTTP 403; Phase 7A〜7E bounded routing, evaluator, reviewed dispatch, execution, and workflow proposal boundaries locally verified; thin AgentBackend dispatcher/admission and ModelProvider／AgentBackend execution-target seam locally verified, Codex adapter/MCP未実装
 
-The current implementation baseline is `85bfadf`. The latest local full
-regression for this code baseline is `596 passed, 1 skipped in 115.90s`. ResourceLedger
-schema v8 now persists generic quota metric/window/reset/block metadata and
-typed rate-limit failures create conservative routing blocks. Exact-head
+The current implementation baseline is `a9774ca`. The latest local full
+regression for this code baseline is `602 passed, 1 skipped in 136.53s`. ResourceLedger
+schema v9 now persists generic quota metric/window/reset/block metadata and
+bounded unknown-quota admissions; typed rate-limit failures create conservative routing blocks. Exact-head
 GitHub Actions for the subsequent documentation synchronization is observed
 externally after push; CI run IDs are external observations, not repository
 self-certification records.
+
+The older `85bfadf` / `596 passed` values below are historical refactor
+evidence, not the current Phase 6 implementation baseline.
 
 Historical baselines include the implementation before the refactor pass,
 `22c26542323b80abeeeac51e31f835cfa1d6ab67`; its external exact-head CI
