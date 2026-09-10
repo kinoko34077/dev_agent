@@ -13,6 +13,7 @@
 | Resources | `src/dev_agent/resources/` | Resource、quota、health、router、budget | domain / state | Hard Budget、quota、privacy、survival | `tests/v2/test_resource_*.py`, `test_quota_*.py` |
 | Tools | `src/dev_agent/tools/` | policy、executor、subprocess、effect guard | domain / state | approval、scope、process containment | `tests/v2/test_tool_*.py` |
 | Intelligence | `src/dev_agent/intelligence/` | tier policy、Evaluator、escalation、lifecycle | domain / providers / resources / state | finite execution、explicit review | `tests/v2/test_intelligence_*.py` |
+| AgentBackend | `src/dev_agent/backends/` | 外部Agent harnessのthin typed contract | domain only | contractはauthorityを所有しない | `tests/v2/test_agent_backend_protocol.py`, requirements §20-22 |
 | Recovery | `recovery/` | runtime-independent diagnose、backup、restore、rollback | durable artifacts / Git | external recovery authority | `tests/v2/test_recovery*.py` |
 | Operation | `src/dev_agent/operation.py`, `src/dev_agent/__main__.py` | `start`、`submit`、`status`、`stop` | existing runtime stack | no CLI-owned state | `tests/v2/test_operation.py` |
 | DevFarm | `scripts/devfarm*.py` | manifest、proposal、Host Verification、metrics | ProviderFactory + Git artifacts | outbound scope、worktree、patch | `tests/v2/test_devfarm_*.py` |

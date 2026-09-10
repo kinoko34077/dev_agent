@@ -14,7 +14,7 @@ ModelProviderはモデル推論、tool call、usage、Providerエラーを提供
 - cancellation
 - recovery
 
-この二つを一つのProvider adapterへ混ぜない。現行Phase 6では ModelProvider とController/Task実行境界を維持し、AgentBackend は将来要件として予約する。
+この二つを一つのProvider adapterへ混ぜない。現行Phase 7後段では `src/dev_agent/backends/protocol.py` にidentity、scoped request、session、event、cancellation、resultのthin contractだけを導入し、AgentBackend固有の実行系はまだ予約する。
 
 ## 21. AgentBackendRouter
 

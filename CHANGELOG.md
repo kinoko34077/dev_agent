@@ -4,6 +4,11 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-10 JST — Thin AgentBackend contract
+
+- ModelProviderと外部Agent harnessを混同しないため、`src/dev_agent/backends/protocol.py`へidentity、scoped request、session、event stream、cancellation、completion／failure／unknown／reconciliation resultの薄いtyped contractを追加した。Task state、Scheduler、Budget、Quota、Authority、Recoveryは既存Control Planeが所有し、Codex App Server等の実adapterとMCPは未着手のまま分離している。
+- focused testは`6 passed`、v2全回帰は`468 passed, 1 skipped`。G6O1、Provider qualification、Evidence routingのadvisory-only方針は変更していない。
+
 ### 2026-09-10 JST — Automatic quota maintenance bridge
 
 - Operationの`start`／`start --once`が既存`QuotaWakeScheduler`と`QuotaRequalificationCoordinator`のbounded maintenance boundaryを毎回通るようにした。OpenAI互換Providerは既存`/models` probeから取得できるrate-limit headerだけをprovider-neutral observationへ渡し、telemetryが無い場合はquota blockを推測解除しない。

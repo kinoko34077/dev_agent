@@ -1,6 +1,6 @@
 # Current State — v2/bootstrap
 
-実装基準は `4eb73e5` です。本書はそのコードと、直近の外部資格化・DevFarm
+実装基準は `ef729d3` です。本書はそのコードと、直近の外部資格化・DevFarm
 実行結果を同期したCurrent Stateです。GATE_STATUSの既存statusは変更していません。
 
 ## 判定
@@ -25,7 +25,7 @@
 
 ## 検証
 
-- v2ローカル全回帰: `462 passed, 1 skipped`（`python -m pytest tests/v2 -q --durations=10`、106.86秒。所要時間は実行環境依存）
+- v2ローカル全回帰: `468 passed, 1 skipped`（`python -m pytest tests/v2 -q --durations=10`、所要時間は実行環境依存）
 - Operation Layer focused: `12 passed`（submit／status、canonical Dispatcher経由のstart、queue復旧、process restart、terminal／waiting reconciliation、provider非依存safe stop、durable cancellation request、due quota maintenance／wake、startからのmaintenance境界）
 - Evaluator→dispatch cycle focused: `18 passed in 2.62s`
 - finite lifecycle focused: `11 passed`（明示review、dispatch、terminal transition、評価cycle上限、process restart後のdurable cycle／waiting boundary）
@@ -34,7 +34,9 @@
 - Commander focused: `4 passed`（親Plan、ownership／dependency validation、dispatch／collect／Host Verification、bounded reassign、CLI status）
 - Commander dogfood: `phase7-commander-local-dogfood-004`のWorker成果をHost Verified後にCodexが明示統合。host testは`1 passed`、metricsは`provider_id=local-harness`のdurable artifactへ記録
 - Operation external E2E: Cloudflare `@cf/meta/llama-3.1-8b-instruct`で`submit`、`start --once`、ToolCall／ToolResult、final response、durable `task.completed`、provider audit成功2件を確認。証跡: [`phase7-operation-cloudflare`](../spec/v2/evidence/phase7-operation-cloudflare-2026-09-10.json)
-- Phase 7 integration acceptance: Commander parallel baseline、`INTEGRATED` dependency、FiniteLifecycle restart、quota reset→bounded probe→wake、Operation external E2E、Commander dogfoodを確認済み。Evidence routingは実Provider Worker metricsのminimum sample／freshness／rollback証拠が揃うまで`DEFERRED_ADVISORY`とし、ResourceRouterへhard接続しない。AgentBackend／MCPはこの条件の完了後に着手する
+- Phase 7 integration acceptance: Commander parallel baseline、`INTEGRATED` dependency、FiniteLifecycle restart、quota reset→bounded probe→wake、Operation external E2E、Commander dogfoodを確認済み。Evidence routingは実Provider Worker metricsのminimum sample／freshness／rollback証拠が揃うまで`DEFERRED_ADVISORY`とし、ResourceRouterへhard接続しない。実AgentBackend adapter／MCPはこの条件の完了後に着手する
+- AgentBackend boundary: `src/dev_agent/backends/protocol.py`に外部Agent harnessのidentity、scoped request、session、event stream、cancellation、completion／failure／unknown／reconciliation resultだけを定義した。Codex App Server等の実adapter、dispatch、MCPは未着手で、既存Runtime／State／Scheduler／Budget／Recoveryの所有権を移していない
+- AgentBackend focused: `6 passed`（thin contractのidentity／scope／request／session／event／result、入力境界、ModelProviderとの分離）
 - Evidence routing focused: `5 passed`（minimum samples、hard-filter済みbinding限定、期限切れ、rollback threshold、malformed evidence拒否、latest timestamp）
 - DevFarm host verification: Gemini 3.5 Flash-Lite `gemini-worker-phase7-003` が、入力ファイルを外部送信せず、隔離worktreeへpatchを適用し、許可済みhost test `7 passed` を確認
 - DevFarm 2 Worker並列: `gemini-worker-parallel-a` と `gemini-worker-parallel-b` が別worktree・別所有ファイルで同時実行され、各 `7 passed`、`result_accepted=true` を確認。実測はそれぞれ1.528秒、1.278秒

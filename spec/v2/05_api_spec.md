@@ -49,6 +49,14 @@
 - 権限: lifecycle を確定するが、canonical Provider 通信は Dispatcher へ委譲する。
 - 禁止: 新しい Provider orchestration、Phase 7専用の別 state machine、protected authority の変更。旧 direct-provider path は compatibility のみ。
 
+### `AgentBackend`（thin contract）
+
+- 責務: repo探索、編集、shell、長時間coding loopを持つ外部Agent harnessとの typed handoff を定義する。ModelProviderの一回推論契約とは分離する。
+- 公開入口: `AgentBackend.identity`、`start(AgentBackendRequest)`、`events(session_id)`、`cancel(session_id)`、`result(session_id)`。
+- 入力/出力: backend identity、task/objective、opaque workspace scope、session、provider-neutral event、completion/failure/unknown/reconciliation result。Backend固有payloadはadapter内に閉じる。
+- 権限: 外部Backendへ渡す契約の表現のみ。Task state、Scheduler、Budget、Quota、Approval、Lease/Fencing、Recovery、Gateを所有しない。
+- 禁止: ControllerやProviderRegistryの置換、外部Backendへの無承認dispatch、UNKNOWNの再送、Backend固有schemaのKernelへの漏出。実adapterは既存Control Planeの再検証境界を通す。
+
 ## Durable state / operation
 
 ### `StateStore` (`SQLiteStateStore`)
