@@ -72,6 +72,7 @@ class WorkerRunner:
             raise RuntimeError(f"queued task is missing from StateStore: {item.task_id}")
         max_attempts = self.max_attempts if self.max_attempts is not None else task.limits.max_retries + 1
         item = self.queue.set_max_attempts(item.task_id, worker_id=self.worker_id, state_version=item.state_version, max_attempts=max_attempts)
+        item = self.queue.set_max_execution_attempts(item.task_id, worker_id=self.worker_id, state_version=item.state_version, max_attempts=max_attempts)
         self.queue.renew(item.task_id, worker_id=self.worker_id, state_version=item.state_version, lease_seconds=self.lease_seconds)
         heartbeat = _LeaseHeartbeat(self.queue, task_id=item.task_id, worker_id=self.worker_id, state_version=item.state_version, lease_seconds=self.lease_seconds)
         heartbeat.start()
@@ -93,7 +94,7 @@ class WorkerRunner:
                 pass
             raise
         except Exception:
-            self.queue.fail(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
+            self.queue.fail(item.task_id, worker_id=self.worker_id, state_version=item.state_version, execution_attempt=True)
             raise
         finally:
             heartbeat.stop()
@@ -104,7 +105,7 @@ class WorkerRunner:
             # lease deadline.  An expired lease must never be resurrected.
             self.queue.renew(item.task_id, worker_id=self.worker_id, state_version=item.state_version, lease_seconds=self.lease_seconds)
             if result.status == TaskStatus.COMPLETED:
-                self.queue.complete(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
+                self.queue.complete(item.task_id, worker_id=self.worker_id, state_version=item.state_version, execution_attempt=True)
             elif result.status == TaskStatus.CANCELLED:
                 self.queue.cancel(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
             elif result.status in self._DEFERRED_STATUSES:
@@ -131,7 +132,7 @@ class WorkerRunner:
                 else:
                     self.queue.defer(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
             else:
-                self.queue.fail(item.task_id, worker_id=self.worker_id, state_version=item.state_version, retry=result.status not in {TaskStatus.FAILED, TaskStatus.CANCELLED}, max_attempts=max_attempts)
+                self.queue.fail(item.task_id, worker_id=self.worker_id, state_version=item.state_version, retry=result.status not in {TaskStatus.FAILED, TaskStatus.CANCELLED}, max_attempts=max_attempts, execution_attempt=True)
         except StaleLease:
             # The result cannot be published after ownership is lost.  If the
             # item is still ours and within its lease, return it to the finite

@@ -37,6 +37,7 @@ Commander、FiniteLifecycle、AgentBackend、TaskGraphを一つの実用経路�
 | [05 Host Verification / External Proof](05-host-verification-external-proof.md) | H1、I1、J1–J2 | containment trust level、Cloud Worker dogfood、外部Gate、Backend admission |
 | [06 Roadmap / Tests / Acceptance](06-roadmap-tests-acceptance.md) | Gate A–E、受入条件 | 着手順、必須regression、docs同期、完成判定 |
 | [07 ADR: UNKNOWN quota operating policy](07-adr-unknown-quota-operating-policy.md) | E1 | unknown quotaのadmission、wake、provider telemetryとの責務分離 |
+| [08 ADR: Queue claim and logical execution accounting](08-adr-queue-attempt-accounting.md) | B3 | lease claim、crash-loop、logical retryの分離 |
 
 ## 不変条件
 

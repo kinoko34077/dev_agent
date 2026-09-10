@@ -56,6 +56,9 @@ class QueueItem:
     max_attempts: int = 3
     wake_at: datetime | None = None
     wake_reason: str | None = None
+    claim_count: int = 0
+    execution_attempts: int = 0
+    max_execution_attempts: int = 3
 
     @property
     def lease_proof(self) -> LeaseProof | None:
@@ -66,7 +69,7 @@ class QueueItem:
 
 class DurableQueue:
     DEFAULT_MAX_ATTEMPTS = 3
-    SCHEMA_VERSION = 4
+    SCHEMA_VERSION = 5
     _SCHEMA = """
     CREATE TABLE IF NOT EXISTS queue_items (
         task_id TEXT PRIMARY KEY,
@@ -80,7 +83,10 @@ class DurableQueue:
         attempts INTEGER NOT NULL DEFAULT 0,
         max_attempts INTEGER NOT NULL DEFAULT 3,
         wake_at REAL,
-        wake_reason TEXT
+        wake_reason TEXT,
+        claim_count INTEGER NOT NULL DEFAULT 0,
+        execution_attempts INTEGER NOT NULL DEFAULT 0,
+        max_execution_attempts INTEGER NOT NULL DEFAULT 3
     );
     CREATE TABLE IF NOT EXISTS scheduler_control (id INTEGER PRIMARY KEY CHECK (id=1), maintenance INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS scheduler_schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -124,6 +130,18 @@ class DurableQueue:
                     if "wake_reason" not in columns:
                         self.connection.execute("ALTER TABLE queue_items ADD COLUMN wake_reason TEXT")
                     self.connection.execute("UPDATE scheduler_schema_meta SET value='4' WHERE key='schema_version'")
+                    current = 4
+                if current < 5:
+                    columns = {row[1] for row in self.connection.execute("PRAGMA table_info(queue_items)")}
+                    if "claim_count" not in columns:
+                        self.connection.execute("ALTER TABLE queue_items ADD COLUMN claim_count INTEGER NOT NULL DEFAULT 0")
+                    if "execution_attempts" not in columns:
+                        self.connection.execute("ALTER TABLE queue_items ADD COLUMN execution_attempts INTEGER NOT NULL DEFAULT 0")
+                    if "max_execution_attempts" not in columns:
+                        self.connection.execute("ALTER TABLE queue_items ADD COLUMN max_execution_attempts INTEGER NOT NULL DEFAULT 3")
+                    self.connection.execute("UPDATE queue_items SET claim_count=attempts WHERE claim_count=0 AND attempts > 0")
+                    self.connection.execute("UPDATE queue_items SET max_execution_attempts=max_attempts")
+                    self.connection.execute("UPDATE scheduler_schema_meta SET value='5' WHERE key='schema_version'")
                 self.connection.commit()
         except Exception:
             self.connection.rollback()
@@ -153,6 +171,9 @@ class DurableQueue:
             row["max_attempts"],
             datetime.fromtimestamp(row["wake_at"], timezone.utc) if row["wake_at"] is not None else None,
             row["wake_reason"],
+            row["claim_count"],
+            row["execution_attempts"],
+            row["max_execution_attempts"],
         )
 
     @staticmethod
@@ -165,7 +186,7 @@ class DurableQueue:
             raise ValueError("task_id and integer priority are required")
         self._validate_max_attempts(max_attempts)
         with self._lock:
-            self.connection.execute("INSERT INTO queue_items(task_id, priority, run_at, state, lease_owner, lease_until, lease_token, state_version, attempts, max_attempts) VALUES (?, ?, ?, 'queued', NULL, NULL, NULL, 1, 0, ?)", (task_id, priority, _epoch(run_at), max_attempts))
+            self.connection.execute("INSERT INTO queue_items(task_id, priority, run_at, state, lease_owner, lease_until, lease_token, state_version, attempts, max_attempts, claim_count, execution_attempts, max_execution_attempts) VALUES (?, ?, ?, 'queued', NULL, NULL, NULL, 1, 0, ?, 0, 0, ?)", (task_id, priority, _epoch(run_at), max_attempts, max_attempts))
             self.connection.commit()
             return self.snapshot(task_id)
 
@@ -189,14 +210,14 @@ class DurableQueue:
                         # queue; rolling back here would reopen the crash loop.
                         self.connection.commit()
                         raise QueueEmpty("no queue item is ready")
-                    if int(row["attempts"]) >= int(row["max_attempts"]):
+                    if int(row["attempts"]) >= int(row["max_attempts"]) or int(row["execution_attempts"]) >= int(row["max_execution_attempts"]):
                         self.connection.execute("UPDATE queue_items SET state='failed', lease_owner=NULL, lease_until=NULL, lease_token=NULL, state_version=state_version+1 WHERE task_id=? AND state=? AND state_version=?", (row["task_id"], row["state"], row["state_version"]))
                         continue
                     break
                 version = int(row["state_version"]) + 1
                 until = current + lease_seconds
                 token = str(uuid4())
-                cursor = self.connection.execute("UPDATE queue_items SET state='leased', lease_owner=?, lease_until=?, lease_token=?, state_version=?, attempts=attempts+1 WHERE task_id=? AND state_version=? AND (state='queued' OR (state='leased' AND lease_until <= ?))", (worker_id, until, token, version, row["task_id"], row["state_version"], current))
+                cursor = self.connection.execute("UPDATE queue_items SET state='leased', lease_owner=?, lease_until=?, lease_token=?, state_version=?, attempts=attempts+1, claim_count=claim_count+1 WHERE task_id=? AND state_version=? AND (state='queued' OR (state='leased' AND lease_until <= ?))", (worker_id, until, token, version, row["task_id"], row["state_version"], current))
                 if cursor.rowcount != 1:
                     self.connection.rollback()
                     raise QueueEmpty("queue claim lost race")
@@ -250,8 +271,18 @@ class DurableQueue:
                 raise StaleLease(task_id)
             return self.snapshot(task_id)
 
-    def complete(self, task_id: str, *, worker_id: str, state_version: int) -> QueueItem:
-        return self._finish(task_id, worker_id=worker_id, state_version=state_version, state="completed")
+    def set_max_execution_attempts(self, task_id: str, *, worker_id: str, state_version: int, max_attempts: int) -> QueueItem:
+        """Bind the logical execution retry ceiling separately from lease claims."""
+        self._validate_max_attempts(max_attempts)
+        with self._lock:
+            cursor = self.connection.execute("UPDATE queue_items SET max_execution_attempts=? WHERE task_id=? AND state='leased' AND lease_owner=? AND state_version=? AND lease_until > ?", (max_attempts, task_id, worker_id, state_version, time.time()))
+            self.connection.commit()
+            if cursor.rowcount != 1:
+                raise StaleLease(task_id)
+            return self.snapshot(task_id)
+
+    def complete(self, task_id: str, *, worker_id: str, state_version: int, execution_attempt: bool = False) -> QueueItem:
+        return self._finish(task_id, worker_id=worker_id, state_version=state_version, state="completed", execution_attempt=execution_attempt)
 
     def cancel(self, task_id: str, *, worker_id: str | None = None, state_version: int | None = None) -> QueueItem:
         """Terminalize a task as cancelled without turning it into a failure.
@@ -293,10 +324,10 @@ class DurableQueue:
                 return self.snapshot(task_id)
             return self.snapshot(task_id)
 
-    def fail(self, task_id: str, *, worker_id: str, state_version: int, retry: bool = False, max_attempts: int | None = None) -> QueueItem:
+    def fail(self, task_id: str, *, worker_id: str, state_version: int, retry: bool = False, max_attempts: int | None = None, execution_attempt: bool = False) -> QueueItem:
         if max_attempts is not None:
             self._validate_max_attempts(max_attempts)
-        return self._finish(task_id, worker_id=worker_id, state_version=state_version, state="queued" if retry else "failed", max_attempts=max_attempts)
+        return self._finish(task_id, worker_id=worker_id, state_version=state_version, state="queued" if retry else "failed", max_attempts=max_attempts, execution_attempt=execution_attempt)
 
     def defer(self, task_id: str, *, worker_id: str, state_version: int) -> QueueItem:
         """Park a task that requires an external event before it can resume."""
@@ -322,7 +353,7 @@ class DurableQueue:
         with self._lock:
             cursor = self.connection.execute(
                 """UPDATE queue_items
-                   SET state='waiting', run_at=0,
+                   SET state='waiting', run_at=0, attempts=0,
                        lease_owner=NULL, lease_until=NULL, lease_token=NULL,
                        wake_at=NULL, wake_reason=?, state_version=state_version+1
                    WHERE task_id=? AND state='leased' AND lease_owner=?
@@ -353,7 +384,7 @@ class DurableQueue:
         with self._lock:
             cursor = self.connection.execute(
                 """UPDATE queue_items
-                   SET state='waiting', run_at=?, lease_owner=NULL,
+                   SET state='waiting', run_at=?, attempts=0, lease_owner=NULL,
                        lease_until=NULL, lease_token=NULL,
                        wake_at=?, wake_reason=?, state_version=state_version+1
                    WHERE task_id=? AND state='leased' AND lease_owner=?
@@ -416,19 +447,22 @@ class DurableQueue:
             self.connection.commit()
             return cursor.rowcount
 
-    def _finish(self, task_id: str, *, worker_id: str, state_version: int, state: str, max_attempts: int | None = None) -> QueueItem:
+    def _finish(self, task_id: str, *, worker_id: str, state_version: int, state: str, max_attempts: int | None = None, execution_attempt: bool = False) -> QueueItem:
         with self._lock:
             if state == "queued":
-                row = self.connection.execute("SELECT attempts, max_attempts FROM queue_items WHERE task_id=? AND state='leased' AND lease_owner=? AND state_version=? AND lease_until > ?", (task_id, worker_id, state_version, time.time())).fetchone()
+                row = self.connection.execute("SELECT attempts, max_attempts, execution_attempts, max_execution_attempts FROM queue_items WHERE task_id=? AND state='leased' AND lease_owner=? AND state_version=? AND lease_until > ?", (task_id, worker_id, state_version, time.time())).fetchone()
                 if row is None:
                     self.connection.rollback()
                     raise StaleLease(task_id)
                 attempt_limit = int(row["max_attempts"])
                 if max_attempts is not None:
                     attempt_limit = min(attempt_limit, max_attempts)
-                if int(row["attempts"]) >= attempt_limit:
+                next_execution_attempts = int(row["execution_attempts"]) + (1 if execution_attempt else 0)
+                if int(row["attempts"]) >= attempt_limit or next_execution_attempts >= int(row["max_execution_attempts"]):
                     state = "failed"
-            cursor = self.connection.execute("UPDATE queue_items SET state=?, lease_owner=NULL, lease_until=NULL, lease_token=NULL, wake_at=NULL, wake_reason=NULL, state_version=state_version+1 WHERE task_id=? AND state='leased' AND lease_owner=? AND state_version=? AND lease_until > ?", (state, task_id, worker_id, state_version, time.time()))
+            execution_increment = 1 if execution_attempt else 0
+            claim_streak_reset = "attempts=0, " if state == "waiting" else ""
+            cursor = self.connection.execute(f"UPDATE queue_items SET state=?, execution_attempts=execution_attempts+?, {claim_streak_reset}lease_owner=NULL, lease_until=NULL, lease_token=NULL, wake_at=NULL, wake_reason=NULL, state_version=state_version+1 WHERE task_id=? AND state='leased' AND lease_owner=? AND state_version=? AND lease_until > ?", (state, execution_increment, task_id, worker_id, state_version, time.time()))
             self.connection.commit()
             if cursor.rowcount != 1:
                 raise StaleLease(task_id)
@@ -437,7 +471,7 @@ class DurableQueue:
     def reap_expired(self, *, now: datetime | float | int | None = None) -> int:
         current = _epoch(now)
         with self._lock:
-            cursor = self.connection.execute("UPDATE queue_items SET state=CASE WHEN attempts >= max_attempts THEN 'failed' ELSE 'queued' END, lease_owner=NULL, lease_until=NULL, lease_token=NULL, state_version=state_version+1 WHERE state='leased' AND lease_until <= ?", (current,))
+            cursor = self.connection.execute("UPDATE queue_items SET state=CASE WHEN attempts >= max_attempts OR execution_attempts >= max_execution_attempts THEN 'failed' ELSE 'queued' END, lease_owner=NULL, lease_until=NULL, lease_token=NULL, state_version=state_version+1 WHERE state='leased' AND lease_until <= ?", (current,))
             self.connection.commit()
             return cursor.rowcount
 

@@ -32,8 +32,8 @@ def test_queue_runs_ordered_migration_for_legacy_lease_schema(tmp_path):
     columns = {row[1] for row in queue.connection.execute("PRAGMA table_info(queue_items)")}
     version = queue.connection.execute("SELECT value FROM scheduler_schema_meta WHERE key='schema_version'").fetchone()[0]
 
-    assert {"lease_token", "max_attempts", "wake_at", "wake_reason"} <= columns
-    assert version == "4"
+    assert {"lease_token", "max_attempts", "wake_at", "wake_reason", "claim_count", "execution_attempts", "max_execution_attempts"} <= columns
+    assert version == "5"
 
 
 def _claim_in_process(path, worker_id, result_queue):
@@ -149,6 +149,50 @@ def test_worker_uses_task_retry_limit_as_total_attempt_bound(tmp_path):
         assert second.status == TaskStatus.QUEUED
         assert queue.snapshot(task.task_id).state == "failed"
         assert queue.snapshot(task.task_id).attempts == 2
+        assert queue.snapshot(task.task_id).execution_attempts == 2
+
+
+def test_waiting_claim_does_not_consume_logical_execution_budget(tmp_path):
+    queue = DurableQueue(tmp_path / "queue.sqlite3")
+    task = Task(objective="wait without retry", limits={"max_retries": 1})
+
+    class WaitThenCompleteController:
+        def __init__(self, store):
+            self.store = store
+            self.calls = 0
+
+        def resume(self, task_id, *, execution_context=None):
+            self.calls += 1
+            current = self.store.load_task(task_id)
+            if self.calls == 1:
+                current.status = TaskStatus.WAITING_DEPENDENCY
+                current.metadata["wait_reason"] = "approval"
+            else:
+                current.status = TaskStatus.COMPLETED
+            self.store.save_task(current)
+            return current
+
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        store.save_task(task)
+        queue.enqueue(task.task_id, max_attempts=1)
+        controller = WaitThenCompleteController(store)
+        runner = WorkerRunner(queue, controller, worker_id="worker-a")
+
+        first = runner.run_once()
+        parked = queue.snapshot(task.task_id)
+        assert first.status == TaskStatus.WAITING_DEPENDENCY
+        assert parked.state == "waiting"
+        assert parked.attempts == 0
+        assert parked.claim_count == 1
+        assert parked.execution_attempts == 0
+
+        queue.wake(task.task_id)
+        second = runner.run_once()
+        completed = queue.snapshot(task.task_id)
+        assert second.status == TaskStatus.COMPLETED
+        assert completed.state == "completed"
+        assert completed.claim_count == 2
+        assert completed.execution_attempts == 1
 
 
 def test_worker_claims_durable_task_runs_controller_and_completes_queue_item(tmp_path):

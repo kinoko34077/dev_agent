@@ -7,7 +7,7 @@ from pathlib import Path
 import sqlite3
 
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 VALID_STATES = {"queued", "leased", "waiting", "completed", "failed"}
 REQUIRED_TABLES = {"queue_items", "scheduler_control", "scheduler_schema_meta"}
 
@@ -25,14 +25,14 @@ def validate_scheduler_queue(path: str | Path) -> tuple[bool, str]:
             if version_row is None or version_row[0] != str(SCHEMA_VERSION):
                 return False, f"unsupported or stale scheduler queue schema version: {version_row[0] if version_row else 'missing'}"
             columns = {row[1] for row in connection.execute("PRAGMA table_info(queue_items)")}
-            required_columns = {"task_id", "priority", "run_at", "state", "lease_owner", "lease_until", "lease_token", "state_version", "attempts", "max_attempts", "wake_at", "wake_reason"}
+            required_columns = {"task_id", "priority", "run_at", "state", "lease_owner", "lease_until", "lease_token", "state_version", "attempts", "max_attempts", "wake_at", "wake_reason", "claim_count", "execution_attempts", "max_execution_attempts"}
             if not required_columns <= columns:
                 return False, "scheduler queue schema lacks lease or max_attempts columns"
             control = connection.execute("SELECT maintenance FROM scheduler_control WHERE id=1").fetchone()
             if control is not None and control[0] not in (0, 1):
                 return False, "scheduler queue maintenance flag is invalid"
-            for row in connection.execute("SELECT task_id, run_at, state, lease_owner, lease_until, lease_token, state_version, attempts, max_attempts, wake_at, wake_reason FROM queue_items"):
-                task_id, run_at, state, owner, lease_until, token, state_version, attempts, max_attempts, wake_at, wake_reason = row
+            for row in connection.execute("SELECT task_id, run_at, state, lease_owner, lease_until, lease_token, state_version, attempts, max_attempts, wake_at, wake_reason, claim_count, execution_attempts, max_execution_attempts FROM queue_items"):
+                task_id, run_at, state, owner, lease_until, token, state_version, attempts, max_attempts, wake_at, wake_reason, claim_count, execution_attempts, max_execution_attempts = row
                 if not isinstance(task_id, str) or not task_id.strip() or state not in VALID_STATES:
                     return False, f"scheduler queue item identity or state is invalid: {task_id}"
                 if not isinstance(run_at, (int, float)) or not math.isfinite(float(run_at)):
@@ -43,6 +43,12 @@ def validate_scheduler_queue(path: str | Path) -> tuple[bool, str]:
                     return False, f"scheduler queue attempts are invalid: {task_id}"
                 if isinstance(max_attempts, bool) or not isinstance(max_attempts, int) or max_attempts <= 0:
                     return False, f"scheduler queue max_attempts is invalid: {task_id}"
+                if isinstance(claim_count, bool) or not isinstance(claim_count, int) or claim_count < 0 or claim_count < attempts:
+                    return False, f"scheduler queue claim_count is invalid: {task_id}"
+                if isinstance(execution_attempts, bool) or not isinstance(execution_attempts, int) or execution_attempts < 0:
+                    return False, f"scheduler queue execution_attempts are invalid: {task_id}"
+                if isinstance(max_execution_attempts, bool) or not isinstance(max_execution_attempts, int) or max_execution_attempts <= 0:
+                    return False, f"scheduler queue max_execution_attempts is invalid: {task_id}"
                 if wake_at is not None and (not isinstance(wake_at, (int, float)) or not math.isfinite(float(wake_at))):
                     return False, f"scheduler queue wake_at is invalid: {task_id}"
                 if wake_reason is not None and (not isinstance(wake_reason, str) or not wake_reason.strip()):
