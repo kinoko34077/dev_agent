@@ -67,6 +67,7 @@ GATE_STATUSの既存statusは変更していません。
 - SQLite contention: 独立processのqueue／state／stop／status同時操作、WAL、5秒bounded busy timeoutを確認。既存のWindows ACL skipは継続
 - skip: `tests/v2/test_budget_reservations.py:142`（Windows ACLはdeployment-owned）
 - 最新コード基準のexact-head GitHub Actionsは、push後に`v2-core`（Python 3.10/3.11）と`v2 tests`を外部観測する。repo内GATE_STATUSへCI結果を書き戻してexact-headを自己参照しない
+- exact-head CI evidence: `929651cf3f16c6422e3e4d7178e48a6e88627878`に対し、`v2 tests` run `34539178663` と `v2-core` run `34539178669` がsuccess。これはCI証跡として記録するが、保護された`GATE_STATUS.json`は自己参照を避けるため書き換えていない
 
 ## Provider状態
 

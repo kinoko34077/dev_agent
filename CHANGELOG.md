@@ -9,6 +9,7 @@
 - OpenAI互換／Cloudflare adapterが、free/wildcard endpointのbackend-reported model aliasを要求されたbinding identityと混同しないよう正規化した。実体名は`usage.provider_reported_model`へ分離し、focused adapter regressionは`15 passed`。
 - Gemini L1、Cloudflare L1、OpenRouter Freeへ単一の非保護test scopeをCommander経由で実送信した。実通信とmetricsは得られたが、全proposalがunified-diff hunk不整合でHost Verification前に拒否され、valid patch／integration証拠には昇格していない。
 - `a9774ca`で`tests/v2`全回帰は`602 passed, 1 skipped`。G6O1、Gate status、外部Worker成功判定は変更していない。
+- push後のexact-head `929651c`について、GitHub Actions `v2 tests` run `34539178663` と `v2-core` run `34539178669` のsuccessをread-only APIで確認した。protected `GATE_STATUS.json`へは書き戻していない。
 
 ### 2026-09-11 JST — Late provider reconciliation and attempt accounting
 

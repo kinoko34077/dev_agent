@@ -43,7 +43,7 @@ Phase 0〜5 は current acceptance verified。Phase 3.5の後段要件、Phase 4
 
 ### 2026-09-11 の現在状態
 
-このCurrent State sliceのコード基準・検証HEADは `a9774ca` である。下記のPhase 6/7履歴 baseline は当時の証跡を保持し、capability fail-fast／binding lane wake／provider response alias修正後の全回帰は `602 passed, 1 skipped`（136.53秒）で確認している。
+このCurrent State sliceのコード基準・検証HEADは `a9774ca` である。下記のPhase 6/7履歴 baseline は当時の証跡を保持し、capability fail-fast／binding lane wake／provider response alias修正後の全回帰は `602 passed, 1 skipped`（136.53秒）で確認している。push後のexact-head CIは`929651c`に対する`v2 tests` run `34539178663`、`v2-core` run `34539178669`がsuccessである。
 
 以下の詳細段落に残る過去のrevision／テスト件数は履歴証跡であり、現行の実装・検証基準は上記 `a9774ca` と `602 passed, 1 skipped` である。現在状態の参照先は [`docs/CURRENT_STATE.md`](CURRENT_STATE.md) とする。
 
