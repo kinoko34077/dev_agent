@@ -25,6 +25,12 @@ class ProviderExecutionSaturated(RuntimeError):
 
     is_provider_execution_saturated = True
 
+    def __init__(self, message: str, *, binding_id: str | None = None) -> None:
+        super().__init__(message)
+        if binding_id is not None and (not isinstance(binding_id, str) or not binding_id.strip()):
+            raise ValueError("binding_id must be a non-empty string or None")
+        self.binding_id = binding_id.strip() if isinstance(binding_id, str) else None
+
 
 class ModelTurnExecutor:
     """Run one provider request without owning task-state transitions.
@@ -42,11 +48,15 @@ class ModelTurnExecutor:
         lease_guard: Callable[[], None],
         max_orphaned_requests: int = 1,
         on_capacity_available: Callable[[], None] | None = None,
+        binding_id: str | None = None,
     ) -> None:
         if isinstance(max_orphaned_requests, bool) or not isinstance(max_orphaned_requests, int) or max_orphaned_requests < 0:
             raise ValueError("max_orphaned_requests must be a non-negative integer")
         self._provider = provider
         self._lease_guard = lease_guard
+        if binding_id is not None and (not isinstance(binding_id, str) or not binding_id.strip()):
+            raise ValueError("binding_id must be a non-empty string or None")
+        self._binding_id = binding_id.strip() if isinstance(binding_id, str) else None
         self._max_orphaned_requests = max_orphaned_requests
         self._orphaned_requests: set[object] = set()
         self._orphan_lock = RLock()
@@ -109,7 +119,8 @@ class ModelTurnExecutor:
         with self._orphan_lock:
             if len(self._orphaned_requests) >= self._max_orphaned_requests:
                 raise ProviderExecutionSaturated(
-                    "a previous provider request is still running after timeout"
+                    "a previous provider request is still running after timeout",
+                    binding_id=self._binding_id,
                 )
         executor = ThreadPoolExecutor(max_workers=1)
         # ProviderDispatcher may consult the run's lease proof from inside

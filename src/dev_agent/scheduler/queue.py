@@ -424,6 +424,22 @@ class DurableQueue:
             self.connection.commit()
             return cursor.rowcount
 
+    def wake_waiting_prefix(self, prefix: str) -> int:
+        """Wake event-waiting items for a family of lane-specific reasons."""
+
+        if not isinstance(prefix, str) or not prefix.strip():
+            raise ValueError("prefix must be a non-empty string")
+        with self._lock:
+            cursor = self.connection.execute(
+                """UPDATE queue_items
+                   SET state='queued', run_at=?, wake_at=NULL, wake_reason=NULL,
+                       state_version=state_version+1
+                   WHERE state='waiting' AND wake_reason LIKE ?""",
+                (time.time(), f"{prefix.strip()}%"),
+            )
+            self.connection.commit()
+            return cursor.rowcount
+
     def wake_due(
         self,
         *,

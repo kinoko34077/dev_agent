@@ -93,8 +93,9 @@ def test_model_turn_executor_bounds_uninterruptible_timeout_threads():
     assert started.wait(1)
     assert executor.orphaned_requests == 1
 
-    with pytest.raises(ProviderExecutionSaturated):
+    with pytest.raises(ProviderExecutionSaturated) as saturated:
         executor.request(request, time.time() + 1, Event())
+    assert saturated.value.binding_id is None
     assert executor.orphaned_requests == 1
 
     release.set()
@@ -102,6 +103,39 @@ def test_model_turn_executor_bounds_uninterruptible_timeout_threads():
     while executor.orphaned_requests and time.time() < deadline:
         time.sleep(0.01)
     assert executor.orphaned_requests == 0
+
+
+def test_model_turn_executor_reports_binding_lane_on_saturation():
+    from concurrent.futures import TimeoutError as FutureTimeoutError
+    from threading import Event
+    from src.dev_agent.runtime.model_turn import ModelTurnExecutor, ProviderExecutionSaturated
+
+    started = Event()
+    release = Event()
+
+    class BlockingProvider(FakeProvider):
+        provider_id = "binding-lane"
+
+        def request(self, request):
+            started.set()
+            release.wait(2)
+            return ModelResponse(provider="binding-lane", model="test", text_segments=["late"])
+
+    executor = ModelTurnExecutor(
+        BlockingProvider(),
+        lease_guard=lambda: None,
+        binding_id="gemini:worker",
+    )
+    request = ModelRequest(task_id="00000000-0000-0000-0000-000000000013", messages=[{"role": "user", "content": "x"}])
+    with pytest.raises(FutureTimeoutError):
+        executor.request(request, time.time() + 0.05, Event())
+    assert started.wait(1)
+    with pytest.raises(ProviderExecutionSaturated) as saturated:
+        executor.request(request, time.time() + 1, Event())
+    assert saturated.value.binding_id == "gemini:worker"
+    release.set()
+
+
 
 
 def test_model_turn_executor_notifies_capacity_after_orphan_finishes():

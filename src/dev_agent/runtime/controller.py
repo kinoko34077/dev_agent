@@ -378,6 +378,7 @@ class Controller:
                     provider,
                     lease_guard=self._active_lease_guard,
                     on_capacity_available=lambda: self._provider_capacity_available(binding_id),
+                    binding_id=binding_id,
                 )
                 self._binding_model_turn_executors[binding_id] = executor
         return executor.request(request, deadline_epoch, cancel_event)
@@ -779,6 +780,11 @@ class Controller:
                         step=step,
                         category="provider_execution_saturated",
                         message=str(exc),
+                        wake_reason=(
+                            f"resource:provider_execution_saturated:{exc.binding_id}"
+                            if isinstance(exc.binding_id, str) and exc.binding_id
+                            else "resource:provider_execution_saturated"
+                        ),
                     )
                     return task
                 except FutureTimeoutError:

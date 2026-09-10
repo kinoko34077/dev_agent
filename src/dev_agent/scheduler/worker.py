@@ -122,7 +122,10 @@ class WorkerRunner:
                         wake_at=wait_until,
                         reason=wait_reason,
                     )
-                elif wait_reason == "resource:provider_execution_saturated":
+                elif (
+                    wait_reason == "resource:provider_execution_saturated"
+                    or wait_reason.startswith("resource:provider_execution_saturated:")
+                ):
                     self.queue.defer_for_event(
                         item.task_id,
                         worker_id=self.worker_id,

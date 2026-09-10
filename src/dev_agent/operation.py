@@ -415,9 +415,7 @@ class OperationService:
                 resource_policy=resource_control,
                 intelligence_routing=intelligence_routing,
                 allow_unknown_quota=trusted_free_binding_present,
-                provider_capacity_wakeup=lambda _binding_id: queue.wake_waiting(
-                    reason="resource:provider_execution_saturated"
-                ),
+                provider_capacity_wakeup=lambda _binding_id: cls._wake_provider_capacity(queue, _binding_id),
             )
             worker = WorkerRunner(
                 queue,
@@ -466,6 +464,22 @@ class OperationService:
             max_cycles=max_cycles,
             task_id=task_id,
         )
+
+    @staticmethod
+    def _wake_provider_capacity(queue: DurableQueue, binding_id: str | None) -> None:
+        """Wake saturation waits when any binding lane becomes available.
+
+        A dispatch may have tried several bindings before learning that all
+        eligible lanes are saturated.  The durable wait reason records the
+        last concrete lane for diagnostics, but any lane becoming available
+        is sufficient to trigger one bounded re-selection.  Waking is
+        event-driven; a still-saturated task is parked again by WorkerRunner.
+        """
+
+        if isinstance(binding_id, str) and binding_id.strip():
+            queue.wake_waiting_prefix("resource:provider_execution_saturated:")
+            return
+        queue.wake_waiting(reason="resource:provider_execution_saturated")
 
     def evaluate_task(
         self,

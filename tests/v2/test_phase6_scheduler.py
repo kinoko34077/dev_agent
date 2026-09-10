@@ -291,6 +291,30 @@ def test_queue_event_wait_is_woken_only_by_matching_authority(tmp_path):
     assert queue.snapshot(item.task_id).state == "queued"
 
 
+def test_queue_lane_saturation_wake_releases_only_saturation_family(tmp_path):
+    queue = DurableQueue(tmp_path / "queue.sqlite3")
+    queue.enqueue("saturated-gemini")
+    first = queue.claim("worker-a", lease_seconds=30)
+    queue.defer_for_event(
+        first.task_id,
+        worker_id="worker-a",
+        state_version=first.state_version,
+        reason="resource:provider_execution_saturated:gemini:worker",
+    )
+    queue.enqueue("approval-task")
+    second = queue.claim("worker-a", lease_seconds=30)
+    queue.defer_for_event(
+        second.task_id,
+        worker_id="worker-a",
+        state_version=second.state_version,
+        reason="approval",
+    )
+
+    assert queue.wake_waiting_prefix("resource:provider_execution_saturated:") == 1
+    assert queue.snapshot("saturated-gemini").state == "queued"
+    assert queue.snapshot("approval-task").state == "waiting"
+
+
 def test_same_database_state_store_rejects_stale_lease_proof(tmp_path):
     from src.dev_agent.state.sqlite_store import SQLiteStateStore
 
