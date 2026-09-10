@@ -22,6 +22,7 @@ from ..resources.budget import BudgetExceeded, BudgetReconciliationRequired
 from ..state.store import StateStore
 from ..tools.runtime import ToolRuntime
 from ..intelligence import IntelligenceRoutePolicy, TaskIntelligencePolicy
+from ..intelligence.capabilities import execution_capabilities
 from .legacy_provider import LegacyDirectProviderExecutor, LegacyDirectProviderJournal
 from .model_turn import ModelTurnExecutor, ProviderExecutionSaturated, ProviderRequestCancelled
 from .state import RuntimeState
@@ -549,7 +550,12 @@ class Controller:
                         request_id=state.get("active_request_id") or None,
                         task_id=task.task_id,
                         messages=state["messages"],
-                        requested_capabilities=list(task.required_capabilities),
+                        # Task competencies and policy traits (for example
+                        # architecture/protected/security) influence the
+                        # intelligence and authority decision, but they are
+                        # not provider execution capabilities.  Only the
+                        # canonical execution projection reaches the Router.
+                        requested_capabilities=list(execution_capabilities(task.required_capabilities)),
                         allowed_tools=self.tools.registry.names(),
                         tool_definitions=self.tools.registry.definitions(),
                         tool_results=state["tool_results"],

@@ -33,6 +33,7 @@ from .resources.billing_catalog import (
 )
 from .resources.control import ResourceControlPlane
 from .resources.ledger import ResourceLedger
+from .resources.qualification import QualificationResolver
 from .resources.router import ResourceRouter
 from .scheduler.queue import DurableQueue
 from .scheduler.quota import QuotaRequalificationCoordinator, QuotaWakeScheduler
@@ -50,6 +51,7 @@ class OperationError(RuntimeError):
 
 _OperationResourceProfile = TrustedResourceProfile
 _OPERATION_RESOURCE_CATALOG = TRUSTED_RESOURCE_CATALOG
+_SENSITIVITY_RANK = {"public": 0, "normal": 1, "internal": 2, "sensitive": 3}
 
 
 def _default_binding_id(provider_id: str, model: str) -> str:
@@ -60,6 +62,14 @@ def _default_binding_id(provider_id: str, model: str) -> str:
 
 def _operation_resource_profile(provider_id: str, binding_id: str, model_id: str) -> _OperationResourceProfile | None:
     return _catalog_profile_for(provider_id, binding_id, model_id)
+
+
+def _operation_resource_sensitivity(provider_id: str) -> tuple[str, str]:
+    """Return the conservative privacy profile for an Operation resource."""
+
+    if provider_id == "ollama":
+        return "sensitive", "local_only"
+    return "normal", "remote_cloud"
 
 
 def _positive_number(value: float, name: str) -> float:
@@ -319,13 +329,25 @@ def _tool_registry() -> ToolRegistry:
 
 
 def _inferred_tier(config: OperationConfig) -> str | None:
+    """Resolve a tier from an explicit or qualified identity only.
+
+    Model-name heuristics are unsafe for the production pool: a model can be
+    renamed, unqualified, expired, or unavailable for the intended account.
+    The explicit field remains useful for the local/debug configuration, while
+    normal provider bindings use the exact qualification/catalog identity.
+    """
     if config.intelligence_tier:
         return config.intelligence_tier
-    model = config.model.lower()
-    if "flash-lite" in model:
-        return "L1"
-    if "3.8-flash" in model or "3.7-flash" in model:
-        return "L2"
+    binding_id = getattr(config, "binding_id", None) or getattr(config, "provider_binding_id", None)
+    model_id = getattr(config, "model", None)
+    provider_id = getattr(config, "provider_id", None)
+    if binding_id and model_id and provider_id:
+        qualification = QualificationResolver().resolve(provider_id, binding_id, model_id)
+        if qualification is not None and qualification.intelligence_tier is not None:
+            return qualification.intelligence_tier
+        profile = _operation_resource_profile(provider_id, binding_id, model_id)
+        if profile is not None and profile.intelligence_tier is not None:
+            return profile.intelligence_tier
     if config.provider_id == "fake":
         return "L1"
     return None
@@ -434,6 +456,7 @@ class OperationService:
         binding_id = getattr(provider, "provider_binding_id", None) or config.binding_id
         model_id = getattr(provider, "model_id", None) or config.model
         profile = _operation_resource_profile(config.provider_id, binding_id, model_id)
+        qualification = QualificationResolver().resolve(config.provider_id, binding_id, model_id)
         tier = getattr(provider, "intelligence_tier", None) or (profile.intelligence_tier if profile else None) or _inferred_tier(config)
         try:
             existing = ledger.get_resource(binding_id)
@@ -501,6 +524,8 @@ class OperationService:
             "provider_binding_id": binding_id,
             "model_id": model_id,
         }
+        resource_sensitivity, privacy_profile = _operation_resource_sensitivity(config.provider_id)
+        resource_metadata["privacy_profile"] = privacy_profile
         if tier:
             resource_metadata["intelligence_tier"] = tier
         if profile is not None:
@@ -511,8 +536,8 @@ class OperationService:
             provider_binding_id=binding_id,
             native_unit="request",
             capacity=1,
-            capabilities=["text"],
-            sensitivity="normal",
+            capabilities=tuple(sorted(qualification.routing_capabilities if qualification is not None else {"text"})),
+            sensitivity=resource_sensitivity,
             cost_minor=cost_minor,
             price_currency=price_currency,
             quota_domain=config.quota_domain,
@@ -592,13 +617,18 @@ class OperationService:
                     parent_task_id=parent.task_id,
                     root_task_id=parent.root_task_id,
                     depth=parent.depth + 1,
-                    sensitivity=sensitivity or parent.sensitivity,
+                    sensitivity=(sensitivity or parent.sensitivity),
                     task_type=task_type,
                     risk=risk,
                     required_capabilities=list(required_capabilities or []),
                     inputs=dict(inputs or {}),
                     constraints=dict(constraints or {}),
                 )
+                requested_sensitivity = child.sensitivity
+                if _SENSITIVITY_RANK[requested_sensitivity] < _SENSITIVITY_RANK[parent.sensitivity]:
+                    raise OperationError(
+                        "child sensitivity cannot be lower than parent sensitivity"
+                    )
                 graph.add(child)
             except TaskGraphError as exc:
                 raise OperationError(str(exc)) from exc

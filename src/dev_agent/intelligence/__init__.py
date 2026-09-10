@@ -26,6 +26,14 @@ from .lifecycle import TaskLifecycleCoordinator, TaskLifecycleTransition
 from .lifecycle_loop import FiniteLifecycleLoop, LifecycleLimitExceeded, LifecycleStep
 from .evidence_routing import EvidenceBasedRoutingPolicy, EvidenceRouteDecision, EvidenceRoutingError
 from .target import ExecutionTarget, ExecutionTargetDecision, ExecutionTargetError, ExecutionTargetPolicy
+from .capabilities import (
+    CANONICAL_EXECUTION_CAPABILITIES,
+    TASK_COMPETENCIES,
+    TASK_POLICY_TRAITS,
+    CapabilityClassificationError,
+    classify_task_capabilities,
+    execution_capabilities,
+)
 
 __all__ = [
     "EvaluationEvidence",
@@ -70,4 +78,10 @@ __all__ = [
     "ExecutionTargetDecision",
     "ExecutionTargetError",
     "ExecutionTargetPolicy",
+    "CANONICAL_EXECUTION_CAPABILITIES",
+    "TASK_COMPETENCIES",
+    "TASK_POLICY_TRAITS",
+    "CapabilityClassificationError",
+    "classify_task_capabilities",
+    "execution_capabilities",
 ]
