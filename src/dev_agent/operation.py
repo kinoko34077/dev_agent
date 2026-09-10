@@ -465,6 +465,20 @@ class OperationService:
                 raise OperationError(
                     f"existing resource model identity is not trusted for binding/model: {binding_id}/{model_id}"
                 )
+            if existing.get("cost_minor") == 0 and profile is not None:
+                # A zero-cost row is an accounting assertion, not merely a
+                # routing hint.  Historical rows may have the same provider,
+                # binding, and model while having been created by the old
+                # provider-name-only bootstrap.  Do not silently promote that
+                # row to a trusted no-charge resource during normal startup.
+                if metadata.get("billing_authority") != "trusted_catalog":
+                    raise OperationError(
+                        f"existing resource billing authority is not trusted for binding/model: {binding_id}/{model_id}"
+                    )
+                if existing.get("price_currency") != profile.price_currency:
+                    raise OperationError(
+                        f"existing resource billing currency is not trusted for binding/model: {binding_id}/{model_id}"
+                    )
             if profile is None and existing.get("cost_minor") == 0:
                 # A historical/provider-name bootstrap may have marked an
                 # unqualified model as free.  Preserve the record for an

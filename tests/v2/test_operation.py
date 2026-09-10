@@ -456,6 +456,37 @@ def test_operation_rejects_existing_free_resource_without_model_identity(tmp_pat
             OperationService._ensure_resource(ledger, provider, config)
 
 
+def test_operation_rejects_existing_zero_cost_resource_without_catalog_authority(tmp_path):
+    from src.dev_agent.operation import OperationError, OperationService
+    from src.dev_agent.providers.cloudflare import CloudflareWorkersAIHttpProvider
+    from src.dev_agent.resources.ledger import ResourceLedger
+
+    config = OperationConfig(
+        data_dir=tmp_path,
+        provider_id="cloudflare",
+        model="@cf/meta/llama-3.1-8b-instruct",
+        provider_binding_id="cloudflare",
+        quota_domain="cloudflare-account",
+    )
+    provider = CloudflareWorkersAIHttpProvider(model=config.model)
+    with ResourceLedger(tmp_path / "resources.sqlite3") as ledger:
+        ledger.register_resource(
+            "cloudflare",
+            provider_id="cloudflare",
+            provider_binding_id="cloudflare",
+            native_unit="request",
+            capacity=1,
+            capabilities=["text"],
+            cost_minor=0,
+            price_currency="JPY",
+            quota_domain="cloudflare-account",
+            metadata={"provider_binding_id": "cloudflare", "model_id": config.model},
+        )
+
+        with pytest.raises(OperationError, match="billing authority"):
+            OperationService._ensure_resource(ledger, provider, config)
+
+
 def test_operation_requires_quota_domain_for_remote_resource(tmp_path):
     from src.dev_agent.operation import OperationError, OperationService
     from src.dev_agent.resources.ledger import ResourceLedger
