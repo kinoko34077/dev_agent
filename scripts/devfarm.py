@@ -54,6 +54,7 @@ _MANIFEST_FIELDS = {
     "output_contract",
 }
 _RESULT_FIELDS = {"status", "base_revision", "changed_files", "tests_run", "tests_passed", "known_issues", "assumptions"}
+_HUNK_HEADER = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(?: .*)?$")
 
 
 def _nonempty(value: Any, name: str) -> str:
@@ -229,6 +230,57 @@ def _marker_path(line: str, prefix: str) -> str | None:
     return _diff_path(raw, prefix)
 
 
+def _validate_hunk_ranges(lines: list[str]) -> None:
+    """Validate unified-diff hunk counts before delegating to Git.
+
+    Path validation alone is insufficient: a malformed hunk can be stored as a
+    seemingly valid proposal and fail only after a verification worktree is
+    created.  Count the old/new lines deterministically and reject malformed
+    hunk bodies at the proposal boundary.
+    """
+
+    active: tuple[int, int] | None = None
+    old_count = 0
+    new_count = 0
+
+    def finish() -> None:
+        nonlocal active, old_count, new_count
+        if active is None:
+            return
+        expected_old, expected_new = active
+        if (old_count, new_count) != (expected_old, expected_new):
+            raise DevFarmError(
+                "patch hunk line counts do not match header: "
+                f"expected {expected_old}/{expected_new}, got {old_count}/{new_count}"
+            )
+        active = None
+        old_count = 0
+        new_count = 0
+
+    for line in lines:
+        if line.startswith("diff --git "):
+            finish()
+            continue
+        if line.startswith("@@"):
+            finish()
+            match = _HUNK_HEADER.fullmatch(line)
+            if match is None:
+                raise DevFarmError("patch hunk header is invalid")
+            active = (int(match.group(2) or "1"), int(match.group(4) or "1"))
+            continue
+        if active is None:
+            continue
+        if line == r"\ No newline at end of file":
+            continue
+        if not line or line[0] not in {" ", "+", "-"}:
+            raise DevFarmError("patch hunk contains an invalid line")
+        if line[0] in {" ", "-"}:
+            old_count += 1
+        if line[0] in {" ", "+"}:
+            new_count += 1
+    finish()
+
+
 def validate_patch(patch: Any, *, manifest: Mapping[str, Any]) -> list[str]:
     """Return actual changed paths after deterministic, fail-closed checks."""
 
@@ -242,6 +294,7 @@ def validate_patch(patch: Any, *, manifest: Mapping[str, Any]) -> list[str]:
         raise DevFarmError("binary patches are not allowed")
     if any("Subproject commit " in line for line in lines):
         raise DevFarmError("submodule patches are not allowed")
+    _validate_hunk_ranges(lines)
     for line in lines:
         match = re.search(r"(?:old mode|new mode|new file mode|deleted file mode) (\d{6})$", line)
         if match and match.group(1) not in {"100644", "100664"}:

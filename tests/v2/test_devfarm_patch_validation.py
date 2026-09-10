@@ -224,10 +224,18 @@ def test_worker_rejects_patch_that_is_path_safe_but_not_applicable(tmp_path):
 
     result = run_worker(root, manifest_path, provider=_WorkerProvider(output))
 
-    assert result["status"] == "completed"
-    assert (root / ".devfarm/results/worker-test-001/patch.diff").read_text(encoding="utf-8").startswith("diff --git")
-    with pytest.raises(DevFarmError, match="patch apply check failed"):
-        apply_and_verify(root, manifest_path)
+    assert result["status"] == "failed"
+    assert any("hunk line counts" in issue for issue in result["known_issues"])
+    assert (root / ".devfarm/results/worker-test-001/patch.diff").read_text(encoding="utf-8") == ""
+
+
+def test_patch_validation_rejects_invalid_hunk_header(tmp_path):
+    _root, manifest_path = _workspace(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    patch = _patch().replace("@@ -1,2 +1,3 @@", "@@ -1,2 +1,4 @@")
+
+    with pytest.raises(DevFarmError, match="hunk line counts"):
+        validate_patch(patch, manifest=manifest)
 
 
 def test_worker_proposal_without_worktree_is_verified_after_late_worktree_creation(tmp_path):
