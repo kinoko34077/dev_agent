@@ -1,6 +1,6 @@
 # Current State — v2/bootstrap
 
-実装基準は `19b14f0` です。本書はそのコードと、直近の外部資格化・DevFarm
+実装基準は `f870213` です。本書はそのコードと、直近の外部資格化・DevFarm
 実行結果を同期したCurrent Stateです。GATE_STATUSの既存statusは変更していません。
 
 ## 判定
@@ -14,19 +14,20 @@
 - Phase 7E: bounded workflow promotion proposalの生成境界を実装済み。自動promotionは行わない
 - Phase 7 lifecycle: host evaluator／reviewed dispatchの結果を、`TaskLifecycleCoordinator`が冪等な`commit_transition()`でterminal／retry／approval／reconciliation状態へ適用する境界を実装済み
 - Phase 7 finite lifecycle: `FiniteLifecycleLoop`が既存のevaluator／review／dispatch／lifecycle境界を明示的な有限cycleへ合成する。評価回数上限を持ち、review・evidence・dispatchは呼出側が供給し、自動承認・自動再送・モデル自己昇格は行わない
+- Phase 7 integration: CommanderのWorker proposalはmanifestに固定されたGit commit objectを読み、作業中のcheckout HEAD進行に影響されない。通常のcode dependencyは依存Taskの`INTEGRATED`までreleaseせず、FiniteLifecycleのcycle使用数はdurable evaluation historyから再構築する
 - Phase 7 evidence routing: `EvidenceBasedRoutingPolicy`がhost-verified Worker metricsを、最小sample数・証拠期限・受入率／retry rollback条件付きで、呼出側から渡されたhard-filter済みbindingの範囲だけで順位付けする。証拠不足・期限切れ・回帰は採用せず、ResourceRouterのcapability／privacy／quota／budget hard filterや通常routingを上書きしない。自動routingへの接続は未実施
 - Phase 7 Operation Layer: `python -m src.dev_agent` の`start`／`submit`／`status`／`stop`を追加し、既存のSQLiteStateStore・DurableQueue・WorkerRunner・Controller・ProviderDispatcherをcompositionした。StateStoreとQueueは同じSQLiteファイルを共有し、CLI停止は実行中Taskを即時失敗扱いせず、durableな協調キャンセル要求または既存のreconciliation状態を維持する
-- Phase 6 quota operation: ResourceLedger schema v8でmetric／window／reset source／blocked-until／block reasonを保持し、ProviderErrorの429／quota／transport分類をrouting blockへ接続済み。blocked observationは新しい正常観測で明示的に復帰する。Scheduler queue schema v4と`QuotaWakeScheduler`はreset boundaryへのdurable parking／wakeを提供し、`QuotaRequalificationCoordinator`は呼出側が明示した一回のbounded probeについて、freshな正常観測の保存後だけdue taskをwakeする。Provider再probeの自動loopやclockだけによるblock解除は行わない
+- Phase 6 quota operation: ResourceLedger schema v8でmetric／window／reset source／blocked-until／block reasonを保持し、ProviderErrorの429／quota／transport分類をrouting blockへ接続済み。blocked observationは新しい正常観測で明示的に復帰する。Scheduler queue schema v4と`QuotaWakeScheduler`はreset boundaryへのdurable parking／wakeを提供し、`QuotaRequalificationCoordinator`は呼出側が明示した一回のbounded probeについて、freshな正常観測の保存後だけdue taskをwakeする。Operation Layerの`maintenance_tick`がdue domainだけを対象にprobe上限を適用し、typed probe failureには保守的cooldownを永続化する。Provider再probeの自動loopやclockだけによるblock解除は行わない
 - DevFarm orchestration: Remote proposalとHost verificationを分離し、remote inference枠とworktree verification枠を別Governorでboundedに制御する。proposal失敗時にworktreeを作成せず、自動mergeもしない
-- Development Commander: `scripts/devfarm_commander.py`が既存DevFarmの上にdevelopment-only親Planを提供する。`.devfarm/plans/<run-id>.json`へobjective、base revision、Task、依存、非重複ownership、assignment、result参照をdurably保存し、plan／dispatch／status／collect／verify／resume／reassign／mark-integratedを既存境界のcompositionで提供する。Production Runtimeのstate／Scheduler／authorityやAgentBackendではない
+- Development Commander: `scripts/devfarm_commander.py`が既存DevFarmの上にdevelopment-only親Planを提供する。`.devfarm/plans/<run-id>.json`へobjective、base revision、Task、依存、非重複ownership、assignment、result参照をdurably保存し、plan／dispatch／status／collect／verify／resume／reassign／mark-integratedを既存境界のcompositionで提供する。Taskごとの固定revisionを許容し、code dependencyは明示的な`mark-integrated`後だけreleaseする。Production Runtimeのstate／Scheduler／authorityやAgentBackendではない
 - Gate昇格やlive qualificationの成功は、local test・model自己申告・Worker proposalだけから推測しない
 
 ## 検証
 
-- v2ローカル全回帰: `453 passed, 1 skipped`（`python -m pytest tests/v2 -q --durations=10`、所要時間は実行環境依存）
-- Operation Layer focused: `10 passed`（submit／status、canonical Dispatcher経由のstart、queue復旧、process restart、terminal／waiting reconciliation、provider非依存safe stop、durable cancellation request）
+- v2ローカル全回帰: `458 passed, 1 skipped`（`python -m pytest tests/v2 -q --durations=10`、126.41秒。所要時間は実行環境依存）
+- Operation Layer focused: `11 passed`（submit／status、canonical Dispatcher経由のstart、queue復旧、process restart、terminal／waiting reconciliation、provider非依存safe stop、durable cancellation request、due quota maintenance／wake）
 - Evaluator→dispatch cycle focused: `18 passed in 2.62s`
-- finite lifecycle focused: `9 passed`（明示review、dispatch、terminal transition、評価cycle上限）
+- finite lifecycle focused: `11 passed`（明示review、dispatch、terminal transition、評価cycle上限、process restart後のdurable cycle／waiting boundary）
 - intelligence routing / escalation execution focused: `26 passed in 1.28s`
 - DevFarm manifest / patch / host verification focused: `24 passed in 27.50s`
 - Commander focused: `4 passed`（親Plan、ownership／dependency validation、dispatch／collect／Host Verification、bounded reassign、CLI status）
@@ -34,7 +35,7 @@
 - DevFarm host verification: Gemini 3.5 Flash-Lite `gemini-worker-phase7-003` が、入力ファイルを外部送信せず、隔離worktreeへpatchを適用し、許可済みhost test `7 passed` を確認
 - DevFarm 2 Worker並列: `gemini-worker-parallel-a` と `gemini-worker-parallel-b` が別worktree・別所有ファイルで同時実行され、各 `7 passed`、`result_accepted=true` を確認。実測はそれぞれ1.528秒、1.278秒
 - Worker metricsはhost側で `provider_id`、`provider_binding_id`、`model_id`、`intelligence_tier`、`task_type`、request id、elapsed、許可されたusage scalar、host test結果を記録し、`.devfarm/metrics.sqlite3`へ`task_id + request_id`単位で冪等に蓄積する。Modelのtests claimは証拠に採用しない。metricsはrouting候補の観測値であり、Policyやacceptanceを上書きしない
-- quota/reset focused regression: `55 passed`（quota policy、schema v8 migration、blocked routing、DevFarm remote/host concurrency）
+- quota/reset focused regression: `56 passed`（quota policy、schema v8 migration、blocked routing、bounded typed probe failure、DevFarm remote/host concurrency）
 - skip: `tests/v2/test_budget_reservations.py:142`（Windows ACLはdeployment-owned）
 - 最新コード基準のexact-head GitHub Actionsは、push後に`v2-core`（Python 3.10/3.11）と`v2 tests`を外部観測する。repo内GATE_STATUSへCI結果を書き戻してexact-headを自己参照しない
 
@@ -95,10 +96,10 @@ dummy docを公式branchへ自動統合していません。実装成果の公�
 
 ## 次の作業
 
-1. Operation Layerの外部Providerを使う明示operator実行でstatus／auditを確認し、quota／provider errorをCLIの観測へ接続する
-2. reset-aware quotaをProvider別の実観測・blocked_until・`QuotaRequalificationCoordinator`のbounded probe／wakeへ接続し、429をblind retryしないScheduler境界をProviderごとの運用入口へ仕上げる
-3. Worker metricsのhost側SQLite蓄積と、hard-filter済みbindingだけを対象とする期限／minimum sample／rollback付きadvisory順位付けは実装済み。次は十分な実測を得た後、既存ResourceRouterへ安全に接続できるかを別Gateで検証する
-4. `FiniteLifecycleLoop`へ呼出側が次cycleのhost evidenceを供給する再開／acceptance試験を追加する。自動evidence生成・無制限循環・自動承認は導入しない
+1. Commanderの実案件dogfoodで、固定revision proposal、INTEGRATED dependency、Host Verification、Codex統合、Worker metricsを一連のPlanとして記録する
+2. Operation Layerの外部Providerを使う明示operator実行でstatus／auditを確認し、Provider固有のquota probe callbackを接続する。未提供値はunknownのまま扱う
+3. Worker metricsのhost側SQLite蓄積と、hard-filter済みbindingだけを対象とする期限／minimum sample／rollback付きadvisory順位付けは実装済み。実測が十分になるまでResourceRouterへhard接続しない
+4. Phase 7 acceptance（quota復帰、finite lifecycle、Commander dogfood、実Provider Operation E2E、evidence routing Gate）をfull regressionとexternal evidenceで再判定する
 5. AgentBackend / Codex、MCP、Self-Improvementは前段のPhase 7 acceptanceが揃うまで着手しない
 
 G6O1は実paid Providerとdeployment-owned budget configurationという外部条件待ちであり、

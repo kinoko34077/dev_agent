@@ -269,8 +269,10 @@ def read_file_at_revision(root: str | Path, revision: str, relative: str) -> byt
         raise DevFarmError(f"worker input file does not exist at base_revision: {normalized}")
     header, path = entry.split("\t", 1)
     fields = header.split()
-    if path != normalized or len(fields) != 3 or fields[1] != "blob" or fields[0] == "120000":
+    if path != normalized or len(fields) != 3 or fields[1] != "blob":
         raise DevFarmError(f"worker input at base_revision is not a regular file: {normalized}")
+    if fields[0] == "120000":
+        raise DevFarmError(f"worker input symlink at base_revision is not allowed: {normalized}")
     return _git_bytes(repository, "show", f"{resolved}:{normalized}")
 
 

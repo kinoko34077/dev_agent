@@ -1,4 +1,5 @@
 import json
+import subprocess
 
 import pytest
 
@@ -70,8 +71,10 @@ def test_worker_proposal_does_not_require_a_worktree_but_binds_clean_inputs(tmp_
 
     root, manifest_path = _workspace(tmp_path / "dirty", prepare=False)
     (root / "tests/v2/test_target.py").write_text("dirty\n", encoding="utf-8")
-    with pytest.raises(DevFarmError, match="dirty"):
-        run_worker(root, manifest_path, provider=_WorkerProvider({}))
+    # Proposal input is pinned to the commit object, so unrelated uncommitted
+    # checkout changes cannot alter what is sent to the external Worker.
+    result = run_worker(root, manifest_path, provider=_WorkerProvider(output))
+    assert result["status"] == "completed"
 
     root, manifest_path = _workspace(tmp_path / "mismatch", prepare=True)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -106,60 +109,65 @@ def test_host_verification_rejects_dirty_existing_worktree(tmp_path):
 
 
 def test_worker_reads_only_approved_outbound_files_and_rejects_symlink_escape(tmp_path):
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
+    workspace, manifest_path = _workspace(tmp_path, prepare=False)
     outside = tmp_path / "outside.txt"
     outside.write_text("API_KEY = 'sk-secret-value'\n", encoding="utf-8")
-    link = workspace / "input.py"
+    link = workspace / "tests/v2/test_target.py"
     try:
+        link.unlink()
         link.symlink_to(outside)
     except OSError:
         pytest.skip("symlink creation is unavailable on this Windows runner")
-    manifest = validate_manifest(
-        {
-            "task_id": "symlink-test-001",
-            "objective": "test",
-            "base_revision": "0" * 40,
-            "allowed_files": ["input.py"],
-            "read_files": ["input.py"],
-            "forbidden_files": [],
-            "external_provider_allowed": True,
-            "approved_provider_ids": ["cloudflare"],
-            "outbound_files": ["input.py"],
-            "requirements": [],
-            "acceptance": [],
-            "test_commands": [],
-            "max_attempts": 1,
-            "output_contract": {},
-        }
+    subprocess.run(
+        ["git", "-c", f"safe.directory={workspace.as_posix()}", "add", "-A"],
+        cwd=workspace,
+        check=True,
+        capture_output=True,
     )
+    subprocess.run(
+        ["git", "-c", f"safe.directory={workspace.as_posix()}", "-c", "user.email=worker-tests@example.invalid", "-c", "user.name=Worker Tests", "commit", "-m", "symlink fixture"],
+        cwd=workspace,
+        check=True,
+        capture_output=True,
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["base_revision"] = subprocess.run(
+        ["git", "-c", f"safe.directory={workspace.as_posix()}", "rev-parse", "HEAD"],
+        cwd=workspace,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     with pytest.raises(DevFarmError, match="symlink|outside"):
         _input_context(workspace, manifest)
 
 
 def test_worker_rejects_secret_in_outbound_source(tmp_path):
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    source = workspace / "input.py"
+    workspace, manifest_path = _workspace(tmp_path, prepare=False)
+    source = workspace / "tests/v2/test_target.py"
     source.write_text("api_key = 'gsk_12345678901234567890'\n", encoding="utf-8")
-    manifest = validate_manifest(
-        {
-            "task_id": "secret-test-001",
-            "objective": "test",
-            "base_revision": "0" * 40,
-            "allowed_files": ["input.py"],
-            "read_files": ["input.py"],
-            "forbidden_files": [],
-            "external_provider_allowed": True,
-            "approved_provider_ids": ["cloudflare"],
-            "outbound_files": ["input.py"],
-            "requirements": [],
-            "acceptance": [],
-            "test_commands": [],
-            "max_attempts": 1,
-            "output_contract": {},
-        }
+    subprocess.run(
+        ["git", "-c", f"safe.directory={workspace.as_posix()}", "add", "-A"],
+        cwd=workspace,
+        check=True,
+        capture_output=True,
     )
+    subprocess.run(
+        ["git", "-c", f"safe.directory={workspace.as_posix()}", "-c", "user.email=worker-tests@example.invalid", "-c", "user.name=Worker Tests", "commit", "-m", "secret fixture"],
+        cwd=workspace,
+        check=True,
+        capture_output=True,
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["base_revision"] = subprocess.run(
+        ["git", "-c", f"safe.directory={workspace.as_posix()}", "rev-parse", "HEAD"],
+        cwd=workspace,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     with pytest.raises(DevFarmError, match="secret"):
         _input_context(workspace, manifest)
 
