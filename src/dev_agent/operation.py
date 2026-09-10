@@ -519,14 +519,14 @@ class OperationService:
         self.restore_queue()
         self.queue.reap_expired()
         if once:
+            self.maintenance_tick(probe=quota_probe)
             return self.worker.run_once()
         last_task_id = None
         last_error = None
         while not stop_event.is_set() and not self.control.stop_requested():
             result = None
             try:
-                if quota_probe is not None:
-                    self.maintenance_tick(probe=quota_probe)
+                self.maintenance_tick(probe=quota_probe)
                 result = self.worker.run_once()
                 if result is not None:
                     last_task_id = result.task_id

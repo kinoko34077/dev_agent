@@ -50,6 +50,23 @@ def test_start_once_uses_canonical_dispatcher_and_finishes_task(tmp_path):
     assert status["last_event"]["event_type"] == "task.completed"
 
 
+def test_start_once_runs_the_bounded_maintenance_boundary(tmp_path, monkeypatch):
+    config = _config(tmp_path)
+    task = OperationService.submit(config, "run after maintenance")
+    calls = []
+
+    with OperationService.open(config) as service:
+        monkeypatch.setattr(
+            service,
+            "maintenance_tick",
+            lambda **kwargs: calls.append(kwargs) or [],
+        )
+        result = service.start(once=True)
+
+    assert result is not None and result.task_id == task.task_id
+    assert calls == [{"probe": None}]
+
+
 def test_restart_restores_queued_task_when_enqueue_was_interrupted(tmp_path):
     config = _config(tmp_path)
     task = OperationService.submit(config, "repair an interrupted enqueue")

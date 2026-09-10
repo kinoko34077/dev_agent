@@ -6,14 +6,16 @@ import pytest
 
 from src.dev_agent.domain.protocol import ModelRequest
 from src.dev_agent.providers.base import ProviderError
+from src.dev_agent.providers.groq import GroqHttpProvider
 from src.dev_agent.providers.openai_compatible import OpenAICompatibleHttpProvider
 
 
 class _Response:
     headers = {}
 
-    def __init__(self, payload):
+    def __init__(self, payload, headers=None):
         self._payload = json.dumps(payload).encode("utf-8")
+        self.headers = headers or {}
 
     def __enter__(self):
         return self
@@ -106,3 +108,31 @@ def test_openai_compatible_http_provider_can_probe_models_without_chat_dispatch(
     assert captured["headers"]["Authorization"] == "Bearer secret"
     assert captured["timeout"] == 4.0
     assert models == [{"id": "model-a", "owned_by": "provider"}]
+
+
+def test_openai_compatible_http_provider_exposes_provider_neutral_quota_probe():
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["method"] = request.method
+        captured["timeout"] = timeout
+        return _Response(
+            {"object": "list", "data": [{"id": "model-a"}]},
+            headers={
+                "x-ratelimit-limit-requests": "10",
+                "x-ratelimit-remaining-requests": "9",
+                "x-ratelimit-reset-requests": "2s",
+            },
+        )
+
+    provider = GroqHttpProvider(model="model-a", api_key="secret", timeout_seconds=4)
+    provider._http = provider._http.__class__(fake_urlopen)
+
+    result = provider.probe_quota("groq:worker", "groq-project")
+
+    assert captured == {"url": "https://api.groq.com/openai/v1/models", "method": "GET", "timeout": 4.0}
+    observation = result["quota_observation"]
+    assert observation["quota_domain"] == "groq-project"
+    assert observation["request_limit"] == 10
+    assert observation["request_remaining"] == 9

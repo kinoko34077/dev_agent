@@ -309,5 +309,32 @@ class OpenAICompatibleHttpProvider(ModelProvider):
             models.append(dict(item))
         return models
 
+    def probe_quota(self, resource_id: str, quota_domain: str) -> dict[str, Any]:
+        """Return one provider-neutral quota observation from a safe probe.
+
+        The endpoint is deliberately the existing models probe, not a chat
+        request.  Providers that do not expose usable rate-limit headers
+        return an empty mapping; the requalification coordinator then keeps
+        the existing block instead of inventing quota telemetry.
+        """
+
+        if not isinstance(resource_id, str) or not resource_id.strip():
+            raise ValueError("resource_id must be a non-empty string")
+        if not isinstance(quota_domain, str) or not quota_domain.strip():
+            raise ValueError("quota_domain must be a non-empty string")
+        _raw, headers = self._http.get_json(
+            provider_id=self.provider_id,
+            url=f"{self.base_url}/models",
+            api_key=self._key(),
+            timeout_seconds=self.timeout_seconds,
+        )
+        quota = self._quota_observation(headers)
+        if quota is None:
+            return {}
+        observation = dict(quota)
+        observation["quota_domain"] = quota_domain.strip()
+        observation.setdefault("source", f"{self.provider_id}-quota-probe")
+        return {"quota_observation": observation}
+
 
 __all__ = ["OpenAICompatibleHttpProvider", "OpenAICompatibleHttpTransport"]
