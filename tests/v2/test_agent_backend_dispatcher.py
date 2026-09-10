@@ -220,6 +220,17 @@ def test_pending_intent_is_atomically_claimed_before_concurrent_backend_start(st
     assert backend.start_calls == 1
 
 
+def test_create_intent_race_without_visible_winner_is_typed_uncertain(store, task, monkeypatch):
+    backend = FakeAgentBackend()
+    request = _request(task.task_id)
+    monkeypatch.setattr(store, "create_effect_intent", lambda *args, **kwargs: False)
+
+    with pytest.raises(BackendDispatchUncertain, match="identity raced"):
+        _dispatcher(store).dispatch(request, backend, dispatch_id=str(uuid4()), attempt=1)
+
+    assert backend.start_calls == 0
+
+
 def test_dispatch_rejects_missing_task_scope_and_authority_before_backend_start(store):
     backend = FakeAgentBackend()
     missing_task = str(uuid4())

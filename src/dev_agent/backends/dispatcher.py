@@ -194,7 +194,7 @@ class AgentBackendDispatcher:
                 raise AgentBackendDispatchError(f"backend dispatch cannot resume from {status}")
         else:
             if not self._store.create_effect_intent(key, task_id=task.task_id, tool_name="agent_backend_dispatch", arguments=expected):
-                raise AgentBackendDispatchUncertain(f"backend dispatch identity raced: {dispatch_id}")
+                raise BackendDispatchUncertain(f"backend dispatch identity raced: {dispatch_id}")
 
         # Persist and claim the intent in one conditional transition. A
         # second process may observe the same pending/prepared row, but only
