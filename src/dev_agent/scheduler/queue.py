@@ -408,6 +408,28 @@ class DurableQueue:
                 raise ValueError(f"task is not waiting: {task_id}")
             return self.snapshot(task_id)
 
+    def wake_waiting_task(self, task_id: str) -> int:
+        """Wake one waiting task after its durable outcome is reconciled.
+
+        This operation does not infer a retry and does not increment logical
+        execution attempts.  The next claim resumes the existing Controller
+        checkpoint through durable response replay.
+        """
+
+        if not isinstance(task_id, str) or not task_id.strip():
+            raise ValueError("task_id must be a non-empty string")
+        with self._lock:
+            cursor = self.connection.execute(
+                """UPDATE queue_items
+                   SET state='queued', run_at=?, attempts=0,
+                       lease_owner=NULL, lease_until=NULL, lease_token=NULL,
+                       wake_at=NULL, wake_reason=NULL, state_version=state_version+1
+                   WHERE task_id=? AND state='waiting'""",
+                (time.time(), task_id.strip()),
+            )
+            self.connection.commit()
+            return cursor.rowcount
+
     def wake_waiting(self, *, reason: str) -> int:
         """Wake all event-waiting items for one durable wake authority."""
 

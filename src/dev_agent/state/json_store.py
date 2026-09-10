@@ -326,3 +326,33 @@ class JsonStateStore:
         except BaseException:
             self._data = before
             raise
+
+    def reconcile_effect_result(self, key: str, *, status: str, actor: str, source: str, external_id: str | None = None, evidence: dict[str, Any] | None = None, result: dict[str, Any] | None = None) -> None:
+        if status not in {"succeeded", "confirmed_failed", "unknown"}:
+            raise ValueError(f"invalid reconciliation status: {status}")
+        if not isinstance(actor, str) or not actor.strip() or not isinstance(source, str) or not source.strip():
+            raise ValueError("reconciliation actor and source are required")
+        intent = self._data.setdefault("effect_intents", {}).get(key)
+        if intent is None:
+            raise ValueError(f"effect intent not found: {key}")
+        current = intent.get("status", "pending")
+        if current in {"succeeded", "confirmed_failed", "reconciled"}:
+            return
+        if current not in {"unknown", "reconciling", "dispatching"}:
+            raise ValueError(f"invalid late-result reconciliation state: {current}")
+        if current != "reconciling" and "reconciling" not in self._EFFECT_TRANSITIONS.get(current, set()):
+            raise ValueError(f"invalid effect intent transition: {current} -> reconciling")
+        if status != "reconciling" and status not in self._EFFECT_TRANSITIONS["reconciling"] and status != current:
+            raise ValueError(f"invalid effect intent transition: reconciling -> {status}")
+        audit = {"idempotency_key": key, "status": status, "actor": actor, "source": source, "external_id": external_id, "evidence": evidence or {}}
+        before = deepcopy(self._data)
+        try:
+            intent["status"] = status
+            payload = dict(result or {})
+            payload.setdefault("reconciliation", {key: value for key, value in audit.items() if key != "idempotency_key"})
+            intent["result"] = payload
+            self._data.setdefault("effect_reconciliations", []).append(audit)
+            self._flush()
+        except BaseException:
+            self._data = before
+            raise

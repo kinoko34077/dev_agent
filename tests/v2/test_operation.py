@@ -31,6 +31,28 @@ def test_submit_is_durable_and_status_reads_queue_and_events(tmp_path):
     assert status["current_attempt"] == 0
     assert status["waiting"] is False
     assert status["completed"] is False
+    assert status["execution_attempts"] == 0
+    assert status["claim_count"] == 0
+    assert status["claim_streak"] == 0
+
+
+def test_status_separates_queue_claims_from_logical_execution_attempts(tmp_path):
+    config = _config(tmp_path)
+    task = OperationService.submit(config, "keep claim and execution counters distinct")
+
+    from src.dev_agent.scheduler.queue import DurableQueue
+
+    with DurableQueue(config.queue_path) as queue:
+        claimed = queue.claim("status-inspection-worker", lease_seconds=5)
+        status = OperationService.read_status(config, task.task_id)
+
+    assert claimed.claim_count == 1
+    assert claimed.execution_attempts == 0
+    assert status["current_attempt"] == 0
+    assert status["execution_attempts"] == 0
+    assert status["claim_count"] == 1
+    assert status["claim_streak"] == 1
+    assert status["max_execution_attempts"] == claimed.max_execution_attempts
 
 
 def test_operation_root_submission_defaults_to_reasoning_not_worker(tmp_path):

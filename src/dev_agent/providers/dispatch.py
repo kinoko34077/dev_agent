@@ -52,7 +52,7 @@ class ProviderDispatcher(ModelProvider):
         self._lease_context: ContextVar[tuple[Callable[[], None] | None, Any | None] | None] = ContextVar(
             f"provider_dispatch_lease:{id(self)}", default=None
         )
-        self._execution_callback: ContextVar[Callable[[ModelProvider, ModelRequest], ModelResponse] | None] = ContextVar(
+        self._execution_callback: ContextVar[Callable[..., ModelResponse] | None] = ContextVar(
             f"provider_dispatch_execution:{id(self)}", default=None
         )
 
@@ -122,11 +122,111 @@ class ProviderDispatcher(ModelProvider):
         # RAM after a persistence failure.
         self.audits.append(entry)
 
+    def _handle_late_completion(
+        self,
+        request: ModelRequest,
+        selection: RouteSelection,
+        reservation: DispatchReservation,
+        intent_key: str | None,
+        outcome: ModelResponse | BaseException,
+    ) -> None:
+        """Reconcile a response from a timed-out binding lane.
+
+        ``ModelTurnExecutor`` cannot kill an arbitrary Python provider thread.
+        When that thread eventually returns, the original Controller call has
+        already parked the task.  Reconcile the same durable intent and
+        reservation here; never route the request through another binding.
+        """
+
+        if intent_key is None or not isinstance(outcome, ModelResponse):
+            if intent_key is not None:
+                try:
+                    self._record_audit(
+                        request,
+                        selection,
+                        "late_unknown",
+                        intent_key,
+                        details={
+                            "category": "late_provider_outcome_unknown",
+                            "outcome_type": type(outcome).__name__,
+                        },
+                    )
+                except Exception:
+                    pass
+            return
+        if outcome.provider != selection.provider_id or (selection.model_id is not None and outcome.model != selection.model_id):
+            try:
+                self._record_audit(
+                    request,
+                    selection,
+                    "late_invalid_response",
+                    intent_key,
+                    details={"category": "provider_identity_mismatch"},
+                )
+            except Exception:
+                pass
+            return
+        try:
+            intent = self._journal.get_intent(intent_key)
+            if intent is None or intent.get("status") in {"succeeded", "confirmed_failed", "reconciled"}:
+                return
+            if intent.get("status") not in {"unknown", "dispatching", "reconciling"}:
+                return
+            quota_observed = self.control.observe_provider_response(reservation, outcome)
+            self.control.reconcile_response(reservation, outcome)
+            self._journal.reconcile_result(
+                intent_key,
+                result={
+                    "provider_id": selection.provider_id,
+                    "resource_id": selection.resource_id,
+                    "outcome": "succeeded",
+                    "response": outcome.to_dict(),
+                    "late_completion": True,
+                },
+                evidence={
+                    "request_id": request.request_id,
+                    "provider_binding_id": selection.provider_binding_id or selection.provider_id,
+                    "quota_observed": quota_observed,
+                },
+            )
+            self.control.record_provider_success(
+                selection.provider_id,
+                resource_id=selection.resource_id,
+                provider_binding_id=selection.provider_binding_id,
+            )
+            self._record_audit(
+                request,
+                selection,
+                "late_succeeded",
+                intent_key,
+                details={
+                    "late_completion": True,
+                    "quota_observed": quota_observed,
+                },
+            )
+        except Exception as exc:
+            # The provider result or its accounting remains unresolved.  Keep
+            # the original UNKNOWN boundary and never retry from this callback.
+            try:
+                self.control.uncertain(reservation)
+            except Exception:
+                pass
+            try:
+                self._record_audit(
+                    request,
+                    selection,
+                    "late_reconciliation_required",
+                    intent_key,
+                    details={"category": "reconciliation_required", "message": str(exc)},
+                )
+            except Exception:
+                pass
+
     def request_with_execution(
         self,
         request: ModelRequest,
         *,
-        execute: Callable[[ModelProvider, ModelRequest], ModelResponse],
+        execute: Callable[..., ModelResponse],
     ) -> ModelResponse:
         """Run dispatch with a caller-owned, binding-scoped execution lane.
 
@@ -227,7 +327,20 @@ class ProviderDispatcher(ModelProvider):
                 raise ProviderError("provider dispatch rejected by stale lease", category="lease_lost", retryable=True) from exc
             try:
                 execute = self._execution_callback.get()
-                response = execute(provider, request) if execute is not None else provider.request(request)
+                if execute is not None:
+                    response = execute(
+                        provider,
+                        request,
+                        lambda outcome: self._handle_late_completion(
+                            request,
+                            selection,
+                            reservation,
+                            intent_key,
+                            outcome,
+                        ),
+                    )
+                else:
+                    response = provider.request(request)
             except ProviderError as exc:
                 self.control.record_provider_error(selection.provider_id, reservation, exc)
                 outcome = "unknown" if exc.requires_reconciliation else "confirmed_failed"

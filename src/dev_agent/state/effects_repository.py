@@ -223,5 +223,62 @@ class EffectAuditRepository:
             (status, json.dumps(payload, ensure_ascii=False), key),
         )
 
+    def reconcile_effect_result(
+        self,
+        key: str,
+        *,
+        status: str,
+        actor: str,
+        source: str,
+        external_id: str | None,
+        evidence: dict[str, Any] | None,
+        result: dict[str, Any] | None,
+        transitions: Mapping[str, set[str]],
+    ) -> None:
+        """Record a provider result discovered after the caller timed out.
+
+        This is deliberately a reconciliation operation rather than an
+        ordinary lease-fenced transition: the original worker no longer owns
+        a valid queue lease when an unkillable provider thread eventually
+        finishes.  The durable reconciliation row is the authority that
+        permits the result to become replayable without issuing a second
+        external request.
+        """
+
+        if status not in {"succeeded", "confirmed_failed", "unknown"}:
+            raise ValueError(f"invalid reconciliation status: {status}")
+        if not isinstance(actor, str) or not actor.strip() or not isinstance(source, str) or not source.strip():
+            raise ValueError("reconciliation actor and source are required")
+        row = self.connection.execute("SELECT status FROM effect_intents WHERE idempotency_key = ?", (key,)).fetchone()
+        if row is None:
+            raise ValueError(f"effect intent not found: {key}")
+        current = row["status"]
+        if current in {"succeeded", "confirmed_failed", "reconciled"}:
+            # A second callback or an explicit operator reconciliation may
+            # have won the race.  Never overwrite a terminal outcome.
+            return
+        if current not in {"unknown", "reconciling", "dispatching"}:
+            raise ValueError(f"invalid late-result reconciliation state: {current}")
+        if current != "reconciling" and "reconciling" not in transitions.get(current, set()):
+            raise ValueError(f"invalid effect intent transition: {current} -> reconciling")
+        if status != "reconciling" and status not in transitions["reconciling"] and status != current:
+            raise ValueError(f"invalid effect intent transition: reconciling -> {status}")
+        audit = {
+            "actor": actor,
+            "source": source,
+            "external_id": external_id,
+            "evidence": evidence or {},
+        }
+        payload = dict(result or {})
+        payload.setdefault("reconciliation", audit)
+        self.connection.execute(
+            "INSERT INTO effect_reconciliations(idempotency_key, status, actor, source, external_id, evidence_payload) VALUES (?, ?, ?, ?, ?, ?)",
+            (key, status, actor, source, external_id, json.dumps(evidence or {}, ensure_ascii=False)),
+        )
+        self.connection.execute(
+            "UPDATE effect_intents SET status = ?, result_payload = ? WHERE idempotency_key = ?",
+            (status, json.dumps(payload, ensure_ascii=False), key),
+        )
+
 
 __all__ = ["EffectAuditRepository"]

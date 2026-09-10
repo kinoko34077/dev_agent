@@ -1012,7 +1012,17 @@ class OperationService:
             "task_id": task.task_id,
             "state": state,
             "queue_state": item.state if item is not None else None,
-            "current_attempt": item.attempts if item is not None else 0,
+            # ``attempts`` is the consecutive lease-claim streak used to
+            # fence crash loops.  It is not a logical provider/model retry.
+            # Keep the historical field name as the execution-facing value
+            # and expose both counters explicitly so operators cannot mistake
+            # a wait/claim for a new external execution.
+            "current_attempt": item.execution_attempts if item is not None else 0,
+            "execution_attempts": item.execution_attempts if item is not None else 0,
+            "max_execution_attempts": item.max_execution_attempts if item is not None else 0,
+            "claim_count": item.claim_count if item is not None else 0,
+            "claim_streak": item.attempts if item is not None else 0,
+            "max_claim_streak": item.max_attempts if item is not None else 0,
             "active": state in {TaskStatus.QUEUED.value, TaskStatus.PLANNING.value, TaskStatus.READY.value, TaskStatus.RUNNING.value},
             "waiting": waiting,
             "completed": state == TaskStatus.COMPLETED.value,
@@ -1087,6 +1097,7 @@ class OperationService:
         scheduler = QuotaWakeScheduler(self.ledger, self.queue)
         coordinator = QuotaRequalificationCoordinator(self.ledger, scheduler)
         results: list[dict[str, Any]] = []
+        self._wake_reconciled_provider_tasks()
         self.release_planner_dependencies()
         for domain in self.ledger.due_unknown_quota_domains(now_epoch=current.timestamp()):
             self.queue.wake_due(now=current, reason=unknown_quota_wake_reason(domain))
@@ -1112,6 +1123,39 @@ class OperationService:
                 )
                 results.append(result.to_dict())
         return results
+
+    def _wake_reconciled_provider_tasks(self) -> tuple[str, ...]:
+        """Wake only tasks whose unknown provider result is now durable.
+
+        Late completion callbacks update the provider intent and budget but
+        intentionally do not own the Scheduler.  This existing maintenance
+        boundary bridges that durable fact back to the Queue; the next
+        WorkerRunner claim resumes the checkpoint and replays the response.
+        Unknown or merely timed-out intents remain parked.
+        """
+
+        payloads = self.store.snapshot().get("tasks", {})
+        woken: list[str] = []
+        for payload in payloads.values():
+            if not isinstance(payload, dict):
+                continue
+            task = Task.from_persisted_dict(payload)
+            if task.status is not TaskStatus.WAITING_RECONCILIATION:
+                continue
+            checkpoint = self.store.load_latest_checkpoint(task.task_id)
+            if checkpoint is None:
+                continue
+            if self.controller._load_reconciled_provider_response(task.task_id, checkpoint) is None:
+                continue
+            try:
+                item = self.queue.snapshot(task.task_id)
+            except KeyError:
+                continue
+            if item.state != "waiting":
+                continue
+            if self.queue.wake_waiting_task(task.task_id):
+                woken.append(task.task_id)
+        return tuple(woken)
 
     @staticmethod
     def _quota_observation_is_due(observation: Mapping[str, Any], now: datetime) -> bool:

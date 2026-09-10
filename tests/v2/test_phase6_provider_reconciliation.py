@@ -309,6 +309,71 @@ def test_paid_provider_timeout_waits_for_reconciliation_instead_of_failing(tmp_p
     assert len(calls) == 1
 
 
+def test_late_provider_completion_reconciles_once_and_resumes_task(tmp_path):
+    from threading import Event
+
+    ledger = ResourceLedger(tmp_path / "provider-late-success.sqlite3")
+    ledger.register_resource(
+        "paid",
+        provider_id="slow",
+        native_unit="request",
+        capacity=10,
+        capabilities=["text"],
+        cost_minor=10,
+    )
+    ledger.observe("paid", available=10, health="healthy")
+    control = ResourceControlPlane(
+        ResourceRouter(ledger),
+        _governor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)),
+    )
+    release = Event()
+    completed = Event()
+    calls = []
+
+    class SlowProvider(FakeProvider):
+        provider_id = "slow"
+
+        def request(self, request):
+            calls.append(request.request_id)
+            release.wait(2)
+            return ModelResponse(
+                provider="slow",
+                model="test",
+                text_segments=["late success"],
+                usage={"cost_minor": 10},
+            )
+
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        dispatcher = ProviderDispatcher(ProviderRegistry([SlowProvider()]), control)
+        controller = Controller(dispatcher, ToolRuntime(ToolRegistry()), store)
+        task = Task(objective="resume late provider result", limits={"max_wall_time_seconds": 0.03})
+        result = controller.run(task)
+        assert result.status is TaskStatus.WAITING_RECONCILIATION
+        intent = store.connection.execute("SELECT idempotency_key, status FROM effect_intents").fetchone()
+        assert intent["status"] == "unknown"
+
+        # Releasing the provider completes the already-started external call;
+        # the runtime must reconcile that result, never issue a second call.
+        release.set()
+        deadline = time.time() + 2
+        while time.time() < deadline:
+            current = store.connection.execute("SELECT status FROM effect_intents").fetchone()
+            if current["status"] == "succeeded":
+                completed.set()
+                break
+            time.sleep(0.01)
+        assert completed.is_set()
+
+        resumed = controller.resume(task.task_id)
+        reservation = ledger.connection.execute("SELECT status FROM budget_reservations").fetchone()
+        audits = store.list_provider_audits(task_id=task.task_id)
+
+    assert resumed.status is TaskStatus.COMPLETED
+    assert reservation["status"] == "reconciled"
+    assert len(calls) == 1
+    assert any(item["outcome"] == "late_succeeded" for item in audits)
+
+
 def test_paid_provider_transport_error_waits_for_reconciliation(tmp_path):
     ledger = ResourceLedger(tmp_path / "provider-transport.sqlite3")
     ledger.register_resource("paid", provider_id="broken", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)

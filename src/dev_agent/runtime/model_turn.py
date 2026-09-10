@@ -59,6 +59,7 @@ class ModelTurnExecutor:
         self._binding_id = binding_id.strip() if isinstance(binding_id, str) else None
         self._max_orphaned_requests = max_orphaned_requests
         self._orphaned_requests: set[object] = set()
+        self._orphan_callbacks: dict[object, Callable[[ModelResponse | BaseException], None]] = {}
         self._orphan_lock = RLock()
         if on_capacity_available is not None and not callable(on_capacity_available):
             raise TypeError("on_capacity_available must be callable or None")
@@ -71,10 +72,14 @@ class ModelTurnExecutor:
 
     def _release_orphan(self, future: object) -> None:
         released = False
+        callback: Callable[[ModelResponse | BaseException], None] | None = None
         with self._orphan_lock:
             if future in self._orphaned_requests:
                 self._orphaned_requests.discard(future)
+                callback = self._orphan_callbacks.pop(future, None)
                 released = True
+        if released and callback is not None:
+            self._notify_late_completion(future, callback)
         if released and self._on_capacity_available is not None:
             # A wake callback is a liveness hint only.  A late provider
             # completion must never become a runtime failure because Queue or
@@ -84,7 +89,33 @@ class ModelTurnExecutor:
             except Exception:
                 pass
 
-    def _track_if_running(self, future: Any) -> bool:
+    @staticmethod
+    def _notify_late_completion(
+        future: Any,
+        callback: Callable[[ModelResponse | BaseException], None],
+    ) -> None:
+        """Deliver a late result without allowing callback failures to leak.
+
+        The callback runs outside the executor lock and is best-effort.  It is
+        a reconciliation hook, not part of the provider call's original
+        success path; a broken wake/reconciliation observer must not turn a
+        completed provider Future into an unbounded worker failure.
+        """
+
+        try:
+            outcome: ModelResponse | BaseException = future.result()
+        except BaseException as exc:
+            outcome = exc
+        try:
+            callback(outcome)
+        except Exception:
+            pass
+
+    def _track_if_running(
+        self,
+        future: Any,
+        on_late_completion: Callable[[ModelResponse | BaseException], None] | None = None,
+    ) -> bool:
         """Retain a Future while its provider call may still be executing.
 
         ``Future.cancel()`` only succeeds before a worker thread starts.  Both
@@ -101,20 +132,36 @@ class ModelTurnExecutor:
             if future.done():
                 return False
             self._orphaned_requests.add(future)
+            if on_late_completion is not None:
+                self._orphan_callbacks[future] = on_late_completion
             if future.done():
                 self._orphaned_requests.discard(future)
+                self._orphan_callbacks.pop(future, None)
                 return False
         return True
 
-    def _cancel_or_track(self, future: Any) -> bool:
+    def _cancel_or_track(
+        self,
+        future: Any,
+        on_late_completion: Callable[[ModelResponse | BaseException], None] | None = None,
+    ) -> bool:
         """Cancel a not-yet-running call or track its still-running Future."""
 
         cancelled = future.cancel()
         if not cancelled:
-            self._track_if_running(future)
+            self._track_if_running(future, on_late_completion)
         return cancelled
 
-    def request(self, request: ModelRequest, deadline_epoch: float, cancel_event: Event) -> ModelResponse:
+    def request(
+        self,
+        request: ModelRequest,
+        deadline_epoch: float,
+        cancel_event: Event,
+        *,
+        on_late_completion: Callable[[ModelResponse | BaseException], None] | None = None,
+    ) -> ModelResponse:
+        if on_late_completion is not None and not callable(on_late_completion):
+            raise TypeError("on_late_completion must be callable or None")
         self._lease_guard()
         with self._orphan_lock:
             if len(self._orphaned_requests) >= self._max_orphaned_requests:
@@ -137,12 +184,14 @@ class ModelTurnExecutor:
                         # The deadline and an operator cancellation can race.
                         # Preserve the cancellation state instead of turning
                         # an in-flight provider into an ordinary timeout.
-                        cancelled = self._cancel_or_track(future)
+                        cancelled = self._cancel_or_track(future, on_late_completion)
                         raise ProviderRequestCancelled(unable_to_confirm=not cancelled)
                     # Best effort; arbitrary provider threads are not
                     # killable.  Keep an unconfirmed call inside the bounded
                     # orphan guard until its Future callback releases it.
-                    self._cancel_or_track(future)
+                    tracked = self._cancel_or_track(future, on_late_completion)
+                    if not tracked and future.done() and on_late_completion is not None:
+                        self._notify_late_completion(future, on_late_completion)
                     raise FutureTimeoutError()
                 try:
                     response = future.result(timeout=min(0.05, remaining))
@@ -156,7 +205,7 @@ class ModelTurnExecutor:
                     if cancel_event.is_set():
                         if future.done():
                             return future.result(timeout=0)
-                        cancelled = self._cancel_or_track(future)
+                        cancelled = self._cancel_or_track(future, on_late_completion)
                         raise ProviderRequestCancelled(unable_to_confirm=not cancelled)
         finally:
             executor.shutdown(wait=False, cancel_futures=True)

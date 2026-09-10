@@ -403,6 +403,25 @@ class SQLiteStateStore:
             raise
 
     @_serialized
+    def reconcile_effect_result(self, key: str, *, status: str, actor: str, source: str, external_id: str | None = None, evidence: dict[str, Any] | None = None, result: dict[str, Any] | None = None) -> None:
+        try:
+            self.connection.execute("BEGIN IMMEDIATE")
+            self._effects.reconcile_effect_result(
+                key,
+                status=status,
+                actor=actor,
+                source=source,
+                external_id=external_id,
+                evidence=evidence,
+                result=result,
+                transitions=self._EFFECT_TRANSITIONS,
+            )
+            self.connection.commit()
+        except BaseException:
+            self.connection.rollback()
+            raise
+
+    @_serialized
     def snapshot(self) -> dict[str, Any]:
         return self._core.snapshot()
 

@@ -33,11 +33,18 @@ class ProviderDispatchJournal:
     def intent_key(request: ModelRequest, selection: RouteSelection) -> str:
         return f"provider:{request.request_id}:{selection.resource_id}"
 
+    def get_intent(self, key: str | None) -> dict[str, Any] | None:
+        """Read one durable provider intent through the journal boundary."""
+
+        if key is None or self._state_store is None:
+            return None
+        return self._state_store.get_effect_intent(key)
+
     def prepare_intent(self, request: ModelRequest, selection: RouteSelection) -> str | None:
         if self._state_store is None:
             return None
         key = self.intent_key(request, selection)
-        intent = self._state_store.get_effect_intent(key)
+        intent = self.get_intent(key)
         if intent is None:
             self._state_store.create_effect_intent(
                 key,
@@ -81,10 +88,39 @@ class ProviderDispatchJournal:
             }
         self._state_store.transition_effect_intent(key, to_status=status, result=payload, lease_proof=proof)
 
-    def result(self, key: str | None) -> ModelResponse | None:
+    def reconcile_result(
+        self,
+        key: str | None,
+        *,
+        result: dict[str, Any],
+        actor: str = "runtime-late-provider",
+        source: str = "provider_late_completion",
+        external_id: str | None = None,
+        evidence: dict[str, Any] | None = None,
+    ) -> None:
+        """Persist a late provider result through the reconciliation boundary.
+
+        The original queue lease is intentionally not consulted here.  A
+        timeout has already returned control to the runtime and the Python
+        provider thread can finish only after that lease is gone.  The
+        reconciliation record makes the result replayable while preserving
+        the no-blind-retry rule.
+        """
+
         if key is None or self._state_store is None:
-            return None
-        intent = self._state_store.get_effect_intent(key)
+            return
+        self._state_store.reconcile_effect_result(
+            key,
+            status="succeeded",
+            actor=actor,
+            source=source,
+            external_id=external_id,
+            evidence=evidence,
+            result=result,
+        )
+
+    def result(self, key: str | None) -> ModelResponse | None:
+        intent = self.get_intent(key)
         if intent is None or intent["status"] != "succeeded":
             return None
         result = intent.get("result") or {}

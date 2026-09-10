@@ -349,11 +349,12 @@ class Controller:
         if callable(request_with_execution):
             return request_with_execution(
                 request,
-                execute=lambda provider, bound_request: self._binding_provider_request(
+                execute=lambda provider, bound_request, on_late_completion=None: self._binding_provider_request(
                     provider,
                     bound_request,
                     deadline_epoch,
                     cancel_event,
+                    on_late_completion=on_late_completion,
                 ),
             )
         return self._model_turn_executor.request(request, deadline_epoch, cancel_event)
@@ -364,6 +365,8 @@ class Controller:
         request: ModelRequest,
         deadline_epoch: float,
         cancel_event: Event,
+        *,
+        on_late_completion: Callable[[ModelResponse | BaseException], None] | None = None,
     ) -> ModelResponse:
         """Execute one concrete binding through its own bounded lane."""
 
@@ -381,7 +384,12 @@ class Controller:
                     binding_id=binding_id,
                 )
                 self._binding_model_turn_executors[binding_id] = executor
-        return executor.request(request, deadline_epoch, cancel_event)
+        return executor.request(
+            request,
+            deadline_epoch,
+            cancel_event,
+            on_late_completion=on_late_completion,
+        )
 
     def _provider_capacity_available(self, binding_id: str) -> None:
         callback = self._provider_capacity_wakeup
@@ -486,6 +494,18 @@ class Controller:
             checkpoint.get("state", {}).get("provider_reconciliation")
             or checkpoint.get("state", {}).get("cancellation", {}).get("source") == "provider_request"
         ):
+            reconciled_response = self._load_reconciled_provider_response(task.task_id, checkpoint)
+            if reconciled_response is not None:
+                state = dict(checkpoint.get("state") or {})
+                state["reconciled_provider_response"] = reconciled_response.to_dict()
+                provider_reconciliation = dict(state.get("provider_reconciliation") or {})
+                provider_reconciliation["status"] = "succeeded"
+                provider_reconciliation["resumed_from_durable_intent"] = True
+                state["provider_reconciliation"] = provider_reconciliation
+                # Continue through the ordinary model-response path.  The
+                # marker is consumed by _run, so this does not create a new
+                # Provider request or budget reservation.
+                return self.run(task, state=state)
             # A provider request may have reached the external service even
             # though its local result was lost.  Do not spend a second
             # external request until an explicit reconciliation path clears
@@ -493,6 +513,37 @@ class Controller:
             task.status = TaskStatus.WAITING_RECONCILIATION
             return task
         return self.run(task, state=checkpoint["state"] if checkpoint else None)
+
+    def _load_reconciled_provider_response(self, task_id: str, checkpoint: dict[str, Any]) -> ModelResponse | None:
+        """Return a durable provider response that is safe to replay once.
+
+        Only a succeeded effect intent with a serialized ModelResponse is
+        eligible.  An operator reconciliation without a response remains an
+        explicit reconciliation state and is not guessed into completion.
+        """
+
+        state = checkpoint.get("state") if isinstance(checkpoint, dict) else None
+        reconciliation = state.get("provider_reconciliation") if isinstance(state, dict) else None
+        request_id = reconciliation.get("request_id") if isinstance(reconciliation, dict) else None
+        if not isinstance(request_id, str) or not request_id.strip():
+            return None
+        audits = self.store.list_provider_audits(task_id=task_id, request_id=request_id)
+        for audit in reversed(audits):
+            key = audit.get("intent_key") if isinstance(audit, dict) else None
+            if not isinstance(key, str) or not key.strip():
+                continue
+            intent = self.store.get_effect_intent(key)
+            if not isinstance(intent, dict) or intent.get("status") != "succeeded":
+                continue
+            result = intent.get("result")
+            payload = result.get("response") if isinstance(result, dict) else None
+            if not isinstance(payload, dict):
+                continue
+            try:
+                return ModelResponse.from_dict(payload)
+            except Exception:
+                continue
+        return None
 
     def _execute_pending(self, task: Task, state: dict[str, Any], cancel_event: Event) -> None:
         step = Step.from_dict(state["active_step"])
@@ -583,7 +634,13 @@ class Controller:
                     step = Step.from_dict(state["active_step"]) if state.get("active_step") else None
                     self._cancel(task, state, step=step)
                     return task
-                if time() >= state["deadline_epoch"]:
+                # A durable provider response discovered after the original
+                # timeout is already an external outcome.  Allow that one
+                # response to be replayed even though the old wall-clock
+                # deadline has elapsed; any subsequent model/tool turn still
+                # encounters the ordinary limit checks.
+                replaying_reconciled_response = isinstance(state.get("reconciled_provider_response"), dict)
+                if time() >= state["deadline_epoch"] and not replaying_reconciled_response:
                     self._fail(task, state, "timeout", "task wall-clock limit exceeded")
                 if state["pending_tool_calls"]:
                     self._execute_pending(task, state, cancel_event)
@@ -748,8 +805,12 @@ class Controller:
                         )
                     if legacy_execution.status != "succeeded" or legacy_execution.response is None:
                         self._fail(task, state, "provider_decode", "legacy provider execution returned no response", step=step, request_id=request.request_id)
+                reconciled_response_payload = state.pop("reconciled_provider_response", None)
                 try:
-                    response = legacy_execution.response if legacy_execution is not None else (replayed_response if replayed_response is not None else self._provider_request(request, state["deadline_epoch"], cancel_event))
+                    if isinstance(reconciled_response_payload, dict):
+                        response = ModelResponse.from_dict(reconciled_response_payload)
+                    else:
+                        response = legacy_execution.response if legacy_execution is not None else (replayed_response if replayed_response is not None else self._provider_request(request, state["deadline_epoch"], cancel_event))
                     if not isinstance(response, ModelResponse):
                         raise TypeError("provider must return ModelResponse")
                 except DispatchDenied as exc:
