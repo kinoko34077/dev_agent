@@ -15,7 +15,7 @@ Commander、FiniteLifecycle、AgentBackend、TaskGraphを一つの実用経路�
 - 監査基準HEAD: `ed2177a38f479a5e4a031829909ef85f8aff506f`
 - 実装基準: `ead4dfef38543e1783ff36900e7bdf23e0a958cd`
 - GitHub Actions: `v2-core` Python 3.10 / 3.11、`v2 tests` はいずれもPASS
-- 監査時点のCurrent State記録: `563 passed, 1 skipped`。実装同期後の最新ローカル回帰は `600 passed, 1 skipped` を `docs/CURRENT_STATE.md` に記録する
+- 監査時点のCurrent State記録: `563 passed, 1 skipped`。実装同期後の最新ローカル回帰は `602 passed, 1 skipped`（`a9774ca`）を `docs/CURRENT_STATE.md` に記録する
 - 実装状態・Gate判定の正本: `docs/CURRENT_STATE.md`、`spec/v2/GATE_STATUS.json`、`spec/v2/TRACEABILITY.md`
 - 本章群: 今回のhardeningの要求・受入条件を保持する作業仕様。未実装要件を実装済みと扱わない
 

@@ -172,6 +172,16 @@ explicitly integrated by Codex. External Cloudflare/OpenRouter/Gemini
 proposal attempts that did not reach Host Verification remain rejected or
 failed artifacts and are not counted as external Worker success.
 
+The 2026-09-11 external Commander dogfood slice sent only the non-protected
+`tests/v2/test_billing_catalog.py` scope to qualified Gemini L1, Cloudflare L1,
+and OpenRouter Free bindings. The real proposals were rejected before Host
+Verification because their unified-diff hunk counts were invalid; the result
+artifacts and host metrics are retained under `.devfarm/results/`, but no
+patch was applied or integrated. This is recorded as an external Worker
+quality failure, not as a successful Worker proof. The Cloudflare adapter fix
+in `a9774ca` separately normalizes a backend-reported model alias into
+`usage.provider_reported_model` while preserving the admitted binding identity.
+
 ## Commander parent plans
 
 `python scripts/devfarm.py plan` creates a development-only parent Plan above

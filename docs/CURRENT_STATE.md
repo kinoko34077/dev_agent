@@ -1,6 +1,6 @@
 # Current State — v2/bootstrap
 
-実装基準は `e58e658` です。直近のローカル全回帰もこのコード基準で検証し、
+実装基準は `a9774ca` です。直近のローカル全回帰もこのコード基準で検証し、
 本書はそのコードと、直近の外部資格化・DevFarm実行結果を同期したCurrent Stateです。
 GATE_STATUSの既存statusは変更していません。
 
@@ -34,11 +34,12 @@ GATE_STATUSの既存statusは変更していません。
 - DevFarm orchestration: Remote proposalとHost verificationを分離し、remote inference枠とworktree verification枠を別Governorでboundedに制御する。proposal失敗時にworktreeを作成せず、自動mergeもしない。Host Verificationはsanitized environment、temporary HOME、bounded output、timeout時のprocess-tree終了を持つが、OS filesystem/network sandboxではない
 - Development Commander: `scripts/devfarm_commander.py`が既存DevFarmの上にdevelopment-only親Planを提供する。`.devfarm/plans/<run-id>.json`へobjective、base revision、Task、依存、非重複ownership、assignment、result参照をdurably保存し、plan／dispatch／status／collect／verify／resume／reassign／mark-integratedを既存境界のcompositionで提供する。Taskごとの固定revisionを許容し、code dependencyは明示的な`mark-integrated`後だけreleaseする。非自明なGoalではCodexが分解・依存・ownership・risk・Worker適格性を先に記録し、狭いpatch/test/docs等を原則Worker候補とする。Codex担当へ残す場合も理由を記録する。Production Runtimeのstate／Scheduler／authorityやAgentBackendではない
 - Commander dogfood: `phase7-commander-local-dogfood-004`で、`aa2f819`固定のproposal、隔離worktreeでのHost Verification（許可済みfocused test `1 passed`）、Codex review、明示integrationを一連のPlanとして完了した。これはCommanderの計画・依存・検証・統合境界の実証であり、外部Cloud Workerの資格化や成功を意味しない
+- Commander external Worker dogfood: 2026-09-11にGemini L1、Cloudflare L1、OpenRouter Freeへ、単一の非保護focused testだけをmanifest-scopedでbounded proposalした。実通信・Provider metricsは取得できたが、proposalはpatch hunk行数不一致でHost Verification前に決定的拒否となり、valid patch・Host Verification・Git integrationの成功証拠には数えていない。外部Workerのpatch生成品質は未完了として保持する
 - Gate昇格やlive qualificationの成功は、local test・model自己申告・Worker proposalだけから推測しない
 
 ## 検証
 
-- v2ローカル全回帰: `600 passed, 1 skipped`（`python -m pytest -q tests/v2`、115.17秒。所要時間は実行環境依存）
+- v2ローカル全回帰: `602 passed, 1 skipped`（`python -m pytest -q tests/v2`、136.53秒。所要時間は実行環境依存）
 - DevFarm admission／hierarchy focused: `54 passed`（qualified bindingの送信前再検証、未資格model拒否、L1 alternate→L2横断証拠を含む）
 - 追加監査focused: Provider quota分類／DevFarm model-qualified activation／trusted free qualificationを含む`45 passed`
 - Operation hardening focused: `94 passed, 1 skipped`（Operation、quota、DevFarm attempt、SQLite contention、security、budget境界）
@@ -62,6 +63,7 @@ GATE_STATUSの既存statusは変更していません。
 - Commander/Worker履歴 hardening: Commander Planは`plan_revision`付きCASで並行更新を検出し、Worker結果は`attempt_id`ごとのimmutable artifactと履歴を正本とする。検証時はrootの最新投影へフォールバックせず、選択attemptのpatchを必須として読む
 - Protected policy / audit hardening: protected responsibility path、PathPolicyの最長prefix、secret semantic sanitizerを共有境界へ集約し、token使用量・session telemetryは保持しつつcredential値だけをredactする
 - quota/reset focused regression: 既存のquota policy、schema v9 migration、blocked routing、bounded typed probe failure、DevFarm remote/host concurrencyに加え、同一domain内のdue Resource選択回帰を全回帰へ追加
+- Provider alias focused regression: OpenAI互換／Cloudflareのbackend-reported model aliasを要求bindingへ正規化する回帰を含む`15 passed`。実Providerの応答内容はtelemetryへ分離し、外部Workerのpatch成功とは別に扱う
 - SQLite contention: 独立processのqueue／state／stop／status同時操作、WAL、5秒bounded busy timeoutを確認。既存のWindows ACL skipは継続
 - skip: `tests/v2/test_budget_reservations.py:142`（Windows ACLはdeployment-owned）
 - 最新コード基準のexact-head GitHub Actionsは、push後に`v2-core`（Python 3.10/3.11）と`v2 tests`を外部観測する。repo内GATE_STATUSへCI結果を書き戻してexact-headを自己参照しない
