@@ -4,6 +4,12 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-10 JST — Codex Commander development plan layer
+
+- 既存DevFarmの上にdevelopment-only `CommanderPlanStore`／parent Planを追加し、objective、base revision、Task ownership、依存DAG、Codex／Worker assignment、result reference、bounded reassignを`.devfarm/plans/`へdurably保存するようにした。
+- `plan`／`dispatch`／`status`／`collect`／`verify`／`resume`／`reassign`／`mark-integrated`を既存のDevFarmOrchestratorとHost Verificationへ接続した。依存cycle、ownership overlap、scope外manifest、attempt上限をfail-closedで拒否し、公式branchへの自動mergeは行わない。
+- `AGENTS.md`、`docs/SYSTEM_MAP.md`、`docs/CODEX_COMMANDER.md`、親Plan schemaを追加。Commander focused `4 passed`、v2全回帰 `446 passed, 1 skipped`。Gate statusとG6O1の判定は変更していない。
+
 ### 2026-09-10 JST — Explicit finite evaluator lifecycle
 
 - `FiniteLifecycleLoop`を追加し、既存のEvaluator／明示review／Escalation dispatch／`TaskLifecycleCoordinator`を、評価回数上限付きの明示的な有限cycleへ合成した。呼出側がevidenceとapprovalを供給し、自動承認・無限retry・model自己昇格・unknown再送は行わない。

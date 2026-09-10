@@ -1,6 +1,6 @@
 # Current State — v2/bootstrap
 
-実装基準は `acf5d4c` です。本書はそのコードと、直近の外部資格化・DevFarm
+実装基準は `bcae82e` です。本書はそのコードと、直近の外部資格化・DevFarm
 実行結果を同期したCurrent Stateです。GATE_STATUSの既存statusは変更していません。
 
 ## 判定
@@ -17,16 +17,18 @@
 - Phase 7 Operation Layer: `python -m src.dev_agent` の`start`／`submit`／`status`／`stop`を追加し、既存のSQLiteStateStore・DurableQueue・WorkerRunner・Controller・ProviderDispatcherをcompositionした。StateStoreとQueueは同じSQLiteファイルを共有し、CLI停止は実行中Taskを即時失敗扱いせず、durableな協調キャンセル要求または既存のreconciliation状態を維持する
 - Phase 6 quota operation: ResourceLedger schema v8でmetric／window／reset source／blocked-until／block reasonを保持し、ProviderErrorの429／quota／transport分類をrouting blockへ接続済み。blocked observationは新しい正常観測で明示的に復帰する。Scheduler queue schema v4と`QuotaWakeScheduler`はreset boundaryへのdurable parking／wakeを提供し、`QuotaRequalificationCoordinator`は呼出側が明示した一回のbounded probeについて、freshな正常観測の保存後だけdue taskをwakeする。Provider再probeの自動loopやclockだけによるblock解除は行わない
 - DevFarm orchestration: Remote proposalとHost verificationを分離し、remote inference枠とworktree verification枠を別Governorでboundedに制御する。proposal失敗時にworktreeを作成せず、自動mergeもしない
+- Development Commander: `scripts/devfarm_commander.py`が既存DevFarmの上にdevelopment-only親Planを提供する。`.devfarm/plans/<run-id>.json`へobjective、base revision、Task、依存、非重複ownership、assignment、result参照をdurably保存し、plan／dispatch／status／collect／verify／resume／reassign／mark-integratedを既存境界のcompositionで提供する。Production Runtimeのstate／Scheduler／authorityやAgentBackendではない
 - Gate昇格やlive qualificationの成功は、local test・model自己申告・Worker proposalだけから推測しない
 
 ## 検証
 
-- v2ローカル全回帰: `442 passed, 1 skipped`（`python -m pytest tests/v2 -q --durations=10`、所要時間は実行環境依存）
+- v2ローカル全回帰: `446 passed, 1 skipped`（`python -m pytest tests/v2 -q --durations=10`、所要時間は実行環境依存）
 - Operation Layer focused: `8 passed`（submit／status、canonical Dispatcher経由のstart、queue復旧、provider非依存safe stop、durable cancellation request）
 - Evaluator→dispatch cycle focused: `18 passed in 2.62s`
 - finite lifecycle focused: `9 passed`（明示review、dispatch、terminal transition、評価cycle上限）
 - intelligence routing / escalation execution focused: `26 passed in 1.28s`
 - DevFarm manifest / patch / host verification focused: `24 passed in 27.50s`
+- Commander focused: `4 passed`（親Plan、ownership／dependency validation、dispatch／collect／Host Verification、bounded reassign、CLI status）
 - DevFarm host verification: Gemini 3.5 Flash-Lite `gemini-worker-phase7-003` が、入力ファイルを外部送信せず、隔離worktreeへpatchを適用し、許可済みhost test `7 passed` を確認
 - DevFarm 2 Worker並列: `gemini-worker-parallel-a` と `gemini-worker-parallel-b` が別worktree・別所有ファイルで同時実行され、各 `7 passed`、`result_accepted=true` を確認。実測はそれぞれ1.528秒、1.278秒
 - Worker metricsはhost側で `provider_id`、`provider_binding_id`、`model_id`、`intelligence_tier`、`task_type`、request id、elapsed、許可されたusage scalar、host test結果を記録し、`.devfarm/metrics.sqlite3`へ`task_id + request_id`単位で冪等に蓄積する。Modelのtests claimは証拠に採用しない。metricsはrouting候補の観測値であり、Policyやacceptanceを上書きしない

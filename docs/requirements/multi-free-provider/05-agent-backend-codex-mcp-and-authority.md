@@ -98,3 +98,12 @@ recovery=True のようなフラグだけで通常AgentがRecovery Reserveを使
 - 通常処理のbudget経路からRecovery Reserveを不可視にしない。
 
 Recovery ReserveのRecoveryTaskAuthority境界は現行Phase 6へ実装済みである。AgentBackend／MCPからの利用や、より広いdeployment／OS-level authorityは次要件として扱う。
+
+## Development Commanderとの境界
+
+`scripts/devfarm_commander.py` のCommander親Planは、Codexが自分のTaskと
+development-only Worker Taskを分解・追跡・reviewするための補助層である。既存の
+DevFarm manifest、Remote proposal、Host Verificationをcompositionするだけで、
+Production RuntimeのTask state、Scheduler、Budget、Quota、Human Authorityを
+所有しない。これは `AgentBackend` や正式なMulti-Agent runtimeの実装ではなく、
+将来MCPで公開する場合も、このPlanと既存Control Planeの境界を包むだけとする。
