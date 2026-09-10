@@ -111,6 +111,13 @@ class JsonStateStore:
         self._data["events"].append(event.to_dict())
         self._flush()
 
+    def append_event_if_absent(self, event: Event) -> bool:
+        if any(item.get("event_id") == event.event_id for item in self._data.get("events", [])):
+            return False
+        self._data["events"].append(event.to_dict())
+        self._flush()
+        return True
+
     def checkpoint(self, *, task_id: str, step_id: str, phase: str, state: dict[str, Any]) -> None:
         self._data["checkpoints"].append({"task_id": task_id, "step_id": step_id, "phase": phase, "state": state})
         self._flush()

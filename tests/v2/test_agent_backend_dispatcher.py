@@ -417,6 +417,55 @@ def test_conflicting_event_sequence_is_rejected_before_any_event_is_persisted(st
     assert not [event for event in store.snapshot()["events"] if event["event_type"] == "agent_backend.event"]
 
 
+def test_concurrent_event_poll_persists_each_sequence_once(store, task):
+    barrier = threading.Barrier(2)
+
+    class ConcurrentBackend(FakeAgentBackend):
+        def events(self, session_id):
+            barrier.wait(timeout=2)
+            return super().events(session_id)
+
+    backend = ConcurrentBackend(
+        events=(
+            AgentBackendEvent(
+                session_id="pending",
+                sequence=1,
+                event_type="started",
+                status=AgentBackendStatus.RUNNING,
+            ),
+        )
+    )
+    request = _request(task.task_id)
+    dispatch_id = str(uuid4())
+    first = _dispatcher(store)
+    session = first.dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
+    backend.rebind_event_sessions(session.session_id)
+
+    results = []
+    errors = []
+    with SQLiteStateStore(store.path) as other_store:
+        second = _dispatcher(other_store)
+
+        def poll(dispatcher):
+            try:
+                results.append(dispatcher.events(dispatch_id, backend))
+            except BaseException as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=poll, args=(dispatcher,)) for dispatcher in (first, second)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=3)
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert errors == []
+    assert [event.sequence for batch in results for event in batch] == [1]
+    persisted = [event for event in store.snapshot()["events"] if event["event_type"] == "agent_backend.event"]
+    assert len(persisted) == 1
+    assert persisted[0]["payload"]["sequence"] == 1
+
+
 def test_result_completed_is_durable_and_unknown_is_not_replayed(store, task):
     request = _request(task.task_id)
     dispatch_id = str(uuid4())

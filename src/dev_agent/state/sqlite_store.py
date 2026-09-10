@@ -141,6 +141,16 @@ class SQLiteStateStore:
         self.connection.commit()
 
     @_serialized
+    def append_event_if_absent(self, event: Event) -> bool:
+        try:
+            inserted = self._core.append_event_if_absent(event)
+            self.connection.commit()
+            return inserted
+        except BaseException:
+            self.connection.rollback()
+            raise
+
+    @_serialized
     def checkpoint(self, *, task_id: str, step_id: str, phase: str, state: dict[str, Any]) -> None:
         self._core.checkpoint(task_id=task_id, step_id=step_id, phase=phase, state=state)
         self.connection.commit()

@@ -15,6 +15,7 @@ import hashlib
 import json
 from pathlib import PurePosixPath
 from typing import Any
+from uuid import NAMESPACE_URL, uuid5
 
 from ..domain.protocol import Event, Task, TaskStatus
 from ..security.protected_paths import is_protected_path
@@ -349,20 +350,15 @@ class AgentBackendDispatcher:
                 if prior != self._event_fingerprint(event):
                     raise AgentBackendDispatchError(f"backend event sequence conflict: {event.sequence}")
                 continue
-            self._append_event(
+            inserted = self._append_backend_event(
                 self._task_for_intent(intent),
-                "agent_backend.event",
-                {
-                    "dispatch_id": dispatch_id,
-                    "backend_session_id": session.session_id,
-                    "sequence": event.sequence,
-                    "event_type": event.event_type,
-                    "status": event.status.value if event.status else None,
-                    "payload": dict(event.payload),
-                },
+                dispatch_id=dispatch_id,
+                session_id=session.session_id,
+                event=event,
             )
             existing[event.sequence] = self._event_fingerprint(event)
-            new_events.append(event)
+            if inserted:
+                new_events.append(event)
         return tuple(new_events)
 
     def result(self, dispatch_id: str, backend: AgentBackend) -> AgentBackendResult:
@@ -647,6 +643,49 @@ class AgentBackendDispatcher:
 
     def _append_event(self, task: Task, event_type: str, payload: Mapping[str, Any]) -> None:
         self._store.commit_transition(event=Event(task_id=task.task_id, event_type=event_type, payload=dict(payload)))
+
+    def _append_backend_event(
+        self,
+        task: Task,
+        *,
+        dispatch_id: str,
+        session_id: str,
+        event: AgentBackendEvent,
+    ) -> bool:
+        """Persist one backend sequence under a deterministic durable key.
+
+        Event polling may be performed by multiple recovery/status callers at
+        once.  The event table's unique event_id is the atomic fence; the
+        dispatch/sequence pair is converted to a UUID so the existing Event
+        protocol and schema remain unchanged.
+        """
+
+        event_id = str(uuid5(NAMESPACE_URL, f"dev-agent:agent-backend-event:{dispatch_id}:{event.sequence}"))
+        record = Event(
+            event_id=event_id,
+            task_id=task.task_id,
+            event_type="agent_backend.event",
+            payload={
+                "dispatch_id": dispatch_id,
+                "backend_session_id": session_id,
+                "sequence": event.sequence,
+                "event_type": event.event_type,
+                "status": event.status.value if event.status else None,
+                "payload": dict(event.payload),
+            },
+        )
+        inserted = self._store.append_event_if_absent(record)
+        if not inserted:
+            persisted = self._persisted_event_sequences(task.task_id, dispatch_id)
+            fingerprint = self._event_fingerprint(event)
+            prior = persisted.get(event.sequence)
+            if prior is None:
+                raise AgentBackendDispatchError(
+                    f"backend event identity conflict: dispatch={dispatch_id}, sequence={event.sequence}"
+                )
+            if prior != fingerprint:
+                raise AgentBackendDispatchError(f"backend event sequence conflict: {event.sequence}")
+        return inserted
 
     def _mark_unknown(self, key: str, task: Task, event_type: str, payload: Mapping[str, Any]) -> None:
         self._store.transition_effect_intent(key, to_status="unknown", result=dict(payload))
