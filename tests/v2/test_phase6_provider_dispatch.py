@@ -146,6 +146,44 @@ def test_dispatcher_persists_dispatching_before_provider_call(tmp_path):
     assert ledger.reservation_totals()["active_reservations"] == 0
 
 
+@pytest.mark.parametrize(
+    ("response_provider", "response_model"),
+    [("other-provider", "model-a"), ("paid", "model-b")],
+)
+def test_dispatcher_rejects_response_identity_mismatch_as_reconciliation(tmp_path, response_provider, response_model):
+    ledger = ResourceLedger(tmp_path / "response-identity.sqlite3")
+    ledger.register_resource(
+        "paid",
+        provider_id="paid",
+        provider_binding_id="paid:binding",
+        native_unit="request",
+        capacity=10,
+        capabilities=["text"],
+        cost_minor=10,
+        metadata={"model_id": "model-a"},
+    )
+    ledger.observe("paid", available=10, health="healthy")
+    control = ResourceControlPlane(ResourceRouter(ledger), _governor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)))
+
+    class MismatchedProvider(FakeProvider):
+        provider_id = "paid"
+        provider_binding_id = "paid:binding"
+        model_id = "model-a"
+
+        def request(self, request):
+            return ModelResponse(provider=response_provider, model=response_model, text_segments=["must not be accepted"], usage={"cost_minor": 10})
+
+    dispatcher = ProviderDispatcher(ProviderRegistry([MismatchedProvider()]), control)
+    request = ModelRequest(task_id="00000000-0000-0000-0000-000000000013", messages=[{"role": "user", "content": "identity"}])
+
+    with pytest.raises(ProviderError, match="identity mismatch") as exc:
+        dispatcher.request(request)
+
+    assert exc.value.category == "provider_decode"
+    assert ledger.reservation_totals()["active_reservations"] == 1
+    assert ledger.reservation_row(ledger.connection.execute("SELECT reservation_id FROM budget_reservations").fetchone()[0])["status"] == "unknown"
+
+
 def test_controller_persists_dispatch_lease_with_provider_intent(tmp_path):
     ledger = ResourceLedger(tmp_path / "dispatch-lease-resource.sqlite3")
     ledger.register_resource("paid", provider_id="paid", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)

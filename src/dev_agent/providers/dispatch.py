@@ -197,6 +197,10 @@ class ProviderDispatcher(ModelProvider):
             try:
                 if not isinstance(response, ModelResponse):
                     raise TypeError("provider must return ModelResponse")
+                if response.provider != selection.provider_id:
+                    raise ValueError("provider response identity mismatch")
+                if selection.model_id is not None and response.model != selection.model_id:
+                    raise ValueError("provider response model identity mismatch")
                 quota_observed = self.control.observe_provider_response(reservation, response)
                 self.control.reconcile_response(reservation, response)
             except BudgetExceeded as exc:
