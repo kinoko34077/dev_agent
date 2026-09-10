@@ -110,6 +110,7 @@ def test_quota_requalification_persists_fresh_observation_and_wakes_due_tasks(tm
         worker_id="quota-worker",
         state_version=item.state_version,
         wake_at=datetime(2026, 9, 10, 11, 59, tzinfo=timezone.utc),
+        quota_domain="project",
     )
     calls = []
 
@@ -129,6 +130,58 @@ def test_quota_requalification_persists_fresh_observation_and_wakes_due_tasks(tm
     assert calls == [("cloud", "project")]
     assert ledger.get_quota_observation("cloud")["block_reason"] is None
     assert queue.snapshot("quota-task").state == "queued"
+
+
+def test_quota_requalification_wakes_only_the_requalified_domain(tmp_path):
+    ledger = ResourceLedger(tmp_path / "domain-scoped-wake.sqlite3")
+    queue = DurableQueue(tmp_path / "domain-scoped-wake-queue.sqlite3")
+    for resource_id, task_id, domain in (("cloud-a", "task-a", "project-a"), ("cloud-b", "task-b", "project-b")):
+        ledger.register_resource(
+            resource_id,
+            provider_id="gemini",
+            native_unit="request",
+            capacity=1,
+            capabilities=["text"],
+            quota_domain=domain,
+        )
+        ledger.observe_quota(
+            resource_id,
+            unit="requests",
+            metric="rpd",
+            window="day",
+            request_limit=10,
+            request_remaining=0,
+            blocked_until="2026-09-10T11:59:00+00:00",
+            block_reason="quota",
+            observed_at="2026-09-10T11:00:00+00:00",
+        )
+        queue.enqueue(task_id)
+        item = queue.claim("quota-worker", lease_seconds=30)
+        QuotaWakeScheduler(ledger, queue).park(
+            task_id,
+            worker_id="quota-worker",
+            state_version=item.state_version,
+            wake_at=datetime(2026, 9, 10, 11, 59, tzinfo=timezone.utc),
+            quota_domain=domain,
+        )
+
+    scheduler = QuotaWakeScheduler(ledger, queue)
+    calls = []
+
+    def probe(resource_id, quota_domain):
+        calls.append((resource_id, quota_domain))
+        return {"unit": "requests", "metric": "rpd", "window": "day", "request_limit": 10, "request_remaining": 9}
+
+    result = QuotaRequalificationCoordinator(ledger, scheduler).probe_once(
+        "cloud-a",
+        probe,
+        now=datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc),
+    )
+
+    assert result.woken_tasks == 1
+    assert calls == [("cloud-a", "project-a")]
+    assert queue.snapshot("task-a").state == "queued"
+    assert queue.snapshot("task-b").state == "waiting"
 
 
 def test_quota_requalification_does_not_probe_before_reset_or_authorization_block(tmp_path):

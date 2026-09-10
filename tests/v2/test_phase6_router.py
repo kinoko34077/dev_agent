@@ -54,6 +54,28 @@ def test_router_excludes_open_circuit_and_reports_no_route(tmp_path):
         router.choose(RouteRequest(capabilities={"tool_call"}, sensitivity="sensitive", max_cost_minor=100))
 
 
+def test_provider_health_failure_is_scoped_to_selected_resource(tmp_path):
+    ledger = ResourceLedger(tmp_path / "scoped-health.sqlite3")
+    for resource_id, binding in (("gemini-worker", "gemini:worker"), ("gemini-core", "gemini:core")):
+        ledger.register_resource(
+            resource_id,
+            provider_id="gemini",
+            provider_binding_id=binding,
+            native_unit="request",
+            capacity=1,
+            capabilities=["text"],
+            cost_minor=0,
+            metadata={"provider_binding_id": binding, "model_id": resource_id},
+        )
+        ledger.observe(resource_id, available=1, health="healthy")
+
+    ledger.record_provider_failure("gemini", resource_id="gemini-worker", threshold=1, cooldown_seconds=60)
+
+    assert ledger.get_resource("gemini-worker")["consecutive_failures"] == 1
+    assert ledger.get_resource("gemini-core")["consecutive_failures"] == 0
+    assert ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"})).resource_id == "gemini-core"
+
+
 def test_survival_mode_is_deterministic_and_not_model_selected():
     governor = SurvivalGovernor()
     assert governor.evaluate(SurvivalSnapshot(normal_remaining_minor=100, recovery_remaining_minor=20, healthy_resources=2)).mode is SurvivalMode.NORMAL

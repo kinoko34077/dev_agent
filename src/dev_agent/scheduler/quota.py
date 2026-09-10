@@ -144,7 +144,21 @@ class QuotaWakeScheduler:
                 candidates.append(reset)
         return min(candidates) if candidates else None
 
-    def park(self, task_id: str, *, worker_id: str, state_version: int, wake_at: datetime | float | int) -> QueueItem:
+    @staticmethod
+    def _wake_reason(quota_domain: str) -> str:
+        if not isinstance(quota_domain, str) or not quota_domain.strip():
+            raise ValueError("quota_domain must be a non-empty string")
+        return f"quota:{quota_domain.strip()}"
+
+    def park(
+        self,
+        task_id: str,
+        *,
+        worker_id: str,
+        state_version: int,
+        wake_at: datetime | float | int,
+        quota_domain: str,
+    ) -> QueueItem:
         if self.queue is None:
             raise RuntimeError("a DurableQueue is required to park a task")
         return self.queue.defer_until(
@@ -152,13 +166,13 @@ class QuotaWakeScheduler:
             worker_id=worker_id,
             state_version=state_version,
             wake_at=wake_at,
-            reason="quota",
+            reason=self._wake_reason(quota_domain),
         )
 
-    def wake_due(self, *, now: datetime | float | int | None = None) -> int:
+    def wake_due(self, *, now: datetime | float | int | None = None, quota_domain: str) -> int:
         if self.queue is None:
             raise RuntimeError("a DurableQueue is required to wake tasks")
-        return self.queue.wake_due(now=now, reason="quota")
+        return self.queue.wake_due(now=now, reason=self._wake_reason(quota_domain))
 
 
 class QuotaRequalificationCoordinator:
@@ -271,7 +285,7 @@ class QuotaRequalificationCoordinator:
             status = QuotaProbeStatus.BLOCKED_EXTERNAL if refreshed_reason.strip().lower() in _EXTERNAL_BLOCKS else QuotaProbeStatus.STILL_BLOCKED
             return QuotaProbeResult(resource_id, domain, status, observed_at=observed_at, observation_persisted=True, error_category=refreshed_reason.strip().lower())
         woken = (
-            self.wake_scheduler.wake_due(now=current)
+            self.wake_scheduler.wake_due(now=current, quota_domain=domain)
             if self.wake_scheduler is not None and self.wake_scheduler.queue is not None
             else 0
         )

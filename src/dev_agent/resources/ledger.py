@@ -852,11 +852,35 @@ class ResourceLedger:
                 raise ValueError("budget is not configured")
             return dict(row)
 
-    def record_provider_failure(self, provider_id: str, *, threshold: int = 3, cooldown_seconds: float = 60.0) -> None:
-        self._health_store.record_failure(provider_id, threshold=threshold, cooldown_seconds=cooldown_seconds)
+    def record_provider_failure(
+        self,
+        provider_id: str,
+        *,
+        resource_id: str | None = None,
+        provider_binding_id: str | None = None,
+        threshold: int = 3,
+        cooldown_seconds: float = 60.0,
+    ) -> None:
+        self._health_store.record_failure(
+            provider_id,
+            resource_id=resource_id,
+            provider_binding_id=provider_binding_id,
+            threshold=threshold,
+            cooldown_seconds=cooldown_seconds,
+        )
 
-    def record_provider_success(self, provider_id: str) -> None:
-        self._health_store.record_success(provider_id)
+    def record_provider_success(
+        self,
+        provider_id: str,
+        *,
+        resource_id: str | None = None,
+        provider_binding_id: str | None = None,
+    ) -> None:
+        self._health_store.record_success(
+            provider_id,
+            resource_id=resource_id,
+            provider_binding_id=provider_binding_id,
+        )
 
     def reservation_row(self, reservation_id: str) -> dict[str, Any]:
         return self._budget_store.reservation_row(reservation_id)

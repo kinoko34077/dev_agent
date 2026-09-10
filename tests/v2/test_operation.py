@@ -231,6 +231,7 @@ def test_operation_maintenance_tick_requalifies_due_quota_and_wakes_queue(tmp_pa
             worker_id="quota-maintenance-worker",
             state_version=item.state_version,
             wake_at=datetime(2026, 9, 10, 11, 59, tzinfo=timezone.utc),
+            quota_domain="fake-domain",
         )
         calls = []
 

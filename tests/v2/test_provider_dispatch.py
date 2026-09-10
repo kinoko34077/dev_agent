@@ -192,7 +192,7 @@ def test_dispatcher_records_provider_health_through_control_plane(tmp_path, monk
     ledger.observe_quota("groq-free", request_limit=100, request_remaining=90)
     health_calls = []
 
-    monkeypatch.setattr(control, "record_provider_success", lambda provider_id: health_calls.append(("success", provider_id)))
+    monkeypatch.setattr(control, "record_provider_success", lambda provider_id, **_: health_calls.append(("success", provider_id)))
     monkeypatch.setattr(ledger, "record_provider_success", lambda provider_id: (_ for _ in ()).throw(AssertionError("dispatcher crossed into ledger")))
 
     class HealthyProvider(FakeProvider):

@@ -27,6 +27,8 @@ class DispatchReservation:
     native_unit: str = "request"
     estimated_cost_minor: int | None = None
     price_currency: str | None = None
+    provider_binding_id: str | None = None
+    model_id: str | None = None
 
 
 class ResourcePolicy(Protocol):
@@ -36,8 +38,8 @@ class ResourcePolicy(Protocol):
     def observe_provider_response(self, reservation: DispatchReservation, response: ModelResponse) -> bool: ...
     def release(self, reservation: DispatchReservation) -> None: ...
     def uncertain(self, reservation: DispatchReservation) -> None: ...
-    def record_provider_success(self, provider_id: str) -> None: ...
-    def record_provider_failure(self, provider_id: str, *, threshold: int = 3, cooldown_seconds: float = 60.0) -> None: ...
+    def record_provider_success(self, provider_id: str, *, resource_id: str | None = None, provider_binding_id: str | None = None) -> None: ...
+    def record_provider_failure(self, provider_id: str, *, resource_id: str | None = None, provider_binding_id: str | None = None, threshold: int = 3, cooldown_seconds: float = 60.0) -> None: ...
 
 
 class ResourceControlPlane:
@@ -86,7 +88,7 @@ class ResourceControlPlane:
             raise DispatchDenied("budget", str(exc)) from exc
         except ValueError as exc:
             raise DispatchDenied("invalid_request", str(exc)) from exc
-        return DispatchReservation(reservation, provider_id, selection.native_unit, selection.estimated_cost_minor, selection.price_currency)
+        return DispatchReservation(reservation, provider_id, selection.native_unit, selection.estimated_cost_minor, selection.price_currency, selection.provider_binding_id, selection.model_id)
 
     def reserve_selection(self, task_id: str, selection: RouteSelection, *, intent_key: str | None = None) -> DispatchReservation:
         self._ensure_dispatch_allowed()
@@ -101,7 +103,7 @@ class ResourceControlPlane:
             raise DispatchDenied("maintenance", str(exc)) from exc
         except BudgetExceeded as exc:
             raise DispatchDenied("budget", str(exc)) from exc
-        return DispatchReservation(reservation, selection.provider_id, selection.native_unit, selection.estimated_cost_minor, selection.price_currency)
+        return DispatchReservation(reservation, selection.provider_id, selection.native_unit, selection.estimated_cost_minor, selection.price_currency, selection.provider_binding_id, selection.model_id)
 
     def reconcile_response(self, reservation: DispatchReservation, response: ModelResponse) -> None:
         observed = response.usage.get("cost_minor")
@@ -151,13 +153,13 @@ class ResourceControlPlane:
     def uncertain(self, reservation: DispatchReservation) -> None:
         self.governor.mark_unknown(reservation.budget.reservation_id)
 
-    def record_provider_success(self, provider_id: str) -> None:
+    def record_provider_success(self, provider_id: str, *, resource_id: str | None = None, provider_binding_id: str | None = None) -> None:
         """Record provider health without exposing the ledger to callers."""
-        self.governor.ledger.record_provider_success(provider_id)
+        self.governor.ledger.record_provider_success(provider_id, resource_id=resource_id, provider_binding_id=provider_binding_id)
 
-    def record_provider_failure(self, provider_id: str, *, threshold: int = 3, cooldown_seconds: float = 60.0) -> None:
+    def record_provider_failure(self, provider_id: str, *, resource_id: str | None = None, provider_binding_id: str | None = None, threshold: int = 3, cooldown_seconds: float = 60.0) -> None:
         """Record provider health through the control-plane boundary."""
-        self.governor.ledger.record_provider_failure(provider_id, threshold=threshold, cooldown_seconds=cooldown_seconds)
+        self.governor.ledger.record_provider_failure(provider_id, resource_id=resource_id, provider_binding_id=provider_binding_id, threshold=threshold, cooldown_seconds=cooldown_seconds)
 
     def record_provider_error(self, provider_id: str, reservation: DispatchReservation, error: Exception) -> None:
         category = getattr(error, "category", "provider_error")
@@ -166,7 +168,11 @@ class ResourceControlPlane:
         if decision is not None:
             self.governor.ledger.record_quota_block(reservation.budget.resource_id, decision)
         if category in {"transport", "rate_limit", "quota"} or requires_reconciliation:
-            self.record_provider_failure(provider_id)
+            self.record_provider_failure(
+                provider_id,
+                resource_id=reservation.budget.resource_id,
+                provider_binding_id=reservation.provider_binding_id,
+            )
         if requires_reconciliation:
             self.uncertain(reservation)
         else:

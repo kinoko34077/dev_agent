@@ -166,7 +166,11 @@ class ProviderDispatcher(ModelProvider):
                 continue
             except Exception as exc:
                 self.control.uncertain(reservation)
-                self.control.record_provider_failure(selection.provider_id)
+                self.control.record_provider_failure(
+                    selection.provider_id,
+                    resource_id=selection.resource_id,
+                    provider_binding_id=selection.provider_binding_id,
+                )
                 self._intent(intent_key, status="unknown", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id, "error_category": "transport", "message": str(exc)})
                 self._record_audit(request, selection, "transport", intent_key, details={"category": "transport"})
                 # Once a concrete provider has been invoked, an untyped
@@ -206,13 +210,21 @@ class ProviderDispatcher(ModelProvider):
                 raise ProviderError(str(exc), category="reconciliation_required", retryable=False) from exc
             except Exception as exc:
                 self.control.uncertain(reservation)
-                self.control.record_provider_failure(selection.provider_id)
+                self.control.record_provider_failure(
+                    selection.provider_id,
+                    resource_id=selection.resource_id,
+                    provider_binding_id=selection.provider_binding_id,
+                )
                 self._intent(intent_key, status="unknown", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id, "error_category": "provider_decode", "message": str(exc)})
                 self._record_audit(request, selection, "provider_decode", intent_key, details={"category": "provider_decode"})
                 raise ProviderError(f"provider response could not be decoded: {exc}", category="provider_decode", retryable=False) from exc
             try:
                 self._intent(intent_key, status="succeeded", result={"provider_id": selection.provider_id, "resource_id": selection.resource_id, "outcome": "succeeded", "response": response.to_dict()})
-                self.control.record_provider_success(selection.provider_id)
+                self.control.record_provider_success(
+                    selection.provider_id,
+                    resource_id=selection.resource_id,
+                    provider_binding_id=selection.provider_binding_id,
+                )
                 self._record_audit(request, selection, "succeeded", intent_key, details={"quota_observed": quota_observed})
             except Exception as exc:
                 # The concrete provider has already returned and the budget
