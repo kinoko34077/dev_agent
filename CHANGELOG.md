@@ -4,6 +4,11 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-10 JST — AgentBackend dispatch authority boundary
+
+- `AgentBackendDispatcher`を追加し、既存Task／scope／注入authorityの検証後に、SQLiteStateStoreのeffect intentをdispatch identityとしてsession開始、Event、result、cancel、明示reconciliationへ接続した。完了済みdispatchは冪等に再利用し、UNKNOWN／RECONCILINGはblind retryせず、Fake Backendでrestart／sequence conflict／reconciliationを検証した。
+- focused testは`19 passed`、v2全回帰は`481 passed, 1 skipped`。Codex App Server実transport、Host Verification E2E、MCP、G6O1、Evidence routing advisory-only方針は変更していない。
+
 ### 2026-09-10 JST — Thin AgentBackend contract
 
 - ModelProviderと外部Agent harnessを混同しないため、`src/dev_agent/backends/protocol.py`へidentity、scoped request、session、event stream、cancellation、completion／failure／unknown／reconciliation resultの薄いtyped contractを追加した。Task state、Scheduler、Budget、Quota、Authority、Recoveryは既存Control Planeが所有し、Codex App Server等の実adapterとMCPは未着手のまま分離している。

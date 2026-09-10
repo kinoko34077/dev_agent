@@ -57,6 +57,14 @@
 - 権限: 外部Backendへ渡す契約の表現のみ。Task state、Scheduler、Budget、Quota、Approval、Lease/Fencing、Recovery、Gateを所有しない。
 - 禁止: ControllerやProviderRegistryの置換、外部Backendへの無承認dispatch、UNKNOWNの再送、Backend固有schemaのKernelへの漏出。実adapterは既存Control Planeの再検証境界を通す。
 
+### `AgentBackendDispatcher`
+
+- 責務: 既存Task、scope、注入されたauthorityを確認した後、effect intentをdispatch identityとして外部AgentBackendのsessionを開始し、Event／result／cancel／explicit reconciliationを既存StateStoreへ接続する。
+- 公開入口: `dispatch(request, backend, dispatch_id, attempt)`、`events(dispatch_id, backend)`、`result(dispatch_id, backend)`、`cancel(dispatch_id, backend)`、`reconcile(dispatch_id, backend, actor, source)`。
+- 入力/出力: typed `AgentBackendRequest`と外部Backend、durable identity、session、provider-neutral event/result。backend固有IDはopaque sessionとして保持する。
+- 権限: dispatch可否の最終authorityは注入された既存Control Plane callbackに残す。完了済みidentityは冪等に返し、UNKNOWN／RECONCILINGは明示reconcileまで再dispatchしない。
+- 禁止: ProviderRegistry／ResourceRouterへの登録、新Scheduler／Budget／Approval／Recoveryの所有、公式branchへの直接編集、UNKNOWNのblind retry。
+
 ## Durable state / operation
 
 ### `StateStore` (`SQLiteStateStore`)
