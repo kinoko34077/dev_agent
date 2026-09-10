@@ -23,7 +23,7 @@ from ..state.store import StateStore
 from ..tools.runtime import ToolRuntime
 from ..intelligence import IntelligenceRoutePolicy, TaskIntelligencePolicy
 from .legacy_provider import LegacyDirectProviderExecutor, LegacyDirectProviderJournal
-from .model_turn import ModelTurnExecutor, ProviderRequestCancelled
+from .model_turn import ModelTurnExecutor, ProviderExecutionSaturated, ProviderRequestCancelled
 from .state import RuntimeState
 
 
@@ -690,6 +690,19 @@ class Controller:
                         self._cancel_unable_to_confirm(task, state, step=step, message="provider request cancellation could not be confirmed")
                     else:
                         self._cancel(task, state, step=step, message="provider request was cancelled")
+                    return task
+                except ProviderExecutionSaturated as exc:
+                    # An arbitrary Python provider thread cannot be killed
+                    # safely.  ModelTurnExecutor caps such orphaned calls; do
+                    # not start another external request while the previous
+                    # one is still running.
+                    self._wait_for_resource(
+                        task,
+                        state,
+                        step=step,
+                        category="provider_execution_saturated",
+                        message=str(exc),
+                    )
                     return task
                 except FutureTimeoutError:
                     # Cancellation can race with the final provider timeout

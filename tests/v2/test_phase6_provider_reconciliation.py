@@ -66,6 +66,44 @@ def _governor(ledger, policy):
 
 
 
+def test_model_turn_executor_bounds_uninterruptible_timeout_threads():
+    from concurrent.futures import TimeoutError as FutureTimeoutError
+    from threading import Event
+    from src.dev_agent.runtime.model_turn import ModelTurnExecutor, ProviderExecutionSaturated
+
+    started = Event()
+    release = Event()
+
+    class BlockingProvider(FakeProvider):
+        provider_id = "blocking"
+
+        def request(self, request):
+            started.set()
+            release.wait(2)
+            return ModelResponse(provider="blocking", model="test", text_segments=["late"])
+
+    executor = ModelTurnExecutor(
+        BlockingProvider(),
+        lease_guard=lambda: None,
+        max_orphaned_requests=1,
+    )
+    request = ModelRequest(task_id="00000000-0000-0000-0000-000000000001", messages=[{"role": "user", "content": "x"}])
+    with pytest.raises(FutureTimeoutError):
+        executor.request(request, time.time() + 0.05, Event())
+    assert started.wait(1)
+    assert executor.orphaned_requests == 1
+
+    with pytest.raises(ProviderExecutionSaturated):
+        executor.request(request, time.time() + 1, Event())
+    assert executor.orphaned_requests == 1
+
+    release.set()
+    deadline = time.time() + 2
+    while executor.orphaned_requests and time.time() < deadline:
+        time.sleep(0.01)
+    assert executor.orphaned_requests == 0
+
+
 # Tests split mechanically from test_phase6_integration.py; semantics are unchanged.
 
 def test_paid_provider_timeout_waits_for_reconciliation_instead_of_failing(tmp_path):

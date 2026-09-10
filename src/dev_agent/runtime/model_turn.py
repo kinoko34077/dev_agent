@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from contextvars import copy_context
-from threading import Event
+from threading import Event, RLock
 from time import time
 from typing import Any, Callable
 
@@ -20,6 +20,10 @@ class ProviderRequestCancelled(Exception):
         self.unable_to_confirm = unable_to_confirm
 
 
+class ProviderExecutionSaturated(RuntimeError):
+    """The bounded executor still owns an unkillable timed-out call."""
+
+
 class ModelTurnExecutor:
     """Run one provider request without owning task-state transitions.
 
@@ -29,18 +33,38 @@ class ModelTurnExecutor:
     outcome and reconcile it at the higher lifecycle boundary.
     """
 
-    def __init__(self, provider: ModelProvider, *, lease_guard: Callable[[], None]) -> None:
+    def __init__(self, provider: ModelProvider, *, lease_guard: Callable[[], None], max_orphaned_requests: int = 1) -> None:
+        if isinstance(max_orphaned_requests, bool) or not isinstance(max_orphaned_requests, int) or max_orphaned_requests < 0:
+            raise ValueError("max_orphaned_requests must be a non-negative integer")
         self._provider = provider
         self._lease_guard = lease_guard
+        self._max_orphaned_requests = max_orphaned_requests
+        self._orphaned_requests: set[object] = set()
+        self._orphan_lock = RLock()
+
+    @property
+    def orphaned_requests(self) -> int:
+        with self._orphan_lock:
+            return len(self._orphaned_requests)
+
+    def _release_orphan(self, future: object) -> None:
+        with self._orphan_lock:
+            self._orphaned_requests.discard(future)
 
     def request(self, request: ModelRequest, deadline_epoch: float, cancel_event: Event) -> ModelResponse:
         self._lease_guard()
+        with self._orphan_lock:
+            if len(self._orphaned_requests) >= self._max_orphaned_requests:
+                raise ProviderExecutionSaturated(
+                    "a previous provider request is still running after timeout"
+                )
         executor = ThreadPoolExecutor(max_workers=1)
         # ProviderDispatcher may consult the run's lease proof from inside
         # its provider thread. ContextVars do not propagate through a new
         # thread implicitly, so capture the immutable run context explicitly.
         provider_context = copy_context()
         future = executor.submit(provider_context.run, self._provider.request, request)
+        future.add_done_callback(self._release_orphan)
         try:
             while True:
                 remaining = deadline_epoch - time()
@@ -51,7 +75,14 @@ class ModelTurnExecutor:
                         # an in-flight provider into an ordinary timeout.
                         cancelled = future.cancel()
                         raise ProviderRequestCancelled(unable_to_confirm=not cancelled)
-                    future.cancel()  # best effort; arbitrary provider threads are not killable
+                    cancelled = future.cancel()  # best effort; arbitrary provider threads are not killable
+                    if not cancelled and not future.done():
+                        with self._orphan_lock:
+                            self._orphaned_requests.add(future)
+                            # The future may have completed between the check
+                            # and insertion; do not retain a completed object.
+                            if future.done():
+                                self._orphaned_requests.discard(future)
                     raise FutureTimeoutError()
                 try:
                     response = future.result(timeout=min(0.05, remaining))
@@ -71,4 +102,4 @@ class ModelTurnExecutor:
             executor.shutdown(wait=False, cancel_futures=True)
 
 
-__all__ = ["ModelTurnExecutor", "ProviderRequestCancelled"]
+__all__ = ["ModelTurnExecutor", "ProviderExecutionSaturated", "ProviderRequestCancelled"]

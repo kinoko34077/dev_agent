@@ -177,6 +177,35 @@ def test_router_never_bootstraps_unknown_quota_for_untrusted_zero_cost_resource(
         ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}, allow_unknown_quota=True))
 
 
+def test_router_does_not_use_unknown_bootstrap_to_bypass_a_quota_block(tmp_path):
+    ledger = ResourceLedger(tmp_path / "unknown-quota-blocked.sqlite3")
+    ledger.register_resource(
+        "blocked-free",
+        provider_id="gemini",
+        provider_binding_id="gemini:worker",
+        native_unit="request",
+        capacity=1,
+        capabilities=["text"],
+        quota_domain="gemini-project",
+        cost_minor=0,
+        metadata={"billing_authority": "trusted_catalog"},
+    )
+    ledger.observe("blocked-free", available=1, health="degraded", confidence=0.0)
+    ledger.observe_quota(
+        "blocked-free",
+        unit="requests",
+        metric="rpm",
+        window="minute",
+        request_limit=10,
+        request_remaining=0,
+        blocked_until="2099-01-01T00:00:00+00:00",
+        block_reason="rate_limit",
+    )
+
+    with pytest.raises(NoRoute, match="no eligible resource"):
+        ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}, allow_unknown_quota=True))
+
+
 def test_router_rejects_provider_block_until_a_new_observation_arrives(tmp_path):
     ledger = ResourceLedger(tmp_path / "blocked-quota.sqlite3")
     ledger.register_resource(

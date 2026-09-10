@@ -246,6 +246,15 @@ class ResourceRouter:
                 quota_ratio = self._fresh_domain_quota_ratio(resource["quota_domain"], request.max_quota_observation_age_seconds, snapshot.quota_observations_by_domain)
                 if quota_ratio is None:
                     metadata = resource.get("metadata") if isinstance(resource.get("metadata"), dict) else {}
+                    domain_observations = snapshot.quota_observations_by_domain.get(resource["quota_domain"], ())
+                    if any(self._quota_is_blocked(observation) for observation in domain_observations):
+                        # A previous provider/quota block is not an UNKNOWN
+                        # bootstrap case.  It remains quarantined until a
+                        # bounded requalification or normal response writes a
+                        # newer unblocked observation.  Otherwise a trusted
+                        # free binding could immediately bypass its own 429
+                        # block merely because no positive ratio was found.
+                        continue
                     # A qualified, explicitly no-charge binding may make one
                     # bounded liveness request before its provider exposes
                     # quota telemetry.  This is an UNKNOWN observation, not
