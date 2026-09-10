@@ -1,6 +1,6 @@
 # Current State — v2/bootstrap
 
-実装基準は `55fa966` です。直近のローカル全回帰もこのHEADで検証し、
+実装基準は `ec38122` です。直近のローカル全回帰もこのHEADで検証し、
 本書はそのコードと、直近の外部資格化・DevFarm実行結果を同期したCurrent Stateです。
 GATE_STATUSの既存statusは変更していません。
 
@@ -19,6 +19,8 @@ GATE_STATUSの既存statusは変更していません。
 - Phase 7 evidence routing: `EvidenceBasedRoutingPolicy`がhost-verified Worker metricsを、最小sample数・証拠期限・受入率／retry rollback条件付きで、呼出側から渡されたhard-filter済みbindingの範囲だけで順位付けする。証拠不足・期限切れ・回帰は採用せず、ResourceRouterのcapability／privacy／quota／budget hard filterや通常routingを上書きしない。自動routingへの接続は未実施
 - Phase 7 Operation Layer: `python -m src.dev_agent` の`start`／`submit`／`status`／`stop`を追加し、既存のSQLiteStateStore・DurableQueue・WorkerRunner・Controller・ProviderDispatcherをcompositionした。StateStoreとQueueは同じSQLiteファイルを共有し、CLI停止は実行中Taskを即時失敗扱いせず、durableな協調キャンセル要求または既存のreconciliation状態を維持する
 - Operation hardening: Operation起動時の既存Resourceはread-onlyで保持し、binding×model×trusted catalogにない価格を無料と推測しない。Cloud Resourceはoperator-ownedな`quota_domain`を明示し、初回はlive probeなしでhealthy扱いせず、正常Provider応答／正常quota probeだけがResource freshnessを更新する。`DispatchDenied`はbudget／quota／maintenance／resource wait／invalid failureへ意味別に遷移し、canonicalなrate-limit／quota ProviderErrorも`BLOCKED_QUOTA`へparkする
+- DevFarm admission hardening: proposal段階の各外部Providerを送信直前に再検証し、operator activation、期限内capability qualification、正確なprovider binding／model／L1 tier、trusted no-charge billingをすべて満たさないProviderをfail-closedで拒否する。Provider名だけのfree判定や、直接注入された未資格Providerによる迂回を許可しない
+- Intelligence hierarchy evidence: `tests/v2/test_phase7_hierarchy_e2e.py`で、失敗したL1 bindingから同Tierの別L1 bindingを先に試し、その後に明示承認されたL2へ有限に昇格するcanonical ProviderDispatcher経路を確認した。各dispatchは今回のexact tierをhard filterし、unknown effectは再送しない
 - Cross-process safety hardening: cancellation requestはappend-onlyの`task_controls`へ保存し、terminal transition直前に再読込してlate completionをfenceする。Provider healthはresource/binding単位、quota wakeは`quota:<domain>`単位で、別Resource／別domainのTaskを誤って起こさない
 - Phase 6 quota operation: ResourceLedger schema v8でmetric／window／reset source／blocked-until／block reasonを保持し、ProviderErrorの429／quota／transport分類をrouting blockへ接続済み。blocked observationは新しい正常観測で明示的に復帰する。Scheduler queue schema v4と`QuotaWakeScheduler`はreset boundaryへのdurable parking／wakeを提供し、`QuotaRequalificationCoordinator`は呼出側が明示した一回のbounded probeについて、freshな正常観測の保存後だけdue taskをwakeする。Operation Layerの`maintenance_tick`がdue domainだけを対象にprobe上限を適用し、`start`／`start --once`からも同じmaintenance boundaryを通る。OpenAI互換adapterはtelemetryを返す場合だけ既存`/models` probeからquota observationを返し、typed probe failureには保守的cooldownを永続化する。Provider再probeの無制限loopやclockだけによるblock解除は行わない
 - DevFarm orchestration: Remote proposalとHost verificationを分離し、remote inference枠とworktree verification枠を別Governorでboundedに制御する。proposal失敗時にworktreeを作成せず、自動mergeもしない。Host Verificationはsanitized environment、temporary HOME、bounded output、timeout時のprocess-tree終了を持つが、OS filesystem/network sandboxではない
@@ -28,7 +30,8 @@ GATE_STATUSの既存statusは変更していません。
 
 ## 検証
 
-- v2ローカル全回帰: `548 passed, 1 skipped`（`python -m pytest -q tests/v2 --durations=10`、119.55秒。所要時間は実行環境依存）
+- v2ローカル全回帰: `550 passed, 1 skipped`（`python -m pytest -q tests/v2 --durations=10`、113.24秒。所要時間は実行環境依存）
+- DevFarm admission／hierarchy focused: `54 passed`（qualified bindingの送信前再検証、未資格model拒否、L1 alternate→L2横断証拠を含む）
 - 追加監査focused: Provider quota分類／DevFarm model-qualified activation／trusted free qualificationを含む`45 passed`
 - Operation hardening focused: `94 passed, 1 skipped`（Operation、quota、DevFarm attempt、SQLite contention、security、budget境界）
 - Operation Layer focused: `12 passed`（submit／status、canonical Dispatcher経由のstart、queue復旧、process restart、terminal／waiting reconciliation、provider非依存safe stop、durable cancellation request、due quota maintenance／wake、startからのmaintenance境界）
@@ -99,6 +102,10 @@ workspace外へresolveするpath、protected/credential/secret path、secret候�
 patchは実変更pathをunified diffから決定し、worktreeへだけ適用します。patch末尾LFのような
 非意味的transport正規化はmetricsへ記録し、silent truncateは行いません。
 
+外部要求の直前にも、注入されたProviderのprovider／binding／model／tierを現行のoperator activation、
+capability qualification、trusted no-charge billing catalogへ照合します。資格化されていない、期限切れ、
+binding不一致、課金状態不明のProviderは、manifestがprovider名を許可していても送信しません。
+
 Proposalはrepository rootからmanifestのoutbound scopeだけを読み出すRemote stageで、Host
 verification時に初めて専用worktreeを作成します。`DevFarmOrchestrator`はremote inferenceと
 worktree verificationを別々のbounded governorで管理し、remoteを最大4、Hostのworktree／pytest等を
@@ -118,7 +125,7 @@ proposal品質または応答失敗でHost Verifiedに至っておらず、外�
 
 ## 次の作業
 
-1. Commander dogfoodとCloudflareのOperation external E2Eは完了。次はProvider別のquota probe callbackで取得できるtelemetryだけを使い、reset復帰を外部またはfixtureで確認する。未提供値はunknownのまま扱う
+1. Commander dogfoodとCloudflareのOperation external E2E、L1 alternate→L2 hierarchy evidenceは完了。次はProvider別のquota probe callbackで取得できるtelemetryだけを使い、reset復帰を外部またはfixtureで確認する。未提供値はunknownのまま扱う
 2. Worker metricsのhost側SQLite蓄積と、hard-filter済みbindingだけを対象とする期限／minimum sample／rollback付きadvisory順位付けは実装済み。`DEFERRED_ADVISORY`条件が満たされるまでResourceRouterへhard接続しない
 3. Phase 7 acceptanceは上記統合境界を確認済み。Evidence routingのsample条件を満たした時点で再監査し、実Codex AgentBackend adapter／MCPは各専用Gateで開始する
 4. G6O1は実paid Providerとdeployment-owned budget configurationという外部条件待ちであり、Phase 7コード判定と混ぜない

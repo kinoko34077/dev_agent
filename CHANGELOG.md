@@ -4,6 +4,12 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-11 JST — DevFarm admission and hierarchy evidence hardening
+
+- DevFarmのremote proposal直前に、Provider identityを現行のoperator activation、期限内capability qualification、provider binding／model／L1 tier、trusted no-charge billingへ再照合する境界を追加した。provider名だけのfree判定、未資格model、期限切れ／課金不明bindingの直接注入を外部要求前に拒否する。
+- L1 failure → alternate L1 → bounded L2 escalationをcanonical ProviderDispatcher経路で横断検証し、今回のexact intelligence tierと同Tier fallbackの順序を`tests/v2/test_phase7_hierarchy_e2e.py`へ記録した。G6O1、live qualification、AgentBackend実adapter、MCP、既存Gate statusは変更していない。
+- `ec38122`を実装／検証基準とし、v2全回帰は`550 passed, 1 skipped`。DevFarm focused suiteは`54 passed`。
+
 ### 2026-09-11 JST — Intelligence target and multi-provider admission hardening
 
 - AgentBackend dispatchへ`BackendAdmission`を接続し、strict-`True` authorization、Task／Backend identityのrequired capability coverage、scope／lease／budget／approval／privacy証拠を外部Backend起動前に検証する境界を固定した。
