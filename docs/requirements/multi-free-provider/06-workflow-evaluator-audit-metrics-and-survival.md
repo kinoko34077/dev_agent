@@ -101,4 +101,4 @@ planの明示review（accepted/rejected）記録、受理済みplanのdispatch-r
 accepted handoffをcanonical ProviderDispatcherへ再検証付きで送る
 `EscalationExecutor`と、host evaluation→明示review→dispatchの一回cycleを実装済みである。
 Phase 7Eのbounded workflow promotion proposalも実装済みだが、自動promotion、Task
-lifecycleの自動循環、実績ベースrouting、AgentBackend、MCPは今回の境界外である。
+lifecycleの自動循環、ResourceRouterへ自動接続する実績ベースrouting、AgentBackend、MCPは今回の境界外である。host-verified Worker metricsを読み、hard filter済みbindingだけを期限・minimum sample・rollback条件付きでadvisory順位付けする境界はPhase 7後半の実装として追加されている。

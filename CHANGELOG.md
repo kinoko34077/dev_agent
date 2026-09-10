@@ -4,6 +4,11 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-10 JST — Evidence-bounded Worker routing and Operation restart coverage
+
+- `EvidenceBasedRoutingPolicy`を追加し、host-verified Worker metricsをminimum sample、証拠期限、受入率／retry rollback条件付きで評価するようにした。policyは呼出側のhard-filter済みbindingだけを順位付けし、ResourceRouterのcapability／privacy／quota／budget判断を上書きしない。
+- Worker metrics集計へ`latest_recorded_at`と任意のfreshness検査を追加し、Operation Layerへprocess restart後のterminal resumeと`WAITING_RECONCILIATION`保持のE2Eを追加した。evidence focused `5 passed`、Operation focused `10 passed`、v2全回帰 `453 passed, 1 skipped`。Gate status、G6O1、live qualification判定は変更していない。
+
 ### 2026-09-10 JST — Codex Commander development plan layer
 
 - 既存DevFarmの上にdevelopment-only `CommanderPlanStore`／parent Planを追加し、objective、base revision、Task ownership、依存DAG、Codex／Worker assignment、result reference、bounded reassignを`.devfarm/plans/`へdurably保存するようにした。

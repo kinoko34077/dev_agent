@@ -298,10 +298,28 @@ class WorkerMetricsStore:
         task_type: str | None = None,
         provider_binding_id: str | None = None,
         minimum_samples: int = 1,
+        max_age_seconds: float | None = None,
+        now: datetime | None = None,
     ) -> list[dict[str, Any]]:
-        """Return measured groups; no group is eligible for routing by itself."""
+        """Return measured groups; no group is eligible for routing by itself.
+
+        Freshness is optional here so callers can inspect old history.  The
+        evidence policy applies its own expiry check before recommending a
+        binding, and therefore does not trust a caller-provided timestamp.
+        """
 
         minimum_samples = _integer(minimum_samples, "minimum_samples", minimum=1)
+        if max_age_seconds is not None:
+            if isinstance(max_age_seconds, bool) or not isinstance(max_age_seconds, (int, float)) or not math.isfinite(float(max_age_seconds)) or max_age_seconds < 0:
+                raise WorkerMetricsError("max_age_seconds must be a finite non-negative number or None")
+            current = now or datetime.now(timezone.utc)
+            if current.tzinfo is None:
+                raise WorkerMetricsError("now must include a timezone")
+            current = current.astimezone(timezone.utc)
+            cutoff = current.timestamp() - float(max_age_seconds)
+        else:
+            cutoff = None
+            current = None
         clauses: list[str] = []
         params: list[Any] = []
         if task_type is not None:
@@ -311,34 +329,49 @@ class WorkerMetricsStore:
             clauses.append("provider_binding_id=?")
             params.append(_text(provider_binding_id, "provider_binding_id"))
         where = " WHERE " + " AND ".join(clauses) if clauses else ""
-        query = (
-            "SELECT task_type, provider_id, provider_binding_id, model_id, "
-            "intelligence_tier, COUNT(*) AS sample_count, "
-            "SUM(result_accepted) AS accepted_count, "
-            "AVG(elapsed_ms) AS average_elapsed_ms, "
-            "AVG(retry_count) AS average_retry_count "
-            "FROM worker_metrics" + where +
-            " GROUP BY task_type, provider_id, provider_binding_id, model_id, intelligence_tier "
-            "HAVING COUNT(*) >= ? ORDER BY task_type, provider_binding_id, model_id"
-        )
-        params.append(minimum_samples)
+        query = "SELECT task_type, provider_id, provider_binding_id, model_id, intelligence_tier, result_accepted, elapsed_ms, retry_count, recorded_at FROM worker_metrics" + where + " ORDER BY task_type, provider_binding_id, model_id, recorded_at"
         with self._lock:
             rows = self.connection.execute(query, tuple(params)).fetchall()
-        return [
-            {
-                "task_type": row["task_type"],
-                "provider_id": row["provider_id"],
-                "provider_binding_id": row["provider_binding_id"],
-                "model_id": row["model_id"],
-                "intelligence_tier": row["intelligence_tier"],
-                "sample_count": int(row["sample_count"]),
-                "accepted_count": int(row["accepted_count"]),
-                "acceptance_rate": float(row["accepted_count"]) / float(row["sample_count"]),
-                "average_elapsed_ms": float(row["average_elapsed_ms"]),
-                "average_retry_count": float(row["average_retry_count"]),
-            }
-            for row in rows
-        ]
+        groups: dict[tuple[str, str, str, str, str | None], dict[str, Any]] = {}
+        for row in rows:
+            try:
+                recorded = datetime.fromisoformat(row["recorded_at"])
+            except (TypeError, ValueError) as exc:
+                raise WorkerMetricsError("stored recorded_at is not an ISO timestamp") from exc
+            if recorded.tzinfo is None:
+                raise WorkerMetricsError("stored recorded_at must include a timezone")
+            recorded = recorded.astimezone(timezone.utc)
+            if cutoff is not None and (recorded.timestamp() < cutoff or current is not None and recorded > current):
+                continue
+            key = (row["task_type"], row["provider_id"], row["provider_binding_id"], row["model_id"], row["intelligence_tier"])
+            group = groups.setdefault(key, {"sample_count": 0, "accepted_count": 0, "elapsed_total": 0.0, "retry_total": 0.0, "latest_recorded_at": None})
+            group["sample_count"] += 1
+            group["accepted_count"] += int(row["result_accepted"])
+            group["elapsed_total"] += float(row["elapsed_ms"])
+            group["retry_total"] += float(row["retry_count"])
+            iso = recorded.isoformat()
+            if group["latest_recorded_at"] is None or iso > group["latest_recorded_at"]:
+                group["latest_recorded_at"] = iso
+        result: list[dict[str, Any]] = []
+        for (group_task_type, provider_id, binding_id, model_id, tier), group in sorted(groups.items()):
+            if group["sample_count"] < minimum_samples:
+                continue
+            result.append(
+                {
+                    "task_type": group_task_type,
+                    "provider_id": provider_id,
+                    "provider_binding_id": binding_id,
+                    "model_id": model_id,
+                    "intelligence_tier": tier,
+                    "sample_count": group["sample_count"],
+                    "accepted_count": group["accepted_count"],
+                    "acceptance_rate": float(group["accepted_count"]) / float(group["sample_count"]),
+                    "average_elapsed_ms": group["elapsed_total"] / float(group["sample_count"]),
+                    "average_retry_count": group["retry_total"] / float(group["sample_count"]),
+                    "latest_recorded_at": group["latest_recorded_at"],
+                }
+            )
+        return result
 
     @staticmethod
     def _from_row(row: sqlite3.Row) -> dict[str, Any]:

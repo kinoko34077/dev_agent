@@ -72,6 +72,54 @@ def test_restart_restores_queued_task_when_enqueue_was_interrupted(tmp_path):
     assert OperationService.read_status(config, task.task_id)["state"] == TaskStatus.COMPLETED.value
 
 
+def test_process_restart_resumes_durable_queue_and_leaves_terminal_state(tmp_path):
+    config = _config(tmp_path)
+    task = OperationService.submit(config, "resume after operation process restart")
+
+    # The first service instance represents the process that accepted the
+    # Task.  It closes before a Worker claim, so the second instance must use
+    # only the durable Task and Queue rows.
+    with OperationService.open(config):
+        pass
+
+    with OperationService.open(config) as restarted:
+        result = restarted.start(once=True)
+
+    assert result is not None and result.task_id == task.task_id
+    status = OperationService.read_status(config, task.task_id)
+    assert status["state"] == TaskStatus.COMPLETED.value
+    assert status["queue_state"] == "completed"
+    assert status["last_event"]["event_type"] == "task.completed"
+
+
+def test_process_restart_preserves_waiting_reconciliation_in_operation_status(tmp_path):
+    from src.dev_agent.domain.protocol import Task
+    from src.dev_agent.scheduler.queue import DurableQueue
+    from src.dev_agent.state import SQLiteStateStore
+
+    config = _config(tmp_path)
+    task = Task(objective="preserve external uncertainty", status=TaskStatus.WAITING_RECONCILIATION)
+    with SQLiteStateStore(config.state_path) as store:
+        store.save_task(task)
+        store.checkpoint(
+            task_id=task.task_id,
+            step_id="provider-step",
+            phase="waiting_reconciliation",
+            state={"provider_reconciliation": {"status": "unknown"}},
+        )
+    with DurableQueue(config.queue_path) as queue:
+        queue.enqueue(task.task_id)
+
+    with OperationService.open(config) as service:
+        result = service.start(once=True)
+
+    assert result is not None and result.status is TaskStatus.WAITING_RECONCILIATION
+    status = OperationService.read_status(config, task.task_id)
+    assert status["state"] == TaskStatus.WAITING_RECONCILIATION.value
+    assert status["queue_state"] == "waiting"
+    assert status["reconciliation"] is True
+
+
 def test_stop_queued_task_is_cancelled_not_failed(tmp_path):
     config = _config(tmp_path)
     task = OperationService.submit(config, "cancel before execution")

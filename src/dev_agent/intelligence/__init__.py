@@ -24,6 +24,7 @@ from .workflow import (
 from .loop import EvaluationDispatchCoordinator, EvaluationDispatchCycle, EvaluationDispatchStatus
 from .lifecycle import TaskLifecycleCoordinator, TaskLifecycleTransition
 from .lifecycle_loop import FiniteLifecycleLoop, LifecycleLimitExceeded, LifecycleStep
+from .evidence_routing import EvidenceBasedRoutingPolicy, EvidenceRouteDecision, EvidenceRoutingError
 
 __all__ = [
     "EvaluationEvidence",
@@ -61,4 +62,7 @@ __all__ = [
     "FiniteLifecycleLoop",
     "LifecycleLimitExceeded",
     "LifecycleStep",
+    "EvidenceBasedRoutingPolicy",
+    "EvidenceRouteDecision",
+    "EvidenceRoutingError",
 ]
