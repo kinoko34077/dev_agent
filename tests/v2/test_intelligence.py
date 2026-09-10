@@ -125,4 +125,9 @@ def test_controller_carries_task_profile_to_model_request_without_trusting_metad
         "allowed_intelligence_tiers": ["L1"],
         "requires_human_approval": False,
         "intelligence_policy_reasons": ["task_type:worker", "risk:normal"],
+        "task_context": {
+            "type": "dev_agent.task_context.v1",
+            "inputs": {},
+            "constraints": {},
+        },
     }
