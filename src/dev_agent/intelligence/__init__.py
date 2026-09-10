@@ -23,6 +23,7 @@ from .workflow import (
 )
 from .loop import EvaluationDispatchCoordinator, EvaluationDispatchCycle, EvaluationDispatchStatus
 from .lifecycle import TaskLifecycleCoordinator, TaskLifecycleTransition
+from .lifecycle_loop import FiniteLifecycleLoop, LifecycleLimitExceeded, LifecycleStep
 
 __all__ = [
     "EvaluationEvidence",
@@ -57,4 +58,7 @@ __all__ = [
     "EvaluationDispatchStatus",
     "TaskLifecycleCoordinator",
     "TaskLifecycleTransition",
+    "FiniteLifecycleLoop",
+    "LifecycleLimitExceeded",
+    "LifecycleStep",
 ]
