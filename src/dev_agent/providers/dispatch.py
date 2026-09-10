@@ -385,6 +385,27 @@ class ProviderDispatcher(ModelProvider):
                     last_error = exc
                     excluded.add(selection.resource_id)
                     continue
+                # A late-completion callback can win the durable accounting
+                # race before this caller classifies its timeout.  Never let
+                # the old error path overwrite a terminal reconciliation or
+                # turn it into an untyped reservation error.
+                current_intent = self._journal.get_intent(intent_key)
+                if isinstance(current_intent, dict) and current_intent.get("status") in {"succeeded", "confirmed_failed", "reconciled"}:
+                    try:
+                        self._record_audit(
+                            request,
+                            selection,
+                            "late_reconciled_race",
+                            intent_key,
+                            details={"category": "reconciliation_required", "external_outcome_already_durable": True},
+                        )
+                    except Exception:
+                        pass
+                    raise ProviderError(
+                        "provider outcome was reconciled while the original dispatch was timing out",
+                        category="reconciliation_required",
+                        retryable=False,
+                    ) from exc
                 self.control.uncertain(reservation)
                 self.control.record_provider_failure(
                     selection.provider_id,

@@ -374,6 +374,36 @@ def test_late_provider_completion_reconciles_once_and_resumes_task(tmp_path):
     assert any(item["outcome"] == "late_succeeded" for item in audits)
 
 
+def test_late_reconciliation_winning_timeout_race_keeps_terminal_accounting(tmp_path):
+    from concurrent.futures import TimeoutError as FutureTimeoutError
+
+    ledger = ResourceLedger(tmp_path / "provider-late-race.sqlite3")
+    ledger.register_resource("paid", provider_id="race", native_unit="request", capacity=1, capabilities=["text"], cost_minor=10)
+    ledger.observe("paid", available=1, health="healthy")
+    control = ResourceControlPlane(ResourceRouter(ledger), _governor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)))
+
+    class RaceProvider(FakeProvider):
+        provider_id = "race"
+
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        dispatcher = ProviderDispatcher(ProviderRegistry([RaceProvider()]), control)
+        dispatcher.bind_runtime(state_store=store)
+
+        def execute(_provider, request, on_late_completion):
+            on_late_completion(ModelResponse(provider="race", model="test", text_segments=["already durable"], usage={"cost_minor": 10}))
+            raise FutureTimeoutError()
+
+        request = ModelRequest(task_id="00000000-0000-0000-0000-000000000099", messages=[{"role": "user", "content": "race"}])
+        with pytest.raises(ProviderError) as raised:
+            dispatcher.request_with_execution(request, execute=execute)
+        intent = store.connection.execute("SELECT status FROM effect_intents").fetchone()
+        reservation = ledger.connection.execute("SELECT status FROM budget_reservations").fetchone()
+
+    assert raised.value.category == "reconciliation_required"
+    assert intent["status"] == "succeeded"
+    assert reservation["status"] == "reconciled"
+
+
 def test_paid_provider_transport_error_waits_for_reconciliation(tmp_path):
     ledger = ResourceLedger(tmp_path / "provider-transport.sqlite3")
     ledger.register_resource("paid", provider_id="broken", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
