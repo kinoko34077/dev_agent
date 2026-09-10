@@ -24,8 +24,8 @@ class _CapturingWorkerProvider(_WorkerProvider):
 
 class _MeasuredWorkerProvider(ModelProvider):
     provider_id = "cloudflare"
-    provider_binding_id = "cloudflare:test"
-    model_id = "test-model"
+    provider_binding_id = "cloudflare"
+    model_id = "@cf/meta/llama-3.1-8b-instruct"
     intelligence_tier = "L1"
 
     def __init__(self, output):
@@ -131,8 +131,8 @@ def test_worker_records_host_measurements_and_updates_acceptance_after_verificat
 
     metrics = proposed["worker_metrics"]
     assert metrics["provider_id"] == "cloudflare"
-    assert metrics["provider_binding_id"] == "cloudflare:test"
-    assert metrics["model_id"] == "test-model"
+    assert metrics["provider_binding_id"] == "cloudflare"
+    assert metrics["model_id"] == "@cf/meta/llama-3.1-8b-instruct"
     assert metrics["intelligence_tier"] == "L1"
     assert isinstance(metrics["request_id"], str) and metrics["request_id"]
     assert metrics["elapsed_ms"] >= 0

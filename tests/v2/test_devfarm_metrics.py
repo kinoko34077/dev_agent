@@ -33,7 +33,7 @@ def test_host_verification_accumulates_safe_metrics_and_exposes_summary(tmp_path
         record = records[0]
         assert record["task_id"] == "worker-test-001"
         assert record["provider_id"] == "cloudflare"
-        assert record["model_id"] == "test-model"
+        assert record["model_id"] == "@cf/meta/llama-3.1-8b-instruct"
         assert record["task_type"] == "unspecified"
         assert record["host_verified"] is True
         assert record["host_tests_passed"] is True

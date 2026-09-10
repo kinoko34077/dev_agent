@@ -29,14 +29,25 @@ to own or send built-in protected files (`spec/v2/GATE_STATUS.json`, budget
 authority, `.env*`, credentials, private/token stores, `recovery/`, and
 `.devfarm/`).
 
-Before a request, the Runner requires the task worktree to exist, have a clean
-status, and resolve to the manifest's exact Git base revision. Input paths are
-resolved and symlink escapes are rejected; outbound contents are scanned for
-common secret patterns and fail closed. The result's `changed_files` is derived
-from the unified patch, not trusted from the model claim. A result must use the
-same base revision and may list only files from `allowed_files`; a Worker cannot
-modify `v2/bootstrap`, Gate status, budget authority, Recovery policy,
-credentials, or another Worker's worktree by convention and contract.
+At proposal time, the Runner resolves the manifest's exact Git base revision
+and reads only the approved outbound paths from that immutable Git object; it
+does not require or create a worker worktree. Input paths are resolved and
+symlink escapes are rejected; outbound contents are scanned for common secret
+patterns and fail closed. Before the first external request, the injected
+Provider identity is rechecked against the current operator activation,
+capability qualification, binding/model mapping, and trusted no-charge billing
+catalog. An unqualified, expired, or billing-unknown Provider is rejected.
+The result's `changed_files` is derived from the unified patch, not trusted
+from the model claim. A result must use the same base revision and may list
+only files from `allowed_files`; a Worker cannot modify `v2/bootstrap`, Gate
+status, budget authority, Recovery policy, credentials, or another Worker's
+worktree by convention and contract.
+
+Only after proposal review does Host Verification create the task's isolated
+worktree, require a clean checkout at the same base revision, apply the
+validated patch, and run the manifest-approved host tests. Git worktree
+isolation is not an OS filesystem/network sandbox; the runner records this
+boundary explicitly and must not be treated as a strong unattended sandbox.
 
 Prepare a separate checkout with an `agent/<provider>/<task>` branch:
 
@@ -61,8 +72,8 @@ Both commands print the normalized contract and fail closed on malformed JSON,
 base-revision drift, protected ownership, or an out-of-scope changed file.
 
 The bounded worker runner can send the explicitly approved manifest-scoped
-outbound files to an approved qualified free Provider and writes only handoff
-artifacts. Automatic activation, unapproved sending, automatic patch
+outbound files to an approved, currently qualified, trusted no-charge free
+Provider and writes only handoff artifacts. Automatic activation, unapproved sending, automatic patch
 application, commits, Gate promotion, and official-branch modification are not
 performed. Review the outbound input scope before invoking it:
 

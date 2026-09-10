@@ -18,12 +18,20 @@ from src.dev_agent.providers.base import ModelProvider
 
 class _ConcurrentProvider(ModelProvider):
     provider_id = "cloudflare"
+    provider_binding_id = "cloudflare"
+    model_id = "@cf/meta/llama-3.1-8b-instruct"
+    intelligence_tier = "L1"
 
-    def __init__(self, output, tracker=None, binding_id=None):
+    def __init__(self, output, tracker=None, provider_id="cloudflare"):
         self.output = output
         self.tracker = tracker
-        if binding_id is not None:
-            self.provider_binding_id = binding_id
+        self.provider_id = provider_id
+        if provider_id == "gemini":
+            self.provider_binding_id = "gemini:worker"
+            self.model_id = "gemini-3.5-flash-lite"
+        else:
+            self.provider_binding_id = "cloudflare"
+            self.model_id = "@cf/meta/llama-3.1-8b-instruct"
 
     def request(self, request: ModelRequest) -> ModelResponse:
         if self.tracker is not None:
@@ -39,7 +47,7 @@ class _ConcurrentProvider(ModelProvider):
                     self.tracker["active"] -= 1
         return ModelResponse(
             provider=self.provider_id,
-            model="test-model",
+            model=self.model_id,
             text_segments=[json.dumps(self.output)],
         )
 
@@ -54,7 +62,7 @@ def _git(cwd, *args):
     )
 
 
-def _repo(tmp_path, targets):
+def _repo(tmp_path, targets, provider_ids=None):
     root = tmp_path / "repo"
     root.mkdir()
     _git(root, "init")
@@ -67,8 +75,11 @@ def _repo(tmp_path, targets):
     _git(root, "add", ".")
     _git(root, "commit", "-m", "proposal baseline")
     revision = _git(root, "rev-parse", "HEAD").stdout.strip()
+    selected_providers = list(provider_ids or ["cloudflare"] * len(targets))
+    assert len(selected_providers) == len(targets)
     manifests = []
     for index, target in enumerate(targets, start=1):
+        provider_id = selected_providers[index - 1]
         manifests.append(
             write_manifest(
                 root,
@@ -80,7 +91,7 @@ def _repo(tmp_path, targets):
                     "read_files": [target],
                     "forbidden_files": [],
                     "external_provider_allowed": True,
-                    "approved_provider_ids": ["cloudflare"],
+                    "approved_provider_ids": [provider_id],
                     "outbound_files": [target],
                     "requirements": [],
                     "acceptance": ["focused test passes"],
@@ -178,39 +189,42 @@ def test_remote_binding_limit_serializes_same_quota_identity(tmp_path):
     root, manifests = _repo(tmp_path, targets)
     tracker = {"lock": threading.Lock(), "barrier": None, "active": 0, "peak": 0}
     orchestrator = DevFarmOrchestrator(
-        remote_governor=RemoteConcurrencyGovernor(max_inflight=2, per_binding_limits={"cloudflare:shared": 1}),
+        remote_governor=RemoteConcurrencyGovernor(max_inflight=2, per_binding_limits={"cloudflare": 1}),
         host_governor=HostConcurrencyGovernor(worktree_verification_slots=1),
     )
 
     proposals = orchestrator.propose(
         root,
         [
-            (manifests[0], _ConcurrentProvider(_output(targets[0]), tracker, "cloudflare:shared")),
-            (manifests[1], _ConcurrentProvider(_output(targets[1]), tracker, "cloudflare:shared")),
+            (manifests[0], _ConcurrentProvider(_output(targets[0]), tracker)),
+            (manifests[1], _ConcurrentProvider(_output(targets[1]), tracker)),
         ],
     )
 
     assert [item["status"] for item in proposals] == ["completed", "completed"]
     assert tracker["peak"] == 1
-    assert orchestrator.remote_governor.snapshot()["per_binding"]["cloudflare:shared"]["peak"] == 1
+    assert orchestrator.remote_governor.snapshot()["per_binding"]["cloudflare"]["peak"] == 1
 
 
 def test_remote_binding_limits_allow_independent_quota_identities_in_parallel(tmp_path):
     targets = ["tests/v2/worker_a.py", "tests/v2/worker_b.py"]
-    root, manifests = _repo(tmp_path, targets)
+    root, manifests = _repo(tmp_path, targets, provider_ids=["cloudflare", "gemini"])
     tracker = {"lock": threading.Lock(), "barrier": threading.Barrier(2), "active": 0, "peak": 0}
     orchestrator = DevFarmOrchestrator(
-        remote_governor=RemoteConcurrencyGovernor(max_inflight=2, per_binding_limits={"cloudflare:a": 1, "cloudflare:b": 1}),
+        remote_governor=RemoteConcurrencyGovernor(max_inflight=2, per_binding_limits={"cloudflare": 1, "gemini:worker": 1}),
         host_governor=HostConcurrencyGovernor(worktree_verification_slots=1),
     )
 
     proposals = orchestrator.propose(
         root,
         [
-            (manifests[0], _ConcurrentProvider(_output(targets[0]), tracker, "cloudflare:a")),
-            (manifests[1], _ConcurrentProvider(_output(targets[1]), tracker, "cloudflare:b")),
+            (manifests[0], _ConcurrentProvider(_output(targets[0]), tracker)),
+            (manifests[1], _ConcurrentProvider(_output(targets[1]), tracker, provider_id="gemini")),
         ],
     )
 
     assert [item["status"] for item in proposals] == ["completed", "completed"]
     assert tracker["peak"] == 2
+    snapshot = orchestrator.remote_governor.snapshot()["per_binding"]
+    assert snapshot["cloudflare"]["peak"] == 1
+    assert snapshot["gemini:worker"]["peak"] == 1

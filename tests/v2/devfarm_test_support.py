@@ -8,26 +8,36 @@ from src.dev_agent.providers.base import ModelProvider
 
 class _WorkerProvider(ModelProvider):
     provider_id = "cloudflare"
+    provider_binding_id = "cloudflare"
+    model_id = "@cf/meta/llama-3.1-8b-instruct"
+    intelligence_tier = "L1"
 
     def __init__(self, output: dict):
         self.output = output
+        self.request_count = 0
 
     def request(self, request: ModelRequest) -> ModelResponse:
+        self.request_count += 1
         return ModelResponse(
             provider=self.provider_id,
-            model="test-model",
+            model=self.model_id,
             text_segments=[json.dumps(self.output)],
         )
 
 
 class _RawWorkerProvider(ModelProvider):
     provider_id = "cloudflare"
+    provider_binding_id = "cloudflare"
+    model_id = "@cf/meta/llama-3.1-8b-instruct"
+    intelligence_tier = "L1"
 
     def __init__(self, text: str):
         self.text = text
+        self.request_count = 0
 
     def request(self, request: ModelRequest) -> ModelResponse:
-        return ModelResponse(provider=self.provider_id, model="test-model", text_segments=[self.text])
+        self.request_count += 1
+        return ModelResponse(provider=self.provider_id, model=self.model_id, text_segments=[self.text])
 
 
 def _manifest(root, *, base_revision):

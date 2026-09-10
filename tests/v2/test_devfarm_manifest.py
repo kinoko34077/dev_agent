@@ -118,6 +118,28 @@ def test_devfarm_eligibility_does_not_collapse_unknown_billing_into_free(tmp_pat
     assert policy.is_active("cloudflare", "unlisted-model") is False
 
 
+def test_run_worker_rechecks_provider_eligibility_before_external_request(tmp_path):
+    root, manifest_path = _workspace(tmp_path, prepare=False)
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": False,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": _patch(),
+        "notes": "proposal should never be requested",
+    }
+    provider = _WorkerProvider(output)
+    provider.model_id = "arbitrary-unqualified-model"
+    provider.model = provider.model_id
+
+    with pytest.raises(DevFarmError, match="eligible|qualification|billing"):
+        run_worker(root, manifest_path, provider=provider)
+
+    assert provider.request_count == 0
+
+
 def test_worker_prompt_makes_patch_and_test_claim_boundaries_explicit(tmp_path):
     root, manifest_path = _workspace(tmp_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))

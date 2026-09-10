@@ -45,7 +45,11 @@ AdapterはProviderの契約を実行境界へ変換し、少なくとも次を�
 | internal | 明示的に許可されたProviderに限定 |
 | sensitive / credential | 外部Providerへ送信不可または特別承認が必要 |
 
-分類名だけを追加して外部送信を許可することはしない。Provider capabilityと運用承認が揃うまで、現行経路の安全境界を維持する。
+分類名だけを追加して外部送信を許可することはしない。現行実装ではTaskの
+`sensitivity`をdurable stateからRouter／ModelRequest／AgentBackend admissionへ伝播し、
+既存のProvider privacy hard filterと明示承認境界を適用する。Providerごとの詳細な
+データ分類、credential専用承認フロー、hedging、Meta Providerは引き続き後段要件であり、
+分類値だけで外部送信を許可しない。
 
 ## 18. Hedged request
 
@@ -77,4 +81,4 @@ Meta ProviderはProviderを束ねる抽象として将来検討するが、通�
 
 ## 現行実装への適用境界
 
-Gemini、Groq、Cloudflare Workers AI、Mistral、OpenRouter Free、SambaNovaはProvider-neutralな注入transport AdapterとContractHarness検証まで実装した。さらにGemini／Groq／Cloudflare／SambaNovaには標準ライブラリHTTP Adapterを追加し、Provider固有仕様をAdapter内へ閉じ込めている。Gemini `gemini-3.5-flash-lite` と `gemini-3.8-flash` はthoughtSignature roundtripを含むcanonical live qualification済みで、Cloudflare Workers AIは `spec/v2/evidence/phase6-cloudflare-free-2026-09-09.json` でcanonical live通信、ToolCall往復、durable audit、budget reconciliationを確認済みだが、quota値は未報告である。OpenRouter Freeも `spec/v2/evidence/phase6-openrouter-free-2026-09-09.json` でcanonical live通信とToolCall往復を確認済みである。GroqはHTTP 403、SambaNovaはmodels endpoint HTTP 200後の推論HTTP 429/402、Mistralは推論HTTP 429で未 qualificationである。Mistralの最新失敗証跡は `spec/v2/evidence/phase7-mistral-2026-09-10.json`、SambaNovaの失敗証跡は `spec/v2/evidence/phase6-sambanova-free-2026-09-09.json` と `spec/v2/evidence/phase6-sambanova-gpt-oss-120b-2026-09-09.json` に保存し、free-provider qualification、成功、無償tier、paid worst-caseを推測しない。privacy分類、hedging、Meta Providerは未実装で、Adapter contract／decoderテストをlive qualificationやGate VERIFIEDの証拠に読み替えない。
+Gemini、Groq、Cloudflare Workers AI、Mistral、OpenRouter Free、SambaNovaはProvider-neutralな注入transport AdapterとContractHarness検証まで実装した。さらにGemini／Groq／Cloudflare／SambaNovaには標準ライブラリHTTP Adapterを追加し、Provider固有仕様をAdapter内へ閉じ込めている。Gemini `gemini-3.5-flash-lite` と `gemini-3.8-flash` はthoughtSignature roundtripを含むcanonical live qualification済みで、Cloudflare Workers AIは `spec/v2/evidence/phase6-cloudflare-free-2026-09-09.json` でcanonical live通信、ToolCall往復、durable audit、budget reconciliationを確認済みだが、quota値は未報告である。OpenRouter Freeも `spec/v2/evidence/phase6-openrouter-free-2026-09-09.json` でcanonical live通信とToolCall往復を確認済みである。GroqはHTTP 403、SambaNovaはmodels endpoint HTTP 200後の推論HTTP 429/402、Mistralは推論HTTP 429で未 qualificationである。Mistralの最新失敗証跡は `spec/v2/evidence/phase7-mistral-2026-09-10.json`、SambaNovaの失敗証跡は `spec/v2/evidence/phase6-sambanova-free-2026-09-09.json` と `spec/v2/evidence/phase6-sambanova-gpt-oss-120b-2026-09-09.json` に保存し、free-provider qualification、成功、無償tier、paid worst-caseを推測しない。Task sensitivityの伝播と既存のprivacy hard filter／Backend admissionは実装済みだが、Providerごとの詳細なデータ分類、hedging、Meta Providerは未実装である。Adapter contract／decoderテストをlive qualificationやGate VERIFIEDの証拠に読み替えない。

@@ -139,7 +139,13 @@ class DevFarmActivationPolicy:
             return entry
         return None
 
-    def eligibility_for(self, provider_id: str, model_id: str) -> DevFarmWorkerEligibility:
+    def eligibility_for(
+        self,
+        provider_id: str,
+        model_id: str,
+        *,
+        provider_binding_id: str | None = None,
+    ) -> DevFarmWorkerEligibility:
         """Resolve activation, qualification, and billing without a wildcard.
 
         ``is_active`` is intentionally a compatibility boolean wrapper around
@@ -149,6 +155,11 @@ class DevFarmActivationPolicy:
 
         normalized_provider = provider_id.strip() if isinstance(provider_id, str) else ""
         normalized_model = model_id.strip() if isinstance(model_id, str) else ""
+        normalized_binding = None
+        if provider_binding_id is not None:
+            if not isinstance(provider_binding_id, str) or not provider_binding_id.strip():
+                raise ValueError("provider_binding_id must be a non-empty string or None")
+            normalized_binding = provider_binding_id.strip()
         operator_activated = bool(normalized_provider and normalized_provider in self._active_provider_ids)
         if not operator_activated:
             return DevFarmWorkerEligibility(
@@ -185,6 +196,21 @@ class DevFarmActivationPolicy:
         binding_id = str(entry["provider_binding_id"])
         tier = str(entry["intelligence_tier"])
         capability_expiry = str(entry.get("expires_at")) if entry.get("expires_at") is not None else None
+        if normalized_binding is not None and normalized_binding != binding_id:
+            return DevFarmWorkerEligibility(
+                normalized_provider,
+                normalized_model,
+                binding_id,
+                tier,
+                True,
+                True,
+                capability_expiry,
+                False,
+                None,
+                None,
+                False,
+                "binding_not_qualified",
+            )
         profile = TRUSTED_RESOURCE_CATALOG.get((normalized_provider, binding_id, normalized_model))
         if profile is None:
             return DevFarmWorkerEligibility(
@@ -239,14 +265,30 @@ class DevFarmActivationPolicy:
             return False
         return self.eligibility_for(provider_id, model_id).eligible
 
-    def ensure_active(self, provider_id: str, model_id: str | None = None) -> None:
-        if not self.is_active(provider_id, model_id):
+    def ensure_active(
+        self,
+        provider_id: str,
+        model_id: str | None = None,
+        *,
+        provider_binding_id: str | None = None,
+    ) -> None:
+        if not isinstance(model_id, str) or not model_id.strip() or not self.eligibility_for(
+            provider_id,
+            model_id,
+            provider_binding_id=provider_binding_id,
+        ).eligible:
             label = f"{provider_id}/{model_id}" if model_id is not None else provider_id
             raise DevFarmError(f"development worker provider is not active: {label}")
 
-    def binding_for(self, provider_id: str, model_id: str) -> tuple[str, str | None]:
-        self.ensure_active(provider_id, model_id)
-        eligibility = self.eligibility_for(provider_id, model_id)
+    def binding_for(
+        self,
+        provider_id: str,
+        model_id: str,
+        *,
+        provider_binding_id: str | None = None,
+    ) -> tuple[str, str | None]:
+        self.ensure_active(provider_id, model_id, provider_binding_id=provider_binding_id)
+        eligibility = self.eligibility_for(provider_id, model_id, provider_binding_id=provider_binding_id)
         if eligibility.provider_binding_id is None:
             raise DevFarmError(f"development worker qualification is unavailable: {provider_id}/{model_id}")
         return eligibility.provider_binding_id, eligibility.intelligence_tier
@@ -1051,13 +1093,50 @@ def _request_task_id(manifest: Mapping[str, Any]) -> str:
     return str(uuid5(NAMESPACE_URL, f"dev_agent.devfarm/{manifest['task_id']}"))
 
 
+def _worker_provider_identity(provider: ModelProvider) -> tuple[str, str, str, str | None]:
+    provider_id = getattr(provider, "provider_id", None)
+    model_id = getattr(provider, "model_id", None) or getattr(provider, "model", None)
+    binding_id = getattr(provider, "provider_binding_id", None)
+    tier = getattr(provider, "intelligence_tier", None)
+    tier = getattr(tier, "value", tier)
+    if not isinstance(provider_id, str) or not provider_id.strip():
+        raise DevFarmError("worker provider must expose a non-empty provider_id")
+    if not isinstance(model_id, str) or not model_id.strip():
+        raise DevFarmError("worker provider must expose a non-empty model_id")
+    if not isinstance(binding_id, str) or not binding_id.strip():
+        raise DevFarmError("worker provider must expose a non-empty provider_binding_id")
+    if tier is not None and (not isinstance(tier, str) or not tier.strip()):
+        raise DevFarmError("worker provider intelligence_tier must be a non-empty string or None")
+    return provider_id.strip(), model_id.strip(), binding_id.strip(), tier.strip() if isinstance(tier, str) else None
+
+
+def _validate_worker_provider(provider: ModelProvider) -> tuple[str, str, str, str | None, DevFarmWorkerEligibility]:
+    provider_id, model_id, binding_id, tier = _worker_provider_identity(provider)
+    eligibility = DevFarmActivationPolicy().eligibility_for(
+        provider_id,
+        model_id,
+        provider_binding_id=binding_id,
+    )
+    if not eligibility.eligible:
+        raise DevFarmError(
+            "worker provider is not eligible for external development work: "
+            f"{provider_id}/{binding_id}/{model_id} ({eligibility.reason})"
+        )
+    if tier is not None and tier != eligibility.intelligence_tier:
+        raise DevFarmError(
+            "worker provider intelligence tier does not match qualified binding: "
+            f"{tier} != {eligibility.intelligence_tier}"
+        )
+    return provider_id, model_id, binding_id, tier, eligibility
+
+
 def run_worker(root: str | Path, manifest_path: str | Path, *, provider: ModelProvider) -> dict[str, Any]:
     root = Path(root).resolve()
     manifest = validate_manifest(_read_json(Path(manifest_path)))
     attempt_id = _attempt_id()
-    provider_id = getattr(provider, "provider_id", None)
     if not manifest["external_provider_allowed"]:
         raise DevFarmError("external provider execution is not approved by manifest")
+    provider_id, _model_id, _binding_id, _tier, _eligibility = _validate_worker_provider(provider)
     if provider_id not in manifest["approved_provider_ids"]:
         raise DevFarmError(f"provider is not approved by manifest: {provider_id}")
     # Stage A is remote proposal only.  Do not require or create a Git

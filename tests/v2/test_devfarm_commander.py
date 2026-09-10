@@ -23,6 +23,9 @@ from src.dev_agent.providers.base import ModelProvider
 
 class _WorkerProvider(ModelProvider):
     provider_id = "cloudflare"
+    provider_binding_id = "cloudflare"
+    model_id = "@cf/meta/llama-3.1-8b-instruct"
+    intelligence_tier = "L1"
 
     def __init__(self, output):
         self.output = output
@@ -30,7 +33,7 @@ class _WorkerProvider(ModelProvider):
     def request(self, request: ModelRequest) -> ModelResponse:
         return ModelResponse(
             provider=self.provider_id,
-            model="test-model",
+            model=self.model_id,
             text_segments=[json.dumps(self.output)],
         )
 
@@ -144,14 +147,14 @@ def _plan(root, revision, targets):
                     "owner": "worker",
                     "manifest_path": ".devfarm/tasks/worker-a.json",
                     "ownership": [targets[0]],
-                    "assignment": {"provider_id": "cloudflare", "model_id": "test-model"},
+                    "assignment": {"provider_id": "cloudflare", "model_id": "@cf/meta/llama-3.1-8b-instruct"},
                 },
                 {
                     "task_id": "worker-b",
                     "owner": "worker",
                     "manifest_path": ".devfarm/tasks/worker-b.json",
                     "ownership": [targets[1]],
-                    "assignment": {"provider_id": "cloudflare", "model_id": "test-model"},
+                    "assignment": {"provider_id": "cloudflare", "model_id": "@cf/meta/llama-3.1-8b-instruct"},
                 },
                 {
                     "task_id": "codex-review",
@@ -266,7 +269,7 @@ def test_commander_reassigns_a_failed_worker_within_attempt_limit(tmp_path):
                     "manifest_path": ".devfarm/tasks/worker-a.json",
                     "ownership": [targets[0]],
                     "max_attempts": 2,
-                    "assignment": {"provider_id": "cloudflare", "model_id": "test-model"},
+                        "assignment": {"provider_id": "cloudflare", "model_id": "@cf/meta/llama-3.1-8b-instruct"},
                 }
             ],
         },
@@ -298,7 +301,7 @@ def test_commander_persists_host_verification_boundary_failure(tmp_path):
                     "owner": "worker",
                     "manifest_path": ".devfarm/tasks/worker-a.json",
                     "ownership": [targets[0]],
-                    "assignment": {"provider_id": "cloudflare", "model_id": "test-model"},
+                        "assignment": {"provider_id": "cloudflare", "model_id": "@cf/meta/llama-3.1-8b-instruct"},
                 }
             ],
         },
@@ -385,7 +388,7 @@ def test_commander_integration_requires_git_evidence_and_records_it(tmp_path):
                     "owner": "worker",
                     "manifest_path": ".devfarm/tasks/worker-a.json",
                     "ownership": [targets[0]],
-                    "assignment": {"provider_id": "cloudflare", "model_id": "test-model"},
+                        "assignment": {"provider_id": "cloudflare", "model_id": "@cf/meta/llama-3.1-8b-instruct"},
                 }
             ],
         },
@@ -461,7 +464,7 @@ def test_commander_reissues_dependent_manifest_from_integration_revision(tmp_pat
                     "owner": "worker",
                     "manifest_path": ".devfarm/tasks/worker-a.json",
                     "ownership": [targets[0]],
-                    "assignment": {"provider_id": "cloudflare", "model_id": "test-model"},
+                        "assignment": {"provider_id": "cloudflare", "model_id": "@cf/meta/llama-3.1-8b-instruct"},
                 },
                 {
                     "task_id": "worker-b",
@@ -469,7 +472,7 @@ def test_commander_reissues_dependent_manifest_from_integration_revision(tmp_pat
                     "dependencies": ["worker-a"],
                     "manifest_path": original_manifest,
                     "ownership": [targets[1]],
-                    "assignment": {"provider_id": "cloudflare", "model_id": "test-model"},
+                    "assignment": {"provider_id": "cloudflare", "model_id": "@cf/meta/llama-3.1-8b-instruct"},
                 },
             ],
         },
