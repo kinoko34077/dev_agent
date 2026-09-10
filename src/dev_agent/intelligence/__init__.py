@@ -25,6 +25,7 @@ from .loop import EvaluationDispatchCoordinator, EvaluationDispatchCycle, Evalua
 from .lifecycle import TaskLifecycleCoordinator, TaskLifecycleTransition
 from .lifecycle_loop import FiniteLifecycleLoop, LifecycleLimitExceeded, LifecycleStep
 from .evidence_routing import EvidenceBasedRoutingPolicy, EvidenceRouteDecision, EvidenceRoutingError
+from .target import ExecutionTarget, ExecutionTargetDecision, ExecutionTargetError, ExecutionTargetPolicy
 
 __all__ = [
     "EvaluationEvidence",
@@ -65,4 +66,8 @@ __all__ = [
     "EvidenceBasedRoutingPolicy",
     "EvidenceRouteDecision",
     "EvidenceRoutingError",
+    "ExecutionTarget",
+    "ExecutionTargetDecision",
+    "ExecutionTargetError",
+    "ExecutionTargetPolicy",
 ]

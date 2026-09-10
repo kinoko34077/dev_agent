@@ -490,6 +490,12 @@ class AgentBackendDispatcher:
                 raise AgentBackendDispatchError(f"backend admission does not match {name}")
         if task.sensitivity != admission.sensitivity:
             raise AgentBackendDispatchError("backend admission privacy classification does not match task")
+        required = set(task.required_capabilities)
+        allowed = set(admission.allowed_capabilities)
+        missing = required - allowed
+        if missing:
+            missing_text = ", ".join(sorted(missing))
+            raise AgentBackendDispatchError(f"backend admission capabilities are insufficient: {missing_text}")
 
     def _validate_scope(self, request: AgentBackendRequest) -> None:
         for value in request.scope.allowed_paths:

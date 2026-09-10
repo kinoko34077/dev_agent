@@ -8,7 +8,7 @@ from src.dev_agent.domain.protocol import (
     TaskType,
     IntelligenceTier,
 )
-from src.dev_agent.intelligence import TaskIntelligencePolicy
+from src.dev_agent.intelligence import ExecutionTarget, ExecutionTargetError, ExecutionTargetPolicy, TaskIntelligencePolicy
 from src.dev_agent.providers.fake import FakeProvider
 from src.dev_agent.runtime import Controller
 from src.dev_agent.state import JsonStateStore
@@ -105,6 +105,45 @@ def test_intelligence_policy_keeps_initial_target_narrow_and_exposes_escalation_
     assert reasoning.current_tier is IntelligenceTier.L2
     assert reasoning.maximum_tier is IntelligenceTier.L3
     assert reasoning.allowed_tiers == (IntelligenceTier.L2,)
+
+
+def test_execution_target_keeps_l3_model_and_agent_backend_as_separate_choices():
+    policy = ExecutionTargetPolicy()
+
+    l3_model = policy.choose(
+        required_tier=IntelligenceTier.L3,
+        required_autonomy=False,
+        model_provider_available=True,
+        agent_backend_available=True,
+        agent_backend_approved=True,
+        budget_admitted=True,
+        privacy_allowed=True,
+    )
+    assert l3_model.target is ExecutionTarget.MODEL_PROVIDER
+
+    l3_backend = policy.choose(
+        required_tier=IntelligenceTier.L3,
+        required_autonomy=True,
+        required_capabilities=("coding",),
+        model_provider_available=True,
+        agent_backend_available=True,
+        agent_backend_approved=True,
+        agent_backend_capabilities=("coding",),
+        budget_admitted=True,
+        privacy_allowed=True,
+    )
+    assert l3_backend.target is ExecutionTarget.AGENT_BACKEND
+
+    with pytest.raises(ExecutionTargetError, match="approval"):
+        policy.choose(
+            required_tier=IntelligenceTier.L3,
+            required_autonomy=True,
+            model_provider_available=True,
+            agent_backend_available=True,
+            agent_backend_approved=False,
+            budget_admitted=True,
+            privacy_allowed=True,
+        )
 
 
 def test_controller_carries_task_profile_to_model_request_without_trusting_metadata(tmp_path):

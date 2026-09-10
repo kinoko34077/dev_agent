@@ -199,6 +199,36 @@ def test_dispatch_requires_typed_admission_evidence_even_when_boolean_authorized
     assert backend.start_calls == 0
 
 
+def test_dispatch_rejects_admission_that_does_not_cover_task_capabilities(store):
+    backend = FakeAgentBackend()
+    task = Task(
+        objective="backend capability check",
+        status=TaskStatus.READY,
+        required_capabilities=["coding"],
+    )
+    store.save_task(task)
+    request = _request(task.task_id)
+
+    def admission(task, request, identity):
+        return BackendAdmission(
+            task_id=identity.task_id,
+            dispatch_id=identity.dispatch_id,
+            workspace_id=identity.workspace_id,
+            allowed_paths=identity.allowed_paths,
+            sensitivity=request.sensitivity,
+            lease_proof_ref=f"lease:{identity.dispatch_id}",
+            budget_admission_ref=f"budget:{identity.dispatch_id}",
+            approval_ref=f"approval:{identity.dispatch_id}",
+            allowed_capabilities=(),
+        )
+
+    dispatcher = AgentBackendDispatcher(store, authorize=lambda task, request: True, admission=admission)
+    with pytest.raises(AgentBackendDispatchError, match="capabilities"):
+        dispatcher.dispatch(request, backend, dispatch_id=str(uuid4()), attempt=1)
+
+    assert backend.start_calls == 0
+
+
 def test_dispatch_rejects_authority_callback_exception_before_backend_start(store, task):
     backend = FakeAgentBackend()
     request = _request(task.task_id)
