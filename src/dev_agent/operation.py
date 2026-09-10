@@ -25,6 +25,12 @@ from .providers.factory import ProviderDefinition, ProviderFactory
 from .providers.fake import FakeProvider
 from .providers.registry import ProviderRegistry
 from .resources.budget import BudgetAuthority, BudgetGovernor, BudgetPolicy
+from .resources.billing_catalog import (
+    TRUSTED_RESOURCE_CATALOG,
+    TrustedResourceProfile,
+    default_binding_id as _catalog_default_binding_id,
+    profile_for as _catalog_profile_for,
+)
 from .resources.control import ResourceControlPlane
 from .resources.ledger import ResourceLedger
 from .resources.router import ResourceRouter
@@ -41,62 +47,18 @@ class OperationError(RuntimeError):
     """A user-facing Operation Layer error."""
 
 
-@dataclass(frozen=True)
-class _OperationResourceProfile:
-    """Trusted non-secret billing and quota facts for the Operation boundary.
-
-    Provider names are not billing identities.  A binding/model pair is only
-    treated as free when it is explicitly present in this catalog.  The
-    catalog intentionally contains no credential material and does not infer
-    a quota domain: that domain belongs to the operator's account/project
-    configuration.
-    """
-
-    provider_id: str
-    provider_binding_id: str
-    model_id: str
-    cost_minor: int | None
-    price_currency: str | None
-    quota_required: bool
-    intelligence_tier: str | None = None
-
-
-_OPERATION_RESOURCE_CATALOG: dict[tuple[str, str, str], _OperationResourceProfile] = {
-    ("fake", "fake:default", "deterministic"): _OperationResourceProfile(
-        "fake", "fake:default", "deterministic", 0, "JPY", False, "L1"
-    ),
-    ("cloudflare", "cloudflare", "@cf/meta/llama-3.1-8b-instruct"): _OperationResourceProfile(
-        "cloudflare", "cloudflare", "@cf/meta/llama-3.1-8b-instruct", 0, "JPY", True, "L1"
-    ),
-    ("openrouter", "openrouter:free", "openrouter/free"): _OperationResourceProfile(
-        "openrouter", "openrouter:free", "openrouter/free", 0, "JPY", True, "L1"
-    ),
-    ("gemini", "gemini:compat", "gemini-2.5-flash"): _OperationResourceProfile(
-        "gemini", "gemini:compat", "gemini-2.5-flash", 0, "JPY", True, None
-    ),
-    ("gemini", "gemini:worker", "gemini-3.5-flash-lite"): _OperationResourceProfile(
-        "gemini", "gemini:worker", "gemini-3.5-flash-lite", 0, "JPY", True, "L1"
-    ),
-    ("gemini", "gemini:core", "gemini-3.8-flash"): _OperationResourceProfile(
-        "gemini", "gemini:core", "gemini-3.8-flash", 0, "JPY", True, "L2"
-    ),
-    ("ollama", "ollama", "qwen3:8b"): _OperationResourceProfile(
-        "ollama", "ollama", "qwen3:8b", 0, "JPY", False, None
-    ),
-}
+_OperationResourceProfile = TrustedResourceProfile
+_OPERATION_RESOURCE_CATALOG = TRUSTED_RESOURCE_CATALOG
 
 
 def _default_binding_id(provider_id: str, model: str) -> str:
     """Return a known binding only for an exact catalog entry."""
 
-    for provider, binding, model_id in _OPERATION_RESOURCE_CATALOG:
-        if provider == provider_id and model_id == model:
-            return binding
-    return "fake:default" if provider_id == "fake" else provider_id
+    return _catalog_default_binding_id(provider_id, model)
 
 
 def _operation_resource_profile(provider_id: str, binding_id: str, model_id: str) -> _OperationResourceProfile | None:
-    return _OPERATION_RESOURCE_CATALOG.get((provider_id, binding_id, model_id))
+    return _catalog_profile_for(provider_id, binding_id, model_id)
 
 
 def _positive_number(value: float, name: str) -> float:

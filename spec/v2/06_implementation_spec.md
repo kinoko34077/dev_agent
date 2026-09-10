@@ -10,7 +10,7 @@
 | Security / Policy | `src/dev_agent/security/`、`src/dev_agent/intelligence/` | scope、audit、Evaluator、finite escalation、authority policy |
 | State | `src/dev_agent/state/` | SQLite connection/transaction owner、core/effect repository |
 | Tools | `src/dev_agent/tools/` | Tool policy、executor、effect guard、timeout/cancel |
-| Resources | `src/dev_agent/resources/` | ResourceLedger facade、catalog/observation/quota/health/budget、router/control |
+| Resources | `src/dev_agent/resources/` | ResourceLedger facade、catalog/observation/quota/health/budget、trusted billing catalog、router/control |
 | Providers | `src/dev_agent/providers/` | Adapter、Factory、Registry、Dispatcher、journal |
 | AgentBackend | `src/dev_agent/backends/` | 外部Agent harnessとのthin typed contract、既存StateStore effect intentへ接続するdispatcher。実adapterは別slice |
 | Runtime | `src/dev_agent/runtime/` | Controller、model turn、legacy compatibility、checkpoint/resume |

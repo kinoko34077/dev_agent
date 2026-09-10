@@ -25,6 +25,7 @@ from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.dispatch import ProviderDispatcher, ProviderRegistry
 from src.dev_agent.providers.factory import ProviderDefinition, ProviderFactory
 from src.dev_agent.resources.budget import BudgetAuthority, BudgetGovernor, BudgetPolicy
+from src.dev_agent.resources.billing_catalog import profile_for
 from src.dev_agent.resources.control import ResourceControlPlane
 from src.dev_agent.resources.ledger import ResourceLedger
 from src.dev_agent.resources.router import ResourceRouter
@@ -32,6 +33,10 @@ from src.dev_agent.runtime.controller import Controller
 from src.dev_agent.state.sqlite_store import SQLiteStateStore
 from src.dev_agent.tools.registry import ToolRegistry, ToolSpec
 from src.dev_agent.tools.runtime import ToolRuntime
+
+
+class FreeProviderQualificationBlocked(RuntimeError):
+    """The requested binding/model has no trusted no-charge qualification."""
 
 
 def _provider(name: str, model: str, timeout_seconds: float):
@@ -52,7 +57,21 @@ def _has_routable_quota_headroom(observation: object) -> bool:
     return any(observation.get(field) is not None for field in ("limit", "remaining", "request_remaining", "token_remaining", "daily_remaining"))
 
 
+def _trusted_free_profile(provider_name: str, model: str):
+    binding_id = f"{provider_name}:qualification"
+    profile = profile_for(provider_name, binding_id, model)
+    if profile is None or profile.cost_minor != 0:
+        raise FreeProviderQualificationBlocked(
+            f"provider/model is not in the trusted free catalog: {provider_name}/{binding_id}/{model}"
+        )
+    return profile
+
+
 def qualify(*, provider_name: str, model: str, timeout_seconds: float) -> dict:
+    # Resolve billing before the first network request.  A qualification
+    # command must not use the provider name as a proxy for a free tier, since
+    # a provider may expose both free and billable models or accounts.
+    profile = _trusted_free_profile(provider_name, model)
     with TemporaryDirectory(prefix="dev-agent-free-provider-") as directory:
         root = Path(directory)
         ledger = ResourceLedger(root / "resources.sqlite3")
@@ -76,10 +95,15 @@ def qualify(*, provider_name: str, model: str, timeout_seconds: float) -> dict:
                 capacity=1,
                 capabilities=["text", "tool_call"],
                 sensitivity="normal",
-                cost_minor=0,
-                price_currency="JPY",
+                cost_minor=profile.cost_minor,
+                price_currency=profile.price_currency,
                 quota_domain=quota_domain,
                 provider_binding_id=getattr(concrete, "provider_binding_id", provider_name),
+                metadata={
+                    "provider_binding_id": getattr(concrete, "provider_binding_id", provider_name),
+                    "model_id": model,
+                    "billing_authority": "trusted_catalog",
+                },
             )
             ledger.observe(resource_id, available=1, health="healthy", confidence=1.0, concurrency_limit=1)
             if quota_domain is not None:
@@ -147,6 +171,7 @@ def qualify(*, provider_name: str, model: str, timeout_seconds: float) -> dict:
                     if quota.get("authority") == "estimated"
                     else "observed"
                 ),
+                "billing_authority": "trusted_catalog",
                 "gemini_transcript": transcript,
                 "budget": governor.snapshot(),
             }
@@ -176,6 +201,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         output = qualify(provider_name=args.provider, model=args.model, timeout_seconds=args.timeout_seconds)
         code = 0
+    except FreeProviderQualificationBlocked as exc:
+        output = {"status": "blocked_external", "category": "untrusted_billing", "message": str(exc)}
+        code = 2
     except ProviderError as exc:
         output = {"status": "blocked_external" if exc.category == "authentication" else "failed", "category": exc.category, "message": str(exc)}
         code = 2

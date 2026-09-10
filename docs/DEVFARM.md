@@ -117,18 +117,20 @@ credentials in the process environment or an external secret store; do not
 put them in a manifest, command argument, repository file, or result artifact.
 
 ```text
-python scripts/qualify_free_provider.py --provider groq --model <groq-model-id> --evidence-path .devfarm/results/groq-live.json
-python scripts/qualify_free_provider.py --provider cloudflare --model <cloudflare-model-id> --evidence-path .devfarm/results/cloudflare-live.json
+python scripts/qualify_free_provider.py --provider cloudflare --model @cf/meta/llama-3.1-8b-instruct --evidence-path .devfarm/results/cloudflare-live.json
 python scripts/qualify_free_provider.py --provider openrouter --model openrouter/free --evidence-path .devfarm/results/openrouter-live.json
 python scripts/qualify_free_provider.py --provider gemini --model gemini-3.5-flash-lite --evidence-path .devfarm/results/gemini-live.json
-python scripts/qualify_free_provider.py --provider mistral --model <mistral-model-id> --evidence-path .devfarm/results/mistral-live.json
 ```
 
-The Groq probe uses `GROQ_API_KEY`; the Cloudflare probe uses
+The no-charge qualification command accepts only an exact provider/binding/
+model entry from the trusted billing catalog and rejects unknown candidates
+before the first network request. The Groq probe uses `GROQ_API_KEY`; the Cloudflare probe uses
 `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`. Mistral uses
 `MISTRAL_API_KEY`; its latest configured-key attempt reached the API but
-returned HTTP 429 and remains unqualified. Missing credentials are reported
-as `blocked_external`. SambaNova has a separate HTTP Adapter, but is not
+returned HTTP 429 and remains unqualified; it must not be passed to the
+no-charge command merely by provider name. Groq likewise remains
+unqualified after HTTP 403. Missing credentials are reported as
+`blocked_external`. SambaNova has a separate HTTP Adapter, but is not
 included in this no-charge qualification command until its billing tier and
 worst-case cost are explicitly qualified. A successful result is still a
 qualification artifact for Codex review, not automatic Gate promotion or

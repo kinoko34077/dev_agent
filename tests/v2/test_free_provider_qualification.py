@@ -1,6 +1,9 @@
 import json
 
-from scripts.qualify_free_provider import qualify
+import pytest
+
+from scripts.qualify_free_provider import FreeProviderQualificationBlocked, qualify
+from src.dev_agent.resources.billing_catalog import TrustedResourceProfile
 
 
 class _Response:
@@ -18,8 +21,35 @@ class _Response:
         return self._payload
 
 
+def test_free_provider_qualification_rejects_untrusted_binding_model_before_http(monkeypatch):
+    monkeypatch.setenv("GROQ_API_KEY", "test-secret")
+
+    def unexpected_http(*_args, **_kwargs):
+        raise AssertionError("untrusted free candidate must be rejected before HTTP")
+
+    monkeypatch.setattr("src.dev_agent.providers.groq.provider.urlopen", unexpected_http)
+    with pytest.raises(FreeProviderQualificationBlocked, match="trusted free catalog"):
+        qualify(provider_name="groq", model="untrusted-model", timeout_seconds=2)
+
+
+def _add_fixture_free_profile(monkeypatch, provider: str, model: str):
+    binding = f"{provider}:qualification"
+    import scripts.qualify_free_provider as qualification_module
+
+    original_profile_for = qualification_module.profile_for
+    fixture = TrustedResourceProfile(provider, binding, model, 0, "JPY", False)
+
+    def profile_for(provider_id, provider_binding_id, model_id):
+        if (provider_id, provider_binding_id, model_id) == (provider, binding, model):
+            return fixture
+        return original_profile_for(provider_id, provider_binding_id, model_id)
+
+    monkeypatch.setattr(qualification_module, "profile_for", profile_for)
+
+
 def test_free_provider_qualification_uses_live_response_for_quota_and_dispatch(monkeypatch):
     monkeypatch.setenv("GROQ_API_KEY", "test-secret")
+    _add_fixture_free_profile(monkeypatch, "groq", "test-model")
     responses = [
         _Response(
             {
@@ -121,6 +151,7 @@ def test_openrouter_free_qualification_uses_canonical_dispatch_path(monkeypatch)
 
 def test_mistral_free_qualification_uses_canonical_dispatch_path(monkeypatch):
     monkeypatch.setenv("MISTRAL_API_KEY", "test-secret")
+    _add_fixture_free_profile(monkeypatch, "mistral", "mistral-small-latest")
     responses = [
         _Response(
             {
