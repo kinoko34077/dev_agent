@@ -1136,7 +1136,7 @@ def run_worker(root: str | Path, manifest_path: str | Path, *, provider: ModelPr
     attempt_id = _attempt_id()
     if not manifest["external_provider_allowed"]:
         raise DevFarmError("external provider execution is not approved by manifest")
-    provider_id, _model_id, _binding_id, _tier, _eligibility = _validate_worker_provider(provider)
+    provider_id, model_id, _binding_id, _tier, _eligibility = _validate_worker_provider(provider)
     if provider_id not in manifest["approved_provider_ids"]:
         raise DevFarmError(f"provider is not approved by manifest: {provider_id}")
     # Stage A is remote proposal only.  Do not require or create a Git
@@ -1179,6 +1179,14 @@ def run_worker(root: str | Path, manifest_path: str | Path, *, provider: ModelPr
         return result
     elapsed_ms = round((time.perf_counter() - started) * 1000)
     metrics = _worker_metrics(provider, request, response=response, elapsed_ms=elapsed_ms, task_type=manifest["task_type"])
+    if getattr(response, "provider", None) != provider_id or getattr(response, "model", None) != model_id:
+        return _record_failed_model_output(
+            root,
+            manifest,
+            "worker response identity mismatch with admitted provider binding",
+            worker_metrics=metrics,
+            attempt_id=attempt_id,
+        )
     text = "".join(response.text_segments)
     if len(text) > MAX_OUTPUT_TEXT_CHARS:
         return _record_failed_model_output(root, manifest, "worker response exceeds output limit", worker_metrics=metrics, attempt_id=attempt_id)

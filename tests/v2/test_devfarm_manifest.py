@@ -6,10 +6,21 @@ import pytest
 
 from scripts.devfarm import DevFarmError, validate_manifest
 from scripts.devfarm_worker import DevFarmActivationPolicy, _input_context, _prompt, _provider, apply_and_verify, run_worker
+from src.dev_agent.domain.protocol import ModelResponse
 from src.dev_agent.providers.cloudflare import CloudflareWorkersAIHttpProvider
 from src.dev_agent.providers.gemini import GeminiHttpProvider
 from src.dev_agent.providers.openrouter import OpenRouterHttpProvider
 from tests.v2.devfarm_test_support import _RawWorkerProvider, _WorkerProvider, _workspace, _patch
+
+
+class _MismatchedResponseProvider(_WorkerProvider):
+    def request(self, request):
+        self.request_count += 1
+        return ModelResponse(
+            provider="gemini",
+            model="gemini-3.5-flash-lite",
+            text_segments=[json.dumps(self.output)],
+        )
 
 
 def test_devfarm_provider_uses_factory_and_explicit_activation_allowlist():
@@ -138,6 +149,26 @@ def test_run_worker_rechecks_provider_eligibility_before_external_request(tmp_pa
         run_worker(root, manifest_path, provider=provider)
 
     assert provider.request_count == 0
+
+
+def test_run_worker_rejects_response_identity_mismatch(tmp_path):
+    root, manifest_path = _workspace(tmp_path, prepare=False)
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": False,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": _patch(),
+        "notes": "response identity must match the admitted binding",
+    }
+
+    result = run_worker(root, manifest_path, provider=_MismatchedResponseProvider(output))
+
+    assert result["status"] == "failed"
+    assert result["changed_files"] == []
+    assert "identity mismatch" in result["known_issues"][0]
 
 
 def test_worker_prompt_makes_patch_and_test_claim_boundaries_explicit(tmp_path):
