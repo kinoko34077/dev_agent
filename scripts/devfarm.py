@@ -398,7 +398,7 @@ def validate_result(value: Mapping[str, Any], *, manifest: Mapping[str, Any]) ->
 def init_farm(root: str | Path) -> Path:
     repository = Path(root).resolve()
     farm = repository / ".devfarm"
-    for name in ("tasks", "results", "shared", "status", "worktrees"):
+    for name in ("tasks", "results", "shared", "status", "worktrees", "plans"):
         (farm / name).mkdir(parents=True, exist_ok=True)
     return farm
 
@@ -464,6 +464,40 @@ def main(argv: list[str] | None = None) -> int:
     result = sub.add_parser("validate-result")
     result.add_argument("path", type=Path)
     result.add_argument("--manifest", required=True, type=Path)
+    plan = sub.add_parser("plan", help="create a durable development parent plan")
+    plan.add_argument("spec", type=Path)
+    plan.add_argument("--root", type=Path, default=Path.cwd())
+    dispatch = sub.add_parser("dispatch", help="dispatch READY worker tasks as remote proposals")
+    dispatch.add_argument("run_id")
+    dispatch.add_argument("--provider")
+    dispatch.add_argument("--model")
+    dispatch.add_argument("--timeout-seconds", type=float, default=30.0)
+    dispatch.add_argument("--root", type=Path, default=Path.cwd())
+    status = sub.add_parser("status", help="show a durable parent plan")
+    status.add_argument("run_id")
+    status.add_argument("--root", type=Path, default=Path.cwd())
+    collect = sub.add_parser("collect", help="collect existing Worker result artifacts")
+    collect.add_argument("run_id")
+    collect.add_argument("--root", type=Path, default=Path.cwd())
+    verify = sub.add_parser("verify", help="host-verify proposed Worker results")
+    verify.add_argument("run_id")
+    verify.add_argument("--task-id", action="append", dest="task_ids")
+    verify.add_argument("--root", type=Path, default=Path.cwd())
+    resume = sub.add_parser("resume", help="reconcile artifacts and release dependency-ready tasks")
+    resume.add_argument("run_id")
+    resume.add_argument("--root", type=Path, default=Path.cwd())
+    reassign = sub.add_parser("reassign", help="reassign a bounded failed Worker task")
+    reassign.add_argument("run_id")
+    reassign.add_argument("task_id")
+    reassign.add_argument("--provider", required=True)
+    reassign.add_argument("--model", required=True)
+    reassign.add_argument("--provider-binding-id")
+    reassign.add_argument("--root", type=Path, default=Path.cwd())
+    integrated = sub.add_parser("mark-integrated", help="record explicit Codex integration review")
+    integrated.add_argument("run_id")
+    integrated.add_argument("task_id")
+    integrated.add_argument("--note", required=True)
+    integrated.add_argument("--root", type=Path, default=Path.cwd())
     args = parser.parse_args(argv)
     try:
         if args.command == "init":
@@ -472,10 +506,75 @@ def main(argv: list[str] | None = None) -> int:
             print(prepare_worktree(args.root, task_id=args.task_id, branch=args.branch, revision=args.revision))
         elif args.command == "validate-manifest":
             print(json.dumps(validate_manifest(_read_json(args.path)), ensure_ascii=False, indent=2))
-        else:
+        elif args.command == "validate-result":
             normalized_manifest = validate_manifest(_read_json(args.manifest))
             normalized_result = validate_result(_read_json(args.path), manifest=normalized_manifest)
             print(json.dumps(normalized_result, ensure_ascii=False, indent=2))
+        elif args.command == "plan":
+            from scripts.devfarm_commander import create_plan
+
+            print(json.dumps(create_plan(args.root, _read_json(args.spec)), ensure_ascii=False, indent=2))
+        elif args.command == "dispatch":
+            from scripts.devfarm_commander import dispatch_cli
+
+            print(
+                json.dumps(
+                    dispatch_cli(
+                        args.root,
+                        args.run_id,
+                        provider_id=args.provider,
+                        model_id=args.model,
+                        timeout_seconds=args.timeout_seconds,
+                    ),
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+        elif args.command == "status":
+            from scripts.devfarm_commander import CommanderPlanStore
+
+            print(json.dumps(CommanderPlanStore(args.root).load(args.run_id), ensure_ascii=False, indent=2))
+        elif args.command == "collect":
+            from scripts.devfarm_commander import collect_plan
+
+            print(json.dumps(collect_plan(args.root, args.run_id), ensure_ascii=False, indent=2))
+        elif args.command == "verify":
+            from scripts.devfarm_commander import verify_plan
+
+            print(json.dumps(verify_plan(args.root, args.run_id, task_ids=args.task_ids), ensure_ascii=False, indent=2))
+        elif args.command == "resume":
+            from scripts.devfarm_commander import resume_plan
+
+            print(json.dumps(resume_plan(args.root, args.run_id), ensure_ascii=False, indent=2))
+        elif args.command == "reassign":
+            from scripts.devfarm_commander import reassign_task
+
+            print(
+                json.dumps(
+                    reassign_task(
+                        args.root,
+                        args.run_id,
+                        args.task_id,
+                        provider_id=args.provider,
+                        model_id=args.model,
+                        provider_binding_id=args.provider_binding_id,
+                    ),
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+        elif args.command == "mark-integrated":
+            from scripts.devfarm_commander import mark_integrated
+
+            print(
+                json.dumps(
+                    mark_integrated(args.root, args.run_id, args.task_id, note=args.note),
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+        else:
+            parser.error(f"unsupported command: {args.command}")
     except (DevFarmError, FileExistsError, RuntimeError) as exc:
         parser.error(str(exc))
     return 0

@@ -12,6 +12,7 @@ The intended ownership is:
 
 ```text
 Codex (Commander / integrator)
+  ├─ .devfarm/plans/<run-id>.json     # durable parent plan
   ├─ .devfarm/tasks/<task-id>.json
   ├─ .devfarm/results/<task-id>/result.json
   └─ .devfarm/worktrees/<task-id>/   # one worker checkout
@@ -150,3 +151,35 @@ changes or Gate evidence. Groq returned HTTP 403, SambaNova returned HTTP
 No live or Gate evidence is inferred from adapter unit tests, and a Worker
 result does not become an official change until Codex reviews and integrates
 it.
+
+## Commander parent plans
+
+`python scripts/devfarm.py plan` creates a development-only parent Plan above
+the existing Worker manifests. The Plan records the objective, exact base
+revision, child Tasks, non-overlapping ownership, dependencies, assignments,
+attempt limits, and result references in `.devfarm/plans/<run-id>.json`.
+
+```text
+python scripts/devfarm.py plan .devfarm/plan-input.json --root .
+python scripts/devfarm.py status <run-id> --root .
+python scripts/devfarm.py dispatch <run-id> --root .
+python scripts/devfarm.py collect <run-id> --root .
+python scripts/devfarm.py verify <run-id> --root .
+python scripts/devfarm.py resume <run-id> --root .
+```
+
+`dispatch` releases only dependency-ready Worker Tasks and calls the existing
+`DevFarmOrchestrator.propose()` boundary. Remote proposals may be concurrent,
+but no worktree is created until `verify` calls the existing Host Verification
+boundary. `resume` reloads artifacts and releases dependent tasks without
+automatically replaying a provider request. `reassign` is finite and only
+available for rejected/blocked Worker Tasks below their manifest/Plan attempt
+limit. A Codex-owned Task can be tracked in the same Plan and is explicitly
+marked with `mark-integrated` after review.
+
+The normalized parent-plan contract is
+[`spec/v2/DEVFARM_COMMANDER_PLAN_SCHEMA.json`](../spec/v2/DEVFARM_COMMANDER_PLAN_SCHEMA.json),
+and its Python validation/transition owner is
+`scripts/devfarm_commander.py`. This layer does not own Production Runtime
+state, Scheduler leases, budget, quota, authority, or Gate promotion. It never
+automatically applies a patch to `v2/bootstrap`.
