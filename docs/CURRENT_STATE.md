@@ -1,6 +1,6 @@
 # Current State — v2/bootstrap
 
-実装基準は `e8618d7` です。本書はそのコードと、直近の外部資格化・DevFarm
+実装基準は `69320dd` です。本書はそのコードと、直近の外部資格化・DevFarm
 実行結果を同期したCurrent Stateです。GATE_STATUSの既存statusは変更していません。
 
 ## 判定
@@ -20,8 +20,8 @@
 
 ## 検証
 
-- v2ローカル全回帰: `433 passed, 1 skipped in 107.68s`（`python -m pytest tests/v2 -q --durations=10`）
-- Operation Layer focused: `7 passed`（submit／status、canonical Dispatcher経由のstart、queue復旧、safe stop、durable cancellation request）
+- v2ローカル全回帰: `434 passed, 1 skipped`（`python -m pytest tests/v2 -q --durations=10`、所要時間は実行環境依存）
+- Operation Layer focused: `8 passed`（submit／status、canonical Dispatcher経由のstart、queue復旧、provider非依存safe stop、durable cancellation request）
 - Evaluator→dispatch cycle focused: `18 passed in 2.62s`
 - intelligence routing / escalation execution focused: `26 passed in 1.28s`
 - DevFarm manifest / patch / host verification focused: `24 passed in 27.50s`

@@ -11,6 +11,11 @@
 - Queueへlease所有者付き／未leaseのcancel境界を追加し、WorkerはControllerの`CANCELLED`結果をqueueの`cancelled`へ反映する。別processのstopはrunning Taskを即時失敗扱いせず、durable cancellation requestとして所有Workerへ伝播する。`WAITING_RECONCILIATION`はcancelで上書きしない。
 - Operation focused `7 passed`、v2全回帰 `433 passed, 1 skipped`。G6O1と既存Gate判定は変更していない。
 
+### 2026-09-10 JST — Provider-independent Operation stop
+
+- `stop <task-id>`をprovider／resource設定なしで実行できる専用経路へ分離した。queued／waitingはqueueの`cancelled`へ、runningは所有Workerへdurable cancellation requestだけを渡し、外部副作用が不確定なTaskを即時terminalizeしない。
+- durable stop flagの別接続検証と、別process相当のrunning cancellation request検証を追加した。Operation focusedは`8 passed`、v2全回帰は`434 passed, 1 skipped`。G6O1と既存Gate判定は変更していない。
+
 ### 2026-09-10 JST — Reset-aware quota metadata and bounded DevFarm stages
 
 - ResourceLedgerをschema v8へordered migrationし、quota observationにmetric／window／reset source／blocked-until／block reasonを追加した。429／quota／transportのtyped ProviderErrorはProvider-neutralな保守的blockへ変換し、古いblocked observationを時計経過だけでroutingへ戻さない。Recovery validatorもschema v8と新しいquota metadataを検証する。
