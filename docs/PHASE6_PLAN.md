@@ -37,6 +37,13 @@ proposal, isolated Host Verification (`1 passed`), Codex review, and explicit
 integration. This local harness evidence validates Commander composition; it
 does not qualify an external Cloud Worker or promote a Gate.
 
+The Cloudflare Operation Layer smoke also completed the canonical external
+path through `submit`, `start --once`, Controller, ProviderDispatcher,
+ToolCall/ToolResult, final response, durable `task.completed`, and two
+successful provider-audit records. The compact evidence is
+`spec/v2/evidence/phase7-operation-cloudflare-2026-09-10.json`; it is not paid
+Provider or Gate evidence.
+
 Phase 6A〜6E is the current v2 work boundary. The phase is deliberately split
 into small control-plane components so that resource exhaustion, provider
 failure, recovery mutation, and worker ownership remain deterministic and

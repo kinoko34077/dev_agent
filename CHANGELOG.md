@@ -9,6 +9,11 @@
 - Operationの`start`／`start --once`が既存`QuotaWakeScheduler`と`QuotaRequalificationCoordinator`のbounded maintenance boundaryを毎回通るようにした。OpenAI互換Providerは既存`/models` probeから取得できるrate-limit headerだけをprovider-neutral observationへ渡し、telemetryが無い場合はquota blockを推測解除しない。
 - focused suite `16 passed`、v2全回帰 `462 passed, 1 skipped`。G6O1、Provider qualification、Evidence routingのadvisory-only方針は変更していない。
 
+### 2026-09-10 JST — Operation Layer Cloudflare external E2E
+
+- Cloudflare `@cf/meta/llama-3.1-8b-instruct`を使い、`submit`から`start --once`までのcanonical Operation経路を実通信確認した。ToolCall／ToolResult、final response、durable `task.completed`、provider audit成功2件を確認し、秘密情報を証跡へ保存していない。
+- 証跡を`spec/v2/evidence/phase7-operation-cloudflare-2026-09-10.json`へ保存した。Cloudflare quota telemetryは未報告のため推測せず、G6O1／Gate statusは変更していない。
+
 ### 2026-09-10 JST — Commander dogfood integration boundary
 
 - 固定revision `aa2f819`を使うCommander Planで、決定的local harnessのproposal、隔離worktree Host Verification、Codex review、明示integrationを完了した。host側focused testは`1 passed`で、Worker結果にはModel自己申告ではなくhost_verified_testsとdurable metricsを記録した。

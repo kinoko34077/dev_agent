@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "evidence_type": "phase7_operation_external_e2e",
+  "observed_date": "2026-09-10",
+  "provider_id": "cloudflare",
+  "model_id": "@cf/meta/llama-3.1-8b-instruct",
+  "binding_id": "cloudflare",
+  "task_id": "05b1b4a2-4821-433d-a19a-c4cf22577a7b",
+  "operation": {
+    "submit": "completed",
+    "start_once": "completed",
+    "terminal_state": "completed",
+    "queue_state": "completed",
+    "selected_provider": "cloudflare",
+    "selected_binding": "cloudflare",
+    "last_event": "task.completed"
+  },
+  "durable_trace": {
+    "event_types": [
+      "model.requested",
+      "model.responded",
+      "tool.completed",
+      "model.requested",
+      "model.responded",
+      "task.completed"
+    ],
+    "provider_audit_count": 2,
+    "provider_audit_outcome": "succeeded",
+    "estimated_cost_minor": 0,
+    "price_currency": "JPY",
+    "native_unit": "request"
+  },
+  "scope": "Operation Layer canonical external-provider path only",
+  "limitations": [
+    "This is not paid-provider worst-case qualification.",
+    "It does not promote G6O1 or any Gate status.",
+    "Provider quota telemetry was not reported and was not inferred."
+  ],
+  "secrets_recorded": false
+}
