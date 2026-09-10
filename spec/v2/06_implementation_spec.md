@@ -45,6 +45,7 @@ scheduler / operation composition
 - `scheduler` は Queue/Worker/lease と runtime lifecycle を接続するが、Provider SDK の分岐や新しい Task state machine を所有しない。lease claim統計とlogical execution retryは別カウンタとして保持する。
 - `operation` は既存部品を composition する薄い入口であり、production scheduler を並立させない。
 - `operation` は起動時に既存 Resource を再構成・上書きせず、trusted billing catalog と operator-owned quota domain を検証する。Provider の正常応答／bounded quota probe が Resource observation freshness の唯一の更新入口であり、未知価格・未観測quotaは fail-closed とする。timeout後のlate provider successは同一effect intentへreconcileしてから、保存済み応答を通常Controller経路へreplayする。
+- `intelligence`／`operation` はTaskのcanonical execution capability、competency、policy traitを分類し、Routerへはexecution capabilityだけを渡す。qualification projectionは期限内のexact provider／binding／modelから導出し、model名heuristicや未知文字列でproduction routeを許可しない。provider execution saturationはbinding lane単位のwake reasonへ写像する。
 - `backends` は外部Agent harnessのidentity、session、event、cancellation、resultをtyped化し、既存StateStoreのeffect intent／Event／reconciliationへ接続する薄い境界である。`AgentBackendDispatcher`は既存authorityの証拠を`BackendAdmission`として要求し、lease／budget／approval／privacyの各strict-`True` flagとTask／Backend identityのcapability coverageをstart前に検証する。Runtime/State/Scheduler/Budget/Recoveryの所有権を持たず、Backend固有adapterはこの境界の外側に置く。
 - `intelligence/target.py` の `ExecutionTargetPolicy` は ModelProvider と AgentBackend の実行先を分離する。通常はModelProviderを選び、AgentBackendは明示autonomy、approval、budget、privacy、capabilityの既存証拠が揃った場合だけ許可する。tierだけを理由に自動昇格しない。
 - `recovery/` は runtime/controller から独立し、durable artifact と operator authority を扱う。Recovery が Controller の内部状態を書き換える設計にしない。
@@ -68,6 +69,7 @@ scheduler / operation composition
 - FiniteLifecycle の使用数は durable Task/Event history から復元し、process restart で retry 上限をリセットしない。
 - Quota は observation の `quota_domain` と reset/blocked_until を正本とし、reset 到達だけで復帰させず、bounded probe と正常観測の永続化後に routing へ戻す。
 - cancellation は Task payload の競合する全置換だけに依存せず、append-only control record を terminal transition 直前に再読込する。Provider health は selected resource/binding、quota wake は `quota:<domain>` に限定する。
+- waiting reasonはwake authorityとrestart behaviorを持つ。provider saturationはmatching binding capacity、quotaはmatching domainのbounded requalification、late provider completionは同一effect intentのdurable replayだけがwakeし、unknown outcomeを別dispatchへ変換しない。
 - Evidence-based routing は現段階では advisory とし、minimum sample、freshness、rollback 条件を満たすまで hard routing policy に接続しない。
 - Operation の lifecycle composition は `OperationService` が `EvaluationCoordinator`、`FiniteLifecycleLoop`、`TaskLifecycleCoordinator`、`EscalationExecutor` を composition する。Operation はこれらの内部state machineを複製せず、reviewed dispatchには `DurableQueue` の lease proofを要求する。
 - Root planning は `src/dev_agent/intelligence/planner.py` のproposal／validatorを使い、Task作成前に既存`TaskGraph`制約と親子privacyを検証する。依存childは独立schedulerを作らず、`WAITING_DEPENDENCY`としてStateStoreに保存する。

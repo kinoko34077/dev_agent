@@ -99,6 +99,8 @@
 - 権限: 起動/投入/停止の operator boundary。stop は未知の外部効果を FAILED に偽装しない。
 - 禁止: 新しい scheduler/state machine、busy polling、budget/quota/approval の bypass。
 - Resource 起動規則: 既存 Resource catalog、価格、quota domain、health、operator metadata は read-only で扱う。free 判定は trusted な binding×model catalog に限定し、未知価格は推測せず拒否する。cloud Resource の quota domain は operator-owned 設定として明示され、正常な Provider 応答または bounded probe だけが freshness を更新する。
+- Capability／Task入力規則: QualificationResolverがcurrent qualification evidenceからcanonical execution capabilityを導出する。`architecture`等のTask competency／policy traitはtier・risk・approvalへ使うがRouterのProvider capabilityへ渡さず、`submit`／TaskIntelligencePolicy入口では未知capabilityをfail-fastする。期限切れ・未資格化のmodel名やtier推測はproduction routing authorityにならない。
+- Waiting／wake規則: `resource:provider_execution_saturated:<binding>`は該当binding laneのcapacity/reconciliation boundaryだけがwakeし、quotaは`quota:<domain>`、reconciliationはdurable effect outcome、approval／budget／maintenanceは各authorityがwakeする。waitingはclock経過やqueue claimだけで再実行可能にならず、claim counterとlogical execution attemptを分離する。
 - 拒否/停止規則: `DispatchDenied` は budget、quota、maintenance、resource wait、invalid failure の意味を保持して Task 状態へ写像する。cross-process cancellation は durable control と terminal commit 時の再確認を通り、外部効果不明時は `WAITING_RECONCILIATION` を維持する。late provider successは保存済み応答のlifecycle replayへ戻し、blind retryしない。
 - Provider composition: 通常運用は複数のqualified bindingを`ProviderFactory`／`ProviderRegistry`へ登録でき、exact current intelligence tierをhard filterしたうえで同Tierの別bindingへbounded fallbackする。単一provider指定はdebug／qualification／manual pinとして扱う。
 
