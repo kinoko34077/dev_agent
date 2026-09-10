@@ -156,3 +156,33 @@ def test_planning_rejects_unknown_capability_and_worker_protected_child(tmp_path
         )
         with pytest.raises(PlanningValidationError, match="protected"):
             service.validate_planning_proposal(protected)
+
+
+def test_planner_dependency_release_enqueues_only_after_all_dependencies_complete(tmp_path):
+    config = _config(tmp_path)
+    root = _root(config)
+    proposal = RootPlanningProposal(
+        parent_task_id=root.task_id,
+        rationale="release dependent work after implementation",
+        children=(
+            ChildTaskProposal(child_key="implementation", objective="implement", task_type=TaskType.WORKER),
+            ChildTaskProposal(
+                child_key="docs",
+                objective="document",
+                task_type=TaskType.DETERMINISTIC,
+                dependencies=("implementation",),
+            ),
+        ),
+    )
+
+    with OperationService.open(config) as service:
+        children = service.apply_planning_proposal(proposal)
+        assert service.release_planner_dependencies() == ()
+        implementation, docs = children
+        implementation.status = TaskStatus.COMPLETED
+        service.store.save_task(implementation)
+        released = service.release_planner_dependencies(proposal_id=proposal.proposal_id)
+        assert [task.task_id for task in released] == [docs.task_id]
+        assert service.store.load_task(docs.task_id).status is TaskStatus.QUEUED
+        assert service.queue.snapshot(docs.task_id).state == "queued"
+        assert service.store.has_event(docs.task_id, "task.planner_dependency_released")

@@ -17,8 +17,10 @@ from pathlib import Path
 import sqlite3
 from threading import Event, RLock
 from typing import Any, Callable, Mapping
+from uuid import NAMESPACE_URL, uuid5
 
 from ._sqlite import connect
+from .domain.protocol import Event as ProtocolEvent
 from .domain.protocol import ModelRequest, RiskLevel, Task, TaskStatus, TaskType
 from .providers.dispatch import ProviderDispatcher
 from .providers.factory import ProviderDefinition, ProviderFactory
@@ -674,6 +676,77 @@ class OperationService:
                 self.queue.enqueue(task.task_id, priority=priority, max_attempts=task.limits.max_retries + 1)
         return tuple(created)
 
+    def release_planner_dependencies(self, *, proposal_id: str | None = None) -> tuple[Task, ...]:
+        """Release or terminalize validated planner children from durable state.
+
+        Planner dependencies are ordinary Task metadata, not a second
+        scheduler. A waiting child is enqueued only after every named sibling
+        has completed. If a dependency has failed or been cancelled, the
+        child is terminalized without execution rather than retried blindly.
+        """
+
+        payloads = self.store.snapshot().get("tasks", {})
+        tasks = tuple(
+            Task.from_persisted_dict(payload)
+            for payload in payloads.values()
+            if isinstance(payload, dict)
+        )
+        by_proposal: dict[str, dict[str, Task]] = {}
+        waiting: list[Task] = []
+        for task in tasks:
+            metadata = task.metadata if isinstance(task.metadata, dict) else {}
+            current_proposal = metadata.get("planning_proposal_id")
+            if not isinstance(current_proposal, str) or not current_proposal.strip():
+                continue
+            if proposal_id is not None and current_proposal != proposal_id:
+                continue
+            child_key = metadata.get("planner_child_key")
+            if isinstance(child_key, str) and child_key.strip():
+                by_proposal.setdefault(current_proposal, {})[child_key] = task
+            if task.status is TaskStatus.WAITING_DEPENDENCY and metadata.get("wait_reason") == "planner_dependency":
+                waiting.append(task)
+
+        changed: list[Task] = []
+        for task in waiting:
+            metadata = task.metadata
+            current_proposal = metadata.get("planning_proposal_id")
+            child_key = metadata.get("planner_child_key")
+            constraints = task.constraints if isinstance(task.constraints, dict) else {}
+            dependencies = constraints.get("planner_dependencies", ())
+            if not isinstance(current_proposal, str) or not isinstance(child_key, str) or not isinstance(dependencies, list):
+                continue
+            siblings = by_proposal.get(current_proposal, {})
+            dependency_tasks = [siblings.get(item) for item in dependencies if isinstance(item, str)]
+            if len(dependency_tasks) != len(dependencies) or any(item is None for item in dependency_tasks):
+                continue
+            failed = next((item for item in dependency_tasks if item.status in {TaskStatus.FAILED, TaskStatus.CANCELLED}), None)
+            if failed is not None:
+                task.status = TaskStatus.FAILED
+                task.metadata.pop("wait_reason", None)
+                task.metadata["planner_dependency_state"] = "failed"
+                task.metadata["planner_failed_dependency"] = failed.task_id
+                event_type = "task.planner_dependency_failed"
+                payload = {"dependency_task_id": failed.task_id, "dependency_status": failed.status.value}
+            elif all(item.status is TaskStatus.COMPLETED for item in dependency_tasks):
+                task.status = TaskStatus.QUEUED
+                task.metadata.pop("wait_reason", None)
+                task.metadata["planner_dependency_state"] = "released"
+                event_type = "task.planner_dependency_released"
+                payload = {"dependency_task_ids": [item.task_id for item in dependency_tasks]}
+            else:
+                continue
+            event = ProtocolEvent(
+                event_id=str(uuid5(NAMESPACE_URL, f"dev-agent:planner:{current_proposal}:{task.task_id}:{event_type}")),
+                task_id=task.task_id,
+                event_type=event_type,
+                payload={"proposal_id": current_proposal, "child_key": child_key, **payload},
+            )
+            self.store.commit_transition(task=task, event=event)
+            if task.status is TaskStatus.QUEUED:
+                self.queue.enqueue(task.task_id, priority=0, max_attempts=task.limits.max_retries + 1)
+            changed.append(task)
+        return tuple(changed)
+
     @staticmethod
     def _ensure_budget(ledger: ResourceLedger) -> None:
         try:
@@ -1014,10 +1087,11 @@ class OperationService:
         scheduler = QuotaWakeScheduler(self.ledger, self.queue)
         coordinator = QuotaRequalificationCoordinator(self.ledger, scheduler)
         results: list[dict[str, Any]] = []
-        if max_probes == 0:
-            return results
+        self.release_planner_dependencies()
         for domain in self.ledger.due_unknown_quota_domains(now_epoch=current.timestamp()):
             self.queue.wake_due(now=current, reason=unknown_quota_wake_reason(domain))
+        if max_probes == 0:
+            return results
         for domain in scheduler.due_domains(now=current):
             observations = self.ledger.list_quota_observations(quota_domain=domain)
             for observation in observations:
