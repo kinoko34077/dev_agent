@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import math
 from pathlib import Path
 import sqlite3
 from threading import RLock
@@ -51,6 +52,8 @@ class QueueItem:
     attempts: int
     lease_token: str | None = None
     max_attempts: int = 3
+    wake_at: datetime | None = None
+    wake_reason: str | None = None
 
     @property
     def lease_proof(self) -> LeaseProof | None:
@@ -61,7 +64,7 @@ class QueueItem:
 
 class DurableQueue:
     DEFAULT_MAX_ATTEMPTS = 3
-    SCHEMA_VERSION = 3
+    SCHEMA_VERSION = 4
     _SCHEMA = """
     CREATE TABLE IF NOT EXISTS queue_items (
         task_id TEXT PRIMARY KEY,
@@ -73,7 +76,9 @@ class DurableQueue:
         lease_token TEXT,
         state_version INTEGER NOT NULL,
         attempts INTEGER NOT NULL DEFAULT 0,
-        max_attempts INTEGER NOT NULL DEFAULT 3
+        max_attempts INTEGER NOT NULL DEFAULT 3,
+        wake_at REAL,
+        wake_reason TEXT
     );
     CREATE TABLE IF NOT EXISTS scheduler_control (id INTEGER PRIMARY KEY CHECK (id=1), maintenance INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS scheduler_schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -110,6 +115,13 @@ class DurableQueue:
                         self.connection.execute("ALTER TABLE queue_items ADD COLUMN max_attempts INTEGER NOT NULL DEFAULT 3")
                     self.connection.execute("UPDATE queue_items SET max_attempts=3 WHERE max_attempts IS NULL OR max_attempts <= 0")
                     self.connection.execute("UPDATE scheduler_schema_meta SET value='3' WHERE key='schema_version'")
+                if current < 4:
+                    columns = {row[1] for row in self.connection.execute("PRAGMA table_info(queue_items)")}
+                    if "wake_at" not in columns:
+                        self.connection.execute("ALTER TABLE queue_items ADD COLUMN wake_at REAL")
+                    if "wake_reason" not in columns:
+                        self.connection.execute("ALTER TABLE queue_items ADD COLUMN wake_reason TEXT")
+                    self.connection.execute("UPDATE scheduler_schema_meta SET value='4' WHERE key='schema_version'")
                 self.connection.commit()
         except Exception:
             self.connection.rollback()
@@ -126,7 +138,20 @@ class DurableQueue:
 
     @staticmethod
     def _item(row: sqlite3.Row) -> QueueItem:
-        return QueueItem(row["task_id"], row["priority"], datetime.fromtimestamp(row["run_at"], timezone.utc), row["state"], row["lease_owner"], datetime.fromtimestamp(row["lease_until"], timezone.utc) if row["lease_until"] is not None else None, row["state_version"], row["attempts"], row["lease_token"], row["max_attempts"])
+        return QueueItem(
+            row["task_id"],
+            row["priority"],
+            datetime.fromtimestamp(row["run_at"], timezone.utc),
+            row["state"],
+            row["lease_owner"],
+            datetime.fromtimestamp(row["lease_until"], timezone.utc) if row["lease_until"] is not None else None,
+            row["state_version"],
+            row["attempts"],
+            row["lease_token"],
+            row["max_attempts"],
+            datetime.fromtimestamp(row["wake_at"], timezone.utc) if row["wake_at"] is not None else None,
+            row["wake_reason"],
+        )
 
     @staticmethod
     def _validate_max_attempts(max_attempts: int) -> None:
@@ -235,17 +260,71 @@ class DurableQueue:
         """Park a task that requires an external event before it can resume."""
         return self._finish(task_id, worker_id=worker_id, state_version=state_version, state="waiting")
 
+    def defer_until(
+        self,
+        task_id: str,
+        *,
+        worker_id: str,
+        state_version: int,
+        wake_at: datetime | float | int,
+        reason: str,
+    ) -> QueueItem:
+        """Park a task until a durable, explicitly named wake boundary."""
+
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("reason must be a non-empty string")
+        wake_epoch = _epoch(wake_at)
+        if not math.isfinite(wake_epoch):
+            raise ValueError("wake_at must be finite")
+        with self._lock:
+            cursor = self.connection.execute(
+                """UPDATE queue_items
+                   SET state='waiting', run_at=?, lease_owner=NULL,
+                       lease_until=NULL, lease_token=NULL,
+                       wake_at=?, wake_reason=?, state_version=state_version+1
+                   WHERE task_id=? AND state='leased' AND lease_owner=?
+                     AND state_version=? AND lease_until > ?""",
+                (wake_epoch, wake_epoch, reason.strip(), task_id, worker_id, state_version, time.time()),
+            )
+            self.connection.commit()
+            if cursor.rowcount != 1:
+                raise StaleLease(task_id)
+            return self.snapshot(task_id)
+
     def wake(self, task_id: str, *, run_at: datetime | float | int | None = None) -> QueueItem:
         """Explicitly make a parked task claimable again."""
         with self._lock:
             cursor = self.connection.execute(
-                "UPDATE queue_items SET state='queued', run_at=?, lease_owner=NULL, lease_until=NULL, lease_token=NULL, state_version=state_version+1 WHERE task_id=? AND state='waiting'",
+                "UPDATE queue_items SET state='queued', run_at=?, lease_owner=NULL, lease_until=NULL, lease_token=NULL, wake_at=NULL, wake_reason=NULL, state_version=state_version+1 WHERE task_id=? AND state='waiting'",
                 (_epoch(run_at), task_id),
             )
             self.connection.commit()
             if cursor.rowcount != 1:
                 raise ValueError(f"task is not waiting: {task_id}")
             return self.snapshot(task_id)
+
+    def wake_due(
+        self,
+        *,
+        now: datetime | float | int | None = None,
+        reason: str,
+    ) -> int:
+        """Wake only waiting items whose named external boundary is due."""
+
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("reason must be a non-empty string")
+        current = _epoch(now)
+        with self._lock:
+            cursor = self.connection.execute(
+                """UPDATE queue_items
+                   SET state='queued', run_at=?, wake_at=NULL, wake_reason=NULL,
+                       state_version=state_version+1
+                   WHERE state='waiting' AND wake_reason=? AND wake_at IS NOT NULL
+                     AND wake_at <= ?""",
+                (current, reason.strip(), current),
+            )
+            self.connection.commit()
+            return cursor.rowcount
 
     def _finish(self, task_id: str, *, worker_id: str, state_version: int, state: str, max_attempts: int | None = None) -> QueueItem:
         with self._lock:
@@ -259,7 +338,7 @@ class DurableQueue:
                     attempt_limit = min(attempt_limit, max_attempts)
                 if int(row["attempts"]) >= attempt_limit:
                     state = "failed"
-            cursor = self.connection.execute("UPDATE queue_items SET state=?, lease_owner=NULL, lease_until=NULL, lease_token=NULL, state_version=state_version+1 WHERE task_id=? AND state='leased' AND lease_owner=? AND state_version=? AND lease_until > ?", (state, task_id, worker_id, state_version, time.time()))
+            cursor = self.connection.execute("UPDATE queue_items SET state=?, lease_owner=NULL, lease_until=NULL, lease_token=NULL, wake_at=NULL, wake_reason=NULL, state_version=state_version+1 WHERE task_id=? AND state='leased' AND lease_owner=? AND state_version=? AND lease_until > ?", (state, task_id, worker_id, state_version, time.time()))
             self.connection.commit()
             if cursor.rowcount != 1:
                 raise StaleLease(task_id)

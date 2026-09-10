@@ -32,8 +32,8 @@ def test_queue_runs_ordered_migration_for_legacy_lease_schema(tmp_path):
     columns = {row[1] for row in queue.connection.execute("PRAGMA table_info(queue_items)")}
     version = queue.connection.execute("SELECT value FROM scheduler_schema_meta WHERE key='schema_version'").fetchone()[0]
 
-    assert {"lease_token", "max_attempts"} <= columns
-    assert version == "3"
+    assert {"lease_token", "max_attempts", "wake_at", "wake_reason"} <= columns
+    assert version == "4"
 
 
 def _claim_in_process(path, worker_id, result_queue):
@@ -187,6 +187,44 @@ def test_worker_defers_waiting_task_until_explicit_wake(tmp_path):
         assert runner.run_once() is None
         queue.wake(task.task_id)
         assert queue.snapshot(task.task_id).state == "queued"
+
+
+def test_queue_persists_quota_wake_until_due_and_does_not_busy_claim(tmp_path):
+    queue = DurableQueue(tmp_path / "queue.sqlite3")
+    queue.enqueue("quota-task")
+    item = queue.claim("worker-a", lease_seconds=30)
+    wake_at = datetime.fromtimestamp(time.time() + 60, timezone.utc)
+
+    parked = queue.defer_until(
+        item.task_id,
+        worker_id="worker-a",
+        state_version=item.state_version,
+        wake_at=wake_at,
+        reason="quota",
+    )
+
+    assert parked.state == "waiting"
+    assert parked.wake_at == wake_at
+    assert parked.wake_reason == "quota"
+    with pytest.raises(QueueEmpty):
+        queue.claim("worker-b")
+    assert queue.wake_due(now=wake_at.timestamp() - 1, reason="quota") == 0
+    assert queue.snapshot(item.task_id).state == "waiting"
+    assert queue.wake_due(now=wake_at.timestamp(), reason="quota") == 1
+    woken = queue.snapshot(item.task_id)
+    assert woken.state == "queued"
+    assert woken.wake_at is None
+    assert woken.wake_reason is None
+
+
+def test_queue_wake_due_leaves_non_quota_waiting_items_parked(tmp_path):
+    queue = DurableQueue(tmp_path / "queue.sqlite3")
+    queue.enqueue("approval-task")
+    item = queue.claim("worker-a", lease_seconds=30)
+    queue.defer("approval-task", worker_id="worker-a", state_version=item.state_version)
+
+    assert queue.wake_due(now=time.time() + 3600, reason="quota") == 0
+    assert queue.snapshot("approval-task").state == "waiting"
 
 
 def test_same_database_state_store_rejects_stale_lease_proof(tmp_path):

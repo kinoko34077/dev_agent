@@ -44,6 +44,25 @@ def test_explicit_daily_provider_policy_is_timezone_aware_and_stored_as_day():
     assert decision.blocked_until.endswith("07:00:00+00:00")
 
 
+def test_provider_reset_policy_does_not_assign_gemini_or_mistral_rules_to_other_providers():
+    assert provider_reset_window("cloudflare", "daily") == "day_utc"
+    assert provider_reset_window("mistral", "short") == "minute"
+    assert provider_reset_window("mistral", "monthly") == "month"
+    assert provider_reset_window("openrouter", "daily") is None
+
+
+def test_provider_specific_monthly_policy_is_used_when_mistral_does_not_send_reset():
+    decision = classify_provider_error(
+        "mistral",
+        ProviderError("included usage", category="quota", retryable=True, quota_metric="monthly"),
+        now=datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc),
+    )
+
+    assert decision.window == "month"
+    assert decision.reset_source == "provider-policy:month"
+    assert decision.blocked_until == "2026-10-01T00:00:00+00:00"
+
+
 def test_unknown_non_quota_error_does_not_create_quota_block():
     assert classify_provider_error("gemini", ProviderError("bad payload", category="provider_decode")) is None
 

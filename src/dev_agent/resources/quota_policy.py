@@ -70,31 +70,49 @@ def next_reset_at(window: str, *, now: datetime | None = None) -> str | None:
     return None
 
 
-_KNOWN_WINDOWS = {
-    "rpm": "minute",
-    "tpm": "minute",
-    "short": "minute",
-    "rpd": "day_pacific",
-    "daily": "day_utc",
-    "daily_allocation": "day_utc",
-    "tpd": "day_utc",
-    "monthly": "month",
-    "monthly_allocation": "month",
+_PROVIDER_WINDOWS = {
+    # Gemini project quota uses the documented Pacific-time daily boundary.
+    "gemini": {
+        "rpm": "minute",
+        "tpm": "minute",
+        "rpd": "day_pacific",
+        "daily": "day_pacific",
+        "daily_allocation": "day_pacific",
+    },
+    # Workers AI's daily Neuron allocation resets at UTC midnight.
+    "cloudflare": {
+        "daily": "day_utc",
+        "daily_allocation": "day_utc",
+        "daily_neurons": "day_utc",
+        "neurons": "day_utc",
+    },
+    # Groq exposes the useful daily/token reset timestamps in headers.  Do
+    # not invent a daily boundary when those headers are absent.
+    "groq": {"rpm": "minute", "tpm": "minute"},
+    "mistral": {
+        "short": "minute",
+        "monthly": "month",
+        "monthly_allocation": "month",
+    },
+    # OpenRouter's exact daily reset is not guaranteed by the normalized
+    # contract; only its short throughput window has a safe default.
+    "openrouter": {"rpm": "minute"},
 }
 
 
 def provider_reset_window(provider_id: str, metric: str) -> str | None:
     """Map only explicit metric labels to a documented reset family.
 
-    The provider id is kept in the API for future provider-specific policy,
-    but an unknown metric never receives an invented reset time.
+    Reset windows are provider-specific.  An unknown provider/metric never
+    receives an invented reset time; adapters should attach an exact reset
+    timestamp when the upstream response provides one.
     """
 
     if not isinstance(provider_id, str) or not provider_id.strip():
         raise ValueError("provider_id must be a non-empty string")
     if not isinstance(metric, str) or not metric.strip():
         raise ValueError("metric must be a non-empty string")
-    return _KNOWN_WINDOWS.get(metric.strip().lower())
+    return _PROVIDER_WINDOWS.get(provider_id.strip().lower(), {}).get(metric.strip().lower())
 
 
 def classify_provider_error(
