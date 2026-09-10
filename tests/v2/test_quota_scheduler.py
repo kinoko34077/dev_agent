@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from src.dev_agent.resources.ledger import ResourceLedger
+from src.dev_agent.scheduler import MaintenanceMode, QuotaWakeScheduler, WorkerRunner
 from src.dev_agent.scheduler.quota import QuotaWakeScheduler
 
 
@@ -59,3 +60,9 @@ def test_quota_scheduler_ignores_unknown_and_authorization_blocks(tmp_path):
     scheduler = QuotaWakeScheduler(ledger)
     assert scheduler.next_wake_at(now=datetime(2026, 9, 10, 11, 0, tzinfo=timezone.utc)) is None
     assert scheduler.due_domains(now=datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc)) == ()
+
+
+def test_scheduler_package_exports_are_consistent():
+    assert MaintenanceMode.__name__ == "MaintenanceMode"
+    assert QuotaWakeScheduler.__name__ == "QuotaWakeScheduler"
+    assert WorkerRunner.__name__ == "WorkerRunner"
