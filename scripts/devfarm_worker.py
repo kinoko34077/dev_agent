@@ -30,6 +30,7 @@ from src.dev_agent.domain.protocol import ModelRequest
 from src.dev_agent.providers.base import ModelProvider, ProviderError
 from src.dev_agent.providers.factory import ProviderDefinition, ProviderFactory
 from src.dev_agent.security.audit import AuditRecorder
+from scripts.devfarm_metrics import WorkerMetricsError, WorkerMetricsStore
 
 
 MAX_INPUT_FILE_BYTES = 64 * 1024
@@ -308,6 +309,7 @@ def _input_context(workspace: Path, manifest: Mapping[str, Any]) -> str:
 def _prompt(manifest: Mapping[str, Any], inputs: str) -> str:
     handoff = {
         "task_id": manifest["task_id"],
+        "task_type": manifest["task_type"],
         "objective": manifest["objective"],
         "base_revision": manifest["base_revision"],
         "allowed_files": manifest["allowed_files"],
@@ -525,6 +527,18 @@ def apply_and_verify(root: str | Path, manifest_path: str | Path) -> dict[str, A
         issues = list(result["known_issues"])
         issues.append("host verification did not pass")
         result["known_issues"] = issues
+    try:
+        with WorkerMetricsStore(root / ".devfarm" / "metrics.sqlite3") as metrics_store:
+            metrics_store.record(manifest=manifest, result=result)
+    except WorkerMetricsError:
+        # Metrics are host-side observability, not acceptance authority.  Keep
+        # the verified result durable while making a storage failure explicit
+        # instead of silently claiming that the sample was accumulated.
+        metrics["durable_recorded"] = False
+        metrics["durable_record_error"] = "metrics_storage_rejected"
+    else:
+        metrics["durable_recorded"] = True
+    result["worker_metrics"] = metrics
     write_result(root, result, manifest=manifest)
     directory = root / ".devfarm" / "results" / manifest["task_id"]
     directory.joinpath("tests.json").write_text(
@@ -631,6 +645,7 @@ def _worker_metrics(
     *,
     response: Any = None,
     elapsed_ms: int = 0,
+    task_type: str = "unspecified",
 ) -> dict[str, Any]:
     provider_id = getattr(provider, "provider_id", None)
     if not isinstance(provider_id, str) or not provider_id.strip():
@@ -650,6 +665,7 @@ def _worker_metrics(
         "provider_binding_id": binding,
         "model_id": model,
         "intelligence_tier": tier.strip() if isinstance(tier, str) else None,
+        "task_type": task_type,
         "request_id": request.request_id,
         "elapsed_ms": max(0, int(elapsed_ms)),
         "usage": _safe_usage(getattr(response, "usage", {})),
@@ -695,7 +711,7 @@ def run_worker(root: str | Path, manifest_path: str | Path, *, provider: ModelPr
     try:
         response = provider.request(request)
     except ProviderError as exc:
-        metrics = _worker_metrics(provider, request, elapsed_ms=round((time.perf_counter() - started) * 1000))
+        metrics = _worker_metrics(provider, request, elapsed_ms=round((time.perf_counter() - started) * 1000), task_type=manifest["task_type"])
         status = "blocked_external" if exc.category == "authentication" else "failed"
         result = {
             "status": status,
@@ -714,7 +730,7 @@ def run_worker(root: str | Path, manifest_path: str | Path, *, provider: ModelPr
         _write_auxiliary_artifacts(root, manifest["task_id"], {**result, "notes": str(exc)}, worker_metrics=metrics)
         return result
     elapsed_ms = round((time.perf_counter() - started) * 1000)
-    metrics = _worker_metrics(provider, request, response=response, elapsed_ms=elapsed_ms)
+    metrics = _worker_metrics(provider, request, response=response, elapsed_ms=elapsed_ms, task_type=manifest["task_type"])
     text = "".join(response.text_segments)
     if len(text) > MAX_OUTPUT_TEXT_CHARS:
         return _record_failed_model_output(root, manifest, "worker response exceeds output limit", worker_metrics=metrics)

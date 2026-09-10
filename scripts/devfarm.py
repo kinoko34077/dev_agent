@@ -153,6 +153,9 @@ def validate_manifest(value: Mapping[str, Any]) -> dict[str, Any]:
     task_id = _nonempty(value["task_id"], "task_id")
     if not _TASK_ID.fullmatch(task_id):
         raise DevFarmError("task_id contains unsafe characters")
+    task_type = _nonempty(value.get("task_type", "unspecified"), "task_type")
+    if len(task_type) > 64:
+        raise DevFarmError("task_type must be at most 64 characters")
     objective = _nonempty(value["objective"], "objective")
     base_revision = _revision(value["base_revision"], "base_revision")
     allowed = _paths(value["allowed_files"], "allowed_files")
@@ -192,6 +195,7 @@ def validate_manifest(value: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "schema_version": 1,
         "task_id": task_id,
+        "task_type": task_type,
         "objective": objective,
         "base_revision": base_revision,
         "allowed_files": allowed,
