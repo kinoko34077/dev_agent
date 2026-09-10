@@ -1,6 +1,6 @@
 # Current State — v2/bootstrap
 
-実装基準は `bcae82e` です。本書はそのコードと、直近の外部資格化・DevFarm
+実装基準は `19b14f0` です。本書はそのコードと、直近の外部資格化・DevFarm
 実行結果を同期したCurrent Stateです。GATE_STATUSの既存statusは変更していません。
 
 ## 判定
