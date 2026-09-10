@@ -8,7 +8,7 @@
 
 - Operation起動時のResource設定をread-onlyで保持し、binding×modelのtrusted billing catalog、operator-owned `quota_domain`、degraded bootstrap、正常応答／quota probeによるfreshness更新を導入した。`DispatchDenied`はbudget／quota／maintenance／resource wait／invalid failureへ意味別に分類し、canonicalなrate-limit／quota ProviderErrorは`BLOCKED_QUOTA`へparkする。
 - cross-process cancellationをappend-only `task_controls` とterminal commit時の再読込でfenceし、Provider healthをresource/binding単位、quota wakeを`quota:<domain>`単位へ限定した。Commander PlanのCAS、Worker attempt artifactのimmutable参照、共有protected policy、semantic audit sanitizer、Budget rollover、SQLite WAL/busy timeoutとprocess contention testも同期した。
-- `e64c2f3`を現行コード基準とし、v2全回帰は`512 passed, 1 skipped`（102.18秒）。G6O1、Provider qualification、Evidence routing advisory-only、AgentBackend実adapter／MCPの判定は変更していない。
+- `e3cfcfe`を現行コード基準とし、v2全回帰は`513 passed, 1 skipped`（96.39秒）。trusted free qualification catalogによる未知binding/modelの送信前拒否を追加した。G6O1、Provider qualification、Evidence routing advisory-only、AgentBackend実adapter／MCPの判定は変更していない。
 
 ### 2026-09-10 JST — AgentBackend dispatch authority boundary
 

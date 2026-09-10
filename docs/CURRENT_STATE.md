@@ -1,6 +1,6 @@
 # Current State — v2/bootstrap
 
-実装基準は `e64c2f3` です。直近のローカル全回帰もこのHEADで検証し、
+実装基準は `e3cfcfe` です。直近のローカル全回帰もこのHEADで検証し、
 本書はそのコードと、直近の外部資格化・DevFarm実行結果を同期したCurrent Stateです。
 GATE_STATUSの既存statusは変更していません。
 
@@ -28,8 +28,8 @@ GATE_STATUSの既存statusは変更していません。
 
 ## 検証
 
-- v2ローカル全回帰: `512 passed, 1 skipped`（`python -m pytest -q tests/v2 --durations=10`、102.18秒。所要時間は実行環境依存）
-- 追加監査focused: Provider quota分類／DevFarm model-qualified activationを含む`41 passed`
+- v2ローカル全回帰: `513 passed, 1 skipped`（`python -m pytest -q tests/v2 --durations=10`、96.39秒。所要時間は実行環境依存）
+- 追加監査focused: Provider quota分類／DevFarm model-qualified activation／trusted free qualificationを含む`45 passed`
 - Operation hardening focused: `94 passed, 1 skipped`（Operation、quota、DevFarm attempt、SQLite contention、security、budget境界）
 - Operation Layer focused: `12 passed`（submit／status、canonical Dispatcher経由のstart、queue復旧、process restart、terminal／waiting reconciliation、provider非依存safe stop、durable cancellation request、due quota maintenance／wake、startからのmaintenance境界）
 - Evaluator→dispatch cycle focused: `18 passed in 2.62s`
