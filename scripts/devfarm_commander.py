@@ -10,6 +10,7 @@ restart, while official-branch integration remains an explicit review action.
 from __future__ import annotations
 
 from copy import deepcopy
+from contextlib import contextmanager
 from datetime import datetime, timezone
 import json
 import os
@@ -48,6 +49,10 @@ _PROTECTED_PATHS = frozenset(
         "src/dev_agent/resources/budget.py",
     }
 )
+
+
+class PlanConflictError(DevFarmError):
+    """A Commander plan changed after a caller loaded its revision."""
 
 
 def _now() -> str:
@@ -377,6 +382,8 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
             task["assignment"] = dict(assignment)
         if raw.get("result_ref") is not None:
             task["result_ref"] = _path(raw["result_ref"], "result_ref")
+        if raw.get("last_attempt_id") is not None:
+            task["last_attempt_id"] = _text(raw["last_attempt_id"], "last_attempt_id", max_length=101)
         if raw.get("block_reason") is not None:
             task["block_reason"] = _text(raw["block_reason"], "block_reason", max_length=1000)
         if raw.get("last_result_status") is not None:
@@ -439,6 +446,8 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
             raise DevFarmError(f"result references unknown task: {result_record['task_id']}")
         if raw_result.get("result_ref") is not None:
             result_record["result_ref"] = _path(raw_result["result_ref"], "result_ref")
+        if raw_result.get("attempt_id") is not None:
+            result_record["attempt_id"] = _text(raw_result["attempt_id"], "result attempt_id", max_length=101)
         if raw_result.get("recorded_at") is not None:
             result_record["recorded_at"] = _text(raw_result["recorded_at"], "recorded_at", max_length=80)
         normalized_results.append(result_record)
@@ -446,6 +455,9 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
     plan_status = _text(value.get("status", "PLANNED"), "plan status", max_length=32).upper()
     if plan_status not in _PLAN_STATUSES:
         raise DevFarmError(f"unsupported plan status: {plan_status}")
+    plan_revision = value.get("plan_revision", 0)
+    if isinstance(plan_revision, bool) or not isinstance(plan_revision, int) or plan_revision < 0:
+        raise DevFarmError("plan_revision must be a non-negative integer")
     normalized = {
         "schema_version": PLAN_SCHEMA_VERSION,
         "run_id": run_id,
@@ -457,6 +469,7 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
         "ownership": ownership,
         "assignments": assignments,
         "results": normalized_results,
+        "plan_revision": plan_revision,
         "created_at": _text(value.get("created_at", _now()), "created_at", max_length=80),
         "updated_at": _text(value.get("updated_at", _now()), "updated_at", max_length=80),
     }
@@ -504,7 +517,7 @@ def refresh_plan(value: Mapping[str, Any]) -> dict[str, Any]:
 
 
 class CommanderPlanStore:
-    """Atomic JSON persistence for development-only parent plans."""
+    """Atomic and optimistic-CAS persistence for development-only plans."""
 
     def __init__(self, root: str | Path) -> None:
         self.root = Path(root).resolve()
@@ -518,12 +531,61 @@ class CommanderPlanStore:
             raise DevFarmError("Commander plan path cannot be a symlink")
         return path
 
+    @staticmethod
+    @contextmanager
+    def _lock(path: Path):
+        """Hold a short-lived OS lock while comparing and replacing a plan.
+
+        The lock file itself is harmless development metadata.  OS-level
+        locking means a crashed process releases the lock without requiring a
+        stale lock-file deletion heuristic; the JSON plan remains the source
+        of truth and the revision check prevents last-write-wins updates.
+        """
+
+        lock_path = path.with_name(path.name + ".lock")
+        handle = lock_path.open("a+b")
+        locked = False
+        try:
+            handle.seek(0)
+            handle.write(b"0")
+            handle.flush()
+            handle.seek(0)
+            if os.name == "nt":
+                import msvcrt
+
+                try:
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                except OSError as exc:
+                    raise PlanConflictError(f"Commander plan is being modified: {path.name}") from exc
+            else:
+                import fcntl
+
+                try:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except OSError as exc:
+                    raise PlanConflictError(f"Commander plan is being modified: {path.name}") from exc
+            locked = True
+            yield
+        finally:
+            if locked:
+                if os.name == "nt":
+                    import msvcrt
+
+                    handle.seek(0)
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
+
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            handle.close()
+
     def create(self, value: Mapping[str, Any]) -> dict[str, Any]:
         plan = refresh_plan(validate_plan(value, root=self.root))
         path = self.path_for(plan["run_id"])
-        if path.exists():
-            raise FileExistsError(path)
-        self._write(plan)
+        with self._lock(path):
+            if path.exists():
+                raise FileExistsError(path)
+            self._write(plan)
         return plan
 
     def load(self, run_id: str) -> dict[str, Any]:
@@ -532,10 +594,24 @@ class CommanderPlanStore:
             raise DevFarmError(f"Commander plan does not exist: {run_id}")
         return validate_plan(_read_json(path), root=self.root)
 
-    def save(self, value: Mapping[str, Any]) -> dict[str, Any]:
+    def save(self, value: Mapping[str, Any], *, expected_revision: int | None = None) -> dict[str, Any]:
         plan = validate_plan(value, root=self.root)
         plan["updated_at"] = _now()
-        self._write(plan)
+        path = self.path_for(plan["run_id"])
+        expected = plan["plan_revision"] if expected_revision is None else expected_revision
+        if isinstance(expected, bool) or not isinstance(expected, int) or expected < 0:
+            raise DevFarmError("expected_revision must be a non-negative integer")
+        with self._lock(path):
+            if not path.is_file():
+                raise DevFarmError(f"Commander plan does not exist: {plan['run_id']}")
+            current = validate_plan(_read_json(path), root=self.root)
+            actual = current["plan_revision"]
+            if actual != expected:
+                raise PlanConflictError(
+                    f"Commander plan revision conflict: expected {expected}, actual {actual}"
+                )
+            plan["plan_revision"] = expected + 1
+            self._write(plan)
         return plan
 
     def list(self) -> list[dict[str, Any]]:
@@ -569,13 +645,23 @@ def _manifest_for(root: Path, task: Mapping[str, Any]) -> tuple[Path, dict[str, 
     return path, manifest
 
 
-def _result_ref(task_id: str) -> str:
-    return f".devfarm/results/{task_id}/result.json"
+def _result_ref(task_id: str, attempt_id: str | None = None) -> str:
+    if attempt_id is None:
+        return f".devfarm/results/{task_id}/result.json"
+    return f".devfarm/results/{task_id}/attempts/{_text(attempt_id, 'attempt_id', max_length=101)}/result.json"
 
 
-def _record_result(plan: dict[str, Any], task_id: str, stage: str, status: str, result_ref: str | None = None) -> None:
+def _record_result(
+    plan: dict[str, Any],
+    task_id: str,
+    stage: str,
+    status: str,
+    result_ref: str | None = None,
+    *,
+    attempt_id: str | None = None,
+) -> None:
     for record in plan["results"]:
-        if record["task_id"] == task_id and record["stage"] == stage:
+        if record["task_id"] == task_id and record["stage"] == stage and record.get("attempt_id") == attempt_id:
             record["status"] = status
             if result_ref is not None:
                 record["result_ref"] = result_ref
@@ -589,13 +675,18 @@ def _record_result(plan: dict[str, Any], task_id: str, stage: str, status: str, 
     }
     if result_ref is not None:
         record["result_ref"] = result_ref
+    if attempt_id is not None:
+        record["attempt_id"] = _text(attempt_id, "attempt_id", max_length=101)
     plan["results"].append(record)
 
 
 def _apply_proposal_result(plan: dict[str, Any], task: dict[str, Any], result: Mapping[str, Any]) -> None:
     status = str(result.get("status", "failed"))
-    result_ref = _result_ref(task["task_id"])
+    attempt_id = result.get("attempt_id")
+    result_ref = _result_ref(task["task_id"], attempt_id if isinstance(attempt_id, str) and attempt_id.strip() else None)
     task["result_ref"] = result_ref
+    if attempt_id is not None:
+        task["last_attempt_id"] = _text(attempt_id, "attempt_id", max_length=101)
     task["last_result_status"] = status
     if status == "completed" and result.get("changed_files"):
         task["status"] = "PROPOSED"
@@ -605,7 +696,7 @@ def _apply_proposal_result(plan: dict[str, Any], task: dict[str, Any], result: M
     else:
         task["status"] = "REJECTED"
         task["block_reason"] = "proposal_failed"
-    _record_result(plan, task["task_id"], "proposal", status, result_ref)
+    _record_result(plan, task["task_id"], "proposal", status, result_ref, attempt_id=task.get("last_attempt_id"))
 
 
 def create_plan(root: str | Path, value: Mapping[str, Any]) -> dict[str, Any]:
@@ -678,7 +769,11 @@ def collect_plan(root: str | Path, run_id: str) -> dict[str, Any]:
         if not result_path.is_file():
             continue
         result = validate_result(_read_json(result_path), manifest=manifest)
-        task["result_ref"] = _result_ref(task["task_id"])
+        attempt_id = result.get("attempt_id")
+        attempt_ref = _result_ref(task["task_id"], attempt_id if isinstance(attempt_id, str) and attempt_id.strip() else None)
+        task["result_ref"] = attempt_ref
+        if attempt_id is not None:
+            task["last_attempt_id"] = _text(attempt_id, "attempt_id", max_length=101)
         task["last_result_status"] = result["status"]
         metrics = result.get("worker_metrics", {})
         host_verified = isinstance(metrics, Mapping) and metrics.get("host_verified") is True
@@ -686,18 +781,18 @@ def collect_plan(root: str | Path, run_id: str) -> dict[str, Any]:
         if task["status"] != "INTEGRATED":
             if result["status"] == "completed" and host_verified and accepted:
                 task["status"] = "HOST_VERIFIED"
-                _record_result(plan, task["task_id"], "host_verification", result["status"], _result_ref(task["task_id"]))
+                _record_result(plan, task["task_id"], "host_verification", result["status"], attempt_ref, attempt_id=task.get("last_attempt_id"))
             elif result["status"] == "completed":
                 task["status"] = "PROPOSED"
-                _record_result(plan, task["task_id"], "proposal", result["status"], _result_ref(task["task_id"]))
+                _record_result(plan, task["task_id"], "proposal", result["status"], attempt_ref, attempt_id=task.get("last_attempt_id"))
             elif result["status"] == "blocked_external":
                 task["status"] = "BLOCKED"
                 task["block_reason"] = "provider_unavailable"
-                _record_result(plan, task["task_id"], "proposal", result["status"], _result_ref(task["task_id"]))
+                _record_result(plan, task["task_id"], "proposal", result["status"], attempt_ref, attempt_id=task.get("last_attempt_id"))
             else:
                 task["status"] = "REJECTED"
                 task["block_reason"] = "proposal_failed"
-                _record_result(plan, task["task_id"], "proposal", result["status"], _result_ref(task["task_id"]))
+                _record_result(plan, task["task_id"], "proposal", result["status"], attempt_ref, attempt_id=task.get("last_attempt_id"))
     return store.save(refresh_plan(plan))
 
 
@@ -739,7 +834,14 @@ def verify_plan(
             current["last_result_status"] = "failed"
             current["block_reason"] = "host_verification_failed"
             current["last_error"] = str(exc)[:1000]
-            _record_result(plan, current["task_id"], "host_verification", "failed", _result_ref(current["task_id"]))
+            _record_result(
+                plan,
+                current["task_id"],
+                "host_verification",
+                "failed",
+                _result_ref(current["task_id"], current.get("last_attempt_id")),
+                attempt_id=current.get("last_attempt_id"),
+            )
         return store.save(refresh_plan(plan))
     plan = store.load(run_id)
     for task, result in zip(selected, results):
@@ -748,9 +850,19 @@ def verify_plan(
         accepted = result.get("status") == "completed" and isinstance(metrics, Mapping) and metrics.get("result_accepted") is True
         current["status"] = "HOST_VERIFIED" if accepted else "REJECTED"
         current["last_result_status"] = result.get("status")
+        attempt_id = result.get("attempt_id")
+        if attempt_id is not None:
+            current["last_attempt_id"] = _text(attempt_id, "attempt_id", max_length=101)
         if not accepted:
             current["block_reason"] = "host_verification_failed"
-        _record_result(plan, current["task_id"], "host_verification", str(result.get("status", "failed")), _result_ref(current["task_id"]))
+        _record_result(
+            plan,
+            current["task_id"],
+            "host_verification",
+            str(result.get("status", "failed")),
+            _result_ref(current["task_id"], current.get("last_attempt_id")),
+            attempt_id=current.get("last_attempt_id"),
+        )
     return store.save(refresh_plan(plan))
 
 
@@ -847,6 +959,7 @@ def dispatch_cli(
 __all__ = [
     "CommanderPlanStore",
     "PLAN_SCHEMA_VERSION",
+    "PlanConflictError",
     "collect_plan",
     "create_plan",
     "dispatch_cli",

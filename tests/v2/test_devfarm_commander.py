@@ -7,6 +7,7 @@ from scripts.devfarm import DevFarmError, write_manifest
 from scripts.devfarm import main as devfarm_main
 from scripts.devfarm_commander import (
     CommanderPlanStore,
+    PlanConflictError,
     create_plan,
     dispatch_plan,
     mark_integrated,
@@ -283,3 +284,26 @@ def test_commander_rejects_dependency_cycles_and_cli_can_read_status(tmp_path, c
     output = json.loads(capsys.readouterr().out)
     assert output["run_id"] == "cli-run"
     assert output["tasks"][0]["status"] == "READY"
+
+
+def test_commander_plan_save_uses_revision_cas(tmp_path):
+    root, _targets, revision = _repo(tmp_path)
+    store = CommanderPlanStore(root)
+    plan = create_plan(
+        root,
+        {
+            "run_id": "cas-run",
+            "objective": "prevent lost plan updates",
+            "base_revision": revision,
+            "tasks": [{"task_id": "task", "owner": "codex", "ownership": ["docs/task.md"]}],
+        },
+    )
+    first = store.load("cas-run")
+    second = store.load("cas-run")
+    first["tasks"][0]["integration_note"] = "first update"
+    saved = store.save(first)
+    assert saved["plan_revision"] == plan["plan_revision"] + 1
+    second["tasks"][0]["integration_note"] = "stale update"
+    with pytest.raises(PlanConflictError, match="revision conflict"):
+        store.save(second)
+    assert store.load("cas-run")["tasks"][0]["integration_note"] == "first update"

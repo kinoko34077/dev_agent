@@ -9,12 +9,14 @@ or another worker's checkout.
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import json
 from pathlib import Path, PurePosixPath
 import re
 import shlex
 import subprocess
 import sys
+from uuid import uuid4
 from typing import Any, Mapping
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,6 +56,7 @@ _MANIFEST_FIELDS = {
     "output_contract",
 }
 _RESULT_FIELDS = {"status", "base_revision", "changed_files", "tests_run", "tests_passed", "known_issues", "assumptions"}
+_ATTEMPT_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,100}$")
 _HUNK_HEADER = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(?: .*)?$")
 
 
@@ -379,7 +382,7 @@ def validate_result(value: Mapping[str, Any], *, manifest: Mapping[str, Any]) ->
     worker_metrics = value.get("worker_metrics", {})
     if not isinstance(worker_metrics, Mapping):
         raise DevFarmError("worker_metrics must be an object")
-    return {
+    normalized = {
         "schema_version": 1,
         "status": status,
         "base_revision": base_revision,
@@ -393,6 +396,13 @@ def validate_result(value: Mapping[str, Any], *, manifest: Mapping[str, Any]) ->
         "known_issues": _strings(value["known_issues"], "known_issues"),
         "assumptions": _strings(value["assumptions"], "assumptions"),
     }
+    attempt_id = value.get("attempt_id")
+    if attempt_id is not None:
+        attempt_id = _nonempty(attempt_id, "attempt_id")
+        if not _ATTEMPT_ID.fullmatch(attempt_id):
+            raise DevFarmError("attempt_id contains unsafe characters")
+        normalized["attempt_id"] = attempt_id
+    return normalized
 
 
 def init_farm(root: str | Path) -> Path:
@@ -417,8 +427,17 @@ def write_result(root: str | Path, value: Mapping[str, Any], *, manifest: Mappin
     result = validate_result(value, manifest=normalized_manifest)
     directory = init_farm(root) / "results" / normalized_manifest["task_id"]
     directory.mkdir(parents=True, exist_ok=True)
+    attempt_id = result.get("attempt_id") or uuid4().hex
+    result["attempt_id"] = attempt_id
+    attempt_directory = directory / "attempts" / attempt_id
+    attempt_directory.mkdir(parents=True, exist_ok=True)
+    attempt_path = attempt_directory / "result.json"
+    attempt_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     path = directory / "result.json"
     path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    history_path = directory / "attempts.jsonl"
+    with history_path.open("a", encoding="utf-8", newline="\n") as history:
+        history.write(json.dumps({"attempt_id": attempt_id, "status": result["status"], "recorded_at": datetime.now(timezone.utc).isoformat()}, ensure_ascii=False) + "\n")
     return path
 
 

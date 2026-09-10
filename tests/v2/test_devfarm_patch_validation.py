@@ -106,6 +106,32 @@ def test_worker_records_host_measurements_and_updates_acceptance_after_verificat
     assert stored["worker_metrics"]["result_accepted"] is True
 
 
+def test_worker_retries_keep_immutable_attempt_artifacts(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": True,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": _patch(),
+        "notes": "proposal ready",
+    }
+
+    first = run_worker(root, manifest_path, provider=_WorkerProvider(output))
+    second = run_worker(root, manifest_path, provider=_WorkerProvider(output))
+
+    assert first["attempt_id"] != second["attempt_id"]
+    result_dir = root / ".devfarm/results/worker-test-001"
+    for attempt_id in (first["attempt_id"], second["attempt_id"]):
+        attempt_result = result_dir / "attempts" / attempt_id / "result.json"
+        assert attempt_result.is_file()
+        assert json.loads(attempt_result.read_text(encoding="utf-8"))["attempt_id"] == attempt_id
+    history = (result_dir / "attempts.jsonl").read_text(encoding="utf-8").splitlines()
+    assert [json.loads(line)["attempt_id"] for line in history] == [first["attempt_id"], second["attempt_id"]]
+
+
 def test_worker_records_nonsemantic_final_newline_normalization(tmp_path):
     root, manifest_path = _workspace(tmp_path)
     output = {

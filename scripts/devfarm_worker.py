@@ -12,7 +12,7 @@ import subprocess
 import sys
 import time
 from typing import Any, Mapping
-from uuid import NAMESPACE_URL, uuid5
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -332,6 +332,22 @@ def _bounded_test_output(value: str) -> dict[str, Any]:
     return {"text": value[:MAX_TEST_OUTPUT_CHARS], "truncated": True, "original_chars": len(value)}
 
 
+def _attempt_id(value: Any = None) -> str:
+    if value is None:
+        return uuid4().hex
+    if not isinstance(value, str) or not value.strip() or not value.replace("-", "").replace("_", "").isalnum():
+        raise DevFarmError("attempt_id must contain only safe identifier characters")
+    return value.strip()
+
+
+def _result_directories(root: Path, task_id: str, attempt_id: str) -> tuple[Path, Path]:
+    base = root / ".devfarm" / "results" / task_id
+    attempt = base / "attempts" / _attempt_id(attempt_id)
+    base.mkdir(parents=True, exist_ok=True)
+    attempt.mkdir(parents=True, exist_ok=True)
+    return base, attempt
+
+
 def _input_context(workspace: Path, manifest: Mapping[str, Any]) -> str:
     manifest = validate_manifest(manifest)
     chunks: list[str] = []
@@ -414,15 +430,15 @@ def _write_auxiliary_artifacts(
     output: Mapping[str, Any],
     *,
     worker_metrics: Mapping[str, Any] | None = None,
+    attempt_id: str | None = None,
 ) -> None:
-    directory = root / ".devfarm" / "results" / task_id
-    directory.mkdir(parents=True, exist_ok=True)
+    selected_attempt = _attempt_id(attempt_id or output.get("attempt_id") or "legacy")
+    directories = _result_directories(root, task_id, selected_attempt)
     patch = output.get("patch", "")
     if not isinstance(patch, str):
         raise DevFarmError("worker patch must be a string")
     if len(patch) > MAX_OUTPUT_TEXT_CHARS:
         raise DevFarmError(f"worker patch exceeds {MAX_OUTPUT_TEXT_CHARS} characters")
-    directory.joinpath("patch.diff").write_text(patch, encoding="utf-8")
     proposed = output.get("tests_run", [])
     if not isinstance(proposed, list):
         raise DevFarmError("worker proposed tests must be a list")
@@ -435,7 +451,6 @@ def _write_auxiliary_artifacts(
         "host_verified_tests": [],
         "worker_metrics": dict(worker_metrics or {}),
     }
-    directory.joinpath("tests.json").write_text(json.dumps(tests, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     notes = output.get("notes", "")
     if not isinstance(notes, str):
         notes = (
@@ -444,7 +459,10 @@ def _write_auxiliary_artifacts(
         )
     if len(notes) > MAX_OUTPUT_TEXT_CHARS:
         notes = notes[:MAX_OUTPUT_TEXT_CHARS] + f"\n...[TRUNCATED original_chars={len(notes)}]"
-    directory.joinpath("notes.md").write_text(notes + "\n", encoding="utf-8")
+    for directory in directories:
+        directory.joinpath("patch.diff").write_text(patch, encoding="utf-8")
+        directory.joinpath("tests.json").write_text(json.dumps(tests, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        directory.joinpath("notes.md").write_text(notes + "\n", encoding="utf-8")
 
 
 def _record_failed_model_output(
@@ -453,9 +471,12 @@ def _record_failed_model_output(
     reason: str,
     *,
     worker_metrics: Mapping[str, Any] | None = None,
+    attempt_id: str | None = None,
 ) -> dict[str, Any]:
+    selected_attempt = _attempt_id(attempt_id)
     result = {
         "status": "failed",
+        "attempt_id": selected_attempt,
         "base_revision": manifest["base_revision"],
         "changed_files": [],
         "tests_run": [],
@@ -473,6 +494,7 @@ def _record_failed_model_output(
         manifest["task_id"],
         {**result, "patch": "", "notes": reason},
         worker_metrics=result["worker_metrics"],
+        attempt_id=selected_attempt,
     )
     return result
 
@@ -499,6 +521,7 @@ def apply_and_verify(root: str | Path, manifest_path: str | Path) -> dict[str, A
     root = Path(root).resolve()
     manifest = validate_manifest(_read_json(Path(manifest_path)))
     result = _read_result_artifact(root, manifest)
+    attempt_id = _attempt_id(result.get("attempt_id") or "legacy")
     if result["status"] != "completed" or not result["changed_files"]:
         raise DevFarmError("only a completed worker proposal with a non-empty patch may be applied")
     patch_path = root / ".devfarm" / "results" / manifest["task_id"] / "patch.diff"
@@ -569,6 +592,7 @@ def apply_and_verify(root: str | Path, manifest_path: str | Path) -> dict[str, A
         }
     )
     result["worker_metrics"] = metrics
+    result["attempt_id"] = attempt_id
     if not tests_passed:
         issues = list(result["known_issues"])
         issues.append("host verification did not pass")
@@ -586,27 +610,15 @@ def apply_and_verify(root: str | Path, manifest_path: str | Path) -> dict[str, A
         metrics["durable_recorded"] = True
     result["worker_metrics"] = metrics
     write_result(root, result, manifest=manifest)
-    directory = root / ".devfarm" / "results" / manifest["task_id"]
-    directory.joinpath("tests.json").write_text(
-        json.dumps(
-            {
-                "proposed_test_commands": result["proposed_test_commands"],
-                "model_claims": result["model_claims"],
-                "host_verified_tests": verified,
-                "worker_metrics": metrics,
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
+    notes_path = root / ".devfarm" / "results" / manifest["task_id"] / "notes.md"
+    notes = notes_path.read_text(encoding="utf-8") if notes_path.exists() else "Host verification completed; no model notes artifact was available."
+    _write_auxiliary_artifacts(
+        root,
+        manifest["task_id"],
+        {**result, "patch": patch, "notes": notes},
+        worker_metrics=metrics,
+        attempt_id=attempt_id,
     )
-    notes_path = directory / "notes.md"
-    if not notes_path.exists():
-        notes_path.write_text(
-            "Host verification completed; no model notes artifact was available.\n",
-            encoding="utf-8",
-        )
     return result
 
 
@@ -733,6 +745,7 @@ def _request_task_id(manifest: Mapping[str, Any]) -> str:
 def run_worker(root: str | Path, manifest_path: str | Path, *, provider: ModelProvider) -> dict[str, Any]:
     root = Path(root).resolve()
     manifest = validate_manifest(_read_json(Path(manifest_path)))
+    attempt_id = _attempt_id()
     provider_id = getattr(provider, "provider_id", None)
     if not manifest["external_provider_allowed"]:
         raise DevFarmError("external provider execution is not approved by manifest")
@@ -761,6 +774,7 @@ def run_worker(root: str | Path, manifest_path: str | Path, *, provider: ModelPr
         status = "blocked_external" if exc.category == "authentication" else "failed"
         result = {
             "status": status,
+            "attempt_id": attempt_id,
             "base_revision": manifest["base_revision"],
             "changed_files": [],
             "tests_run": [],
@@ -773,17 +787,17 @@ def run_worker(root: str | Path, manifest_path: str | Path, *, provider: ModelPr
             "assumptions": ["The worker provider was unavailable; no patch was produced."],
         }
         write_result(root, result, manifest=manifest)
-        _write_auxiliary_artifacts(root, manifest["task_id"], {**result, "notes": str(exc)}, worker_metrics=metrics)
+        _write_auxiliary_artifacts(root, manifest["task_id"], {**result, "notes": str(exc)}, worker_metrics=metrics, attempt_id=attempt_id)
         return result
     elapsed_ms = round((time.perf_counter() - started) * 1000)
     metrics = _worker_metrics(provider, request, response=response, elapsed_ms=elapsed_ms, task_type=manifest["task_type"])
     text = "".join(response.text_segments)
     if len(text) > MAX_OUTPUT_TEXT_CHARS:
-        return _record_failed_model_output(root, manifest, "worker response exceeds output limit", worker_metrics=metrics)
+        return _record_failed_model_output(root, manifest, "worker response exceeds output limit", worker_metrics=metrics, attempt_id=attempt_id)
     try:
         output = _extract_json(text)
     except DevFarmError as exc:
-        return _record_failed_model_output(root, manifest, str(exc), worker_metrics=metrics)
+        return _record_failed_model_output(root, manifest, str(exc), worker_metrics=metrics, attempt_id=attempt_id)
     try:
         patch = output.get("patch", "")
         if isinstance(patch, str) and patch and not patch.endswith("\n"):
@@ -809,6 +823,7 @@ def run_worker(root: str | Path, manifest_path: str | Path, *, provider: ModelPr
             metrics["patch_normalizations"] = list(normalizations)
         result = {
             "status": status,
+            "attempt_id": attempt_id,
             "base_revision": manifest["base_revision"],
             "changed_files": actual_changed_files,
             "tests_run": [],
@@ -822,9 +837,9 @@ def run_worker(root: str | Path, manifest_path: str | Path, *, provider: ModelPr
         }
         normalized = validate_result(result, manifest=manifest)
     except DevFarmError as exc:
-        return _record_failed_model_output(root, manifest, str(exc), worker_metrics=metrics)
+        return _record_failed_model_output(root, manifest, str(exc), worker_metrics=metrics, attempt_id=attempt_id)
     write_result(root, normalized, manifest=manifest)
-    _write_auxiliary_artifacts(root, manifest["task_id"], output, worker_metrics=metrics)
+    _write_auxiliary_artifacts(root, manifest["task_id"], {**output, "attempt_id": attempt_id}, worker_metrics=metrics, attempt_id=attempt_id)
     return normalized
 
 
