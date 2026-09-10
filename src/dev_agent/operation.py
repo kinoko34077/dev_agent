@@ -472,14 +472,40 @@ class OperationService:
 
     def stop_task(self, task_id: str) -> dict[str, Any]:
         self.control.request_stop()
-        task = self.controller.cancel(task_id)
+        return self._cancel_task(self.store, self.queue, self.controller, task_id)
+
+    @staticmethod
+    def _cancel_task(store: SQLiteStateStore, queue: DurableQueue, controller: Controller, task_id: str) -> dict[str, Any]:
+        task = controller.cancel(task_id)
         try:
-            item = self.queue.snapshot(task_id)
+            item = queue.snapshot(task_id)
         except KeyError:
             item = None
         if task.status is TaskStatus.CANCELLED and item is not None and item.state in {"queued", "waiting"}:
-            self.queue.cancel(task_id)
-        return self._status(self.store, self.queue, task_id)
+            queue.cancel(task_id)
+        return OperationService._status(store, queue, task_id)
+
+    @staticmethod
+    def cancel_task(config: OperationConfig | None, task_id: str) -> dict[str, Any]:
+        """Cancel without constructing a configured Provider or Ledger.
+
+        A stop command must remain usable when the provider credential is
+        missing or the provider configuration has changed since the Task was
+        submitted.  Controller.cancel only needs the durable StateStore, so a
+        non-networking fake provider is sufficient for this narrow boundary.
+        """
+        config = config or OperationConfig.from_environment()
+        store = SQLiteStateStore(config.state_path)
+        queue = DurableQueue(config.queue_path)
+        control = OperationControl(config.queue_path)
+        try:
+            control.request_stop()
+            controller = Controller(FakeProvider(), ToolRuntime(ToolRegistry()), store)
+            return OperationService._cancel_task(store, queue, controller, task_id)
+        finally:
+            control.close()
+            queue.close()
+            store.close()
 
     def stop(self, task_id: str | None = None) -> dict[str, Any] | None:
         """Request loop shutdown and optionally apply one Task stop."""
@@ -561,6 +587,10 @@ def main(argv: list[str] | None = None) -> int:
                 control.close()
             print(json.dumps({"stop_requested": True}, ensure_ascii=False))
             return 0
+        if args.command == "stop":
+            status = OperationService.cancel_task(config, args.task_id)
+            print(json.dumps(status, ensure_ascii=False))
+            return 0
         with OperationService.open(config) as service:
             if args.command == "start":
                 result = service.start(once=args.once)
@@ -568,9 +598,6 @@ def main(argv: list[str] | None = None) -> int:
                     result = OperationService._status(service.store, service.queue, result.task_id)
                 print(json.dumps(result, ensure_ascii=False))
                 return 0
-            status = service.stop_task(args.task_id)
-            print(json.dumps(status, ensure_ascii=False))
-            return 0
     except (OperationError, ValueError, KeyError) as exc:
         parser.error(str(exc))
     return 2

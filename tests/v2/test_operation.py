@@ -100,6 +100,28 @@ def test_stop_requests_worker_shutdown_without_deleting_task(tmp_path):
     assert OperationService.read_status(config, task.task_id)["state"] == TaskStatus.QUEUED.value
 
 
+def test_durable_stop_signal_stops_a_foreground_loop_from_another_process(tmp_path):
+    from threading import Thread
+    from time import sleep
+    from src.dev_agent.operation import OperationControl
+
+    config = _config(tmp_path)
+    result_box = []
+    with OperationService.open(config) as service:
+        runner = Thread(target=lambda: result_box.append(service.start()), daemon=True)
+        runner.start()
+        sleep(0.05)
+        external_control = OperationControl(config.queue_path)
+        try:
+            external_control.request_stop()
+        finally:
+            external_control.close()
+        runner.join(2)
+
+    assert not runner.is_alive()
+    assert result_box and result_box[0]["stopped"] is True
+
+
 def test_status_is_json_serializable(tmp_path):
     config = _config(tmp_path)
     task = OperationService.submit(config, "json status")
