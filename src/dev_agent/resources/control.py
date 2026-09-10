@@ -10,14 +10,17 @@ from .budget import BudgetExceeded, BudgetGovernor, BudgetReconciliationRequired
 from .ledger import MoneyAmount
 from .router import NoRoute, ResourceRouter, RouteRequest, RouteSelection
 from .quota_policy import classify_provider_error
+from .ledger import unknown_quota_wake_reason
 
 
 class DispatchDenied(RuntimeError):
     """A provider dispatch cannot be started under current resource policy."""
 
-    def __init__(self, category: str, message: str) -> None:
+    def __init__(self, category: str, message: str, *, wake_at: float | None = None, wake_reason: str | None = None) -> None:
         super().__init__(message)
         self.category = category
+        self.wake_at = wake_at
+        self.wake_reason = wake_reason
 
 
 @dataclass(frozen=True)
@@ -29,6 +32,7 @@ class DispatchReservation:
     price_currency: str | None = None
     provider_binding_id: str | None = None
     model_id: str | None = None
+    unknown_quota_domain: str | None = None
 
 
 class ResourcePolicy(Protocol):
@@ -139,36 +143,58 @@ class ResourceControlPlane:
         self._ensure_dispatch_allowed()
         try:
             selection = self.router.choose(self._route_request(request, provider_id))
-            price = None if selection.estimated_cost_minor is None or selection.price_currency is None else MoneyAmount(selection.price_currency, selection.estimated_cost_minor)
-            reservation = self.governor.reserve(task_id, selection.resource_id, estimated_cost=price, intent_key=intent_key)
+            return self.reserve_selection(task_id, selection, intent_key=intent_key)
         except NoRoute as exc:
             raise DispatchDenied("no_route", str(exc)) from exc
-        except UnknownPrice as exc:
-            raise DispatchDenied("unknown_price", str(exc)) from exc
-        except ResourceUnavailable as exc:
-            raise DispatchDenied("unavailable", str(exc)) from exc
-        except MaintenanceActive as exc:
-            raise DispatchDenied("maintenance", str(exc)) from exc
-        except BudgetExceeded as exc:
-            raise DispatchDenied("budget", str(exc)) from exc
-        except ValueError as exc:
-            raise DispatchDenied("invalid_request", str(exc)) from exc
-        return DispatchReservation(reservation, provider_id, selection.native_unit, selection.estimated_cost_minor, selection.price_currency, selection.provider_binding_id, selection.model_id)
 
     def reserve_selection(self, task_id: str, selection: RouteSelection, *, intent_key: str | None = None) -> DispatchReservation:
         self._ensure_dispatch_allowed()
         price = None if selection.estimated_cost_minor is None or selection.price_currency is None else MoneyAmount(selection.price_currency, selection.estimated_cost_minor)
+        unknown_quota_domain = selection.quota_domain if selection.unknown_quota else None
+        unknown_quota_admitted = False
+        if unknown_quota_domain is not None:
+            admission = self.governor.ledger.claim_unknown_quota_admission(unknown_quota_domain)
+            if not admission.admitted:
+                retry_at = admission.retry_at_epoch
+                raise DispatchDenied(
+                    "quota_unknown",
+                    f"unknown quota admission window is exhausted for {unknown_quota_domain}",
+                    wake_at=retry_at,
+                    wake_reason=unknown_quota_wake_reason(unknown_quota_domain),
+                )
+            unknown_quota_admitted = True
         try:
             reservation = self.governor.reserve(task_id, selection.resource_id, estimated_cost=price, intent_key=intent_key)
         except UnknownPrice as exc:
+            if unknown_quota_admitted:
+                self.governor.ledger.release_unknown_quota_admission(unknown_quota_domain)
             raise DispatchDenied("unknown_price", str(exc)) from exc
         except ResourceUnavailable as exc:
+            if unknown_quota_admitted:
+                self.governor.ledger.release_unknown_quota_admission(unknown_quota_domain)
             raise DispatchDenied("unavailable", str(exc)) from exc
         except MaintenanceActive as exc:
+            if unknown_quota_admitted:
+                self.governor.ledger.release_unknown_quota_admission(unknown_quota_domain)
             raise DispatchDenied("maintenance", str(exc)) from exc
         except BudgetExceeded as exc:
+            if unknown_quota_admitted:
+                self.governor.ledger.release_unknown_quota_admission(unknown_quota_domain)
             raise DispatchDenied("budget", str(exc)) from exc
-        return DispatchReservation(reservation, selection.provider_id, selection.native_unit, selection.estimated_cost_minor, selection.price_currency, selection.provider_binding_id, selection.model_id)
+        except ValueError as exc:
+            if unknown_quota_admitted:
+                self.governor.ledger.release_unknown_quota_admission(unknown_quota_domain)
+            raise DispatchDenied("invalid_request", str(exc)) from exc
+        return DispatchReservation(
+            reservation,
+            selection.provider_id,
+            selection.native_unit,
+            selection.estimated_cost_minor,
+            selection.price_currency,
+            selection.provider_binding_id,
+            selection.model_id,
+            unknown_quota_domain if unknown_quota_admitted else None,
+        )
 
     def reconcile_response(self, reservation: DispatchReservation, response: ModelResponse) -> None:
         observed = response.usage.get("cost_minor")
@@ -213,6 +239,8 @@ class ResourceControlPlane:
         self.governor.mark_dispatching(reservation.budget.reservation_id)
 
     def release(self, reservation: DispatchReservation) -> None:
+        if reservation.unknown_quota_domain is not None:
+            self.governor.ledger.release_unknown_quota_admission(reservation.unknown_quota_domain)
         self.governor.release(reservation.budget.reservation_id)
 
     def uncertain(self, reservation: DispatchReservation) -> None:

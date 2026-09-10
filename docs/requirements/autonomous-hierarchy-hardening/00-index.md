@@ -36,6 +36,7 @@ Commander、FiniteLifecycle、AgentBackend、TaskGraphを一つの実用経路�
 | [04 Operation / Lifecycle / Planner](04-operation-lifecycle-planner.md) | G1–G2 | Operation composition、L1→L2、root planner、TaskGraph validation |
 | [05 Host Verification / External Proof](05-host-verification-external-proof.md) | H1、I1、J1–J2 | containment trust level、Cloud Worker dogfood、外部Gate、Backend admission |
 | [06 Roadmap / Tests / Acceptance](06-roadmap-tests-acceptance.md) | Gate A–E、受入条件 | 着手順、必須regression、docs同期、完成判定 |
+| [07 ADR: UNKNOWN quota operating policy](07-adr-unknown-quota-operating-policy.md) | E1 | unknown quotaのadmission、wake、provider telemetryとの責務分離 |
 
 ## 不変条件
 

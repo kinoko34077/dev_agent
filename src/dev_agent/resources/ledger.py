@@ -27,6 +27,12 @@ from .quota_policy import QuotaBlockDecision
 # reservation code may read the persisted policy but must not rewrite it.
 _BUDGET_ADMIN_TOKEN = object()
 
+
+def unknown_quota_wake_reason(quota_domain: str) -> str:
+    if not isinstance(quota_domain, str) or not quota_domain.strip():
+        raise ValueError("quota_domain must be a non-empty string")
+    return f"quota_unknown:{quota_domain.strip()}"
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -89,6 +95,21 @@ class ResourceSpec:
 
 
 @dataclass(frozen=True)
+class UnknownQuotaAdmission:
+    """Durable local admission result for a quota-telemetry-unknown domain."""
+
+    admitted: bool
+    retry_at_epoch: float | None = None
+
+    def __post_init__(self) -> None:
+        if type(self.admitted) is not bool:
+            raise ValueError("admitted must be a boolean")
+        if self.retry_at_epoch is not None:
+            if isinstance(self.retry_at_epoch, bool) or not isinstance(self.retry_at_epoch, (int, float)) or not math.isfinite(float(self.retry_at_epoch)):
+                raise ValueError("retry_at_epoch must be finite or None")
+
+
+@dataclass(frozen=True)
 class QuotaObservation:
     resource_id: str
     quota_domain: str
@@ -117,7 +138,9 @@ class QuotaObservation:
 class ResourceLedger:
     """SQLite-backed resource observations and budget reservation records."""
 
-    SCHEMA_VERSION = 8
+    SCHEMA_VERSION = 9
+    UNKNOWN_QUOTA_ADMISSION_LIMIT = 1
+    UNKNOWN_QUOTA_ADMISSION_WINDOW_SECONDS = 60.0
     _SCHEMA = """
     CREATE TABLE IF NOT EXISTS resources (
         resource_id TEXT PRIMARY KEY,
@@ -218,6 +241,11 @@ class ResourceLedger:
     CREATE TABLE IF NOT EXISTS resource_schema_meta (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS quota_unknown_admissions (
+        quota_domain TEXT PRIMARY KEY,
+        window_started_at REAL NOT NULL,
+        admitted_count INTEGER NOT NULL
     );
     """
 
@@ -331,6 +359,16 @@ class ResourceLedger:
                 ):
                     self._ensure_column("quota_observations", column, definition)
                 self.connection.execute("UPDATE resource_schema_meta SET value='8' WHERE key='schema_version'")
+                current = 8
+            if current < 9:
+                self.connection.execute(
+                    """CREATE TABLE IF NOT EXISTS quota_unknown_admissions (
+                        quota_domain TEXT PRIMARY KEY,
+                        window_started_at REAL NOT NULL,
+                        admitted_count INTEGER NOT NULL
+                    )"""
+                )
+                self.connection.execute("UPDATE resource_schema_meta SET value='9' WHERE key='schema_version'")
             self.connection.commit()
         except Exception:
             self.connection.rollback()
@@ -649,6 +687,108 @@ class ResourceLedger:
 
     def get_quota_observation(self, resource_id: str) -> dict[str, Any] | None:
         return self._quota_store.get_latest(resource_id)
+
+    def claim_unknown_quota_admission(
+        self,
+        quota_domain: str,
+        *,
+        now_epoch: float | None = None,
+        limit: int = UNKNOWN_QUOTA_ADMISSION_LIMIT,
+        window_seconds: float = UNKNOWN_QUOTA_ADMISSION_WINDOW_SECONDS,
+    ) -> UnknownQuotaAdmission:
+        """Atomically admit a bounded request without inventing quota headroom.
+
+        The counter is local policy, not provider telemetry.  It is keyed by
+        quota domain so multiple credentials cannot multiply an unknown
+        provider allowance.  A caller that has not crossed the external
+        provider boundary may release its slot; a response/error path keeps
+        the admission consumed for the remainder of the local window.
+        """
+
+        if not isinstance(quota_domain, str) or not quota_domain.strip():
+            raise ValueError("quota_domain must be a non-empty string")
+        if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
+            raise ValueError("limit must be a positive integer")
+        if isinstance(window_seconds, bool) or not isinstance(window_seconds, (int, float)) or not math.isfinite(float(window_seconds)) or window_seconds <= 0:
+            raise ValueError("window_seconds must be a finite positive number")
+        current = time.time() if now_epoch is None else now_epoch
+        if isinstance(current, bool) or not isinstance(current, (int, float)) or not math.isfinite(float(current)):
+            raise ValueError("now_epoch must be finite")
+        quota_domain = quota_domain.strip()
+        window_seconds = float(window_seconds)
+        current = float(current)
+        with self._lock:
+            try:
+                self.connection.execute("BEGIN IMMEDIATE")
+                row = self.connection.execute(
+                    "SELECT window_started_at, admitted_count FROM quota_unknown_admissions WHERE quota_domain=?",
+                    (quota_domain,),
+                ).fetchone()
+                if row is None or current >= float(row["window_started_at"]) + window_seconds:
+                    self.connection.execute(
+                        "INSERT INTO quota_unknown_admissions(quota_domain, window_started_at, admitted_count) VALUES (?, ?, 1) ON CONFLICT(quota_domain) DO UPDATE SET window_started_at=excluded.window_started_at, admitted_count=excluded.admitted_count",
+                        (quota_domain, current),
+                    )
+                    self.connection.commit()
+                    return UnknownQuotaAdmission(True)
+                admitted_count = int(row["admitted_count"])
+                retry_at = float(row["window_started_at"]) + window_seconds
+                if admitted_count >= limit:
+                    self.connection.commit()
+                    return UnknownQuotaAdmission(False, retry_at)
+                self.connection.execute(
+                    "UPDATE quota_unknown_admissions SET admitted_count=admitted_count+1 WHERE quota_domain=?",
+                    (quota_domain,),
+                )
+                self.connection.commit()
+                return UnknownQuotaAdmission(True)
+            except BaseException:
+                self.connection.rollback()
+                raise
+
+    def release_unknown_quota_admission(self, quota_domain: str) -> None:
+        """Return a local slot when no external request crossed the boundary."""
+
+        if not isinstance(quota_domain, str) or not quota_domain.strip():
+            raise ValueError("quota_domain must be a non-empty string")
+        quota_domain = quota_domain.strip()
+        with self._lock:
+            try:
+                self.connection.execute("BEGIN IMMEDIATE")
+                row = self.connection.execute(
+                    "SELECT admitted_count FROM quota_unknown_admissions WHERE quota_domain=?",
+                    (quota_domain,),
+                ).fetchone()
+                if row is not None:
+                    if int(row["admitted_count"]) <= 1:
+                        self.connection.execute("DELETE FROM quota_unknown_admissions WHERE quota_domain=?", (quota_domain,))
+                    else:
+                        self.connection.execute(
+                            "UPDATE quota_unknown_admissions SET admitted_count=admitted_count-1 WHERE quota_domain=?",
+                            (quota_domain,),
+                        )
+                self.connection.commit()
+            except BaseException:
+                self.connection.rollback()
+                raise
+
+    def due_unknown_quota_domains(self, *, now_epoch: float | None = None, window_seconds: float = UNKNOWN_QUOTA_ADMISSION_WINDOW_SECONDS) -> tuple[str, ...]:
+        """List local admission windows that may accept another probe/request."""
+
+        if isinstance(window_seconds, bool) or not isinstance(window_seconds, (int, float)) or not math.isfinite(float(window_seconds)) or window_seconds <= 0:
+            raise ValueError("window_seconds must be a finite positive number")
+        current = time.time() if now_epoch is None else now_epoch
+        if isinstance(current, bool) or not isinstance(current, (int, float)) or not math.isfinite(float(current)):
+            raise ValueError("now_epoch must be finite")
+        with self._lock:
+            rows = self.connection.execute(
+                "SELECT quota_domain, window_started_at FROM quota_unknown_admissions WHERE admitted_count > 0 ORDER BY quota_domain",
+            ).fetchall()
+        return tuple(
+            str(row["quota_domain"])
+            for row in rows
+            if float(current) >= float(row["window_started_at"]) + float(window_seconds)
+        )
 
     def record_quota_block(
         self,

@@ -7,7 +7,7 @@ import sqlite3
 import math
 
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 
 def validate_resource_ledger(path: str | Path) -> tuple[bool, str]:

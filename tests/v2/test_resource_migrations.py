@@ -30,7 +30,10 @@ def test_resource_ledger_runs_ordered_migrations_for_legacy_database(tmp_path):
     assert "quota_domain" in columns
     assert config["period_id"] != "legacy"
     assert config["period_starts_at"] < config["period_ends_at"]
-    assert version == "8"
+    assert version == "9"
+    assert ledger.connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='quota_unknown_admissions'"
+    ).fetchone() is not None
 
 
 def test_resource_ledger_migrates_v7_quota_table_with_reset_fields(tmp_path):
@@ -54,7 +57,10 @@ def test_resource_ledger_migrates_v7_quota_table_with_reset_fields(tmp_path):
     ledger = ResourceLedger(path)
     columns = {row[1] for row in ledger.connection.execute("PRAGMA table_info(quota_observations)")}
     assert {"metric", "window", "reset_source", "blocked_until", "block_reason"}.issubset(columns)
-    assert ledger.connection.execute("SELECT value FROM resource_schema_meta WHERE key='schema_version'").fetchone()[0] == "8"
+    assert ledger.connection.execute("SELECT value FROM resource_schema_meta WHERE key='schema_version'").fetchone()[0] == "9"
+    assert ledger.connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='quota_unknown_admissions'"
+    ).fetchone() is not None
 
 
 def test_control_plane_maintenance_uses_governor_store_not_router_ledger(tmp_path):

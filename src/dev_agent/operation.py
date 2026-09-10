@@ -32,7 +32,7 @@ from .resources.billing_catalog import (
     profile_for as _catalog_profile_for,
 )
 from .resources.control import ResourceControlPlane
-from .resources.ledger import ResourceLedger
+from .resources.ledger import ResourceLedger, unknown_quota_wake_reason
 from .resources.qualification import QualificationResolver
 from .resources.router import ResourceRouter
 from .scheduler.queue import DurableQueue
@@ -763,6 +763,8 @@ class OperationService:
         results: list[dict[str, Any]] = []
         if max_probes == 0:
             return results
+        for domain in self.ledger.due_unknown_quota_domains(now_epoch=current.timestamp()):
+            self.queue.wake_due(now=current, reason=unknown_quota_wake_reason(domain))
         for domain in scheduler.due_domains(now=current):
             observations = self.ledger.list_quota_observations(quota_domain=domain)
             for observation in observations:

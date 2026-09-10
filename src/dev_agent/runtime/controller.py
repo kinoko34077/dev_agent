@@ -238,15 +238,30 @@ class Controller:
         event = self._event_record(task, "task.blocked_quota", {"category": "quota", "message": message}, step_id=step.step_id)
         self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "blocked_quota", state), events=[event])
 
-    def _wait_for_resource(self, task: Task, state: dict[str, Any], *, step: Step, category: str, message: str) -> None:
+    def _wait_for_resource(
+        self,
+        task: Task,
+        state: dict[str, Any],
+        *,
+        step: Step,
+        category: str,
+        message: str,
+        wake_at: float | None = None,
+        wake_reason: str | None = None,
+    ) -> None:
         step.status = StepStatus.WAITING
         state["active_step"] = step.to_dict()
-        task.metadata["wait_reason"] = f"resource:{category}"
+        resolved_reason = wake_reason.strip() if isinstance(wake_reason, str) and wake_reason.strip() else f"resource:{category}"
+        task.metadata["wait_reason"] = resolved_reason
+        if wake_at is not None:
+            task.metadata["wait_until_epoch"] = wake_at
+        else:
+            task.metadata.pop("wait_until_epoch", None)
         task.status = TaskStatus.WAITING_DEPENDENCY
         event = self._event_record(
             task,
             "task.waiting_resource",
-            {"category": category, "message": message, "wait_reason": f"resource:{category}"},
+            {"category": category, "message": message, "wait_reason": resolved_reason, "wake_at": wake_at},
             step_id=step.step_id,
         )
         self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "waiting_resource", state), events=[event])
@@ -273,6 +288,17 @@ class Controller:
             return task
         if category in {"quota", "rate_limit"}:
             self._block_quota(task, state, step=step, message=str(error))
+            return task
+        if category == "quota_unknown":
+            self._wait_for_resource(
+                task,
+                state,
+                step=step,
+                category=category,
+                message=str(error),
+                wake_at=error.wake_at,
+                wake_reason=error.wake_reason,
+            )
             return task
         if category == "maintenance":
             self._wait_for_maintenance(task, state, step=step, message=str(error))

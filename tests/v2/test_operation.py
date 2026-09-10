@@ -330,6 +330,30 @@ def test_operation_maintenance_tick_skips_nonblocked_resource_before_due_probe(t
         assert results[0]["resource_id"] == "z-blocked"
 
 
+def test_operation_maintenance_tick_wakes_due_unknown_quota_domain(tmp_path):
+    from src.dev_agent.resources.ledger import unknown_quota_wake_reason
+
+    config = _config(tmp_path)
+    task = OperationService.submit(config, "wait for unknown quota window")
+    with OperationService.open(config) as service:
+        item = service.queue.claim("unknown-quota-worker", lease_seconds=30)
+        service.ledger.claim_unknown_quota_admission("cloud-free", now_epoch=100.0)
+        service.queue.defer_until(
+            task.task_id,
+            worker_id="unknown-quota-worker",
+            state_version=item.state_version,
+            wake_at=150.0,
+            reason=unknown_quota_wake_reason("cloud-free"),
+        )
+
+        service.maintenance_tick(
+            now=datetime.fromtimestamp(161.0, tz=timezone.utc),
+            max_probes=1,
+        )
+
+        assert service.queue.snapshot(task.task_id).state == "queued"
+
+
 def test_external_cancel_of_running_task_is_only_a_durable_request(tmp_path):
     from src.dev_agent.domain.protocol import Task
     from src.dev_agent.providers.fake import FakeProvider

@@ -148,7 +148,18 @@ class ProviderDispatcher(ModelProvider):
             if cached is not None:
                 self._record_audit(request, selection, "durable_replay", intent_key)
                 return cached
-            reservation = self.control.reserve_selection(request.task_id, selection, intent_key=intent_key)
+            try:
+                reservation = self.control.reserve_selection(request.task_id, selection, intent_key=intent_key)
+            except DispatchDenied as exc:
+                if exc.category == "quota_unknown":
+                    # No provider call has started.  Exclude this local
+                    # admission lane and try another eligible binding; if no
+                    # lane remains, the original denial carries the durable
+                    # wake boundary back to the Controller.
+                    last_error = exc
+                    excluded.add(selection.resource_id)
+                    continue
+                raise
             try:
                 self.control.mark_dispatching(reservation)
             except BudgetReconciliationRequired as exc:

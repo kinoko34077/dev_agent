@@ -87,6 +87,8 @@ class RouteSelection:
     price_currency: str | None
     provider_binding_id: str | None = None
     model_id: str | None = None
+    quota_domain: str | None = None
+    unknown_quota: bool = False
 
 
 _SENSITIVITY = {"public": 0, "normal": 1, "internal": 2, "sensitive": 3}
@@ -193,6 +195,7 @@ class ResourceRouter:
         if request.sensitivity not in _SENSITIVITY:
             raise ValueError("invalid sensitivity")
         candidates = []
+        unknown_quota_resource_ids: set[str] = set()
         for resource in snapshot.resources:
             if resource["resource_id"] in request.excluded_resource_ids:
                 continue
@@ -294,6 +297,7 @@ class ResourceRouter:
                     )
                     if not unknown_bootstrap:
                         continue
+                    unknown_quota_resource_ids.add(resource["resource_id"])
                 elif quota_ratio <= 0:
                     continue
             elif resource.get("quota_remaining_ratio") is not None:
@@ -335,4 +339,6 @@ class ResourceRouter:
             chosen["price_currency"],
             provider_binding_id.strip(),
             model_id.strip() if model_id else None,
+            chosen.get("quota_domain"),
+            chosen["resource_id"] in unknown_quota_resource_ids,
         )

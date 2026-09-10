@@ -112,7 +112,16 @@ class WorkerRunner:
                 # replenishment, or reconciliation).  Requeueing immediately
                 # can duplicate an ambiguous external effect or spin forever.
                 wait_reason = result.metadata.get("wait_reason") if isinstance(result.metadata, dict) else None
-                if wait_reason == "resource:provider_execution_saturated":
+                wait_until = result.metadata.get("wait_until_epoch") if isinstance(result.metadata, dict) else None
+                if isinstance(wait_until, (int, float)) and not isinstance(wait_until, bool) and wait_reason:
+                    self.queue.defer_until(
+                        item.task_id,
+                        worker_id=self.worker_id,
+                        state_version=item.state_version,
+                        wake_at=wait_until,
+                        reason=wait_reason,
+                    )
+                elif wait_reason == "resource:provider_execution_saturated":
                     self.queue.defer_for_event(
                         item.task_id,
                         worker_id=self.worker_id,
