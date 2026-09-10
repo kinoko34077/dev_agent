@@ -9,6 +9,7 @@ from src.dev_agent.backends import (
     AgentBackendDispatcher,
     AgentBackendDispatchError,
     AgentBackendEvent,
+    AgentBackendIdentity,
     AgentBackendRequest,
     AgentBackendResult,
     AgentBackendScope,
@@ -225,6 +226,24 @@ def test_dispatch_rejects_admission_that_does_not_cover_task_capabilities(store)
     dispatcher = AgentBackendDispatcher(store, authorize=lambda task, request: True, admission=admission)
     with pytest.raises(AgentBackendDispatchError, match="capabilities"):
         dispatcher.dispatch(request, backend, dispatch_id=str(uuid4()), attempt=1)
+
+    assert backend.start_calls == 0
+
+
+def test_dispatch_rejects_backend_identity_that_lacks_task_capabilities(store):
+    class _TextOnlyBackend(FakeAgentBackend):
+        identity = AgentBackendIdentity(backend_id="text-only", backend_version="1", capabilities=("text",))
+
+    backend = _TextOnlyBackend()
+    task = Task(
+        objective="backend identity capability check",
+        status=TaskStatus.READY,
+        required_capabilities=["coding"],
+    )
+    store.save_task(task)
+
+    with pytest.raises(AgentBackendDispatchError, match="capabilities"):
+        _dispatcher(store).dispatch(_request(task.task_id), backend, dispatch_id=str(uuid4()), attempt=1)
 
     assert backend.start_calls == 0
 

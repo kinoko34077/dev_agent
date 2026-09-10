@@ -468,7 +468,7 @@ class AgentBackendDispatcher:
             raise AgentBackendDispatchError("backend dispatch admission rejected request") from exc
         if not isinstance(admission, BackendAdmission):
             raise AgentBackendDispatchError("backend dispatch requires typed admission evidence")
-        self._validate_admission(admission, task, request, identity)
+        self._validate_admission(admission, task, request, identity, backend)
         return task, identity, fingerprint, self.effect_key(dispatch_id), admission
 
     @staticmethod
@@ -477,6 +477,7 @@ class AgentBackendDispatcher:
         task: Task,
         request: AgentBackendRequest,
         identity: AgentBackendDispatchIdentity,
+        backend: AgentBackend,
     ) -> None:
         expected = {
             "task_id": identity.task_id,
@@ -496,6 +497,14 @@ class AgentBackendDispatcher:
         if missing:
             missing_text = ", ".join(sorted(missing))
             raise AgentBackendDispatchError(f"backend admission capabilities are insufficient: {missing_text}")
+        try:
+            backend_capabilities = set(backend.identity.capabilities)
+        except (AttributeError, TypeError) as exc:
+            raise AgentBackendDispatchError("backend identity capabilities are unavailable") from exc
+        missing_from_backend = required - backend_capabilities
+        if missing_from_backend:
+            missing_text = ", ".join(sorted(missing_from_backend))
+            raise AgentBackendDispatchError(f"backend identity capabilities are insufficient: {missing_text}")
 
     def _validate_scope(self, request: AgentBackendRequest) -> None:
         for value in request.scope.allowed_paths:

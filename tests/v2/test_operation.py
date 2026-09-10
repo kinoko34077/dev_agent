@@ -3,8 +3,9 @@ from datetime import datetime, timezone
 
 import pytest
 
-from src.dev_agent.domain.protocol import TaskStatus, TaskType
+from src.dev_agent.domain.protocol import ModelResponse, TaskStatus, TaskType
 from src.dev_agent.operation import OperationConfig, OperationProviderBinding, OperationService
+from src.dev_agent.providers.base import ModelProvider, ProviderError
 
 
 def _config(tmp_path):
@@ -391,6 +392,77 @@ def test_operation_composes_an_explicit_multi_provider_pool_with_bounded_routing
         assert service.controller.allow_unknown_quota is True
         assert service.ledger.get_resource("gemini:worker")["quota_domain"] == "google-project"
         assert service.ledger.get_resource("cloudflare")["quota_domain"] == "cloudflare-account"
+
+
+class _OperationPoolProvider(ModelProvider):
+    def __init__(self, provider_id, binding_id, model_id, tier, *, fail_once=False):
+        self.provider_id = provider_id
+        self.provider_binding_id = binding_id
+        self.model_id = model_id
+        self.model = model_id
+        self.intelligence_tier = tier
+        self.fail_once = fail_once
+        self.requests = []
+
+    def request(self, request):
+        self.requests.append(request)
+        if self.fail_once:
+            self.fail_once = False
+            raise ProviderError("temporary provider limit", category="rate_limit", retryable=True)
+        return ModelResponse(provider=self.provider_id, model=self.model_id, text_segments=["pool-success"])
+
+
+def test_operation_dispatches_l1_task_through_pool_and_falls_back_within_tier(tmp_path, monkeypatch):
+    primary = _OperationPoolProvider(
+        "cloudflare",
+        "cloudflare",
+        "@cf/meta/llama-3.1-8b-instruct",
+        "L1",
+        fail_once=True,
+    )
+    secondary = _OperationPoolProvider(
+        "gemini",
+        "gemini:worker",
+        "gemini-3.5-flash-lite",
+        "L1",
+    )
+    providers = {primary.provider_binding_id: primary, secondary.provider_binding_id: secondary}
+
+    def build_provider(binding):
+        return providers[binding.binding_id]
+
+    monkeypatch.setattr(OperationService, "_build_provider", staticmethod(build_provider))
+    config = OperationConfig(
+        data_dir=tmp_path,
+        provider_pool=(
+            OperationProviderBinding(
+                provider_id="cloudflare",
+                model=primary.model_id,
+                provider_binding_id=primary.provider_binding_id,
+                quota_domain="cloudflare-account",
+            ),
+            OperationProviderBinding(
+                provider_id="gemini",
+                model=secondary.model_id,
+                provider_binding_id=secondary.provider_binding_id,
+                quota_domain="google-project",
+            ),
+        ),
+        worker_id="operation-pool-fallback",
+    )
+    task = OperationService.submit(config, "run one bounded worker", task_type=TaskType.WORKER)
+
+    with OperationService.open(config) as service:
+        result = service.start(once=True)
+
+    assert result is not None and result.status is TaskStatus.COMPLETED
+    assert len(primary.requests) == 1
+    assert len(secondary.requests) == 1
+    assert primary.requests[0].metadata["allowed_intelligence_tiers"] == ["L1"]
+    assert secondary.requests[0].metadata["allowed_intelligence_tiers"] == ["L1"]
+    status = OperationService.read_status(config, task.task_id)
+    assert status["selected_provider"] == "gemini"
+    assert status["selected_binding"] == "gemini:worker"
 
 
 def test_operation_rejects_existing_resource_with_untrusted_free_price(tmp_path):
