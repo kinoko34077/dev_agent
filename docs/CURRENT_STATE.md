@@ -1,6 +1,6 @@
 # Current State — v2/bootstrap
 
-実装基準は `ec38122` です。直近のローカル全回帰もこのHEADで検証し、
+実装基準は `ead4dfe` です。直近のローカル全回帰もこのHEADで検証し、
 本書はそのコードと、直近の外部資格化・DevFarm実行結果を同期したCurrent Stateです。
 GATE_STATUSの既存statusは変更していません。
 
@@ -19,6 +19,7 @@ GATE_STATUSの既存statusは変更していません。
 - Phase 7 evidence routing: `EvidenceBasedRoutingPolicy`がhost-verified Worker metricsを、最小sample数・証拠期限・受入率／retry rollback条件付きで、呼出側から渡されたhard-filter済みbindingの範囲だけで順位付けする。証拠不足・期限切れ・回帰は採用せず、ResourceRouterのcapability／privacy／quota／budget hard filterや通常routingを上書きしない。自動routingへの接続は未実施
 - Phase 7 Operation Layer: `python -m src.dev_agent` の`start`／`submit`／`status`／`stop`を追加し、既存のSQLiteStateStore・DurableQueue・WorkerRunner・Controller・ProviderDispatcherをcompositionした。StateStoreとQueueは同じSQLiteファイルを共有し、CLI停止は実行中Taskを即時失敗扱いせず、durableな協調キャンセル要求または既存のreconciliation状態を維持する
 - Operation hardening: Operation起動時の既存Resourceはread-onlyで保持し、binding×model×trusted catalogにない価格を無料と推測しない。Cloud Resourceはoperator-ownedな`quota_domain`を明示し、初回はlive probeなしでhealthy扱いせず、正常Provider応答／正常quota probeだけがResource freshnessを更新する。`DispatchDenied`はbudget／quota／maintenance／resource wait／invalid failureへ意味別に遷移し、canonicalなrate-limit／quota ProviderErrorも`BLOCKED_QUOTA`へparkする
+- Operation quota maintenance hardening: 同一quota domainに複数Resourceがある場合も、正常な観測がbounded probe枠を消費しないよう、期限到来したblocked Resourceだけを選択して一回probeする。reset境界前、authorization／permission、invalid observationはprobe対象にしない
 - DevFarm admission hardening: proposal段階の各外部Providerを送信直前に再検証し、operator activation、期限内capability qualification、正確なprovider binding／model／L1 tier、trusted no-charge billingをすべて満たさないProviderをfail-closedで拒否する。Provider名だけのfree判定や、直接注入された未資格Providerによる迂回を許可しない
 - Intelligence hierarchy evidence: `tests/v2/test_phase7_hierarchy_e2e.py`で、失敗したL1 bindingから同Tierの別L1 bindingを先に試し、その後に明示承認されたL2へ有限に昇格するcanonical ProviderDispatcher経路を確認した。各dispatchは今回のexact tierをhard filterし、unknown effectは再送しない
 - Cross-process safety hardening: cancellation requestはappend-onlyの`task_controls`へ保存し、terminal transition直前に再読込してlate completionをfenceする。Provider healthはresource/binding単位、quota wakeは`quota:<domain>`単位で、別Resource／別domainのTaskを誤って起こさない
@@ -30,7 +31,7 @@ GATE_STATUSの既存statusは変更していません。
 
 ## 検証
 
-- v2ローカル全回帰: `550 passed, 1 skipped`（`python -m pytest -q tests/v2 --durations=10`、113.24秒。所要時間は実行環境依存）
+- v2ローカル全回帰: `563 passed, 1 skipped`（`python -m pytest -q tests/v2 --durations=10`、115.54秒。所要時間は実行環境依存）
 - DevFarm admission／hierarchy focused: `54 passed`（qualified bindingの送信前再検証、未資格model拒否、L1 alternate→L2横断証拠を含む）
 - 追加監査focused: Provider quota分類／DevFarm model-qualified activation／trusted free qualificationを含む`45 passed`
 - Operation hardening focused: `94 passed, 1 skipped`（Operation、quota、DevFarm attempt、SQLite contention、security、budget境界）
@@ -53,7 +54,7 @@ GATE_STATUSの既存statusは変更していません。
 - Worker metricsはhost側で `provider_id`、`provider_binding_id`、`model_id`、`intelligence_tier`、`task_type`、request id、elapsed、許可されたusage scalar、host test結果を記録し、`.devfarm/metrics.sqlite3`へ`task_id + request_id`単位で冪等に蓄積する。Modelのtests claimは証拠に採用しない。metricsはrouting候補の観測値であり、Policyやacceptanceを上書きしない
 - Commander/Worker履歴 hardening: Commander Planは`plan_revision`付きCASで並行更新を検出し、Worker結果は`attempt_id`ごとのimmutable artifactと履歴を正本とする。検証時はrootの最新投影へフォールバックせず、選択attemptのpatchを必須として読む
 - Protected policy / audit hardening: protected responsibility path、PathPolicyの最長prefix、secret semantic sanitizerを共有境界へ集約し、token使用量・session telemetryは保持しつつcredential値だけをredactする
-- quota/reset focused regression: `56 passed`（quota policy、schema v8 migration、blocked routing、bounded typed probe failure、DevFarm remote/host concurrency）
+- quota/reset focused regression: 既存のquota policy、schema v8 migration、blocked routing、bounded typed probe failure、DevFarm remote/host concurrencyに加え、同一domain内のdue Resource選択回帰を全回帰へ追加
 - SQLite contention: 独立processのqueue／state／stop／status同時操作、WAL、5秒bounded busy timeoutを確認。既存のWindows ACL skipは継続
 - skip: `tests/v2/test_budget_reservations.py:142`（Windows ACLはdeployment-owned）
 - 最新コード基準のexact-head GitHub Actionsは、push後に`v2-core`（Python 3.10/3.11）と`v2 tests`を外部観測する。repo内GATE_STATUSへCI結果を書き戻してexact-headを自己参照しない
@@ -123,12 +124,12 @@ Commander dogfoodでは、外部Providerへsourceを送らない決定的local h
 Codexがreview・公式branchへ統合しました。Cloudflare／OpenRouter／Geminiの別試行は
 proposal品質または応答失敗でHost Verifiedに至っておらず、外部Free Worker成功とは扱っていません。
 
-## 次の作業
+## 監査再分類と次の作業
 
-1. Commander dogfoodとCloudflareのOperation external E2E、L1 alternate→L2 hierarchy evidenceは完了。次はProvider別のquota probe callbackで取得できるtelemetryだけを使い、reset復帰を外部またはfixtureで確認する。未提供値はunknownのまま扱う
-2. Worker metricsのhost側SQLite蓄積と、hard-filter済みbindingだけを対象とする期限／minimum sample／rollback付きadvisory順位付けは実装済み。`DEFERRED_ADVISORY`条件が満たされるまでResourceRouterへhard接続しない
-3. Phase 7 acceptanceは上記統合境界を確認済み。Evidence routingのsample条件を満たした時点で再監査し、実Codex AgentBackend adapter／MCPは各専用Gateで開始する
-4. G6O1は実paid Providerとdeployment-owned budget configurationという外部条件待ちであり、Phase 7コード判定と混ぜない
+1. Commander dogfood、CloudflareのOperation external E2E、L1 alternate→L2 hierarchy、quota reset→bounded probe→domain-scoped wakeは完了。未提供quota値は引き続きunknownのまま扱う
+2. Worker metricsとhard-filter限定のevidence advisoryは実装済みだが、sample／freshness／rollback条件が揃うまでResourceRouterへhard接続しない
+3. ローカルで閉じたOperation／billing／quota／cancellation／Commander境界は回帰済み。GitHub rulesetによるrequired check、OS級filesystem/network sandbox、実paid Provider資格化はdeployment／外部条件として未完了であり、コード完了とは扱わない
+4. 実Codex AgentBackend adapter／MCPは、このhardening判定後の専用Gateで開始する。G6O1は実paid Providerとdeployment-owned budget configuration待ちのまま、Phase 7コード判定と混ぜない
 
 G6O1は実paid Providerとdeployment-owned budget configurationという外部条件待ちであり、
 コード不足として勝手に昇格しません。`README.md`は入口、`PHASE6_PLAN.md`はPhase 6受入条件、

@@ -4,6 +4,16 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-11 JST — Operation quota maintenance ordering
+
+- 同一quota domainに複数Resourceがある場合、正常な最新観測がbounded probe枠を消費しないよう、期限到来したblocked ResourceだけをOperation maintenance対象へ絞った。reset前、authorization／permission、invalid observationは引き続きprobeしない。
+- `tests/v2` 全回帰は `563 passed, 1 skipped`（115.54秒）。G6O1、外部Provider資格化、Gate statusは変更していない。
+
+### 2026-09-11 JST — Provider identity and billing evidence hardening
+
+- AgentBackendの`dispatch_id`型、trusted billingの`verified_at`／`expires_at`整合性、legacy direct-providerのprovider／model応答identityをfail-closedで検証する回帰を追加した。canonical／compatibility両経路で不一致はreconciliationへ送る。
+- focused境界テストは `41 passed`。外部Providerのlive資格化やG6O1判定は変更していない。
+
 ### 2026-09-11 JST — DevFarm admission and hierarchy evidence hardening
 
 - DevFarmのremote proposal直前に、Provider identityを現行のoperator activation、期限内capability qualification、provider binding／model／L1 tier、trusted no-charge billingへ再照合する境界を追加した。provider名だけのfree判定、未資格model、期限切れ／課金不明bindingの直接注入を外部要求前に拒否する。
