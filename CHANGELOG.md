@@ -4,6 +4,12 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-10 JST — Reset-aware quota metadata and bounded DevFarm stages
+
+- ResourceLedgerをschema v8へordered migrationし、quota observationにmetric／window／reset source／blocked-until／block reasonを追加した。429／quota／transportのtyped ProviderErrorはProvider-neutralな保守的blockへ変換し、古いblocked observationを時計経過だけでroutingへ戻さない。Recovery validatorもschema v8と新しいquota metadataを検証する。
+- DevFarmのRemote proposalとHost verificationを分離し、proposal段階ではworktreeを作成せず、検証段階だけ専用worktreeへ限定適用する。remote inferenceとHost verificationを別Governorでboundedに制御し、無効化された枠はfail-closedとした。
+- `TaskLifecycleCoordinator`を追加し、Evaluator／reviewed dispatchの結果を冪等な`commit_transition()`でTaskへ適用する境界を実装した。G6O1と既存Gate statusは変更していない。ローカル全回帰は`419 passed, 1 skipped`。
+
 ### 2026-09-10 JST — Phase 7 execution, Gemini 3.x qualification, and DevFarm metrics
 
 - `EscalationExecutor`を追加し、acceptedな`dispatch_ready` handoffを、Task／plan／dispatch identity、lease、Intelligence policy、tier、resource、quota、budget、Provider bindingの再検証後にcanonical `ProviderDispatcher`へ委譲する。`RETRY_SAME`、`RETRY_OTHER_PROVIDER`、`ESCALATE`を有限attemptへ閉じ、succeededの再送と不確実dispatchの再実行を拒否して既存effect intent／reconciliationへ接続した。

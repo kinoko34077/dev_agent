@@ -1,6 +1,6 @@
 # Current State — v2/bootstrap
 
-実装基準は `526a533` です。本書はそのコードと、直近の外部資格化・DevFarm
+実装基準は `b71d9ba` です。本書はそのコードと、直近の外部資格化・DevFarm
 実行結果を同期したCurrent Stateです。GATE_STATUSの既存statusは変更していません。
 
 ## 判定
@@ -12,17 +12,21 @@
 - Phase 7C/D: deterministic host evaluator、durable evidence、有限escalation plan、明示review、dispatch-ready handoffを実装済み
 - Phase 7 execution: `EscalationExecutor`がaccepted `dispatch_ready`を再検証し、既存ProviderDispatcher・effect intent・budget/resource境界を通る有限dispatchを実装済み。`EvaluationDispatchCoordinator`がhost evaluator→明示review→dispatchの一回のcycleを接続し、PASS／拒否／unknownを別状態で返す。重複再送とunknown/reconciliationをfail-closedに扱う
 - Phase 7E: bounded workflow promotion proposalの生成境界を実装済み。自動promotionは行わない
+- Phase 7 lifecycle: host evaluator／reviewed dispatchの結果を、`TaskLifecycleCoordinator`が冪等な`commit_transition()`でterminal／retry／approval／reconciliation状態へ適用する境界を実装済み
+- Phase 6 quota operation: ResourceLedger schema v8でmetric／window／reset source／blocked-until／block reasonを保持し、ProviderErrorの429／quota／transport分類をrouting blockへ接続済み。blocked observationは新しい正常観測で明示的に復帰する
+- DevFarm orchestration: Remote proposalとHost verificationを分離し、remote inference枠とworktree verification枠を別Governorでboundedに制御する。proposal失敗時にworktreeを作成せず、自動mergeもしない
 - Gate昇格やlive qualificationの成功は、local test・model自己申告・Worker proposalだけから推測しない
 
 ## 検証
 
-- v2ローカル全回帰: `397 passed, 1 skipped in 97.15s`（`python -m pytest tests/v2 -q --durations=10`）
+- v2ローカル全回帰: `419 passed, 1 skipped in 77.54s`（`python -m pytest tests/v2 -q --durations=10`）
 - Evaluator→dispatch cycle focused: `18 passed in 2.62s`
 - intelligence routing / escalation execution focused: `26 passed in 1.28s`
 - DevFarm manifest / patch / host verification focused: `24 passed in 27.50s`
 - DevFarm host verification: Gemini 3.5 Flash-Lite `gemini-worker-phase7-003` が、入力ファイルを外部送信せず、隔離worktreeへpatchを適用し、許可済みhost test `7 passed` を確認
 - DevFarm 2 Worker並列: `gemini-worker-parallel-a` と `gemini-worker-parallel-b` が別worktree・別所有ファイルで同時実行され、各 `7 passed`、`result_accepted=true` を確認。実測はそれぞれ1.528秒、1.278秒
 - Worker metricsはhost側で `provider_id`、`provider_binding_id`、`model_id`、`intelligence_tier`、request id、elapsed、許可されたusage scalar、host test結果を記録する。Modelのtests claimは証拠に採用しない
+- quota/reset focused regression: `55 passed`（quota policy、schema v8 migration、blocked routing、DevFarm remote/host concurrency）
 - skip: `tests/v2/test_budget_reservations.py:142`（Windows ACLはdeployment-owned）
 - 最新コード基準のexact-head GitHub Actionsは、push後に`v2-core`（Python 3.10/3.11）と`v2 tests`を外部観測する。repo内GATE_STATUSへCI結果を書き戻してexact-headを自己参照しない
 
@@ -55,7 +59,7 @@ thoughtSignature、thinking設定はAdapter内部で保持・変換し、Kernel 
 ## Refactor Freezeの内容
 
 - Controllerのprovider request実行を `runtime/model_turn.py`、compatibility direct-provider実行を `runtime/legacy_provider.py` へ分離。canonical経路は `Controller -> ProviderDispatcher` のままです
-- ResourceLedgerは同一SQLite connection / lock / transaction semanticsを維持し、Catalog、Observation、Quota、Health、Budget Reservation storeを内部分離しました。schema v7は維持しています
+- ResourceLedgerは同一SQLite connection / lock / transaction semanticsを維持し、Catalog、Observation、Quota、Health、Budget Reservation storeを内部分離しました。schema v8でquotaのmetric／window／reset／blocked stateをordered migrationしています
 - SQLiteStateStoreはconnection / transaction ownerを維持し、`state/schema.py`、`state/core_repository.py`、`state/effects_repository.py`へ内部整理しました
 - ToolRuntimeは `tools/executor.py` と `tools/effect_guard.py`へ実行／副作用責務を分離し、timeout、process-tree kill、cancellation、approval、idempotency、reconciliation semanticsを維持しました
 - ProviderRegistryは `providers/registry.py` を責務所有者とし、DispatcherはControlPlaneのSnapshot API経由でrouting/budget viewを取得します
@@ -70,6 +74,11 @@ workspace外へresolveするpath、protected/credential/secret path、secret候�
 patchは実変更pathをunified diffから決定し、worktreeへだけ適用します。patch末尾LFのような
 非意味的transport正規化はmetricsへ記録し、silent truncateは行いません。
 
+Proposalはrepository rootからmanifestのoutbound scopeだけを読み出すRemote stageで、Host
+verification時に初めて専用worktreeを作成します。`DevFarmOrchestrator`はremote inferenceと
+worktree verificationを別々のbounded governorで管理し、remoteを最大4、Hostのworktree／pytest等を
+小さい枠に保ちます。remote／hostの枠を0にした場合もfail-closedです。
+
 `gemini-worker-phase7-003` は入力ゼロの新規doc patchをhost-verifiedしました。さらに
 `gemini-worker-parallel-a` / `gemini-worker-parallel-b` は独立file ownershipの2 Worker並列を
 host-verifiedしました。いずれも生成物は`.devfarm/results/`（ignore対象）に保持し、smoke用の
@@ -78,9 +87,9 @@ dummy docを公式branchへ自動統合していません。実装成果の公�
 
 ## 次の作業
 
-1. 外部資格情報が実行環境へ読み込まれた場合だけ、OpenRouter/CloudflareをGeminiと異なるProviderとして再度DevFarm実証する。未読込み状態で送信や成功判定を捏造しない
+1. reset-aware quotaをProvider別の実観測・blocked_until・bounded probe／wakeへ接続し、429をblind retryしないScheduler境界を完成させる
 2. Worker metricsを一定数蓄積し、`Task Type × tier × capability × quota × latency/failure`の実績ベースroutingを、最小サンプル数・期限・rollback条件付きで導入する
-3. `EvaluationDispatchCoordinator`の結果を実Task lifecycleのterminal／waiting遷移と次cycleのhost evidenceへ接続し、PASS / bounded retry / escalation / WAIT_HUMANを有限に循環させる
+3. `TaskLifecycleCoordinator`の結果を次cycleのhost evidenceと有限のPASS / retry / escalation / WAIT_HUMAN循環へ接続し、再開時のacceptanceを追加する
 4. Gemini 3.7はlive qualification後でなければfallbackへ登録しない。Groq/Mistral/SambaNovaの外部状態も現在の判定を維持する
 5. AgentBackend / Codex、MCP、Self-Improvementは前段のPhase 7 acceptanceが揃うまで着手しない
 
