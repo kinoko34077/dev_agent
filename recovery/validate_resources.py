@@ -7,7 +7,7 @@ import sqlite3
 import math
 
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 
 def validate_resource_ledger(path: str | Path) -> tuple[bool, str]:
@@ -32,7 +32,7 @@ def validate_resource_ledger(path: str | Path) -> tuple[bool, str]:
             if not {"quota_domain", "quota_remaining_ratio", "latency_ewma_ms", "failure_ewma", "inflight", "concurrency_limit"} <= resource_columns:
                 return False, "resource ledger resources table lacks operational observation columns"
             quota_columns = {row[1] for row in connection.execute("PRAGMA table_info(quota_observations)")}
-            if not {"resource_id", "quota_domain", "unit", "limit_value", "remaining_value", "consumed_value", "authority", "request_limit", "request_remaining", "token_limit", "token_remaining", "confidence", "observed_at", "source"} <= quota_columns:
+            if not {"resource_id", "quota_domain", "unit", "limit_value", "remaining_value", "consumed_value", "authority", "metric", "window", "reset_source", "blocked_until", "block_reason", "request_limit", "request_remaining", "token_limit", "token_remaining", "confidence", "observed_at", "source"} <= quota_columns:
                 return False, "resource ledger quota observations table is incomplete"
             reservation_columns = {row[1] for row in connection.execute("PRAGMA table_info(budget_reservations)")}
             if "intent_key" not in reservation_columns:
@@ -48,12 +48,13 @@ def validate_resource_ledger(path: str | Path) -> tuple[bool, str]:
                 resource_domains[resource_id] = quota_domain
             quota_observations = connection.execute(
                 """SELECT resource_id, quota_domain, unit, limit_value,
-                          remaining_value, consumed_value, authority,
+                          remaining_value, consumed_value, authority, metric,
+                          window, reset_source, blocked_until, block_reason,
                           request_limit, request_remaining, token_limit,
                           token_remaining, confidence, source
                    FROM quota_observations"""
             ).fetchall()
-            for resource_id, quota_domain, unit, limit_value, remaining_value, consumed_value, authority, request_limit, request_remaining, token_limit, token_remaining, confidence, source in quota_observations:
+            for resource_id, quota_domain, unit, limit_value, remaining_value, consumed_value, authority, metric, window, reset_source, blocked_until, block_reason, request_limit, request_remaining, token_limit, token_remaining, confidence, source in quota_observations:
                 if resource_id not in resource_domains or resource_domains[resource_id] != quota_domain:
                     return False, f"quota observation has an invalid resource/domain binding: {resource_id}"
                 if unit not in {"requests", "tokens", "neurons"}:
@@ -64,6 +65,13 @@ def validate_resource_ledger(path: str | Path) -> tuple[bool, str]:
                     return False, f"quota observation remaining exceeds limit: {resource_id}"
                 if not isinstance(authority, str) or not authority.strip():
                     return False, f"quota observation authority is invalid: {resource_id}"
+                if not isinstance(metric, str) or not metric.strip() or len(metric) > 64:
+                    return False, f"quota observation metric is invalid: {resource_id}"
+                if window not in {"unknown", "minute", "day", "month"}:
+                    return False, f"quota observation window is invalid: {resource_id}"
+                for field_name, field_value in (("reset_source", reset_source), ("blocked_until", blocked_until), ("block_reason", block_reason)):
+                    if field_value is not None and (not isinstance(field_value, str) or not field_value.strip() or len(field_value) > 256):
+                        return False, f"quota observation {field_name} is invalid: {resource_id}"
                 if any(value is not None and (not isinstance(value, int) or value < 0) for value in (request_limit, request_remaining, token_limit, token_remaining)):
                     return False, f"quota observation has invalid limits: {resource_id}"
                 if request_limit is not None and request_remaining is not None and request_remaining > request_limit:
