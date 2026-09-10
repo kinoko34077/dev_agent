@@ -49,6 +49,8 @@ Cloudflare Workers AIは `spec/v2/evidence/phase6-cloudflare-free-2026-09-09.jso
 
 CloudflareのOperation Layer external E2Eは `spec/v2/evidence/phase7-operation-cloudflare-2026-09-10.json` に保存し、実Provider経路のsubmit／start／ToolCall／ToolResult／final／durable auditを確認した。これはG6O1やGate statusの昇格証拠ではない。
 
+Phase 7統合acceptanceは、Commander固定revision／`INTEGRATED` dependency、FiniteLifecycle restart、quota reset後のbounded probe／wake、Cloudflare Operation external E2E、Commander dogfoodまで確認済みである。Evidence routingは実Provider Worker metricsのminimum sample、freshness、rollback条件が揃うまで`DEFERRED_ADVISORY`とし、AgentBackend／MCPはその後の別Gateへ送る。
+
 ## 3. フェーズ別ロードマップ
 
 | Phase | 目的 / 主な成果物 | Gate（次へ進む条件） | 対応マイルストーン |

@@ -34,6 +34,7 @@
 - Commander focused: `4 passed`（親Plan、ownership／dependency validation、dispatch／collect／Host Verification、bounded reassign、CLI status）
 - Commander dogfood: `phase7-commander-local-dogfood-004`のWorker成果をHost Verified後にCodexが明示統合。host testは`1 passed`、metricsは`provider_id=local-harness`のdurable artifactへ記録
 - Operation external E2E: Cloudflare `@cf/meta/llama-3.1-8b-instruct`で`submit`、`start --once`、ToolCall／ToolResult、final response、durable `task.completed`、provider audit成功2件を確認。証跡: [`phase7-operation-cloudflare`](../spec/v2/evidence/phase7-operation-cloudflare-2026-09-10.json)
+- Phase 7 integration acceptance: Commander parallel baseline、`INTEGRATED` dependency、FiniteLifecycle restart、quota reset→bounded probe→wake、Operation external E2E、Commander dogfoodを確認済み。Evidence routingは実Provider Worker metricsのminimum sample／freshness／rollback証拠が揃うまで`DEFERRED_ADVISORY`とし、ResourceRouterへhard接続しない。AgentBackend／MCPはこの条件の完了後に着手する
 - Evidence routing focused: `5 passed`（minimum samples、hard-filter済みbinding限定、期限切れ、rollback threshold、malformed evidence拒否、latest timestamp）
 - DevFarm host verification: Gemini 3.5 Flash-Lite `gemini-worker-phase7-003` が、入力ファイルを外部送信せず、隔離worktreeへpatchを適用し、許可済みhost test `7 passed` を確認
 - DevFarm 2 Worker並列: `gemini-worker-parallel-a` と `gemini-worker-parallel-b` が別worktree・別所有ファイルで同時実行され、各 `7 passed`、`result_accepted=true` を確認。実測はそれぞれ1.528秒、1.278秒
@@ -106,9 +107,9 @@ proposal品質または応答失敗でHost Verifiedに至っておらず、外�
 ## 次の作業
 
 1. Commander dogfoodとCloudflareのOperation external E2Eは完了。次はProvider別のquota probe callbackで取得できるtelemetryだけを使い、reset復帰を外部またはfixtureで確認する。未提供値はunknownのまま扱う
-2. Worker metricsのhost側SQLite蓄積と、hard-filter済みbindingだけを対象とする期限／minimum sample／rollback付きadvisory順位付けは実装済み。実測が十分になるまでResourceRouterへhard接続しない
-3. Phase 7 acceptance（quota復帰、finite lifecycle、Commander dogfood、実Provider Operation E2E、evidence routing Gate）をfull regressionとexternal evidenceで再判定する
-4. AgentBackend / Codex、MCP、Self-Improvementは前段のPhase 7 acceptanceが揃うまで着手しない
+2. Worker metricsのhost側SQLite蓄積と、hard-filter済みbindingだけを対象とする期限／minimum sample／rollback付きadvisory順位付けは実装済み。`DEFERRED_ADVISORY`条件が満たされるまでResourceRouterへhard接続しない
+3. Phase 7 acceptanceは上記統合境界を確認済み。Evidence routingのsample条件を満たした時点で再監査し、その後にAgentBackend／MCPの別Gateを開始する
+4. G6O1は実paid Providerとdeployment-owned budget configurationという外部条件待ちであり、Phase 7コード判定と混ぜない
 
 G6O1は実paid Providerとdeployment-owned budget configurationという外部条件待ちであり、
 コード不足として勝手に昇格しません。`README.md`は入口、`PHASE6_PLAN.md`はPhase 6受入条件、

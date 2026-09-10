@@ -13,6 +13,7 @@
 
 - Cloudflare `@cf/meta/llama-3.1-8b-instruct`を使い、`submit`から`start --once`までのcanonical Operation経路を実通信確認した。ToolCall／ToolResult、final response、durable `task.completed`、provider audit成功2件を確認し、秘密情報を証跡へ保存していない。
 - 証跡を`spec/v2/evidence/phase7-operation-cloudflare-2026-09-10.json`へ保存した。Cloudflare quota telemetryは未報告のため推測せず、G6O1／Gate statusは変更していない。
+- Commander固定revision、`INTEGRATED` dependency、FiniteLifecycle restart、quota bounded maintenance、Operation external E2E、Commander dogfoodをPhase 7統合acceptanceとして確認した。Evidence routingは実Provider Worker metricsのsample条件が揃うまで`DEFERRED_ADVISORY`、AgentBackend／MCPは後段Gateとする。
 
 ### 2026-09-10 JST — Commander dogfood integration boundary
 
