@@ -277,6 +277,59 @@ def test_operation_maintenance_tick_requalifies_due_quota_and_wakes_queue(tmp_pa
         assert results[0]["woken_tasks"] == 1
 
 
+def test_operation_maintenance_tick_skips_nonblocked_resource_before_due_probe(tmp_path):
+    config = _config(tmp_path)
+    with OperationService.open(config) as service:
+        for resource_id in ("a-fresh", "z-blocked"):
+            service.ledger.register_resource(
+                resource_id,
+                provider_id="fake",
+                provider_binding_id=resource_id,
+                native_unit="request",
+                capacity=1,
+                capabilities=["text"],
+                quota_domain="shared-domain",
+                metadata={"provider_binding_id": resource_id, "model_id": "deterministic", "intelligence_tier": "L1"},
+                intelligence_tier="L1",
+            )
+        service.ledger.observe_quota(
+            "a-fresh",
+            unit="requests",
+            metric="rpm",
+            window="minute",
+            request_limit=10,
+            request_remaining=9,
+            observed_at="2026-09-10T11:59:59+00:00",
+        )
+        service.ledger.observe_quota(
+            "z-blocked",
+            unit="requests",
+            metric="rpm",
+            window="minute",
+            request_limit=10,
+            request_remaining=0,
+            blocked_until="2026-09-10T11:59:00+00:00",
+            block_reason="rate_limit",
+            observed_at="2026-09-10T11:00:00+00:00",
+        )
+        calls = []
+
+        results = service.maintenance_tick(
+            now=datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc),
+            max_probes=1,
+            probe=lambda resource_id, domain: calls.append((resource_id, domain)) or {
+                "unit": "requests",
+                "metric": "rpm",
+                "window": "minute",
+                "request_limit": 10,
+                "request_remaining": 9,
+            },
+        )
+
+        assert calls == [("z-blocked", "shared-domain")]
+        assert results[0]["resource_id"] == "z-blocked"
+
+
 def test_external_cancel_of_running_task_is_only_a_durable_request(tmp_path):
     from src.dev_agent.domain.protocol import Task
     from src.dev_agent.providers.fake import FakeProvider

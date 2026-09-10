@@ -730,6 +730,8 @@ class OperationService:
             for observation in observations:
                 if len(results) >= max_probes:
                     return results
+                if not self._quota_observation_is_due(observation, current):
+                    continue
                 resource_id = observation.get("resource_id")
                 if not isinstance(resource_id, str) or not resource_id.strip():
                     continue
@@ -743,6 +745,36 @@ class OperationService:
                 )
                 results.append(result.to_dict())
         return results
+
+    @staticmethod
+    def _quota_observation_is_due(observation: Mapping[str, Any], now: datetime) -> bool:
+        """Select only the blocked resource that actually needs a probe.
+
+        ``QuotaWakeScheduler`` intentionally returns domains, not resources.
+        A domain may have several resources, including a fresh healthy one.
+        Filtering here prevents that healthy row from consuming the bounded
+        probe budget before the due blocked row is considered.
+        """
+        reason = observation.get("block_reason")
+        if not isinstance(reason, str) or not reason.strip() or reason.strip().lower() in {
+            "authorization",
+            "permission",
+            "blocked_external",
+        }:
+            return False
+        raw_reset = observation.get("blocked_until")
+        if not isinstance(raw_reset, str) or not raw_reset.strip():
+            return False
+        try:
+            reset = datetime.fromisoformat(raw_reset.strip())
+        except ValueError:
+            return False
+        if reset.tzinfo is None:
+            reset = reset.replace(tzinfo=timezone.utc)
+        else:
+            reset = reset.astimezone(timezone.utc)
+        current = now.replace(tzinfo=timezone.utc) if now.tzinfo is None else now.astimezone(timezone.utc)
+        return reset <= current
 
     def _provider_quota_probe(self, resource_id: str) -> Callable[[str, str], Mapping[str, Any]] | None:
         """Resolve an optional provider-neutral probe without provider branches."""
