@@ -101,6 +101,14 @@ boundary, not the formal Phase 7 AgentBackend. It also records host-side
 safe usage scalars, attempt count, and acceptance). Model-reported test claims
 are never copied into the verified result.
 
+After host verification, the same host-observed record is upserted into the
+ignored `.devfarm/metrics.sqlite3` store using `task_id + request_id` as its
+idempotency key. The store keeps a compact test summary and routing dimensions
+(`task_type`, provider/model/binding, tier, elapsed time, usage, retry count,
+and accepted/rejected result); it does not store raw stdout/stderr or model
+claims. A metrics write failure is reported in the result artifact and never
+changes the deterministic host acceptance decision.
+
 ## Provider qualification handoff
 
 Live qualification is an operator-invoked boundary and never runs in CI. Keep

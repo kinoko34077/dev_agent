@@ -16,6 +16,11 @@
 - `stop <task-id>`をprovider／resource設定なしで実行できる専用経路へ分離した。queued／waitingはqueueの`cancelled`へ、runningは所有Workerへdurable cancellation requestだけを渡し、外部副作用が不確定なTaskを即時terminalizeしない。
 - durable stop flagの別接続検証と、別process相当のrunning cancellation request検証を追加した。Operation focusedは`8 passed`、v2全回帰は`434 passed, 1 skipped`。G6O1と既存Gate判定は変更していない。
 
+### 2026-09-10 JST — Host-observed DevFarm metrics accumulation
+
+- DevFarmのhost verification完了時だけ、provider／binding／model／tier／task type、実測時間、usage、host test要約、attempt、accepted/rejectedを`.devfarm/metrics.sqlite3`へ冪等に蓄積する`WorkerMetricsStore`を追加した。Modelのtest claimやraw outputはrouting証拠へ取り込まない。
+- `task_id + request_id`の再検証upsert、最小sample条件付きの集計API、manifestの任意`task_type`を追加した。現行全回帰は`440 passed, 1 skipped`。G6O1と既存Gate判定は変更していない。
+
 ### 2026-09-10 JST — Reset-aware quota metadata and bounded DevFarm stages
 
 - ResourceLedgerをschema v8へordered migrationし、quota observationにmetric／window／reset source／blocked-until／block reasonを追加した。429／quota／transportのtyped ProviderErrorはProvider-neutralな保守的blockへ変換し、古いblocked observationを時計経過だけでroutingへ戻さない。Recovery validatorもschema v8と新しいquota metadataを検証する。

@@ -1,6 +1,6 @@
 # Current State — v2/bootstrap
 
-実装基準は `69320dd` です。本書はそのコードと、直近の外部資格化・DevFarm
+実装基準は `eb6f304` です。本書はそのコードと、直近の外部資格化・DevFarm
 実行結果を同期したCurrent Stateです。GATE_STATUSの既存statusは変更していません。
 
 ## 判定
@@ -27,7 +27,7 @@
 - DevFarm manifest / patch / host verification focused: `24 passed in 27.50s`
 - DevFarm host verification: Gemini 3.5 Flash-Lite `gemini-worker-phase7-003` が、入力ファイルを外部送信せず、隔離worktreeへpatchを適用し、許可済みhost test `7 passed` を確認
 - DevFarm 2 Worker並列: `gemini-worker-parallel-a` と `gemini-worker-parallel-b` が別worktree・別所有ファイルで同時実行され、各 `7 passed`、`result_accepted=true` を確認。実測はそれぞれ1.528秒、1.278秒
-- Worker metricsはhost側で `provider_id`、`provider_binding_id`、`model_id`、`intelligence_tier`、request id、elapsed、許可されたusage scalar、host test結果を記録する。Modelのtests claimは証拠に採用しない
+- Worker metricsはhost側で `provider_id`、`provider_binding_id`、`model_id`、`intelligence_tier`、`task_type`、request id、elapsed、許可されたusage scalar、host test結果を記録し、`.devfarm/metrics.sqlite3`へ`task_id + request_id`単位で冪等に蓄積する。Modelのtests claimは証拠に採用しない。metricsはrouting候補の観測値であり、Policyやacceptanceを上書きしない
 - quota/reset focused regression: `55 passed`（quota policy、schema v8 migration、blocked routing、DevFarm remote/host concurrency）
 - skip: `tests/v2/test_budget_reservations.py:142`（Windows ACLはdeployment-owned）
 - 最新コード基準のexact-head GitHub Actionsは、push後に`v2-core`（Python 3.10/3.11）と`v2 tests`を外部観測する。repo内GATE_STATUSへCI結果を書き戻してexact-headを自己参照しない
@@ -91,7 +91,7 @@ dummy docを公式branchへ自動統合していません。実装成果の公�
 
 1. Operation Layerのprocess restart／resumeとterminal／waiting／reconciliation E2Eを追加し、外部providerを使う明示operator実行でもstatus／auditを確認できるようにする
 2. reset-aware quotaをProvider別の実観測・blocked_until・`QuotaRequalificationCoordinator`のbounded probe／wakeへ接続し、429をblind retryしないScheduler境界をProviderごとの運用入口へ仕上げる
-3. Worker metricsを一定数蓄積し、`Task Type × tier × capability × quota × latency/failure`の実績ベースroutingを、最小サンプル数・期限・rollback条件付きで導入する
+3. Worker metricsはhost側SQLiteへの蓄積まで実装済み。次は一定数の実測を集め、`Task Type × tier × capability × quota × latency/failure`の実績ベースroutingを、最小サンプル数・期限・rollback条件付きで導入する
 4. `TaskLifecycleCoordinator`の結果を次cycleのhost evidenceと有限のPASS / retry / escalation / WAIT_HUMAN循環へ接続し、再開時のacceptanceを追加する
 5. AgentBackend / Codex、MCP、Self-Improvementは前段のPhase 7 acceptanceが揃うまで着手しない
 
