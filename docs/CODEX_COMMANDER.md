@@ -87,9 +87,10 @@ Host Verificationを呼び、valid proposalだけを専用worktreeへ適用す�
 
 Taskは`PLANNED → READY → DISPATCHED → PROPOSED → HOST_VERIFIED → INTEGRATED`を
 基本とする。proposal失敗は`REJECTED`、Provider外部待ちは`BLOCKED`とし、Planは
-失敗を成功へ読み替えない。依存Taskが`HOST_VERIFIED`または`INTEGRATED`になるまで
-後続Taskは`READY`へ進まない。通常のcode dependencyは依存Taskが`INTEGRATED`になるまで
-releaseしない。`HOST_VERIFIED`は候補成果の検証済みを示すだけで、コード依存を解放しない。
+失敗を成功へ読み替えない。通常のcode dependencyは依存Taskが`INTEGRATED`になるまで
+後続Taskを`READY`へ進めない。`HOST_VERIFIED`は候補成果の検証済みを示すだけで、コード
+依存を解放しない。調査資料やbenchmarkなどのartifact dependencyを導入する場合も、
+別のtyped dependencyとして明示し、通常のcode dependencyを緩めない。
 依存cycle、ownership overlap、attempt上限、scope外
 manifestは作成／再割当時にfail-closedで拒否する。
 

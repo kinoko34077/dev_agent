@@ -62,8 +62,16 @@
 - 責務: 既存Task、scope、注入されたauthorityを確認した後、effect intentをdispatch identityとして外部AgentBackendのsessionを開始し、Event／result／cancel／explicit reconciliationを既存StateStoreへ接続する。
 - 公開入口: `dispatch(request, backend, dispatch_id, attempt)`、`events(dispatch_id, backend)`、`result(dispatch_id, backend)`、`cancel(dispatch_id, backend)`、`reconcile(dispatch_id, backend, actor, source)`。
 - 入力/出力: typed `AgentBackendRequest`と外部Backend、durable identity、session、provider-neutral event/result。backend固有IDはopaque sessionとして保持する。
-- 権限: dispatch可否の最終authorityは注入された既存Control Plane callbackに残す。完了済みidentityは冪等に返し、UNKNOWN／RECONCILINGは明示reconcileまで再dispatchしない。
+- 権限: dispatch可否の最終authorityは既存Control Planeから束ねた`BackendAdmission`とstrict-`True` authorization callbackに残す。完了済みidentityは冪等に返し、UNKNOWN／RECONCILINGは明示reconcileまで再dispatchしない。
+- `BackendAdmission`はtask／dispatch／workspace／scope／sensitivityに結び付いたlease proof、budget admission、approval、allowed capabilitiesの証拠を要求する。dispatcherは証拠を発行せず、TaskとBackend identityのrequired capability coverageを開始前に検証する。
 - 禁止: ProviderRegistry／ResourceRouterへの登録、新Scheduler／Budget／Approval／Recoveryの所有、公式branchへの直接編集、UNKNOWNのblind retry。
+
+### `ExecutionTargetPolicy`
+
+- 責務: 同じintelligence tier内で、通常の`ModelProvider`実行と明示的に許可された`AgentBackend`実行を分離して選択する小さな判断境界。
+- 公開入口: `choose(required_tier, required_autonomy, required_capabilities, ...)`。
+- 権限: budget／privacy／approval／capabilityの既存証拠を受け取り、通常は最低限のModelProviderを選ぶ。AgentBackendは明示autonomyと全証拠が揃った場合だけ選択する。
+- 禁止: L3というだけでAgentBackendへ自動昇格すること、ProviderRouterの複製、authorityやbudgetの発行。
 
 ## Durable state / operation
 
@@ -90,6 +98,7 @@
 - 禁止: 新しい scheduler/state machine、busy polling、budget/quota/approval の bypass。
 - Resource 起動規則: 既存 Resource catalog、価格、quota domain、health、operator metadata は read-only で扱う。free 判定は trusted な binding×model catalog に限定し、未知価格は推測せず拒否する。cloud Resource の quota domain は operator-owned 設定として明示され、正常な Provider 応答または bounded probe だけが freshness を更新する。
 - 拒否/停止規則: `DispatchDenied` は budget、quota、maintenance、resource wait、invalid failure の意味を保持して Task 状態へ写像する。cross-process cancellation は durable control と terminal commit 時の再確認を通り、外部効果不明時は `WAITING_RECONCILIATION` を維持する。
+- Provider composition: 通常運用は複数のqualified bindingを`ProviderFactory`／`ProviderRegistry`へ登録でき、exact current intelligence tierをhard filterしたうえで同Tierの別bindingへbounded fallbackする。単一provider指定はdebug／qualification／manual pinとして扱う。
 
 ## Development-only DevFarm / Commander
 
@@ -101,6 +110,7 @@
 - 出力: proposal、validated patch、host-verified result、metrics artifact。
 - retry artifact: proposal/result は attempt identity ごとの immutable artifact を正本とし、root の latest projection を検証対象へフォールバックしない。
 - 権限: 指定 worktree/proposal artifact のみ。公式 branch への自動 apply/merge はしない。
+- Host Verificationはsanitized environment、temporary HOME、bounded output、timeout時のprocess-tree終了を提供するが、OS filesystem/network sandboxではない。未sandbox実行をunattended最高信頼モードやsecurity sandboxとして扱わない。
 - 禁止: root fallback、未承認送信、worker 間直接通信、Model 自己申告 test の証拠化。
 
 ### `CommanderPlanStore` / Commander

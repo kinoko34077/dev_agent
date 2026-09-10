@@ -7,12 +7,12 @@
 | 領域 | 実装場所 | 主責務 |
 | --- | --- | --- |
 | Domain | `src/dev_agent/domain/` | Task、Model、Tool、Event の typed protocol |
-| Security / Policy | `src/dev_agent/security/`、`src/dev_agent/intelligence/` | scope、audit、Evaluator、finite escalation、authority policy |
+| Security / Policy | `src/dev_agent/security/`、`src/dev_agent/intelligence/` | scope、audit、Evaluator、finite escalation、authority policy、execution target seam |
 | State | `src/dev_agent/state/` | SQLite connection/transaction owner、core/effect repository |
 | Tools | `src/dev_agent/tools/` | Tool policy、executor、effect guard、timeout/cancel |
 | Resources | `src/dev_agent/resources/` | ResourceLedger facade、catalog/observation/quota/health/budget、trusted billing catalog、router/control |
 | Providers | `src/dev_agent/providers/` | Adapter、Factory、Registry、Dispatcher、journal |
-| AgentBackend | `src/dev_agent/backends/` | 外部Agent harnessとのthin typed contract、既存StateStore effect intentへ接続するdispatcher。実adapterは別slice |
+| AgentBackend | `src/dev_agent/backends/` | 外部Agent harnessとのthin typed contract、`BackendAdmission`付きdispatcher。実adapterは別slice |
 | Runtime | `src/dev_agent/runtime/` | Controller、model turn、legacy compatibility、checkpoint/resume |
 | Scheduler | `src/dev_agent/scheduler/` | DurableQueue、WorkerRunner、lease、quota wake/requalification |
 | Operation | `src/dev_agent/operation.py`、`src/dev_agent/__main__.py` | 人間向け start/submit/status/stop と maintenance composition |
@@ -45,7 +45,8 @@ scheduler / operation composition
 - `scheduler` は Queue/Worker/lease と runtime lifecycle を接続するが、Provider SDK の分岐や新しい Task state machine を所有しない。
 - `operation` は既存部品を composition する薄い入口であり、production scheduler を並立させない。
 - `operation` は起動時に既存 Resource を再構成・上書きせず、trusted billing catalog と operator-owned quota domain を検証する。Provider の正常応答／bounded quota probe が Resource observation freshness の唯一の更新入口であり、未知価格・未観測quotaは fail-closed とする。
-- `backends` は外部Agent harnessのidentity、session、event、cancellation、resultをtyped化し、既存StateStoreのeffect intent／Event／reconciliationへ接続する薄い境界である。Runtime/State/Scheduler/Budget/Recoveryの所有権を持たず、Backend固有adapterはこの境界の外側に置く。
+- `backends` は外部Agent harnessのidentity、session、event、cancellation、resultをtyped化し、既存StateStoreのeffect intent／Event／reconciliationへ接続する薄い境界である。`AgentBackendDispatcher`は既存authorityの証拠を`BackendAdmission`として要求し、Task／Backend identityのcapability coverageをstart前に検証する。Runtime/State/Scheduler/Budget/Recoveryの所有権を持たず、Backend固有adapterはこの境界の外側に置く。
+- `intelligence/target.py` の `ExecutionTargetPolicy` は ModelProvider と AgentBackend の実行先を分離する。通常はModelProviderを選び、AgentBackendは明示autonomy、approval、budget、privacy、capabilityの既存証拠が揃った場合だけ許可する。tierだけを理由に自動昇格しない。
 - `recovery/` は runtime/controller から独立し、durable artifact と operator authority を扱う。Recovery が Controller の内部状態を書き換える設計にしない。
 - `devfarm` は production scheduler/state/authority と独立した development-only 層で、既存 WorkerRunner/ProviderFactory 等の公開境界を composition できるが、公式 branch を自動変更しない。
 

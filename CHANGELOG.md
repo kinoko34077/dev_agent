@@ -4,6 +4,13 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-11 JST — Intelligence target and multi-provider admission hardening
+
+- AgentBackend dispatchへ`BackendAdmission`を接続し、strict-`True` authorization、Task／Backend identityのrequired capability coverage、scope／lease／budget／approval／privacy証拠を外部Backend起動前に検証する境界を固定した。
+- `ExecutionTargetPolicy`を追加し、通常のModelProvider実行と明示autonomyが必要なAgentBackend実行を分離した。L3というTierだけではAgentBackendへ自動昇格せず、既存のapproval／budget／privacy／capability証拠を要求する。
+- Operationの複数binding poolをcanonical ProviderDispatcherへ接続し、exact current intelligence tierを維持した同Tier fallbackをrate-limit fixtureで検証した。実Codex adapter、MCP、G6O1の外部blocked判定は変更していない。
+- 実装基準`f0e6880`でローカルv2全回帰は`544 passed, 1 skipped`（152.73秒）。
+
 ### 2026-09-10 JST — Operation hardening audit closure
 
 - Operation起動時のResource設定をread-onlyで保持し、binding×modelのtrusted billing catalog、operator-owned `quota_domain`、degraded bootstrap、正常応答／quota probeによるfreshness更新を導入した。`DispatchDenied`はbudget／quota／maintenance／resource wait／invalid failureへ意味別に分類し、canonicalなrate-limit／quota ProviderErrorは`BLOCKED_QUOTA`へparkする。

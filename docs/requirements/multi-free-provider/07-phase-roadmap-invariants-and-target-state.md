@@ -110,7 +110,7 @@ Worker/run固有のExecutionContext、ToolRuntime binding、lease proofを共有
 5. Task profileとbounded intelligence policyを追加する。完了。
 6. 独立Evaluatorとbounded escalationを追加する。bounded dispatchまで完了。
 7. live Provider E2Eとdurable evidenceを取得する。Gemini 3.xを含め一部完了。
-8. AgentBackend/Codex/MCPを別境界で追加する。未着手。
+8. AgentBackendを別境界で追加する。thin contract、typed admission付きdispatcher、ModelProvider／AgentBackend execution-target seamまで完了。Codex実adapterとMCPは未着手。
 9. workflow promotion、self-improvement、multi-agentを段階導入する。bounded proposal以外は未着手。
 
 この順序は、今回の「移行前軽量調整」後に新要件を投入する際の参照用である。

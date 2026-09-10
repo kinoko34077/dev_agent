@@ -14,7 +14,7 @@ ModelProviderはモデル推論、tool call、usage、Providerエラーを提供
 - cancellation
 - recovery
 
-この二つを一つのProvider adapterへ混ぜない。現行Phase 7後段では `src/dev_agent/backends/protocol.py` にidentity、scoped request、session、event、cancellation、resultのthin contractだけを導入し、AgentBackend固有の実行系はまだ予約する。
+この二つを一つのProvider adapterへ混ぜない。現行Phase 7では `src/dev_agent/backends/protocol.py` のthin contractと、既存StateStoreのeffect intent／Event／reconciliationへ接続する `AgentBackendDispatcher` を導入済みである。dispatcherは`BackendAdmission`とTask／Backend capability coverageを要求するが、AgentBackend固有の実行系（Codex等の実adapter）はまだ予約する。
 
 ## 21. AgentBackendRouter
 

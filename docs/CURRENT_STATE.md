@@ -1,6 +1,6 @@
 # Current State — v2/bootstrap
 
-実装基準は `e3cfcfe` です。直近のローカル全回帰もこのHEADで検証し、
+実装基準は `f0e6880` です。直近のローカル全回帰もこのHEADで検証し、
 本書はそのコードと、直近の外部資格化・DevFarm実行結果を同期したCurrent Stateです。
 GATE_STATUSの既存statusは変更していません。
 
@@ -21,14 +21,14 @@ GATE_STATUSの既存statusは変更していません。
 - Operation hardening: Operation起動時の既存Resourceはread-onlyで保持し、binding×model×trusted catalogにない価格を無料と推測しない。Cloud Resourceはoperator-ownedな`quota_domain`を明示し、初回はlive probeなしでhealthy扱いせず、正常Provider応答／正常quota probeだけがResource freshnessを更新する。`DispatchDenied`はbudget／quota／maintenance／resource wait／invalid failureへ意味別に遷移し、canonicalなrate-limit／quota ProviderErrorも`BLOCKED_QUOTA`へparkする
 - Cross-process safety hardening: cancellation requestはappend-onlyの`task_controls`へ保存し、terminal transition直前に再読込してlate completionをfenceする。Provider healthはresource/binding単位、quota wakeは`quota:<domain>`単位で、別Resource／別domainのTaskを誤って起こさない
 - Phase 6 quota operation: ResourceLedger schema v8でmetric／window／reset source／blocked-until／block reasonを保持し、ProviderErrorの429／quota／transport分類をrouting blockへ接続済み。blocked observationは新しい正常観測で明示的に復帰する。Scheduler queue schema v4と`QuotaWakeScheduler`はreset boundaryへのdurable parking／wakeを提供し、`QuotaRequalificationCoordinator`は呼出側が明示した一回のbounded probeについて、freshな正常観測の保存後だけdue taskをwakeする。Operation Layerの`maintenance_tick`がdue domainだけを対象にprobe上限を適用し、`start`／`start --once`からも同じmaintenance boundaryを通る。OpenAI互換adapterはtelemetryを返す場合だけ既存`/models` probeからquota observationを返し、typed probe failureには保守的cooldownを永続化する。Provider再probeの無制限loopやclockだけによるblock解除は行わない
-- DevFarm orchestration: Remote proposalとHost verificationを分離し、remote inference枠とworktree verification枠を別Governorでboundedに制御する。proposal失敗時にworktreeを作成せず、自動mergeもしない
-- Development Commander: `scripts/devfarm_commander.py`が既存DevFarmの上にdevelopment-only親Planを提供する。`.devfarm/plans/<run-id>.json`へobjective、base revision、Task、依存、非重複ownership、assignment、result参照をdurably保存し、plan／dispatch／status／collect／verify／resume／reassign／mark-integratedを既存境界のcompositionで提供する。Taskごとの固定revisionを許容し、code dependencyは明示的な`mark-integrated`後だけreleaseする。Production Runtimeのstate／Scheduler／authorityやAgentBackendではない
+- DevFarm orchestration: Remote proposalとHost verificationを分離し、remote inference枠とworktree verification枠を別Governorでboundedに制御する。proposal失敗時にworktreeを作成せず、自動mergeもしない。Host Verificationはsanitized environment、temporary HOME、bounded output、timeout時のprocess-tree終了を持つが、OS filesystem/network sandboxではない
+- Development Commander: `scripts/devfarm_commander.py`が既存DevFarmの上にdevelopment-only親Planを提供する。`.devfarm/plans/<run-id>.json`へobjective、base revision、Task、依存、非重複ownership、assignment、result参照をdurably保存し、plan／dispatch／status／collect／verify／resume／reassign／mark-integratedを既存境界のcompositionで提供する。Taskごとの固定revisionを許容し、code dependencyは明示的な`mark-integrated`後だけreleaseする。非自明なGoalではCodexが分解・依存・ownership・risk・Worker適格性を先に記録し、狭いpatch/test/docs等を原則Worker候補とする。Codex担当へ残す場合も理由を記録する。Production Runtimeのstate／Scheduler／authorityやAgentBackendではない
 - Commander dogfood: `phase7-commander-local-dogfood-004`で、`aa2f819`固定のproposal、隔離worktreeでのHost Verification（許可済みfocused test `1 passed`）、Codex review、明示integrationを一連のPlanとして完了した。これはCommanderの計画・依存・検証・統合境界の実証であり、外部Cloud Workerの資格化や成功を意味しない
 - Gate昇格やlive qualificationの成功は、local test・model自己申告・Worker proposalだけから推測しない
 
 ## 検証
 
-- v2ローカル全回帰: `513 passed, 1 skipped`（`python -m pytest -q tests/v2 --durations=10`、96.39秒。所要時間は実行環境依存）
+- v2ローカル全回帰: `544 passed, 1 skipped`（`python -m pytest -q tests/v2 --durations=10`、152.73秒。所要時間は実行環境依存）
 - 追加監査focused: Provider quota分類／DevFarm model-qualified activation／trusted free qualificationを含む`45 passed`
 - Operation hardening focused: `94 passed, 1 skipped`（Operation、quota、DevFarm attempt、SQLite contention、security、budget境界）
 - Operation Layer focused: `12 passed`（submit／status、canonical Dispatcher経由のstart、queue復旧、process restart、terminal／waiting reconciliation、provider非依存safe stop、durable cancellation request、due quota maintenance／wake、startからのmaintenance境界）
@@ -40,9 +40,10 @@ GATE_STATUSの既存statusは変更していません。
 - Commander dogfood: `phase7-commander-local-dogfood-004`のWorker成果をHost Verified後にCodexが明示統合。host testは`1 passed`、metricsは`provider_id=local-harness`のdurable artifactへ記録
 - Operation external E2E: Cloudflare `@cf/meta/llama-3.1-8b-instruct`で`submit`、`start --once`、ToolCall／ToolResult、final response、durable `task.completed`、provider audit成功2件を確認。証跡: [`phase7-operation-cloudflare`](../spec/v2/evidence/phase7-operation-cloudflare-2026-09-10.json)
 - Phase 7 integration acceptance: Commander parallel baseline、`INTEGRATED` dependency、FiniteLifecycle restart、quota reset→bounded probe→wake、Operation external E2E、Commander dogfoodを確認済み。Evidence routingは実Provider Worker metricsのminimum sample／freshness／rollback証拠が揃うまで`DEFERRED_ADVISORY`とし、ResourceRouterへhard接続しない。実AgentBackend adapter／MCPはこの条件の完了後に着手する
-- AgentBackend boundary: `src/dev_agent/backends/protocol.py`に外部Agent harnessのidentity、scoped request、session、event stream、cancellation、completion／failure／unknown／reconciliation resultだけを定義した。Codex App Server等の実adapter、dispatch、MCPは未着手で、既存Runtime／State／Scheduler／Budget／Recoveryの所有権を移していない
-- AgentBackend dispatch boundary: `src/dev_agent/backends/dispatcher.py`が既存SQLiteStateStoreのeffect intent、durable Event、explicit reconciliationを使い、task／scope／authorityを検証してから外部Backendを起動する。COMPLETED済みの重複dispatchは再実行せず、UNKNOWN／RECONCILINGは明示reconcileまで再送しない。実Codex adapter、Host Verification、MCPは未着手である
-- AgentBackend focused: protocol `7 passed`、dispatcher `12 passed`、合計 `19 passed`（identity復元、scope／authority拒否、session重複防止、event sequence、cancel、UNKNOWN、restart、reconciliation）
+- AgentBackend boundary: `src/dev_agent/backends/protocol.py`に外部Agent harnessのidentity、scoped request、session、event stream、cancellation、completion／failure／unknown／reconciliation resultを定義し、`dispatcher.py`に既存authorityの証拠を束ねる`BackendAdmission`を追加した。Task／Backend identityのrequired capability coverage、strict-`True` authorization、scope／budget／approval／lease／privacy証拠をstart前に検証する。実Codex App Server adapter、MCPは未実装で、既存Runtime／State／Scheduler／Budget／Recoveryの所有権を移していない
+- Execution target seam: `intelligence/target.py`の`ExecutionTargetPolicy`がModelProviderとAgentBackendを分離する。通常はminimum sufficient ModelProviderを選び、AgentBackendは明示autonomyと既存のapproval／budget／privacy／capability証拠が揃った場合だけ選択する。L3というだけでAgentBackendへ自動昇格しない
+- Operation multi-provider: `OperationConfig.provider_pool`で複数bindingを`ProviderFactory`／`ProviderRegistry`へcompositionし、production routingではexact current tierをhard filterしたうえで同Tierの別bindingへbounded fallbackする。一次bindingのrate-limit後に別L1 bindingへ切り替えるE2Eを確認した
+- AgentBackend focused: protocol `7 passed`、dispatcher `19 passed`、intelligence target `2 passed`、Operation pool fallback `1 passed`を含む。dispatcherではidentity復元、scope／authority／capability拒否、session重複防止、event sequence、cancel、UNKNOWN、restart、reconciliationを検証した
 - Evidence routing focused: `5 passed`（minimum samples、hard-filter済みbinding限定、期限切れ、rollback threshold、malformed evidence拒否、latest timestamp）
 - DevFarm host verification: Gemini 3.5 Flash-Lite `gemini-worker-phase7-003` が、入力ファイルを外部送信せず、隔離worktreeへpatchを適用し、許可済みhost test `7 passed` を確認
 - DevFarm 2 Worker並列: `gemini-worker-parallel-a` と `gemini-worker-parallel-b` が別worktree・別所有ファイルで同時実行され、各 `7 passed`、`result_accepted=true` を確認。実測はそれぞれ1.528秒、1.278秒

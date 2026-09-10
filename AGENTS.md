@@ -21,6 +21,14 @@ boundaries. Do not add a parallel production scheduler or Agent framework.
 
 - Codex owns decomposition, dependency DAG, ownership, review, integration,
   conflict resolution, full regression, and evidence/doc synchronization.
+- For every non-trivial development goal, Codex first records task
+  decomposition, dependency, ownership, risk, and Worker eligibility. Narrow
+  patches, focused tests, fixtures, parsers, docs, and mechanical refactors
+  are Worker candidates; architecture, security, authority, budget, recovery,
+  lease/fencing, cross-cutting integration, and final review remain Codex
+  work. If Codex keeps a Worker-eligible task, record a concrete reason such
+  as `protected`, `cross_cutting`, `no_qualified_worker`, or
+  `delegation_overhead`.
 - A Free Worker receives one narrow manifest and writes only its isolated
   worktree or proposal artifact. Workers never communicate directly.
 - Readable files and externally outbound files are different scopes.
@@ -33,6 +41,10 @@ boundaries. Do not add a parallel production scheduler or Agent framework.
   separate from the small Host verification budget.
 - Use explicit bounded retry/reassign. Never replay an unknown external effect
   or bypass approval, budget, privacy, Recovery, or Gate authority.
+- Host Verification uses sanitized environment, temporary HOME, bounded
+  output, and timeout process-tree termination. It is not an OS filesystem or
+  network sandbox; never treat an unsandboxed verification result as the
+  highest-trust unattended execution mode.
 
 Protected areas include `spec/v2/GATE_STATUS.json`, budget authority,
 `recovery/`, credentials/secrets/private keys, `.env*`, `.git/`, and
