@@ -104,6 +104,52 @@ def test_model_turn_executor_bounds_uninterruptible_timeout_threads():
     assert executor.orphaned_requests == 0
 
 
+def test_model_turn_executor_tracks_unconfirmed_cancellation_as_orphan():
+    from threading import Event
+    from src.dev_agent.runtime.model_turn import ModelTurnExecutor, ProviderExecutionSaturated, ProviderRequestCancelled
+
+    started = Event()
+    release = Event()
+
+    class BlockingProvider(FakeProvider):
+        provider_id = "blocking-cancel"
+
+        def request(self, request):
+            started.set()
+            release.wait(2)
+            return ModelResponse(provider="blocking-cancel", model="test", text_segments=["late"])
+
+    executor = ModelTurnExecutor(
+        BlockingProvider(),
+        lease_guard=lambda: None,
+        max_orphaned_requests=1,
+    )
+    request = ModelRequest(task_id="00000000-0000-0000-0000-000000000002", messages=[{"role": "user", "content": "x"}])
+    cancel_event = Event()
+
+    def cancel_after_start():
+        assert started.wait(1)
+        cancel_event.set()
+
+    import threading
+    canceller = threading.Thread(target=cancel_after_start)
+    canceller.start()
+    with pytest.raises(ProviderRequestCancelled) as exc_info:
+        executor.request(request, time.time() + 1, cancel_event)
+    canceller.join(timeout=1)
+
+    assert exc_info.value.unable_to_confirm is True
+    assert executor.orphaned_requests == 1
+    with pytest.raises(ProviderExecutionSaturated):
+        executor.request(request, time.time() + 1, Event())
+
+    release.set()
+    deadline = time.time() + 2
+    while executor.orphaned_requests and time.time() < deadline:
+        time.sleep(0.01)
+    assert executor.orphaned_requests == 0
+
+
 # Tests split mechanically from test_phase6_integration.py; semantics are unchanged.
 
 def test_paid_provider_timeout_waits_for_reconciliation_instead_of_failing(tmp_path):

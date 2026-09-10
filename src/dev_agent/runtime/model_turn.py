@@ -51,6 +51,36 @@ class ModelTurnExecutor:
         with self._orphan_lock:
             self._orphaned_requests.discard(future)
 
+    def _track_if_running(self, future: Any) -> bool:
+        """Retain a Future while its provider call may still be executing.
+
+        ``Future.cancel()`` only succeeds before a worker thread starts.  Both
+        timeout and cancellation therefore need the same best-effort tracking
+        path; otherwise an unconfirmed cancellation can leave an unbounded
+        number of provider threads outside the saturation guard.
+        """
+
+        if future.done():
+            return False
+        with self._orphan_lock:
+            # Re-check under the lock because a provider can finish between
+            # the first check and insertion into the orphan set.
+            if future.done():
+                return False
+            self._orphaned_requests.add(future)
+            if future.done():
+                self._orphaned_requests.discard(future)
+                return False
+        return True
+
+    def _cancel_or_track(self, future: Any) -> bool:
+        """Cancel a not-yet-running call or track its still-running Future."""
+
+        cancelled = future.cancel()
+        if not cancelled:
+            self._track_if_running(future)
+        return cancelled
+
     def request(self, request: ModelRequest, deadline_epoch: float, cancel_event: Event) -> ModelResponse:
         self._lease_guard()
         with self._orphan_lock:
@@ -73,16 +103,12 @@ class ModelTurnExecutor:
                         # The deadline and an operator cancellation can race.
                         # Preserve the cancellation state instead of turning
                         # an in-flight provider into an ordinary timeout.
-                        cancelled = future.cancel()
+                        cancelled = self._cancel_or_track(future)
                         raise ProviderRequestCancelled(unable_to_confirm=not cancelled)
-                    cancelled = future.cancel()  # best effort; arbitrary provider threads are not killable
-                    if not cancelled and not future.done():
-                        with self._orphan_lock:
-                            self._orphaned_requests.add(future)
-                            # The future may have completed between the check
-                            # and insertion; do not retain a completed object.
-                            if future.done():
-                                self._orphaned_requests.discard(future)
+                    # Best effort; arbitrary provider threads are not
+                    # killable.  Keep an unconfirmed call inside the bounded
+                    # orphan guard until its Future callback releases it.
+                    self._cancel_or_track(future)
                     raise FutureTimeoutError()
                 try:
                     response = future.result(timeout=min(0.05, remaining))
@@ -96,7 +122,7 @@ class ModelTurnExecutor:
                     if cancel_event.is_set():
                         if future.done():
                             return future.result(timeout=0)
-                        cancelled = future.cancel()
+                        cancelled = self._cancel_or_track(future)
                         raise ProviderRequestCancelled(unable_to_confirm=not cancelled)
         finally:
             executor.shutdown(wait=False, cancel_futures=True)
