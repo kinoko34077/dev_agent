@@ -8,7 +8,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-from ..domain.protocol import Event, Step, Task, ToolResult
+from ..domain.protocol import Event, Step, Task, TaskStatus, ToolResult
 
 
 class JsonStateStore:
@@ -40,6 +40,7 @@ class JsonStateStore:
             "approval_consumptions": {},
             "effect_reconciliations": [],
             "provider_dispatch_audits": [],
+            "task_controls": [],
         }
         self._load()
 
@@ -68,6 +69,35 @@ class JsonStateStore:
     def save_task(self, task: Task) -> None:
         self._data["tasks"][task.task_id] = task.to_dict()
         self._flush()
+
+    def request_cancellation(self, task_id: str, *, reason: str) -> Task:
+        if not isinstance(task_id, str) or not task_id.strip():
+            raise ValueError("task_id must be a non-empty string")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("reason must be a non-empty string")
+        payload = self._data.get("tasks", {}).get(task_id.strip())
+        if payload is None:
+            raise KeyError(task_id)
+        task = Task.from_persisted_dict(payload)
+        if task.status not in {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED}:
+            task.metadata["cancellation_requested"] = True
+            task.metadata["cancellation_reason"] = reason.strip()
+            self._data["tasks"][task.task_id] = task.to_dict()
+            self._data.setdefault("task_controls", []).append({
+                "task_id": task.task_id,
+                "control_type": "cancellation_requested",
+                "reason": reason.strip(),
+                "requested_at": time.time(),
+            })
+            self._flush()
+        return task
+
+    def latest_cancellation(self, task_id: str) -> dict[str, Any] | None:
+        controls = self._data.get("task_controls", [])
+        for item in reversed(controls):
+            if item.get("task_id") == task_id and item.get("control_type") == "cancellation_requested":
+                return dict(item)
+        return None
 
     def save_step(self, step: Step) -> None:
         self._data["steps"][step.step_id] = step.to_dict()
@@ -199,7 +229,35 @@ class JsonStateStore:
     def commit_transition(self, *, task: Task | None = None, step: Step | None = None, checkpoint: dict[str, Any] | None = None, event: Event | None = None, events: list[Event] | None = None, tool_result: ToolResult | None = None, lease_proof: Any | None = None) -> None:
         before = deepcopy(self._data)
         try:
+            transition_events = list(events or [])
+            if event is not None:
+                transition_events.append(event)
             if task is not None:
+                cancellation = self.latest_cancellation(task.task_id)
+                if cancellation is not None:
+                    reason = str(cancellation.get("reason") or "task cancellation requested")
+                    task.metadata["cancellation_requested"] = True
+                    task.metadata["cancellation_reason"] = reason
+                    if task.status in {TaskStatus.COMPLETED, TaskStatus.FAILED}:
+                        task.status = TaskStatus.CANCELLED
+                        terminal_events = [item for item in transition_events if item.task_id == task.task_id and item.event_type in {"task.completed", "task.failed"}]
+                        transition_events = [item for item in transition_events if not (item.task_id == task.task_id and item.event_type in {"task.completed", "task.failed"})]
+                        anchor = terminal_events[-1] if terminal_events else None
+                        transition_events.append(Event(
+                            event_type="task.cancelled",
+                            task_id=task.task_id,
+                            step_id=anchor.step_id if anchor else None,
+                            request_id=anchor.request_id if anchor else None,
+                            provider=anchor.provider if anchor else None,
+                            model=anchor.model if anchor else None,
+                            payload={"category": "cancelled", "message": reason, "cancellation_state": "terminated", "source": "durable_control"},
+                        ))
+                        if checkpoint is not None and checkpoint.get("task_id") == task.task_id:
+                            checkpoint = dict(checkpoint)
+                            checkpoint["phase"] = "cancelled"
+                            checkpoint_state = dict(checkpoint.get("state") or {})
+                            checkpoint_state["cancellation"] = {"state": "terminated", "reason": reason, "requested": True, "source": "durable_control"}
+                            checkpoint["state"] = checkpoint_state
                 self._data["tasks"][task.task_id] = task.to_dict()
             if step is not None:
                 self._data["steps"][step.step_id] = step.to_dict()
@@ -207,7 +265,7 @@ class JsonStateStore:
                 self._data["checkpoints"].append(checkpoint)
             if tool_result is not None:
                 self._data.setdefault("tool_results", {})[tool_result.call_id] = tool_result.to_dict()
-            for transition_event in [*(events or []), *([event] if event is not None else [])]:
+            for transition_event in transition_events:
                 self._data.setdefault("events", []).append(transition_event.to_dict())
             self._flush()
         except BaseException:

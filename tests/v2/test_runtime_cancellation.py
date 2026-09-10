@@ -196,3 +196,25 @@ def test_provider_cancellation_during_request_requires_reconciliation(tmp_path):
     assert len(calls) == 1
     waiting = [event for event in store.snapshot()["events"] if event["event_type"] == "task.waiting_reconciliation"]
     assert waiting[-1]["payload"]["cancellation_state"] == "unable_to_confirm"
+
+
+def test_sqlite_cancellation_control_fences_late_terminal_transition(tmp_path):
+    path = tmp_path / "cancellation-fence.sqlite3"
+    task = Task(objective="late terminal result", status=TaskStatus.RUNNING)
+    with SQLiteStateStore(path) as store:
+        store.save_task(task)
+        store.request_cancellation(task.task_id, reason="operator stop")
+
+        task.status = TaskStatus.COMPLETED
+        store.commit_transition(
+            task=task,
+            events=[Event(event_type="task.completed", task_id=task.task_id, payload={})],
+        )
+
+        persisted = store.load_task(task.task_id)
+        assert persisted is not None
+        assert persisted.status is TaskStatus.CANCELLED
+        assert persisted.metadata["cancellation_requested"] is True
+        event_types = [event["event_type"] for event in store.snapshot()["events"] if event["task_id"] == task.task_id]
+        assert "task.completed" not in event_types
+        assert event_types[-1] == "task.cancelled"

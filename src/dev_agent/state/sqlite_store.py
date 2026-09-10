@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from functools import wraps
 from pathlib import Path
 import sqlite3
@@ -10,7 +11,7 @@ from threading import RLock
 import time
 from typing import Any
 
-from ..domain.protocol import Event, Step, Task, ToolResult
+from ..domain.protocol import Event, Step, Task, TaskStatus, ToolResult
 from .core_repository import CoreStateRepository
 from .effects_repository import EffectAuditRepository
 from .schema import StateSchema
@@ -71,6 +72,57 @@ class SQLiteStateStore:
     def save_task(self, task: Task) -> None:
         self._core.save_task(task)
         self.connection.commit()
+
+    @_serialized
+    def request_cancellation(self, task_id: str, *, reason: str) -> Task:
+        """Publish a cancellation control record without replacing a stale Task.
+
+        The control row is the cross-process source of truth.  The mirrored
+        Task metadata keeps the existing status/inspection API compatible, but
+        it is updated by merging the current database payload inside the same
+        transaction rather than by writing a caller's stale Task object.
+        """
+
+        if not isinstance(task_id, str) or not task_id.strip():
+            raise ValueError("task_id must be a non-empty string")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("reason must be a non-empty string")
+        task_id = task_id.strip()
+        reason = reason.strip()
+        try:
+            self.connection.execute("BEGIN IMMEDIATE")
+            row = self.connection.execute("SELECT payload FROM tasks WHERE task_id=?", (task_id,)).fetchone()
+            if row is None:
+                raise KeyError(task_id)
+            payload = json.loads(row["payload"])
+            status = payload.get("status")
+            if status not in {"completed", "failed", "cancelled"}:
+                metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+                metadata["cancellation_requested"] = True
+                metadata["cancellation_reason"] = reason
+                payload["metadata"] = metadata
+                payload["updated_at"] = datetime.now(timezone.utc).isoformat()
+                self.connection.execute("UPDATE tasks SET payload=? WHERE task_id=?", (json.dumps(payload, ensure_ascii=False), task_id))
+                self.connection.execute(
+                    "INSERT INTO task_controls(task_id, control_type, reason) VALUES (?, 'cancellation_requested', ?)",
+                    (task_id, reason),
+                )
+            self.connection.commit()
+            return Task.from_persisted_dict(payload)
+        except BaseException:
+            self.connection.rollback()
+            raise
+
+    def _latest_cancellation_unlocked(self, task_id: str) -> dict[str, Any] | None:
+        row = self.connection.execute(
+            "SELECT sequence, task_id, control_type, reason, requested_at FROM task_controls WHERE task_id=? AND control_type='cancellation_requested' ORDER BY sequence DESC LIMIT 1",
+            (task_id,),
+        ).fetchone()
+        return dict(row) if row is not None else None
+
+    @_serialized
+    def latest_cancellation(self, task_id: str) -> dict[str, Any] | None:
+        return self._latest_cancellation_unlocked(task_id)
 
     @_serialized
     def save_step(self, step: Step) -> None:
@@ -233,6 +285,52 @@ class SQLiteStateStore:
             transition_events = list(events or [])
             if event is not None:
                 transition_events.append(event)
+            if task is not None:
+                cancellation = self._latest_cancellation_unlocked(task.task_id)
+                if cancellation is not None:
+                    reason = str(cancellation.get("reason") or "task cancellation requested")
+                    task.metadata["cancellation_requested"] = True
+                    task.metadata["cancellation_reason"] = reason
+                    if task.status in {TaskStatus.COMPLETED, TaskStatus.FAILED}:
+                        task.status = TaskStatus.CANCELLED
+                        terminal_events = [
+                            item
+                            for item in transition_events
+                            if item.task_id == task.task_id and item.event_type in {"task.completed", "task.failed"}
+                        ]
+                        transition_events = [
+                            item
+                            for item in transition_events
+                            if not (item.task_id == task.task_id and item.event_type in {"task.completed", "task.failed"})
+                        ]
+                        anchor = terminal_events[-1] if terminal_events else None
+                        transition_events.append(
+                            Event(
+                                event_type="task.cancelled",
+                                task_id=task.task_id,
+                                step_id=anchor.step_id if anchor else None,
+                                request_id=anchor.request_id if anchor else None,
+                                provider=anchor.provider if anchor else None,
+                                model=anchor.model if anchor else None,
+                                payload={
+                                    "category": "cancelled",
+                                    "message": reason,
+                                    "cancellation_state": "terminated",
+                                    "source": "durable_control",
+                                },
+                            )
+                        )
+                        if checkpoint is not None and checkpoint.get("task_id") == task.task_id:
+                            checkpoint = dict(checkpoint)
+                            checkpoint["phase"] = "cancelled"
+                            checkpoint_state = dict(checkpoint.get("state") or {})
+                            checkpoint_state["cancellation"] = {
+                                "state": "terminated",
+                                "reason": reason,
+                                "requested": True,
+                                "source": "durable_control",
+                            }
+                            checkpoint["state"] = checkpoint_state
             self._core.insert_transition(
                 task=task,
                 step=step,

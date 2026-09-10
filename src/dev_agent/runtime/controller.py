@@ -318,14 +318,22 @@ class Controller:
         if event is not None:
             event.set()
             self._cancellation_reasons[task_id] = reason
-            # Do not touch a same-thread SQLite connection from the caller
-            # while the run loop is active in another thread.  The run loop
-            # owns the durable terminal transition at its next boundary.
             task = self._running_tasks.get(task_id)
             if task is None:
                 task = self.store.load_task(task_id)
             if task is None:
                 raise RuntimeFailure(f"task not found: {task_id}")
+            requester = getattr(self.store, "request_cancellation", None)
+            if callable(requester) and task.status is TaskStatus.RUNNING:
+                # The control record is written through the StateStore's
+                # transaction owner, so a separate API process cannot lose
+                # the request to the worker's later terminal write.
+                task = requester(task_id, reason=reason)
+                self._event(
+                    task,
+                    "task.cancellation_requested",
+                    {"category": "cancelled", "message": reason, "cancellation_state": "requested"},
+                )
             return task
         task = self.store.load_task(task_id)
         if task is None:
@@ -337,6 +345,15 @@ class Controller:
             # Event with the WorkerRunner process.  Persist only a request;
             # the owning run loop will observe it and preserve the existing
             # unknown/unable_to_confirm semantics at the provider boundary.
+            requester = getattr(self.store, "request_cancellation", None)
+            if callable(requester):
+                task = requester(task_id, reason=reason)
+                self._event(
+                    task,
+                    "task.cancellation_requested",
+                    {"category": "cancelled", "message": reason, "cancellation_state": "requested"},
+                )
+                return task
             task.metadata["cancellation_requested"] = True
             task.metadata["cancellation_reason"] = reason
             self._commit(
