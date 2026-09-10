@@ -227,6 +227,26 @@ def test_queue_wake_due_leaves_non_quota_waiting_items_parked(tmp_path):
     assert queue.snapshot("approval-task").state == "waiting"
 
 
+def test_queue_event_wait_is_woken_only_by_matching_authority(tmp_path):
+    queue = DurableQueue(tmp_path / "queue.sqlite3")
+    queue.enqueue("saturated-task")
+    item = queue.claim("worker-a", lease_seconds=30)
+    parked = queue.defer_for_event(
+        item.task_id,
+        worker_id="worker-a",
+        state_version=item.state_version,
+        reason="resource:provider_execution_saturated",
+    )
+
+    assert parked.state == "waiting"
+    assert parked.wake_at is None
+    assert parked.wake_reason == "resource:provider_execution_saturated"
+    assert queue.wake_waiting(reason="quota:domain-a") == 0
+    assert queue.snapshot(item.task_id).state == "waiting"
+    assert queue.wake_waiting(reason="resource:provider_execution_saturated") == 1
+    assert queue.snapshot(item.task_id).state == "queued"
+
+
 def test_same_database_state_store_rejects_stale_lease_proof(tmp_path):
     from src.dev_agent.state.sqlite_store import SQLiteStateStore
 

@@ -104,6 +104,37 @@ def test_model_turn_executor_bounds_uninterruptible_timeout_threads():
     assert executor.orphaned_requests == 0
 
 
+def test_model_turn_executor_notifies_capacity_after_orphan_finishes():
+    from concurrent.futures import TimeoutError as FutureTimeoutError
+    from threading import Event
+    from src.dev_agent.runtime.model_turn import ModelTurnExecutor
+
+    started = Event()
+    release = Event()
+    capacity_available = Event()
+
+    class BlockingProvider(FakeProvider):
+        provider_id = "blocking-wake"
+
+        def request(self, request):
+            started.set()
+            release.wait(2)
+            return ModelResponse(provider="blocking-wake", model="test", text_segments=["late"])
+
+    executor = ModelTurnExecutor(
+        BlockingProvider(),
+        lease_guard=lambda: None,
+        on_capacity_available=capacity_available.set,
+    )
+    request = ModelRequest(task_id="00000000-0000-0000-0000-000000000003", messages=[{"role": "user", "content": "x"}])
+    with pytest.raises(FutureTimeoutError):
+        executor.request(request, time.time() + 0.05, Event())
+    assert started.wait(1)
+    release.set()
+    assert capacity_available.wait(2)
+    assert executor.orphaned_requests == 0
+
+
 def test_model_turn_executor_tracks_unconfirmed_cancellation_as_orphan():
     from threading import Event
     from src.dev_agent.runtime.model_turn import ModelTurnExecutor, ProviderExecutionSaturated, ProviderRequestCancelled
@@ -148,6 +179,70 @@ def test_model_turn_executor_tracks_unconfirmed_cancellation_as_orphan():
     while executor.orphaned_requests and time.time() < deadline:
         time.sleep(0.01)
     assert executor.orphaned_requests == 0
+
+
+def test_canonical_dispatcher_saturation_is_scoped_to_provider_binding(tmp_path):
+    from threading import Event
+    from src.dev_agent.runtime.controller import Controller
+    from src.dev_agent.providers.base import ProviderError
+
+    ledger = ResourceLedger(tmp_path / "binding-saturation.sqlite3")
+    for resource_id, provider_id in (("a-gemini", "gemini"), ("b-cloudflare", "cloudflare")):
+        ledger.register_resource(
+            resource_id,
+            provider_id=provider_id,
+            provider_binding_id=provider_id,
+            native_unit="request",
+            capacity=2,
+            capabilities=["text"],
+            cost_minor=0,
+            quota_domain=f"{provider_id}-domain",
+        )
+        ledger.observe(resource_id, available=2, health="healthy", concurrency_limit=2)
+        ledger.observe_quota(resource_id, request_limit=100, request_remaining=99)
+    control = ResourceControlPlane(ResourceRouter(ledger), _governor(ledger, BudgetPolicy(hard_cap_minor=0, recovery_reserve_minor=0)))
+    started = Event()
+    release = Event()
+    calls = []
+
+    class HangingGemini(FakeProvider):
+        provider_id = "gemini"
+        provider_binding_id = "gemini"
+        model_id = "gemini-test"
+
+        def request(self, request):
+            calls.append("gemini")
+            started.set()
+            release.wait(2)
+            return ModelResponse(provider="gemini", model="gemini-test", text_segments=["late"], usage={"cost_minor": 0})
+
+    class HealthyCloudflare(FakeProvider):
+        provider_id = "cloudflare"
+        provider_binding_id = "cloudflare"
+        model_id = "cloudflare-test"
+
+        def request(self, request):
+            calls.append("cloudflare")
+            return ModelResponse(provider="cloudflare", model="cloudflare-test", text_segments=["ok"], usage={"cost_minor": 0})
+
+    dispatcher = ProviderDispatcher(
+        ProviderRegistry([HangingGemini(), HealthyCloudflare()]),
+        control,
+    )
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        controller = Controller(dispatcher, ToolRuntime(ToolRegistry()), store)
+        first_request = ModelRequest(task_id="00000000-0000-0000-0000-000000000011", messages=[{"role": "user", "content": "hang"}])
+        with pytest.raises(ProviderError, match="provider transport failed"):
+            controller._provider_request(first_request, time.time() + 0.05, Event())
+        assert started.wait(1)
+        response = controller._provider_request(
+            ModelRequest(task_id="00000000-0000-0000-0000-000000000012", messages=[{"role": "user", "content": "use fallback"}]),
+            time.time() + 0.5,
+            Event(),
+        )
+    release.set()
+    assert response.provider == "cloudflare"
+    assert calls == ["gemini", "cloudflare"]
 
 
 # Tests split mechanically from test_phase6_integration.py; semantics are unchanged.

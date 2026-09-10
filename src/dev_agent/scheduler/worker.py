@@ -111,7 +111,16 @@ class WorkerRunner:
                 # Waiting states require an external event (approval, budget
                 # replenishment, or reconciliation).  Requeueing immediately
                 # can duplicate an ambiguous external effect or spin forever.
-                self.queue.defer(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
+                wait_reason = result.metadata.get("wait_reason") if isinstance(result.metadata, dict) else None
+                if wait_reason == "resource:provider_execution_saturated":
+                    self.queue.defer_for_event(
+                        item.task_id,
+                        worker_id=self.worker_id,
+                        state_version=item.state_version,
+                        reason=wait_reason,
+                    )
+                else:
+                    self.queue.defer(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
             else:
                 self.queue.fail(item.task_id, worker_id=self.worker_id, state_version=item.state_version, retry=result.status not in {TaskStatus.FAILED, TaskStatus.CANCELLED}, max_attempts=max_attempts)
         except StaleLease:

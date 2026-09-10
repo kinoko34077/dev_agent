@@ -399,6 +399,9 @@ class OperationService:
                 resource_policy=resource_control,
                 intelligence_routing=intelligence_routing,
                 allow_unknown_quota=trusted_free_binding_present,
+                provider_capacity_wakeup=lambda _binding_id: queue.wake_waiting(
+                    reason="resource:provider_execution_saturated"
+                ),
             )
             worker = WorkerRunner(
                 queue,

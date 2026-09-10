@@ -23,6 +23,8 @@ class ProviderRequestCancelled(Exception):
 class ProviderExecutionSaturated(RuntimeError):
     """The bounded executor still owns an unkillable timed-out call."""
 
+    is_provider_execution_saturated = True
+
 
 class ModelTurnExecutor:
     """Run one provider request without owning task-state transitions.
@@ -33,7 +35,14 @@ class ModelTurnExecutor:
     outcome and reconcile it at the higher lifecycle boundary.
     """
 
-    def __init__(self, provider: ModelProvider, *, lease_guard: Callable[[], None], max_orphaned_requests: int = 1) -> None:
+    def __init__(
+        self,
+        provider: ModelProvider,
+        *,
+        lease_guard: Callable[[], None],
+        max_orphaned_requests: int = 1,
+        on_capacity_available: Callable[[], None] | None = None,
+    ) -> None:
         if isinstance(max_orphaned_requests, bool) or not isinstance(max_orphaned_requests, int) or max_orphaned_requests < 0:
             raise ValueError("max_orphaned_requests must be a non-negative integer")
         self._provider = provider
@@ -41,6 +50,9 @@ class ModelTurnExecutor:
         self._max_orphaned_requests = max_orphaned_requests
         self._orphaned_requests: set[object] = set()
         self._orphan_lock = RLock()
+        if on_capacity_available is not None and not callable(on_capacity_available):
+            raise TypeError("on_capacity_available must be callable or None")
+        self._on_capacity_available = on_capacity_available
 
     @property
     def orphaned_requests(self) -> int:
@@ -48,8 +60,19 @@ class ModelTurnExecutor:
             return len(self._orphaned_requests)
 
     def _release_orphan(self, future: object) -> None:
+        released = False
         with self._orphan_lock:
-            self._orphaned_requests.discard(future)
+            if future in self._orphaned_requests:
+                self._orphaned_requests.discard(future)
+                released = True
+        if released and self._on_capacity_available is not None:
+            # A wake callback is a liveness hint only.  A late provider
+            # completion must never become a runtime failure because Queue or
+            # another process is temporarily unavailable.
+            try:
+                self._on_capacity_available()
+            except Exception:
+                pass
 
     def _track_if_running(self, future: Any) -> bool:
         """Retain a Future while its provider call may still be executing.

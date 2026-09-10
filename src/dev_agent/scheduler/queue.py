@@ -302,6 +302,38 @@ class DurableQueue:
         """Park a task that requires an external event before it can resume."""
         return self._finish(task_id, worker_id=worker_id, state_version=state_version, state="waiting")
 
+    def defer_for_event(
+        self,
+        task_id: str,
+        *,
+        worker_id: str,
+        state_version: int,
+        reason: str,
+    ) -> QueueItem:
+        """Park a task until an explicitly named non-time wake event.
+
+        ``wake_at`` remains NULL: clock passage alone cannot revive an event
+        wait.  The owning maintenance/capacity authority must call
+        :meth:`wake_waiting` with the same reason.
+        """
+
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("reason must be a non-empty string")
+        with self._lock:
+            cursor = self.connection.execute(
+                """UPDATE queue_items
+                   SET state='waiting', run_at=0,
+                       lease_owner=NULL, lease_until=NULL, lease_token=NULL,
+                       wake_at=NULL, wake_reason=?, state_version=state_version+1
+                   WHERE task_id=? AND state='leased' AND lease_owner=?
+                     AND state_version=? AND lease_until > ?""",
+                (reason.strip(), task_id, worker_id, state_version, time.time()),
+            )
+            self.connection.commit()
+            if cursor.rowcount != 1:
+                raise StaleLease(task_id)
+            return self.snapshot(task_id)
+
     def defer_until(
         self,
         task_id: str,
@@ -344,6 +376,22 @@ class DurableQueue:
             if cursor.rowcount != 1:
                 raise ValueError(f"task is not waiting: {task_id}")
             return self.snapshot(task_id)
+
+    def wake_waiting(self, *, reason: str) -> int:
+        """Wake all event-waiting items for one durable wake authority."""
+
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("reason must be a non-empty string")
+        with self._lock:
+            cursor = self.connection.execute(
+                """UPDATE queue_items
+                   SET state='queued', run_at=?, wake_at=NULL, wake_reason=NULL,
+                       state_version=state_version+1
+                   WHERE state='waiting' AND wake_reason=?""",
+                (time.time(), reason.strip()),
+            )
+            self.connection.commit()
+            return cursor.rowcount
 
     def wake_due(
         self,

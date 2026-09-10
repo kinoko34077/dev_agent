@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from contextvars import ContextVar
 from typing import Any, Callable, TYPE_CHECKING
 
 from ..domain.protocol import ModelRequest, ModelResponse
@@ -47,6 +48,9 @@ class ProviderDispatcher(ModelProvider):
         self.audits: list[DispatchAudit] = []
         self._journal = ProviderDispatchJournal()
         self._lease_guard: Callable[[], None] | None = None
+        self._execution_callback: ContextVar[Callable[[ModelProvider, ModelRequest], ModelResponse] | None] = ContextVar(
+            f"provider_dispatch_execution:{id(self)}", default=None
+        )
 
     def bind_runtime(self, *, state_store: StateStore, lease_guard: Callable[[], None] | None = None, lease_proof: Callable[[], Any | None] | None = None) -> None:
         """Attach the durable runtime boundary used by Controller.
@@ -79,6 +83,32 @@ class ProviderDispatcher(ModelProvider):
         # has committed; it must never report a success that exists solely in
         # RAM after a persistence failure.
         self.audits.append(entry)
+
+    def request_with_execution(
+        self,
+        request: ModelRequest,
+        *,
+        execute: Callable[[ModelProvider, ModelRequest], ModelResponse],
+    ) -> ModelResponse:
+        """Run dispatch with a caller-owned, binding-scoped execution lane.
+
+        The dispatcher remains the owner of selection, reservation, intent,
+        fallback, and reconciliation.  The runtime supplies only the bounded
+        invocation of the selected concrete binding, so an unkillable call in
+        one binding cannot consume the timeout lane for the whole provider
+        pool.  A ContextVar keeps this opt-in callback isolated when one
+        dispatcher instance is shared by multiple workers.
+        """
+
+        if not isinstance(request, ModelRequest):
+            raise TypeError("request must be a ModelRequest")
+        if not callable(execute):
+            raise TypeError("execute must be callable")
+        token = self._execution_callback.set(execute)
+        try:
+            return self.request(request)
+        finally:
+            self._execution_callback.reset(token)
 
     def request(self, request_or_task_id: ModelRequest | str, explicit_request: ModelRequest | None = None) -> ModelResponse:
         """Dispatch one request, accepting both canonical and legacy call shapes.
@@ -146,7 +176,8 @@ class ProviderDispatcher(ModelProvider):
                 self._record_audit(request, selection, "lease_lost", intent_key, details={"category": "lease_lost"})
                 raise ProviderError("provider dispatch rejected by stale lease", category="lease_lost", retryable=True) from exc
             try:
-                response = provider.request(request)
+                execute = self._execution_callback.get()
+                response = execute(provider, request) if execute is not None else provider.request(request)
             except ProviderError as exc:
                 self.control.record_provider_error(selection.provider_id, reservation, exc)
                 outcome = "unknown" if exc.requires_reconciliation else "confirmed_failed"
@@ -165,6 +196,32 @@ class ProviderDispatcher(ModelProvider):
                     raise
                 continue
             except Exception as exc:
+                if getattr(exc, "is_provider_execution_saturated", False) is True:
+                    # The bounded binding executor rejected this call before
+                    # entering the concrete provider.  It is therefore safe
+                    # to close this reservation and try another binding for
+                    # this request.  The timed-out call that caused the lane
+                    # saturation remains tracked by that binding's executor.
+                    self.control.release(reservation)
+                    self._intent(
+                        intent_key,
+                        status="confirmed_failed",
+                        result={
+                            "provider_id": selection.provider_id,
+                            "resource_id": selection.resource_id,
+                            "error_category": "provider_execution_saturated",
+                        },
+                    )
+                    self._record_audit(
+                        request,
+                        selection,
+                        "provider_execution_saturated",
+                        intent_key,
+                        details={"category": "provider_execution_saturated", "external_call_started": False},
+                    )
+                    last_error = exc
+                    excluded.add(selection.resource_id)
+                    continue
                 self.control.uncertain(reservation)
                 self.control.record_provider_failure(
                     selection.provider_id,

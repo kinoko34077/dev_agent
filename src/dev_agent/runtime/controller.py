@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 import math
-from threading import Event
+from threading import Event, RLock
 from time import monotonic, time
 from typing import Any, Callable
 
@@ -65,7 +65,7 @@ class Controller:
     _SECRET_KEY_WORDS = tuple(AuditRecorder.SECRET_KEYS)
     _SECRET_PATTERNS = AuditRecorder.SECRET_PATTERNS
 
-    def __init__(self, provider: ModelProvider, tools: ToolRuntime, store: StateStore, *, event_artifacts: EventArtifactStore | None = None, resource_policy: ResourcePolicy | None = None, lease_guard: Callable[[], None] | None = None, lease_proof: Any | None = None, intelligence_policy: TaskIntelligencePolicy | None = None, intelligence_routing: bool = False, allow_unknown_quota: bool = False) -> None:
+    def __init__(self, provider: ModelProvider, tools: ToolRuntime, store: StateStore, *, event_artifacts: EventArtifactStore | None = None, resource_policy: ResourcePolicy | None = None, lease_guard: Callable[[], None] | None = None, lease_proof: Any | None = None, intelligence_policy: TaskIntelligencePolicy | None = None, intelligence_routing: bool = False, allow_unknown_quota: bool = False, provider_capacity_wakeup: Callable[[str], None] | None = None) -> None:
         self.provider = provider
         self.tools = tools.bound_to(store)
         self.store = store
@@ -76,8 +76,11 @@ class Controller:
             raise TypeError("intelligence_routing must be a boolean")
         if not isinstance(allow_unknown_quota, bool):
             raise TypeError("allow_unknown_quota must be a boolean")
+        if provider_capacity_wakeup is not None and not callable(provider_capacity_wakeup):
+            raise TypeError("provider_capacity_wakeup must be callable or None")
         self.intelligence_routing = intelligence_routing
         self.allow_unknown_quota = allow_unknown_quota
+        self._provider_capacity_wakeup = provider_capacity_wakeup
         self._default_execution_context = ExecutionContext(lease_guard=lease_guard, lease_proof=lease_proof)
         self._execution_context: ContextVar[ExecutionContext | None] = ContextVar(
             f"dev_agent_execution_context:{id(self)}", default=None
@@ -87,6 +90,8 @@ class Controller:
         self._active_tasks: set[str] = set()
         self._running_tasks: dict[str, Task] = {}
         self._model_turn_executor = ModelTurnExecutor(self.provider, lease_guard=self._active_lease_guard)
+        self._binding_model_turn_executors: dict[str, ModelTurnExecutor] = {}
+        self._binding_executor_lock = RLock()
         self._legacy_provider_journal = LegacyDirectProviderJournal(
             store,
             provider_id=self.provider.provider_id,
@@ -314,7 +319,47 @@ class Controller:
         state.setdefault("active_request_id", None)
 
     def _provider_request(self, request: ModelRequest, deadline_epoch: float, cancel_event: Event) -> ModelResponse:
+        request_with_execution = getattr(self.provider, "request_with_execution", None)
+        if callable(request_with_execution):
+            return request_with_execution(
+                request,
+                execute=lambda provider, bound_request: self._binding_provider_request(
+                    provider,
+                    bound_request,
+                    deadline_epoch,
+                    cancel_event,
+                ),
+            )
         return self._model_turn_executor.request(request, deadline_epoch, cancel_event)
+
+    def _binding_provider_request(
+        self,
+        provider: ModelProvider,
+        request: ModelRequest,
+        deadline_epoch: float,
+        cancel_event: Event,
+    ) -> ModelResponse:
+        """Execute one concrete binding through its own bounded lane."""
+
+        binding_id = getattr(provider, "provider_binding_id", None) or provider.provider_id
+        if not isinstance(binding_id, str) or not binding_id.strip():
+            raise RuntimeFailure("provider binding identity is missing")
+        binding_id = binding_id.strip()
+        with self._binding_executor_lock:
+            executor = self._binding_model_turn_executors.get(binding_id)
+            if executor is None:
+                executor = ModelTurnExecutor(
+                    provider,
+                    lease_guard=self._active_lease_guard,
+                    on_capacity_available=lambda: self._provider_capacity_available(binding_id),
+                )
+                self._binding_model_turn_executors[binding_id] = executor
+        return executor.request(request, deadline_epoch, cancel_event)
+
+    def _provider_capacity_available(self, binding_id: str) -> None:
+        callback = self._provider_capacity_wakeup
+        if callback is not None:
+            callback(binding_id)
 
     def cancel(self, task_id: str, *, reason: str = "task cancellation requested") -> Task:
         """Request cooperative cancellation and persist it when not running."""

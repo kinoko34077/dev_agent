@@ -206,9 +206,14 @@ class ResourceRouter:
                 continue
             effective_capabilities = set(resource["capabilities"])
             effective_tier = metadata.get("intelligence_tier")
-            qualification_required = metadata.get("qualification_required") is True or (
-                resource["provider_id"] != "fake" and metadata.get("billing_authority") == "trusted_catalog"
-            )
+            # Production composition marks resources explicitly.  Do not infer
+            # qualification ownership from billing metadata: isolated
+            # qualification probes and legacy/test resources may use the
+            # trusted billing catalog before a qualification record exists.
+            # OperationService sets this flag for every normal provider
+            # resource, so production routing remains fail-closed without
+            # making the router guess at the caller's authority.
+            qualification_required = metadata.get("qualification_required") is True
             if qualification_required:
                 model_id = resource.get("model_id") or metadata.get("model_id")
                 if not isinstance(provider_binding_id, str) or not isinstance(model_id, str) or not provider_binding_id.strip() or not model_id.strip():
