@@ -5,6 +5,7 @@ import pytest
 from src.dev_agent.operation import OperationConfig, OperationProviderBinding, OperationService
 from src.dev_agent.resources.qualification import QualificationResolver
 from src.dev_agent.resources.ledger import ResourceLedger
+from src.dev_agent.resources.router import NoRoute, ResourceRouter, RouteRequest
 
 
 def test_qualified_tool_evidence_projects_to_tool_call_for_operation_resource(tmp_path):
@@ -122,3 +123,78 @@ def test_unqualified_model_name_does_not_assign_production_tier(tmp_path):
         resource = ledger.get_resource("gemini:fast-fallback")
 
     assert resource["metadata"].get("intelligence_tier") is None
+
+
+def _qualification_entry(*, expires_at: str, capabilities: list[str] | None = None):
+    return {
+        "provider": "fixture",
+        "provider_binding_id": "fixture:worker",
+        "model": "fixture-model",
+        "intelligence_tier": "L1",
+        "tested_at": "2026-09-01T00:00:00+00:00",
+        "expires_at": expires_at,
+        "confidence": "high",
+        "capabilities": capabilities or [
+            "text",
+            "model_generated_tool_call",
+            "tool_result_roundtrip",
+            "final_response",
+        ],
+    }
+
+
+def _qualification_resource(ledger, *, capabilities=("text", "tool_call")):
+    ledger.register_resource(
+        "fixture:worker",
+        provider_id="fixture",
+        provider_binding_id="fixture:worker",
+        native_unit="request",
+        capacity=1,
+        capabilities=capabilities,
+        cost_minor=0,
+        metadata={
+            "provider_binding_id": "fixture:worker",
+            "model_id": "fixture-model",
+            "qualification_required": True,
+            "billing_authority": "trusted_catalog",
+        },
+        intelligence_tier="L1",
+    )
+    ledger.observe("fixture:worker", available=1, health="healthy", concurrency_limit=1)
+
+
+def test_router_uses_current_qualification_for_existing_resource(tmp_path):
+    resolver = QualificationResolver(entries=[_qualification_entry(expires_at="2026-10-01T00:00:00+00:00")])
+    with ResourceLedger(tmp_path / "resources.sqlite3") as ledger:
+        _qualification_resource(ledger)
+        router = ResourceRouter(ledger, qualification_resolver=resolver)
+
+        selection = router.choose(RouteRequest(capabilities={"tool_call"}, allowed_intelligence_tiers={"L1"}))
+
+    assert selection.provider_binding_id == "fixture:worker"
+
+
+def test_router_rejects_expired_qualification_without_mutating_resource(tmp_path):
+    resolver = QualificationResolver(entries=[_qualification_entry(expires_at="2026-09-01T00:00:00+00:00")])
+    with ResourceLedger(tmp_path / "resources.sqlite3") as ledger:
+        _qualification_resource(ledger)
+        before = ledger.get_resource("fixture:worker")
+
+        with pytest.raises(NoRoute):
+            ResourceRouter(ledger, qualification_resolver=resolver).choose(
+                RouteRequest(capabilities={"tool_call"}, allowed_intelligence_tiers={"L1"})
+            )
+
+        after = ledger.get_resource("fixture:worker")
+
+    assert after["capabilities"] == before["capabilities"]
+    assert after["metadata"] == before["metadata"]
+
+
+def test_router_does_not_accept_unqualified_exact_production_resource(tmp_path):
+    resolver = QualificationResolver(entries=[])
+    with ResourceLedger(tmp_path / "resources.sqlite3") as ledger:
+        _qualification_resource(ledger)
+
+        with pytest.raises(NoRoute):
+            ResourceRouter(ledger, qualification_resolver=resolver).choose(RouteRequest(capabilities={"text"}))

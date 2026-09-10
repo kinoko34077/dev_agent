@@ -8,6 +8,7 @@ import math
 import time
 from typing import Protocol
 
+from .qualification import QualificationResolver
 from .snapshot import RoutingSnapshot
 
 
@@ -92,8 +93,9 @@ _SENSITIVITY = {"public": 0, "normal": 1, "internal": 2, "sensitive": 3}
 
 
 class ResourceRouter:
-    def __init__(self, read_view: ResourceReadView) -> None:
+    def __init__(self, read_view: ResourceReadView, *, qualification_resolver: QualificationResolver | None = None) -> None:
         self._read_view = read_view
+        self._qualification_resolver = qualification_resolver or QualificationResolver()
 
     @property
     def ledger(self) -> ResourceReadView:
@@ -202,11 +204,31 @@ class ResourceRouter:
                 continue
             if provider_binding_id in request.excluded_provider_binding_ids:
                 continue
-            if not request.capabilities.issubset(set(resource["capabilities"])):
+            effective_capabilities = set(resource["capabilities"])
+            effective_tier = metadata.get("intelligence_tier")
+            qualification_required = metadata.get("qualification_required") is True or (
+                resource["provider_id"] != "fake" and metadata.get("billing_authority") == "trusted_catalog"
+            )
+            if qualification_required:
+                model_id = resource.get("model_id") or metadata.get("model_id")
+                if not isinstance(provider_binding_id, str) or not isinstance(model_id, str) or not provider_binding_id.strip() or not model_id.strip():
+                    continue
+                qualification = self._qualification_resolver.resolve(
+                    resource["provider_id"],
+                    provider_binding_id.strip(),
+                    model_id.strip(),
+                )
+                if qualification is None:
+                    continue
+                # Catalog capabilities remain operator-owned.  Qualification
+                # can only narrow the effective routing view, never grant a
+                # capability that the persisted resource did not allow.
+                effective_capabilities &= set(qualification.routing_capabilities)
+                effective_tier = qualification.intelligence_tier
+            if not request.capabilities.issubset(effective_capabilities):
                 continue
             if request.allowed_intelligence_tiers is not None:
-                resource_tier = metadata.get("intelligence_tier")
-                if resource_tier not in request.allowed_intelligence_tiers:
+                if effective_tier not in request.allowed_intelligence_tiers:
                     continue
             if _SENSITIVITY.get(resource["sensitivity"], -1) < _SENSITIVITY[request.sensitivity]:
                 continue

@@ -526,6 +526,11 @@ class OperationService:
         }
         resource_sensitivity, privacy_profile = _operation_resource_sensitivity(config.provider_id)
         resource_metadata["privacy_profile"] = privacy_profile
+        # Real provider resources must be checked against the protected,
+        # exact binding/model qualification projection at route time.  Fake
+        # smoke resources intentionally remain outside that external
+        # qualification authority.
+        resource_metadata["qualification_required"] = config.provider_id != "fake"
         if tier:
             resource_metadata["intelligence_tier"] = tier
         if profile is not None:
