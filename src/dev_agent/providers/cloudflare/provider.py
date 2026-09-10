@@ -159,6 +159,9 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
             raise ProviderError("cloudflare response decode failed: response is not text", category="provider_decode", retryable=False)
         usage = dict(result.get("usage")) if isinstance(result.get("usage"), Mapping) else {}
         model_name = str(result.get("model") or model or cls.provider_id)
+        requested_model = model.strip() if isinstance(model, str) and model.strip() else None
+        if requested_model is not None and model_name != requested_model:
+            usage["provider_reported_model"] = model_name
         neuron_observation = cls._neuron_observation(model_name, usage)
         if neuron_observation is not None:
             usage["quota_observation"] = neuron_observation
@@ -166,7 +169,7 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
             raise ProviderError("cloudflare response has no normalized content", category="provider_decode", retryable=False)
         return ModelResponse(
             provider="cloudflare",
-            model=model_name,
+            model=requested_model or model_name,
             finish_reason=str(result.get("finish_reason") or "stop"),
             text_segments=[text] if text else [],
             tool_calls=calls,

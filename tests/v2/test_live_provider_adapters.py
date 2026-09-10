@@ -120,6 +120,31 @@ def test_cloudflare_http_adapter_normalizes_rest_envelope_without_inventing_quot
     assert "quota_observation" not in response.usage
 
 
+def test_cloudflare_http_adapter_preserves_requested_binding_when_backend_reports_alias(monkeypatch):
+    def fake_urlopen(_request, timeout):
+        return _Response(
+            {
+                "success": True,
+                "result": {"model": "@cf/meta/llama-3.1-8b-fast-v2", "response": "cloud answer"},
+            }
+        )
+
+    monkeypatch.setattr("src.dev_agent.providers.cloudflare.provider.urlopen", fake_urlopen)
+    request = ModelRequest(
+        task_id="00000000-0000-0000-0000-000000000001",
+        messages=[{"role": "user", "content": "hello"}],
+    )
+
+    response = CloudflareWorkersAIHttpProvider(
+        model="@cf/meta/llama-3.1-8b-instruct",
+        account_id="account",
+        api_token="token",
+    ).request(request)
+
+    assert response.model == "@cf/meta/llama-3.1-8b-instruct"
+    assert response.usage["provider_reported_model"] == "@cf/meta/llama-3.1-8b-fast-v2"
+
+
 def test_cloudflare_http_adapter_marks_neuron_usage_as_estimated(monkeypatch):
     def fake_urlopen(request, timeout):
         return _Response(

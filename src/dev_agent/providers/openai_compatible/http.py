@@ -290,7 +290,17 @@ class OpenAICompatibleHttpProvider(ModelProvider):
             api_key=self._key(),
             timeout_seconds=self.timeout_seconds,
         )
-        return self._decode(raw, request, headers)
+        response = self._decode(raw, request, headers)
+        # The selected model is the binding identity used by the control
+        # plane.  Some compatible gateways report the concrete backend model
+        # they routed to (for example a wildcard/free alias) instead of the
+        # requested model.  Preserve that diagnostic separately while keeping
+        # the normalized response bound to the admitted request identity.
+        if response.model != self.model:
+            if response.model != self.provider_id:
+                response.usage.setdefault("provider_reported_model", response.model)
+            response.model = self.model
+        return response
 
     def list_models(self) -> list[dict[str, Any]]:
         """Return safe model metadata from the provider's models endpoint."""

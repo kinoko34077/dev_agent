@@ -67,6 +67,28 @@ def test_openai_compatible_http_provider_owns_wire_request_and_normalization():
     assert response.usage["total_tokens"] == 3
 
 
+def test_openai_compatible_http_preserves_requested_binding_when_backend_reports_alias():
+    def fake_urlopen(_request, timeout=None):
+        assert timeout is not None
+        return _Response(
+            {
+                "model": "backend-model-alias",
+                "choices": [{"message": {"content": "ready"}, "finish_reason": "stop"}],
+            }
+        )
+
+    provider = _TestProvider(model="requested-model", api_key="secret", http_open=fake_urlopen)
+    response = provider.request(
+        ModelRequest(
+            task_id="00000000-0000-0000-0000-000000000001",
+            messages=[{"role": "user", "content": "hello"}],
+        )
+    )
+
+    assert response.model == "requested-model"
+    assert response.usage["provider_reported_model"] == "backend-model-alias"
+
+
 def test_openai_compatible_http_error_detail_is_safe_for_provider_secrets():
     def fake_urlopen(_request, timeout):
         assert timeout == 4.0
