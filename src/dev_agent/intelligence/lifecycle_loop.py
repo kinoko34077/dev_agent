@@ -76,6 +76,7 @@ class FiniteLifecycleLoop:
         lifecycle: TaskLifecycleCoordinator,
         *,
         max_cycles: int = 3,
+        task_id: str | None = None,
     ) -> None:
         if not isinstance(evaluation_dispatch, EvaluationDispatchCoordinator):
             raise TypeError("evaluation_dispatch must be EvaluationDispatchCoordinator")
@@ -86,15 +87,20 @@ class FiniteLifecycleLoop:
         self._evaluation_dispatch = evaluation_dispatch
         self._lifecycle = lifecycle
         self.max_cycles = max_cycles
-        self._evaluations = 0
+        if task_id is not None and (not isinstance(task_id, str) or not task_id.strip()):
+            raise ValueError("task_id must be a non-empty string or None")
+        self._task_id = task_id.strip() if isinstance(task_id, str) else None
+        self._evaluations = self._durable_evaluation_count(self._task_id) if self._task_id else 0
 
     @property
     def evaluations_used(self) -> int:
+        if self._task_id is not None:
+            self._evaluations = self._durable_evaluation_count(self._task_id)
         return self._evaluations
 
     @property
     def remaining_cycles(self) -> int:
-        return self.max_cycles - self._evaluations
+        return self.max_cycles - self.evaluations_used
 
     def evaluate_and_apply(
         self,
@@ -102,8 +108,9 @@ class FiniteLifecycleLoop:
         *,
         escalation_context: EscalationContext | None = None,
     ) -> LifecycleStep:
-        self._reserve_evaluation()
+        self._reserve_evaluation(evidence.task_id)
         cycle = self._evaluation_dispatch.evaluate(evidence, escalation_context=escalation_context)
+        self._evaluations = self._durable_evaluation_count(self._task_id)
         transition = self._lifecycle.apply_evaluation(cycle)
         return LifecycleStep(self._evaluations, "evaluation", cycle, transition)
 
@@ -132,10 +139,32 @@ class FiniteLifecycleLoop:
         transition = self._lifecycle.apply_dispatch(cycle)
         return LifecycleStep(step.cycle_number, "dispatch", cycle, transition)
 
-    def _reserve_evaluation(self) -> None:
+    def _reserve_evaluation(self, task_id: str) -> None:
+        if self._task_id is None:
+            self._task_id = task_id
+        elif self._task_id != task_id:
+            raise ValueError("evaluation task does not match the lifecycle task")
+        self._evaluations = self._durable_evaluation_count(self._task_id)
         if self._evaluations >= self.max_cycles:
             raise LifecycleLimitExceeded("finite lifecycle evaluation ceiling reached")
-        self._evaluations += 1
+        task = self._evaluation_dispatch.state_store.load_task(self._task_id)
+        if task is not None and task.status.value in {"completed", "failed", "cancelled"} and self._evaluations > 0:
+            raise ValueError("terminal task cannot resume in finite lifecycle")
+        if task is not None and task.status.value in {"waiting_approval", "waiting_reconciliation"} and self._evaluations > 0:
+            raise ValueError("waiting task requires explicit resolution before lifecycle resume")
+
+    def _durable_evaluation_count(self, task_id: str | None) -> int:
+        if task_id is None:
+            return 0
+        snapshot = self._evaluation_dispatch.state_store.snapshot()
+        events = snapshot.get("events", []) if isinstance(snapshot, dict) else []
+        return sum(
+            1
+            for event in events
+            if isinstance(event, dict)
+            and event.get("task_id") == task_id
+            and event.get("event_type") == "evaluation.recorded"
+        )
 
 
 __all__ = ["FiniteLifecycleLoop", "LifecycleLimitExceeded", "LifecycleStep"]

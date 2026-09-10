@@ -9,6 +9,8 @@ import math
 from collections.abc import Callable, Mapping
 from typing import Any, Protocol
 
+from ..providers.base import ProviderError
+from ..resources.quota_policy import classify_provider_error
 from .queue import DurableQueue, QueueItem
 
 
@@ -28,6 +30,15 @@ class QuotaWriteView(QuotaReadView, Protocol):
         *,
         observed_at: str | None = None,
         source: str = "provider-response",
+    ) -> bool: ...
+
+    def record_quota_block(
+        self,
+        resource_id: str,
+        decision: Any,
+        *,
+        observed_at: str | None = None,
+        source: str = "provider-error",
     ) -> bool: ...
 
 
@@ -200,11 +211,41 @@ class QuotaRequalificationCoordinator:
             raw = probe(resource_id, domain)
         except Exception as exc:
             category = getattr(exc, "category", None)
+            decision = None
+            if isinstance(exc, ProviderError):
+                try:
+                    resource = self.ledger.get_resource(resource_id)
+                    decision = classify_provider_error(
+                        str(resource.get("provider_id", "")),
+                        exc,
+                        now=current,
+                    )
+                    if decision is not None:
+                        self.ledger.record_quota_block(
+                            resource_id,
+                            decision,
+                            observed_at=_iso(current),
+                            source="quota-requalification-probe-error",
+                        )
+                except (KeyError, TypeError, ValueError):
+                    decision = None
+            normalized_category = (
+                category.strip().lower()
+                if isinstance(category, str) and category.strip()
+                else "probe_error"
+            )
+            if decision is not None and decision.block_reason in _EXTERNAL_BLOCKS:
+                return QuotaProbeResult(
+                    resource_id,
+                    domain,
+                    QuotaProbeStatus.BLOCKED_EXTERNAL,
+                    error_category=normalized_category,
+                )
             return QuotaProbeResult(
                 resource_id,
                 domain,
                 QuotaProbeStatus.PROBE_FAILED,
-                error_category=category.strip().lower() if isinstance(category, str) and category.strip() else "probe_error",
+                error_category=normalized_category,
             )
         payload = self._payload(raw, domain)
         if payload is None:

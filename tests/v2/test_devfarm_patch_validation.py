@@ -1,4 +1,5 @@
 import json
+import subprocess
 
 import pytest
 
@@ -8,6 +9,16 @@ from scripts.devfarm_worker import apply_and_verify, run_worker
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.providers.base import ModelProvider
 from tests.v2.devfarm_test_support import _RawWorkerProvider, _WorkerProvider, _workspace, _patch
+
+
+class _CapturingWorkerProvider(_WorkerProvider):
+    def __init__(self, output):
+        super().__init__(output)
+        self.request_text = ""
+
+    def request(self, request: ModelRequest) -> ModelResponse:
+        self.request_text = request.messages[-1]["content"]
+        return super().request(request)
 
 
 class _MeasuredWorkerProvider(ModelProvider):
@@ -255,6 +266,49 @@ def test_worker_proposal_without_worktree_is_verified_after_late_worktree_creati
     assert proposed["status"] == "completed"
     assert not (root / ".devfarm/worktrees/worker-test-001").exists()
 
+    verified = apply_and_verify(root, manifest_path)
+    assert verified["status"] == "completed"
+    assert verified["tests_passed"] is True
+
+
+def test_worker_proposal_reads_the_manifest_commit_after_repository_head_advances(tmp_path):
+    root, manifest_path = _workspace(tmp_path, prepare=False)
+    target = root / "tests/v2/test_target.py"
+    baseline = target.read_text(encoding="utf-8")
+
+    target.write_text(baseline.replace("assert True", "assert False"), encoding="utf-8")
+    _git = subprocess.run(
+        ["git", "-c", f"safe.directory={root.as_posix()}", "add", "tests/v2/test_target.py"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-c", f"safe.directory={root.as_posix()}", "commit", "-m", "advance repository head"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    provider = _CapturingWorkerProvider(
+        {
+            "status": "completed",
+            "changed_files": ["tests/v2/test_target.py"],
+            "tests_run": [],
+            "tests_passed": True,
+            "known_issues": [],
+            "assumptions": [],
+            "patch": _patch(),
+            "notes": "proposal from the pinned commit",
+        }
+    )
+    proposed = run_worker(root, manifest_path, provider=provider)
+
+    assert proposed["status"] == "completed"
+    assert "assert True" in provider.request_text
+    assert "assert False" not in provider.request_text
     verified = apply_and_verify(root, manifest_path)
     assert verified["status"] == "completed"
     assert verified["tests_passed"] is True

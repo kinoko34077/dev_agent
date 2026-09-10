@@ -40,7 +40,7 @@ _PLAN_STATUSES = frozenset(
     }
 )
 _OWNERS = frozenset({"codex", "worker"})
-_DEPENDENCY_COMPLETE = frozenset({"HOST_VERIFIED", "INTEGRATED"})
+_DEPENDENCY_COMPLETE = frozenset({"INTEGRATED"})
 _DEPENDENCY_FAILURE = frozenset({"REJECTED", "BLOCKED", "SUPERSEDED"})
 _PROTECTED_PATHS = frozenset(
     {
@@ -624,14 +624,16 @@ def dispatch_plan(
     root_path = Path(root).resolve()
     store = CommanderPlanStore(root_path)
     plan = refresh_plan(store.load(run_id))
-    revision = _require_current_revision(root_path, plan["base_revision"])
+    # The plan baseline is a durable reference, not a lock on the mutable
+    # repository checkout.  Codex may commit while older Worker manifests
+    # continue to propose from their own validated commit object.
+    _resolved_revision(root_path, plan["base_revision"])
     ready: list[tuple[dict[str, Any], Path, ModelProvider]] = []
     for task in plan["tasks"]:
         if task["status"] != "READY" or task["owner"] != "worker":
             continue
         manifest_path, manifest = _manifest_for(root_path, task)
-        if _resolved_revision(root_path, manifest["base_revision"]) != revision:
-            raise DevFarmError(f"manifest base_revision does not match plan: {task['task_id']}")
+        _resolved_revision(root_path, manifest["base_revision"])
         provider = providers.get(task["task_id"])
         if not isinstance(provider, ModelProvider):
             raise DevFarmError(f"no ModelProvider supplied for worker task: {task['task_id']}")

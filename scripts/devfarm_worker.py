@@ -6,6 +6,7 @@ import argparse
 import json
 import math
 from pathlib import Path
+from pathlib import PurePosixPath
 import shlex
 import subprocess
 import sys
@@ -156,6 +157,22 @@ def _git(workspace: Path, *arguments: str) -> str:
     return result.stdout.strip()
 
 
+def _git_bytes(workspace: Path, *arguments: str) -> bytes:
+    command = [
+        "git",
+        "-c",
+        f"safe.directory={workspace.as_posix()}",
+        "-C",
+        workspace.as_posix(),
+        *arguments,
+    ]
+    result = subprocess.run(command, capture_output=True, check=False)
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).decode("utf-8", errors="replace").strip() or "unknown Git error"
+        raise DevFarmError(f"worker Git object read failed: {detail}")
+    return result.stdout
+
+
 def _validate_patch_application(workspace: Path, patch: str) -> None:
     if not patch:
         return
@@ -200,11 +217,11 @@ def _workspace(root: Path, manifest: Mapping[str, Any]) -> Path:
 def _proposal_workspace(root: Path, manifest: Mapping[str, Any]) -> Path:
     """Return the read-only proposal source without requiring a worktree.
 
-    Proposal generation may inspect only the operator-scoped files in the
-    repository checkout.  It still binds the request to the exact manifest
-    revision and refuses dirty outbound inputs, so a model cannot silently
-    receive an uncommitted version of a file.  Git worktrees are deliberately
-    not created here; they belong to the host-verification stage.
+    Proposal generation may inspect only the operator-scoped files at the
+    exact manifest revision.  It does not depend on the current checkout, so
+    Codex may commit or leave unrelated working-tree changes while an older
+    proposal remains in flight.  Git worktrees are deliberately not created
+    here; they belong to the host-verification stage.
     """
 
     root = root.resolve()
@@ -214,19 +231,47 @@ def _proposal_workspace(root: Path, manifest: Mapping[str, Any]) -> Path:
         raise DevFarmError("proposal source is not a Git repository") from exc
     if top_level != root:
         raise DevFarmError("proposal source must be the repository root")
-    head = _git(root, "rev-parse", "HEAD")
     try:
         expected = _git(root, "rev-parse", "--verify", f"{manifest['base_revision']}^{{commit}}")
     except DevFarmError as exc:
         raise DevFarmError("proposal base_revision cannot be resolved") from exc
-    if head != expected:
-        raise DevFarmError(f"proposal repository HEAD does not match manifest base_revision: {head} != {expected}")
-    outbound = list(manifest.get("outbound_files", ()))
-    if outbound:
-        status = _git(root, "status", "--porcelain", "--", *outbound)
-        if status:
-            raise DevFarmError("proposal outbound input files are dirty before execution")
+    for relative in manifest.get("outbound_files", ()):
+        read_file_at_revision(root, expected, relative)
     return root
+
+
+def read_file_at_revision(root: str | Path, revision: str, relative: str) -> bytes:
+    """Read one UTF-8-independent blob from a validated Git commit object.
+
+    The caller performs the content-size and UTF-8 checks.  This function only
+    resolves a commit, verifies that the exact path is a regular blob (not a
+    symlink, submodule, or directory), and returns the bytes stored in that
+    object.  It never reads the checkout's working-tree file.
+    """
+
+    repository = Path(root).resolve()
+    if not isinstance(relative, str) or not relative.strip():
+        raise DevFarmError("Git object path must be a non-empty string")
+    normalized = relative.strip().replace("\\", "/")
+    parsed = PurePosixPath(normalized)
+    if parsed.is_absolute() or any(part in {"", ".", ".."} for part in parsed.parts):
+        raise DevFarmError(f"Git object path must be a safe relative path: {relative}")
+    normalized = parsed.as_posix()
+    if _is_protected(normalized):
+        raise DevFarmError(f"protected worker input cannot be sent: {normalized}")
+    try:
+        resolved = _git(repository, "rev-parse", "--verify", f"{revision}^{{commit}}")
+    except DevFarmError as exc:
+        raise DevFarmError(f"proposal base_revision cannot be resolved: {revision}") from exc
+    tree = _git(repository, "ls-tree", "-r", "-z", resolved, "--", normalized)
+    entry = next((item for item in tree.split("\0") if item.endswith(f"\t{normalized}")), None)
+    if entry is None:
+        raise DevFarmError(f"worker input file does not exist at base_revision: {normalized}")
+    header, path = entry.split("\t", 1)
+    fields = header.split()
+    if path != normalized or len(fields) != 3 or fields[1] != "blob" or fields[0] == "120000":
+        raise DevFarmError(f"worker input at base_revision is not a regular file: {normalized}")
+    return _git_bytes(repository, "show", f"{resolved}:{normalized}")
 
 
 def _verification_workspace(root: Path, manifest: Mapping[str, Any]) -> Path:
@@ -289,10 +334,9 @@ def _input_context(workspace: Path, manifest: Mapping[str, Any]) -> str:
     manifest = validate_manifest(manifest)
     chunks: list[str] = []
     for relative in manifest["outbound_files"]:
-        path = _resolve_input_file(workspace, relative)
         try:
-            data = path.read_bytes()
-        except OSError as exc:
+            data = read_file_at_revision(workspace, manifest["base_revision"], relative)
+        except DevFarmError as exc:
             raise DevFarmError(f"worker input file cannot be read: {relative}: {exc}") from exc
         if len(data) > MAX_INPUT_FILE_BYTES:
             raise DevFarmError(f"worker input file exceeds {MAX_INPUT_FILE_BYTES} bytes: {relative}")

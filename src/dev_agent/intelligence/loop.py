@@ -70,8 +70,14 @@ class EvaluationDispatchCoordinator:
         evaluation_coordinator: EvaluationCoordinator | None = None,
         executor: EscalationExecutor | None = None,
     ) -> None:
+        self._store = store
         self._evaluation = evaluation_coordinator or EvaluationCoordinator(store)
         self._executor = executor
+
+    @property
+    def state_store(self):
+        """Return the durable store used by this one-cycle coordinator."""
+        return self._store
 
     def evaluate(
         self,

@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 
 import pytest
 
@@ -177,6 +178,61 @@ def test_status_is_json_serializable(tmp_path):
     status = OperationService.read_status(config, task.task_id)
 
     json.dumps(status, ensure_ascii=False)
+
+
+def test_operation_maintenance_tick_requalifies_due_quota_and_wakes_queue(tmp_path):
+    from src.dev_agent.scheduler.quota import QuotaWakeScheduler
+
+    config = _config(tmp_path)
+    task = OperationService.submit(config, "wait for quota recovery")
+    with OperationService.open(config) as service:
+        service.ledger.register_resource(
+            "fake:default",
+            provider_id="fake",
+            provider_binding_id="fake:default",
+            native_unit="request",
+            capacity=1,
+            capabilities=["text"],
+            quota_domain="fake-domain",
+            metadata={"provider_binding_id": "fake:default", "model_id": "deterministic", "intelligence_tier": "L1"},
+            intelligence_tier="L1",
+        )
+        service.ledger.observe_quota(
+            "fake:default",
+            unit="requests",
+            metric="rpm",
+            window="minute",
+            request_limit=10,
+            request_remaining=0,
+            blocked_until="2026-09-10T11:59:00+00:00",
+            block_reason="rate_limit",
+            observed_at="2026-09-10T11:00:00+00:00",
+        )
+        item = service.queue.claim("quota-maintenance-worker", lease_seconds=30)
+        QuotaWakeScheduler(service.ledger, service.queue).park(
+            task.task_id,
+            worker_id="quota-maintenance-worker",
+            state_version=item.state_version,
+            wake_at=datetime(2026, 9, 10, 11, 59, tzinfo=timezone.utc),
+        )
+        calls = []
+
+        results = service.maintenance_tick(
+            now=datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc),
+            max_probes=1,
+            probe=lambda resource_id, domain: calls.append((resource_id, domain)) or {
+                "unit": "requests",
+                "metric": "rpm",
+                "window": "minute",
+                "request_limit": 10,
+                "request_remaining": 9,
+            },
+        )
+
+        assert results[0]["status"] == "requalified"
+        assert calls == [("fake:default", "fake-domain")]
+        assert service.ledger.get_quota_observation("fake:default")["block_reason"] is None
+        assert results[0]["woken_tasks"] == 1
 
 
 def test_external_cancel_of_running_task_is_only_a_durable_request(tmp_path):

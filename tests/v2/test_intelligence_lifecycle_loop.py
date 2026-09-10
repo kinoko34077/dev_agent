@@ -58,7 +58,7 @@ def _context(**overrides):
     return EscalationContext(**values)
 
 
-def _setup(tmp_path, *, max_cycles=2):
+def _setup(tmp_path, *, max_cycles=2, save_task=True):
     provider = FakeProvider()
     ledger = ResourceLedger(tmp_path / "resources.sqlite3")
     ledger.register_resource(
@@ -77,14 +77,20 @@ def _setup(tmp_path, *, max_cycles=2):
     dispatcher = ProviderDispatcher(ProviderRegistry([provider]), control)
     store = JsonStateStore(tmp_path / "state.json")
     dispatcher.bind_runtime(state_store=store)
-    store.save_task(Task(task_id=_TASK_ID, objective="finite lifecycle", status=TaskStatus.FAILED))
+    if save_task:
+        store.save_task(Task(task_id=_TASK_ID, objective="finite lifecycle", status=TaskStatus.FAILED))
     evaluation = EvaluationCoordinator(store)
     dispatch = EvaluationDispatchCoordinator(
         store,
         evaluation_coordinator=evaluation,
         executor=EscalationExecutor(store, dispatcher),
     )
-    return store, ledger, evaluation, FiniteLifecycleLoop(dispatch, TaskLifecycleCoordinator(store), max_cycles=max_cycles)
+    return store, ledger, evaluation, FiniteLifecycleLoop(
+        dispatch,
+        TaskLifecycleCoordinator(store),
+        max_cycles=max_cycles,
+        task_id=_TASK_ID,
+    )
 
 
 def test_finite_lifecycle_applies_terminal_evaluation_and_stops_at_ceiling(tmp_path):
@@ -124,3 +130,46 @@ def test_finite_lifecycle_requires_review_before_dispatch_and_applies_both_bound
     assert dispatched.transition.task.status is TaskStatus.RUNNING
     assert loop.evaluations_used == 1
     ledger.close()
+
+
+def test_finite_lifecycle_rebuilds_cycle_count_after_process_restart(tmp_path):
+    store, ledger, _evaluation, first = _setup(tmp_path, max_cycles=3)
+    first_step = first.evaluate_and_apply(_evidence(), escalation_context=_context(attempt=1))
+    assert first_step.cycle_number == 1
+    assert first.evaluations_used == 1
+    ledger.close()
+
+    restarted_store, restarted_ledger, _restarted_evaluation, second = _setup(
+        tmp_path,
+        max_cycles=3,
+        save_task=False,
+    )
+    assert second.evaluations_used == 1
+    second_step = second.evaluate_and_apply(_evidence(attempt=2), escalation_context=_context(attempt=2))
+    assert second_step.cycle_number == 2
+    assert second.evaluations_used == 2
+    restarted_ledger.close()
+
+    _store3, ledger3, _evaluation3, third = _setup(tmp_path, max_cycles=3, save_task=False)
+    third_step = third.evaluate_and_apply(
+        _evidence(attempt=3),
+        escalation_context=_context(attempt=3),
+    )
+    assert third_step.cycle_number == 3
+    with pytest.raises(LifecycleLimitExceeded):
+        third.evaluate_and_apply(_evidence(attempt=3), escalation_context=_context(attempt=3))
+    ledger3.close()
+
+
+def test_finite_lifecycle_restart_preserves_waiting_human_boundary(tmp_path):
+    _store, ledger, _evaluation, first = _setup(tmp_path, max_cycles=3)
+    step = first.evaluate_and_apply(_evidence(human_approval_required=True))
+    assert step.transition.task.status is TaskStatus.WAITING_APPROVAL
+    ledger.close()
+
+    _store2, ledger2, _evaluation2, restarted = _setup(tmp_path, max_cycles=3, save_task=False)
+    with pytest.raises(ValueError, match="explicit resolution"):
+        restarted.evaluate_and_apply(_evidence(human_approval_required=True))
+    assert restarted.evaluations_used == 1
+    assert _store2.load_task(_TASK_ID).status is TaskStatus.WAITING_APPROVAL
+    ledger2.close()

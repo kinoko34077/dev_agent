@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from src.dev_agent.resources.ledger import ResourceLedger
+from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.scheduler import (
     MaintenanceMode,
     QuotaProbeStatus,
@@ -155,3 +156,27 @@ def test_quota_requalification_keeps_provider_blocked_after_one_failed_probe(tmp
     assert result.status is QuotaProbeStatus.STILL_BLOCKED
     assert calls == [True]
     assert ledger.get_quota_observation("cloud")["block_reason"] == "rate_limit"
+
+
+def test_quota_requalification_persists_conservative_cooldown_for_typed_probe_failure(tmp_path):
+    ledger = _blocked_ledger(tmp_path)
+
+    def probe(*_):
+        raise ProviderError(
+            "temporary rate limit",
+            category="rate_limit",
+            quota_metric="rpm",
+            quota_window="minute",
+        )
+
+    result = QuotaRequalificationCoordinator(ledger).probe_once(
+        "cloud",
+        probe,
+        now=datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc),
+    )
+
+    assert result.status is QuotaProbeStatus.PROBE_FAILED
+    assert result.error_category == "rate_limit"
+    latest = ledger.get_quota_observation("cloud")
+    assert latest["block_reason"] == "rate_limit"
+    assert latest["blocked_until"] == "2026-09-10T12:01:00+00:00"

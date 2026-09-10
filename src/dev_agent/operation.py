@@ -9,13 +9,14 @@ them from a terminal.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 import json
 import math
 import os
 from pathlib import Path
 import sqlite3
 from threading import Event
-from typing import Any
+from typing import Any, Callable, Mapping
 
 from .domain.protocol import Task, TaskStatus
 from .providers.dispatch import ProviderDispatcher
@@ -27,6 +28,7 @@ from .resources.control import ResourceControlPlane
 from .resources.ledger import ResourceLedger
 from .resources.router import ResourceRouter
 from .scheduler.queue import DurableQueue
+from .scheduler.quota import QuotaRequalificationCoordinator, QuotaWakeScheduler
 from .scheduler.worker import WorkerRunner
 from .state.sqlite_store import SQLiteStateStore
 from .tools.registry import ToolRegistry, ToolSpec
@@ -435,7 +437,74 @@ class OperationService:
     def request_stop(self) -> None:
         self.control.request_stop()
 
-    def start(self, *, once: bool = False, stop_event: Event | None = None) -> Task | dict[str, Any] | None:
+    def maintenance_tick(
+        self,
+        *,
+        now: datetime | None = None,
+        max_probes: int = 1,
+        probe: Callable[[str, str], Mapping[str, Any]] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Run one bounded quota maintenance pass at the operation boundary.
+
+        The existing wake scheduler supplies only due quota domains.  This
+        method supplies the missing operational composition: at most
+        ``max_probes`` due resources are sent through the existing one-shot
+        requalification coordinator.  A caller may provide the adapter's
+        provider-neutral probe callback; when omitted, an adapter exposing a
+        compatible ``probe_quota(resource_id, quota_domain)`` method is used.
+        No callback means no external request is made.
+        """
+        if isinstance(max_probes, bool) or not isinstance(max_probes, int) or max_probes < 0:
+            raise ValueError("max_probes must be a non-negative integer")
+        if probe is not None and not callable(probe):
+            raise TypeError("probe must be callable or None")
+        current = now or datetime.now(timezone.utc)
+        scheduler = QuotaWakeScheduler(self.ledger, self.queue)
+        coordinator = QuotaRequalificationCoordinator(self.ledger, scheduler)
+        results: list[dict[str, Any]] = []
+        if max_probes == 0:
+            return results
+        for domain in scheduler.due_domains(now=current):
+            observations = self.ledger.list_quota_observations(quota_domain=domain)
+            for observation in observations:
+                if len(results) >= max_probes:
+                    return results
+                resource_id = observation.get("resource_id")
+                if not isinstance(resource_id, str) or not resource_id.strip():
+                    continue
+                callback = probe or self._provider_quota_probe(resource_id.strip())
+                if callback is None:
+                    continue
+                result = coordinator.probe_once(
+                    resource_id.strip(),
+                    callback,
+                    now=current,
+                )
+                results.append(result.to_dict())
+        return results
+
+    def _provider_quota_probe(self, resource_id: str) -> Callable[[str, str], Mapping[str, Any]] | None:
+        """Resolve an optional provider-neutral probe without provider branches."""
+        registry = getattr(self.controller.provider, "registry", None)
+        if registry is None:
+            return None
+        resource = self.ledger.get_resource(resource_id)
+        binding_id = resource.get("provider_binding_id") or resource.get("provider_id")
+        if not isinstance(binding_id, str) or not binding_id.strip():
+            return None
+        provider = registry.get_binding(binding_id.strip())
+        callback = getattr(provider, "probe_quota", None)
+        if not callable(callback):
+            return None
+        return callback
+
+    def start(
+        self,
+        *,
+        once: bool = False,
+        stop_event: Event | None = None,
+        quota_probe: Callable[[str, str], Mapping[str, Any]] | None = None,
+    ) -> Task | dict[str, Any] | None:
         """Run one claim or an idle-light foreground Worker loop.
 
         ``stop`` only sets the durable stop flag.  A current WorkerRunner
@@ -456,6 +525,8 @@ class OperationService:
         while not stop_event.is_set() and not self.control.stop_requested():
             result = None
             try:
+                if quota_probe is not None:
+                    self.maintenance_tick(probe=quota_probe)
                 result = self.worker.run_once()
                 if result is not None:
                     last_task_id = result.task_id

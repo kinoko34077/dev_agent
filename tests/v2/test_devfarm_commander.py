@@ -150,10 +150,15 @@ def test_commander_plan_dispatch_verify_resume_and_integrate(tmp_path):
     verified = verify_plan(root, "commander-run-001", orchestrator=orchestrator)
     assert {task["status"] for task in verified["tasks"][:2]} == {"HOST_VERIFIED"}
     resumed = resume_plan(root, "commander-run-001")
-    assert resumed["tasks"][2]["status"] == "READY"
+    assert resumed["tasks"][2]["status"] == "PLANNED"
     assert len(resumed["results"]) >= 4
 
     mark_integrated(root, "commander-run-001", "worker-a", note="Codex reviewed the verified patch")
+    still_waiting = CommanderPlanStore(root).load("commander-run-001")
+    assert still_waiting["tasks"][2]["status"] == "PLANNED"
+    mark_integrated(root, "commander-run-001", "worker-b", note="Codex reviewed the verified patch")
+    released = CommanderPlanStore(root).load("commander-run-001")
+    assert released["tasks"][2]["status"] == "READY"
     mark_integrated(root, "commander-run-001", "codex-review", note="Codex completed the integration review")
     final = CommanderPlanStore(root).load("commander-run-001")
     assert final["tasks"][0]["status"] == "INTEGRATED"
