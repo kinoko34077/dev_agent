@@ -1,4 +1,11 @@
-"""External AgentBackend contracts and future adapters."""
+"""External AgentBackend contracts and the Control Plane dispatch boundary."""
+
+from .dispatcher import (
+    AgentBackendDispatchError,
+    AgentBackendDispatchIdentity,
+    AgentBackendDispatcher,
+    BackendDispatchUncertain,
+)
 
 from .protocol import (
     AgentBackend,
@@ -13,6 +20,9 @@ from .protocol import (
 
 __all__ = [
     "AgentBackend",
+    "AgentBackendDispatchError",
+    "AgentBackendDispatchIdentity",
+    "AgentBackendDispatcher",
     "AgentBackendEvent",
     "AgentBackendIdentity",
     "AgentBackendRequest",
@@ -20,4 +30,5 @@ __all__ = [
     "AgentBackendScope",
     "AgentBackendSession",
     "AgentBackendStatus",
+    "BackendDispatchUncertain",
 ]

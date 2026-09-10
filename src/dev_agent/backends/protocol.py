@@ -45,6 +45,15 @@ class AgentBackendStatus(str, Enum):
     RECONCILING = "reconciling"
 
 
+def _status(value: Any, name: str, *, allow_none: bool = False) -> AgentBackendStatus | None:
+    if value is None and allow_none:
+        return None
+    try:
+        return value if isinstance(value, AgentBackendStatus) else AgentBackendStatus(value)
+    except (TypeError, ValueError) as exc:
+        raise TypeError(f"{name} must be an AgentBackendStatus or valid status value") from exc
+
+
 @dataclass(frozen=True)
 class AgentBackendIdentity:
     backend_id: str
@@ -107,8 +116,7 @@ class AgentBackendSession:
         object.__setattr__(self, "session_id", _text(self.session_id, "session_id"))
         object.__setattr__(self, "task_id", _text(self.task_id, "task_id"))
         object.__setattr__(self, "backend_id", _text(self.backend_id, "backend_id"))
-        if not isinstance(self.status, AgentBackendStatus):
-            raise TypeError("status must be an AgentBackendStatus")
+        object.__setattr__(self, "status", _status(self.status, "status"))
 
 
 @dataclass(frozen=True)
@@ -124,8 +132,7 @@ class AgentBackendEvent:
         if isinstance(self.sequence, bool) or not isinstance(self.sequence, int) or self.sequence < 1:
             raise ValueError("sequence must be a positive integer")
         object.__setattr__(self, "event_type", _text(self.event_type, "event_type"))
-        if self.status is not None and not isinstance(self.status, AgentBackendStatus):
-            raise TypeError("status must be an AgentBackendStatus or None")
+        object.__setattr__(self, "status", _status(self.status, "status", allow_none=True))
         if not isinstance(self.payload, Mapping):
             raise TypeError("payload must be a mapping")
         object.__setattr__(self, "payload", dict(self.payload))
@@ -140,7 +147,9 @@ class AgentBackendResult:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "session_id", _text(self.session_id, "session_id"))
-        if self.status not in {
+        normalized_status = _status(self.status, "status")
+        object.__setattr__(self, "status", normalized_status)
+        if normalized_status not in {
             AgentBackendStatus.COMPLETED,
             AgentBackendStatus.FAILED,
             AgentBackendStatus.CANCELLED,

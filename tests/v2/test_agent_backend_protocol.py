@@ -71,3 +71,13 @@ def test_agent_backend_protocol_is_separate_from_model_provider():
             return AgentBackendResult(session_id=session_id, status=AgentBackendStatus.UNKNOWN)
 
     assert isinstance(FixtureBackend(), AgentBackend)
+
+
+def test_agent_backend_records_can_rehydrate_enum_statuses_from_durable_json():
+    session = AgentBackendSession(session_id="s", task_id="t", backend_id="fixture", status="running")
+    event = AgentBackendEvent(session_id="s", sequence=1, event_type="started", status="waiting_approval")
+    result = AgentBackendResult(session_id="s", status="completed")
+
+    assert session.status is AgentBackendStatus.RUNNING
+    assert event.status is AgentBackendStatus.WAITING_APPROVAL
+    assert result.status is AgentBackendStatus.COMPLETED

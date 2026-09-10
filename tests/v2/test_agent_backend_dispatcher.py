@@ -1,0 +1,178 @@
+from __future__ import annotations
+
+from uuid import uuid4
+
+import pytest
+
+from src.dev_agent.backends import (
+    AgentBackendDispatcher,
+    AgentBackendDispatchError,
+    AgentBackendEvent,
+    AgentBackendRequest,
+    AgentBackendResult,
+    AgentBackendScope,
+    AgentBackendStatus,
+    BackendDispatchUncertain,
+)
+from src.dev_agent.domain.protocol import Task, TaskStatus
+from src.dev_agent.state.sqlite_store import SQLiteStateStore
+from tests.v2.fixtures.fake_agent_backend import FakeAgentBackend
+
+
+def _request(task_id: str) -> AgentBackendRequest:
+    return AgentBackendRequest(
+        task_id=task_id,
+        objective="bounded backend task",
+        scope=AgentBackendScope(workspace_id="isolated-001", allowed_paths=("src/example.py",)),
+        input_artifacts=("artifact://input-001",),
+        metadata={"approval_id": "approval-001"},
+    )
+
+
+@pytest.fixture
+def store(tmp_path):
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as state:
+        yield state
+
+
+@pytest.fixture
+def task(store):
+    value = Task(objective="bounded backend task", status=TaskStatus.READY)
+    store.save_task(value)
+    return value
+
+
+def _dispatcher(store, *, authorize=None):
+    return AgentBackendDispatcher(store, authorize=authorize or (lambda task, request: None))
+
+
+def test_dispatch_persists_identity_and_does_not_restart_existing_session(store, task):
+    backend = FakeAgentBackend()
+    request = _request(task.task_id)
+    dispatch_id = str(uuid4())
+    dispatcher = _dispatcher(store)
+
+    session = dispatcher.dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
+    dispatcher.result(dispatch_id, backend)
+    same_session = AgentBackendDispatcher(store, authorize=lambda task, request: None).dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
+
+    assert session.session_id == same_session.session_id
+    assert backend.start_calls == 1
+    intent = store.get_effect_intent(dispatcher.effect_key(dispatch_id))
+    assert intent["arguments"]["task_id"] == task.task_id
+    assert intent["arguments"]["backend_id"] == "fake"
+    assert intent["result"]["session"]["session_id"] == session.session_id
+    assert intent["arguments"]["attempt"] == 1
+    assert intent["arguments"]["request_fingerprint"]
+
+
+def test_dispatch_rejects_missing_task_scope_and_authority_before_backend_start(store):
+    backend = FakeAgentBackend()
+    missing_task = str(uuid4())
+    with pytest.raises(AgentBackendDispatchError, match="task"):
+        _dispatcher(store).dispatch(_request(missing_task), backend, dispatch_id=str(uuid4()), attempt=1)
+
+    task = Task(objective="scope check", status=TaskStatus.READY)
+    store.save_task(task)
+    unauthorized = _dispatcher(store, authorize=lambda task, request: False)
+    with pytest.raises(AgentBackendDispatchError, match="authority"):
+        unauthorized.dispatch(_request(task.task_id), backend, dispatch_id=str(uuid4()), attempt=1)
+    assert backend.start_calls == 0
+
+
+@pytest.mark.parametrize("path", ("../outside.py", "/absolute.py", ".env", ".git/config", "secrets/key.pem"))
+def test_dispatch_rejects_unscoped_or_protected_paths(store, task, path):
+    request = AgentBackendRequest(
+        task_id=task.task_id,
+        objective="scope check",
+        scope=AgentBackendScope(workspace_id="isolated-001", allowed_paths=(path,)),
+    )
+    with pytest.raises(AgentBackendDispatchError, match="scope"):
+        _dispatcher(store).dispatch(request, FakeAgentBackend(), dispatch_id=str(uuid4()), attempt=1)
+
+
+def test_events_are_ordered_durable_and_deduplicated_after_dispatcher_restart(store, task):
+    backend = FakeAgentBackend(
+        events=(
+            AgentBackendEvent(session_id="pending", sequence=1, event_type="started", status=AgentBackendStatus.RUNNING),
+            AgentBackendEvent(session_id="pending", sequence=2, event_type="approval.requested", status=AgentBackendStatus.WAITING_APPROVAL),
+        )
+    )
+    request = _request(task.task_id)
+    dispatch_id = str(uuid4())
+    dispatcher = _dispatcher(store)
+    session = dispatcher.dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
+    backend.rebind_event_sessions(session.session_id)
+
+    first = dispatcher.events(dispatch_id, backend)
+    second = AgentBackendDispatcher(store, authorize=lambda task, request: None).events(dispatch_id, backend)
+
+    assert [event.sequence for event in first] == [1, 2]
+    assert second == ()
+    persisted = [event for event in store.snapshot()["events"] if event["event_type"] == "agent_backend.event"]
+    assert [event["payload"]["sequence"] for event in persisted] == [1, 2]
+
+
+def test_conflicting_event_sequence_is_rejected_before_any_event_is_persisted(store, task):
+    backend = FakeAgentBackend(
+        events=(
+            AgentBackendEvent(session_id="pending", sequence=1, event_type="started", status=AgentBackendStatus.RUNNING),
+            AgentBackendEvent(session_id="pending", sequence=1, event_type="tampered", status=AgentBackendStatus.FAILED),
+        )
+    )
+    request = _request(task.task_id)
+    dispatch_id = str(uuid4())
+    dispatcher = _dispatcher(store)
+    session = dispatcher.dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
+    backend.rebind_event_sessions(session.session_id)
+
+    with pytest.raises(AgentBackendDispatchError, match="sequence"):
+        dispatcher.events(dispatch_id, backend)
+
+    assert not [event for event in store.snapshot()["events"] if event["event_type"] == "agent_backend.event"]
+
+
+def test_result_completed_is_durable_and_unknown_is_not_replayed(store, task):
+    request = _request(task.task_id)
+    dispatch_id = str(uuid4())
+    backend = FakeAgentBackend(result_status=AgentBackendStatus.UNKNOWN)
+    dispatcher = _dispatcher(store)
+    session = dispatcher.dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
+
+    result = dispatcher.result(dispatch_id, backend)
+    assert result.status is AgentBackendStatus.UNKNOWN
+    assert store.get_effect_intent(dispatcher.effect_key(dispatch_id))["status"] == "unknown"
+    with pytest.raises(BackendDispatchUncertain):
+        AgentBackendDispatcher(store, authorize=lambda task, request: None).dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
+    assert backend.start_calls == 1
+    assert session.session_id == backend.session_id
+
+
+def test_explicit_reconciliation_can_confirm_result_without_restarting_backend(store, task):
+    request = _request(task.task_id)
+    dispatch_id = str(uuid4())
+    backend = FakeAgentBackend(result_status=AgentBackendStatus.UNKNOWN)
+    dispatcher = _dispatcher(store)
+    dispatcher.dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
+    dispatcher.result(dispatch_id, backend)
+    backend.result_value = AgentBackendResult(session_id=backend.session_id, status=AgentBackendStatus.COMPLETED, output_artifacts=("artifact://patch",))
+
+    result = dispatcher.reconcile(dispatch_id, backend, actor="operator", source="codex-review")
+
+    assert result.status is AgentBackendStatus.COMPLETED
+    assert store.get_effect_intent(dispatcher.effect_key(dispatch_id))["status"] == "succeeded"
+    assert AgentBackendDispatcher(store, authorize=lambda task, request: None).result(dispatch_id, backend).status is AgentBackendStatus.COMPLETED
+    assert backend.start_calls == 1
+
+
+def test_cancel_is_forwarded_and_backend_failure_becomes_unknown(store, task):
+    request = _request(task.task_id)
+    dispatch_id = str(uuid4())
+    backend = FakeAgentBackend()
+    dispatcher = _dispatcher(store)
+    dispatcher.dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
+
+    dispatcher.cancel(dispatch_id, backend)
+
+    assert backend.cancel_calls == [backend.session_id]
+    assert store.has_event(task.task_id, "agent_backend.cancel_requested")
