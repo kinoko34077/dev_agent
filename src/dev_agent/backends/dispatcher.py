@@ -49,7 +49,7 @@ class AgentBackendDispatchIdentity:
     client_session_key: str
 
 
-AuthorizeBackend = Callable[[Task, AgentBackendRequest], bool | None]
+AuthorizeBackend = Callable[[Task, AgentBackendRequest], bool]
 
 
 @dataclass(frozen=True)

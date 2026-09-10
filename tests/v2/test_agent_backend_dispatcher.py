@@ -199,6 +199,24 @@ def test_dispatch_requires_typed_admission_evidence_even_when_boolean_authorized
     assert backend.start_calls == 0
 
 
+def test_dispatch_rejects_authority_callback_exception_before_backend_start(store, task):
+    backend = FakeAgentBackend()
+    request = _request(task.task_id)
+
+    def broken_authority(task, request):
+        raise RuntimeError("authority service unavailable")
+
+    with pytest.raises(AgentBackendDispatchError, match="authority"):
+        AgentBackendDispatcher(store, authorize=broken_authority).dispatch(
+            request,
+            backend,
+            dispatch_id=str(uuid4()),
+            attempt=1,
+        )
+
+    assert backend.start_calls == 0
+
+
 @pytest.mark.parametrize("path", ("../outside.py", "/absolute.py", ".env", ".git/config", "secrets/key.pem"))
 def test_dispatch_rejects_unscoped_or_protected_paths(store, task, path):
     request = AgentBackendRequest(
