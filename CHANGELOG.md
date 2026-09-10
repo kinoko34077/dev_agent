@@ -4,6 +4,12 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-10 JST — Commander dogfood integration boundary
+
+- 固定revision `aa2f819`を使うCommander Planで、決定的local harnessのproposal、隔離worktree Host Verification、Codex review、明示integrationを完了した。host側focused testは`1 passed`で、Worker結果にはModel自己申告ではなくhost_verified_testsとdurable metricsを記録した。
+- Cloudflare／OpenRouter／Geminiの外部proposal試行はproposal品質または応答失敗でHost Verifiedに至っていないため、外部Free Workerの成功とは扱わない。G6O1、Provider qualification、Evidence routingのadvisory-only方針は変更していない。
+- `tests/v2/test_commander_dogfood_local_004.py`を公式branchへCodex review後に統合した。v2全回帰は`460 passed, 1 skipped`。
+
 ### 2026-09-10 JST — Evidence-bounded Worker routing and Operation restart coverage
 
 - `EvidenceBasedRoutingPolicy`を追加し、host-verified Worker metricsをminimum sample、証拠期限、受入率／retry rollback条件付きで評価するようにした。policyは呼出側のhard-filter済みbindingだけを順位付けし、ResourceRouterのcapability／privacy／quota／budget判断を上書きしない。

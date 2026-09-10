@@ -1,6 +1,6 @@
 # Current State — v2/bootstrap
 
-実装基準は `f870213` です。本書はそのコードと、直近の外部資格化・DevFarm
+実装基準は `11a9e09` です。本書はそのコードと、直近の外部資格化・DevFarm
 実行結果を同期したCurrent Stateです。GATE_STATUSの既存statusは変更していません。
 
 ## 判定
@@ -20,17 +20,19 @@
 - Phase 6 quota operation: ResourceLedger schema v8でmetric／window／reset source／blocked-until／block reasonを保持し、ProviderErrorの429／quota／transport分類をrouting blockへ接続済み。blocked observationは新しい正常観測で明示的に復帰する。Scheduler queue schema v4と`QuotaWakeScheduler`はreset boundaryへのdurable parking／wakeを提供し、`QuotaRequalificationCoordinator`は呼出側が明示した一回のbounded probeについて、freshな正常観測の保存後だけdue taskをwakeする。Operation Layerの`maintenance_tick`がdue domainだけを対象にprobe上限を適用し、typed probe failureには保守的cooldownを永続化する。Provider再probeの自動loopやclockだけによるblock解除は行わない
 - DevFarm orchestration: Remote proposalとHost verificationを分離し、remote inference枠とworktree verification枠を別Governorでboundedに制御する。proposal失敗時にworktreeを作成せず、自動mergeもしない
 - Development Commander: `scripts/devfarm_commander.py`が既存DevFarmの上にdevelopment-only親Planを提供する。`.devfarm/plans/<run-id>.json`へobjective、base revision、Task、依存、非重複ownership、assignment、result参照をdurably保存し、plan／dispatch／status／collect／verify／resume／reassign／mark-integratedを既存境界のcompositionで提供する。Taskごとの固定revisionを許容し、code dependencyは明示的な`mark-integrated`後だけreleaseする。Production Runtimeのstate／Scheduler／authorityやAgentBackendではない
+- Commander dogfood: `phase7-commander-local-dogfood-004`で、`aa2f819`固定のproposal、隔離worktreeでのHost Verification（許可済みfocused test `1 passed`）、Codex review、明示integrationを一連のPlanとして完了した。これはCommanderの計画・依存・検証・統合境界の実証であり、外部Cloud Workerの資格化や成功を意味しない
 - Gate昇格やlive qualificationの成功は、local test・model自己申告・Worker proposalだけから推測しない
 
 ## 検証
 
-- v2ローカル全回帰: `458 passed, 1 skipped`（`python -m pytest tests/v2 -q --durations=10`、126.41秒。所要時間は実行環境依存）
+- v2ローカル全回帰: `460 passed, 1 skipped`（`python -m pytest tests/v2 -q --durations=10`、118.48秒。所要時間は実行環境依存）
 - Operation Layer focused: `11 passed`（submit／status、canonical Dispatcher経由のstart、queue復旧、process restart、terminal／waiting reconciliation、provider非依存safe stop、durable cancellation request、due quota maintenance／wake）
 - Evaluator→dispatch cycle focused: `18 passed in 2.62s`
 - finite lifecycle focused: `11 passed`（明示review、dispatch、terminal transition、評価cycle上限、process restart後のdurable cycle／waiting boundary）
 - intelligence routing / escalation execution focused: `26 passed in 1.28s`
 - DevFarm manifest / patch / host verification focused: `24 passed in 27.50s`
 - Commander focused: `4 passed`（親Plan、ownership／dependency validation、dispatch／collect／Host Verification、bounded reassign、CLI status）
+- Commander dogfood: `phase7-commander-local-dogfood-004`のWorker成果をHost Verified後にCodexが明示統合。host testは`1 passed`、metricsは`provider_id=local-harness`のdurable artifactへ記録
 - Evidence routing focused: `5 passed`（minimum samples、hard-filter済みbinding限定、期限切れ、rollback threshold、malformed evidence拒否、latest timestamp）
 - DevFarm host verification: Gemini 3.5 Flash-Lite `gemini-worker-phase7-003` が、入力ファイルを外部送信せず、隔離worktreeへpatchを適用し、許可済みhost test `7 passed` を確認
 - DevFarm 2 Worker並列: `gemini-worker-parallel-a` と `gemini-worker-parallel-b` が別worktree・別所有ファイルで同時実行され、各 `7 passed`、`result_accepted=true` を確認。実測はそれぞれ1.528秒、1.278秒
@@ -94,13 +96,18 @@ host-verifiedしました。いずれも生成物は`.devfarm/results/`（ignore
 dummy docを公式branchへ自動統合していません。実装成果の公式統合はCodexがreviewし、必要性を
 確認した変更だけを行います。
 
+Commander dogfoodでは、外部Providerへsourceを送らない決定的local harnessを使って
+`phase7-commander-local-worker-004`を実行しました。`aa2f819`からのproposalを専用worktreeで
+検証し、`tests/v2/test_commander_dogfood_local_004.py`の`1 passed`をHost側で確認した後、
+Codexがreview・公式branchへ統合しました。Cloudflare／OpenRouter／Geminiの別試行は
+proposal品質または応答失敗でHost Verifiedに至っておらず、外部Free Worker成功とは扱っていません。
+
 ## 次の作業
 
-1. Commanderの実案件dogfoodで、固定revision proposal、INTEGRATED dependency、Host Verification、Codex統合、Worker metricsを一連のPlanとして記録する
-2. Operation Layerの外部Providerを使う明示operator実行でstatus／auditを確認し、Provider固有のquota probe callbackを接続する。未提供値はunknownのまま扱う
-3. Worker metricsのhost側SQLite蓄積と、hard-filter済みbindingだけを対象とする期限／minimum sample／rollback付きadvisory順位付けは実装済み。実測が十分になるまでResourceRouterへhard接続しない
-4. Phase 7 acceptance（quota復帰、finite lifecycle、Commander dogfood、実Provider Operation E2E、evidence routing Gate）をfull regressionとexternal evidenceで再判定する
-5. AgentBackend / Codex、MCP、Self-Improvementは前段のPhase 7 acceptanceが揃うまで着手しない
+1. Commander dogfoodの最小Planは完了。次は外部Providerを使う明示operator実行でstatus／auditを確認し、Provider固有のquota probe callbackを接続する。未提供値はunknownのまま扱う
+2. Worker metricsのhost側SQLite蓄積と、hard-filter済みbindingだけを対象とする期限／minimum sample／rollback付きadvisory順位付けは実装済み。実測が十分になるまでResourceRouterへhard接続しない
+3. Phase 7 acceptance（quota復帰、finite lifecycle、Commander dogfood、実Provider Operation E2E、evidence routing Gate）をfull regressionとexternal evidenceで再判定する
+4. AgentBackend / Codex、MCP、Self-Improvementは前段のPhase 7 acceptanceが揃うまで着手しない
 
 G6O1は実paid Providerとdeployment-owned budget configurationという外部条件待ちであり、
 コード不足として勝手に昇格しません。`README.md`は入口、`PHASE6_PLAN.md`はPhase 6受入条件、
