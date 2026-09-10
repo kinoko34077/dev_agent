@@ -439,6 +439,9 @@ class AgentBackendDispatcher:
             raise AgentBackendDispatchError("request must be an AgentBackendRequest")
         if not isinstance(backend, AgentBackend):
             raise AgentBackendDispatchError("backend does not implement AgentBackend")
+        if not isinstance(dispatch_id, str) or not dispatch_id.strip():
+            raise AgentBackendDispatchError("dispatch_id must be a non-empty string")
+        dispatch_id = dispatch_id.strip()
         if isinstance(attempt, bool) or not isinstance(attempt, int) or attempt <= 0:
             raise AgentBackendDispatchError("attempt must be a positive integer")
         task = self._store.load_task(request.task_id)
@@ -459,14 +462,14 @@ class AgentBackendDispatcher:
         if authorized is not True:
             raise AgentBackendDispatchError("backend dispatch authority rejected request")
         backend_id = backend.identity.backend_id
-        client_session_key = request.client_session_key or f"dev-agent:{dispatch_id.strip()}"
+        client_session_key = request.client_session_key or f"dev-agent:{dispatch_id}"
         if not isinstance(client_session_key, str) or not client_session_key.strip():
             raise AgentBackendDispatchError("client_session_key must be a non-empty string")
         fingerprint = self._fingerprint(request, client_session_key=client_session_key.strip())
         identity = AgentBackendDispatchIdentity(
             task_id=task.task_id,
             backend_id=backend_id,
-            dispatch_id=dispatch_id.strip() if isinstance(dispatch_id, str) else dispatch_id,
+            dispatch_id=dispatch_id,
             attempt=attempt,
             workspace_id=request.scope.workspace_id,
             allowed_paths=request.scope.allowed_paths,

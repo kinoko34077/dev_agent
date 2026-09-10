@@ -259,6 +259,7 @@ class LegacyDirectProviderExecutor:
             response = replayed_response if replayed_response is not None else self._request_provider(request, deadline_epoch, cancel_event)
             if not isinstance(response, ModelResponse):
                 raise TypeError("provider must return ModelResponse")
+            self._validate_response_identity(response)
         except DispatchDenied as exc:
             return LegacyProviderExecution(status="denied", category=exc.category, message=str(exc))
         except ProviderRequestCancelled as exc:
@@ -406,6 +407,17 @@ class LegacyDirectProviderExecutor:
                     message=f"provider result persistence requires reconciliation: {exc}",
                 )
         return LegacyProviderExecution(status="succeeded", response=response)
+
+    def _validate_response_identity(self, response: ModelResponse) -> None:
+        if response.provider != self._provider_id:
+            raise ValueError(
+                f"provider response identity mismatch: expected {self._provider_id}, got {response.provider}"
+            )
+        expected_model = getattr(self._provider, "model_id", None) or getattr(self._provider, "model", None)
+        if isinstance(expected_model, str) and expected_model.strip() and response.model != expected_model:
+            raise ValueError(
+                f"provider response model identity mismatch: expected {expected_model}, got {response.model}"
+            )
 
     def _mark_unknown(
         self,

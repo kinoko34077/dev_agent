@@ -41,15 +41,21 @@ class TrustedResourceProfile:
         if not isinstance(self.expires_at, str) or not self.expires_at.strip():
             return False
         try:
+            verified = datetime.fromisoformat(self.verified_at)
             expiry = datetime.fromisoformat(self.expires_at)
-        except ValueError:
+        except (TypeError, ValueError):
             return False
+        if verified.tzinfo is None:
+            verified = verified.replace(tzinfo=timezone.utc)
         if expiry.tzinfo is None:
             expiry = expiry.replace(tzinfo=timezone.utc)
         current = now or datetime.now(timezone.utc)
         if current.tzinfo is None:
             current = current.replace(tzinfo=timezone.utc)
-        return current.astimezone(timezone.utc) < expiry.astimezone(timezone.utc)
+        current_utc = current.astimezone(timezone.utc)
+        verified_utc = verified.astimezone(timezone.utc)
+        expiry_utc = expiry.astimezone(timezone.utc)
+        return verified_utc <= current_utc < expiry_utc
 
 
 # This is deliberately a concrete binding/model catalog, not a provider-level

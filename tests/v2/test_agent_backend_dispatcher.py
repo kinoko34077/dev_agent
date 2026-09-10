@@ -182,6 +182,14 @@ def test_dispatch_rejects_missing_task_scope_and_authority_before_backend_start(
     assert backend.start_calls == 0
 
 
+def test_dispatch_rejects_non_string_dispatch_id_before_backend_start(store, task):
+    backend = FakeAgentBackend()
+    with pytest.raises(AgentBackendDispatchError, match="dispatch_id"):
+        _dispatcher(store).dispatch(_request(task.task_id), backend, dispatch_id=123, attempt=1)
+
+    assert backend.start_calls == 0
+
+
 def test_dispatch_rejects_unknown_authority_result_before_backend_start(store, task):
     backend = FakeAgentBackend()
     request = _request(task.task_id)

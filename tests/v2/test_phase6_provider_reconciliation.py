@@ -262,6 +262,54 @@ def test_paid_provider_decode_failure_after_dispatch_waits_for_reconciliation(tm
     assert ledger.reservation_row(next(iter(ledger.connection.execute("SELECT reservation_id FROM budget_reservations").fetchone()))) ["status"] == "unknown"
 
 
+@pytest.mark.parametrize(
+    ("response_provider", "response_model"),
+    (("another-provider", "expected-model"), ("legacy", "another-model")),
+)
+def test_legacy_provider_response_identity_mismatch_waits_for_reconciliation(
+    tmp_path, response_provider, response_model
+):
+    ledger = ResourceLedger(tmp_path / "legacy-provider-identity.sqlite3")
+    ledger.register_resource(
+        "paid",
+        provider_id="legacy",
+        native_unit="request",
+        capacity=10,
+        capabilities=["text"],
+        cost_minor=10,
+    )
+    ledger.observe("paid", available=10, health="healthy")
+    control = ResourceControlPlane(
+        ResourceRouter(ledger),
+        _governor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)),
+    )
+
+    class MismatchedLegacyProvider(FakeProvider):
+        provider_id = "legacy"
+        model = "expected-model"
+
+        def request(self, request):
+            return ModelResponse(
+                provider=response_provider,
+                model=response_model,
+                text_segments=["must not be accepted"],
+                usage={"cost_minor": 10},
+            )
+
+    with SQLiteStateStore(tmp_path / "legacy-provider-identity-state.sqlite3") as store:
+        result = Controller(
+            MismatchedLegacyProvider(),
+            ToolRuntime(ToolRegistry()),
+            store,
+            resource_policy=control,
+        ).run(Task(objective="legacy identity"))
+        intent = store.connection.execute("SELECT status FROM effect_intents").fetchone()
+
+    assert result.status is TaskStatus.WAITING_RECONCILIATION
+    assert intent["status"] == "unknown"
+    assert ledger.reservation_totals()["active_reservations"] == 1
+
+
 def test_dispatcher_persists_provider_intent_and_selection_audit(tmp_path):
     ledger = ResourceLedger(tmp_path / "provider-intent.sqlite3")
     ledger.register_resource("paid", provider_id="paid", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
