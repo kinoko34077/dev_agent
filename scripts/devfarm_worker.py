@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import json
 import math
+import os
 from pathlib import Path
 from pathlib import PurePosixPath
 import shlex
 import subprocess
 import sys
+import tempfile
+import threading
 import time
 from typing import Any, Mapping
 from uuid import NAMESPACE_URL, uuid4, uuid5
@@ -30,6 +34,7 @@ from scripts.devfarm import (
 from src.dev_agent.domain.protocol import ModelRequest
 from src.dev_agent.providers.base import ModelProvider, ProviderError
 from src.dev_agent.providers.factory import ProviderDefinition, ProviderFactory
+from src.dev_agent.resources.billing_catalog import profile_for as _catalog_profile_for
 from src.dev_agent.security.audit import AuditRecorder
 from scripts.devfarm_metrics import WorkerMetricsError, WorkerMetricsStore
 
@@ -57,30 +62,57 @@ class DevFarmActivationPolicy:
     concerns from construction.
     """
 
-    # Gemini 3.5 Flash-Lite has an operator-run qualification artifact.  The
-    # Provider activation and concrete Worker-model activation are separate
-    # checks; the manifest still approves the provider and the factory supplies
-    # non-secret binding/tier identity labels.
+    # Operator activation is intentionally separate from capability and
+    # billing evidence.  The default set is only the human-approved provider
+    # pool; exact model/binding qualification comes from the matrix below.
     DEFAULT_ACTIVE_PROVIDER_IDS = frozenset({"cloudflare", "gemini", "openrouter"})
-    ACTIVE_MODEL_IDS = {
-        "gemini": frozenset({"gemini-3.5-flash-lite"}),
-        "openrouter": frozenset({"openrouter/free"}),
-        # Activation follows the currently qualified capability-matrix
-        # binding.  Factory support alone must not turn an arbitrary model
-        # identifier into an active external Worker.
-        "cloudflare": frozenset({"@cf/meta/llama-3.1-8b-instruct"}),
-    }
-    WORKER_BINDINGS = {
-        ("gemini", "gemini-3.5-flash-lite"): ("gemini:worker", "L1"),
-        ("openrouter", "openrouter/free"): ("openrouter:free", "L1"),
-        ("cloudflare", "@cf/meta/llama-3.1-8b-instruct"): ("cloudflare", "L1"),
-    }
 
-    def __init__(self, active_provider_ids: set[str] | frozenset[str] | None = None) -> None:
+    def __init__(
+        self,
+        active_provider_ids: set[str] | frozenset[str] | None = None,
+        *,
+        capability_matrix_path: str | Path | None = None,
+        now: datetime | None = None,
+    ) -> None:
         selected = self.DEFAULT_ACTIVE_PROVIDER_IDS if active_provider_ids is None else active_provider_ids
         if not isinstance(selected, (set, frozenset)) or not all(isinstance(item, str) and item.strip() for item in selected):
             raise ValueError("active_provider_ids must be a set of non-empty strings")
         self._active_provider_ids = frozenset(item.strip() for item in selected)
+        if now is not None and not isinstance(now, datetime):
+            raise ValueError("now must be a datetime or None")
+        self._now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+        self._capability_matrix_path = Path(capability_matrix_path) if capability_matrix_path is not None else ROOT / "spec" / "v2" / "PROVIDER_CAPABILITY_MATRIX.json"
+        try:
+            payload = json.loads(self._capability_matrix_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            payload = {}
+        entries = payload.get("entries", []) if isinstance(payload, Mapping) else []
+        self._capability_entries = tuple(entry for entry in entries if isinstance(entry, Mapping))
+
+    def _qualified_worker_entry(self, provider_id: str, model_id: str) -> Mapping[str, Any] | None:
+        provider_id = provider_id.strip()
+        model_id = model_id.strip()
+        for entry in self._capability_entries:
+            if entry.get("provider") != provider_id or entry.get("model") != model_id:
+                continue
+            if entry.get("intelligence_tier") != "L1":
+                continue
+            capabilities = entry.get("capabilities")
+            if not isinstance(capabilities, list) or "text" not in capabilities:
+                continue
+            try:
+                expires_at = datetime.fromisoformat(str(entry["expires_at"]))
+            except (KeyError, TypeError, ValueError):
+                continue
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if self._now >= expires_at.astimezone(timezone.utc):
+                continue
+            binding_id = entry.get("provider_binding_id")
+            if not isinstance(binding_id, str) or not binding_id.strip():
+                continue
+            return entry
+        return None
 
     def is_active(self, provider_id: str, model_id: str | None = None) -> bool:
         if not isinstance(provider_id, str) or provider_id.strip() not in self._active_provider_ids:
@@ -90,8 +122,11 @@ class DevFarmActivationPolicy:
         # silently select an arbitrary or newly billable deployment.
         if not isinstance(model_id, str) or not model_id.strip():
             return False
-        allowed_models = self.ACTIVE_MODEL_IDS.get(provider_id.strip())
-        return allowed_models is not None and model_id.strip() in allowed_models
+        entry = self._qualified_worker_entry(provider_id, model_id)
+        if entry is None:
+            return False
+        profile = _catalog_profile_for(provider_id.strip(), str(entry["provider_binding_id"]), model_id.strip())
+        return profile is not None and profile.cost_minor == 0 and profile.is_current(now=self._now)
 
     def ensure_active(self, provider_id: str, model_id: str | None = None) -> None:
         if not self.is_active(provider_id, model_id):
@@ -100,7 +135,10 @@ class DevFarmActivationPolicy:
 
     def binding_for(self, provider_id: str, model_id: str) -> tuple[str, str | None]:
         self.ensure_active(provider_id, model_id)
-        return self.WORKER_BINDINGS.get((provider_id, model_id), (provider_id, None))
+        entry = self._qualified_worker_entry(provider_id, model_id)
+        if entry is None:
+            raise DevFarmError(f"development worker qualification is unavailable: {provider_id}/{model_id}")
+        return str(entry["provider_binding_id"]), str(entry["intelligence_tier"])
 
 
 def _read_json(path: Path) -> Any:
@@ -187,6 +225,140 @@ def _validate_patch_application(workspace: Path, patch: str) -> None:
     if checked.returncode != 0:
         detail = checked.stderr.strip() or checked.stdout.strip() or "unknown patch check error"
         raise DevFarmError(f"worker patch apply check failed: {detail}")
+
+
+class HostVerificationRunner:
+    """Run allowlisted verification commands behind a small host boundary.
+
+    This is process-tree containment and environment sanitization, not an OS
+    sandbox.  The result records that distinction so an unattended caller
+    cannot mistake a Git worktree for a security boundary.
+    """
+
+    _SAFE_ENVIRONMENT_KEYS = frozenset(
+        {
+            "COMSPEC",
+            "LANG",
+            "LC_ALL",
+            "PATH",
+            "PATHEXT",
+            "SYSTEMROOT",
+            "TEMP",
+            "TMP",
+        }
+    )
+
+    def __init__(self, *, timeout_seconds: float = 120.0, max_output_bytes: int = MAX_TEST_OUTPUT_CHARS) -> None:
+        if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, (int, float)) or not math.isfinite(float(timeout_seconds)) or timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
+        if isinstance(max_output_bytes, bool) or not isinstance(max_output_bytes, int) or max_output_bytes <= 0:
+            raise ValueError("max_output_bytes must be positive")
+        self.timeout_seconds = float(timeout_seconds)
+        self.max_output_bytes = max_output_bytes
+
+    def _environment(self, home: Path) -> dict[str, str]:
+        environment = {
+            key: value
+            for key, value in os.environ.items()
+            if key.upper() in self._SAFE_ENVIRONMENT_KEYS
+        }
+        home_value = home.as_posix()
+        environment.update(
+            {
+                "HOME": home_value,
+                "USERPROFILE": home_value,
+                "HOMEDRIVE": home.drive,
+                "HOMEPATH": home_value[len(home.drive) :] if home.drive else home_value,
+                "DEV_AGENT_HOST_VERIFICATION": "1",
+            }
+        )
+        return environment
+
+    def _terminate_tree(self, process: subprocess.Popen[bytes]) -> None:
+        if process.poll() is not None:
+            return
+        if os.name == "nt":
+            subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            return
+        try:
+            import signal
+
+            os.killpg(process.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            process.kill()
+
+    def run(self, command: list[str], *, cwd: Path) -> dict[str, Any]:
+        if not isinstance(command, list) or not command or not all(isinstance(token, str) and token for token in command):
+            raise ValueError("command must be a non-empty token list")
+        workspace = cwd.resolve()
+        with tempfile.TemporaryDirectory(prefix="devfarm-host-home-") as home_dir:
+            home = Path(home_dir)
+            creationflags = 0
+            if os.name == "nt":
+                creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            process = subprocess.Popen(
+                command,
+                cwd=workspace,
+                env=self._environment(home),
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                creationflags=creationflags,
+                start_new_session=os.name != "nt",
+            )
+            stdout = bytearray()
+            stderr = bytearray()
+            output_state = {"stdout_truncated": False, "stderr_truncated": False}
+
+            def capture(stream, buffer: bytearray, key: str) -> None:
+                while True:
+                    chunk = stream.read(4096)
+                    if not chunk:
+                        return
+                    remaining = self.max_output_bytes - len(buffer)
+                    if remaining > 0:
+                        buffer.extend(chunk[:remaining])
+                    if len(chunk) > max(remaining, 0):
+                        output_state[key] = True
+
+            threads = [
+                threading.Thread(target=capture, args=(process.stdout, stdout, "stdout_truncated"), daemon=True),
+                threading.Thread(target=capture, args=(process.stderr, stderr, "stderr_truncated"), daemon=True),
+            ]
+            for thread in threads:
+                thread.start()
+            timed_out = False
+            try:
+                return_code = process.wait(timeout=self.timeout_seconds)
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                self._terminate_tree(process)
+                try:
+                    return_code = process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    return_code = process.wait(timeout=5)
+            for thread in threads:
+                thread.join(timeout=5)
+            return {
+                "returncode": None if timed_out else return_code,
+                "stdout": bytes(stdout).decode("utf-8", errors="replace"),
+                "stderr": bytes(stderr).decode("utf-8", errors="replace"),
+                "timed_out": timed_out,
+                "output_truncated": output_state["stdout_truncated"] or output_state["stderr_truncated"],
+                "containment": {
+                    "environment": "sanitized_allowlist",
+                    "home": "temporary",
+                    "process_tree": "terminated_on_timeout",
+                    "network": "not_isolated",
+                    "sandbox": "not_provided",
+                },
+            }
 
 
 def _workspace(root: Path, manifest: Mapping[str, Any]) -> Path:
@@ -580,41 +752,22 @@ def apply_and_verify(root: str | Path, manifest_path: str | Path) -> dict[str, A
             raise DevFarmError(f"worker patch apply failed: {detail}")
 
     verified: list[dict[str, Any]] = []
+    verification_runner = HostVerificationRunner(timeout_seconds=120)
     for command in manifest["test_commands"]:
-        try:
-            tokens = shlex.split(command, posix=True)
-            completed = subprocess.run(
-                tokens,
-                cwd=workspace,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=120,
-                check=False,
-            )
-            verified.append(
-                {
-                    "command": command,
-                    "exit_code": completed.returncode,
-                    "passed": completed.returncode == 0,
-                    "stdout": _bounded_test_output(completed.stdout),
-                    "stderr": _bounded_test_output(completed.stderr),
-                }
-            )
-        except subprocess.TimeoutExpired as exc:
-            stdout = exc.stdout if isinstance(exc.stdout, str) else ""
-            stderr = exc.stderr if isinstance(exc.stderr, str) else ""
-            verified.append(
-                {
-                    "command": command,
-                    "exit_code": None,
-                    "passed": False,
-                    "timed_out": True,
-                    "stdout": _bounded_test_output(stdout),
-                    "stderr": _bounded_test_output(stderr),
-                }
-            )
+        tokens = shlex.split(command, posix=True)
+        host_result = verification_runner.run(tokens, cwd=workspace)
+        verified.append(
+            {
+                "command": command,
+                "exit_code": host_result["returncode"],
+                "passed": host_result["returncode"] == 0 and not host_result["timed_out"],
+                "stdout": _bounded_test_output(host_result["stdout"]),
+                "stderr": _bounded_test_output(host_result["stderr"]),
+                "timed_out": host_result["timed_out"],
+                "output_truncated": host_result["output_truncated"],
+                "containment": host_result["containment"],
+            }
+        )
 
     tests_passed = bool(verified) and all(item["passed"] for item in verified)
     result["tests_run"] = list(manifest["test_commands"])

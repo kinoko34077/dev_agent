@@ -493,6 +493,10 @@ def main(argv: list[str] | None = None) -> int:
     integrated.add_argument("run_id")
     integrated.add_argument("task_id")
     integrated.add_argument("--note", required=True)
+    integrated.add_argument("--target-ref", required=True)
+    integrated.add_argument("--integration-revision", required=True)
+    integrated.add_argument("--source-attempt-id", required=True)
+    integrated.add_argument("--verified-patch-digest", required=True)
     integrated.add_argument("--root", type=Path, default=Path.cwd())
     args = parser.parse_args(argv)
     try:
@@ -564,7 +568,16 @@ def main(argv: list[str] | None = None) -> int:
 
             print(
                 json.dumps(
-                    mark_integrated(args.root, args.run_id, args.task_id, note=args.note),
+                    mark_integrated(
+                        args.root,
+                        args.run_id,
+                        args.task_id,
+                        note=args.note,
+                        target_ref=args.target_ref,
+                        integration_revision=args.integration_revision,
+                        source_attempt_id=args.source_attempt_id,
+                        verified_patch_digest=args.verified_patch_digest,
+                    ),
                     ensure_ascii=False,
                     indent=2,
                 )

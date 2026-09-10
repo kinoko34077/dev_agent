@@ -12,15 +12,17 @@ from __future__ import annotations
 from copy import deepcopy
 from contextlib import contextmanager
 from datetime import datetime, timezone
+import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath
 import re
 import subprocess
+import tempfile
 from typing import Any, Mapping, Sequence
 import uuid
 
-from scripts.devfarm import DevFarmError, init_farm, validate_manifest, validate_result
+from scripts.devfarm import DevFarmError, init_farm, validate_manifest, validate_patch, validate_result
 from scripts.devfarm_orchestrator import DevFarmOrchestrator, WorkerAssignment
 from src.dev_agent.providers.base import ModelProvider
 from src.dev_agent.security.protected_paths import PROTECTED_AUTHORITY_PATHS, is_protected_path
@@ -362,6 +364,18 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
             "max_attempts": max_attempts,
             "attempt_count": attempt_count,
         }
+        worker_candidate = raw.get("worker_candidate", owner == "worker")
+        if not isinstance(worker_candidate, bool):
+            raise DevFarmError("worker_candidate must be a boolean")
+        task["worker_candidate"] = worker_candidate
+        task["delegation_reason"] = _text(
+            raw.get(
+                "delegation_reason",
+                "worker_assignment" if owner == "worker" else "legacy_plan_reason_not_recorded",
+            ),
+            "delegation_reason",
+            max_length=1000,
+        )
         assignment = raw.get("assignment", {})
         if assignment is not None:
             if not isinstance(assignment, Mapping):
@@ -379,6 +393,16 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
             task["last_error"] = _text(raw["last_error"], "last_error", max_length=1000)
         if raw.get("integration_note") is not None:
             task["integration_note"] = _text(raw["integration_note"], "integration_note", max_length=2000)
+        if raw.get("manifest_history") is not None:
+            task["manifest_history"] = _paths(raw["manifest_history"], "manifest_history")
+        for key in ("target_ref", "integration_revision", "source_attempt_id"):
+            if raw.get(key) is not None:
+                task[key] = _text(raw[key], key, max_length=200)
+        if raw.get("verified_patch_digest") is not None:
+            digest = _text(raw["verified_patch_digest"], "verified_patch_digest", max_length=64).lower()
+            if not re.fullmatch(r"[0-9a-f]{64}", digest):
+                raise DevFarmError("verified_patch_digest must be a SHA-256 hex digest")
+            task["verified_patch_digest"] = digest
         tasks.append(task)
     _check_unique_ids(task_ids, "plan tasks")
     task_id_set = set(task_ids)
@@ -897,18 +921,225 @@ def reassign_task(
     return store.save(refresh_plan(plan))
 
 
-def mark_integrated(root: str | Path, run_id: str, task_id: str, *, note: str) -> dict[str, Any]:
-    store = CommanderPlanStore(root)
+def _git_diff_digest(root: Path, revision: str) -> str:
+    result = subprocess.run(
+        [
+            "git",
+            "-c",
+            f"safe.directory={root.as_posix()}",
+            "diff-tree",
+            "--root",
+            "--binary",
+            "--no-commit-id",
+            "-r",
+            revision,
+            "--",
+        ],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise DevFarmError(result.stderr.strip() or "could not read integration revision diff")
+    return hashlib.sha256(result.stdout.encode("utf-8")).hexdigest()
+
+
+def _verified_worker_patch(root: Path, task: Mapping[str, Any]) -> tuple[str, dict[str, Any], str]:
+    if task.get("owner") != "worker":
+        raise DevFarmError("verified worker patch is required only for worker tasks")
+    manifest_path, manifest = _manifest_for(root, task)
+    attempt_id = task.get("last_attempt_id")
+    if not isinstance(attempt_id, str) or not attempt_id.strip():
+        raise DevFarmError("worker integration requires a verified attempt_id")
+    result_ref = task.get("result_ref") or _result_ref(task["task_id"], attempt_id)
+    result_path = _repository_path(root, result_ref, required_parent=".devfarm/results")
+    if not result_path.is_file():
+        raise DevFarmError("worker integration result artifact is missing")
+    result = validate_result(_read_json(result_path), manifest=manifest)
+    if result.get("attempt_id") != attempt_id:
+        raise DevFarmError("integration source_attempt_id does not match result artifact")
+    metrics = result.get("worker_metrics")
+    if result.get("status") != "completed" or not isinstance(metrics, Mapping) or metrics.get("host_verified") is not True or metrics.get("result_accepted") is not True:
+        raise DevFarmError("worker integration requires an accepted Host Verification result")
+    patch_path = result_path.parent / "patch.diff"
+    if not patch_path.is_file():
+        raise DevFarmError("verified worker patch artifact is missing")
+    try:
+        patch = patch_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise DevFarmError("verified worker patch artifact cannot be read") from exc
+    actual_changed_files = validate_patch(patch, manifest=manifest)
+    if not actual_changed_files:
+        raise DevFarmError("worker integration requires a non-empty verified patch")
+    return patch, manifest, attempt_id
+
+
+def _prove_worker_patch_in_revision(root: Path, patch: str, revision: str, changed_files: Sequence[str]) -> None:
+    """Compare the verified patch result with the target commit tree.
+
+    A temporary detached worktree keeps this proof independent of the
+    caller's checkout.  Only the files actually changed by the verified
+    patch are compared, so one integration commit may contain several
+    independently reviewed Worker patches.
+    """
+
+    try:
+        parent = _git(root, "rev-parse", f"{revision}^{{commit}}^")
+    except DevFarmError as exc:
+        raise DevFarmError("integration revision must have a parent commit") from exc
+    with tempfile.TemporaryDirectory(prefix="devfarm-integration-") as directory:
+        worktree = Path(directory)
+        _git(root, "worktree", "add", "--detach", worktree.as_posix(), parent)
+        try:
+            applied = subprocess.run(
+                ["git", "-c", f"safe.directory={worktree.as_posix()}", "apply", "--whitespace=error", "-"],
+                cwd=worktree,
+                input=patch,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if applied.returncode != 0:
+                detail = applied.stderr.strip() or applied.stdout.strip() or "patch does not apply to integration parent"
+                raise DevFarmError(detail)
+            _git(worktree, "add", "--all")
+            compared = subprocess.run(
+                [
+                    "git",
+                    "-c",
+                    f"safe.directory={worktree.as_posix()}",
+                    "diff",
+                    "--cached",
+                    "--exit-code",
+                    revision,
+                    "--",
+                    *changed_files,
+                ],
+                cwd=worktree,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if compared.returncode != 0:
+                raise DevFarmError("verified worker patch is not reflected in integration revision")
+        finally:
+            subprocess.run(
+                ["git", "-c", f"safe.directory={root.as_posix()}", "worktree", "remove", "--force", worktree.as_posix()],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+
+def _advance_dependent_manifest_baselines(root: Path, plan: dict[str, Any], integrated_task_id: str, baseline_revision: str) -> None:
+    """Issue a new manifest when a code dependency is actually integrated.
+
+    Existing manifests are immutable records of the proposal input.  A
+    dependent task therefore receives a new manifest file instead of having
+    its old baseline rewritten in place.  The caller only invokes this after
+    Git-backed integration evidence has been proven.
+    """
+
+    for dependent in plan["tasks"]:
+        if integrated_task_id not in dependent.get("dependencies", []):
+            continue
+        if dependent.get("owner") != "worker" or dependent.get("status") not in {"PLANNED", "READY"}:
+            continue
+        if any(_task(plan, dependency).get("status") != "INTEGRATED" for dependency in dependent.get("dependencies", [])):
+            continue
+        for dependency in dependent.get("dependencies", []):
+            dependency_revision = _task(plan, dependency).get("integration_revision")
+            if not isinstance(dependency_revision, str) or not dependency_revision.strip():
+                raise DevFarmError("integrated code dependency has no integration revision")
+            try:
+                _git(root, "merge-base", "--is-ancestor", dependency_revision, baseline_revision)
+            except DevFarmError as exc:
+                raise DevFarmError("dependent task baseline does not contain every integrated dependency") from exc
+        old_relative = dependent.get("manifest_path")
+        if not isinstance(old_relative, str):
+            raise DevFarmError(f"dependent worker task has no manifest path: {dependent['task_id']}")
+        old_path = _repository_path(root, old_relative, required_parent=".devfarm/tasks")
+        old_manifest = validate_manifest(_read_json(old_path))
+        if old_manifest["base_revision"] == baseline_revision:
+            continue
+        new_name = f"{old_path.stem}.base-{baseline_revision[:12]}{old_path.suffix}"
+        new_path = old_path.with_name(new_name)
+        new_manifest = dict(_read_json(old_path))
+        new_manifest["base_revision"] = baseline_revision
+        normalized = validate_manifest(new_manifest)
+        if new_path.exists():
+            if validate_manifest(_read_json(new_path))["base_revision"] != baseline_revision:
+                raise DevFarmError(f"dependent manifest baseline path already exists with another revision: {new_name}")
+        else:
+            temporary = new_path.with_name(f".{new_path.name}.{uuid.uuid4().hex}.tmp")
+            temporary.write_text(json.dumps(normalized, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            os.replace(temporary, new_path)
+        new_relative = new_path.relative_to(root).as_posix()
+        history = list(dependent.get("manifest_history", []))
+        if old_relative not in history:
+            history.append(old_relative)
+        if new_relative not in history:
+            history.append(new_relative)
+        dependent["manifest_history"] = history
+        dependent["manifest_path"] = new_relative
+
+
+def mark_integrated(
+    root: str | Path,
+    run_id: str,
+    task_id: str,
+    *,
+    note: str,
+    target_ref: str,
+    integration_revision: str,
+    source_attempt_id: str,
+    verified_patch_digest: str,
+) -> dict[str, Any]:
+    root_path = Path(root).resolve()
+    store = CommanderPlanStore(root_path)
     plan = store.load(run_id)
     task = _task(plan, task_id)
     note = _text(note, "integration note", max_length=2000)
-    if task["owner"] == "worker" and task["status"] != "HOST_VERIFIED":
-        raise DevFarmError("worker task requires host verification before integration")
-    if task["owner"] == "codex" and task["status"] != "READY":
-        raise DevFarmError("Codex task must be READY before integration marking")
+    target_ref = _text(target_ref, "target_ref", max_length=200)
+    integration_revision = _text(integration_revision, "integration_revision", max_length=200)
+    source_attempt_id = _text(source_attempt_id, "source_attempt_id", max_length=200)
+    verified_patch_digest = _text(verified_patch_digest, "verified_patch_digest", max_length=64).lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", verified_patch_digest):
+        raise DevFarmError("verified_patch_digest must be a SHA-256 hex digest")
+    target_commit = _resolved_revision(root_path, target_ref)
+    integration_commit = _resolved_revision(root_path, integration_revision)
+    try:
+        _git(root_path, "merge-base", "--is-ancestor", integration_commit, target_commit)
+    except DevFarmError as exc:
+        raise DevFarmError("integration revision is not contained in target_ref") from exc
+    if task["owner"] == "worker":
+        if task["status"] != "HOST_VERIFIED":
+            raise DevFarmError("worker task requires host verification before integration")
+        patch, manifest, expected_attempt_id = _verified_worker_patch(root_path, task)
+        if source_attempt_id != expected_attempt_id:
+            raise DevFarmError("source_attempt_id does not match the latest verified attempt")
+        digest = hashlib.sha256(patch.encode("utf-8")).hexdigest()
+        if verified_patch_digest != digest:
+            raise DevFarmError("verified patch digest does not match the Host Verification artifact")
+        changed_files = validate_patch(patch, manifest=manifest)
+        _prove_worker_patch_in_revision(root_path, patch, integration_commit, changed_files)
+    elif task["owner"] == "codex":
+        if task["status"] != "READY":
+            raise DevFarmError("Codex task must be READY before integration marking")
+        if _git_diff_digest(root_path, integration_commit) != verified_patch_digest:
+            raise DevFarmError("Codex integration digest does not match the integration revision")
+    else:
+        raise DevFarmError("unsupported plan task owner")
     task["status"] = "INTEGRATED"
     task["integration_note"] = note
-    _record_result(plan, task_id, "integration", "integrated", task.get("result_ref"))
+    task["target_ref"] = target_ref
+    task["integration_revision"] = integration_commit
+    task["source_attempt_id"] = source_attempt_id
+    task["verified_patch_digest"] = verified_patch_digest
+    _advance_dependent_manifest_baselines(root_path, plan, task_id, target_commit)
+    _record_result(plan, task_id, "integration", "integrated", task.get("result_ref"), attempt_id=source_attempt_id)
     return store.save(refresh_plan(plan))
 
 

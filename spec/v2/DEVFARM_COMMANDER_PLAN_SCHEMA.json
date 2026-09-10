@@ -23,8 +23,20 @@
           "dependencies": {"type": "array", "items": {"type": "string"}},
           "ownership": {"type": "array", "items": {"type": "string"}},
           "manifest_path": {"type": ["string", "null"]},
+          "manifest_history": {"type": "array", "items": {"type": "string"}},
           "max_attempts": {"type": "integer", "minimum": 1},
           "attempt_count": {"type": "integer", "minimum": 0},
+          "worker_candidate": {"type": "boolean"},
+          "delegation_reason": {"type": "string", "maxLength": 1000},
+          "last_attempt_id": {"type": "string"},
+          "result_ref": {"type": "string"},
+          "last_result_status": {"type": "string"},
+          "block_reason": {"type": "string"},
+          "integration_note": {"type": "string"},
+          "target_ref": {"type": "string"},
+          "integration_revision": {"type": "string"},
+          "source_attempt_id": {"type": "string"},
+          "verified_patch_digest": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
           "assignment": {"$ref": "#/$defs/assignment"}
         }
       }
@@ -32,7 +44,7 @@
     "dependencies": {"type": "array", "items": {"type": "object", "required": ["task_id", "depends_on"], "properties": {"task_id": {"type": "string"}, "depends_on": {"type": "array", "items": {"type": "string"}}}}},
     "ownership": {"type": "array", "items": {"type": "object", "required": ["task_id", "paths"], "properties": {"task_id": {"type": "string"}, "paths": {"type": "array", "items": {"type": "string"}}}}},
     "assignments": {"type": "array", "items": {"$ref": "#/$defs/assignment"}},
-    "results": {"type": "array", "items": {"type": "object", "required": ["task_id", "stage", "status"], "properties": {"task_id": {"type": "string"}, "stage": {"type": "string"}, "status": {"type": "string"}, "result_ref": {"type": "string"}}}},
+    "results": {"type": "array", "items": {"type": "object", "required": ["task_id", "stage", "status"], "properties": {"task_id": {"type": "string"}, "stage": {"type": "string"}, "status": {"type": "string"}, "result_ref": {"type": "string"}, "attempt_id": {"type": "string"}, "recorded_at": {"type": "string"}}}},
     "created_at": {"type": "string"},
     "updated_at": {"type": "string"}
   },

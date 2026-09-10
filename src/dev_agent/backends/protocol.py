@@ -90,6 +90,7 @@ class AgentBackendRequest:
     scope: AgentBackendScope
     input_artifacts: tuple[str, ...] = ()
     session_id: str | None = None
+    client_session_key: str | None = None
     sensitivity: str = "normal"
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
@@ -101,6 +102,8 @@ class AgentBackendRequest:
         object.__setattr__(self, "input_artifacts", _strings(self.input_artifacts, "input_artifacts"))
         if self.session_id is not None:
             object.__setattr__(self, "session_id", _text(self.session_id, "session_id"))
+        if self.client_session_key is not None:
+            object.__setattr__(self, "client_session_key", _text(self.client_session_key, "client_session_key"))
         sensitivity = _text(self.sensitivity, "sensitivity").lower()
         if sensitivity not in {"public", "normal", "internal", "sensitive"}:
             raise ValueError("sensitivity must be one of public, normal, internal, or sensitive")

@@ -1,11 +1,12 @@
 import json
 import subprocess
+import sys
 
 import pytest
 
 from scripts import devfarm_worker
 from scripts.devfarm import DevFarmError, validate_patch
-from scripts.devfarm_worker import apply_and_verify, run_worker
+from scripts.devfarm_worker import HostVerificationRunner, apply_and_verify, run_worker
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.providers.base import ModelProvider
 from tests.v2.devfarm_test_support import _RawWorkerProvider, _WorkerProvider, _workspace, _patch
@@ -37,6 +38,51 @@ class _MeasuredWorkerProvider(ModelProvider):
             text_segments=[json.dumps(self.output)],
             usage={"total_tokens": 7, "prompt_tokens": 3, "completion_tokens": 4},
         )
+
+
+def test_host_verification_runner_sanitizes_environment_and_records_boundary(tmp_path, monkeypatch):
+    monkeypatch.setenv("GROQ_API_KEY", "should-not-cross-host-boundary")
+    result = HostVerificationRunner(timeout_seconds=5, max_output_bytes=4096).run(
+        [
+            sys.executable,
+            "-c",
+            "import os; print(os.getenv('GROQ_API_KEY')); print(os.getenv('HOME')); print(os.getenv('DEV_AGENT_HOST_VERIFICATION'))",
+        ],
+        cwd=tmp_path,
+    )
+
+    assert result["returncode"] == 0
+    assert "should-not-cross-host-boundary" not in result["stdout"]
+    assert "None" in result["stdout"]
+    assert "DEV_AGENT_HOST_VERIFICATION" not in result["stdout"] or "1" in result["stdout"]
+    assert result["containment"] == {
+        "environment": "sanitized_allowlist",
+        "home": "temporary",
+        "process_tree": "terminated_on_timeout",
+        "network": "not_isolated",
+        "sandbox": "not_provided",
+    }
+
+
+def test_host_verification_runner_bounds_output(tmp_path):
+    result = HostVerificationRunner(timeout_seconds=5, max_output_bytes=64).run(
+        [sys.executable, "-c", "print('x' * 10000)"],
+        cwd=tmp_path,
+    )
+
+    assert result["returncode"] == 0
+    assert result["output_truncated"] is True
+    assert len(result["stdout"].encode("utf-8")) <= 64
+
+
+def test_host_verification_runner_terminates_timed_out_process(tmp_path):
+    result = HostVerificationRunner(timeout_seconds=0.1, max_output_bytes=1024).run(
+        [sys.executable, "-c", "import time; time.sleep(30)"],
+        cwd=tmp_path,
+    )
+
+    assert result["timed_out"] is True
+    assert result["returncode"] is None
 
 
 def test_worker_writes_validated_result_artifacts(tmp_path):

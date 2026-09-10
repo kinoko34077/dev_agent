@@ -50,6 +50,12 @@ Python validationは `scripts.devfarm_commander.validate_plan()` が所有する
 - `assignments[]`: WorkerのProvider/modelまたはCodex担当
 - `results[]`: proposal、host verification、integrationのartifact参照
 
+Workerへ委譲できるTaskには `worker_candidate=true` と適格性の理由を記録する。
+Codexが担当する場合も、`protected`、`cross_cutting`、`architecture`、
+`integration`、`no_qualified_worker`、`delegation_overhead` などの理由を残し、
+委譲しなかった判断を後から再構築できるようにする。これは利用率KPIではなく、
+安全なTask分解の監査情報である。
+
 Worker Taskは既存manifestを参照し、manifestの`allowed_files`がPlanのownershipを
 越えないことを検査する。Codex Taskに外部Provider manifestは不要である。
 
@@ -63,7 +69,9 @@ python scripts/devfarm.py collect <run-id> --root .
 python scripts/devfarm.py verify <run-id> --root .
 python scripts/devfarm.py resume <run-id> --root .
 python scripts/devfarm.py reassign <run-id> <task-id> --provider openrouter --model openrouter/free --root .
-python scripts/devfarm.py mark-integrated <run-id> <task-id> --note "Codex reviewed" --root .
+python scripts/devfarm.py mark-integrated <run-id> <task-id> --note "Codex reviewed" \
+  --target-ref v2/bootstrap --integration-revision <commit> \
+  --source-attempt-id <attempt-id> --verified-patch-digest <sha256> --root .
 ```
 
 `dispatch`はPlanのassignmentにあるProvider/modelを使う。全Workerを一時的に同じ
@@ -80,8 +88,16 @@ Host Verificationを呼び、valid proposalだけを専用worktreeへ適用す�
 Taskは`PLANNED → READY → DISPATCHED → PROPOSED → HOST_VERIFIED → INTEGRATED`を
 基本とする。proposal失敗は`REJECTED`、Provider外部待ちは`BLOCKED`とし、Planは
 失敗を成功へ読み替えない。依存Taskが`HOST_VERIFIED`または`INTEGRATED`になるまで
-後続Taskは`READY`へ進まない。依存cycle、ownership overlap、attempt上限、scope外
+後続Taskは`READY`へ進まない。通常のcode dependencyは依存Taskが`INTEGRATED`になるまで
+releaseしない。`HOST_VERIFIED`は候補成果の検証済みを示すだけで、コード依存を解放しない。
+依存cycle、ownership overlap、attempt上限、scope外
 manifestは作成／再割当時にfail-closedで拒否する。
+
+`INTEGRATED`はメモだけでは成立しない。`target_ref`、`integration_revision`、
+`source_attempt_id`、`verified_patch_digest` を保存し、Worker成果はHost Verification
+済みpatchが実際にintegration revisionへ反映されていることをGitで検証する。
+依存Taskのmanifestは、統合後のrevisionを基準にした新しいmanifestとして再発行し、
+旧manifestを履歴に残す。
 
 unknownな外部効果の再送、approval／budget／privacyの迂回、model自己申告だけの
 verification、自動integrationは禁止する。`resume`はartifactを再読込して依存を

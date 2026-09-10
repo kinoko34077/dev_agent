@@ -20,6 +20,20 @@ from src.dev_agent.state.sqlite_store import SQLiteStateStore
 from tests.v2.fixtures.fake_agent_backend import FakeAgentBackend
 
 
+class _DiscoverableBackend(FakeAgentBackend):
+    def __init__(self, sessions, **kwargs):
+        super().__init__(**kwargs)
+        self._sessions = sessions
+
+    def start(self, request):
+        session = super().start(request)
+        self._sessions[request.client_session_key] = session
+        return session
+
+    def discover(self, client_session_key):
+        return self._sessions.get(client_session_key)
+
+
 def _request(task_id: str) -> AgentBackendRequest:
     return AgentBackendRequest(
         task_id=task_id,
@@ -82,6 +96,71 @@ def test_dispatch_persists_identity_and_does_not_restart_existing_session(store,
     assert intent["result"]["session"]["session_id"] == session.session_id
     assert intent["arguments"]["attempt"] == 1
     assert intent["arguments"]["request_fingerprint"]
+
+
+def test_start_persistence_crash_is_recovered_by_client_session_discovery(store, task, monkeypatch):
+    sessions = {}
+    backend = _DiscoverableBackend(sessions)
+    request = _request(task.task_id)
+    dispatch_id = str(uuid4())
+    dispatcher = _dispatcher(store)
+    original_transition = store.transition_effect_intent
+    crashed = False
+
+    def fail_session_persistence(key, *, to_status, result, lease_proof=None):
+        nonlocal crashed
+        if not crashed and isinstance(result, dict) and "session" in result:
+            crashed = True
+            raise RuntimeError("simulated process death before session persistence")
+        return original_transition(key, to_status=to_status, result=result, lease_proof=lease_proof)
+
+    monkeypatch.setattr(store, "transition_effect_intent", fail_session_persistence)
+    with pytest.raises(RuntimeError, match="process death"):
+        dispatcher.dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
+
+    intent = store.get_effect_intent(dispatcher.effect_key(dispatch_id))
+    assert intent["status"] == "dispatching"
+    assert intent["result"] == {"request_fingerprint": intent["result"]["request_fingerprint"]}
+
+    monkeypatch.setattr(store, "transition_effect_intent", original_transition)
+    recovered = _dispatcher(store).reconcile_start(
+        dispatch_id,
+        _DiscoverableBackend(sessions),
+        actor="operator",
+        source="restart-reconcile",
+    )
+
+    assert recovered.session_id == next(iter(sessions.values())).session_id
+    assert recovered.task_id == task.task_id
+    assert store.get_effect_intent(dispatcher.effect_key(dispatch_id))["result"]["session"]["session_id"] == recovered.session_id
+    assert store.has_event(task.task_id, "agent_backend.session_discovered")
+
+
+def test_start_persistence_crash_without_discovery_becomes_unknown_without_restart(store, task, monkeypatch):
+    backend = FakeAgentBackend()
+    request = _request(task.task_id)
+    dispatch_id = str(uuid4())
+    dispatcher = _dispatcher(store)
+    original_transition = store.transition_effect_intent
+    crashed = False
+
+    def fail_session_persistence(key, *, to_status, result, lease_proof=None):
+        nonlocal crashed
+        if not crashed and isinstance(result, dict) and "session" in result:
+            crashed = True
+            raise RuntimeError("simulated process death")
+        return original_transition(key, to_status=to_status, result=result, lease_proof=lease_proof)
+
+    monkeypatch.setattr(store, "transition_effect_intent", fail_session_persistence)
+    with pytest.raises(RuntimeError, match="process death"):
+        dispatcher.dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
+    monkeypatch.setattr(store, "transition_effect_intent", original_transition)
+
+    with pytest.raises(BackendDispatchUncertain, match="discovery"):
+        dispatcher.reconcile_start(dispatch_id, FakeAgentBackend(), actor="operator", source="restart-reconcile")
+
+    assert store.get_effect_intent(dispatcher.effect_key(dispatch_id))["status"] == "unknown"
+    assert backend.start_calls == 1
 
 
 def test_dispatch_rejects_missing_task_scope_and_authority_before_backend_start(store):

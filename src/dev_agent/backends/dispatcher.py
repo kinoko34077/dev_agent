@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
+from dataclasses import replace
 import hashlib
 import json
 from pathlib import PurePosixPath
@@ -45,6 +46,7 @@ class AgentBackendDispatchIdentity:
     workspace_id: str
     allowed_paths: tuple[str, ...]
     request_fingerprint: str
+    client_session_key: str
 
 
 AuthorizeBackend = Callable[[Task, AgentBackendRequest], bool | None]
@@ -191,7 +193,10 @@ class AgentBackendDispatcher:
             {**expected, "request_fingerprint": fingerprint},
         )
         try:
-            session = backend.start(request)
+            start_request = request
+            if request.client_session_key != identity.client_session_key:
+                start_request = replace(request, client_session_key=identity.client_session_key)
+            session = backend.start(start_request)
             self._validate_session(session, request, backend)
         except BaseException as exc:
             self._mark_unknown(key, task, "agent_backend.start_unknown", {"error_type": type(exc).__name__})
@@ -200,6 +205,81 @@ class AgentBackendDispatcher:
         session_payload = {"session": session.__dict__, "request_fingerprint": fingerprint}
         self._store.transition_effect_intent(key, to_status="dispatching", result=session_payload)
         self._append_event(task, "agent_backend.started", {**expected, "backend_session_id": session.session_id})
+        return session
+
+    def reconcile_start(
+        self,
+        dispatch_id: str,
+        backend: AgentBackend,
+        *,
+        actor: str,
+        source: str,
+    ) -> AgentBackendSession:
+        """Recover a session created before its local receipt was persisted.
+
+        This is an explicit reconciliation operation, not a retry.  A backend
+        is eligible only when it exposes ``discover(client_session_key)``;
+        otherwise the dispatch is made UNKNOWN and must be handled by the
+        existing operator/reconciliation path.
+        """
+
+        if not isinstance(actor, str) or not actor.strip() or not isinstance(source, str) or not source.strip():
+            raise AgentBackendDispatchError("reconciliation actor and source are required")
+        key = self.effect_key(dispatch_id)
+        intent = self._load_intent(key)
+        if intent.get("status") != "dispatching":
+            raise AgentBackendDispatchError(f"backend start is not awaiting reconciliation: {dispatch_id}")
+        if self._session_from_intent(intent) is not None:
+            raise AgentBackendDispatchError(f"backend session is already durable: {dispatch_id}")
+        arguments = intent.get("arguments") or {}
+        client_session_key = arguments.get("client_session_key")
+        if not isinstance(client_session_key, str) or not client_session_key.strip():
+            self._mark_unknown(
+                key,
+                self._task_for_intent(intent),
+                "agent_backend.start_reconcile_unknown",
+                {"reason": "missing_client_session_key", "actor": actor.strip(), "source": source.strip()},
+            )
+            raise BackendDispatchUncertain(f"backend start cannot be reconciled without discovery identity: {dispatch_id}")
+        discover = getattr(backend, "discover", None)
+        if not callable(discover):
+            self._mark_unknown(
+                key,
+                self._task_for_intent(intent),
+                "agent_backend.start_reconcile_unknown",
+                {"reason": "backend_discovery_unavailable", "actor": actor.strip(), "source": source.strip()},
+            )
+            raise BackendDispatchUncertain(f"backend start discovery is unavailable: {dispatch_id}")
+        task = self._task_for_intent(intent)
+        try:
+            session = discover(client_session_key.strip())
+            self._validate_session_for_task(session, task, backend)
+        except BaseException as exc:
+            self._mark_unknown(
+                key,
+                task,
+                "agent_backend.start_reconcile_unknown",
+                {"reason": "discovery_failed", "error_type": type(exc).__name__, "actor": actor.strip(), "source": source.strip()},
+            )
+            raise BackendDispatchUncertain(f"backend start discovery failed: {dispatch_id}") from exc
+        payload = {
+            "session": session.__dict__,
+            "start_reconciled": True,
+            "actor": actor.strip(),
+            "source": source.strip(),
+        }
+        self._store.transition_effect_intent(key, to_status="dispatching", result=payload)
+        self._append_event(
+            task,
+            "agent_backend.session_discovered",
+            {
+                "dispatch_id": dispatch_id,
+                "backend_session_id": session.session_id,
+                "client_session_key": client_session_key.strip(),
+                "actor": actor.strip(),
+                "source": source.strip(),
+            },
+        )
         return session
 
     def events(self, dispatch_id: str, backend: AgentBackend) -> tuple[AgentBackendEvent, ...]:
@@ -368,7 +448,10 @@ class AgentBackendDispatcher:
         if authorized is not True:
             raise AgentBackendDispatchError("backend dispatch authority rejected request")
         backend_id = backend.identity.backend_id
-        fingerprint = self._fingerprint(request)
+        client_session_key = request.client_session_key or f"dev-agent:{dispatch_id.strip()}"
+        if not isinstance(client_session_key, str) or not client_session_key.strip():
+            raise AgentBackendDispatchError("client_session_key must be a non-empty string")
+        fingerprint = self._fingerprint(request, client_session_key=client_session_key.strip())
         identity = AgentBackendDispatchIdentity(
             task_id=task.task_id,
             backend_id=backend_id,
@@ -377,6 +460,7 @@ class AgentBackendDispatcher:
             workspace_id=request.scope.workspace_id,
             allowed_paths=request.scope.allowed_paths,
             request_fingerprint=fingerprint,
+            client_session_key=client_session_key.strip(),
         )
         try:
             admission = self._admission(task, request, identity)
@@ -417,7 +501,7 @@ class AgentBackendDispatcher:
                 raise AgentBackendDispatchError("backend scope contains a protected path")
 
     @staticmethod
-    def _fingerprint(request: AgentBackendRequest) -> str:
+    def _fingerprint(request: AgentBackendRequest, *, client_session_key: str) -> str:
         payload = {
             "task_id": request.task_id,
             "objective": request.objective,
@@ -425,6 +509,7 @@ class AgentBackendDispatcher:
             "allowed_paths": list(request.scope.allowed_paths),
             "input_artifacts": list(request.input_artifacts),
             "session_id": request.session_id,
+            "client_session_key": client_session_key,
             "sensitivity": request.sensitivity,
             "metadata": dict(request.metadata),
         }
@@ -444,6 +529,7 @@ class AgentBackendDispatcher:
             "workspace_id": identity.workspace_id,
             "allowed_paths": list(identity.allowed_paths),
             "request_fingerprint": identity.request_fingerprint,
+            "client_session_key": identity.client_session_key,
         }
 
     @staticmethod
@@ -488,6 +574,11 @@ class AgentBackendDispatcher:
     def _validate_session(session: AgentBackendSession, request: AgentBackendRequest, backend: AgentBackend) -> None:
         if not isinstance(session, AgentBackendSession) or session.task_id != request.task_id or session.backend_id != backend.identity.backend_id:
             raise AgentBackendDispatchError("backend returned an invalid session identity")
+
+    @staticmethod
+    def _validate_session_for_task(session: AgentBackendSession | None, task: Task, backend: AgentBackend) -> None:
+        if not isinstance(session, AgentBackendSession) or session.task_id != task.task_id or session.backend_id != backend.identity.backend_id:
+            raise AgentBackendDispatchError("backend discovery returned an invalid session identity")
 
     @staticmethod
     def _validate_result(result: AgentBackendResult, session: AgentBackendSession) -> None:

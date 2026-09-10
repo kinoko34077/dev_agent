@@ -130,6 +130,53 @@ def test_router_rejects_stale_quota_observation_for_quota_domain(tmp_path):
         ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}))
 
 
+def test_router_allows_one_explicit_unknown_quota_bootstrap_for_trusted_free_resource(tmp_path):
+    ledger = ResourceLedger(tmp_path / "unknown-quota-bootstrap.sqlite3")
+    ledger.register_resource(
+        "gemini:worker",
+        provider_id="gemini",
+        provider_binding_id="gemini:worker",
+        native_unit="request",
+        capacity=1,
+        capabilities=["text"],
+        quota_domain="google-project",
+        cost_minor=0,
+        metadata={
+            "provider_binding_id": "gemini:worker",
+            "model_id": "gemini-3.5-flash-lite",
+            "billing_authority": "trusted_catalog",
+            "intelligence_tier": "L1",
+        },
+    )
+    ledger.observe("gemini:worker", available=1, health="degraded", confidence=0.0)
+
+    with pytest.raises(NoRoute, match="no eligible resource"):
+        ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}))
+
+    selection = ResourceRouter(ledger).choose(
+        RouteRequest(capabilities={"text"}, allow_unknown_quota=True)
+    )
+    assert selection.resource_id == "gemini:worker"
+
+
+def test_router_never_bootstraps_unknown_quota_for_untrusted_zero_cost_resource(tmp_path):
+    ledger = ResourceLedger(tmp_path / "unknown-quota-untrusted.sqlite3")
+    ledger.register_resource(
+        "unqualified",
+        provider_id="remote",
+        provider_binding_id="remote:unknown",
+        native_unit="request",
+        capacity=1,
+        capabilities=["text"],
+        quota_domain="remote-project",
+        cost_minor=0,
+    )
+    ledger.observe("unqualified", available=1, health="degraded", confidence=0.0)
+
+    with pytest.raises(NoRoute, match="no eligible resource"):
+        ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}, allow_unknown_quota=True))
+
+
 def test_router_rejects_provider_block_until_a_new_observation_arrives(tmp_path):
     ledger = ResourceLedger(tmp_path / "blocked-quota.sqlite3")
     ledger.register_resource(

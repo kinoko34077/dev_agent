@@ -19,7 +19,7 @@ from threading import Event, RLock
 from typing import Any, Callable, Mapping
 
 from ._sqlite import connect
-from .domain.protocol import Task, TaskStatus
+from .domain.protocol import RiskLevel, Task, TaskStatus, TaskType
 from .providers.dispatch import ProviderDispatcher
 from .providers.factory import ProviderDefinition, ProviderFactory
 from .providers.fake import FakeProvider
@@ -41,6 +41,7 @@ from .state.sqlite_store import SQLiteStateStore
 from .tools.registry import ToolRegistry, ToolSpec
 from .tools.runtime import ToolRuntime
 from .runtime.controller import Controller
+from .runtime.task_graph import TaskGraph, TaskGraphError
 
 
 class OperationError(RuntimeError):
@@ -68,6 +69,53 @@ def _positive_number(value: float, name: str) -> float:
 
 
 @dataclass(frozen=True)
+class OperationProviderBinding:
+    """Non-secret Provider binding settings for a multi-provider Operation.
+
+    A binding is the smallest operational identity.  It keeps provider,
+    model, quota domain, and intelligence tier together without making the
+    Operation Layer own provider selection or credentials.
+    """
+
+    provider_id: str
+    model: str
+    provider_binding_id: str | None = None
+    quota_domain: str | None = None
+    intelligence_tier: str | None = None
+    credential_id: str | None = None
+    base_url: str | None = None
+    timeout_seconds: float = 30.0
+
+    def __post_init__(self) -> None:
+        provider_id = self.provider_id.strip().lower() if isinstance(self.provider_id, str) else ""
+        model = self.model.strip() if isinstance(self.model, str) else ""
+        binding = self.provider_binding_id.strip() if isinstance(self.provider_binding_id, str) and self.provider_binding_id.strip() else None
+        quota_domain = self.quota_domain.strip() if isinstance(self.quota_domain, str) and self.quota_domain.strip() else None
+        tier = self.intelligence_tier.strip() if isinstance(self.intelligence_tier, str) and self.intelligence_tier.strip() else None
+        credential_id = self.credential_id.strip() if isinstance(self.credential_id, str) and self.credential_id.strip() else None
+        base_url = self.base_url.strip() if isinstance(self.base_url, str) and self.base_url.strip() else None
+        if not provider_id:
+            raise ValueError("provider_id must be a non-empty string")
+        if not model:
+            raise ValueError("model must be a non-empty string")
+        if tier is not None and tier not in {"L0", "L1", "L2", "L3"}:
+            raise ValueError("intelligence_tier must be one of L0, L1, L2, or L3")
+        if isinstance(self.timeout_seconds, bool) or not isinstance(self.timeout_seconds, (int, float)) or not math.isfinite(float(self.timeout_seconds)) or self.timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
+        object.__setattr__(self, "provider_id", provider_id)
+        object.__setattr__(self, "model", model)
+        object.__setattr__(self, "provider_binding_id", binding)
+        object.__setattr__(self, "quota_domain", quota_domain)
+        object.__setattr__(self, "intelligence_tier", tier)
+        object.__setattr__(self, "credential_id", credential_id)
+        object.__setattr__(self, "base_url", base_url)
+
+    @property
+    def binding_id(self) -> str:
+        return self.provider_binding_id or _default_binding_id(self.provider_id, self.model)
+
+
+@dataclass(frozen=True)
 class OperationConfig:
     """Non-secret settings for the local Operation Layer.
 
@@ -83,6 +131,7 @@ class OperationConfig:
     provider_binding_id: str | None = None
     quota_domain: str | None = None
     intelligence_tier: str | None = None
+    provider_pool: tuple[OperationProviderBinding, ...] | None = None
     worker_id: str = field(default_factory=lambda: f"operation-{os.getpid()}")
     lease_seconds: float = 30.0
     idle_sleep_seconds: float = 1.0
@@ -105,12 +154,39 @@ class OperationConfig:
             raise ValueError("worker_id must be a non-empty string")
         if tier is not None and tier not in {"L0", "L1", "L2", "L3"}:
             raise ValueError("intelligence_tier must be one of L0, L1, L2, or L3")
+        provider_pool = self.provider_pool
+        if provider_pool is not None:
+            if isinstance(provider_pool, str):
+                try:
+                    provider_pool = json.loads(provider_pool)
+                except json.JSONDecodeError as exc:
+                    raise ValueError("provider_pool must be valid JSON") from exc
+            if not isinstance(provider_pool, (list, tuple)) or not provider_pool:
+                raise ValueError("provider_pool must be a non-empty collection or None")
+            normalized_pool: list[OperationProviderBinding] = []
+            seen_bindings: set[str] = set()
+            for item in provider_pool:
+                if isinstance(item, OperationProviderBinding):
+                    binding_config = item
+                elif isinstance(item, Mapping):
+                    try:
+                        binding_config = OperationProviderBinding(**dict(item))
+                    except TypeError as exc:
+                        raise ValueError(f"invalid provider_pool binding: {exc}") from exc
+                else:
+                    raise ValueError("provider_pool entries must be objects")
+                if binding_config.binding_id in seen_bindings:
+                    raise ValueError(f"duplicate provider_pool binding: {binding_config.binding_id}")
+                seen_bindings.add(binding_config.binding_id)
+                normalized_pool.append(binding_config)
+            provider_pool = tuple(normalized_pool)
         object.__setattr__(self, "data_dir", data_dir)
         object.__setattr__(self, "provider_id", provider_id)
         object.__setattr__(self, "model", model)
         object.__setattr__(self, "provider_binding_id", binding)
         object.__setattr__(self, "quota_domain", quota_domain)
         object.__setattr__(self, "intelligence_tier", tier)
+        object.__setattr__(self, "provider_pool", provider_pool)
         object.__setattr__(self, "worker_id", worker_id)
         object.__setattr__(self, "lease_seconds", _positive_number(self.lease_seconds, "lease_seconds"))
         object.__setattr__(self, "idle_sleep_seconds", _positive_number(self.idle_sleep_seconds, "idle_sleep_seconds"))
@@ -134,8 +210,24 @@ class OperationConfig:
     def binding_id(self) -> str:
         return self.provider_binding_id or _default_binding_id(self.provider_id, self.model)
 
+    @property
+    def provider_bindings(self) -> tuple[OperationProviderBinding, ...]:
+        """Return explicit pool bindings, or the legacy singleton binding."""
+
+        if self.provider_pool is not None:
+            return self.provider_pool
+        return (
+            OperationProviderBinding(
+                provider_id=self.provider_id,
+                model=self.model,
+                provider_binding_id=self.provider_binding_id,
+                quota_domain=self.quota_domain,
+                intelligence_tier=self.intelligence_tier,
+            ),
+        )
+
     @classmethod
-    def from_environment(cls, *, data_dir: str | Path | None = None, provider_id: str | None = None, model: str | None = None, provider_binding_id: str | None = None, quota_domain: str | None = None, worker_id: str | None = None, lease_seconds: float | None = None, idle_sleep_seconds: float | None = None) -> "OperationConfig":
+    def from_environment(cls, *, data_dir: str | Path | None = None, provider_id: str | None = None, model: str | None = None, provider_binding_id: str | None = None, quota_domain: str | None = None, intelligence_tier: str | None = None, provider_pool: str | list[Mapping[str, Any]] | tuple[OperationProviderBinding, ...] | None = None, worker_id: str | None = None, lease_seconds: float | None = None, idle_sleep_seconds: float | None = None) -> "OperationConfig":
         def env(name: str) -> str | None:
             value = os.environ.get(name)
             return value.strip() if isinstance(value, str) and value.strip() else None
@@ -155,7 +247,8 @@ class OperationConfig:
             model=model or env("DEV_AGENT_MODEL") or "deterministic",
             provider_binding_id=provider_binding_id or env("DEV_AGENT_PROVIDER_BINDING_ID"),
             quota_domain=quota_domain or env("DEV_AGENT_QUOTA_DOMAIN"),
-            intelligence_tier=env("DEV_AGENT_INTELLIGENCE_TIER"),
+            intelligence_tier=intelligence_tier or env("DEV_AGENT_INTELLIGENCE_TIER"),
+            provider_pool=provider_pool or env("DEV_AGENT_PROVIDER_POOL"),
             worker_id=worker_id or env("DEV_AGENT_WORKER_ID") or f"operation-{os.getpid()}",
             lease_seconds=lease_seconds if lease_seconds is not None else env_float("DEV_AGENT_LEASE_SECONDS", 30.0),
             idle_sleep_seconds=idle_sleep_seconds if idle_sleep_seconds is not None else env_float("DEV_AGENT_IDLE_SLEEP_SECONDS", 1.0),
@@ -261,15 +354,29 @@ class OperationService:
             ledger = ResourceLedger(config.resources_path)
             control = OperationControl(config.queue_path)
             cls._ensure_budget(ledger)
-            provider = cls._build_provider(config)
-            cls._ensure_resource(ledger, provider, config)
+            bindings = config.provider_bindings
+            providers = []
+            trusted_free_binding_present = False
+            for binding in bindings:
+                provider = cls._build_provider(binding)
+                cls._ensure_resource(ledger, provider, binding)
+                profile = _operation_resource_profile(binding.provider_id, binding.binding_id, binding.model)
+                trusted_free_binding_present = trusted_free_binding_present or bool(profile is not None and profile.cost_minor == 0)
+                providers.append(provider)
             resource_control = ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger))
-            dispatcher = ProviderDispatcher(ProviderRegistry([provider]), resource_control)
+            dispatcher = ProviderDispatcher(ProviderRegistry(providers), resource_control)
+            # The default fake adapter is an explicitly local smoke mode.  A
+            # real or explicitly pooled Operation always enables exact-tier
+            # routing; the smoke adapter remains compatible with the legacy
+            # deterministic test path.
+            intelligence_routing = config.provider_pool is not None or config.provider_id != "fake"
             controller = Controller(
                 dispatcher,
                 ToolRuntime(_tool_registry()),
                 store,
                 resource_policy=resource_control,
+                intelligence_routing=intelligence_routing,
+                allow_unknown_quota=trusted_free_binding_present,
             )
             worker = WorkerRunner(
                 queue,
@@ -303,7 +410,7 @@ class OperationService:
             BudgetAuthority.configure(ledger, BudgetPolicy(hard_cap_minor=0, recovery_reserve_minor=0, currency="JPY"))
 
     @staticmethod
-    def _build_provider(config: OperationConfig):
+    def _build_provider(config: OperationConfig | OperationProviderBinding):
         if config.provider_id == "fake":
             provider = FakeProvider()
             provider_binding_id = config.binding_id
@@ -315,6 +422,9 @@ class OperationService:
             provider_id=config.provider_id,
             model=config.model,
             provider_binding_id=config.binding_id,
+            credential_id=getattr(config, "credential_id", None),
+            base_url=getattr(config, "base_url", None),
+            timeout_seconds=getattr(config, "timeout_seconds", 30.0),
             intelligence_tier=_inferred_tier(config),
         )
         return ProviderFactory().create(definition)
@@ -373,6 +483,14 @@ class OperationService:
         # an unknown price.  They cannot be silently treated as free.
         cost_minor = profile.cost_minor if profile is not None else None
         price_currency = profile.price_currency if profile is not None else None
+        resource_metadata = {
+            "provider_binding_id": binding_id,
+            "model_id": model_id,
+        }
+        if tier:
+            resource_metadata["intelligence_tier"] = tier
+        if profile is not None:
+            resource_metadata["billing_authority"] = "trusted_catalog"
         ledger.register_resource(
             binding_id,
             provider_id=config.provider_id,
@@ -384,7 +502,7 @@ class OperationService:
             cost_minor=cost_minor,
             price_currency=price_currency,
             quota_domain=config.quota_domain,
-            metadata={"provider_binding_id": binding_id, "model_id": model_id, "intelligence_tier": tier} if tier else {"provider_binding_id": binding_id, "model_id": model_id},
+            metadata=resource_metadata,
             intelligence_tier=tier,
         )
         if existing is None:
@@ -395,7 +513,7 @@ class OperationService:
             ledger.observe(binding_id, available=1, health="degraded", confidence=0.0, concurrency_limit=1)
 
     @staticmethod
-    def submit(config: OperationConfig | None, objective: str, *, priority: int = 0, sensitivity: str = "normal") -> Task:
+    def submit(config: OperationConfig | None, objective: str, *, priority: int = 0, sensitivity: str = "normal", task_type: TaskType | str = TaskType.REASONING, risk: RiskLevel | str = RiskLevel.NORMAL, required_capabilities: list[str] | None = None, inputs: Mapping[str, Any] | None = None, constraints: Mapping[str, Any] | None = None) -> Task:
         config = config or OperationConfig.from_environment()
         if not isinstance(objective, str) or not objective.strip():
             raise ValueError("objective must be a non-empty string")
@@ -404,7 +522,15 @@ class OperationService:
         store = SQLiteStateStore(config.state_path)
         queue = DurableQueue(config.queue_path)
         try:
-            task = Task(objective=objective.strip(), sensitivity=sensitivity)
+            task = Task(
+                objective=objective.strip(),
+                sensitivity=sensitivity,
+                task_type=task_type,
+                risk=risk,
+                required_capabilities=list(required_capabilities or []),
+                inputs=dict(inputs or {}),
+                constraints=dict(constraints or {}),
+            )
             store.save_task(task)
             try:
                 queue.enqueue(task.task_id, priority=priority, max_attempts=task.limits.max_retries + 1)
@@ -413,6 +539,58 @@ class OperationService:
                 # repairs this exact partial-submit state before claiming.
                 raise
             return task
+        finally:
+            queue.close()
+            store.close()
+
+    @staticmethod
+    def submit_child(config: OperationConfig | None, parent_task_id: str, objective: str, *, priority: int = 0, sensitivity: str | None = None, task_type: TaskType | str = TaskType.WORKER, risk: RiskLevel | str = RiskLevel.NORMAL, required_capabilities: list[str] | None = None, inputs: Mapping[str, Any] | None = None, constraints: Mapping[str, Any] | None = None) -> Task:
+        """Create an explicitly classified child without a language classifier.
+
+        Root submission and decomposition are intentionally separate.  The
+        caller (Commander or a reviewed planner) supplies the child type and
+        the existing in-memory TaskGraph enforces depth/child/total limits
+        before the child is persisted or queued.
+        """
+
+        config = config or OperationConfig.from_environment()
+        if not isinstance(parent_task_id, str) or not parent_task_id.strip():
+            raise ValueError("parent_task_id must be a non-empty string")
+        if not isinstance(objective, str) or not objective.strip():
+            raise ValueError("objective must be a non-empty string")
+        if isinstance(priority, bool) or not isinstance(priority, int):
+            raise ValueError("priority must be an integer")
+        store = SQLiteStateStore(config.state_path)
+        queue = DurableQueue(config.queue_path)
+        try:
+            parent = store.load_task(parent_task_id.strip())
+            if parent is None:
+                raise OperationError(f"parent task not found: {parent_task_id}")
+            persisted = [
+                Task.from_persisted_dict(payload)
+                for payload in store.snapshot().get("tasks", {}).values()
+                if isinstance(payload, dict)
+            ]
+            try:
+                graph = TaskGraph.from_tasks(persisted)
+                child = Task(
+                    objective=objective.strip(),
+                    parent_task_id=parent.task_id,
+                    root_task_id=parent.root_task_id,
+                    depth=parent.depth + 1,
+                    sensitivity=sensitivity or parent.sensitivity,
+                    task_type=task_type,
+                    risk=risk,
+                    required_capabilities=list(required_capabilities or []),
+                    inputs=dict(inputs or {}),
+                    constraints=dict(constraints or {}),
+                )
+                graph.add(child)
+            except TaskGraphError as exc:
+                raise OperationError(str(exc)) from exc
+            store.save_task(child)
+            queue.enqueue(child.task_id, priority=priority, max_attempts=child.limits.max_retries + 1)
+            return child
         finally:
             queue.close()
             store.close()
@@ -674,6 +852,7 @@ def _add_common_arguments(parser) -> None:
     parser.add_argument("--model", default=None)
     parser.add_argument("--binding", dest="provider_binding_id", default=None)
     parser.add_argument("--quota-domain", dest="quota_domain", default=None)
+    parser.add_argument("--provider-pool", dest="provider_pool", default=None, help="JSON array of non-secret provider bindings")
     parser.add_argument("--worker-id", default=None)
     parser.add_argument("--lease-seconds", type=float, default=None)
     parser.add_argument("--idle-sleep-seconds", type=float, default=None)
@@ -692,6 +871,8 @@ def build_parser():
     submit.add_argument("objective")
     submit.add_argument("--priority", type=int, default=0)
     submit.add_argument("--sensitivity", choices=("public", "normal", "internal", "sensitive"), default="normal")
+    submit.add_argument("--task-type", choices=tuple(item.value for item in TaskType), default=TaskType.REASONING.value)
+    submit.add_argument("--risk", choices=tuple(item.value for item in RiskLevel), default=RiskLevel.NORMAL.value)
     status = subparsers.add_parser("status", help="show durable Task state")
     _add_common_arguments(status)
     status.add_argument("task_id")
@@ -711,12 +892,13 @@ def main(argv: list[str] | None = None) -> int:
             model=getattr(args, "model", None),
             provider_binding_id=getattr(args, "provider_binding_id", None),
             quota_domain=getattr(args, "quota_domain", None),
+            provider_pool=getattr(args, "provider_pool", None),
             worker_id=getattr(args, "worker_id", None),
             lease_seconds=getattr(args, "lease_seconds", None),
             idle_sleep_seconds=getattr(args, "idle_sleep_seconds", None),
         )
         if args.command == "submit":
-            task = OperationService.submit(config, args.objective, priority=args.priority, sensitivity=args.sensitivity)
+            task = OperationService.submit(config, args.objective, priority=args.priority, sensitivity=args.sensitivity, task_type=args.task_type, risk=args.risk)
             print(json.dumps({"task_id": task.task_id, "state": task.status.value}, ensure_ascii=False))
             return 0
         if args.command == "status":
@@ -746,4 +928,4 @@ def main(argv: list[str] | None = None) -> int:
     return 2
 
 
-__all__ = ["OperationConfig", "OperationControl", "OperationError", "OperationService", "build_parser", "main"]
+__all__ = ["OperationConfig", "OperationControl", "OperationError", "OperationProviderBinding", "OperationService", "build_parser", "main"]

@@ -3,8 +3,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from src.dev_agent.domain.protocol import TaskStatus
-from src.dev_agent.operation import OperationConfig, OperationService
+from src.dev_agent.domain.protocol import TaskStatus, TaskType
+from src.dev_agent.operation import OperationConfig, OperationProviderBinding, OperationService
 
 
 def _config(tmp_path):
@@ -30,6 +30,28 @@ def test_submit_is_durable_and_status_reads_queue_and_events(tmp_path):
     assert status["current_attempt"] == 0
     assert status["waiting"] is False
     assert status["completed"] is False
+
+
+def test_operation_root_submission_defaults_to_reasoning_not_worker(tmp_path):
+    config = _config(tmp_path)
+
+    task = OperationService.submit(config, "plan a multi-step change")
+
+    assert task.parent_task_id is None
+    assert task.root_task_id == task.task_id
+    assert task.task_type is TaskType.REASONING
+
+
+def test_operation_child_submission_requires_explicit_worker_classification(tmp_path):
+    config = _config(tmp_path)
+    root = OperationService.submit(config, "plan a multi-step change")
+
+    child = OperationService.submit_child(config, root.task_id, "add the focused regression test")
+
+    assert child.parent_task_id == root.task_id
+    assert child.root_task_id == root.task_id
+    assert child.depth == 1
+    assert child.task_type is TaskType.WORKER
 
 
 def test_start_once_uses_canonical_dispatcher_and_finishes_task(tmp_path):
@@ -339,6 +361,36 @@ def test_operation_only_marks_exact_known_binding_and_model_as_free(tmp_path):
         unknown_provider = type("Provider", (), {"provider_binding_id": "cloudflare:unknown", "model_id": unknown.model, "intelligence_tier": "L1"})()
         OperationService._ensure_resource(ledger, unknown_provider, unknown)
         assert ledger.get_resource("cloudflare:unknown")["cost_minor"] is None
+
+
+def test_operation_composes_an_explicit_multi_provider_pool_with_bounded_routing(tmp_path):
+    config = OperationConfig(
+        data_dir=tmp_path,
+        provider_pool=(
+            OperationProviderBinding(
+                provider_id="gemini",
+                model="gemini-3.5-flash-lite",
+                provider_binding_id="gemini:worker",
+                quota_domain="google-project",
+            ),
+            OperationProviderBinding(
+                provider_id="cloudflare",
+                model="@cf/meta/llama-3.1-8b-instruct",
+                provider_binding_id="cloudflare",
+                quota_domain="cloudflare-account",
+            ),
+        ),
+        worker_id="multi-provider-operation",
+    )
+
+    with OperationService.open(config) as service:
+        registry = service.controller.provider.registry
+        assert registry.bindings_for_provider("gemini") == ("gemini:worker",)
+        assert registry.bindings_for_provider("cloudflare") == ("cloudflare",)
+        assert service.controller.intelligence_routing is True
+        assert service.controller.allow_unknown_quota is True
+        assert service.ledger.get_resource("gemini:worker")["quota_domain"] == "google-project"
+        assert service.ledger.get_resource("cloudflare")["quota_domain"] == "cloudflare-account"
 
 
 def test_operation_rejects_existing_resource_with_untrusted_free_price(tmp_path):

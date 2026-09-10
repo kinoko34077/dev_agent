@@ -31,11 +31,14 @@ class RouteRequest:
     excluded_resource_ids: set[str] = field(default_factory=set)
     max_observation_age_seconds: float | None = 300.0
     max_quota_observation_age_seconds: float | None = 300.0
+    allow_unknown_quota: bool = False
     allowed_intelligence_tiers: set[str] | frozenset[str] | tuple[str, ...] | None = None
     allowed_provider_binding_ids: set[str] | frozenset[str] | tuple[str, ...] | None = None
     excluded_provider_binding_ids: set[str] | frozenset[str] | tuple[str, ...] = field(default_factory=set)
 
     def __post_init__(self) -> None:
+        if not isinstance(self.allow_unknown_quota, bool):
+            raise ValueError("allow_unknown_quota must be a boolean")
         for name, value in (("max_cost_minor", self.max_cost_minor), ("max_latency_ms", self.max_latency_ms)):
             if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 0):
                 raise ValueError(f"{name} must be a non-negative integer or None")
@@ -241,7 +244,21 @@ class ResourceRouter:
             quota_ratio = None
             if resource.get("quota_domain"):
                 quota_ratio = self._fresh_domain_quota_ratio(resource["quota_domain"], request.max_quota_observation_age_seconds, snapshot.quota_observations_by_domain)
-                if quota_ratio is None or quota_ratio <= 0:
+                if quota_ratio is None:
+                    metadata = resource.get("metadata") if isinstance(resource.get("metadata"), dict) else {}
+                    # A qualified, explicitly no-charge binding may make one
+                    # bounded liveness request before its provider exposes
+                    # quota telemetry.  This is an UNKNOWN observation, not
+                    # fabricated headroom: paid or unqualified resources
+                    # remain unroutable until real quota evidence exists.
+                    unknown_bootstrap = (
+                        request.allow_unknown_quota
+                        and resource.get("cost_minor") == 0
+                        and metadata.get("billing_authority") == "trusted_catalog"
+                    )
+                    if not unknown_bootstrap:
+                        continue
+                elif quota_ratio <= 0:
                     continue
             elif resource.get("quota_remaining_ratio") is not None:
                 quota_ratio = float(resource["quota_remaining_ratio"])

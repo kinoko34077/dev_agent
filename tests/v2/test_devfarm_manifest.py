@@ -1,5 +1,6 @@
 import json
 import subprocess
+from datetime import datetime, timezone
 
 import pytest
 
@@ -39,6 +40,42 @@ def test_devfarm_provider_uses_factory_and_explicit_activation_allowlist():
 
     with pytest.raises(DevFarmError, match="not active"):
         _provider("mistral", "mistral-small-latest", 4)
+
+
+def test_devfarm_activation_requires_current_capability_and_billing_evidence(tmp_path):
+    matrix = tmp_path / "matrix.json"
+    matrix.write_text(
+        json.dumps(
+            {
+                "entries": [
+                    {
+                        "provider": "gemini",
+                        "model": "gemini-3.5-flash-lite",
+                        "provider_binding_id": "gemini:worker",
+                        "intelligence_tier": "L1",
+                        "role": "bounded development worker",
+                        "tested_at": "2026-09-01T00:00:00+00:00",
+                        "expires_at": "2026-09-11T00:00:00+00:00",
+                        "capabilities": ["text"],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    current = DevFarmActivationPolicy(
+        capability_matrix_path=matrix,
+        now=datetime(2026, 9, 10, tzinfo=timezone.utc),
+    )
+    expired = DevFarmActivationPolicy(
+        capability_matrix_path=matrix,
+        now=datetime(2026, 9, 12, tzinfo=timezone.utc),
+    )
+
+    assert current.is_active("gemini", "gemini-3.5-flash-lite") is True
+    assert expired.is_active("gemini", "gemini-3.5-flash-lite") is False
+    assert current.binding_for("gemini", "gemini-3.5-flash-lite") == ("gemini:worker", "L1")
 
 
 def test_worker_prompt_makes_patch_and_test_claim_boundaries_explicit(tmp_path):

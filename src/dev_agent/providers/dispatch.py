@@ -252,6 +252,7 @@ class ProviderDispatcher(ModelProvider):
                 # Recovery-only paid work requires a distinct future request type.
                 max_cost_minor = 0
         allowed_tiers = None
+        allow_unknown_quota = request.metadata.get("allow_unknown_quota") is True
         allowed_provider_binding_ids = request.metadata.get("allowed_provider_binding_ids")
         excluded_provider_binding_ids = request.metadata.get("excluded_provider_binding_ids", ())
         if request.metadata.get("intelligence_routing") == "bounded":
@@ -264,6 +265,7 @@ class ProviderDispatcher(ModelProvider):
                 sensitivity=request.sensitivity,
                 excluded_resource_ids=excluded,
                 max_cost_minor=max_cost_minor,
+                allow_unknown_quota=allow_unknown_quota,
                 allowed_intelligence_tiers=allowed_tiers,
                 allowed_provider_binding_ids=allowed_provider_binding_ids,
                 excluded_provider_binding_ids=excluded_provider_binding_ids,

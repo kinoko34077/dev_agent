@@ -10,7 +10,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from types import MappingProxyType
+
+
+_DEFAULT_VERIFIED_AT = "2026-09-09T00:00:00+00:00"
+_DEFAULT_EXPIRES_AT = "2026-10-09T00:00:00+00:00"
 
 
 @dataclass(frozen=True)
@@ -22,6 +27,29 @@ class TrustedResourceProfile:
     price_currency: str | None
     quota_required: bool
     intelligence_tier: str | None = None
+    source: str = "reviewed_code_catalog"
+    verified_at: str = _DEFAULT_VERIFIED_AT
+    expires_at: str = _DEFAULT_EXPIRES_AT
+
+    def is_current(self, *, now: datetime | None = None) -> bool:
+        """Return whether this no-charge fact is still within its review window."""
+
+        if not isinstance(self.source, str) or not self.source.strip():
+            return False
+        if not isinstance(self.verified_at, str) or not self.verified_at.strip():
+            return False
+        if not isinstance(self.expires_at, str) or not self.expires_at.strip():
+            return False
+        try:
+            expiry = datetime.fromisoformat(self.expires_at)
+        except ValueError:
+            return False
+        if expiry.tzinfo is None:
+            expiry = expiry.replace(tzinfo=timezone.utc)
+        current = now or datetime.now(timezone.utc)
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=timezone.utc)
+        return current.astimezone(timezone.utc) < expiry.astimezone(timezone.utc)
 
 
 # This is deliberately a concrete binding/model catalog, not a provider-level
@@ -75,9 +103,10 @@ TRUSTED_RESOURCE_CATALOG: Mapping[tuple[str, str, str], TrustedResourceProfile] 
 
 
 def profile_for(provider_id: str, provider_binding_id: str, model_id: str) -> TrustedResourceProfile | None:
-    """Return facts only for an exact provider/binding/model identity."""
+    """Return current facts only for an exact provider/binding/model identity."""
 
-    return TRUSTED_RESOURCE_CATALOG.get((provider_id, provider_binding_id, model_id))
+    profile = TRUSTED_RESOURCE_CATALOG.get((provider_id, provider_binding_id, model_id))
+    return profile if profile is not None and profile.is_current() else None
 
 
 def default_binding_id(provider_id: str, model_id: str) -> str:

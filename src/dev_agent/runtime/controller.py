@@ -64,7 +64,7 @@ class Controller:
     _SECRET_KEY_WORDS = tuple(AuditRecorder.SECRET_KEYS)
     _SECRET_PATTERNS = AuditRecorder.SECRET_PATTERNS
 
-    def __init__(self, provider: ModelProvider, tools: ToolRuntime, store: StateStore, *, event_artifacts: EventArtifactStore | None = None, resource_policy: ResourcePolicy | None = None, lease_guard: Callable[[], None] | None = None, lease_proof: Any | None = None, intelligence_policy: TaskIntelligencePolicy | None = None, intelligence_routing: bool = False) -> None:
+    def __init__(self, provider: ModelProvider, tools: ToolRuntime, store: StateStore, *, event_artifacts: EventArtifactStore | None = None, resource_policy: ResourcePolicy | None = None, lease_guard: Callable[[], None] | None = None, lease_proof: Any | None = None, intelligence_policy: TaskIntelligencePolicy | None = None, intelligence_routing: bool = False, allow_unknown_quota: bool = False) -> None:
         self.provider = provider
         self.tools = tools.bound_to(store)
         self.store = store
@@ -73,7 +73,10 @@ class Controller:
         self.intelligence_policy = intelligence_policy or TaskIntelligencePolicy()
         if not isinstance(intelligence_routing, bool):
             raise TypeError("intelligence_routing must be a boolean")
+        if not isinstance(allow_unknown_quota, bool):
+            raise TypeError("allow_unknown_quota must be a boolean")
         self.intelligence_routing = intelligence_routing
+        self.allow_unknown_quota = allow_unknown_quota
         self._default_execution_context = ExecutionContext(lease_guard=lease_guard, lease_proof=lease_proof)
         self._execution_context: ContextVar[ExecutionContext | None] = ContextVar(
             f"dev_agent_execution_context:{id(self)}", default=None
@@ -538,6 +541,8 @@ class Controller:
                         "requires_human_approval": intelligence.requires_human_approval,
                         "intelligence_policy_reasons": list(intelligence.reasons),
                     }
+                    if self.allow_unknown_quota:
+                        request_metadata["allow_unknown_quota"] = True
                     if self.intelligence_routing:
                         request_metadata.update(IntelligenceRoutePolicy.metadata_for(intelligence))
                     request = ModelRequest(
