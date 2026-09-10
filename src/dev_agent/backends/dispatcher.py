@@ -71,6 +71,10 @@ class BackendAdmission:
     lease_proof_ref: str
     budget_admission_ref: str
     approval_ref: str
+    lease_admitted: bool = False
+    budget_admitted: bool = False
+    approval_granted: bool = False
+    privacy_allowed: bool = False
     allowed_capabilities: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
@@ -94,6 +98,9 @@ class BackendAdmission:
         if sensitivity not in {"public", "normal", "internal", "sensitive"}:
             raise ValueError("sensitivity must be one of public, normal, internal, or sensitive")
         object.__setattr__(self, "sensitivity", sensitivity)
+        for name in ("lease_admitted", "budget_admitted", "approval_granted", "privacy_allowed"):
+            if type(getattr(self, name)) is not bool:
+                raise ValueError(f"{name} must be a boolean")
         capabilities = tuple(item.strip() for item in self.allowed_capabilities if isinstance(item, str) and item.strip())
         if len(capabilities) != len(self.allowed_capabilities):
             raise ValueError("allowed_capabilities must contain non-empty strings")
@@ -109,6 +116,10 @@ class BackendAdmission:
             "lease_proof_ref": self.lease_proof_ref,
             "budget_admission_ref": self.budget_admission_ref,
             "approval_ref": self.approval_ref,
+            "lease_admitted": self.lease_admitted,
+            "budget_admitted": self.budget_admitted,
+            "approval_granted": self.approval_granted,
+            "privacy_allowed": self.privacy_allowed,
             "allowed_capabilities": list(self.allowed_capabilities),
         }
 
@@ -491,6 +502,9 @@ class AgentBackendDispatcher:
                 raise AgentBackendDispatchError(f"backend admission does not match {name}")
         if task.sensitivity != admission.sensitivity:
             raise AgentBackendDispatchError("backend admission privacy classification does not match task")
+        for name in ("lease_admitted", "budget_admitted", "approval_granted", "privacy_allowed"):
+            if getattr(admission, name) is not True:
+                raise AgentBackendDispatchError(f"backend admission is not confirmed: {name}")
         required = set(task.required_capabilities)
         allowed = set(admission.allowed_capabilities)
         missing = required - allowed

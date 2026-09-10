@@ -69,6 +69,10 @@ def _dispatcher(store, *, authorize=None):
             lease_proof_ref=f"lease:{identity.dispatch_id}",
             budget_admission_ref=f"budget:{identity.dispatch_id}",
             approval_ref=f"approval:{identity.dispatch_id}",
+            lease_admitted=True,
+            budget_admitted=True,
+            approval_granted=True,
+            privacy_allowed=True,
             allowed_capabilities=tuple(task.required_capabilities),
         )
 
@@ -220,11 +224,46 @@ def test_dispatch_rejects_admission_that_does_not_cover_task_capabilities(store)
             lease_proof_ref=f"lease:{identity.dispatch_id}",
             budget_admission_ref=f"budget:{identity.dispatch_id}",
             approval_ref=f"approval:{identity.dispatch_id}",
+            lease_admitted=True,
+            budget_admitted=True,
+            approval_granted=True,
+            privacy_allowed=True,
             allowed_capabilities=(),
         )
 
     dispatcher = AgentBackendDispatcher(store, authorize=lambda task, request: True, admission=admission)
     with pytest.raises(AgentBackendDispatchError, match="capabilities"):
+        dispatcher.dispatch(request, backend, dispatch_id=str(uuid4()), attempt=1)
+
+    assert backend.start_calls == 0
+
+
+@pytest.mark.parametrize("field", ("lease_admitted", "budget_admitted", "approval_granted", "privacy_allowed"))
+def test_dispatch_rejects_admission_without_explicit_authority_flag(store, task, field):
+    backend = FakeAgentBackend()
+    request = _request(task.task_id)
+
+    def admission(task, request, identity):
+        values = {
+            "task_id": identity.task_id,
+            "dispatch_id": identity.dispatch_id,
+            "workspace_id": identity.workspace_id,
+            "allowed_paths": identity.allowed_paths,
+            "sensitivity": request.sensitivity,
+            "lease_proof_ref": f"lease:{identity.dispatch_id}",
+            "budget_admission_ref": f"budget:{identity.dispatch_id}",
+            "approval_ref": f"approval:{identity.dispatch_id}",
+            "lease_admitted": True,
+            "budget_admitted": True,
+            "approval_granted": True,
+            "privacy_allowed": True,
+            "allowed_capabilities": tuple(task.required_capabilities),
+        }
+        values[field] = False
+        return BackendAdmission(**values)
+
+    dispatcher = AgentBackendDispatcher(store, authorize=lambda task, request: True, admission=admission)
+    with pytest.raises(AgentBackendDispatchError, match="admission"):
         dispatcher.dispatch(request, backend, dispatch_id=str(uuid4()), attempt=1)
 
     assert backend.start_calls == 0
