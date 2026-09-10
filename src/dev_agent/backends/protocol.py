@@ -90,6 +90,7 @@ class AgentBackendRequest:
     scope: AgentBackendScope
     input_artifacts: tuple[str, ...] = ()
     session_id: str | None = None
+    sensitivity: str = "normal"
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -100,6 +101,10 @@ class AgentBackendRequest:
         object.__setattr__(self, "input_artifacts", _strings(self.input_artifacts, "input_artifacts"))
         if self.session_id is not None:
             object.__setattr__(self, "session_id", _text(self.session_id, "session_id"))
+        sensitivity = _text(self.sensitivity, "sensitivity").lower()
+        if sensitivity not in {"public", "normal", "internal", "sensitive"}:
+            raise ValueError("sensitivity must be one of public, normal, internal, or sensitive")
+        object.__setattr__(self, "sensitivity", sensitivity)
         if not isinstance(self.metadata, Mapping):
             raise TypeError("metadata must be a mapping")
         object.__setattr__(self, "metadata", dict(self.metadata))

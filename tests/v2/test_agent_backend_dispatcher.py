@@ -5,6 +5,7 @@ from uuid import uuid4
 import pytest
 
 from src.dev_agent.backends import (
+    BackendAdmission,
     AgentBackendDispatcher,
     AgentBackendDispatchError,
     AgentBackendEvent,
@@ -43,7 +44,24 @@ def task(store):
 
 
 def _dispatcher(store, *, authorize=None):
-    return AgentBackendDispatcher(store, authorize=authorize or (lambda task, request: None))
+    def admission(task, request, identity):
+        return BackendAdmission(
+            task_id=identity.task_id,
+            dispatch_id=identity.dispatch_id,
+            workspace_id=identity.workspace_id,
+            allowed_paths=identity.allowed_paths,
+            sensitivity=request.sensitivity,
+            lease_proof_ref=f"lease:{identity.dispatch_id}",
+            budget_admission_ref=f"budget:{identity.dispatch_id}",
+            approval_ref=f"approval:{identity.dispatch_id}",
+            allowed_capabilities=tuple(task.required_capabilities),
+        )
+
+    return AgentBackendDispatcher(
+        store,
+        authorize=authorize or (lambda task, request: True),
+        admission=admission,
+    )
 
 
 def test_dispatch_persists_identity_and_does_not_restart_existing_session(store, task):
@@ -54,7 +72,7 @@ def test_dispatch_persists_identity_and_does_not_restart_existing_session(store,
 
     session = dispatcher.dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
     dispatcher.result(dispatch_id, backend)
-    same_session = AgentBackendDispatcher(store, authorize=lambda task, request: None).dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
+    same_session = _dispatcher(store).dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
 
     assert session.session_id == same_session.session_id
     assert backend.start_calls == 1
@@ -77,6 +95,28 @@ def test_dispatch_rejects_missing_task_scope_and_authority_before_backend_start(
     unauthorized = _dispatcher(store, authorize=lambda task, request: False)
     with pytest.raises(AgentBackendDispatchError, match="authority"):
         unauthorized.dispatch(_request(task.task_id), backend, dispatch_id=str(uuid4()), attempt=1)
+    assert backend.start_calls == 0
+
+
+def test_dispatch_rejects_unknown_authority_result_before_backend_start(store, task):
+    backend = FakeAgentBackend()
+    request = _request(task.task_id)
+    dispatcher = AgentBackendDispatcher(store, authorize=lambda task, request: None)
+
+    with pytest.raises(AgentBackendDispatchError, match="authority"):
+        dispatcher.dispatch(request, backend, dispatch_id=str(uuid4()), attempt=1)
+
+    assert backend.start_calls == 0
+
+
+def test_dispatch_requires_typed_admission_evidence_even_when_boolean_authorized(store, task):
+    backend = FakeAgentBackend()
+    request = _request(task.task_id)
+    dispatcher = AgentBackendDispatcher(store, authorize=lambda task, request: True)
+
+    with pytest.raises(AgentBackendDispatchError, match="admission"):
+        dispatcher.dispatch(request, backend, dispatch_id=str(uuid4()), attempt=1)
+
     assert backend.start_calls == 0
 
 
@@ -105,7 +145,7 @@ def test_events_are_ordered_durable_and_deduplicated_after_dispatcher_restart(st
     backend.rebind_event_sessions(session.session_id)
 
     first = dispatcher.events(dispatch_id, backend)
-    second = AgentBackendDispatcher(store, authorize=lambda task, request: None).events(dispatch_id, backend)
+    second = _dispatcher(store).events(dispatch_id, backend)
 
     assert [event.sequence for event in first] == [1, 2]
     assert second == ()
@@ -143,7 +183,7 @@ def test_result_completed_is_durable_and_unknown_is_not_replayed(store, task):
     assert result.status is AgentBackendStatus.UNKNOWN
     assert store.get_effect_intent(dispatcher.effect_key(dispatch_id))["status"] == "unknown"
     with pytest.raises(BackendDispatchUncertain):
-        AgentBackendDispatcher(store, authorize=lambda task, request: None).dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
+        _dispatcher(store).dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
     assert backend.start_calls == 1
     assert session.session_id == backend.session_id
 
@@ -161,7 +201,7 @@ def test_explicit_reconciliation_can_confirm_result_without_restarting_backend(s
 
     assert result.status is AgentBackendStatus.COMPLETED
     assert store.get_effect_intent(dispatcher.effect_key(dispatch_id))["status"] == "succeeded"
-    assert AgentBackendDispatcher(store, authorize=lambda task, request: None).result(dispatch_id, backend).status is AgentBackendStatus.COMPLETED
+    assert _dispatcher(store).result(dispatch_id, backend).status is AgentBackendStatus.COMPLETED
     assert backend.start_calls == 1
 
 

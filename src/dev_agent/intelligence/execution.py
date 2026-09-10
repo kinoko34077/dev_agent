@@ -276,14 +276,25 @@ class EscalationExecutor:
 
     def _validate_intelligence(self, task: Task, request: EscalationDispatchRequest):
         decision = self._intelligence_policy.decide(task)
-        if request.current_tier is not None and _TIER_ORDER.index(request.current_tier) < _TIER_ORDER.index(decision.minimum_tier):
-            raise EscalationExecutionDenied("current intelligence tier is below task policy minimum", category="intelligence_policy")
+        minimum_position = _TIER_ORDER.index(decision.minimum_tier)
+        maximum_position = _TIER_ORDER.index(decision.maximum_tier)
+        if request.current_tier is not None:
+            current_position = _TIER_ORDER.index(request.current_tier)
+            if current_position < minimum_position:
+                raise EscalationExecutionDenied("current intelligence tier is below task policy minimum", category="intelligence_policy")
+            if current_position > maximum_position:
+                raise EscalationExecutionDenied("current intelligence tier exceeds task policy maximum", category="intelligence_policy")
         if request.allowed_tiers is not None:
-            if any(_TIER_ORDER.index(tier) < _TIER_ORDER.index(decision.minimum_tier) for tier in request.allowed_tiers):
+            positions = [_TIER_ORDER.index(tier) for tier in request.allowed_tiers]
+            if any(position < minimum_position for position in positions):
                 raise EscalationExecutionDenied("allowed intelligence tiers violate task policy minimum", category="intelligence_policy")
+            if any(position > maximum_position for position in positions):
+                raise EscalationExecutionDenied("allowed intelligence tiers exceed task policy maximum", category="intelligence_policy")
         if request.target is EscalationTarget.HIGHER_TIER:
             if request.current_tier is None or request.allowed_tiers is None or request.next_tier not in request.allowed_tiers:
                 raise EscalationExecutionDenied("higher-tier dispatch lacks a durable allowed-tier bound", category="intelligence_policy")
+            if _TIER_ORDER.index(request.next_tier) > maximum_position:
+                raise EscalationExecutionDenied("next intelligence tier exceeds task policy maximum", category="intelligence_policy")
         return decision
 
     @staticmethod

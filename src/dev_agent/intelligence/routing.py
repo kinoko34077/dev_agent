@@ -55,6 +55,8 @@ class IntelligenceRoutePolicy:
         thinking_effort = cls.thinking_effort_for(decision)
         return {
             "intelligence_routing": cls.MODE,
+            "current_intelligence_tier": decision.current_tier.value,
+            "escalation_intelligence_tiers": [tier.value for tier in decision.escalation_tiers],
             "allowed_intelligence_tiers": [tier.value for tier in allowed],
             "minimum_thinking_effort": thinking_effort,
             "thinking_effort": thinking_effort,

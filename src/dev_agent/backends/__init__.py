@@ -4,6 +4,7 @@ from .dispatcher import (
     AgentBackendDispatchError,
     AgentBackendDispatchIdentity,
     AgentBackendDispatcher,
+    BackendAdmission,
     BackendDispatchUncertain,
 )
 
@@ -23,6 +24,7 @@ __all__ = [
     "AgentBackendDispatchError",
     "AgentBackendDispatchIdentity",
     "AgentBackendDispatcher",
+    "BackendAdmission",
     "AgentBackendEvent",
     "AgentBackendIdentity",
     "AgentBackendRequest",

@@ -22,6 +22,15 @@ _BASE_BOUNDS: dict[TaskType, tuple[IntelligenceTier, IntelligenceTier]] = {
     TaskType.RECOVERY: (IntelligenceTier.L2, IntelligenceTier.L2),
     TaskType.PROTECTED: (IntelligenceTier.L3, IntelligenceTier.L3),
 }
+_ESCALATION_CEILINGS: dict[TaskType, IntelligenceTier] = {
+    TaskType.DETERMINISTIC: IntelligenceTier.L0,
+    TaskType.WORKER: IntelligenceTier.L2,
+    TaskType.REASONING: IntelligenceTier.L3,
+    TaskType.EXPERT: IntelligenceTier.L3,
+    TaskType.DELEGATED_AGENT: IntelligenceTier.L3,
+    TaskType.RECOVERY: IntelligenceTier.L3,
+    TaskType.PROTECTED: IntelligenceTier.L3,
+}
 _CAPABILITY_MINIMUMS = {
     "architecture": IntelligenceTier.L2,
     "security": IntelligenceTier.L2,
@@ -42,6 +51,8 @@ class IntelligenceDecision:
     allowed_tiers: tuple[IntelligenceTier, ...]
     requires_human_approval: bool
     reasons: tuple[str, ...]
+    current_tier: IntelligenceTier
+    escalation_tiers: tuple[IntelligenceTier, ...]
 
 
 class TaskIntelligencePolicy:
@@ -50,7 +61,8 @@ class TaskIntelligencePolicy:
     def decide(self, task: Task) -> IntelligenceDecision:
         if not isinstance(task, Task):
             raise TypeError("task must be a Task")
-        minimum, maximum = _BASE_BOUNDS[task.task_type]
+        minimum, _base_maximum = _BASE_BOUNDS[task.task_type]
+        maximum = _ESCALATION_CEILINGS[task.task_type]
         reasons = [f"task_type:{task.task_type.value}"]
 
         for capability in task.required_capabilities:
@@ -71,13 +83,17 @@ class TaskIntelligencePolicy:
         else:
             reasons.append(f"risk:{task.risk.value}")
 
-        allowed = _TIER_ORDER[_TIER_ORDER.index(minimum) : _TIER_ORDER.index(maximum) + 1]
+        current = minimum
+        allowed = (current,)
+        escalation_tiers = _TIER_ORDER[_TIER_ORDER.index(current) : _TIER_ORDER.index(maximum) + 1]
         return IntelligenceDecision(
             minimum_tier=minimum,
             maximum_tier=maximum,
             allowed_tiers=allowed,
             requires_human_approval=task.risk is RiskLevel.CRITICAL,
             reasons=tuple(reasons),
+            current_tier=current,
+            escalation_tiers=escalation_tiers,
         )
 
 

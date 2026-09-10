@@ -50,6 +50,70 @@ class AgentBackendDispatchIdentity:
 AuthorizeBackend = Callable[[Task, AgentBackendRequest], bool | None]
 
 
+@dataclass(frozen=True)
+class BackendAdmission:
+    """Typed evidence assembled by existing Control Plane authorities.
+
+    The dispatcher does not mint lease, budget, approval, or privacy
+    authority.  It requires the caller to provide non-empty references for
+    each decision and verifies that the evidence is bound to this exact task,
+    dispatch, workspace, and sensitivity before crossing the backend effect
+    boundary.
+    """
+
+    task_id: str
+    dispatch_id: str
+    workspace_id: str
+    allowed_paths: tuple[str, ...]
+    sensitivity: str
+    lease_proof_ref: str
+    budget_admission_ref: str
+    approval_ref: str
+    allowed_capabilities: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        for name in (
+            "task_id",
+            "dispatch_id",
+            "workspace_id",
+            "lease_proof_ref",
+            "budget_admission_ref",
+            "approval_ref",
+        ):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{name} must be a non-empty string")
+            object.__setattr__(self, name, value.strip())
+        paths = tuple(path.strip() for path in self.allowed_paths if isinstance(path, str) and path.strip())
+        if len(paths) != len(self.allowed_paths):
+            raise ValueError("allowed_paths must contain non-empty strings")
+        object.__setattr__(self, "allowed_paths", paths)
+        sensitivity = self.sensitivity.strip().lower() if isinstance(self.sensitivity, str) else ""
+        if sensitivity not in {"public", "normal", "internal", "sensitive"}:
+            raise ValueError("sensitivity must be one of public, normal, internal, or sensitive")
+        object.__setattr__(self, "sensitivity", sensitivity)
+        capabilities = tuple(item.strip() for item in self.allowed_capabilities if isinstance(item, str) and item.strip())
+        if len(capabilities) != len(self.allowed_capabilities):
+            raise ValueError("allowed_capabilities must contain non-empty strings")
+        object.__setattr__(self, "allowed_capabilities", capabilities)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "task_id": self.task_id,
+            "dispatch_id": self.dispatch_id,
+            "workspace_id": self.workspace_id,
+            "allowed_paths": list(self.allowed_paths),
+            "sensitivity": self.sensitivity,
+            "lease_proof_ref": self.lease_proof_ref,
+            "budget_admission_ref": self.budget_admission_ref,
+            "approval_ref": self.approval_ref,
+            "allowed_capabilities": list(self.allowed_capabilities),
+        }
+
+
+BackendAdmissionCallback = Callable[[Task, AgentBackendRequest, AgentBackendDispatchIdentity], BackendAdmission | None]
+
+
 class AgentBackendDispatcher:
     """Delegate one scoped backend session after Control Plane checks.
 
@@ -66,9 +130,16 @@ class AgentBackendDispatcher:
     }
     _TERMINAL_EFFECT_STATES = {"succeeded", "confirmed_failed"}
     _UNCERTAIN_EFFECT_STATES = {"unknown", "reconciling"}
-    def __init__(self, store: StateStore, *, authorize: AuthorizeBackend | None = None) -> None:
+    def __init__(
+        self,
+        store: StateStore,
+        *,
+        authorize: AuthorizeBackend | None = None,
+        admission: BackendAdmissionCallback | None = None,
+    ) -> None:
         self._store = store
         self._authorize = authorize or (lambda task, request: False)
+        self._admission = admission or (lambda task, request, identity: None)
 
     @staticmethod
     def effect_key(dispatch_id: str) -> str:
@@ -84,8 +155,11 @@ class AgentBackendDispatcher:
         dispatch_id: str,
         attempt: int,
     ) -> AgentBackendSession:
-        task, identity, fingerprint, key = self._validate(request, backend, dispatch_id=dispatch_id, attempt=attempt)
-        expected = self._identity_arguments(identity)
+        task, identity, fingerprint, key, admission = self._validate(request, backend, dispatch_id=dispatch_id, attempt=attempt)
+        expected = {
+            **self._identity_arguments(identity),
+            "admission": admission.to_dict(),
+        }
         existing = self._store.get_effect_intent(key)
         if existing is not None:
             self._verify_existing(existing, expected)
@@ -262,7 +336,14 @@ class AgentBackendDispatcher:
         self._append_event(self._task_for_intent(intent), "agent_backend.reconciled", {"dispatch_id": dispatch_id, "status": result.status.value, "actor": actor.strip(), "source": source.strip()})
         return result
 
-    def _validate(self, request: AgentBackendRequest, backend: AgentBackend, *, dispatch_id: str, attempt: int) -> tuple[Task, AgentBackendDispatchIdentity, str, str]:
+    def _validate(
+        self,
+        request: AgentBackendRequest,
+        backend: AgentBackend,
+        *,
+        dispatch_id: str,
+        attempt: int,
+    ) -> tuple[Task, AgentBackendDispatchIdentity, str, str, BackendAdmission]:
         if not isinstance(request, AgentBackendRequest):
             raise AgentBackendDispatchError("request must be an AgentBackendRequest")
         if not isinstance(backend, AgentBackend):
@@ -274,12 +355,17 @@ class AgentBackendDispatcher:
             raise AgentBackendDispatchError(f"task not found: {request.task_id}")
         if task.status not in self._ACTIVE_TASK_STATES:
             raise AgentBackendDispatchError(f"task is not dispatchable in state {task.status.value}")
+        if request.sensitivity != task.sensitivity:
+            raise AgentBackendDispatchError("backend request sensitivity does not match task classification")
         self._validate_scope(request)
         try:
             authorized = self._authorize(task, request)
         except BaseException as exc:
             raise AgentBackendDispatchError("backend dispatch authority rejected request") from exc
-        if authorized is False:
+        # Authority is fail-closed: only the literal boolean ``True`` is an
+        # approval.  ``None`` and truthy objects must not silently bypass the
+        # caller-owned admission boundary.
+        if authorized is not True:
             raise AgentBackendDispatchError("backend dispatch authority rejected request")
         backend_id = backend.identity.backend_id
         fingerprint = self._fingerprint(request)
@@ -292,7 +378,34 @@ class AgentBackendDispatcher:
             allowed_paths=request.scope.allowed_paths,
             request_fingerprint=fingerprint,
         )
-        return task, identity, fingerprint, self.effect_key(dispatch_id)
+        try:
+            admission = self._admission(task, request, identity)
+        except BaseException as exc:
+            raise AgentBackendDispatchError("backend dispatch admission rejected request") from exc
+        if not isinstance(admission, BackendAdmission):
+            raise AgentBackendDispatchError("backend dispatch requires typed admission evidence")
+        self._validate_admission(admission, task, request, identity)
+        return task, identity, fingerprint, self.effect_key(dispatch_id), admission
+
+    @staticmethod
+    def _validate_admission(
+        admission: BackendAdmission,
+        task: Task,
+        request: AgentBackendRequest,
+        identity: AgentBackendDispatchIdentity,
+    ) -> None:
+        expected = {
+            "task_id": identity.task_id,
+            "dispatch_id": identity.dispatch_id,
+            "workspace_id": identity.workspace_id,
+            "allowed_paths": identity.allowed_paths,
+            "sensitivity": request.sensitivity,
+        }
+        for name, value in expected.items():
+            if getattr(admission, name) != value:
+                raise AgentBackendDispatchError(f"backend admission does not match {name}")
+        if task.sensitivity != admission.sensitivity:
+            raise AgentBackendDispatchError("backend admission privacy classification does not match task")
 
     def _validate_scope(self, request: AgentBackendRequest) -> None:
         for value in request.scope.allowed_paths:
@@ -312,6 +425,7 @@ class AgentBackendDispatcher:
             "allowed_paths": list(request.scope.allowed_paths),
             "input_artifacts": list(request.input_artifacts),
             "session_id": request.session_id,
+            "sensitivity": request.sensitivity,
             "metadata": dict(request.metadata),
         }
         try:
@@ -424,4 +538,10 @@ class AgentBackendDispatcher:
         )
 
 
-__all__ = ["AgentBackendDispatchError", "AgentBackendDispatchIdentity", "AgentBackendDispatcher", "BackendDispatchUncertain"]
+__all__ = [
+    "AgentBackendDispatchError",
+    "AgentBackendDispatchIdentity",
+    "AgentBackendDispatcher",
+    "BackendAdmission",
+    "BackendDispatchUncertain",
+]

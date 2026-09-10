@@ -532,6 +532,8 @@ class Controller:
                         "risk": task.risk.value,
                         "minimum_intelligence_tier": intelligence.minimum_tier.value,
                         "maximum_intelligence_tier": intelligence.maximum_tier.value,
+                        "current_intelligence_tier": intelligence.current_tier.value,
+                        "escalation_intelligence_tiers": [tier.value for tier in intelligence.escalation_tiers],
                         "allowed_intelligence_tiers": [tier.value for tier in intelligence.allowed_tiers],
                         "requires_human_approval": intelligence.requires_human_approval,
                         "intelligence_policy_reasons": list(intelligence.reasons),

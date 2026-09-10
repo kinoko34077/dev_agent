@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 from uuid import uuid4
 
@@ -205,6 +207,37 @@ def test_escalation_executor_routes_higher_tier_only_with_durable_allowed_tier(t
     assert len(core.requests) == 1
     assert core.requests[0].metadata["allowed_intelligence_tiers"] == ["L2"]
     assert core.requests[0].metadata["thinking_effort"] == "low"
+    ledger.close()
+
+
+def test_escalation_executor_rejects_tier_above_task_ceiling(tmp_path):
+    provider = RecordingProvider("worker", "worker", "L1")
+    store, dispatcher, ledger = _setup(tmp_path, [provider])
+    task = Task(task_id=_TASK_ID, objective="bounded ceiling", status=TaskStatus.FAILED)
+    store.save_task(task)
+    request = _approved_request(
+        store,
+        context=_context(
+            allowed_tiers=(IntelligenceTier.L1, IntelligenceTier.L2, IntelligenceTier.L3),
+            retryable_failure=False,
+            same_provider_available=False,
+            alternate_provider_available=False,
+        ),
+        evidence=_evidence(
+            retryable_failure=False,
+            alternate_provider_available=False,
+        ),
+    )
+    forged = replace(
+        request,
+        next_tier=IntelligenceTier.L3,
+        allowed_tiers=(IntelligenceTier.L1, IntelligenceTier.L2, IntelligenceTier.L3),
+    )
+
+    with pytest.raises(EscalationExecutionDenied, match="maximum"):
+        EscalationExecutor(store, dispatcher)._validate_intelligence(task, forged)
+
+    assert not provider.requests
     ledger.close()
 
 

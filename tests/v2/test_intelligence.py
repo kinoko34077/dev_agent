@@ -56,7 +56,8 @@ def test_intelligence_policy_maps_task_type_and_raises_for_risk_or_protected_cap
 
     worker = policy.decide(Task(objective="add tests", task_type=TaskType.WORKER))
     assert worker.minimum_tier is IntelligenceTier.L1
-    assert worker.maximum_tier is IntelligenceTier.L1
+    assert worker.maximum_tier is IntelligenceTier.L2
+    assert worker.current_tier is IntelligenceTier.L1
 
     protected = policy.decide(
         Task(
@@ -88,8 +89,22 @@ def test_intelligence_policy_ignores_model_metadata_tier_and_does_not_self_eleva
     decision = TaskIntelligencePolicy().decide(task)
 
     assert decision.minimum_tier is IntelligenceTier.L1
-    assert decision.maximum_tier is IntelligenceTier.L1
+    assert decision.maximum_tier is IntelligenceTier.L2
     assert decision.allowed_tiers == (IntelligenceTier.L1,)
+
+
+def test_intelligence_policy_keeps_initial_target_narrow_and_exposes_escalation_ceiling():
+    worker = TaskIntelligencePolicy().decide(Task(objective="bounded worker", task_type=TaskType.WORKER))
+    reasoning = TaskIntelligencePolicy().decide(Task(objective="core reasoning", task_type=TaskType.REASONING))
+
+    assert worker.minimum_tier is IntelligenceTier.L1
+    assert worker.current_tier is IntelligenceTier.L1
+    assert worker.maximum_tier is IntelligenceTier.L2
+    assert worker.allowed_tiers == (IntelligenceTier.L1,)
+    assert worker.escalation_tiers == (IntelligenceTier.L1, IntelligenceTier.L2)
+    assert reasoning.current_tier is IntelligenceTier.L2
+    assert reasoning.maximum_tier is IntelligenceTier.L3
+    assert reasoning.allowed_tiers == (IntelligenceTier.L2,)
 
 
 def test_controller_carries_task_profile_to_model_request_without_trusting_metadata(tmp_path):
@@ -121,7 +136,9 @@ def test_controller_carries_task_profile_to_model_request_without_trusting_metad
         "task_type": "worker",
         "risk": "normal",
         "minimum_intelligence_tier": "L1",
-        "maximum_intelligence_tier": "L1",
+        "maximum_intelligence_tier": "L2",
+        "current_intelligence_tier": "L1",
+        "escalation_intelligence_tiers": ["L1", "L2"],
         "allowed_intelligence_tiers": ["L1"],
         "requires_human_approval": False,
         "intelligence_policy_reasons": ["task_type:worker", "risk:normal"],
