@@ -129,7 +129,17 @@ class ResourceControlPlane:
             raise
 
     def observe_provider_response(self, reservation: DispatchReservation, response: ModelResponse) -> bool:
-        """Ingest only the normalized, provider-neutral quota telemetry."""
+        """Record provider liveness and ingest normalized quota telemetry.
+
+        The response itself is an authoritative liveness observation even
+        when the adapter has no quota headers.  Refreshing only the
+        observation row keeps long-lived Operation processes routable without
+        touching catalog/pricing/operator configuration.
+        """
+        self.governor.ledger.refresh_resource_observation(
+            reservation.budget.resource_id,
+            health="healthy",
+        )
         return self.governor.ledger.ingest_quota_observation(reservation.budget.resource_id, response.usage)
 
     def mark_dispatching(self, reservation: DispatchReservation) -> None:

@@ -390,14 +390,14 @@ def test_controller_maps_dispatcher_budget_denial_to_blocked_budget(tmp_path):
     assert events
 
 
-def test_controller_maps_dispatcher_no_route_to_blocked_budget(tmp_path):
+def test_controller_maps_dispatcher_no_route_to_waiting_resource(tmp_path):
     ledger = ResourceLedger(tmp_path / "dispatcher-no-route.sqlite3")
     control = ResourceControlPlane(ResourceRouter(ledger), _governor(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=0)))
     dispatcher = ProviderDispatcher(ProviderRegistry([FakeProvider()]), control)
     with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
         result = Controller(dispatcher, ToolRuntime(ToolRegistry()), store).run(Task(objective="no route"))
 
-    assert result.status.value == "blocked_budget"
+    assert result.status.value == "waiting_dependency"
 
 
 def test_controller_paid_dispatch_reserves_and_reconciles_actual_cost(tmp_path):

@@ -494,6 +494,37 @@ class ResourceLedger:
             concurrency_limit=concurrency_limit,
         )
 
+    def refresh_resource_observation(
+        self,
+        resource_id: str,
+        *,
+        health: str = "healthy",
+        observed_at: str | None = None,
+        confidence: float = 1.0,
+    ) -> None:
+        """Refresh resource liveness while preserving operator configuration.
+
+        A successful provider response is a real liveness observation, but it
+        must not rewrite catalog fields such as price, quota domain, or
+        metadata.  Reuse the observation repository so the current row and
+        historical observation remain updated together.
+        """
+
+        current = self.get_resource(resource_id)
+        self.observe(
+            resource_id,
+            available=current["available"],
+            health=health,
+            confidence=confidence,
+            observed_at=observed_at,
+            quota_remaining_ratio=current.get("quota_remaining_ratio"),
+            quota_reset_at=current.get("quota_reset_at"),
+            latency_ewma_ms=current.get("latency_ewma_ms"),
+            failure_ewma=current.get("failure_ewma"),
+            inflight=current.get("inflight", 0),
+            concurrency_limit=current.get("concurrency_limit"),
+        )
+
     @staticmethod
     def _quota_integer(value: int | None, name: str) -> int | None:
         if value is None:

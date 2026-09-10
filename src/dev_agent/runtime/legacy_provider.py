@@ -227,6 +227,13 @@ class LegacyDirectProviderExecutor:
                 cause="budget_reconciliation",
                 message=str(exc),
             )
+        except DispatchDenied as exc:
+            return LegacyProviderPreparation(
+                status="denied",
+                intent_key=intent_key,
+                category=exc.category,
+                message=str(exc),
+            )
         except Exception as exc:
             return LegacyProviderPreparation(status="blocked_budget", message=str(exc))
 
@@ -253,7 +260,7 @@ class LegacyDirectProviderExecutor:
             if not isinstance(response, ModelResponse):
                 raise TypeError("provider must return ModelResponse")
         except DispatchDenied as exc:
-            return LegacyProviderExecution(status="blocked_budget", category=exc.category, message=str(exc))
+            return LegacyProviderExecution(status="denied", category=exc.category, message=str(exc))
         except ProviderRequestCancelled as exc:
             if reservation is not None:
                 if exc.unable_to_confirm:

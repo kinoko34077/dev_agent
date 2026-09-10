@@ -40,6 +40,64 @@ class OperationError(RuntimeError):
     """A user-facing Operation Layer error."""
 
 
+@dataclass(frozen=True)
+class _OperationResourceProfile:
+    """Trusted non-secret billing and quota facts for the Operation boundary.
+
+    Provider names are not billing identities.  A binding/model pair is only
+    treated as free when it is explicitly present in this catalog.  The
+    catalog intentionally contains no credential material and does not infer
+    a quota domain: that domain belongs to the operator's account/project
+    configuration.
+    """
+
+    provider_id: str
+    provider_binding_id: str
+    model_id: str
+    cost_minor: int | None
+    price_currency: str | None
+    quota_required: bool
+    intelligence_tier: str | None = None
+
+
+_OPERATION_RESOURCE_CATALOG: dict[tuple[str, str, str], _OperationResourceProfile] = {
+    ("fake", "fake:default", "deterministic"): _OperationResourceProfile(
+        "fake", "fake:default", "deterministic", 0, "JPY", False, "L1"
+    ),
+    ("cloudflare", "cloudflare", "@cf/meta/llama-3.1-8b-instruct"): _OperationResourceProfile(
+        "cloudflare", "cloudflare", "@cf/meta/llama-3.1-8b-instruct", 0, "JPY", True, "L1"
+    ),
+    ("openrouter", "openrouter:free", "openrouter/free"): _OperationResourceProfile(
+        "openrouter", "openrouter:free", "openrouter/free", 0, "JPY", True, "L1"
+    ),
+    ("gemini", "gemini:compat", "gemini-2.5-flash"): _OperationResourceProfile(
+        "gemini", "gemini:compat", "gemini-2.5-flash", 0, "JPY", True, None
+    ),
+    ("gemini", "gemini:worker", "gemini-3.5-flash-lite"): _OperationResourceProfile(
+        "gemini", "gemini:worker", "gemini-3.5-flash-lite", 0, "JPY", True, "L1"
+    ),
+    ("gemini", "gemini:core", "gemini-3.8-flash"): _OperationResourceProfile(
+        "gemini", "gemini:core", "gemini-3.8-flash", 0, "JPY", True, "L2"
+    ),
+    ("ollama", "ollama", "qwen3:8b"): _OperationResourceProfile(
+        "ollama", "ollama", "qwen3:8b", 0, "JPY", False, None
+    ),
+}
+
+
+def _default_binding_id(provider_id: str, model: str) -> str:
+    """Return a known binding only for an exact catalog entry."""
+
+    for provider, binding, model_id in _OPERATION_RESOURCE_CATALOG:
+        if provider == provider_id and model_id == model:
+            return binding
+    return "fake:default" if provider_id == "fake" else provider_id
+
+
+def _operation_resource_profile(provider_id: str, binding_id: str, model_id: str) -> _OperationResourceProfile | None:
+    return _OPERATION_RESOURCE_CATALOG.get((provider_id, binding_id, model_id))
+
+
 def _positive_number(value: float, name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)) or value <= 0:
         raise ValueError(f"{name} must be a finite positive number")
@@ -60,6 +118,7 @@ class OperationConfig:
     provider_id: str = "fake"
     model: str = "deterministic"
     provider_binding_id: str | None = None
+    quota_domain: str | None = None
     intelligence_tier: str | None = None
     worker_id: str = field(default_factory=lambda: f"operation-{os.getpid()}")
     lease_seconds: float = 30.0
@@ -73,6 +132,7 @@ class OperationConfig:
         model = self.model.strip() if isinstance(self.model, str) else ""
         worker_id = self.worker_id.strip() if isinstance(self.worker_id, str) else ""
         binding = self.provider_binding_id.strip() if isinstance(self.provider_binding_id, str) and self.provider_binding_id.strip() else None
+        quota_domain = self.quota_domain.strip() if isinstance(self.quota_domain, str) and self.quota_domain.strip() else None
         tier = self.intelligence_tier.strip() if isinstance(self.intelligence_tier, str) and self.intelligence_tier.strip() else None
         if not provider_id:
             raise ValueError("provider_id must be a non-empty string")
@@ -86,6 +146,7 @@ class OperationConfig:
         object.__setattr__(self, "provider_id", provider_id)
         object.__setattr__(self, "model", model)
         object.__setattr__(self, "provider_binding_id", binding)
+        object.__setattr__(self, "quota_domain", quota_domain)
         object.__setattr__(self, "intelligence_tier", tier)
         object.__setattr__(self, "worker_id", worker_id)
         object.__setattr__(self, "lease_seconds", _positive_number(self.lease_seconds, "lease_seconds"))
@@ -108,10 +169,10 @@ class OperationConfig:
 
     @property
     def binding_id(self) -> str:
-        return self.provider_binding_id or (f"{self.provider_id}:default" if self.provider_id == "fake" else self.provider_id)
+        return self.provider_binding_id or _default_binding_id(self.provider_id, self.model)
 
     @classmethod
-    def from_environment(cls, *, data_dir: str | Path | None = None, provider_id: str | None = None, model: str | None = None, provider_binding_id: str | None = None, worker_id: str | None = None, lease_seconds: float | None = None, idle_sleep_seconds: float | None = None) -> "OperationConfig":
+    def from_environment(cls, *, data_dir: str | Path | None = None, provider_id: str | None = None, model: str | None = None, provider_binding_id: str | None = None, quota_domain: str | None = None, worker_id: str | None = None, lease_seconds: float | None = None, idle_sleep_seconds: float | None = None) -> "OperationConfig":
         def env(name: str) -> str | None:
             value = os.environ.get(name)
             return value.strip() if isinstance(value, str) and value.strip() else None
@@ -130,6 +191,7 @@ class OperationConfig:
             provider_id=provider_id or env("DEV_AGENT_PROVIDER") or "fake",
             model=model or env("DEV_AGENT_MODEL") or "deterministic",
             provider_binding_id=provider_binding_id or env("DEV_AGENT_PROVIDER_BINDING_ID"),
+            quota_domain=quota_domain or env("DEV_AGENT_QUOTA_DOMAIN"),
             intelligence_tier=env("DEV_AGENT_INTELLIGENCE_TIER"),
             worker_id=worker_id or env("DEV_AGENT_WORKER_ID") or f"operation-{os.getpid()}",
             lease_seconds=lease_seconds if lease_seconds is not None else env_float("DEV_AGENT_LEASE_SECONDS", 30.0),
@@ -293,7 +355,8 @@ class OperationService:
     def _ensure_resource(ledger: ResourceLedger, provider: Any, config: OperationConfig) -> None:
         binding_id = getattr(provider, "provider_binding_id", None) or config.binding_id
         model_id = getattr(provider, "model_id", None) or config.model
-        tier = getattr(provider, "intelligence_tier", None) or _inferred_tier(config)
+        profile = _operation_resource_profile(config.provider_id, binding_id, model_id)
+        tier = getattr(provider, "intelligence_tier", None) or (profile.intelligence_tier if profile else None) or _inferred_tier(config)
         try:
             existing = ledger.get_resource(binding_id)
         except KeyError:
@@ -306,10 +369,20 @@ class OperationService:
                 raise OperationError(
                     f"resource binding already belongs to another provider/model: {binding_id}"
                 )
-        # A missing cost is deliberately not coerced to zero for unknown or
-        # potentially paid adapters.  The protected BudgetGovernor will then
-        # reject dispatch until an operator configures a price/cap explicitly.
-        free_provider = config.provider_id in {"fake", "cloudflare", "gemini", "openrouter", "ollama"}
+            existing_domain = existing.get("quota_domain")
+            if config.quota_domain is not None and existing_domain not in {None, config.quota_domain}:
+                raise OperationError(f"resource quota_domain is operator-owned and differs: {binding_id}")
+            if profile is not None and profile.quota_required and not (existing_domain or config.quota_domain):
+                raise OperationError(f"quota_domain is required for cloud resource binding: {binding_id}")
+            # Existing catalog, pricing, quota, health, and operator metadata
+            # are authoritative.  Opening Operation must never upsert them.
+            return
+        if profile is not None and profile.quota_required and not config.quota_domain:
+            raise OperationError(f"quota_domain is required for cloud resource binding: {binding_id}")
+        # Unknown or potentially paid binding/model pairs deliberately keep
+        # an unknown price.  They cannot be silently treated as free.
+        cost_minor = profile.cost_minor if profile is not None else None
+        price_currency = profile.price_currency if profile is not None else None
         ledger.register_resource(
             binding_id,
             provider_id=config.provider_id,
@@ -318,7 +391,9 @@ class OperationService:
             capacity=1,
             capabilities=["text"],
             sensitivity="normal",
-            cost_minor=0 if free_provider else None,
+            cost_minor=cost_minor,
+            price_currency=price_currency,
+            quota_domain=config.quota_domain,
             metadata={"provider_binding_id": binding_id, "model_id": model_id, "intelligence_tier": tier} if tier else {"provider_binding_id": binding_id, "model_id": model_id},
             intelligence_tier=tier,
         )

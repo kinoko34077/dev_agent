@@ -273,3 +273,156 @@ def test_external_cancel_of_running_task_is_only_a_durable_request(tmp_path):
         assert persisted.status == TaskStatus.RUNNING
         assert persisted.metadata["cancellation_requested"] is True
         assert persisted.metadata["cancellation_reason"] == "operator stop"
+
+
+def test_operation_resource_bootstrap_is_read_only_for_existing_resource(tmp_path):
+    from src.dev_agent.operation import OperationService
+    from src.dev_agent.providers.fake import FakeProvider
+    from src.dev_agent.resources.ledger import ResourceLedger
+
+    path = tmp_path / "resources.sqlite3"
+    config = _config(tmp_path)
+    with ResourceLedger(path) as ledger:
+        ledger.register_resource(
+            "fake:default",
+            provider_id="fake",
+            provider_binding_id="fake:default",
+            native_unit="neurons",
+            capacity=7,
+            capabilities=["text", "tool_call"],
+            sensitivity="sensitive",
+            cost_minor=42,
+            price_currency="USD",
+            quota_domain="operator-domain",
+            metadata={"operator_label": "keep", "model_id": "deterministic"},
+            intelligence_tier="L2",
+        )
+        ledger.observe("fake:default", available=3, health="degraded", confidence=0.4, inflight=1, concurrency_limit=2)
+        before = ledger.get_resource("fake:default")
+
+        provider = FakeProvider()
+        provider.provider_binding_id = "fake:default"
+        provider.model_id = "deterministic"
+        provider.intelligence_tier = "L1"
+        OperationService._ensure_resource(ledger, provider, config)
+
+        assert ledger.get_resource("fake:default") == before
+
+
+def test_operation_only_marks_exact_known_binding_and_model_as_free(tmp_path):
+    from src.dev_agent.operation import OperationService
+    from src.dev_agent.resources.ledger import ResourceLedger
+
+    path = tmp_path / "resources.sqlite3"
+    with ResourceLedger(path) as ledger:
+        known = OperationConfig(
+            data_dir=tmp_path,
+            provider_id="cloudflare",
+            model="@cf/meta/llama-3.1-8b-instruct",
+            provider_binding_id="cloudflare",
+            quota_domain="cloudflare-account",
+        )
+        known_provider = type("Provider", (), {"provider_binding_id": "cloudflare", "model_id": known.model, "intelligence_tier": "L1"})()
+        OperationService._ensure_resource(ledger, known_provider, known)
+        assert ledger.get_resource("cloudflare")["cost_minor"] == 0
+        assert ledger.get_resource("cloudflare")["quota_domain"] == "cloudflare-account"
+
+        unknown = OperationConfig(
+            data_dir=tmp_path,
+            provider_id="cloudflare",
+            model="a-paid-or-unqualified-model",
+            provider_binding_id="cloudflare:unknown",
+            quota_domain="cloudflare-account",
+        )
+        unknown_provider = type("Provider", (), {"provider_binding_id": "cloudflare:unknown", "model_id": unknown.model, "intelligence_tier": "L1"})()
+        OperationService._ensure_resource(ledger, unknown_provider, unknown)
+        assert ledger.get_resource("cloudflare:unknown")["cost_minor"] is None
+
+
+def test_operation_requires_quota_domain_for_remote_resource(tmp_path):
+    from src.dev_agent.operation import OperationError, OperationService
+    from src.dev_agent.resources.ledger import ResourceLedger
+
+    config = OperationConfig(
+        data_dir=tmp_path,
+        provider_id="cloudflare",
+        model="@cf/meta/llama-3.1-8b-instruct",
+        provider_binding_id="cloudflare",
+    )
+    provider = type("Provider", (), {"provider_binding_id": "cloudflare", "model_id": config.model, "intelligence_tier": "L1"})()
+    with ResourceLedger(tmp_path / "resources.sqlite3") as ledger:
+        with pytest.raises(OperationError, match="quota_domain"):
+            OperationService._ensure_resource(ledger, provider, config)
+
+
+def test_successful_provider_observation_refreshes_resource_freshness(tmp_path):
+    from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
+    from src.dev_agent.resources.budget import BudgetAuthority, BudgetGovernor, BudgetPolicy
+    from src.dev_agent.resources.control import ResourceControlPlane
+    from src.dev_agent.resources.ledger import ResourceLedger
+    from src.dev_agent.resources.router import ResourceRouter
+
+    with ResourceLedger(tmp_path / "resources.sqlite3") as ledger:
+        ledger.register_resource(
+            "fake:default",
+            provider_id="fake",
+            provider_binding_id="fake:default",
+            native_unit="request",
+            capacity=1,
+            capabilities=["text"],
+            cost_minor=0,
+        )
+        ledger.observe("fake:default", available=1, health="healthy")
+        BudgetAuthority.configure(ledger, BudgetPolicy(hard_cap_minor=0, recovery_reserve_minor=0))
+        control = ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger))
+        reservation = control.reserve_for_provider("00000000-0000-0000-0000-000000000001", "fake", ModelRequest(task_id="00000000-0000-0000-0000-000000000001", messages=[{"role": "user", "content": "x"}]))
+        ledger.observe("fake:default", available=1, health="healthy", observed_at="2020-01-01T00:00:00+00:00")
+        before = ledger.get_resource("fake:default")["observed_at"]
+
+        control.observe_provider_response(
+            reservation,
+            ModelResponse(provider="fake", model="deterministic", text_segments=["ok"], usage={"cost_minor": 0}),
+        )
+
+        after = ledger.get_resource("fake:default")["observed_at"]
+        assert after != before
+        assert after > "2020-01-01T00:00:00+00:00"
+
+
+@pytest.mark.parametrize(
+    ("category", "expected_status", "event_type"),
+    [
+        ("quota", TaskStatus.BLOCKED_QUOTA, "task.blocked_quota"),
+        ("maintenance", TaskStatus.WAITING_DEPENDENCY, "task.waiting_maintenance"),
+        ("invalid_request", TaskStatus.FAILED, "task.failed"),
+        ("no_route", TaskStatus.WAITING_DEPENDENCY, "task.waiting_resource"),
+    ],
+)
+def test_dispatch_denied_categories_do_not_all_become_budget_blocked(tmp_path, monkeypatch, category, expected_status, event_type):
+    from src.dev_agent.domain.protocol import Task
+    from src.dev_agent.providers.fake import FakeProvider
+    from src.dev_agent.resources.control import DispatchDenied
+    from src.dev_agent.runtime.controller import Controller, RuntimeFailure
+    from src.dev_agent.state import SQLiteStateStore
+    from src.dev_agent.tools import ToolRegistry, ToolRuntime
+
+    class RaisingProvider(FakeProvider):
+        provider_id = "resource-router"
+        handles_resource_policy = True
+
+        def request(self, request):
+            raise DispatchDenied(category, category)
+
+    task = Task(objective=f"denied {category}")
+    with SQLiteStateStore(tmp_path / f"{category}.sqlite3") as store:
+        controller = Controller(RaisingProvider(), ToolRuntime(ToolRegistry()), store)
+        if expected_status is TaskStatus.FAILED:
+            with pytest.raises(RuntimeFailure):
+                controller.run(task)
+        else:
+            controller.run(task)
+        persisted = store.load_task(task.task_id)
+        assert persisted is not None and persisted.status is expected_status
+        event_types = [event["event_type"] for event in store.snapshot()["events"] if event.get("task_id") == task.task_id]
+        assert event_type in event_types
+        assert "task.blocked_budget" not in event_types

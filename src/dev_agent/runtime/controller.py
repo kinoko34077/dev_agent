@@ -222,6 +222,58 @@ class Controller:
         event = self._event_record(task, "task.blocked_budget", {"category": "budget", "message": message}, step_id=step.step_id)
         self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "blocked_budget", state), events=[event])
 
+    def _block_quota(self, task: Task, state: dict[str, Any], *, step: Step, message: str) -> None:
+        step.status = StepStatus.WAITING
+        state["active_step"] = step.to_dict()
+        task.status = TaskStatus.BLOCKED_QUOTA
+        event = self._event_record(task, "task.blocked_quota", {"category": "quota", "message": message}, step_id=step.step_id)
+        self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "blocked_quota", state), events=[event])
+
+    def _wait_for_resource(self, task: Task, state: dict[str, Any], *, step: Step, category: str, message: str) -> None:
+        step.status = StepStatus.WAITING
+        state["active_step"] = step.to_dict()
+        task.metadata["wait_reason"] = f"resource:{category}"
+        task.status = TaskStatus.WAITING_DEPENDENCY
+        event = self._event_record(
+            task,
+            "task.waiting_resource",
+            {"category": category, "message": message, "wait_reason": f"resource:{category}"},
+            step_id=step.step_id,
+        )
+        self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "waiting_resource", state), events=[event])
+
+    def _wait_for_maintenance(self, task: Task, state: dict[str, Any], *, step: Step, message: str) -> None:
+        step.status = StepStatus.WAITING
+        state["active_step"] = step.to_dict()
+        task.metadata["wait_reason"] = "maintenance"
+        task.status = TaskStatus.WAITING_DEPENDENCY
+        event = self._event_record(
+            task,
+            "task.waiting_maintenance",
+            {"category": "maintenance", "message": message, "wait_reason": "maintenance"},
+            step_id=step.step_id,
+        )
+        self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "waiting_maintenance", state), events=[event])
+
+    def _handle_dispatch_denied(self, task: Task, state: dict[str, Any], *, step: Step, error: DispatchDenied) -> Task:
+        """Map resource-policy denial to its real durable task meaning."""
+
+        category = error.category.strip().lower() if isinstance(error.category, str) else "dispatch_denied"
+        if category == "budget":
+            self._block_budget(task, state, step=step, message=str(error))
+            return task
+        if category in {"quota", "rate_limit"}:
+            self._block_quota(task, state, step=step, message=str(error))
+            return task
+        if category == "maintenance":
+            self._wait_for_maintenance(task, state, step=step, message=str(error))
+            return task
+        if category in {"no_route", "unavailable"}:
+            self._wait_for_resource(task, state, step=step, category=category, message=str(error))
+            return task
+        self._fail(task, state, category, str(error), step=step)
+        return task
+
     @staticmethod
     def _initial_state(task: Task) -> RuntimeState:
         return RuntimeState.initial(task, now=time())
@@ -520,6 +572,16 @@ class Controller:
                             step=step,
                             request_id=request.request_id,
                         )
+                    if preparation.status == "denied":
+                        return self._handle_dispatch_denied(
+                            task,
+                            state,
+                            step=step,
+                            error=DispatchDenied(
+                                preparation.category or "dispatch_denied",
+                                preparation.message or "provider dispatch was denied",
+                            ),
+                        )
                     if preparation.status == "blocked_budget":
                         self._block_budget(task, state, step=step, message=preparation.message or "provider budget preparation failed")
                         return task
@@ -552,6 +614,16 @@ class Controller:
                     if legacy_execution.status == "cancelled":
                         self._cancel(task, state, step=step, message=legacy_execution.message or "provider request was cancelled")
                         return task
+                    if legacy_execution.status == "denied":
+                        return self._handle_dispatch_denied(
+                            task,
+                            state,
+                            step=step,
+                            error=DispatchDenied(
+                                legacy_execution.category or "dispatch_denied",
+                                legacy_execution.message or "provider dispatch was denied",
+                            ),
+                        )
                     if legacy_execution.status == "blocked_budget":
                         self._block_budget(task, state, step=step, message=legacy_execution.message or "provider budget dispatch was denied")
                         return task
@@ -571,8 +643,7 @@ class Controller:
                     if not isinstance(response, ModelResponse):
                         raise TypeError("provider must return ModelResponse")
                 except DispatchDenied as exc:
-                    self._block_budget(task, state, step=step, message=f"{exc.category}: {exc}")
-                    return task
+                    return self._handle_dispatch_denied(task, state, step=step, error=exc)
                 except _ProviderCancelled as exc:
                     if reservation is not None:
                         if exc.unable_to_confirm:
