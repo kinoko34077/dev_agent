@@ -9,7 +9,7 @@
 - AgentBackend dispatchへ`BackendAdmission`を接続し、strict-`True` authorization、Task／Backend identityのrequired capability coverage、scope／lease／budget／approval／privacy証拠を外部Backend起動前に検証する境界を固定した。
 - `ExecutionTargetPolicy`を追加し、通常のModelProvider実行と明示autonomyが必要なAgentBackend実行を分離した。L3というTierだけではAgentBackendへ自動昇格せず、既存のapproval／budget／privacy／capability証拠を要求する。
 - Operationの複数binding poolをcanonical ProviderDispatcherへ接続し、exact current intelligence tierを維持した同Tier fallbackをrate-limit fixtureで検証した。実Codex adapter、MCP、G6O1の外部blocked判定は変更していない。
-- 実装基準`f0e6880`でローカルv2全回帰は`544 passed, 1 skipped`（152.73秒）。
+- 実装基準`55fa966`でローカルv2全回帰は`548 passed, 1 skipped`（119.55秒）。`BackendAdmission`のauthority flagsを追加し、未承認のlease／budget／approval／privacyを外部Backend起動前に拒否する回帰を含む。
 
 ### 2026-09-10 JST — Operation hardening audit closure
 

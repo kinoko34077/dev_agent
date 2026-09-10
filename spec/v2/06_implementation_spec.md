@@ -45,7 +45,7 @@ scheduler / operation composition
 - `scheduler` は Queue/Worker/lease と runtime lifecycle を接続するが、Provider SDK の分岐や新しい Task state machine を所有しない。
 - `operation` は既存部品を composition する薄い入口であり、production scheduler を並立させない。
 - `operation` は起動時に既存 Resource を再構成・上書きせず、trusted billing catalog と operator-owned quota domain を検証する。Provider の正常応答／bounded quota probe が Resource observation freshness の唯一の更新入口であり、未知価格・未観測quotaは fail-closed とする。
-- `backends` は外部Agent harnessのidentity、session、event、cancellation、resultをtyped化し、既存StateStoreのeffect intent／Event／reconciliationへ接続する薄い境界である。`AgentBackendDispatcher`は既存authorityの証拠を`BackendAdmission`として要求し、Task／Backend identityのcapability coverageをstart前に検証する。Runtime/State/Scheduler/Budget/Recoveryの所有権を持たず、Backend固有adapterはこの境界の外側に置く。
+- `backends` は外部Agent harnessのidentity、session、event、cancellation、resultをtyped化し、既存StateStoreのeffect intent／Event／reconciliationへ接続する薄い境界である。`AgentBackendDispatcher`は既存authorityの証拠を`BackendAdmission`として要求し、lease／budget／approval／privacyの各strict-`True` flagとTask／Backend identityのcapability coverageをstart前に検証する。Runtime/State/Scheduler/Budget/Recoveryの所有権を持たず、Backend固有adapterはこの境界の外側に置く。
 - `intelligence/target.py` の `ExecutionTargetPolicy` は ModelProvider と AgentBackend の実行先を分離する。通常はModelProviderを選び、AgentBackendは明示autonomy、approval、budget、privacy、capabilityの既存証拠が揃った場合だけ許可する。tierだけを理由に自動昇格しない。
 - `recovery/` は runtime/controller から独立し、durable artifact と operator authority を扱う。Recovery が Controller の内部状態を書き換える設計にしない。
 - `devfarm` は production scheduler/state/authority と独立した development-only 層で、既存 WorkerRunner/ProviderFactory 等の公開境界を composition できるが、公式 branch を自動変更しない。

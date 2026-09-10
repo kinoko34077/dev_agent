@@ -63,7 +63,7 @@
 - 公開入口: `dispatch(request, backend, dispatch_id, attempt)`、`events(dispatch_id, backend)`、`result(dispatch_id, backend)`、`cancel(dispatch_id, backend)`、`reconcile(dispatch_id, backend, actor, source)`。
 - 入力/出力: typed `AgentBackendRequest`と外部Backend、durable identity、session、provider-neutral event/result。backend固有IDはopaque sessionとして保持する。
 - 権限: dispatch可否の最終authorityは既存Control Planeから束ねた`BackendAdmission`とstrict-`True` authorization callbackに残す。完了済みidentityは冪等に返し、UNKNOWN／RECONCILINGは明示reconcileまで再dispatchしない。
-- `BackendAdmission`はtask／dispatch／workspace／scope／sensitivityに結び付いたlease proof、budget admission、approval、allowed capabilitiesの証拠を要求する。dispatcherは証拠を発行せず、TaskとBackend identityのrequired capability coverageを開始前に検証する。
+- `BackendAdmission`はtask／dispatch／workspace／scope／sensitivityに結び付いたlease proof、budget admission、approval、allowed capabilitiesの証拠を要求し、`lease_admitted`、`budget_admitted`、`approval_granted`、`privacy_allowed`の各strict-`True` authority flagを必須とする。dispatcherは証拠を発行せず、TaskとBackend identityのrequired capability coverageを開始前に検証する。
 - 禁止: ProviderRegistry／ResourceRouterへの登録、新Scheduler／Budget／Approval／Recoveryの所有、公式branchへの直接編集、UNKNOWNのblind retry。
 
 ### `ExecutionTargetPolicy`

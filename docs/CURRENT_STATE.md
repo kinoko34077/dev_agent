@@ -1,6 +1,6 @@
 # Current State — v2/bootstrap
 
-実装基準は `f0e6880` です。直近のローカル全回帰もこのHEADで検証し、
+実装基準は `55fa966` です。直近のローカル全回帰もこのHEADで検証し、
 本書はそのコードと、直近の外部資格化・DevFarm実行結果を同期したCurrent Stateです。
 GATE_STATUSの既存statusは変更していません。
 
@@ -28,7 +28,7 @@ GATE_STATUSの既存statusは変更していません。
 
 ## 検証
 
-- v2ローカル全回帰: `544 passed, 1 skipped`（`python -m pytest -q tests/v2 --durations=10`、152.73秒。所要時間は実行環境依存）
+- v2ローカル全回帰: `548 passed, 1 skipped`（`python -m pytest -q tests/v2 --durations=10`、119.55秒。所要時間は実行環境依存）
 - 追加監査focused: Provider quota分類／DevFarm model-qualified activation／trusted free qualificationを含む`45 passed`
 - Operation hardening focused: `94 passed, 1 skipped`（Operation、quota、DevFarm attempt、SQLite contention、security、budget境界）
 - Operation Layer focused: `12 passed`（submit／status、canonical Dispatcher経由のstart、queue復旧、process restart、terminal／waiting reconciliation、provider非依存safe stop、durable cancellation request、due quota maintenance／wake、startからのmaintenance境界）
@@ -43,7 +43,7 @@ GATE_STATUSの既存statusは変更していません。
 - AgentBackend boundary: `src/dev_agent/backends/protocol.py`に外部Agent harnessのidentity、scoped request、session、event stream、cancellation、completion／failure／unknown／reconciliation resultを定義し、`dispatcher.py`に既存authorityの証拠を束ねる`BackendAdmission`を追加した。Task／Backend identityのrequired capability coverage、strict-`True` authorization、scope／budget／approval／lease／privacy証拠をstart前に検証する。実Codex App Server adapter、MCPは未実装で、既存Runtime／State／Scheduler／Budget／Recoveryの所有権を移していない
 - Execution target seam: `intelligence/target.py`の`ExecutionTargetPolicy`がModelProviderとAgentBackendを分離する。通常はminimum sufficient ModelProviderを選び、AgentBackendは明示autonomyと既存のapproval／budget／privacy／capability証拠が揃った場合だけ選択する。L3というだけでAgentBackendへ自動昇格しない
 - Operation multi-provider: `OperationConfig.provider_pool`で複数bindingを`ProviderFactory`／`ProviderRegistry`へcompositionし、production routingではexact current tierをhard filterしたうえで同Tierの別bindingへbounded fallbackする。一次bindingのrate-limit後に別L1 bindingへ切り替えるE2Eを確認した
-- AgentBackend focused: protocol `7 passed`、dispatcher `19 passed`、intelligence target `2 passed`、Operation pool fallback `1 passed`を含む。dispatcherではidentity復元、scope／authority／capability拒否、session重複防止、event sequence、cancel、UNKNOWN、restart、reconciliationを検証した
+- AgentBackend focused: protocol `7 passed`、dispatcher `23 passed`、intelligence target `2 passed`、Operation pool fallback `1 passed`を含む。dispatcherではidentity復元、scope／authority／capability拒否、lease／budget／approval／privacy admission、session重複防止、event sequence、cancel、UNKNOWN、restart、reconciliationを検証した
 - Evidence routing focused: `5 passed`（minimum samples、hard-filter済みbinding限定、期限切れ、rollback threshold、malformed evidence拒否、latest timestamp）
 - DevFarm host verification: Gemini 3.5 Flash-Lite `gemini-worker-phase7-003` が、入力ファイルを外部送信せず、隔離worktreeへpatchを適用し、許可済みhost test `7 passed` を確認
 - DevFarm 2 Worker並列: `gemini-worker-parallel-a` と `gemini-worker-parallel-b` が別worktree・別所有ファイルで同時実行され、各 `7 passed`、`result_accepted=true` を確認。実測はそれぞれ1.528秒、1.278秒
