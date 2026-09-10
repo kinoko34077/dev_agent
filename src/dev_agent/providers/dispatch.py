@@ -48,6 +48,10 @@ class ProviderDispatcher(ModelProvider):
         self.audits: list[DispatchAudit] = []
         self._journal = ProviderDispatchJournal()
         self._lease_guard: Callable[[], None] | None = None
+        self._runtime_lease_proof: Callable[[], Any | None] | None = None
+        self._lease_context: ContextVar[tuple[Callable[[], None] | None, Any | None] | None] = ContextVar(
+            f"provider_dispatch_lease:{id(self)}", default=None
+        )
         self._execution_callback: ContextVar[Callable[[ModelProvider, ModelRequest], ModelResponse] | None] = ContextVar(
             f"provider_dispatch_execution:{id(self)}", default=None
         )
@@ -60,8 +64,42 @@ class ProviderDispatcher(ModelProvider):
         every concrete provider attempt gets a durable effect intent before the
         provider call starts.
         """
-        self._journal.bind(state_store=state_store, lease_proof=lease_proof)
+        self._runtime_lease_proof = lease_proof
+        self._journal.bind(state_store=state_store, lease_proof=self._active_lease_proof)
         self._lease_guard = lease_guard
+
+    def request_with_authority(
+        self,
+        request: ModelRequest,
+        *,
+        lease_guard: Callable[[], None] | None,
+        lease_proof: Any | None,
+    ) -> ModelResponse:
+        """Dispatch under one caller-owned lease context.
+
+        The normal Worker path installs its context on ``Controller``.  The
+        explicit reviewed-lifecycle path needs the same fencing without
+        mutating shared Dispatcher state, so both guards and proof lookup are
+        scoped with ``ContextVar``.
+        """
+
+        if lease_guard is not None and not callable(lease_guard):
+            raise TypeError("lease_guard must be callable or None")
+        token = self._lease_context.set((lease_guard, lease_proof))
+        try:
+            return self.request(request)
+        finally:
+            self._lease_context.reset(token)
+
+    def _active_lease_guard(self) -> Callable[[], None] | None:
+        context = self._lease_context.get()
+        return context[0] if context is not None else self._lease_guard
+
+    def _active_lease_proof(self) -> Any | None:
+        context = self._lease_context.get()
+        if context is not None:
+            return context[1]
+        return self._runtime_lease_proof() if self._runtime_lease_proof is not None else None
 
     @staticmethod
     def _intent_key(request: ModelRequest, selection: RouteSelection) -> str:
@@ -174,8 +212,9 @@ class ProviderDispatcher(ModelProvider):
                 self._record_audit(request, selection, "lease_lost", intent_key, details={"category": "lease_lost"})
                 raise ProviderError("provider dispatch rejected by stale lease", category="lease_lost", retryable=True) from exc
             try:
-                if self._lease_guard is not None:
-                    self._lease_guard()
+                lease_guard = self._active_lease_guard()
+                if lease_guard is not None:
+                    lease_guard()
             except Exception as exc:
                 # The durable intent proves the boundary was prepared, while
                 # this fencing check proves the concrete provider was not
@@ -246,8 +285,9 @@ class ProviderDispatcher(ModelProvider):
                 # not let Controller classify it as a local decode failure.
                 raise ProviderError(f"provider transport failed: {exc}", category="transport", retryable=True) from exc
             try:
-                if self._lease_guard is not None:
-                    self._lease_guard()
+                lease_guard = self._active_lease_guard()
+                if lease_guard is not None:
+                    lease_guard()
             except Exception as exc:
                 # A lease can expire while the concrete provider is running.
                 # Its response is externally real but ownership is no longer

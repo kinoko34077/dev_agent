@@ -107,11 +107,12 @@ class FiniteLifecycleLoop:
         evidence: EvaluationEvidence,
         *,
         escalation_context: EscalationContext | None = None,
+        lease_proof=None,
     ) -> LifecycleStep:
         self._reserve_evaluation(evidence.task_id)
         cycle = self._evaluation_dispatch.evaluate(evidence, escalation_context=escalation_context)
         self._evaluations = self._durable_evaluation_count(self._task_id)
-        transition = self._lifecycle.apply_evaluation(cycle)
+        transition = self._lifecycle.apply_evaluation(cycle, lease_proof=lease_proof)
         return LifecycleStep(self._evaluations, "evaluation", cycle, transition)
 
     def dispatch_and_apply(
@@ -123,6 +124,7 @@ class FiniteLifecycleLoop:
         provider_binding_id: str | None = None,
         dispatch_id: str | None = None,
         attempt: int | None = None,
+        lease_proof=None,
     ) -> LifecycleStep:
         if not isinstance(step, LifecycleStep):
             raise TypeError("step must be LifecycleStep")
@@ -136,7 +138,7 @@ class FiniteLifecycleLoop:
             dispatch_id=dispatch_id,
             attempt=attempt,
         )
-        transition = self._lifecycle.apply_dispatch(cycle)
+        transition = self._lifecycle.apply_dispatch(cycle, lease_proof=lease_proof)
         return LifecycleStep(step.cycle_number, "dispatch", cycle, transition)
 
     def _reserve_evaluation(self, task_id: str) -> None:

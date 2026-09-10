@@ -93,6 +93,7 @@
 
 - 公開入口: `dev-agent start|submit|status|stop`、`OperationService`。
 - 責務: 人間の操作を既存 StateStore、Queue、WorkerRunner、Controller、Dispatcher、Evaluator/Lifecycle へ composition する。`maintenance_tick` は既存 quota wake / one-shot requalification を bounded に接続する。
+- Lifecycle composition: `OperationService.evaluate_task(...)` は既存 `FiniteLifecycleLoop`、`EvaluationCoordinator`、`TaskLifecycleCoordinator` を使って host evidence を一回の有限 cycleへ接続する。`review_task(...)` は明示 reviewだけを記録し、`dispatch_reviewed(...)` は queue の lease proof を必須として既存 `EscalationExecutor`／`ProviderDispatcher`へ委譲する。Higher-tier dispatchは既存のexplicit review境界を越えない。
 - 入力/出力: task objective、Task ID、durable status JSON。CLI 独自の Task 状態を持たない。
 - 権限: 起動/投入/停止の operator boundary。stop は未知の外部効果を FAILED に偽装しない。
 - 禁止: 新しい scheduler/state machine、busy polling、budget/quota/approval の bypass。

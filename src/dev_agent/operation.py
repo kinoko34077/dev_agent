@@ -19,7 +19,7 @@ from threading import Event, RLock
 from typing import Any, Callable, Mapping
 
 from ._sqlite import connect
-from .domain.protocol import RiskLevel, Task, TaskStatus, TaskType
+from .domain.protocol import ModelRequest, RiskLevel, Task, TaskStatus, TaskType
 from .providers.dispatch import ProviderDispatcher
 from .providers.factory import ProviderDefinition, ProviderFactory
 from .providers.fake import FakeProvider
@@ -43,6 +43,13 @@ from .tools.registry import ToolRegistry, ToolSpec
 from .tools.runtime import ToolRuntime
 from .runtime.controller import Controller
 from .runtime.task_graph import TaskGraph, TaskGraphError
+from .intelligence.coordination import EvaluationCoordinator
+from .intelligence.evaluator import EvaluationEvidence
+from .intelligence.escalation import EscalationContext
+from .intelligence.execution import EscalationExecutor
+from .intelligence.lifecycle import TaskLifecycleCoordinator
+from .intelligence.lifecycle_loop import FiniteLifecycleLoop, LifecycleStep
+from .intelligence.loop import EvaluationDispatchCoordinator
 
 
 class OperationError(RuntimeError):
@@ -356,7 +363,7 @@ def _inferred_tier(config: OperationConfig) -> str | None:
 class OperationService:
     """Compose existing v2 components for the minimum operational commands."""
 
-    def __init__(self, config: OperationConfig, *, store: SQLiteStateStore, queue: DurableQueue, ledger: ResourceLedger, control: OperationControl, controller: Controller, worker: WorkerRunner) -> None:
+    def __init__(self, config: OperationConfig, *, store: SQLiteStateStore, queue: DurableQueue, ledger: ResourceLedger, control: OperationControl, controller: Controller, worker: WorkerRunner, dispatcher: ProviderDispatcher, evaluation: EvaluationCoordinator, lifecycle: TaskLifecycleCoordinator) -> None:
         self.config = config
         self.store = store
         self.queue = queue
@@ -364,6 +371,9 @@ class OperationService:
         self.control = control
         self.controller = controller
         self.worker = worker
+        self.dispatcher = dispatcher
+        self._evaluation = evaluation
+        self._lifecycle = lifecycle
         self._closed = False
 
     @classmethod
@@ -409,7 +419,18 @@ class OperationService:
                 worker_id=config.worker_id,
                 lease_seconds=config.lease_seconds,
             )
-            return cls(config, store=store, queue=queue, ledger=ledger, control=control, controller=controller, worker=worker)
+            return cls(
+                config,
+                store=store,
+                queue=queue,
+                ledger=ledger,
+                control=control,
+                controller=controller,
+                worker=worker,
+                dispatcher=dispatcher,
+                evaluation=EvaluationCoordinator(store),
+                lifecycle=TaskLifecycleCoordinator(store),
+            )
         except Exception:
             if control is not None:
                 control.close()
@@ -420,6 +441,128 @@ class OperationService:
             if store is not None:
                 store.close()
             raise
+
+    def _lifecycle_loop(self, task_id: str, *, max_cycles: int) -> FiniteLifecycleLoop:
+        """Build one finite lifecycle view over the existing durable boundaries.
+
+        The Operation Layer does not own a second state machine.  Each call
+        creates a small caller-scoped view over the shared evaluator and
+        lifecycle coordinator; cycle usage is reconstructed from durable
+        ``evaluation.recorded`` events by ``FiniteLifecycleLoop``.
+        """
+
+        return FiniteLifecycleLoop(
+            EvaluationDispatchCoordinator(
+                self.store,
+                evaluation_coordinator=self._evaluation,
+            ),
+            self._lifecycle,
+            max_cycles=max_cycles,
+            task_id=task_id,
+        )
+
+    def evaluate_task(
+        self,
+        evidence: EvaluationEvidence,
+        *,
+        escalation_context: EscalationContext | None = None,
+        max_cycles: int = 3,
+        lease_proof=None,
+    ) -> LifecycleStep:
+        """Apply one host evaluation through the normal Operation composition.
+
+        Evaluation can produce a terminal result or an explicitly reviewable
+        bounded plan.  It never dispatches a Provider or approves escalation
+        on its own.
+        """
+
+        if not isinstance(evidence, EvaluationEvidence):
+            raise TypeError("evidence must be EvaluationEvidence")
+        return self._lifecycle_loop(evidence.task_id, max_cycles=max_cycles).evaluate_and_apply(
+            evidence,
+            escalation_context=escalation_context,
+            lease_proof=lease_proof,
+        )
+
+    def review_task(
+        self,
+        step: LifecycleStep,
+        *,
+        actor: str,
+        approved: bool,
+        approval_reference: str,
+        reason: str | None = None,
+    ):
+        """Persist explicit review for a lifecycle plan without dispatching."""
+
+        if not isinstance(step, LifecycleStep):
+            raise TypeError("step must be LifecycleStep")
+        return self._evaluation.review_plan(
+            step.dispatch_cycle.evaluation,
+            actor=actor,
+            approved=approved,
+            approval_reference=approval_reference,
+            reason=reason,
+        )
+
+    def dispatch_reviewed(
+        self,
+        step: LifecycleStep,
+        review_event,
+        *,
+        model_request: ModelRequest,
+        lease_proof,
+        provider_binding_id: str | None = None,
+        dispatch_id: str | None = None,
+        attempt: int | None = None,
+        max_cycles: int = 3,
+    ) -> LifecycleStep:
+        """Execute one reviewed lifecycle step under a durable queue lease.
+
+        The reviewed path is deliberately explicit: a queue lease proof is
+        required, and the same proof fences the escalation intent, provider
+        dispatch, and Task transition.  No Operation-owned retry or approval
+        state machine is introduced.
+        """
+
+        if not isinstance(step, LifecycleStep):
+            raise TypeError("step must be LifecycleStep")
+        if not isinstance(model_request, ModelRequest):
+            raise TypeError("model_request must be ModelRequest")
+        if lease_proof is None:
+            raise ValueError("lease_proof is required for reviewed dispatch")
+        self.queue.assert_proof(lease_proof)
+
+        def assert_lease() -> None:
+            self.queue.assert_proof(lease_proof)
+
+        executor = EscalationExecutor(
+            self.store,
+            self.dispatcher,
+            lease_guard=assert_lease,
+            lease_proof=lease_proof,
+            actor="operation-escalation-executor",
+        )
+        coordinator = EvaluationDispatchCoordinator(
+            self.store,
+            evaluation_coordinator=self._evaluation,
+            executor=executor,
+        )
+        loop = FiniteLifecycleLoop(
+            coordinator,
+            self._lifecycle,
+            max_cycles=max_cycles,
+            task_id=step.transition.task.task_id,
+        )
+        return loop.dispatch_and_apply(
+            step,
+            review_event,
+            model_request=model_request,
+            provider_binding_id=provider_binding_id,
+            dispatch_id=dispatch_id,
+            attempt=attempt,
+            lease_proof=lease_proof,
+        )
 
     @staticmethod
     def _ensure_budget(ledger: ResourceLedger) -> None:

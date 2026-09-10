@@ -179,7 +179,15 @@ class EscalationExecutor:
 
         try:
             self._guard_before_dispatch()
-            response = self._dispatcher.request(derived_request)
+            request_with_authority = getattr(self._dispatcher, "request_with_authority", None)
+            if callable(request_with_authority):
+                response = request_with_authority(
+                    derived_request,
+                    lease_guard=self._lease_guard,
+                    lease_proof=self._lease_proof,
+                )
+            else:
+                response = self._dispatcher.request(derived_request)
             if not isinstance(response, ModelResponse):
                 raise TypeError("provider dispatcher must return ModelResponse")
             self._guard_after_dispatch()

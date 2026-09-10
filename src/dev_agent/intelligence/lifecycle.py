@@ -35,7 +35,7 @@ class TaskLifecycleCoordinator:
         self._store = store
         self._actor = actor.strip()
 
-    def apply_evaluation(self, cycle: EvaluationDispatchCycle) -> TaskLifecycleTransition:
+    def apply_evaluation(self, cycle: EvaluationDispatchCycle, *, lease_proof=None) -> TaskLifecycleTransition:
         """Persist the Task state implied by one evaluated cycle.
 
         A retry or escalation is parked as ``READY`` until its explicit review
@@ -105,9 +105,10 @@ class TaskLifecycleCoordinator:
             target=target,
             payload=payload,
             identity=f"evaluation:{cycle.evaluation.event.event_id}",
+            lease_proof=lease_proof,
         )
 
-    def apply_dispatch(self, cycle: EvaluationDispatchCycle) -> TaskLifecycleTransition:
+    def apply_dispatch(self, cycle: EvaluationDispatchCycle, *, lease_proof=None) -> TaskLifecycleTransition:
         """Persist the Task state implied by a reviewed dispatch outcome."""
 
         if not isinstance(cycle, EvaluationDispatchCycle):
@@ -165,6 +166,7 @@ class TaskLifecycleCoordinator:
             target=target,
             payload=payload,
             identity=identity,
+            lease_proof=lease_proof,
         )
 
     def _transition(
@@ -175,6 +177,7 @@ class TaskLifecycleCoordinator:
         target: TaskStatus,
         payload: dict[str, object],
         identity: str,
+        lease_proof=None,
     ) -> TaskLifecycleTransition:
         event = Event(
             event_id=str(uuid5(NAMESPACE_URL, f"dev-agent/task-lifecycle/{identity}/{event_type}")),
@@ -187,7 +190,7 @@ class TaskLifecycleCoordinator:
             return TaskLifecycleTransition(task=task, event=event, replayed=True)
         self._ensure_transition_allowed(task.status, target)
         task.status = target
-        self._store.commit_transition(task=task, event=event)
+        self._store.commit_transition(task=task, event=event, lease_proof=lease_proof)
         return TaskLifecycleTransition(task=task, event=event)
 
     def _load_task(self, task_id: str) -> Task:

@@ -15,7 +15,7 @@
 | AgentBackend | `src/dev_agent/backends/` | 外部Agent harnessとのthin typed contract、`BackendAdmission`付きdispatcher。実adapterは別slice |
 | Runtime | `src/dev_agent/runtime/` | Controller、model turn、legacy compatibility、checkpoint/resume |
 | Scheduler | `src/dev_agent/scheduler/` | DurableQueue、WorkerRunner、lease、quota wake/requalification |
-| Operation | `src/dev_agent/operation.py`、`src/dev_agent/__main__.py` | 人間向け start/submit/status/stop と maintenance composition |
+| Operation | `src/dev_agent/operation.py`、`src/dev_agent/__main__.py` | 人間向け start/submit/status/stop、maintenance、既存 Evaluator/Lifecycle の明示 composition |
 | Recovery | `recovery/` | Runtime から独立した backup/restore/diagnostics/repair boundary |
 | DevFarm | `scripts/devfarm*.py`、`.devfarm/` | development-only proposal、verification、Commander parent plan |
 | Formal contract | `spec/v2/` | API/implementation contract、requirements、ADR、Gate、traceability |
@@ -69,6 +69,7 @@ scheduler / operation composition
 - Quota は observation の `quota_domain` と reset/blocked_until を正本とし、reset 到達だけで復帰させず、bounded probe と正常観測の永続化後に routing へ戻す。
 - cancellation は Task payload の競合する全置換だけに依存せず、append-only control record を terminal transition 直前に再読込する。Provider health は selected resource/binding、quota wake は `quota:<domain>` に限定する。
 - Evidence-based routing は現段階では advisory とし、minimum sample、freshness、rollback 条件を満たすまで hard routing policy に接続しない。
+- Operation の lifecycle composition は `OperationService` が `EvaluationCoordinator`、`FiniteLifecycleLoop`、`TaskLifecycleCoordinator`、`EscalationExecutor` を composition する。Operation はこれらの内部state machineを複製せず、reviewed dispatchには `DurableQueue` の lease proofを要求する。
 
 ## 実装・検証ルール
 
