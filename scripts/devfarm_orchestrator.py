@@ -177,6 +177,8 @@ class DevFarmOrchestrator:
         normalized = self._normalize_assignments(assignments)
         if not normalized:
             return []
+        if self.remote_governor.max_inflight <= 0:
+            raise ConcurrencyLimitError("remote inference concurrency is disabled")
         with ThreadPoolExecutor(max_workers=self.remote_governor.max_inflight) as pool:
             futures = [pool.submit(self._propose, root, assignment) for assignment in normalized]
             return [future.result() for future in futures]

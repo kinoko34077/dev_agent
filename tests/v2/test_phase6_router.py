@@ -108,6 +108,56 @@ def test_router_rejects_stale_quota_observation_for_quota_domain(tmp_path):
         ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}))
 
 
+def test_router_rejects_provider_block_until_a_new_observation_arrives(tmp_path):
+    ledger = ResourceLedger(tmp_path / "blocked-quota.sqlite3")
+    ledger.register_resource(
+        "blocked",
+        provider_id="gemini",
+        native_unit="request",
+        capacity=10,
+        capabilities=["text"],
+        quota_domain="google-project-123",
+        cost_minor=0,
+    )
+    ledger.observe("blocked", available=10, health="healthy")
+    ledger.observe_quota(
+        "blocked",
+        unit="requests",
+        metric="rpm",
+        window="minute",
+        request_limit=100,
+        request_remaining=100,
+        blocked_until="2000-01-01T00:00:00+00:00",
+        block_reason="rate_limit",
+    )
+
+    with pytest.raises(NoRoute, match="no eligible resource"):
+        ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}))
+
+    ledger.observe_quota("blocked", unit="requests", metric="rpm", window="minute", request_limit=100, request_remaining=90)
+    assert ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"})).resource_id == "blocked"
+
+
+def test_router_rejects_authorization_block_without_reset(tmp_path):
+    ledger = ResourceLedger(tmp_path / "authorization-block.sqlite3")
+    ledger.register_resource("blocked", provider_id="groq", native_unit="request", capacity=1, capabilities=["text"], quota_domain="groq-project", cost_minor=0)
+    ledger.observe("blocked", available=1, health="healthy")
+    ledger.observe_quota("blocked", unit="requests", request_limit=10, request_remaining=10, block_reason="authorization")
+    with pytest.raises(NoRoute, match="no eligible resource"):
+        ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}))
+
+
+def test_router_accepts_new_observation_as_explicit_quota_unblock(tmp_path):
+    ledger = ResourceLedger(tmp_path / "quota-unblock.sqlite3")
+    ledger.register_resource("cloud", provider_id="gemini", native_unit="request", capacity=1, capabilities=["text"], quota_domain="project", cost_minor=0)
+    ledger.observe("cloud", available=1, health="healthy")
+    ledger.observe_quota("cloud", unit="requests", metric="rpm", window="minute", request_limit=10, request_remaining=0, blocked_until="2099-01-01T00:00:00+00:00", block_reason="rate_limit")
+    with pytest.raises(NoRoute, match="no eligible resource"):
+        ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}))
+    ledger.observe_quota("cloud", unit="requests", metric="rpm", window="minute", request_limit=10, request_remaining=9)
+    assert ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"})).resource_id == "cloud"
+
+
 def test_router_prefers_higher_fresh_quota_before_cost(tmp_path):
     ledger = ResourceLedger(tmp_path / "quota-priority.sqlite3")
     for resource_id, remaining in (("a", 10), ("b", 90)):

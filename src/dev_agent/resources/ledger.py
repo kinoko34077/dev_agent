@@ -19,6 +19,7 @@ from .budget_store import BudgetReservationStore, _BUDGET_TRANSITIONS
 from .catalog import ResourceCatalogStore
 from .health import ProviderHealthStore
 from .observations import QuotaObservationStore, ResourceObservationStore
+from .quota_policy import QuotaBlockDecision
 
 
 # Capability held only by the explicit budget-administration facade. Runtime
@@ -105,12 +106,17 @@ class QuotaObservation:
     remaining_value: int | float | None = None
     consumed_value: int | float | None = None
     authority: str = "provider"
+    metric: str = "quota"
+    window: str = "unknown"
+    reset_source: str | None = None
+    blocked_until: str | None = None
+    block_reason: str | None = None
 
 
 class ResourceLedger:
     """SQLite-backed resource observations and budget reservation records."""
 
-    SCHEMA_VERSION = 7
+    SCHEMA_VERSION = 8
     _SCHEMA = """
     CREATE TABLE IF NOT EXISTS resources (
         resource_id TEXT PRIMARY KEY,
@@ -159,6 +165,11 @@ class ResourceLedger:
         remaining_value REAL,
         consumed_value REAL,
         authority TEXT NOT NULL DEFAULT 'provider',
+        metric TEXT NOT NULL DEFAULT 'quota',
+        window TEXT NOT NULL DEFAULT 'unknown',
+        reset_source TEXT,
+        blocked_until TEXT,
+        block_reason TEXT,
         request_limit INTEGER,
         request_remaining INTEGER,
         token_limit INTEGER,
@@ -309,6 +320,16 @@ class ResourceLedger:
                     "UPDATE quota_observations SET unit='requests', limit_value=request_limit, remaining_value=request_remaining WHERE request_limit IS NOT NULL OR request_remaining IS NOT NULL"
                 )
                 self.connection.execute("UPDATE resource_schema_meta SET value='7' WHERE key='schema_version'")
+            if current < 8:
+                for column, definition in (
+                    ("metric", "TEXT NOT NULL DEFAULT 'quota'"),
+                    ("window", "TEXT NOT NULL DEFAULT 'unknown'"),
+                    ("reset_source", "TEXT"),
+                    ("blocked_until", "TEXT"),
+                    ("block_reason", "TEXT"),
+                ):
+                    self._ensure_column("quota_observations", column, definition)
+                self.connection.execute("UPDATE resource_schema_meta SET value='8' WHERE key='schema_version'")
             self.connection.commit()
         except Exception:
             self.connection.rollback()
@@ -490,6 +511,11 @@ class ResourceLedger:
         remaining: int | float | None = None,
         consumed: int | float | None = None,
         authority: str = "provider",
+        metric: str = "quota",
+        window: str = "unknown",
+        reset_source: str | None = None,
+        blocked_until: str | None = None,
+        block_reason: str | None = None,
         request_limit: int | None = None,
         request_remaining: int | None = None,
         token_limit: int | None = None,
@@ -515,6 +541,22 @@ class ResourceLedger:
             raise ValueError("remaining cannot exceed limit")
         if not isinstance(authority, str) or not authority.strip():
             raise ValueError("authority must be a non-empty string")
+        if not isinstance(metric, str) or not metric.strip() or len(metric.strip()) > 64:
+            raise ValueError("metric must be a non-empty string of at most 64 characters")
+        metric = metric.strip().lower()
+        if not isinstance(window, str) or window.strip() not in {"unknown", "minute", "day", "month"}:
+            raise ValueError("window must be one of unknown, minute, day, or month")
+        window = window.strip()
+        for name, value in (
+            ("reset_source", reset_source),
+            ("blocked_until", blocked_until),
+            ("block_reason", block_reason),
+        ):
+            if value is not None and (not isinstance(value, str) or not value.strip() or len(value.strip()) > 256):
+                raise ValueError(f"{name} must be a non-empty string of at most 256 characters or None")
+        reset_source = reset_source.strip() if isinstance(reset_source, str) else None
+        blocked_until = blocked_until.strip() if isinstance(blocked_until, str) else None
+        block_reason = block_reason.strip().lower() if isinstance(block_reason, str) else None
         request_limit = self._quota_integer(request_limit, "request_limit")
         request_remaining = self._quota_integer(request_remaining, "request_remaining")
         token_limit = self._quota_integer(token_limit, "token_limit")
@@ -556,6 +598,11 @@ class ResourceLedger:
             remaining=remaining,
             consumed=consumed,
             authority=authority.strip(),
+            metric=metric,
+            window=window,
+            reset_source=reset_source,
+            blocked_until=blocked_until,
+            block_reason=block_reason,
             request_limit=request_limit,
             request_remaining=request_remaining,
             token_limit=token_limit,
@@ -570,6 +617,47 @@ class ResourceLedger:
 
     def get_quota_observation(self, resource_id: str) -> dict[str, Any] | None:
         return self._quota_store.get_latest(resource_id)
+
+    def record_quota_block(
+        self,
+        resource_id: str,
+        decision: QuotaBlockDecision,
+        *,
+        observed_at: str | None = None,
+        source: str = "provider-error",
+    ) -> bool:
+        """Persist a routing block while preserving known quota facts."""
+
+        if not isinstance(decision, QuotaBlockDecision):
+            raise TypeError("decision must be a QuotaBlockDecision")
+        resource = self.get_resource(resource_id)
+        if not resource.get("quota_domain"):
+            return False
+        latest = self.get_quota_observation(resource_id) or {}
+        self.observe_quota(
+            resource_id,
+            unit=latest.get("unit", "requests"),
+            limit=latest.get("limit"),
+            remaining=latest.get("remaining"),
+            consumed=latest.get("consumed"),
+            authority=decision.authority,
+            metric=decision.metric,
+            window=decision.window,
+            reset_source=decision.reset_source,
+            blocked_until=decision.blocked_until,
+            block_reason=decision.block_reason,
+            request_limit=latest.get("request_limit"),
+            request_remaining=latest.get("request_remaining"),
+            token_limit=latest.get("token_limit"),
+            token_remaining=latest.get("token_remaining"),
+            reset_at=latest.get("reset_at") or decision.blocked_until,
+            daily_remaining=latest.get("daily_remaining"),
+            concurrency_limit=latest.get("concurrency_limit"),
+            confidence=decision.confidence,
+            observed_at=observed_at,
+            source=source,
+        )
+        return True
 
     def list_quota_observations(self, *, quota_domain: str | None = None) -> list[dict[str, Any]]:
         """Return the newest observation for each resource in a quota domain.
@@ -616,6 +704,11 @@ class ResourceLedger:
             "limit",
             "remaining",
             "consumed",
+            "metric",
+            "window",
+            "reset_source",
+            "blocked_until",
+            "block_reason",
             "request_limit",
             "request_remaining",
             "token_limit",
@@ -639,6 +732,11 @@ class ResourceLedger:
                 remaining=payload.get("remaining"),
                 consumed=payload.get("consumed"),
                 authority=payload.get("authority", "provider"),
+                metric=payload.get("metric", "quota"),
+                window=payload.get("window", "unknown"),
+                reset_source=payload.get("reset_source"),
+                blocked_until=payload.get("blocked_until"),
+                block_reason=payload.get("block_reason"),
                 request_limit=payload.get("request_limit"),
                 request_remaining=payload.get("request_remaining"),
                 token_limit=payload.get("token_limit"),

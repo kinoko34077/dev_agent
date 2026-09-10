@@ -138,6 +138,8 @@ class ResourceRouter:
         ratios: list[float] = []
         now = time.time()
         for observation in observations_by_domain.get(quota_domain, ()):
+            if self._quota_is_blocked(observation):
+                continue
             try:
                 observed_at = datetime.fromisoformat(str(observation["observed_at"])).timestamp()
             except (TypeError, ValueError):
@@ -152,6 +154,29 @@ class ResourceRouter:
         # minimum fresh headroom prevents the router from treating shared
         # quota as additive capacity.
         return min(ratios) if ratios else None
+
+    @staticmethod
+    def _quota_is_blocked(observation: dict[str, object]) -> bool:
+        """Keep blocked or pre-reset observations out of routing.
+
+        A past ``blocked_until`` is not enough to revive an old exhausted
+        observation.  The provider must publish a newer observation after the
+        block boundary; this leaves the bounded probe/requalification decision
+        to the scheduler/operator rather than turning every queued task into a
+        retry storm.
+        """
+
+        reason = observation.get("block_reason")
+        if not isinstance(reason, str) or not reason.strip():
+            return False
+        if reason.strip().lower() in {"authorization", "permission", "blocked_external"}:
+            return True
+        # Keep the provider out of the route even after the wake timestamp.
+        # A bounded probe or a normal provider response must write a newer
+        # observation without ``block_reason`` before the resource is eligible
+        # again.  This avoids reviving an exhausted/unauthorized provider just
+        # because a local clock crossed its conservative cooldown.
+        return True
 
     def snapshot(self) -> RoutingSnapshot:
         return self._read_view.routing_snapshot()

@@ -1,3 +1,5 @@
+import pytest
+
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse, Task, TaskStatus
 from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.dispatch import ProviderDispatcher, ProviderRegistry
@@ -160,6 +162,29 @@ def test_dispatcher_ignores_malformed_quota_telemetry_without_failing_result(tmp
 
     assert result.status is TaskStatus.COMPLETED
     assert ledger.get_quota_observation("groq-free")["request_remaining"] == 90
+
+
+def test_dispatcher_records_conservative_quota_block_after_rate_limit(tmp_path):
+    ledger = ResourceLedger(tmp_path / "rate-limit-block.sqlite3")
+    ledger.register_resource("limited", provider_id="limited", native_unit="request", capacity=1, capabilities=["text"], quota_domain="limited-project", cost_minor=0)
+    ledger.observe("limited", available=1, health="healthy")
+    ledger.observe_quota("limited", unit="requests", metric="rpm", window="minute", request_limit=10, request_remaining=10)
+    BudgetAuthority.configure(ledger, BudgetPolicy(hard_cap_minor=0, recovery_reserve_minor=0))
+    control = ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger))
+
+    class LimitedProvider(FakeProvider):
+        provider_id = "limited"
+
+        def request(self, request):
+            raise ProviderError("rate limited", category="rate_limit", retryable=True, http_status=429)
+
+    dispatcher = ProviderDispatcher(ProviderRegistry([LimitedProvider()]), control)
+    with pytest.raises(ProviderError, match="rate limited"):
+        dispatcher.request(ModelRequest(task_id="00000000-0000-0000-0000-000000000099", messages=[{"role": "user", "content": "hello"}]))
+    observation = ledger.get_quota_observation("limited")
+    assert observation["block_reason"] == "rate_limit"
+    assert observation["blocked_until"]
+    assert observation["reset_source"] == "conservative-cooldown"
 
 
 def test_dispatcher_records_provider_health_through_control_plane(tmp_path, monkeypatch):

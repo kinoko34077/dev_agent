@@ -29,7 +29,7 @@ def test_resource_ledger_persists_quota_domain_identity(tmp_path):
 
     assert spec.quota_domain == "google-project-123"
     assert resource_ledger.get_resource("gemini-free")["quota_domain"] == "google-project-123"
-    assert resource_ledger.connection.execute("SELECT value FROM resource_schema_meta WHERE key='schema_version'").fetchone()[0] == "7"
+    assert resource_ledger.connection.execute("SELECT value FROM resource_schema_meta WHERE key='schema_version'").fetchone()[0] == "8"
 
     reopened = ResourceLedger(tmp_path / "quota-domain.sqlite3")
     assert reopened.get_resource("gemini-free")["quota_domain"] == "google-project-123"
@@ -101,6 +101,39 @@ def test_resource_ledger_persists_generic_quota_units_and_authority(tmp_path):
     assert observation["source"] == "cloudflare-neuron-estimate"
 
 
+def test_resource_ledger_persists_quota_window_and_block_state(tmp_path):
+    resource_ledger = ResourceLedger(tmp_path / "quota-block.sqlite3")
+    resource_ledger.register_resource(
+        "gemini-free",
+        provider_id="gemini",
+        native_unit="request",
+        capacity=100,
+        capabilities=["text"],
+        quota_domain="google-project-123",
+    )
+    resource_ledger.observe_quota(
+        "gemini-free",
+        metric="rpm",
+        unit="requests",
+        window="minute",
+        request_limit=10,
+        request_remaining=0,
+        reset_at="2026-09-10T01:00:00+00:00",
+        reset_source="provider-header",
+        blocked_until="2026-09-10T01:00:00+00:00",
+        block_reason="rate_limit",
+    )
+
+    observation = resource_ledger.get_quota_observation("gemini-free")
+    assert observation["metric"] == "rpm"
+    assert observation["window"] == "minute"
+    assert observation["reset_source"] == "provider-header"
+    assert observation["blocked_until"] == "2026-09-10T01:00:00+00:00"
+    assert observation["block_reason"] == "rate_limit"
+    reopened = ResourceLedger(tmp_path / "quota-block.sqlite3")
+    assert reopened.get_quota_observation("gemini-free")["block_reason"] == "rate_limit"
+
+
 def test_resource_ledger_rejects_unknown_generic_quota_unit(tmp_path):
     resource_ledger = ResourceLedger(tmp_path / "generic-quota-validation.sqlite3")
     resource_ledger.register_resource(
@@ -115,6 +148,59 @@ def test_resource_ledger_rejects_unknown_generic_quota_unit(tmp_path):
 
     with pytest.raises(ValueError, match="unit"):
         resource_ledger.observe_quota("resource", unit="credits", consumed=1)
+
+
+def test_resource_ledger_records_quota_block_without_losing_known_facts(tmp_path):
+    from src.dev_agent.resources.quota_policy import QuotaBlockDecision
+
+    resource_ledger = ResourceLedger(tmp_path / "quota-block-record.sqlite3")
+    resource_ledger.register_resource(
+        "cloud",
+        provider_id="gemini",
+        native_unit="request",
+        capacity=10,
+        capabilities=["text"],
+        quota_domain="project",
+    )
+    resource_ledger.observe_quota("cloud", unit="requests", metric="rpm", window="minute", request_limit=10, request_remaining=2)
+    assert resource_ledger.record_quota_block(
+        "cloud",
+        QuotaBlockDecision(
+            block_reason="rate_limit",
+            metric="rpm",
+            window="minute",
+            blocked_until="2099-01-01T00:00:00+00:00",
+            reset_source="provider",
+        ),
+    )
+    observation = resource_ledger.get_quota_observation("cloud")
+    assert observation["request_remaining"] == 2
+    assert observation["block_reason"] == "rate_limit"
+    assert observation["blocked_until"] == "2099-01-01T00:00:00+00:00"
+
+
+def test_resource_ledger_ingests_quota_block_fields_from_provider_response(tmp_path):
+    resource_ledger = ResourceLedger(tmp_path / "quota-block-ingest.sqlite3")
+    resource_ledger.register_resource("cloud", provider_id="gemini", native_unit="request", capacity=1, capabilities=["text"], quota_domain="project")
+    assert resource_ledger.ingest_quota_observation(
+        "cloud",
+        {
+            "quota_observation": {
+                "metric": "rpd",
+                "unit": "requests",
+                "window": "day",
+                "request_limit": 100,
+                "request_remaining": 0,
+                "blocked_until": "2099-01-01T00:00:00+00:00",
+                "block_reason": "quota",
+                "reset_source": "provider",
+            }
+        },
+    )
+    observation = resource_ledger.get_quota_observation("cloud")
+    assert observation["metric"] == "rpd"
+    assert observation["window"] == "day"
+    assert observation["block_reason"] == "quota"
 
 
 def test_resource_ledger_lists_latest_quota_observation_per_resource_in_domain(tmp_path):

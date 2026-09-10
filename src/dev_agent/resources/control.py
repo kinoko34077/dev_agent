@@ -9,6 +9,7 @@ from ..domain.protocol import ModelRequest, ModelResponse
 from .budget import BudgetExceeded, BudgetGovernor, BudgetReconciliationRequired, BudgetReservation, MaintenanceActive, ResourceUnavailable, UnknownPrice
 from .ledger import MoneyAmount
 from .router import NoRoute, ResourceRouter, RouteRequest, RouteSelection
+from .quota_policy import classify_provider_error
 
 
 class DispatchDenied(RuntimeError):
@@ -151,6 +152,9 @@ class ResourceControlPlane:
     def record_provider_error(self, provider_id: str, reservation: DispatchReservation, error: Exception) -> None:
         category = getattr(error, "category", "provider_error")
         requires_reconciliation = bool(getattr(error, "requires_reconciliation", False))
+        decision = classify_provider_error(provider_id, error)
+        if decision is not None:
+            self.governor.ledger.record_quota_block(reservation.budget.resource_id, decision)
         if category in {"transport", "rate_limit", "quota"} or requires_reconciliation:
             self.record_provider_failure(provider_id)
         if requires_reconciliation:

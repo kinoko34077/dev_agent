@@ -87,6 +87,8 @@ class QuotaObservationStore:
 
     _SELECT = """SELECT resource_id, quota_domain, unit, limit_value,
                           remaining_value, consumed_value, authority,
+                          metric, window, reset_source, blocked_until,
+                          block_reason,
                           request_limit,
                           request_remaining, token_limit, token_remaining,
                           reset_at, daily_remaining, concurrency_limit,
@@ -107,6 +109,11 @@ class QuotaObservationStore:
         remaining: int | float | None,
         consumed: int | float | None,
         authority: str,
+        metric: str,
+        window: str,
+        reset_source: str | None,
+        blocked_until: str | None,
+        block_reason: str | None,
         request_limit: int | None,
         request_remaining: int | None,
         token_limit: int | None,
@@ -127,11 +134,12 @@ class QuotaObservationStore:
             self.connection.execute(
                 """INSERT INTO quota_observations(
                     observation_id, resource_id, quota_domain, unit, limit_value,
-                    remaining_value, consumed_value, authority, request_limit,
+                    remaining_value, consumed_value, authority, metric, window,
+                    reset_source, blocked_until, block_reason, request_limit,
                     request_remaining, token_limit, token_remaining, reset_at,
                     daily_remaining, concurrency_limit, confidence, observed_at,
                     source
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     str(uuid4()),
                     resource_id,
@@ -141,6 +149,11 @@ class QuotaObservationStore:
                     remaining,
                     consumed,
                     authority,
+                    metric,
+                    window,
+                    reset_source,
+                    blocked_until,
+                    block_reason,
                     request_limit,
                     request_remaining,
                     token_limit,
@@ -189,6 +202,8 @@ class QuotaObservationStore:
             return self.connection.execute(
                 """SELECT q.resource_id, q.quota_domain, q.unit, q.limit_value,
                           q.remaining_value, q.consumed_value, q.authority,
+                          q.metric, q.window, q.reset_source, q.blocked_until,
+                          q.block_reason,
                           q.request_limit, q.request_remaining, q.token_limit,
                           q.token_remaining, q.reset_at, q.daily_remaining,
                           q.concurrency_limit, q.confidence, q.observed_at,

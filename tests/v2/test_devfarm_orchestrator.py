@@ -12,7 +12,6 @@ from scripts.devfarm_orchestrator import (
     HostConcurrencyGovernor,
     RemoteConcurrencyGovernor,
 )
-from scripts.devfarm_worker import apply_and_verify
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.providers.base import ModelProvider
 
@@ -162,3 +161,10 @@ def test_disabled_host_resource_is_fail_closed():
     with pytest.raises(ConcurrencyLimitError, match="disabled"):
         with host.slot("local_model"):
             pass
+
+
+def test_disabled_remote_resource_is_fail_closed(tmp_path):
+    root, manifests = _repo(tmp_path, ["tests/v2/worker.py"])
+    orchestrator = DevFarmOrchestrator(remote_governor=RemoteConcurrencyGovernor(max_inflight=0))
+    with pytest.raises(ConcurrencyLimitError, match="remote inference"):
+        orchestrator.propose(root, [(manifests[0], _ConcurrentProvider(_output("tests/v2/worker.py")))])
