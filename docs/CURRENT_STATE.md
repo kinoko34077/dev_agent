@@ -14,7 +14,7 @@
 - Phase 7E: bounded workflow promotion proposalの生成境界を実装済み。自動promotionは行わない
 - Phase 7 lifecycle: host evaluator／reviewed dispatchの結果を、`TaskLifecycleCoordinator`が冪等な`commit_transition()`でterminal／retry／approval／reconciliation状態へ適用する境界を実装済み
 - Phase 7 Operation Layer: `python -m src.dev_agent` の`start`／`submit`／`status`／`stop`を追加し、既存のSQLiteStateStore・DurableQueue・WorkerRunner・Controller・ProviderDispatcherをcompositionした。StateStoreとQueueは同じSQLiteファイルを共有し、CLI停止は実行中Taskを即時失敗扱いせず、durableな協調キャンセル要求または既存のreconciliation状態を維持する
-- Phase 6 quota operation: ResourceLedger schema v8でmetric／window／reset source／blocked-until／block reasonを保持し、ProviderErrorの429／quota／transport分類をrouting blockへ接続済み。blocked observationは新しい正常観測で明示的に復帰する。Scheduler queue schema v4と`QuotaWakeScheduler`はreset boundaryへのdurable parking／wakeを提供するが、Provider再probe・block解除は自動化していない
+- Phase 6 quota operation: ResourceLedger schema v8でmetric／window／reset source／blocked-until／block reasonを保持し、ProviderErrorの429／quota／transport分類をrouting blockへ接続済み。blocked observationは新しい正常観測で明示的に復帰する。Scheduler queue schema v4と`QuotaWakeScheduler`はreset boundaryへのdurable parking／wakeを提供し、`QuotaRequalificationCoordinator`は呼出側が明示した一回のbounded probeについて、freshな正常観測の保存後だけdue taskをwakeする。Provider再probeの自動loopやclockだけによるblock解除は行わない
 - DevFarm orchestration: Remote proposalとHost verificationを分離し、remote inference枠とworktree verification枠を別Governorでboundedに制御する。proposal失敗時にworktreeを作成せず、自動mergeもしない
 - Gate昇格やlive qualificationの成功は、local test・model自己申告・Worker proposalだけから推測しない
 
@@ -90,7 +90,7 @@ dummy docを公式branchへ自動統合していません。実装成果の公�
 ## 次の作業
 
 1. Operation Layerのprocess restart／resumeとterminal／waiting／reconciliation E2Eを追加し、外部providerを使う明示operator実行でもstatus／auditを確認できるようにする
-2. reset-aware quotaをProvider別の実観測・blocked_until・bounded probe／wakeへ接続し、429をblind retryしないScheduler境界を完成させる
+2. reset-aware quotaをProvider別の実観測・blocked_until・`QuotaRequalificationCoordinator`のbounded probe／wakeへ接続し、429をblind retryしないScheduler境界をProviderごとの運用入口へ仕上げる
 3. Worker metricsを一定数蓄積し、`Task Type × tier × capability × quota × latency/failure`の実績ベースroutingを、最小サンプル数・期限・rollback条件付きで導入する
 4. `TaskLifecycleCoordinator`の結果を次cycleのhost evidenceと有限のPASS / retry / escalation / WAIT_HUMAN循環へ接続し、再開時のacceptanceを追加する
 5. AgentBackend / Codex、MCP、Self-Improvementは前段のPhase 7 acceptanceが揃うまで着手しない

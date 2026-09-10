@@ -1,8 +1,14 @@
 from datetime import datetime, timezone
 
 from src.dev_agent.resources.ledger import ResourceLedger
-from src.dev_agent.scheduler import MaintenanceMode, QuotaWakeScheduler, WorkerRunner
-from src.dev_agent.scheduler.quota import QuotaWakeScheduler
+from src.dev_agent.scheduler import (
+    MaintenanceMode,
+    QuotaProbeStatus,
+    QuotaRequalificationCoordinator,
+    QuotaWakeScheduler,
+    WorkerRunner,
+)
+from src.dev_agent.scheduler.queue import DurableQueue
 
 
 def test_quota_scheduler_returns_earliest_reset_without_reviving_provider(tmp_path):
@@ -66,3 +72,86 @@ def test_scheduler_package_exports_are_consistent():
     assert MaintenanceMode.__name__ == "MaintenanceMode"
     assert QuotaWakeScheduler.__name__ == "QuotaWakeScheduler"
     assert WorkerRunner.__name__ == "WorkerRunner"
+
+
+def _blocked_ledger(tmp_path, *, reason="rate_limit", blocked_until="2026-09-10T11:59:00+00:00"):
+    ledger = ResourceLedger(tmp_path / "requalification.sqlite3")
+    ledger.register_resource(
+        "cloud",
+        provider_id="gemini",
+        native_unit="request",
+        capacity=1,
+        capabilities=["text"],
+        quota_domain="project",
+    )
+    ledger.observe_quota(
+        "cloud",
+        unit="requests",
+        metric="rpm",
+        window="minute",
+        request_limit=10,
+        request_remaining=0,
+        blocked_until=blocked_until,
+        block_reason=reason,
+        observed_at="2026-09-10T11:00:00+00:00",
+    )
+    return ledger
+
+
+def test_quota_requalification_persists_fresh_observation_and_wakes_due_tasks(tmp_path):
+    ledger = _blocked_ledger(tmp_path)
+    queue = DurableQueue(tmp_path / "queue.sqlite3")
+    queue.enqueue("quota-task")
+    item = queue.claim("quota-worker", lease_seconds=30)
+    scheduler = QuotaWakeScheduler(ledger, queue)
+    scheduler.park(
+        item.task_id,
+        worker_id="quota-worker",
+        state_version=item.state_version,
+        wake_at=datetime(2026, 9, 10, 11, 59, tzinfo=timezone.utc),
+    )
+    calls = []
+
+    def probe(resource_id, quota_domain):
+        calls.append((resource_id, quota_domain))
+        return {"unit": "requests", "metric": "rpm", "window": "minute", "request_limit": 10, "request_remaining": 9}
+
+    result = QuotaRequalificationCoordinator(ledger, scheduler).probe_once(
+        "cloud",
+        probe,
+        now=datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc),
+    )
+
+    assert result.status is QuotaProbeStatus.REQUALIFIED
+    assert result.observation_persisted is True
+    assert result.woken_tasks == 1
+    assert calls == [("cloud", "project")]
+    assert ledger.get_quota_observation("cloud")["block_reason"] is None
+    assert queue.snapshot("quota-task").state == "queued"
+
+
+def test_quota_requalification_does_not_probe_before_reset_or_authorization_block(tmp_path):
+    future = _blocked_ledger(tmp_path / "future", blocked_until="2026-09-10T13:00:00+00:00")
+    calls = []
+    result = QuotaRequalificationCoordinator(future).probe_once("cloud", lambda *_: calls.append(True), now=datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc))
+    assert result.status is QuotaProbeStatus.NOT_DUE
+    assert calls == []
+
+    auth = _blocked_ledger(tmp_path / "auth", reason="authorization", blocked_until=None)
+    result = QuotaRequalificationCoordinator(auth).probe_once("cloud", lambda *_: calls.append(True), now=datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc))
+    assert result.status is QuotaProbeStatus.BLOCKED_EXTERNAL
+    assert calls == []
+
+
+def test_quota_requalification_keeps_provider_blocked_after_one_failed_probe(tmp_path):
+    ledger = _blocked_ledger(tmp_path)
+    calls = []
+
+    def probe(*_):
+        calls.append(True)
+        return {"unit": "requests", "metric": "rpm", "window": "minute", "request_limit": 10, "request_remaining": 0, "block_reason": "rate_limit", "blocked_until": "2026-09-10T12:05:00+00:00"}
+
+    result = QuotaRequalificationCoordinator(ledger).probe_once("cloud", probe, now=datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc))
+    assert result.status is QuotaProbeStatus.STILL_BLOCKED
+    assert calls == [True]
+    assert ledger.get_quota_observation("cloud")["block_reason"] == "rate_limit"
