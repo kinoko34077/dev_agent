@@ -115,7 +115,7 @@
 - [x] Step 3: Move the durable `OperationControl` repository into `state/control_repository.py` and preserve the `dev_agent.operation.OperationControl` compatibility export.
 - [x] Step 4: Add a dedicated `cli.py` boundary with the existing parser and command behavior unchanged; keep lazy compatibility wrappers in `operation.py`.
 - [x] Step 5: Extract bootstrap construction into `operation_bootstrap.open_components` with unchanged callback compatibility and cleanup semantics.
-- [ ] Step 6: Extract planning functions and pass one planning context per operation.
+- [x] Step 6: Extract planning context, proposal validation/application, and dependency release into `operation_planning.py`; keep facade methods as compatibility wrappers.
 - [x] Step 7: Verify `python -m src.dev_agent --help` and the focused Operation suite after the CLI extraction.
 - [x] Step 8: Run the bootstrap/Operation/planner focused suite; result is `44 passed`.
 
