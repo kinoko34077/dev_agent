@@ -444,6 +444,9 @@ def validate_result(value: Mapping[str, Any], *, manifest: Mapping[str, Any]) ->
         if not _ATTEMPT_ID.fullmatch(attempt_id):
             raise DevFarmError("attempt_id contains unsafe characters")
         normalized["attempt_id"] = attempt_id
+    verification_id = value.get("verification_id")
+    if verification_id is not None:
+        normalized["verification_id"] = _nonempty(verification_id, "verification_id")
     return normalized
 
 

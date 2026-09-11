@@ -8,6 +8,7 @@ import math
 import time
 from typing import Protocol
 
+from .billing_catalog import profile_for
 from .qualification import QualificationResolver
 from .snapshot import RoutingSnapshot
 
@@ -208,6 +209,7 @@ class ResourceRouter:
                 continue
             metadata = resource.get("metadata") if isinstance(resource.get("metadata"), dict) else {}
             provider_binding_id = resource.get("provider_binding_id") or metadata.get("provider_binding_id") or resource["provider_id"]
+            model_id = resource.get("model_id") or metadata.get("model_id")
             if request.allowed_provider_binding_ids is not None and provider_binding_id not in request.allowed_provider_binding_ids:
                 continue
             if provider_binding_id in request.excluded_provider_binding_ids:
@@ -247,8 +249,32 @@ class ResourceRouter:
                 continue
             # Re-check billing authority expiry at dispatch time so a long-running
             # process does not retain no_charge_guaranteed=True past the catalog window.
+            # trusted_catalog resources require a valid billing_expires_at; absent means
+            # the record predates the catalog window contract and is treated as expired
+            # (fail-closed).  Billing facts are re-verified against the immutable catalog
+            # to detect persisted-value tampering before route selection.
+            _catalog_profile = None
+            billing_authority = metadata.get("billing_authority")
             billing_expires_at = metadata.get("billing_expires_at")
-            if billing_expires_at is not None:
+            if billing_authority == "trusted_catalog":
+                if billing_expires_at is None:
+                    continue
+                try:
+                    expiry = datetime.fromisoformat(str(billing_expires_at))
+                    if expiry.tzinfo is None:
+                        expiry = expiry.replace(tzinfo=timezone.utc)
+                    if datetime.now(timezone.utc) >= expiry:
+                        continue
+                except (TypeError, ValueError):
+                    continue
+                _catalog_profile = profile_for(resource["provider_id"], provider_binding_id, model_id or "")
+                if _catalog_profile is None:
+                    continue
+                if resource.get("cost_minor") != _catalog_profile.cost_minor:
+                    continue
+                if metadata.get("no_charge_guaranteed") is True and not _catalog_profile.no_charge_guaranteed:
+                    continue
+            elif billing_expires_at is not None:
                 try:
                     expiry = datetime.fromisoformat(str(billing_expires_at))
                     if expiry.tzinfo is None:
@@ -309,9 +335,9 @@ class ResourceRouter:
                     # remain unroutable until real quota evidence exists.
                     unknown_bootstrap = (
                         request.allow_unknown_quota
-                        and resource.get("cost_minor") == 0
-                        and metadata.get("billing_authority") == "trusted_catalog"
-                        and metadata.get("no_charge_guaranteed") is True
+                        and billing_authority == "trusted_catalog"
+                        and _catalog_profile is not None
+                        and _catalog_profile.no_charge_guaranteed
                     )
                     if not unknown_bootstrap:
                         continue

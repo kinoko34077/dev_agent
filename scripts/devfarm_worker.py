@@ -1153,7 +1153,6 @@ def apply_and_verify(
     else:
         metrics["durable_recorded"] = True
     result["worker_metrics"] = metrics
-    _write_latest_result_projection(root, result, manifest=manifest)
     notes_path = _attempt_artifact_path(
         root,
         manifest["task_id"],
@@ -1178,6 +1177,7 @@ def apply_and_verify(
     }
     verification_id = _write_verification_record(root, manifest, attempt_id, verification_record)
     result["verification_id"] = verification_id
+    _write_latest_result_projection(root, result, manifest=manifest)
     return result
 
 

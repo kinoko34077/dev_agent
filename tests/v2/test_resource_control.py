@@ -50,43 +50,46 @@ def test_legacy_resource_reservation_honors_exact_intelligence_tier(tmp_path):
 
 
 def test_legacy_resource_reservation_can_use_explicit_unknown_quota_bootstrap(tmp_path):
+    from datetime import datetime, timedelta, timezone
     ledger, control = _control(tmp_path)
     try:
+        future = (datetime.now(timezone.utc) + timedelta(days=28)).isoformat()
         ledger.register_resource(
-            "cloud:free",
-            provider_id="cloud",
-            provider_binding_id="cloud:free",
+            "gemini:worker",
+            provider_id="gemini",
+            provider_binding_id="gemini:worker",
             native_unit="request",
             capacity=1,
             capabilities=["text"],
             cost_minor=0,
             price_currency="JPY",
-            quota_domain="cloud-project",
+            quota_domain="gemini-project",
             metadata={
                 "billing_authority": "trusted_catalog",
-                "billing_mode": "free_fixed",
+                "billing_mode": "recurring_allowance",
                 "overage_policy": "hard_stop",
                 "no_charge_guaranteed": True,
-                "model_id": "free-model",
+                "model_id": "gemini-3.5-flash-lite",
                 "intelligence_tier": "L1",
+                "billing_expires_at": future,
             },
             intelligence_tier="L1",
         )
-        ledger.observe("cloud:free", available=1, health="degraded")
+        ledger.observe("gemini:worker", available=1, health="degraded")
         request = ModelRequest(
             task_id=str(uuid4()),
             messages=[{"role": "user", "content": "one bounded request"}],
             metadata={"allow_unknown_quota": True},
         )
 
-        reservation = control.reserve_for_provider(request.task_id, "cloud", request)
+        reservation = control.reserve_for_provider(request.task_id, "gemini", request)
 
-        assert reservation.budget.resource_id == "cloud:free"
+        assert reservation.budget.resource_id == "gemini:worker"
         control.mark_dispatching(reservation)
         control.uncertain(reservation)
 
         with pytest.raises(DispatchDenied, match="unknown quota admission") as denied:
-            control.reserve_for_provider(str(uuid4()), "cloud", request)
+            control.reserve_for_provider(str(uuid4()), "gemini", request)
         assert denied.value.category == "quota_unknown"
     finally:
         ledger.close()

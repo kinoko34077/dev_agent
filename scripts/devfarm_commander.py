@@ -789,8 +789,14 @@ def collect_plan(root: str | Path, run_id: str) -> dict[str, Any]:
         metrics = result.get("worker_metrics", {})
         host_verified = isinstance(metrics, Mapping) and metrics.get("host_verified") is True
         accepted = isinstance(metrics, Mapping) and metrics.get("result_accepted") is True
+        verification_id = result.get("verification_id")
+        has_verification_record = (
+            isinstance(verification_id, str) and bool(verification_id.strip())
+            and isinstance(attempt_id, str) and bool(attempt_id.strip())
+            and (root_path / ".devfarm" / "results" / task["task_id"] / "attempts" / attempt_id / "verification" / f"{verification_id}.json").is_file()
+        )
         if task["status"] != "INTEGRATED":
-            if result["status"] == "completed" and host_verified and accepted:
+            if result["status"] == "completed" and host_verified and accepted and has_verification_record:
                 task["status"] = "HOST_VERIFIED"
                 task.pop("block_reason", None)
                 task.pop("last_error", None)
@@ -866,9 +872,16 @@ def verify_plan(
         current = _task(plan, task["task_id"])
         metrics = result.get("worker_metrics", {})
         accepted = result.get("status") == "completed" and isinstance(metrics, Mapping) and metrics.get("result_accepted") is True
-        current["status"] = "HOST_VERIFIED" if accepted else "REJECTED"
-        current["last_result_status"] = result.get("status")
         attempt_id = result.get("attempt_id")
+        verification_id = result.get("verification_id")
+        has_verification_record = (
+            accepted
+            and isinstance(verification_id, str) and bool(verification_id.strip())
+            and isinstance(attempt_id, str) and bool(attempt_id.strip())
+            and (root_path / ".devfarm" / "results" / current["task_id"] / "attempts" / attempt_id / "verification" / f"{verification_id}.json").is_file()
+        )
+        current["status"] = "HOST_VERIFIED" if has_verification_record else "REJECTED"
+        current["last_result_status"] = result.get("status")
         if attempt_id is not None:
             current["last_attempt_id"] = _text(attempt_id, "attempt_id", max_length=101)
         if accepted:
@@ -1001,7 +1014,7 @@ def _verified_worker_patch(root: Path, task: Mapping[str, Any]) -> tuple[str, di
     # Select the strongest qualifying verification record for this attempt.
     # TRUSTED_HOST_EXEC outranks OS_SANDBOXED; sort highest priority first so
     # the first qualifying record encountered is always the strongest available.
-    _TRUST_PRIORITY = {"TRUSTED_HOST_EXEC": 1, "OS_SANDBOXED": 0}
+    _TRUST_PRIORITY = {"OS_SANDBOXED": 2, "TRUSTED_HOST_EXEC": 1}
     sorted_records = sorted(
         records,
         key=lambda r: _TRUST_PRIORITY.get(r.get("containment_level", ""), -1),

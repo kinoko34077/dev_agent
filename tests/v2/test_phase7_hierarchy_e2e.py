@@ -58,7 +58,6 @@ def _setup(tmp_path, providers: list[_TierProvider]):
             metadata={
                 "provider_binding_id": provider.provider_binding_id,
                 "model_id": provider.model_id,
-                "billing_authority": "trusted_catalog",
             },
             intelligence_tier=provider.intelligence_tier,
         )

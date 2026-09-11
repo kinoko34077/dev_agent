@@ -236,7 +236,6 @@ def _qualification_resource(ledger, *, capabilities=("text", "tool_call")):
             "provider_binding_id": "fixture:worker",
             "model_id": "fixture-model",
             "qualification_required": True,
-            "billing_authority": "trusted_catalog",
         },
         intelligence_tier="L1",
     )

@@ -135,6 +135,8 @@ def legacy_resource_metadata(path: str | Path) -> list[str]:
             ).fetchall()
     except (OSError, sqlite3.DatabaseError):
         return []
+    _VALID_BILLING_MODES = {"free_fixed", "recurring_allowance", "recurring_credit", "paid", "unknown"}
+    _VALID_OVERAGE_POLICIES = {"hard_stop", "billable", "unknown"}
     legacy: list[str] = []
     for resource_id, provider_id, cost_minor, metadata_json in rows:
         if provider_id in local_only_providers:
@@ -143,7 +145,18 @@ def legacy_resource_metadata(path: str | Path) -> list[str]:
             metadata = json.loads(metadata_json) if isinstance(metadata_json, str) else {}
         except json.JSONDecodeError:
             metadata = {}
-        if cost_minor == 0 and metadata.get("qualification_required") is not True:
+        is_legacy = False
+        if metadata.get("qualification_required") is not True:
+            is_legacy = True
+        if metadata.get("billing_authority") == "trusted_catalog" and not isinstance(metadata.get("billing_expires_at"), str):
+            is_legacy = True
+        billing_mode = metadata.get("billing_mode")
+        if billing_mode is not None and billing_mode not in _VALID_BILLING_MODES:
+            is_legacy = True
+        overage_policy = metadata.get("overage_policy")
+        if overage_policy is not None and overage_policy not in _VALID_OVERAGE_POLICIES:
+            is_legacy = True
+        if is_legacy:
             legacy.append(str(resource_id))
     return sorted(legacy)
 

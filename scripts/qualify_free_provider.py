@@ -108,6 +108,7 @@ def qualify(*, provider_name: str, model: str, timeout_seconds: float, provider_
                         "billing_mode": profile.billing_mode,
                         "overage_policy": profile.overage_policy,
                         "no_charge_guaranteed": profile.no_charge_guaranteed,
+                        "billing_expires_at": profile.expires_at,
                     },
             )
             ledger.observe(resource_id, available=1, health="healthy", confidence=1.0, concurrency_limit=1)

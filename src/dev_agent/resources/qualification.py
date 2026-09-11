@@ -151,7 +151,7 @@ def _derive_capabilities(raw: frozenset[str]) -> frozenset[str]:
     capabilities: set[str] = set()
     if "text" in raw:
         capabilities.add("text")
-    if _TOOL_CALL_EVIDENCE <= raw or "tool_call" in raw:
+    if _TOOL_CALL_EVIDENCE <= raw:
         capabilities.add("tool_call")
     for name in ("structured_output", "json", "long_context"):
         if name in raw:
