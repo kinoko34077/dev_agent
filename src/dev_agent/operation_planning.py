@@ -65,6 +65,11 @@ def validate_proposal(
     )
 
 
+def _child_task_id(proposal_id: str, child_key: str) -> str:
+    """Deterministic task ID derived from proposal + child key (idempotent restarts)."""
+    return str(uuid5(NAMESPACE_URL, f"dev-agent:child:{proposal_id}:{child_key}"))
+
+
 def apply_proposal(
     store: SQLiteStateStore,
     queue: DurableQueue,
@@ -73,24 +78,48 @@ def apply_proposal(
     priority: int = 0,
     context: PlanningContext,
 ) -> tuple[Task, ...]:
-    """Persist a finite, host-validated decomposition using existing queue/state."""
+    """Persist a finite, host-validated decomposition using existing queue/state.
+
+    Idempotent: safe to call again after a crash at any point.  Children that
+    already exist in the store are reused; only missing children are created and
+    enqueued.  Returns all children (pre-existing + newly created) in proposal
+    order.
+    """
 
     children = validate_proposal(proposal, context=context)
     parent = context.parent
     existing = context.payloads
-    if any(
-        isinstance(payload, dict)
-        and isinstance(payload.get("metadata"), dict)
-        and payload["metadata"].get("planning_proposal_id") == proposal.proposal_id
-        for payload in existing.values()
-    ):
-        raise PlanningValidationError("planning proposal has already been applied")
 
-    created: list[Task] = []
+    # Collect already-persisted children for this proposal keyed by child_key.
+    existing_by_key: dict[str, Task] = {}
+    for payload in existing.values():
+        if not isinstance(payload, dict):
+            continue
+        meta = payload.get("metadata")
+        if not isinstance(meta, dict):
+            continue
+        if meta.get("planning_proposal_id") != proposal.proposal_id:
+            continue
+        child_key = meta.get("planner_child_key")
+        if isinstance(child_key, str) and child_key.strip():
+            try:
+                existing_by_key[child_key] = Task.from_persisted_dict(payload)
+            except Exception:
+                pass
+
+    result: list[Task] = []
+    to_persist: list[Task] = []
+
     for child in children:
+        if child.child_key in existing_by_key:
+            # Child already exists — reuse without touching the store.
+            result.append(existing_by_key[child.child_key])
+            continue
+
+        # Build with deterministic task_id so a re-run produces the same UUID.
         dependencies = list(child.dependencies)
         status = TaskStatus.WAITING_DEPENDENCY if dependencies else TaskStatus.QUEUED
-        metadata = {
+        metadata: dict[str, Any] = {
             "planning_proposal_id": proposal.proposal_id,
             "planner_child_key": child.child_key,
         }
@@ -101,6 +130,7 @@ def apply_proposal(
                 for dependency in dependencies
             }
         task = Task(
+            task_id=_child_task_id(proposal.proposal_id, child.child_key),
             objective=child.objective,
             parent_task_id=parent.task_id,
             root_task_id=parent.task_id,
@@ -125,13 +155,15 @@ def apply_proposal(
             context.graph.add(task)
         except TaskGraphError as exc:
             raise PlanningValidationError(str(exc)) from exc
-        created.append(task)
+        result.append(task)
+        to_persist.append(task)
 
-    for task in created:
+    for task in to_persist:
         store.save_task(task)
         if task.status is TaskStatus.QUEUED:
             queue.enqueue(task.task_id, priority=priority, max_attempts=task.limits.max_retries + 1)
-    return tuple(created)
+
+    return tuple(result)
 
 
 def release_dependencies(
