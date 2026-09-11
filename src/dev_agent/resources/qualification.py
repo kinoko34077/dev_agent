@@ -20,6 +20,8 @@ from ..domain.capabilities import CANONICAL_EXECUTION_CAPABILITIES
 
 CANONICAL_ROUTING_CAPABILITIES = CANONICAL_EXECUTION_CAPABILITIES
 _VALID_CONFIDENCE = frozenset({"low", "medium", "high"})
+ROUTING_MIN_CONFIDENCE = "high"
+_CONFIDENCE_RANK = {"low": 0, "medium": 1, "high": 2}
 _INTEGRATION_EVIDENCE = frozenset(
     {"controller_e2e", "thought_signature_roundtrip", "durable_provider_audit", "budget_reconciliation"}
 )
@@ -177,12 +179,36 @@ class QualificationResolver:
         model_id: str,
         *,
         now: datetime | None = None,
+        min_confidence: str | None = ROUTING_MIN_CONFIDENCE,
     ) -> QualificationProjection | None:
         entry = self._catalog.lookup(provider_id, provider_binding_id, model_id)
-        return None if entry is None else self._project(entry, now=now)
+        return None if entry is None else self._project(entry, now=now, min_confidence=min_confidence)
+
+    def resolve_observed(
+        self,
+        provider_id: str,
+        provider_binding_id: str,
+        model_id: str,
+        *,
+        now: datetime | None = None,
+    ) -> QualificationProjection | None:
+        """Return current evidence without admitting it to Production routing."""
+
+        return self.resolve(
+            provider_id,
+            provider_binding_id,
+            model_id,
+            now=now,
+            min_confidence=None,
+        )
 
     @staticmethod
-    def _project(entry: Mapping[str, Any], *, now: datetime | None) -> QualificationProjection | None:
+    def _project(
+        entry: Mapping[str, Any],
+        *,
+        now: datetime | None,
+        min_confidence: str | None,
+    ) -> QualificationProjection | None:
         tested = _parse_timestamp(entry.get("tested_at"), name="tested_at")
         expires = _parse_timestamp(entry.get("expires_at"), name="expires_at")
         current = now or datetime.now(timezone.utc)
@@ -205,6 +231,12 @@ class QualificationResolver:
         confidence = entry.get("confidence")
         if not isinstance(confidence, str) or confidence.strip().lower() not in _VALID_CONFIDENCE:
             raise QualificationError("qualification confidence is invalid")
+        normalized_confidence = confidence.strip().lower()
+        if min_confidence is not None:
+            if not isinstance(min_confidence, str) or min_confidence.strip().lower() not in _VALID_CONFIDENCE:
+                raise QualificationError("minimum routing confidence is invalid")
+            if _CONFIDENCE_RANK[normalized_confidence] < _CONFIDENCE_RANK[min_confidence.strip().lower()]:
+                return None
         return QualificationProjection(
             provider_id=identity[0],
             provider_binding_id=identity[1],
@@ -215,7 +247,7 @@ class QualificationResolver:
             intelligence_tier=tier,
             tested_at=entry["tested_at"].strip(),
             expires_at=entry["expires_at"].strip(),
-            confidence=confidence.strip().lower(),
+            confidence=normalized_confidence,
         )
 
 
@@ -225,4 +257,5 @@ __all__ = [
     "QualificationError",
     "QualificationProjection",
     "QualificationResolver",
+    "ROUTING_MIN_CONFIDENCE",
 ]

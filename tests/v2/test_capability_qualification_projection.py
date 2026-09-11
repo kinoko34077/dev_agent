@@ -102,6 +102,34 @@ def test_expired_qualification_is_not_projected():
     ) is None
 
 
+@pytest.mark.parametrize("confidence", ["low", "medium"])
+def test_non_high_confidence_is_not_admitted_to_production_routing(confidence):
+    entry = _qualification_entry(expires_at="2026-10-01T00:00:00+00:00")
+    entry["confidence"] = confidence
+    resolver = QualificationResolver(entries=[entry])
+
+    assert resolver.resolve(
+        "fixture",
+        "fixture:worker",
+        "fixture-model",
+        now=datetime(2026, 9, 11, tzinfo=timezone.utc),
+    ) is None
+
+
+def test_high_confidence_is_admitted_to_production_routing():
+    resolver = QualificationResolver(entries=[_qualification_entry(expires_at="2026-10-01T00:00:00+00:00")])
+
+    projection = resolver.resolve(
+        "fixture",
+        "fixture:worker",
+        "fixture-model",
+        now=datetime(2026, 9, 11, tzinfo=timezone.utc),
+    )
+
+    assert projection is not None
+    assert projection.confidence == "high"
+
+
 def test_unknown_qualification_identity_does_not_fall_back_to_model_name():
     resolver = QualificationResolver(entries=[])
 
