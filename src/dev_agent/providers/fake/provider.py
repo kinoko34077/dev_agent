@@ -27,10 +27,12 @@ class FakeProvider(ModelProvider):
                 model="deterministic",
                 finish_reason="tool_call",
                 tool_calls=[call],
+                usage={"cost_minor": 0},
             )
         return ModelResponse(
             provider=self.provider_id,
             model="deterministic",
             finish_reason="stop",
             text_segments=["fake task completed"],
+            usage={"cost_minor": 0},
         )

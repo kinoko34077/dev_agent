@@ -28,6 +28,7 @@ from src.dev_agent.resources.budget import BudgetAuthority, BudgetGovernor, Budg
 from src.dev_agent.resources.billing_catalog import profile_for as _billing_profile_for
 from src.dev_agent.resources.control import ResourceControlPlane
 from src.dev_agent.resources.ledger import ResourceLedger
+from src.dev_agent.resources.qualification import QualificationProjection
 from src.dev_agent.resources.router import ResourceRouter
 from src.dev_agent.runtime.controller import Controller
 from src.dev_agent.state.sqlite_store import SQLiteStateStore
@@ -37,6 +38,40 @@ from src.dev_agent.tools.runtime import ToolRuntime
 
 class FreeProviderQualificationBlocked(RuntimeError):
     """The requested binding/model has no trusted no-charge qualification."""
+
+
+class _BootstrapProbeResolver:
+    """Allow the qualification probe's own resource through the routing gate.
+
+    The probe is bootstrapping qualification evidence for a specific
+    provider/binding/model triple.  It cannot require pre-existing
+    qualification to route to itself; this resolver grants a minimal
+    stub projection only for the exact identity being tested, so routing
+    can proceed to run the live probe.
+    """
+
+    def __init__(self, provider_id: str, binding_id: str, model_id: str) -> None:
+        self._provider_id = provider_id
+        self._binding_id = binding_id
+        self._model_id = model_id
+
+    def resolve(self, provider_id: str, provider_binding_id: str, model_id: str, **_kwargs) -> QualificationProjection | None:
+        if provider_id != self._provider_id or provider_binding_id != self._binding_id or model_id != self._model_id:
+            return None
+        from datetime import datetime, timezone, timedelta
+        now = datetime.now(timezone.utc)
+        return QualificationProjection(
+            provider_id=provider_id,
+            provider_binding_id=provider_binding_id,
+            model_id=model_id,
+            routing_capabilities=frozenset({"text", "tool_call"}),
+            qualification_evidence=frozenset({"text", "model_generated_tool_call", "tool_result_roundtrip", "final_response"}),
+            integration_evidence=frozenset({"controller_e2e", "durable_provider_audit"}),
+            intelligence_tier=None,
+            tested_at=(now - timedelta(seconds=1)).isoformat(),
+            expires_at=(now + timedelta(hours=1)).isoformat(),
+            confidence="high",
+        )
 
 
 def _provider(name: str, model: str, timeout_seconds: float, *, binding_id: str | None = None, api_key_env: str | None = None):
@@ -128,7 +163,10 @@ def qualify(*, provider_name: str, model: str, timeout_seconds: float, provider_
             )
             BudgetAuthority.configure_from_protected_file(ledger, protected_config, agent_root=ROOT)
             governor = BudgetGovernor(ledger, policy)
-            control = ResourceControlPlane(ResourceRouter(ledger), governor)
+            probe_resolver = _BootstrapProbeResolver(provider_name, binding_id, model)
+            control = ResourceControlPlane(
+                ResourceRouter(ledger, qualification_resolver=probe_resolver), governor
+            )
             provider = ProviderDispatcher(ProviderRegistry([concrete]), control)
             tools = ToolRegistry()
             tools.register(

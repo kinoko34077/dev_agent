@@ -42,9 +42,28 @@ def _dispatch_with_stale_lease_in_child(resource_path, state_path, marker_path, 
             marker_path.write_text("provider-entered", encoding="utf-8")
             return ModelResponse(provider="paid", model="test", text_segments=["must not run"], usage={"cost_minor": 10})
 
+    from src.dev_agent.resources.qualification import QualificationProjection
+    from datetime import datetime, timezone, timedelta
+
+    class _SubprocessStubResolver:
+        def resolve(self, provider_id, provider_binding_id, model_id, **_kw):
+            now = datetime.now(timezone.utc)
+            return QualificationProjection(
+                provider_id=provider_id,
+                provider_binding_id=provider_binding_id,
+                model_id=model_id or "_stub_",
+                routing_capabilities=frozenset({"text", "tool_call"}),
+                qualification_evidence=frozenset({"text", "model_generated_tool_call", "tool_result_roundtrip", "final_response"}),
+                integration_evidence=frozenset({"controller_e2e", "durable_provider_audit"}),
+                intelligence_tier=None,
+                tested_at=(now - timedelta(hours=1)).isoformat(),
+                expires_at=(now + timedelta(days=30)).isoformat(),
+                confidence="high",
+            )
+
     proof = LeaseProof(**proof_payload)
     ledger = ResourceLedger(resource_path)
-    control = ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger))
+    control = ResourceControlPlane(ResourceRouter(ledger, qualification_resolver=_SubprocessStubResolver()), BudgetGovernor(ledger))
     dispatcher = ProviderDispatcher(ProviderRegistry([MarkerProvider()]), control)
     try:
         with SQLiteStateStore(state_path) as store:

@@ -94,6 +94,18 @@ class RouteSelection:
 
 _SENSITIVITY = {"public": 0, "normal": 1, "internal": 2, "sensitive": 3}
 
+# Providers in this set do not require a QualificationResolver record at
+# dispatch time.  Local providers run under operator control, so they are
+# exempt.  Every new cloud provider must qualify explicitly before routes
+# are granted.  This set must stay aligned with _LOCAL_ONLY_PROVIDERS.
+_QUALIFICATION_EXEMPT_PROVIDERS: frozenset[str] = frozenset({"ollama", "fake"})
+
+# Providers whose resources may carry sensitivity levels above "normal".
+# Remote/cloud providers are capped at "normal" at route time regardless
+# of the persisted sensitivity field to prevent sensitive data being sent
+# to an untrusted cloud endpoint.
+_LOCAL_ONLY_PROVIDERS: frozenset[str] = frozenset({"ollama", "fake"})
+
 
 class ResourceRouter:
     def __init__(self, read_view: ResourceReadView, *, qualification_resolver: QualificationResolver | None = None) -> None:
@@ -216,36 +228,49 @@ class ResourceRouter:
                 continue
             effective_capabilities = set(resource["capabilities"])
             effective_tier = metadata.get("intelligence_tier")
-            # Production composition marks resources explicitly.  Do not infer
-            # qualification ownership from billing metadata: isolated
-            # qualification probes and legacy/test resources may use the
-            # trusted billing catalog before a qualification record exists.
-            # OperationService sets this flag for every normal provider
-            # resource, so production routing remains fail-closed without
-            # making the router guess at the caller's authority.
-            qualification_required = metadata.get("qualification_required") is True
-            if qualification_required:
-                model_id = resource.get("model_id") or metadata.get("model_id")
-                if not isinstance(provider_binding_id, str) or not isinstance(model_id, str) or not provider_binding_id.strip() or not model_id.strip():
+            # Provider-based runtime authority: only providers in
+            # _QUALIFICATION_EXEMPT_PROVIDERS skip QualificationResolver.
+            # The persisted qualification_required flag is not the gate:
+            # it may be absent on legacy rows, and remote providers must
+            # always present a current qualification record at route time.
+            requires_qualification = resource["provider_id"] not in _QUALIFICATION_EXEMPT_PROVIDERS
+            if requires_qualification:
+                _eff_binding = provider_binding_id.strip() if isinstance(provider_binding_id, str) else ""
+                if not _eff_binding:
                     continue
-                qualification = self._qualification_resolver.resolve(
-                    resource["provider_id"],
-                    provider_binding_id.strip(),
-                    model_id.strip(),
-                )
+                try:
+                    qualification = self._qualification_resolver.resolve(
+                        resource["provider_id"],
+                        _eff_binding,
+                        (model_id or "").strip(),
+                    )
+                except (ValueError, TypeError):
+                    # Real resolver raises ValueError when model_id is empty.
+                    # Treat as fail-closed: no exact identity, no route.
+                    qualification = None
                 if qualification is None:
                     continue
                 # Catalog capabilities remain operator-owned.  Qualification
                 # can only narrow the effective routing view, never grant a
                 # capability that the persisted resource did not allow.
                 effective_capabilities &= set(qualification.routing_capabilities)
-                effective_tier = qualification.intelligence_tier
+                # Only override the tier when the qualification record has an
+                # explicit opinion; otherwise keep the resource's own tier.
+                if qualification.intelligence_tier is not None:
+                    effective_tier = qualification.intelligence_tier
             if not request.capabilities.issubset(effective_capabilities):
                 continue
             if request.allowed_intelligence_tiers is not None:
                 if effective_tier not in request.allowed_intelligence_tiers:
                     continue
-            if _SENSITIVITY.get(resource["sensitivity"], -1) < _SENSITIVITY[request.sensitivity]:
+            # Privacy authority: cap remote resource sensitivity at "normal"
+            # at route time regardless of the persisted value.  Sensitive
+            # data must never be dispatched to a cloud provider.
+            effective_sensitivity = resource["sensitivity"]
+            if resource["provider_id"] not in _LOCAL_ONLY_PROVIDERS:
+                if _SENSITIVITY.get(effective_sensitivity, 0) > _SENSITIVITY["normal"]:
+                    effective_sensitivity = "normal"
+            if _SENSITIVITY.get(effective_sensitivity, -1) < _SENSITIVITY[request.sensitivity]:
                 continue
             # Re-check billing authority expiry at dispatch time so a long-running
             # process does not retain no_charge_guaranteed=True past the catalog window.

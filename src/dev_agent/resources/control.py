@@ -193,12 +193,13 @@ class ResourceControlPlane:
         raw_billing_mode = metadata.get("billing_mode")
         billing_mode = raw_billing_mode if isinstance(raw_billing_mode, str) else "unknown"
         overage_policy = metadata.get("overage_policy") if isinstance(metadata.get("overage_policy"), str) else "unknown"
-        # Resources created by the focused in-process/fake-provider contract
-        # predate billing metadata and have no external billing authority. Keep
-        # that compatibility path for explicitly zero-priced non-authority
-        # resources; any catalog/allowance/paid metadata remains fail-closed.
+        # Fake provider resources created by the focused in-process contract
+        # predate billing metadata and have no external billing authority. This
+        # path is restricted to the "fake" provider only: remote providers must
+        # carry explicit billing authority regardless of their cost_minor value.
         legacy_test_free = (
-            resource.get("cost_minor") == 0
+            selection.provider_id == "fake"
+            and resource.get("cost_minor") == 0
             and "billing_authority" not in metadata
             and "billing_mode" not in metadata
         )

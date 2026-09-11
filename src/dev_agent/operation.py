@@ -762,6 +762,25 @@ class OperationService:
                 raise OperationError(
                     f"existing resource billing metadata is not trusted for binding/model: {binding_id}/{model_id}"
                 )
+            # Startup qualification check for non-local providers.  An
+            # existing resource without a current qualification record must
+            # not remain routable just because Operation was restarted; the
+            # operator must re-qualify the binding before it can dispatch.
+            if config.provider_id != "fake":
+                if qualification is None:
+                    raise OperationError(
+                        f"existing resource has no current qualification record: {binding_id}/{model_id}"
+                    )
+                # Privacy authority: remote resources must not carry a
+                # local-only privacy profile or a sensitive sensitivity claim.
+                if metadata.get("privacy_profile") == "local_only":
+                    raise OperationError(
+                        f"existing remote resource carries a local-only privacy profile: {binding_id}"
+                    )
+                if existing.get("sensitivity") == "sensitive":
+                    raise OperationError(
+                        f"existing remote resource carries a sensitive sensitivity claim: {binding_id}"
+                    )
             # Existing catalog, pricing, quota, health, and operator metadata
             # are authoritative.  Opening Operation must never upsert them.
             return

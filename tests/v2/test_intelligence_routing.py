@@ -27,6 +27,7 @@ class RecordingProvider(ModelProvider):
             provider=self.provider_id,
             model=self.model,
             text_segments=[self.provider_id],
+            usage={"cost_minor": 0},
         )
 
 

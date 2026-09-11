@@ -419,6 +419,96 @@ def test_router_rejects_resource_with_expired_billing(tmp_path):
         ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}))
 
 
+# P0-1 regression: qualification fail-open — remote providers without a current
+# qualification record must always be rejected regardless of persisted metadata.
+
+class _NullQualificationResolver:
+    """Returns None for every query — simulates no qualification record on file."""
+
+    def resolve(self, *_args, **_kwargs):
+        return None
+
+
+def test_remote_provider_without_qualification_is_rejected(tmp_path):
+    ledger = ResourceLedger(tmp_path / "no-qual.sqlite3")
+    ledger.register_resource(
+        "cloud",
+        provider_id="gemini",
+        provider_binding_id="gemini:worker",
+        native_unit="request",
+        capacity=10,
+        capabilities=["text"],
+        cost_minor=0,
+        metadata={"provider_binding_id": "gemini:worker", "model_id": "gemini-3.5-flash-lite"},
+    )
+    ledger.observe("cloud", available=10, health="healthy")
+
+    with pytest.raises(NoRoute, match="no eligible resource"):
+        ResourceRouter(ledger, qualification_resolver=_NullQualificationResolver()).choose(
+            RouteRequest(capabilities={"text"})
+        )
+
+
+def test_persisted_resource_capabilities_alone_do_not_grant_routing(tmp_path):
+    """Capability fields in the resource row are never authoritative without qualification."""
+    ledger = ResourceLedger(tmp_path / "persisted-caps.sqlite3")
+    ledger.register_resource(
+        "cloud",
+        provider_id="openrouter",
+        provider_binding_id="openrouter:worker",
+        native_unit="request",
+        capacity=10,
+        capabilities=["text", "tool_call"],
+        cost_minor=0,
+        metadata={"provider_binding_id": "openrouter:worker", "model_id": "some-model"},
+    )
+    ledger.observe("cloud", available=10, health="healthy")
+
+    with pytest.raises(NoRoute, match="no eligible resource"):
+        ResourceRouter(ledger, qualification_resolver=_NullQualificationResolver()).choose(
+            RouteRequest(capabilities={"text"})
+        )
+
+
+def test_remote_provider_with_blank_binding_id_is_rejected(tmp_path):
+    """A remote resource with no binding_id is rejected before the resolver is called."""
+    ledger = ResourceLedger(tmp_path / "blank-binding.sqlite3")
+    ledger.register_resource(
+        "cloud",
+        provider_id="groq",
+        native_unit="request",
+        capacity=10,
+        capabilities=["text"],
+        cost_minor=0,
+    )
+    ledger.observe("cloud", available=10, health="healthy")
+
+    with pytest.raises(NoRoute, match="no eligible resource"):
+        ResourceRouter(ledger, qualification_resolver=_NullQualificationResolver()).choose(
+            RouteRequest(capabilities={"text"})
+        )
+
+
+def test_qualification_exempt_providers_route_without_qualification(tmp_path):
+    """ollama and fake are exempt from the qualification gate."""
+    ledger = ResourceLedger(tmp_path / "exempt-qual.sqlite3")
+    for resource_id, provider_id in (("local", "ollama"), ("synthetic", "fake")):
+        ledger.register_resource(
+            resource_id,
+            provider_id=provider_id,
+            native_unit="request",
+            capacity=10,
+            capabilities=["text"],
+            sensitivity="sensitive",
+            cost_minor=0,
+        )
+        ledger.observe(resource_id, available=10, health="healthy")
+
+    router = ResourceRouter(ledger, qualification_resolver=_NullQualificationResolver())
+    selection = router.choose(RouteRequest(capabilities={"text"}, sensitivity="sensitive"))
+    assert selection.provider_id in {"ollama", "fake"}
+
+
 def test_router_accepts_resource_with_current_billing(tmp_path):
     ledger = ResourceLedger(tmp_path / "billing-current.sqlite3")
     future = (datetime.now(timezone.utc) + timedelta(days=28)).isoformat()

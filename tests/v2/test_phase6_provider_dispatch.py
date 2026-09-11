@@ -84,7 +84,7 @@ def test_dispatcher_routes_to_secondary_provider_after_retryable_primary_failure
         provider_id = "secondary"
 
         def request(self, request):
-            return ModelResponse(provider="secondary", model="test", text_segments=["ok"])
+            return ModelResponse(provider="secondary", model="test", text_segments=["ok"], usage={"cost_minor": 0})
 
     control = ResourceControlPlane(ResourceRouter(ledger), _governor(ledger, BudgetPolicy(hard_cap_minor=10, recovery_reserve_minor=0)))
     dispatcher = ProviderDispatcher(ProviderRegistry([FailingProvider(), SecondaryProvider()]), control)
@@ -313,7 +313,7 @@ def test_dispatcher_accepts_explicit_task_id_compatibility_entrypoint(tmp_path):
         provider_id = "secondary"
 
         def request(self, request):
-            return ModelResponse(provider="secondary", model="test", text_segments=["ok"])
+            return ModelResponse(provider="secondary", model="test", text_segments=["ok"], usage={"cost_minor": 0})
 
     dispatcher = ProviderDispatcher(ProviderRegistry([SecondaryProvider()]), control)
     request = ModelRequest(task_id="00000000-0000-0000-0000-000000000002", messages=[{"role": "user", "content": "hello"}])
@@ -358,7 +358,7 @@ def test_survival_dispatch_policy_prohibits_paid_provider_when_budget_is_exhaust
 
     class Provider(FakeProvider):
         def request(self, request):
-            return ModelResponse(provider=self.provider_id, model="test", text_segments=[self.provider_id])
+            return ModelResponse(provider=self.provider_id, model="test", text_segments=[self.provider_id], usage={"cost_minor": 0})
 
     free, paid = Provider(), Provider()
     free.provider_id, paid.provider_id = "free", "paid"
@@ -396,7 +396,7 @@ def test_controller_runs_through_provider_dispatcher_and_records_selected_provid
         provider_id = "secondary"
 
         def request(self, request):
-            return ModelResponse(provider="secondary", model="test", text_segments=["dispatcher complete"])
+            return ModelResponse(provider="secondary", model="test", text_segments=["dispatcher complete"], usage={"cost_minor": 0})
 
     control = ResourceControlPlane(ResourceRouter(ledger), _governor(ledger, BudgetPolicy(hard_cap_minor=10, recovery_reserve_minor=0)))
     dispatcher = ProviderDispatcher(ProviderRegistry([SecondaryProvider()]), control)

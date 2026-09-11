@@ -43,7 +43,7 @@ class RecordingProvider(ModelProvider):
         self.requests.append(request)
         if self.failure is not None:
             raise self.failure
-        return ModelResponse(provider=self.provider_id, model=self.model, text_segments=[self.provider_id])
+        return ModelResponse(provider=self.provider_id, model=self.model, text_segments=[self.provider_id], usage={"cost_minor": 0})
 
 
 def _evidence(**overrides):
