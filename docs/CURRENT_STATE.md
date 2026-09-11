@@ -1,6 +1,29 @@
 # Current State — v2/bootstrap
 
-実装基準は `2b8f247` です。直近のローカル全回帰もこのコード基準で検証し、
+## 2026-09-11 — configured provider bindings (implementation slice)
+
+- ProviderFactory now exposes separate `ollama_cloud` and `vercel` identities
+  over the existing OpenAI-compatible HTTP boundary. Local `ollama` remains a
+  separate local adapter and privacy profile.
+- `OperationConfig` has an explicit opt-in
+  `DEV_AGENT_ENABLE_CONFIGURED_POOL=1` composition path. It reads only
+  credential environment-variable names, never credential values, and can
+  construct `GEMINI_API_KEY_2` through `_5` as separate Gemini bindings with
+  project-scoped quota domains. The primary `GEMINI_API_KEY` remains supported.
+- Ollama Cloud requires `OLLAMA_CLOUD_MODEL`; Vercel AI Gateway requires
+  `AI_GATEWAY_MODEL`. Their API keys alone do not select a model or create
+  qualification evidence.
+- `TrustedResourceProfile` now records `billing_mode` and optional allowance
+  metadata. Gemini/Cloudflare allowance-backed entries are distinguished from
+  fixed-free local/OpenRouter entries. Ollama Cloud and Vercel are not inserted
+  as `cost_minor=0`; an exact model billing/qualification profile is still
+  required before production routing.
+- This is provider construction/configuration support, not live qualification.
+  No new binding is marked qualified merely because an environment variable is
+  present. Live qualification must use the existing canonical
+  Controller → ProviderDispatcher path and exact binding/model evidence.
+
+実装基準は `9a81816` です。直近のローカル全回帰もこのコード基準で検証し、
 本書はそのコードと、直近の外部資格化・DevFarm実行結果を同期したCurrent Stateです。
 GATE_STATUSの既存statusは変更していません。
 
@@ -51,7 +74,7 @@ Provider hierarchy、Gate判定は変更していません。refactorの性能�
 
 ## 検証
 
-- v2ローカル全回帰（`2b8f247`）: `636 passed, 1 skipped`（`python -m pytest tests/v2 -q`、160.09秒。所要時間は実行環境依存）。`625 passed, 1 skipped`以前は履歴baselineとして保持する
+- v2ローカル全回帰（provider binding slice）: `651 passed, 1 skipped`（`python -m pytest tests/v2 -q`、167.38秒。所要時間は実行環境依存）。Windows ACLはdeployment-owned skip。`636 passed, 1 skipped`以前は履歴baselineとして保持する
 - DevFarm admission／hierarchy focused: `54 passed`（qualified bindingの送信前再検証、未資格model拒否、L1 alternate→L2横断証拠を含む）
 - 追加監査focused: Provider quota分類／DevFarm model-qualified activation／trusted free qualificationを含む`45 passed`
 - Operation hardening focused: `94 passed, 1 skipped`（Operation、quota、DevFarm attempt、SQLite contention、security、budget境界）

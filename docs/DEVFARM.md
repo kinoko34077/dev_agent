@@ -131,6 +131,8 @@ put them in a manifest, command argument, repository file, or result artifact.
 python scripts/qualify_free_provider.py --provider cloudflare --model @cf/meta/llama-3.1-8b-instruct --evidence-path .devfarm/results/cloudflare-live.json
 python scripts/qualify_free_provider.py --provider openrouter --model openrouter/free --evidence-path .devfarm/results/openrouter-live.json
 python scripts/qualify_free_provider.py --provider gemini --model gemini-3.5-flash-lite --evidence-path .devfarm/results/gemini-live.json
+# An additional Gemini project uses its own exact binding and key environment name:
+python scripts/qualify_free_provider.py --provider gemini --model gemini-3.5-flash-lite --binding gemini:worker:free-2 --api-key-env GEMINI_API_KEY_2 --quota-domain gemini:project:394829782092 --evidence-path .devfarm/results/gemini-free-2-live.json
 ```
 
 The no-charge qualification command accepts only an exact provider/binding/
@@ -146,6 +148,13 @@ included in this no-charge qualification command until its billing tier and
 worst-case cost are explicitly qualified. A successful result is still a
 qualification artifact for Codex review, not automatic Gate promotion or
 Worker activation.
+
+`ollama_cloud` (`OLLAMA_API_KEY`) and `vercel` (`AI_GATEWAY_API_KEY`) are
+available through the existing OpenAI-compatible ProviderFactory boundary.
+They require an explicit model (`OLLAMA_CLOUD_MODEL` or
+`AI_GATEWAY_MODEL`) and an exact billing/qualification profile before they
+can be admitted. Their allowance/credit-backed billing is not represented as
+the fixed-free `cost_minor=0` catalog path.
 
 ## Current activation boundary
 

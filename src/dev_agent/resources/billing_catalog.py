@@ -16,6 +16,7 @@ from types import MappingProxyType
 
 _DEFAULT_VERIFIED_AT = "2026-09-09T00:00:00+00:00"
 _DEFAULT_EXPIRES_AT = "2026-10-09T00:00:00+00:00"
+_BILLING_MODES = frozenset({"free_fixed", "recurring_allowance", "recurring_credit", "paid", "unknown"})
 
 
 @dataclass(frozen=True)
@@ -30,6 +31,30 @@ class TrustedResourceProfile:
     source: str = "reviewed_code_catalog"
     verified_at: str = _DEFAULT_VERIFIED_AT
     expires_at: str = _DEFAULT_EXPIRES_AT
+    billing_mode: str = "free_fixed"
+    allowance_amount: int | None = None
+    allowance_currency: str | None = None
+    allowance_period: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.billing_mode not in _BILLING_MODES:
+            raise ValueError(f"billing_mode must be one of {sorted(_BILLING_MODES)}")
+        if self.allowance_amount is not None and (
+            isinstance(self.allowance_amount, bool)
+            or not isinstance(self.allowance_amount, int)
+            or self.allowance_amount < 0
+        ):
+            raise ValueError("allowance_amount must be a non-negative integer or None")
+        if self.allowance_currency is not None:
+            if not isinstance(self.allowance_currency, str) or len(self.allowance_currency.strip()) != 3 or not self.allowance_currency.strip().isalpha():
+                raise ValueError("allowance_currency must be a three-letter code or None")
+            object.__setattr__(self, "allowance_currency", self.allowance_currency.strip().upper())
+        if self.allowance_period is not None:
+            if not isinstance(self.allowance_period, str) or not self.allowance_period.strip():
+                raise ValueError("allowance_period must be a non-empty string or None")
+            object.__setattr__(self, "allowance_period", self.allowance_period.strip())
+        if self.billing_mode == "recurring_credit" and (self.allowance_amount is None or self.allowance_currency is None or self.allowance_period is None):
+            raise ValueError("recurring_credit requires allowance amount, currency, and period")
 
     def is_current(self, *, now: datetime | None = None) -> bool:
         """Return whether this no-charge fact is still within its review window."""
@@ -67,10 +92,10 @@ _TRUSTED_RESOURCE_CATALOG: dict[tuple[str, str, str], TrustedResourceProfile] = 
         "fake", "fake:default", "deterministic", 0, "JPY", False, "L1"
     ),
     ("cloudflare", "cloudflare", "@cf/meta/llama-3.1-8b-instruct"): TrustedResourceProfile(
-        "cloudflare", "cloudflare", "@cf/meta/llama-3.1-8b-instruct", 0, "JPY", True, "L1"
+        "cloudflare", "cloudflare", "@cf/meta/llama-3.1-8b-instruct", 0, "JPY", True, "L1", billing_mode="recurring_allowance", allowance_period="daily"
     ),
     ("cloudflare", "cloudflare:qualification", "@cf/meta/llama-3.1-8b-instruct"): TrustedResourceProfile(
-        "cloudflare", "cloudflare:qualification", "@cf/meta/llama-3.1-8b-instruct", 0, "JPY", True, "L1"
+        "cloudflare", "cloudflare:qualification", "@cf/meta/llama-3.1-8b-instruct", 0, "JPY", True, "L1", billing_mode="recurring_allowance", allowance_period="daily"
     ),
     ("openrouter", "openrouter:free", "openrouter/free"): TrustedResourceProfile(
         "openrouter", "openrouter:free", "openrouter/free", 0, "JPY", True, "L1"
@@ -79,27 +104,40 @@ _TRUSTED_RESOURCE_CATALOG: dict[tuple[str, str, str], TrustedResourceProfile] = 
         "openrouter", "openrouter:qualification", "openrouter/free", 0, "JPY", True, "L1"
     ),
     ("gemini", "gemini:compat", "gemini-2.5-flash"): TrustedResourceProfile(
-        "gemini", "gemini:compat", "gemini-2.5-flash", 0, "JPY", True, None
+        "gemini", "gemini:compat", "gemini-2.5-flash", 0, "JPY", True, None, billing_mode="recurring_allowance", allowance_period="daily"
     ),
     ("gemini", "gemini:worker", "gemini-3.5-flash-lite"): TrustedResourceProfile(
-        "gemini", "gemini:worker", "gemini-3.5-flash-lite", 0, "JPY", True, "L1"
+        "gemini", "gemini:worker", "gemini-3.5-flash-lite", 0, "JPY", True, "L1", billing_mode="recurring_allowance", allowance_period="daily"
     ),
     ("gemini", "gemini:core", "gemini-3.8-flash"): TrustedResourceProfile(
-        "gemini", "gemini:core", "gemini-3.8-flash", 0, "JPY", True, "L2"
+        "gemini", "gemini:core", "gemini-3.8-flash", 0, "JPY", True, "L2", billing_mode="recurring_allowance", allowance_period="daily"
     ),
     ("gemini", "gemini:qualification", "gemini-2.5-flash"): TrustedResourceProfile(
-        "gemini", "gemini:qualification", "gemini-2.5-flash", 0, "JPY", True, None
+        "gemini", "gemini:qualification", "gemini-2.5-flash", 0, "JPY", True, None, billing_mode="recurring_allowance", allowance_period="daily"
     ),
     ("gemini", "gemini:qualification", "gemini-3.5-flash-lite"): TrustedResourceProfile(
-        "gemini", "gemini:qualification", "gemini-3.5-flash-lite", 0, "JPY", True, "L1"
+        "gemini", "gemini:qualification", "gemini-3.5-flash-lite", 0, "JPY", True, "L1", billing_mode="recurring_allowance", allowance_period="daily"
     ),
     ("gemini", "gemini:qualification", "gemini-3.8-flash"): TrustedResourceProfile(
-        "gemini", "gemini:qualification", "gemini-3.8-flash", 0, "JPY", True, "L2"
+        "gemini", "gemini:qualification", "gemini-3.8-flash", 0, "JPY", True, "L2", billing_mode="recurring_allowance", allowance_period="daily"
     ),
     ("ollama", "ollama", "qwen3:8b"): TrustedResourceProfile(
-        "ollama", "ollama", "qwen3:8b", 0, "JPY", False, None
+        "ollama", "ollama", "qwen3:8b", 0, "JPY", False, None, billing_mode="free_fixed"
     ),
 }
+
+for _slot in ("2", "3", "4", "5"):
+    _TRUSTED_RESOURCE_CATALOG[("gemini", f"gemini:worker:free-{_slot}", "gemini-3.5-flash-lite")] = TrustedResourceProfile(
+        "gemini",
+        f"gemini:worker:free-{_slot}",
+        "gemini-3.5-flash-lite",
+        0,
+        "JPY",
+        True,
+        "L1",
+        billing_mode="recurring_allowance",
+        allowance_period="daily",
+    )
 
 # Runtime callers receive an immutable view.  Adding or changing a billing
 # fact is a reviewed code/configuration change, not a mutation available to a

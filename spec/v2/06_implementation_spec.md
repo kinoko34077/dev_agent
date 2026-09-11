@@ -12,7 +12,7 @@
 | Persistence primitive | `src/dev_agent/persistence/lease.py` | State／Schedulerが共有するLeaseProof、StaleLease、atomic fence assertion |
 | Tools | `src/dev_agent/tools/` | Tool policy、executor、effect guard、timeout/cancel |
 | Resources | `src/dev_agent/resources/` | ResourceLedger facade、catalog/observation/quota/health/budget、qualification projection、trusted billing catalog、explicit repair audit、router/control、schema/migrations、unknown-quota admission store |
-| Providers | `src/dev_agent/providers/` | Adapter、Factory、Registry、Dispatcher、journal |
+| Providers | `src/dev_agent/providers/` | Adapter、Factory、Registry、Dispatcher、journal。`ollama_cloud`／`vercel`は`openai_compatible`のHTTP boundaryを再利用し、local `ollama`とは別identity。Gemini追加keyは`api_key_env`／`project_id`／`quota_domain`をnon-secret binding metadataとして持つ |
 | AgentBackend | `src/dev_agent/backends/` | 外部Agent harnessとのthin typed contract、`BackendAdmission`付きdispatcher。実adapterは別slice |
 | Runtime | `src/dev_agent/runtime/` | Controller、model turn、legacy compatibility、checkpoint/resume |
 | Scheduler | `src/dev_agent/scheduler/` | DurableQueue、WorkerRunner、lease、quota wake/requalification |
@@ -22,6 +22,8 @@
 | Formal contract | `spec/v2/` | API/implementation contract、requirements、ADR、Gate、traceability |
 
 `.devfarm/` は runtime の正式データ領域ではなく、development-only の ignored artifact である。Credentials、`.env*`、private key、budget authority、Recovery、Gate status は保護領域として扱う。
+
+Provider billing projectionは`TrustedResourceProfile.billing_mode`を使用する。`free_fixed`、`recurring_allowance`、`recurring_credit`、`paid`、`unknown`を混同せず、allowance-backed bindingを`cost_minor=0`というprovider名だけの近道で登録しない。Ollama Cloud／Vercelのexact model profileとlive qualificationが揃うまでは構成可能だが、production qualification済みとは扱わない。
 
 ## 許可された依存方向
 

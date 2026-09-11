@@ -25,5 +25,6 @@
 | Unknown-quota local admission | `src/dev_agent/resources/quota_store.py` | quota telemetryと混同しないbounded local windowを同一SQLite lock/transactionで保持し、ResourceLedger facadeからのみ利用する |
 | Package compatibility exports／legacy provider path | `src/dev_agent/{providers,intelligence,resources,backends,scheduler,state}/__init__.py`、`src/dev_agent/runtime/controller.py` | public import namesは維持し、未使用のadapter／legacy compatibility pathをcanonical importから遅延する。legacy path自体は削除しない |
 | Architecture/preflight tooling | `scripts/check_architecture.py`, `scripts/test_scope.py` | read-only開発補助。runtime authority、Scheduler、StateStoreを所有しない |
+| Provider billing / cloud binding identity | `src/dev_agent/resources/billing_catalog.py`, `src/dev_agent/providers/factory.py`, `src/dev_agent/operation.py` | `billing_mode`でfixed-freeとallowance/credit-backedを分離し、local `ollama`、`ollama_cloud`、`vercel`を別identityとして扱う。credential valueは定義・artifactへ保存しない |
 
 この表はv1資産の復活を意味しない。v2の内部責務移動と互換facadeの所有者を記録するためのものとする。

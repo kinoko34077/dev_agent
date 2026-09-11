@@ -49,15 +49,16 @@ class GeminiHttpProvider(ModelProvider):
     def __init__(self, *, model: str, api_key: str | None = None, base_url: str = "https://generativelanguage.googleapis.com/v1beta", timeout_seconds: float = 30.0) -> None:
         self.model = model
         self.api_key = api_key
+        self.api_key_env = "GEMINI_API_KEY"
         self.base_url = base_url.rstrip("/")
         self.timeout_seconds = timeout_seconds
         self._transcripts = GeminiTranscriptStore()
         self._transcript_lock = RLock()
 
     def _key(self) -> str:
-        key = self.api_key or os.environ.get("GEMINI_API_KEY")
+        key = self.api_key or os.environ.get(self.api_key_env)
         if not key:
-            raise ProviderError("gemini authentication failed: GEMINI_API_KEY is not configured", category="authentication", retryable=False)
+            raise ProviderError(f"gemini authentication failed: {self.api_key_env} is not configured", category="authentication", retryable=False)
         return key
 
     @staticmethod

@@ -39,13 +39,14 @@ class FreeProviderQualificationBlocked(RuntimeError):
     """The requested binding/model has no trusted no-charge qualification."""
 
 
-def _provider(name: str, model: str, timeout_seconds: float):
+def _provider(name: str, model: str, timeout_seconds: float, *, binding_id: str | None = None, api_key_env: str | None = None):
     return ProviderFactory().create(
         ProviderDefinition(
             provider_id=name,
             model=model,
             timeout_seconds=timeout_seconds,
-            provider_binding_id=f"{name}:qualification",
+            provider_binding_id=binding_id or f"{name}:qualification",
+            api_key_env=api_key_env,
         )
     )
 
@@ -57,8 +58,8 @@ def _has_routable_quota_headroom(observation: object) -> bool:
     return any(observation.get(field) is not None for field in ("limit", "remaining", "request_remaining", "token_remaining", "daily_remaining"))
 
 
-def _trusted_free_profile(provider_name: str, model: str):
-    binding_id = f"{provider_name}:qualification"
+def _trusted_free_profile(provider_name: str, model: str, binding_id: str | None = None):
+    binding_id = binding_id or f"{provider_name}:qualification"
     profile = profile_for(provider_name, binding_id, model)
     if profile is None or profile.cost_minor != 0:
         raise FreeProviderQualificationBlocked(
@@ -67,17 +68,18 @@ def _trusted_free_profile(provider_name: str, model: str):
     return profile
 
 
-def qualify(*, provider_name: str, model: str, timeout_seconds: float) -> dict:
+def qualify(*, provider_name: str, model: str, timeout_seconds: float, provider_binding_id: str | None = None, api_key_env: str | None = None, quota_domain: str | None = None) -> dict:
     # Resolve billing before the first network request.  A qualification
     # command must not use the provider name as a proxy for a free tier, since
     # a provider may expose both free and billable models or accounts.
-    profile = _trusted_free_profile(provider_name, model)
+    binding_id = provider_binding_id or f"{provider_name}:qualification"
+    profile = _trusted_free_profile(provider_name, model, binding_id)
     with TemporaryDirectory(prefix="dev-agent-free-provider-") as directory:
         root = Path(directory)
         ledger = ResourceLedger(root / "resources.sqlite3")
         try:
             resource_id = f"{provider_name}-free"
-            concrete = _provider(provider_name, model, timeout_seconds)
+            concrete = _provider(provider_name, model, timeout_seconds, binding_id=binding_id, api_key_env=api_key_env)
             # A quota-aware Router correctly refuses a domain with no fresh
             # observation.  Bootstrap the observation from one real, simple
             # provider response; no quota number is fabricated.  The actual
@@ -87,7 +89,7 @@ def qualify(*, provider_name: str, model: str, timeout_seconds: float) -> dict:
                 ModelRequest(messages=[{"role": "user", "content": "Reply with the single word ready."}])
             )
             preflight_quota = preflight.usage.get("quota_observation") if isinstance(preflight.usage, dict) else None
-            quota_domain = f"{provider_name}-account" if _has_routable_quota_headroom(preflight_quota) else None
+            observed_quota_domain = quota_domain or (f"{provider_name}-account" if _has_routable_quota_headroom(preflight_quota) else None)
             ledger.register_resource(
                 resource_id,
                 provider_id=provider_name,
@@ -97,7 +99,7 @@ def qualify(*, provider_name: str, model: str, timeout_seconds: float) -> dict:
                 sensitivity="normal",
                 cost_minor=profile.cost_minor,
                 price_currency=profile.price_currency,
-                quota_domain=quota_domain,
+                quota_domain=observed_quota_domain,
                 provider_binding_id=getattr(concrete, "provider_binding_id", provider_name),
                 metadata={
                     "provider_binding_id": getattr(concrete, "provider_binding_id", provider_name),
@@ -106,7 +108,7 @@ def qualify(*, provider_name: str, model: str, timeout_seconds: float) -> dict:
                 },
             )
             ledger.observe(resource_id, available=1, health="healthy", confidence=1.0, concurrency_limit=1)
-            if quota_domain is not None:
+            if observed_quota_domain is not None:
                 ledger.ingest_quota_observation(resource_id, preflight.usage, source="live-preflight")
             # The free qualification has no charge-bearing reservation, but
             # it still exercises the normal budget persistence boundary.
@@ -193,13 +195,16 @@ def qualify(*, provider_name: str, model: str, timeout_seconds: float) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--provider", choices=("gemini", "groq", "cloudflare", "mistral", "openrouter"), required=True)
+    parser.add_argument("--provider", choices=("gemini", "groq", "cloudflare", "mistral", "openrouter", "ollama_cloud", "vercel"), required=True)
     parser.add_argument("--model", required=True)
+    parser.add_argument("--binding", dest="provider_binding_id")
+    parser.add_argument("--api-key-env", dest="api_key_env", help="credential environment variable name; the value is never stored")
+    parser.add_argument("--quota-domain", dest="quota_domain")
     parser.add_argument("--timeout-seconds", type=float, default=30.0)
     parser.add_argument("--evidence-path", type=Path)
     args = parser.parse_args(argv)
     try:
-        output = qualify(provider_name=args.provider, model=args.model, timeout_seconds=args.timeout_seconds)
+        output = qualify(provider_name=args.provider, model=args.model, timeout_seconds=args.timeout_seconds, provider_binding_id=args.provider_binding_id, api_key_env=args.api_key_env, quota_domain=args.quota_domain)
         code = 0
     except FreeProviderQualificationBlocked as exc:
         output = {"status": "blocked_external", "category": "untrusted_billing", "message": str(exc)}

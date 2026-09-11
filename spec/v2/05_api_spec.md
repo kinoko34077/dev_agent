@@ -104,6 +104,7 @@
 - Waiting／wake規則: `resource:provider_execution_saturated:<binding>`は該当binding laneのcapacity/reconciliation boundaryだけがwakeし、quotaは`quota:<domain>`、reconciliationはdurable effect outcome、approval／budget／maintenanceは各authorityがwakeする。waitingはclock経過やqueue claimだけで再実行可能にならず、claim counterとlogical execution attemptを分離する。
 - 拒否/停止規則: `DispatchDenied` は budget、quota、maintenance、resource wait、invalid failure の意味を保持して Task 状態へ写像する。cross-process cancellation は durable control と terminal commit 時の再確認を通り、外部効果不明時は `WAITING_RECONCILIATION` を維持する。late provider successは保存済み応答のlifecycle replayへ戻し、blind retryしない。
 - Provider composition: 通常運用は複数のqualified bindingを`ProviderFactory`／`ProviderRegistry`へ登録でき、exact current intelligence tierをhard filterしたうえで同Tierの別bindingへbounded fallbackする。単一provider指定はdebug／qualification／manual pinとして扱う。
+- Configured cloud bindings: `gemini`はcredential environment nameとproject-scoped quota domainをbinding identityへ分離して複数keyを扱う。`ollama_cloud`（`OLLAMA_API_KEY`）と`vercel`（`AI_GATEWAY_API_KEY`）はそれぞれ独立したOpenAI-compatible adapter identityであり、local `ollama`とは別物とする。API keyの存在はqualification／billing admissionの証拠ではない。allowance-backed billingは`free_fixed`と区別し、exact model profileが無い場合はproduction routingへ投影しない。
 - 内部composition: `operation_bootstrap.py`はprovider／qualification／resource／budgetの構成、`operation_planning.py`はplanning contextと依存childの検証・適用、`cli.py`はargparse入口、`state/control_repository.py`はdurable stop controlを所有する。`operation.py`は公開facadeとしてこれらをcompositionし、外部のstart／submit／status／stop意味は変更しない。
 
 ## Development-only DevFarm / Commander

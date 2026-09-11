@@ -789,3 +789,26 @@ def test_dispatch_denied_categories_do_not_all_become_budget_blocked(tmp_path, m
         event_types = [event["event_type"] for event in store.snapshot()["events"] if event.get("task_id") == task.task_id]
         assert event_type in event_types
         assert "task.blocked_budget" not in event_types
+
+
+def test_operation_config_can_explicitly_build_configured_cloud_provider_pool(monkeypatch, tmp_path):
+    monkeypatch.setenv("DEV_AGENT_ENABLE_CONFIGURED_POOL", "1")
+    monkeypatch.setenv("GEMINI_API_KEY_2", "secret-not-read-into-config")
+    monkeypatch.setenv("GEMINI_API_KEY_4", "secret-not-read-into-config")
+    monkeypatch.setenv("OLLAMA_API_KEY", "secret-not-read-into-config")
+    monkeypatch.setenv("OLLAMA_CLOUD_MODEL", "gpt-oss:20b-cloud")
+    monkeypatch.setenv("AI_GATEWAY_API_KEY", "secret-not-read-into-config")
+    monkeypatch.setenv("AI_GATEWAY_MODEL", "openai/gpt-oss-120b")
+
+    config = OperationConfig.from_environment(data_dir=tmp_path)
+
+    bindings = {binding.binding_id: binding for binding in config.provider_bindings}
+    assert "gemini:worker" not in bindings
+    assert bindings["gemini:worker:free-2"].api_key_env == "GEMINI_API_KEY_2"
+    assert bindings["gemini:worker:free-2"].project_id == "projects/394829782092"
+    assert bindings["gemini:worker:free-2"].quota_domain == "gemini:project:394829782092"
+    assert bindings["gemini:worker:free-4"].api_key_env == "GEMINI_API_KEY_4"
+    assert bindings["ollama_cloud:free"].provider_id == "ollama_cloud"
+    assert bindings["ollama_cloud:free"].api_key_env == "OLLAMA_API_KEY"
+    assert bindings["vercel:free"].api_key_env == "AI_GATEWAY_API_KEY"
+    assert all("secret-not-read" not in repr(binding) for binding in bindings.values())

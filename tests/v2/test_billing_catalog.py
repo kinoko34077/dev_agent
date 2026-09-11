@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from src.dev_agent.resources.billing_catalog import TrustedResourceProfile
+from src.dev_agent.resources.billing_catalog import TrustedResourceProfile, profile_for
 
 
 _NOW = datetime(2026, 9, 11, tzinfo=timezone.utc)
@@ -45,3 +45,61 @@ def test_trusted_billing_profile_is_current_inside_review_window():
     )
 
     assert profile.is_current(now=_NOW) is True
+
+
+@pytest.mark.parametrize(
+    "billing_mode",
+    ("free_fixed", "recurring_allowance", "recurring_credit", "paid", "unknown"),
+)
+def test_trusted_billing_profile_exposes_explicit_billing_mode(billing_mode):
+    profile = TrustedResourceProfile(
+        provider_id="example",
+        provider_binding_id="example:binding",
+        model_id="example-model",
+        cost_minor=None if billing_mode != "free_fixed" else 0,
+        price_currency=None if billing_mode != "free_fixed" else "JPY",
+        quota_required=billing_mode != "free_fixed",
+        billing_mode=billing_mode,
+        allowance_amount=500 if billing_mode == "recurring_credit" else None,
+        allowance_currency="USD" if billing_mode == "recurring_credit" else None,
+        allowance_period="30d" if billing_mode == "recurring_credit" else None,
+    )
+
+    assert profile.billing_mode == billing_mode
+
+
+def test_trusted_billing_profile_rejects_unknown_billing_mode():
+    with pytest.raises(ValueError, match="billing_mode"):
+        TrustedResourceProfile(
+            provider_id="example",
+            provider_binding_id="example:binding",
+            model_id="example-model",
+            cost_minor=None,
+            price_currency=None,
+            quota_required=True,
+            billing_mode="maybe_free",
+        )
+
+
+def test_trusted_billing_profile_validates_credit_allowance_metadata():
+    with pytest.raises(ValueError, match="allowance_currency"):
+        TrustedResourceProfile(
+            provider_id="example",
+            provider_binding_id="example:binding",
+            model_id="example-model",
+            cost_minor=None,
+            price_currency=None,
+            quota_required=True,
+            billing_mode="recurring_credit",
+            allowance_amount=500,
+            allowance_currency="dollars",
+            allowance_period="30d",
+        )
+
+
+def test_gemini_additional_binding_profiles_are_allowance_backed_not_fixed_free():
+    profile = profile_for("gemini", "gemini:worker:free-2", "gemini-3.5-flash-lite")
+
+    assert profile is not None
+    assert profile.billing_mode == "recurring_allowance"
+    assert profile.allowance_period == "daily"

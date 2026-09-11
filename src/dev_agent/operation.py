@@ -68,6 +68,12 @@ class OperationError(RuntimeError):
 _OperationResourceProfile = TrustedResourceProfile
 _OPERATION_RESOURCE_CATALOG = TRUSTED_RESOURCE_CATALOG
 _SENSITIVITY_RANK = {"public": 0, "normal": 1, "internal": 2, "sensitive": 3}
+_CONFIGURED_GEMINI_PROJECTS = {
+    "2": "394829782092",
+    "3": "982142111392",
+    "4": "497456937770",
+    "5": "691705059831",
+}
 
 
 def _default_binding_id(provider_id: str, model: str) -> str:
@@ -109,6 +115,8 @@ class OperationProviderBinding:
     quota_domain: str | None = None
     intelligence_tier: str | None = None
     credential_id: str | None = None
+    api_key_env: str | None = None
+    project_id: str | None = None
     base_url: str | None = None
     timeout_seconds: float = 30.0
 
@@ -119,6 +127,8 @@ class OperationProviderBinding:
         quota_domain = self.quota_domain.strip() if isinstance(self.quota_domain, str) and self.quota_domain.strip() else None
         tier = self.intelligence_tier.strip() if isinstance(self.intelligence_tier, str) and self.intelligence_tier.strip() else None
         credential_id = self.credential_id.strip() if isinstance(self.credential_id, str) and self.credential_id.strip() else None
+        api_key_env = self.api_key_env.strip() if isinstance(self.api_key_env, str) and self.api_key_env.strip() else None
+        project_id = self.project_id.strip() if isinstance(self.project_id, str) and self.project_id.strip() else None
         base_url = self.base_url.strip() if isinstance(self.base_url, str) and self.base_url.strip() else None
         if not provider_id:
             raise ValueError("provider_id must be a non-empty string")
@@ -134,11 +144,78 @@ class OperationProviderBinding:
         object.__setattr__(self, "quota_domain", quota_domain)
         object.__setattr__(self, "intelligence_tier", tier)
         object.__setattr__(self, "credential_id", credential_id)
+        object.__setattr__(self, "api_key_env", api_key_env)
+        object.__setattr__(self, "project_id", project_id)
         object.__setattr__(self, "base_url", base_url)
 
     @property
     def binding_id(self) -> str:
         return self.provider_binding_id or _default_binding_id(self.provider_id, self.model)
+
+
+def _configured_provider_pool_from_environment(env: Callable[[str], str | None]) -> tuple[OperationProviderBinding, ...]:
+    """Build an explicit opt-in pool from configured, non-secret binding metadata.
+
+    Presence of a credential alone never activates this path.  The caller must
+    opt in, and cloud models still require a model name before construction.
+    Qualification and billing admission remain exact downstream authorities.
+    """
+
+    bindings: list[OperationProviderBinding] = []
+    default_gemini_model = env("GEMINI_MODEL") or "gemini-3.5-flash-lite"
+    if env("GEMINI_API_KEY") and env("GEMINI_PROJECT_ID"):
+        project_id = env("GEMINI_PROJECT_ID")
+        bindings.append(
+            OperationProviderBinding(
+                provider_id="gemini",
+                model=default_gemini_model,
+                provider_binding_id="gemini:worker",
+                quota_domain=f"gemini:project:{project_id}" if project_id else None,
+                credential_id="gemini-primary",
+                api_key_env="GEMINI_API_KEY",
+                project_id=f"projects/{project_id}" if project_id and not project_id.startswith("projects/") else project_id,
+            )
+        )
+    for slot, project_number in _CONFIGURED_GEMINI_PROJECTS.items():
+        env_name = f"GEMINI_API_KEY_{slot}"
+        if not env(env_name):
+            continue
+        bindings.append(
+            OperationProviderBinding(
+                provider_id="gemini",
+                model=env(f"GEMINI_MODEL_{slot}") or default_gemini_model,
+                provider_binding_id=f"gemini:worker:free-{slot}",
+                quota_domain=f"gemini:project:{project_number}",
+                credential_id=f"gemini-key-{slot}",
+                api_key_env=env_name,
+                project_id=f"projects/{project_number}",
+            )
+        )
+    ollama_model = env("OLLAMA_CLOUD_MODEL")
+    if env("OLLAMA_API_KEY") and ollama_model:
+        bindings.append(
+            OperationProviderBinding(
+                provider_id="ollama_cloud",
+                model=ollama_model,
+                provider_binding_id="ollama_cloud:free",
+                quota_domain="ollama_cloud:account",
+                credential_id="ollama-cloud",
+                api_key_env="OLLAMA_API_KEY",
+            )
+        )
+    vercel_model = env("AI_GATEWAY_MODEL")
+    if env("AI_GATEWAY_API_KEY") and vercel_model:
+        bindings.append(
+            OperationProviderBinding(
+                provider_id="vercel",
+                model=vercel_model,
+                provider_binding_id="vercel:free",
+                quota_domain="vercel:account",
+                credential_id="vercel-ai-gateway",
+                api_key_env="AI_GATEWAY_API_KEY",
+            )
+        )
+    return tuple(bindings)
 
 
 @dataclass(frozen=True)
@@ -267,6 +344,11 @@ class OperationConfig:
             except ValueError as exc:
                 raise ValueError(f"{name} must be numeric") from exc
 
+        provider_pool_value = provider_pool or env("DEV_AGENT_PROVIDER_POOL")
+        if provider_pool_value is None and env("DEV_AGENT_ENABLE_CONFIGURED_POOL") in {"1", "true", "yes"}:
+            configured_pool = _configured_provider_pool_from_environment(env)
+            provider_pool_value = configured_pool or None
+
         return cls(
             data_dir=Path(data_dir or env("DEV_AGENT_DATA_DIR") or ".dev_agent"),
             provider_id=provider_id or env("DEV_AGENT_PROVIDER") or "fake",
@@ -274,7 +356,7 @@ class OperationConfig:
             provider_binding_id=provider_binding_id or env("DEV_AGENT_PROVIDER_BINDING_ID"),
             quota_domain=quota_domain or env("DEV_AGENT_QUOTA_DOMAIN"),
             intelligence_tier=intelligence_tier or env("DEV_AGENT_INTELLIGENCE_TIER"),
-            provider_pool=provider_pool or env("DEV_AGENT_PROVIDER_POOL"),
+            provider_pool=provider_pool_value,
             worker_id=worker_id or env("DEV_AGENT_WORKER_ID") or f"operation-{os.getpid()}",
             lease_seconds=lease_seconds if lease_seconds is not None else env_float("DEV_AGENT_LEASE_SECONDS", 30.0),
             idle_sleep_seconds=idle_sleep_seconds if idle_sleep_seconds is not None else env_float("DEV_AGENT_IDLE_SLEEP_SECONDS", 1.0),
@@ -611,6 +693,8 @@ class OperationService:
             model=config.model,
             provider_binding_id=config.binding_id,
             credential_id=getattr(config, "credential_id", None),
+            api_key_env=getattr(config, "api_key_env", None),
+            project_id=getattr(config, "project_id", None),
             base_url=getattr(config, "base_url", None),
             timeout_seconds=getattr(config, "timeout_seconds", 30.0),
             intelligence_tier=_inferred_tier(config, qualification_resolver=qualification_resolver),
@@ -702,6 +786,13 @@ class OperationService:
             resource_metadata["intelligence_tier"] = tier
         if profile is not None:
             resource_metadata["billing_authority"] = "trusted_catalog"
+            resource_metadata["billing_mode"] = profile.billing_mode
+            if profile.allowance_amount is not None:
+                resource_metadata["allowance_amount"] = profile.allowance_amount
+            if profile.allowance_currency is not None:
+                resource_metadata["allowance_currency"] = profile.allowance_currency
+            if profile.allowance_period is not None:
+                resource_metadata["allowance_period"] = profile.allowance_period
         ledger.register_resource(
             binding_id,
             provider_id=config.provider_id,

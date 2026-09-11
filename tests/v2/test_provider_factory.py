@@ -4,7 +4,9 @@ from src.dev_agent.providers.factory import ProviderDefinition, ProviderFactory
 from src.dev_agent.providers.gemini import GeminiHttpProvider
 from src.dev_agent.providers.mistral import MistralHttpProvider
 from src.dev_agent.providers.ollama import OllamaProvider
+from src.dev_agent.providers.ollama_cloud import OllamaCloudHttpProvider
 from src.dev_agent.providers.openrouter import OpenRouterHttpProvider
+from src.dev_agent.providers.vercel import VercelAIGatewayHttpProvider
 from src.dev_agent.providers.dispatch import ProviderRegistry
 from src.dev_agent.providers.base import ProviderError
 from scripts.qualify_free_provider import _provider
@@ -76,6 +78,65 @@ def test_provider_registry_allows_multiple_models_for_one_provider_without_ambig
 def test_provider_factory_constructs_gemini_and_ollama_without_resolving_credentials():
     assert isinstance(ProviderFactory().create(ProviderDefinition(provider_id="gemini", model="gemini-2.5-flash")), GeminiHttpProvider)
     assert isinstance(ProviderFactory().create(ProviderDefinition(provider_id="ollama", model="qwen3:8b")), OllamaProvider)
+
+
+def test_provider_factory_constructs_cloud_bindings_with_distinct_identities():
+    ollama_cloud = ProviderFactory().create(
+        ProviderDefinition(
+            provider_id="ollama_cloud",
+            model="gpt-oss:20b-cloud",
+            provider_binding_id="ollama_cloud:free",
+            api_key_env="OLLAMA_API_KEY",
+        )
+    )
+    vercel = ProviderFactory().create(
+        ProviderDefinition(
+            provider_id="vercel",
+            model="openai/gpt-oss-120b",
+            provider_binding_id="vercel:free",
+            api_key_env="AI_GATEWAY_API_KEY",
+        )
+    )
+
+    assert isinstance(ollama_cloud, OllamaCloudHttpProvider)
+    assert ollama_cloud.base_url == "https://ollama.com/v1"
+    assert ollama_cloud.api_key_env == "OLLAMA_API_KEY"
+    assert isinstance(vercel, VercelAIGatewayHttpProvider)
+    assert vercel.base_url == "https://ai-gateway.vercel.sh/v1"
+    assert vercel.api_key_env == "AI_GATEWAY_API_KEY"
+
+
+def test_provider_factory_keeps_gemini_credential_env_and_project_metadata_non_secret():
+    provider = ProviderFactory().create(
+        ProviderDefinition(
+            provider_id="gemini",
+            model="gemini-3.5-flash-lite",
+            provider_binding_id="gemini:worker:free-2",
+            credential_id="gemini-key-2",
+            api_key_env="GEMINI_API_KEY_2",
+            project_id="projects/394829782092",
+        )
+    )
+
+    assert provider.api_key_env == "GEMINI_API_KEY_2"
+    assert provider.credential_id == "gemini-key-2"
+    assert provider.project_id == "projects/394829782092"
+
+
+def test_provider_factory_does_not_copy_api_key_value_into_provider_definition(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY_2", "test-secret-value")
+    provider = ProviderFactory().create(
+        ProviderDefinition(
+            provider_id="gemini",
+            model="gemini-3.5-flash-lite",
+            provider_binding_id="gemini:worker:free-2",
+            api_key_env="GEMINI_API_KEY_2",
+        )
+    )
+
+    assert provider.api_key is None
+    assert provider.api_key_env == "GEMINI_API_KEY_2"
+    assert "test-secret-value" not in repr(provider.__dict__)
 
 
 def test_free_qualification_uses_factory_for_gemini():

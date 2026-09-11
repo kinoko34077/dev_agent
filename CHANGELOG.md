@@ -4,6 +4,18 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-11 JST — Additional cloud provider bindings
+
+- ProviderFactoryへOllama Cloud (`ollama_cloud`) と Vercel AI Gateway (`vercel`)
+  を追加し、既存のOpenAI-compatible HTTP transport、model probe、quota probeを
+  再利用できるようにした。local `ollama`とは別identityを維持する。
+- `GEMINI_API_KEY_2`〜`_5`を、project-scoped quota domainとcredential environment
+  nameを持つ明示bindingとして、opt-in Operation provider poolへ追加した。
+- `TrustedResourceProfile`へ`billing_mode`とallowance metadataを追加した。
+  allowance/credit-backed serviceを`cost_minor=0`のfixed-free経路へ混ぜていない。
+- 今回はadapter/configuration sliceであり、新bindingのlive qualificationや
+  production activationは実施していない。API key存在だけでqualifiedとは扱わない。
+
 ### 2026-09-11 JST — Residual hardening gate
 
 - 旧Resourceの通常起動時silent repairを行わず、`resource validate`／明示`resource migrate`とschema v10のbefore/after auditへ分離した。

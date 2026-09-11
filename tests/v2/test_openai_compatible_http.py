@@ -8,6 +8,8 @@ from src.dev_agent.domain.protocol import ModelRequest
 from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.groq import GroqHttpProvider
 from src.dev_agent.providers.openai_compatible import OpenAICompatibleHttpProvider
+from src.dev_agent.providers.ollama_cloud import OllamaCloudHttpProvider
+from src.dev_agent.providers.vercel import VercelAIGatewayHttpProvider
 
 
 class _Response:
@@ -158,3 +160,25 @@ def test_openai_compatible_http_provider_exposes_provider_neutral_quota_probe():
     assert observation["quota_domain"] == "groq-project"
     assert observation["request_limit"] == 10
     assert observation["request_remaining"] == 9
+
+
+@pytest.mark.parametrize(
+    ("provider_type", "expected_provider", "expected_url"),
+    [
+        (OllamaCloudHttpProvider, "ollama_cloud", "https://ollama.com/v1/chat/completions"),
+        (VercelAIGatewayHttpProvider, "vercel", "https://ai-gateway.vercel.sh/v1/chat/completions"),
+    ],
+)
+def test_new_openai_compatible_cloud_providers_use_their_distinct_endpoint(provider_type, expected_provider, expected_url):
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["authorization"] = dict(request.header_items())["Authorization"]
+        return _Response({"model": "backend-model", "choices": [{"message": {"content": "ready"}, "finish_reason": "stop"}]})
+
+    provider = provider_type(model="model", api_key="secret", timeout_seconds=4, http_open=fake_urlopen)
+    response = provider.request(ModelRequest(messages=[{"role": "user", "content": "hello"}]))
+
+    assert captured == {"url": expected_url, "authorization": "Bearer secret"}
+    assert response.provider == expected_provider

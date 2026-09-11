@@ -24,6 +24,8 @@ class ProviderDefinition:
     timeout_seconds: float = 30.0
     provider_binding_id: str | None = None
     credential_id: str | None = None
+    api_key_env: str | None = None
+    project_id: str | None = None
     intelligence_tier: str | IntelligenceTier | None = None
 
     def __post_init__(self) -> None:
@@ -33,7 +35,7 @@ class ProviderDefinition:
             raise ValueError("model must be a non-empty string")
         if self.base_url is not None and (not isinstance(self.base_url, str) or not self.base_url.strip()):
             raise ValueError("base_url must be a non-empty string or None")
-        for name, value in (("provider_binding_id", self.provider_binding_id), ("credential_id", self.credential_id)):
+        for name, value in (("provider_binding_id", self.provider_binding_id), ("credential_id", self.credential_id), ("api_key_env", self.api_key_env), ("project_id", self.project_id)):
             if value is not None and (not isinstance(value, str) or not value.strip()):
                 raise ValueError(f"{name} must be a non-empty string or None")
         if self.intelligence_tier is not None:
@@ -51,6 +53,10 @@ class ProviderDefinition:
             object.__setattr__(self, "provider_binding_id", self.provider_binding_id.strip())
         if self.credential_id is not None:
             object.__setattr__(self, "credential_id", self.credential_id.strip())
+        if self.api_key_env is not None:
+            object.__setattr__(self, "api_key_env", self.api_key_env.strip())
+        if self.project_id is not None:
+            object.__setattr__(self, "project_id", self.project_id.strip())
 
     @property
     def model_id(self) -> str:
@@ -66,6 +72,8 @@ class ProviderFactory:
         "ollama": (".ollama", "OllamaProvider"),
         "openrouter": (".openrouter", "OpenRouterHttpProvider"),
         "sambanova": (".sambanova", "SambaNovaHttpProvider"),
+        "ollama_cloud": (".ollama_cloud", "OllamaCloudHttpProvider"),
+        "vercel": (".vercel", "VercelAIGatewayHttpProvider"),
     }
 
     def create(self, definition: ProviderDefinition) -> Any:
@@ -88,6 +96,10 @@ class ProviderFactory:
         setattr(provider, "provider_binding_id", definition.provider_binding_id or definition.provider_id)
         setattr(provider, "model_id", definition.model)
         setattr(provider, "credential_id", definition.credential_id)
+        if definition.api_key_env is not None:
+            setattr(provider, "api_key_env", definition.api_key_env)
+        if definition.project_id is not None:
+            setattr(provider, "project_id", definition.project_id)
         setattr(provider, "intelligence_tier", definition.intelligence_tier)
         return provider
 
