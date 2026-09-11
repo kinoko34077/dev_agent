@@ -4,7 +4,7 @@
 
 | Field | Value |
 | --- | --- |
-| **Current HEAD** | `pending-commit` (BillingResolver DI + full billing match + schema validator) |
+| **Current HEAD** | `a052b20` (BillingResolver DI + full billing match + schema validator) |
 | **v2 tests** | success (`678 passed, 1 skipped` — all 2 previously-failing free-provider tests now fixed) |
 | **v2-core (Python 3.10 / 3.11)** | success (previously 2 failures; fixed by BillingResolver authority injection) |
 | **Local regression** | `678 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 198s) |
