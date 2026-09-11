@@ -29,7 +29,7 @@ def test_resource_ledger_persists_quota_domain_identity(tmp_path):
 
     assert spec.quota_domain == "google-project-123"
     assert resource_ledger.get_resource("gemini-free")["quota_domain"] == "google-project-123"
-    assert resource_ledger.connection.execute("SELECT value FROM resource_schema_meta WHERE key='schema_version'").fetchone()[0] == "9"
+    assert resource_ledger.connection.execute("SELECT value FROM resource_schema_meta WHERE key='schema_version'").fetchone()[0] == "10"
 
     reopened = ResourceLedger(tmp_path / "quota-domain.sqlite3")
     assert reopened.get_resource("gemini-free")["quota_domain"] == "google-project-123"
