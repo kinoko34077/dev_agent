@@ -148,9 +148,9 @@
 - Controller keeps one iterative loop and existing durable state transitions; private helpers return normalized outcomes.
 - ResourceLedger remains the only public facade; callers do not access private stores.
 
-- [ ] Step 1: Add characterization tests for success, ToolCall, resume, timeout, quota, budget, saturation, late completion, cancel, UNKNOWN, and reconciliation.
-- [ ] Step 2: Run those tests before extraction.
-- [ ] Step 3: Extract semantic private phase handlers without introducing a state-machine/handler framework.
+- [x] Step 1: Existing Controller regression suites cover success, ToolCall, resume, timeout, quota, budget, saturation, late completion, cancel, UNKNOWN, and reconciliation; the new architecture test fixes the intended phase boundary.
+- [x] Step 2: Run those characterization suites before extraction; the selected controller/intelligence/provider set was green before the phase split.
+- [x] Step 3: Extract step preparation, ModelRequest construction, and request checkpoint/accounting helpers without introducing a state-machine/handler framework; focused result is `71 passed`.
 - [ ] Step 4: Move Ledger schema/quota internals only when tests show a clear boundary; retain transaction semantics.
 - [ ] Step 5: Run the controller/resource focused suites and commit separate `refactor:` slices.
 

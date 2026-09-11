@@ -604,6 +604,100 @@ class Controller:
         finally:
             self._execution_context.reset(token)
 
+    def _prepare_model_step(self, task: Task, state: dict[str, Any]) -> Step:
+        """Restore or create the next model step without changing lifecycle state."""
+
+        step = None
+        if state.get("active_step"):
+            candidate = Step.from_dict(state["active_step"])
+            if candidate.task_id == task.task_id and candidate.order == state["next_step_order"] and candidate.status in {StepStatus.PENDING, StepStatus.RUNNING}:
+                step = candidate
+                step.status = StepStatus.RUNNING
+                step.attempt = max(1, step.attempt)
+        if step is None:
+            step = Step(task_id=task.task_id, order=state["next_step_order"], kind="model", status=StepStatus.RUNNING, attempt=1)
+        state["active_step"] = step.to_dict()
+        return step
+
+    def _build_model_request(self, task: Task, state: dict[str, Any], *, step: Step) -> tuple[ModelRequest, bool]:
+        """Build one kernel ModelRequest from durable Task/Runtime state."""
+
+        replaying_request = bool(state.get("active_request_id"))
+        try:
+            intelligence = self.intelligence_policy.decide(task)
+            request_metadata = {
+                "task_type": task.task_type.value,
+                "risk": task.risk.value,
+                "minimum_intelligence_tier": intelligence.minimum_tier.value,
+                "maximum_intelligence_tier": intelligence.maximum_tier.value,
+                "current_intelligence_tier": intelligence.current_tier.value,
+                "escalation_intelligence_tiers": [tier.value for tier in intelligence.escalation_tiers],
+                "allowed_intelligence_tiers": [tier.value for tier in intelligence.allowed_tiers],
+                "requires_human_approval": intelligence.requires_human_approval,
+                "intelligence_policy_reasons": list(intelligence.reasons),
+            }
+            if self.allow_unknown_quota:
+                request_metadata["allow_unknown_quota"] = True
+            if self.intelligence_routing:
+                request_metadata.update(IntelligenceRoutePolicy.metadata_for(intelligence))
+            request = ModelRequest(
+                request_id=state.get("active_request_id") or None,
+                task_id=task.task_id,
+                messages=state["messages"],
+                # Task competencies and policy traits influence the
+                # intelligence and authority decision, but they are not
+                # provider execution capabilities.
+                requested_capabilities=list(execution_capabilities(task.required_capabilities)),
+                allowed_tools=self.tools.registry.names(),
+                tool_definitions=self.tools.registry.definitions(),
+                tool_results=state["tool_results"],
+                max_output_tokens=task.limits.max_output_tokens,
+                sensitivity=task.sensitivity,
+                cost_ceiling=task.limits.max_cost,
+                metadata={
+                    **request_metadata,
+                    "task_context": {
+                        "type": "dev_agent.task_context.v1",
+                        "inputs": task.inputs,
+                        "constraints": task.constraints,
+                    },
+                },
+            )
+        except Exception as exc:
+            self._fail(task, state, "protocol", str(exc), step=step)
+        return request, replaying_request
+
+    def _record_model_request(self, task: Task, state: dict[str, Any], *, step: Step, request: ModelRequest, replaying_request: bool) -> None:
+        """Persist request accounting/checkpoint before an external model call."""
+
+        state["active_request_id"] = request.request_id
+        if replaying_request:
+            return
+        input_tokens = self._estimate_tokens(
+            {
+                "messages": request.messages,
+                "tool_definitions": request.tool_definitions,
+                "tool_results": [result.to_dict() for result in request.tool_results],
+            }
+        )
+        if state["input_tokens_used"] + input_tokens > task.limits.max_input_tokens:
+            self._fail(task, state, "limits_exceeded", "input token limit exceeded", step=step)
+        state["input_tokens_used"] += input_tokens
+        state["model_calls"] += 1
+        request_event = self._event_record(
+            task,
+            "model.requested",
+            {"request": request.to_dict()},
+            step_id=step.step_id,
+            request_id=request.request_id,
+        )
+        self._commit(
+            task=task,
+            step=step,
+            checkpoint=self._checkpoint_payload(task, step, "before_model", state),
+            events=[request_event],
+        )
+
     def _run(self, task: Task, *, state: dict[str, Any] | None = None) -> Task:
         state = RuntimeState.from_checkpoint(state) if state is not None else self._initial_state(task)
         self._ensure_state_defaults(state)
@@ -647,70 +741,15 @@ class Controller:
                     continue
                 if state["next_step_order"] >= task.limits.max_steps or state["model_calls"] >= task.limits.max_model_calls:
                     self._fail(task, state, "limits_exceeded", "execution limits exceeded")
-                step = None
-                if state.get("active_step"):
-                    candidate = Step.from_dict(state["active_step"])
-                    if candidate.task_id == task.task_id and candidate.order == state["next_step_order"] and candidate.status in {StepStatus.PENDING, StepStatus.RUNNING}:
-                        step = candidate
-                        step.status = StepStatus.RUNNING
-                        step.attempt = max(1, step.attempt)
-                if step is None:
-                    step = Step(task_id=task.task_id, order=state["next_step_order"], kind="model", status=StepStatus.RUNNING, attempt=1)
-                state["active_step"] = step.to_dict()
-                replaying_request = bool(state.get("active_request_id"))
-                try:
-                    intelligence = self.intelligence_policy.decide(task)
-                    request_metadata = {
-                        "task_type": task.task_type.value,
-                        "risk": task.risk.value,
-                        "minimum_intelligence_tier": intelligence.minimum_tier.value,
-                        "maximum_intelligence_tier": intelligence.maximum_tier.value,
-                        "current_intelligence_tier": intelligence.current_tier.value,
-                        "escalation_intelligence_tiers": [tier.value for tier in intelligence.escalation_tiers],
-                        "allowed_intelligence_tiers": [tier.value for tier in intelligence.allowed_tiers],
-                        "requires_human_approval": intelligence.requires_human_approval,
-                        "intelligence_policy_reasons": list(intelligence.reasons),
-                    }
-                    if self.allow_unknown_quota:
-                        request_metadata["allow_unknown_quota"] = True
-                    if self.intelligence_routing:
-                        request_metadata.update(IntelligenceRoutePolicy.metadata_for(intelligence))
-                    request = ModelRequest(
-                        request_id=state.get("active_request_id") or None,
-                        task_id=task.task_id,
-                        messages=state["messages"],
-                        # Task competencies and policy traits (for example
-                        # architecture/protected/security) influence the
-                        # intelligence and authority decision, but they are
-                        # not provider execution capabilities.  Only the
-                        # canonical execution projection reaches the Router.
-                        requested_capabilities=list(execution_capabilities(task.required_capabilities)),
-                        allowed_tools=self.tools.registry.names(),
-                        tool_definitions=self.tools.registry.definitions(),
-                        tool_results=state["tool_results"],
-                        max_output_tokens=task.limits.max_output_tokens,
-                        sensitivity=task.sensitivity,
-                        cost_ceiling=task.limits.max_cost,
-                        metadata={
-                            **request_metadata,
-                            "task_context": {
-                                "type": "dev_agent.task_context.v1",
-                                "inputs": task.inputs,
-                                "constraints": task.constraints,
-                            },
-                        },
-                    )
-                except Exception as exc:
-                    self._fail(task, state, "protocol", str(exc), step=step)
-                state["active_request_id"] = request.request_id
-                if not replaying_request:
-                    input_tokens = self._estimate_tokens({"messages": request.messages, "tool_definitions": request.tool_definitions, "tool_results": [result.to_dict() for result in request.tool_results]})
-                    if state["input_tokens_used"] + input_tokens > task.limits.max_input_tokens:
-                        self._fail(task, state, "limits_exceeded", "input token limit exceeded", step=step)
-                    state["input_tokens_used"] += input_tokens
-                    state["model_calls"] += 1
-                    request_event = self._event_record(task, "model.requested", {"request": request.to_dict()}, step_id=step.step_id, request_id=request.request_id)
-                    self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "before_model", state), events=[request_event])
+                step = self._prepare_model_step(task, state)
+                request, replaying_request = self._build_model_request(task, state, step=step)
+                self._record_model_request(
+                    task,
+                    state,
+                    step=step,
+                    request=request,
+                    replaying_request=replaying_request,
+                )
                 reservation = None
                 provider_intent_key = None
                 replayed_response = None
