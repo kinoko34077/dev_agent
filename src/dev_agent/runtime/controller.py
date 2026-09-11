@@ -963,6 +963,23 @@ class Controller:
                         # or allow a duplicate provider request.
                         self._provider_waiting_reconciliation(task, state, step=step, request_id=request.request_id, cause="budget_reconciliation", message=str(exc))
                         return task
+                    elif getattr(self.provider, "handles_resource_policy", False) and exc.category == "provider_execution_saturated":
+                        saturated_binding_ids = getattr(exc, "saturated_binding_ids", ())
+                        if isinstance(saturated_binding_ids, (tuple, list, set, frozenset)) and len(saturated_binding_ids) > 1:
+                            wake_reason = "resource:provider_execution_saturated:pool"
+                        elif saturated_binding_ids:
+                            wake_reason = f"resource:provider_execution_saturated:{next(iter(saturated_binding_ids))}"
+                        else:
+                            wake_reason = "resource:provider_execution_saturated"
+                        self._wait_for_resource(
+                            task,
+                            state,
+                            step=step,
+                            category="provider_execution_saturated",
+                            message=str(exc),
+                            wake_reason=wake_reason,
+                        )
+                        return task
                     elif getattr(self.provider, "handles_resource_policy", False) and exc.category in {"quota", "rate_limit"}:
                         # A canonical dispatcher may exhaust every eligible
                         # binding after recording a provider-side quota/rate

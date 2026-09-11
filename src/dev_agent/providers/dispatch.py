@@ -28,6 +28,22 @@ class DispatchAudit:
     model_id: str | None = None
 
 
+class ProviderPoolSaturated(ProviderError):
+    """All currently eligible binding lanes rejected a local execution call."""
+
+    def __init__(self, saturated_binding_ids: tuple[str, ...]) -> None:
+        normalized = tuple(sorted({binding_id.strip() for binding_id in saturated_binding_ids if isinstance(binding_id, str) and binding_id.strip()}))
+        if not normalized:
+            raise ValueError("saturated_binding_ids must contain at least one binding")
+        super().__init__(
+            "all eligible provider execution lanes are saturated",
+            category="provider_execution_saturated",
+            retryable=True,
+        )
+        self.saturated_binding_ids = normalized
+        self.binding_id = None
+
+
 class ProviderDispatcher(ModelProvider):
     """Canonical multi-provider runtime boundary.
 
@@ -268,10 +284,13 @@ class ProviderDispatcher(ModelProvider):
             request = explicit_request
         excluded: set[str] = set()
         last_error: ProviderError | None = None
+        saturated_binding_ids: set[str] = set()
         while True:
             try:
                 selection = self._selection(request, excluded)
             except NoRoute as exc:
+                if saturated_binding_ids:
+                    raise ProviderPoolSaturated(tuple(saturated_binding_ids)) from exc
                 if last_error is not None:
                     raise last_error
                 raise DispatchDenied("no_route", str(exc)) from exc
@@ -383,6 +402,9 @@ class ProviderDispatcher(ModelProvider):
                         details={"category": "provider_execution_saturated", "external_call_started": False},
                     )
                     last_error = exc
+                    binding_id = selection.provider_binding_id or selection.provider_id
+                    if isinstance(binding_id, str) and binding_id.strip():
+                        saturated_binding_ids.add(binding_id.strip())
                     excluded.add(selection.resource_id)
                     continue
                 # A late-completion callback can win the durable accounting

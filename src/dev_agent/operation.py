@@ -415,7 +415,13 @@ class OperationService:
             # occupied lane and create avoidable claim/defer churn.  The
             # generic reason remains a compatibility fallback for older
             # callers that did not preserve a binding identity.
-            queue.wake_waiting(reason=f"resource:provider_execution_saturated:{binding_id.strip()}")
+            normalized_binding_id = binding_id.strip()
+            queue.wake_waiting(reason=f"resource:provider_execution_saturated:{normalized_binding_id}")
+            # A request that exhausted several eligible lanes is parked on a
+            # pool identity.  Any one lane recovering is enough to trigger a
+            # bounded re-selection; the WorkerRunner will park it again if
+            # the recovered lane is not ultimately usable.
+            queue.wake_waiting(reason="resource:provider_execution_saturated:pool")
             return
         queue.wake_waiting(reason="resource:provider_execution_saturated")
 
