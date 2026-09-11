@@ -170,9 +170,9 @@
 - [x] Step 1: Add AST checks for forbidden dependency directions and internal barrel imports; the new checker reports `ARCHITECTURE_PASS`.
 - [x] Step 2: Implement the stdlib-only checks with a small explicit allowlist and a subprocess regression test.
 - [x] Step 3: Add affected-test scope data and a command that prints focused paths for changed files; the CLI regression passes.
-- [ ] Step 4: Measure import time, Operation open time, qualification load count, planner snapshot count, focused time, and full-suite time before/after. Suite timing is recorded below; the remaining process/open measurements are pending.
+- [x] Step 4: Measure import time, Operation open time, qualification load count, planner snapshot count, focused time, and full-suite time before/after where the metric exists. The fixed pre-refactor worktree measured provider-dispatch import at `1267.71ms` and fake Operation open at `108.26ms`; the current code measured `345.80ms` and `90.17ms`, respectively. Current qualification load count is `1`, and the planning regression observes one snapshot per apply (pre-refactor characterization was `2`).
 - [x] Step 5: Run the full regression and read-only Gate check. Current cumulative result is `620 passed, 1 skipped in 133.14s`; the Gate remains externally blocked by G6O1. Exact-head CI is pending the next push.
-- [ ] Step 6: Synchronize docs without changing Gate status; commit the architecture/scope tooling and the final documentation slice.
+- [x] Step 6: Synchronize docs without changing Gate status; architecture/scope tooling was pushed in `5e41200` and the ownership/baseline documentation slice in `18b22c1`.
 
 #### Stage 8 evidence
 
@@ -185,6 +185,15 @@ Full-suite timing collected during the refactor slices:
 | planning snapshot reuse | 608 passed, 1 skipped | 124.41s |
 | lease/state views | 611 passed, 1 skipped | 167.23s |
 | architecture/scope tooling | 620 passed, 1 skipped | 133.14s |
+
+Process/open measurements:
+
+| metric | pre-refactor `00596b8` | current `5e41200` |
+| --- | ---: | ---: |
+| `import src.dev_agent.providers.dispatch` | 1267.71ms | 345.80ms |
+| fake `OperationService.open` | 108.26ms | 90.17ms |
+| Qualification Matrix loads per Operation open | not available in the pre-catalog implementation | 1 |
+| planning snapshots per apply | 2 (characterization) | 1 |
 
 The timing is evidence only, not a claim that every slice improved runtime. The focused architecture checks and affected-test map are intended to reduce iteration scope while the full suite remains the final gate.
 
