@@ -2,9 +2,9 @@ name: v2-core
 
 on:
   push:
-    branches: [v2/bootstrap]
+    branches: [v2/bootstrap, main]
   pull_request:
-    branches: [v2/bootstrap]
+    branches: [v2/bootstrap, main]
 
 jobs:
   kernel:
