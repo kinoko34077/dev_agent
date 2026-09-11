@@ -131,11 +131,11 @@
 - Public compatibility exports remain available; internal modules use leaf imports.
 - ProviderFactory imports only the adapter needed for the requested ProviderDefinition.
 
-- [ ] Step 1: Add failing import tests/AST checks for unnecessary barrel and eager adapter imports.
-- [ ] Step 2: Run them and confirm current eager imports are detected.
-- [ ] Step 3: Implement local/lazy imports and classify each facade/shim as public stable, temporary compatibility, or dead.
-- [ ] Step 4: Keep legacy provider loading cold and do not remove active compatibility paths.
-- [ ] Step 5: Run import/provider suites and commit `perf: reduce provider and package eager imports`.
+- [x] Step 1: Add failing subprocess import checks for unnecessary barrel and eager adapter imports.
+- [x] Step 2: Run them and confirm the pre-change provider and intelligence barrels loaded the full adapter/pipeline set.
+- [x] Step 3: Implement lazy compatibility exports and ProviderFactory local construction imports; public exports remain stable.
+- [x] Step 4: Leave legacy provider compatibility paths intact; no active path was removed while the package imports became cold.
+- [x] Step 5: Run import/provider/intelligence suites; results are `25 passed`, `19 passed`, and `10 passed` across the focused slices.
 
 ### Task 7: Controller and Ledger readability slices
 

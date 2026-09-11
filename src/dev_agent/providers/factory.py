@@ -3,17 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from importlib import import_module
 import math
 from typing import Any
 
 from ..domain.protocol import IntelligenceTier
-from .cloudflare import CloudflareWorkersAIHttpProvider
-from .gemini import GeminiHttpProvider
-from .groq import GroqHttpProvider
-from .mistral import MistralHttpProvider
-from .ollama import OllamaProvider
-from .openrouter import OpenRouterHttpProvider
-from .sambanova import SambaNovaHttpProvider
 
 
 @dataclass(frozen=True)
@@ -64,22 +58,24 @@ class ProviderDefinition:
 
 
 class ProviderFactory:
-    _HTTP_PROVIDERS = {
-        "cloudflare": CloudflareWorkersAIHttpProvider,
-        "gemini": GeminiHttpProvider,
-        "groq": GroqHttpProvider,
-        "mistral": MistralHttpProvider,
-        "ollama": OllamaProvider,
-        "openrouter": OpenRouterHttpProvider,
-        "sambanova": SambaNovaHttpProvider,
+    _PROVIDER_TYPES = {
+        "cloudflare": (".cloudflare", "CloudflareWorkersAIHttpProvider"),
+        "gemini": (".gemini", "GeminiHttpProvider"),
+        "groq": (".groq", "GroqHttpProvider"),
+        "mistral": (".mistral", "MistralHttpProvider"),
+        "ollama": (".ollama", "OllamaProvider"),
+        "openrouter": (".openrouter", "OpenRouterHttpProvider"),
+        "sambanova": (".sambanova", "SambaNovaHttpProvider"),
     }
 
     def create(self, definition: ProviderDefinition) -> Any:
         if not isinstance(definition, ProviderDefinition):
             raise TypeError("definition must be a ProviderDefinition")
-        provider_type = self._HTTP_PROVIDERS.get(definition.provider_id)
-        if provider_type is None:
+        provider_target = self._PROVIDER_TYPES.get(definition.provider_id)
+        if provider_target is None:
             raise ValueError(f"unsupported provider: {definition.provider_id}")
+        module_name, provider_name = provider_target
+        provider_type = getattr(import_module(module_name, __package__), provider_name)
         arguments: dict[str, Any] = {
             "model": definition.model,
             "timeout_seconds": definition.timeout_seconds,
