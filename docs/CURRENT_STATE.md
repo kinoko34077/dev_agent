@@ -23,7 +23,7 @@
   present. Live qualification must use the existing canonical
   Controller → ProviderDispatcher path and exact binding/model evidence.
 
-実装基準は `9a81816` です。直近のローカル全回帰もこのコード基準で検証し、
+実装基準は `f438d79` です。直近のローカル全回帰もこのコード基準で検証し、
 本書はそのコードと、直近の外部資格化・DevFarm実行結果を同期したCurrent Stateです。
 GATE_STATUSの既存statusは変更していません。
 
