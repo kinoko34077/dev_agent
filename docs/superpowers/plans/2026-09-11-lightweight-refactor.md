@@ -167,12 +167,26 @@
 - Preflight checks compile/import/architecture/static schema without becoming a full regression substitute.
 - Affected-test mapping accelerates feedback but final acceptance remains the full `tests/v2` suite and exact-head CI.
 
-- [ ] Step 1: Add failing AST checks for forbidden dependency directions and internal barrel imports.
-- [ ] Step 2: Implement the stdlib-only checks with a small explicit allowlist.
-- [ ] Step 3: Add affected-test scope data and a command that prints the focused paths for changed files.
-- [ ] Step 4: Measure import time, Operation open time, qualification load count, planner snapshot count, focused time, and full-suite time before/after.
-- [ ] Step 5: Run `python -m pytest tests/v2 -q`, read-only Gate checks, and exact-head CI.
-- [ ] Step 6: Synchronize docs without changing Gate status; commit `test: add architecture and affected-scope checks` and the final documentation slice.
+- [x] Step 1: Add AST checks for forbidden dependency directions and internal barrel imports; the new checker reports `ARCHITECTURE_PASS`.
+- [x] Step 2: Implement the stdlib-only checks with a small explicit allowlist and a subprocess regression test.
+- [x] Step 3: Add affected-test scope data and a command that prints focused paths for changed files; the CLI regression passes.
+- [ ] Step 4: Measure import time, Operation open time, qualification load count, planner snapshot count, focused time, and full-suite time before/after. Suite timing is recorded below; the remaining process/open measurements are pending.
+- [x] Step 5: Run the full regression and read-only Gate check. Current cumulative result is `620 passed, 1 skipped in 133.14s`; the Gate remains externally blocked by G6O1. Exact-head CI is pending the next push.
+- [ ] Step 6: Synchronize docs without changing Gate status; commit the architecture/scope tooling and the final documentation slice.
+
+#### Stage 8 evidence
+
+Full-suite timing collected during the refactor slices:
+
+| point | result | elapsed |
+| --- | --- | --- |
+| baseline | 602 passed, 1 skipped | 138.13s |
+| qualification catalog | 607 passed, 1 skipped | 131.33s |
+| planning snapshot reuse | 608 passed, 1 skipped | 124.41s |
+| lease/state views | 611 passed, 1 skipped | 167.23s |
+| architecture/scope tooling | 620 passed, 1 skipped | 133.14s |
+
+The timing is evidence only, not a claim that every slice improved runtime. The focused architecture checks and affected-test map are intended to reduce iteration scope while the full suite remains the final gate.
 
 ## Stop Conditions
 

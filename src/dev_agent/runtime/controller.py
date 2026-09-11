@@ -21,7 +21,8 @@ from ..resources.control import DispatchDenied, ResourcePolicy
 from ..resources.budget import BudgetExceeded, BudgetReconciliationRequired
 from ..state.store import StateStore
 from ..tools.runtime import ToolRuntime
-from ..intelligence import IntelligenceRoutePolicy, TaskIntelligencePolicy
+from ..intelligence.policy import TaskIntelligencePolicy
+from ..intelligence.routing import IntelligenceRoutePolicy
 from ..intelligence.capabilities import execution_capabilities
 from .legacy_provider import LegacyDirectProviderExecutor, LegacyDirectProviderJournal
 from .model_turn import ModelTurnExecutor, ProviderExecutionSaturated, ProviderRequestCancelled
