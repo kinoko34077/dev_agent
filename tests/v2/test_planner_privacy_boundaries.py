@@ -5,6 +5,7 @@ import pytest
 from src.dev_agent.domain.protocol import RiskLevel, TaskStatus, TaskType
 from src.dev_agent.intelligence.planner import (
     ChildTaskProposal,
+    PlannerDependencyType,
     PlanningValidationError,
     RootPlanningProposal,
 )
@@ -210,3 +211,62 @@ def test_planner_dependency_release_enqueues_only_after_all_dependencies_complet
         assert service.store.load_task(docs.task_id).status is TaskStatus.QUEUED
         assert service.queue.snapshot(docs.task_id).state == "queued"
         assert service.store.has_event(docs.task_id, "task.planner_dependency_released")
+
+
+def test_code_integrated_dependency_requires_integration_evidence(tmp_path):
+    config = _config(tmp_path)
+    root = _root(config)
+    proposal = RootPlanningProposal(
+        parent_task_id=root.task_id,
+        rationale="release code-dependent work only after integration",
+        children=(
+            ChildTaskProposal(child_key="implementation", objective="implement", task_type=TaskType.WORKER),
+            ChildTaskProposal(
+                child_key="followup",
+                objective="follow up on integrated implementation",
+                task_type=TaskType.DETERMINISTIC,
+                dependencies=("implementation",),
+                dependency_types={"implementation": PlannerDependencyType.CODE_INTEGRATED},
+            ),
+        ),
+    )
+
+    with OperationService.open(config) as service:
+        implementation, followup = service.apply_planning_proposal(proposal)
+        implementation.status = TaskStatus.COMPLETED
+        service.store.save_task(implementation)
+        assert service.release_planner_dependencies(proposal_id=proposal.proposal_id) == ()
+
+        implementation.metadata["integration_status"] = "INTEGRATED"
+        implementation.metadata["integration_revision"] = "abc123"
+        service.store.save_task(implementation)
+        released = service.release_planner_dependencies(proposal_id=proposal.proposal_id)
+
+    assert [task.task_id for task in released] == [followup.task_id]
+
+
+def test_artifact_dependency_releases_from_explicit_artifact_evidence(tmp_path):
+    config = _config(tmp_path)
+    root = _root(config)
+    proposal = RootPlanningProposal(
+        parent_task_id=root.task_id,
+        rationale="release benchmark consumer after artifact publication",
+        children=(
+            ChildTaskProposal(child_key="benchmark", objective="produce benchmark", task_type=TaskType.WORKER),
+            ChildTaskProposal(
+                child_key="consumer",
+                objective="consume benchmark",
+                task_type=TaskType.DETERMINISTIC,
+                dependencies=("benchmark",),
+                dependency_types={"benchmark": PlannerDependencyType.ARTIFACT_READY},
+            ),
+        ),
+    )
+
+    with OperationService.open(config) as service:
+        benchmark, consumer = service.apply_planning_proposal(proposal)
+        benchmark.metadata["artifact_ready"] = True
+        service.store.save_task(benchmark)
+        released = service.release_planner_dependencies(proposal_id=proposal.proposal_id)
+
+    assert [task.task_id for task in released] == [consumer.task_id]

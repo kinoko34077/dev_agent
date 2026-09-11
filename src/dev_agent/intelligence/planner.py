@@ -9,6 +9,7 @@ TaskGraph and Operation boundaries.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from enum import Enum
 from typing import Any, Mapping
 from uuid import uuid4
 
@@ -17,6 +18,14 @@ from .capabilities import classify_task_capabilities
 
 
 _SENSITIVITY_RANK = {"public": 0, "normal": 1, "internal": 2, "sensitive": 3}
+
+
+class PlannerDependencyType(str, Enum):
+    """The durable evidence required before a child may be released."""
+
+    ARTIFACT_READY = "ARTIFACT_READY"
+    TASK_COMPLETED = "TASK_COMPLETED"
+    CODE_INTEGRATED = "CODE_INTEGRATED"
 
 
 class PlanningValidationError(ValueError):
@@ -34,6 +43,7 @@ class ChildTaskProposal:
     sensitivity: str | None = None
     required_capabilities: tuple[str, ...] = ()
     dependencies: tuple[str, ...] = ()
+    dependency_types: Mapping[str, PlannerDependencyType | str] = field(default_factory=dict)
     suggested_owner: str = "worker"
 
     def __post_init__(self) -> None:
@@ -59,6 +69,22 @@ class ChildTaskProposal:
             raise PlanningValidationError("suggested_owner must be worker or codex")
         capabilities = _string_tuple(self.required_capabilities, "required_capabilities")
         dependencies = _string_tuple(self.dependencies, "dependencies")
+        if not isinstance(self.dependency_types, Mapping):
+            raise PlanningValidationError("dependency_types must be an object")
+        unknown_dependency_types = set(self.dependency_types) - set(dependencies)
+        if unknown_dependency_types:
+            raise PlanningValidationError(
+                f"dependency_types references unknown dependency: {sorted(unknown_dependency_types)[0]}"
+            )
+        normalized_dependency_types: dict[str, PlannerDependencyType] = {}
+        for dependency in dependencies:
+            value = self.dependency_types.get(dependency, PlannerDependencyType.TASK_COMPLETED)
+            try:
+                normalized_dependency_types[dependency] = (
+                    value if isinstance(value, PlannerDependencyType) else PlannerDependencyType(value)
+                )
+            except (TypeError, ValueError) as exc:
+                raise PlanningValidationError(f"invalid dependency type for {dependency}") from exc
         object.__setattr__(self, "child_key", self.child_key.strip())
         object.__setattr__(self, "objective", self.objective.strip())
         object.__setattr__(self, "task_type", task_type)
@@ -66,6 +92,7 @@ class ChildTaskProposal:
         object.__setattr__(self, "sensitivity", sensitivity)
         object.__setattr__(self, "required_capabilities", capabilities)
         object.__setattr__(self, "dependencies", dependencies)
+        object.__setattr__(self, "dependency_types", normalized_dependency_types)
         object.__setattr__(self, "suggested_owner", owner)
 
     def to_dict(self) -> dict[str, Any]:
@@ -74,6 +101,7 @@ class ChildTaskProposal:
         value["risk"] = self.risk.value
         value["required_capabilities"] = list(self.required_capabilities)
         value["dependencies"] = list(self.dependencies)
+        value["dependency_types"] = {key: value.value for key, value in self.dependency_types.items()}
         return value
 
 
@@ -217,6 +245,7 @@ def _string_tuple(values: Any, name: str) -> tuple[str, ...]:
 
 __all__ = [
     "ChildTaskProposal",
+    "PlannerDependencyType",
     "PlanningValidationError",
     "RootPlanningProposal",
     "RootPlanningValidator",

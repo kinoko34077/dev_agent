@@ -10,6 +10,7 @@ from .domain.protocol import Event as ProtocolEvent
 from .domain.protocol import Task, TaskStatus
 from .intelligence.planner import (
     ChildTaskProposal,
+    PlannerDependencyType,
     PlanningValidationError,
     RootPlanningProposal,
     RootPlanningValidator,
@@ -95,6 +96,10 @@ def apply_proposal(
         }
         if dependencies:
             metadata["wait_reason"] = "planner_dependency"
+            metadata["planner_dependency_types"] = {
+                dependency: child.dependency_types.get(dependency, PlannerDependencyType.TASK_COMPLETED).value
+                for dependency in dependencies
+            }
         task = Task(
             objective=child.objective,
             parent_task_id=parent.task_id,
@@ -109,6 +114,10 @@ def apply_proposal(
                 "planner_proposal_id": proposal.proposal_id,
                 "planner_child_key": child.child_key,
                 "planner_dependencies": dependencies,
+                "planner_dependency_types": {
+                    dependency: child.dependency_types.get(dependency, PlannerDependencyType.TASK_COMPLETED).value
+                    for dependency in dependencies
+                },
             },
             metadata=metadata,
         )
@@ -175,12 +184,28 @@ def release_dependencies(
             task.metadata["planner_failed_dependency"] = failed.task_id
             event_type = "task.planner_dependency_failed"
             payload = {"dependency_task_id": failed.task_id, "dependency_status": failed.status.value}
-        elif all(item.status is TaskStatus.COMPLETED for item in dependency_tasks):
+        dependency_types = constraints.get("planner_dependency_types", {})
+        if not isinstance(dependency_types, Mapping):
+            dependency_types = {}
+        dependency_evidence = [
+            _dependency_satisfied(
+                dependency_task,
+                dependency_types.get(dependency_key, PlannerDependencyType.TASK_COMPLETED.value),
+            )
+            for dependency_key, dependency_task in zip(dependencies, dependency_tasks)
+        ]
+        if all(dependency_evidence):
             task.status = TaskStatus.QUEUED
             task.metadata.pop("wait_reason", None)
             task.metadata["planner_dependency_state"] = "released"
             event_type = "task.planner_dependency_released"
-            payload = {"dependency_task_ids": [item.task_id for item in dependency_tasks]}
+            payload = {
+                "dependency_task_ids": [item.task_id for item in dependency_tasks],
+                "dependency_types": {
+                    dependency_key: dependency_types.get(dependency_key, PlannerDependencyType.TASK_COMPLETED.value)
+                    for dependency_key in dependencies
+                },
+            }
         else:
             continue
         event = ProtocolEvent(
@@ -194,3 +219,24 @@ def release_dependencies(
             queue.enqueue(task.task_id, priority=0, max_attempts=task.limits.max_retries + 1)
         changed.append(task)
     return tuple(changed)
+
+
+def _dependency_satisfied(task: Task, dependency_type: PlannerDependencyType | str) -> bool:
+    """Check only the evidence named by a planner dependency."""
+
+    try:
+        normalized = dependency_type if isinstance(dependency_type, PlannerDependencyType) else PlannerDependencyType(dependency_type)
+    except (TypeError, ValueError):
+        return False
+    if normalized is PlannerDependencyType.TASK_COMPLETED:
+        return task.status is TaskStatus.COMPLETED
+    metadata = task.metadata if isinstance(task.metadata, dict) else {}
+    if normalized is PlannerDependencyType.ARTIFACT_READY:
+        return metadata.get("artifact_ready") is True
+    integration_revision = metadata.get("integration_revision")
+    return (
+        normalized is PlannerDependencyType.CODE_INTEGRATED
+        and metadata.get("integration_status") == "INTEGRATED"
+        and isinstance(integration_revision, str)
+        and bool(integration_revision.strip())
+    )
