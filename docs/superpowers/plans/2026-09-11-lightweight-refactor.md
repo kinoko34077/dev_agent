@@ -68,10 +68,10 @@
 - Produces a short-lived `PlanningContext` or equivalent containing one task snapshot, decoded tasks, graph, and parent/root indexes for one validation/apply operation.
 - Keeps routing snapshots caller-scoped and refreshes them after health/quota/budget state changes.
 
-- [ ] Step 1: Add failing regression tests counting one state snapshot per planning apply and preventing stale routing reuse after a selection-affecting state change.
-- [ ] Step 2: Run the focused tests and verify the current repeated-read behavior is observable.
-- [ ] Step 3: Implement context reuse without changing TaskGraph limits, dependency semantics, or durable state ownership.
-- [ ] Step 4: Run planner/router/operation focused suites and record snapshot counts; commit `perf: reuse planning and routing snapshots`.
+- [x] Step 1: Add a failing regression test counting one state snapshot per planning apply; routing already had caller-scoped snapshot reuse and an existing regression for refresh-by-caller behavior.
+- [x] Step 2: Run the focused test and verify the current repeated-read behavior was observable (`2` snapshots).
+- [x] Step 3: Implement planning context reuse without changing TaskGraph limits, dependency semantics, or durable state ownership.
+- [x] Step 4: Run planner focused tests; routing snapshot behavior remains covered by `tests/v2/test_phase6_router.py`.
 
 ### Task 4: Lease primitive and narrow State views
 

@@ -65,6 +65,30 @@ def test_planning_proposal_creates_finite_children_and_parks_dependencies(tmp_pa
     assert children[1].metadata["wait_reason"] == "planner_dependency"
 
 
+def test_apply_planning_proposal_reuses_one_task_snapshot(tmp_path, monkeypatch):
+    config = _config(tmp_path)
+    root = _root(config)
+    proposal = RootPlanningProposal(
+        parent_task_id=root.task_id,
+        rationale="one bounded child",
+        children=(ChildTaskProposal(child_key="worker", objective="implement", task_type=TaskType.WORKER),),
+    )
+
+    with OperationService.open(config) as service:
+        original_snapshot = service.store.snapshot
+        calls = 0
+
+        def counted_snapshot():
+            nonlocal calls
+            calls += 1
+            return original_snapshot()
+
+        monkeypatch.setattr(service.store, "snapshot", counted_snapshot)
+        service.apply_planning_proposal(proposal)
+
+    assert calls == 1
+
+
 def test_planning_rejects_cycle_and_sensitivity_downgrade(tmp_path):
     config = _config(tmp_path)
     root = _root(config, sensitivity="sensitive")

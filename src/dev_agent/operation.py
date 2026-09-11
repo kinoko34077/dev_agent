@@ -614,23 +614,57 @@ class OperationService:
             lease_proof=lease_proof,
         )
 
+    @dataclass(frozen=True)
+    class _PlanningContext:
+        """One caller-scoped view of durable planning state."""
+
+        parent: Task
+        payloads: Mapping[str, Any]
+        tasks: tuple[Task, ...]
+        graph: TaskGraph
+
+    def _planning_context(self, parent_task_id: str) -> "OperationService._PlanningContext":
+        parent = self.store.load_task(parent_task_id)
+        if parent is None:
+            raise PlanningValidationError(f"parent task not found: {parent_task_id}")
+        snapshot = self.store.snapshot()
+        payloads = snapshot.get("tasks", {})
+        if not isinstance(payloads, Mapping):
+            payloads = {}
+        persisted = tuple(
+            Task.from_persisted_dict(payload)
+            for payload in payloads.values()
+            if isinstance(payload, dict)
+        )
+        return self._PlanningContext(
+            parent=parent,
+            payloads=payloads,
+            tasks=persisted,
+            graph=TaskGraph.from_tasks(persisted),
+        )
+
+    def _validate_planning_proposal(
+        self,
+        proposal: RootPlanningProposal,
+        *,
+        context: "OperationService._PlanningContext",
+    ) -> tuple[ChildTaskProposal, ...]:
+        if not isinstance(proposal, RootPlanningProposal):
+            raise TypeError("proposal must be a RootPlanningProposal")
+        return RootPlanningValidator.validate(
+            context.parent,
+            proposal,
+            existing_tasks=context.tasks,
+        )
+
     def validate_planning_proposal(self, proposal: RootPlanningProposal) -> tuple[ChildTaskProposal, ...]:
         """Validate a root decomposition against durable TaskGraph context."""
 
         if not isinstance(proposal, RootPlanningProposal):
             raise TypeError("proposal must be a RootPlanningProposal")
-        parent = self.store.load_task(proposal.parent_task_id)
-        if parent is None:
-            raise PlanningValidationError(f"parent task not found: {proposal.parent_task_id}")
-        persisted = tuple(
-            Task.from_persisted_dict(payload)
-            for payload in self.store.snapshot().get("tasks", {}).values()
-            if isinstance(payload, dict)
-        )
-        return RootPlanningValidator.validate(
-            parent,
+        return self._validate_planning_proposal(
             proposal,
-            existing_tasks=persisted,
+            context=self._planning_context(proposal.parent_task_id),
         )
 
     def apply_planning_proposal(
@@ -647,10 +681,10 @@ class OperationService:
         existing Queue; this method does not create a second scheduler.
         """
 
-        children = self.validate_planning_proposal(proposal)
-        parent = self.store.load_task(proposal.parent_task_id)
-        assert parent is not None
-        existing = self.store.snapshot().get("tasks", {})
+        context = self._planning_context(proposal.parent_task_id)
+        children = self._validate_planning_proposal(proposal, context=context)
+        parent = context.parent
+        existing = context.payloads
         if any(
             isinstance(payload, dict)
             and isinstance(payload.get("metadata"), dict)
@@ -659,12 +693,7 @@ class OperationService:
         ):
             raise PlanningValidationError("planning proposal has already been applied")
 
-        persisted = tuple(
-            Task.from_persisted_dict(payload)
-            for payload in existing.values()
-            if isinstance(payload, dict)
-        )
-        graph = TaskGraph.from_tasks(persisted)
+        graph = context.graph
         created: list[Task] = []
         for child in children:
             dependencies = list(child.dependencies)
