@@ -719,7 +719,12 @@ def _result_directories(root: Path, task_id: str, attempt_id: str) -> tuple[Path
 
 
 def _write_immutable_text(path: Path, content: str) -> None:
-    """Create an attempt artifact once, refusing all later rewrites."""
+    """Create an attempt artifact once, refusing all later rewrites.
+
+    Uses os.link() instead of os.rename() so that an existing destination
+    raises FileExistsError on both POSIX/Linux and Windows.  os.rename() on
+    POSIX silently replaces the destination, making immutability OS-dependent.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
     try:
@@ -728,7 +733,7 @@ def _write_immutable_text(path: Path, content: str) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         try:
-            os.rename(temporary, path)
+            os.link(temporary, path)
         except FileExistsError as exc:
             raise DevFarmError(f"immutable worker artifact already exists: {path.name}") from exc
     finally:
@@ -738,10 +743,39 @@ def _write_immutable_text(path: Path, content: str) -> None:
             pass
 
 
-def _write_verification_record(root: Path, manifest: Mapping[str, Any], attempt_id: str, record: Mapping[str, Any]) -> None:
+def _write_verification_record(root: Path, manifest: Mapping[str, Any], attempt_id: str, record: Mapping[str, Any]) -> str:
+    """Append a verification record to the attempt's immutable verification directory.
+
+    Each call creates a new file under attempts/<attempt_id>/verification/<verification_id>.json
+    so multiple verifications (e.g. STATIC_ONLY followed by TRUSTED_HOST_EXEC) can coexist
+    without overwriting earlier evidence.  Returns the verification_id assigned.
+    """
     _base, attempt = _result_directories(root, manifest["task_id"], attempt_id)
-    payload = json.dumps(dict(record), ensure_ascii=False, sort_keys=True, indent=2) + "\n"
-    _write_immutable_text(attempt / "verification.json", payload)
+    verification_id = uuid4().hex
+    record_with_id = dict(record)
+    record_with_id["verification_id"] = verification_id
+    payload = json.dumps(record_with_id, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+    verification_dir = attempt / "verification"
+    verification_dir.mkdir(parents=True, exist_ok=True)
+    _write_immutable_text(verification_dir / f"{verification_id}.json", payload)
+    return verification_id
+
+
+def _list_verification_records(root: Path, task_id: str, attempt_id: str) -> list[dict[str, Any]]:
+    """Return all verification records for an attempt, sorted by verified_at ascending."""
+    safe_attempt = _attempt_id(attempt_id)
+    verification_dir = root / ".devfarm" / "results" / task_id / "attempts" / safe_attempt / "verification"
+    if not verification_dir.is_dir():
+        return []
+    records = []
+    for path in sorted(verification_dir.iterdir()):
+        if path.suffix == ".json" and path.stem and not path.stem.startswith("."):
+            try:
+                records.append(json.loads(path.read_text(encoding="utf-8")))
+            except (OSError, json.JSONDecodeError):
+                pass
+    records.sort(key=lambda r: (r.get("verified_at") or "", r.get("verification_id") or ""))
+    return records
 
 
 def _canonical_digest(value: Any) -> str:
@@ -1123,7 +1157,8 @@ def apply_and_verify(
         "verified_at": datetime.now(timezone.utc).isoformat(),
         "operator_approved": operator_approved is True,
     }
-    _write_verification_record(root, manifest, attempt_id, verification_record)
+    verification_id = _write_verification_record(root, manifest, attempt_id, verification_record)
+    result["verification_id"] = verification_id
     return result
 
 

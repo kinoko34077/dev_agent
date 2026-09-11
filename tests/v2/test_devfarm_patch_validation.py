@@ -630,3 +630,96 @@ def test_host_verification_backfills_missing_notes_artifact(tmp_path):
     assert (root / ".devfarm/results/worker-test-001/notes.md").read_text(encoding="utf-8") == (
         "Host verification completed; no model notes artifact was available.\n"
     )
+
+
+# P0-1 regression: _write_immutable_text must refuse second write on all OSes
+def test_write_immutable_text_refuses_overwrite_on_posix(tmp_path):
+    from scripts.devfarm_worker import _write_immutable_text
+
+    dest = tmp_path / "artifact.txt"
+    _write_immutable_text(dest, "first")
+    assert dest.read_text(encoding="utf-8") == "first"
+
+    with pytest.raises(DevFarmError, match="immutable worker artifact already exists"):
+        _write_immutable_text(dest, "second")
+
+    assert dest.read_text(encoding="utf-8") == "first", "content must not be overwritten"
+
+
+# P0-2 regression: verification records use append-only directory structure
+def test_verification_uses_append_only_directory(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": True,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": _patch(),
+        "notes": "proposal ready",
+    }
+    run_worker(root, manifest_path, provider=_WorkerProvider(output))
+    result = _trusted_apply(root, manifest_path)
+    attempt_id = result["attempt_id"]
+    verification_id = result.get("verification_id")
+    assert verification_id, "apply_and_verify must return a verification_id"
+
+    verification_dir = root / ".devfarm/results/worker-test-001/attempts" / attempt_id / "verification"
+    assert verification_dir.is_dir(), "verification must be stored in a directory, not a single file"
+    records = list(verification_dir.glob("*.json"))
+    assert len(records) == 1
+    rec = json.loads(records[0].read_text(encoding="utf-8"))
+    assert rec["verification_id"] == verification_id
+    assert rec["attempt_id"] == attempt_id
+    assert rec["containment_level"] == "TRUSTED_HOST_EXEC"
+    assert rec["operator_approved"] is True
+
+
+def test_verification_write_record_appends_unique_records(tmp_path):
+    from scripts.devfarm_worker import _write_verification_record, _list_verification_records
+    import json as _json
+
+    root = tmp_path
+    manifest = {"task_id": "task-append-001", "base_revision": "abc123", "test_commands": []}
+    attempt_id = "attempt-01"
+    record1 = {"attempt_id": attempt_id, "containment_level": "STATIC_ONLY", "verified_at": "2026-09-11T00:00:00+00:00"}
+    record2 = {"attempt_id": attempt_id, "containment_level": "TRUSTED_HOST_EXEC", "verified_at": "2026-09-11T01:00:00+00:00"}
+
+    vid1 = _write_verification_record(root, manifest, attempt_id, record1)
+    vid2 = _write_verification_record(root, manifest, attempt_id, record2)
+
+    assert vid1 != vid2, "each call must produce a unique verification_id"
+
+    verification_dir = root / ".devfarm/results/task-append-001/attempts" / attempt_id / "verification"
+    written = sorted(verification_dir.glob("*.json"))
+    assert len(written) == 2, "both records must be written as separate files"
+
+    ids_in_files = {_json.loads(f.read_text(encoding="utf-8"))["verification_id"] for f in written}
+    assert ids_in_files == {vid1, vid2}
+
+    loaded = _list_verification_records(root, "task-append-001", attempt_id)
+    assert len(loaded) == 2
+    assert [r["containment_level"] for r in loaded] == ["STATIC_ONLY", "TRUSTED_HOST_EXEC"]
+
+
+def test_old_verification_json_path_no_longer_written(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": True,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": _patch(),
+        "notes": "proposal ready",
+    }
+    run_worker(root, manifest_path, provider=_WorkerProvider(output))
+    _trusted_apply(root, manifest_path)
+
+    result_dir = root / ".devfarm/results/worker-test-001"
+    attempt_dir = next((result_dir / "attempts").iterdir())
+    assert not (attempt_dir / "verification.json").exists(), (
+        "old single-file verification.json must not be created; use verification/ directory instead"
+    )

@@ -245,6 +245,18 @@ class ResourceRouter:
                     continue
             if _SENSITIVITY.get(resource["sensitivity"], -1) < _SENSITIVITY[request.sensitivity]:
                 continue
+            # Re-check billing authority expiry at dispatch time so a long-running
+            # process does not retain no_charge_guaranteed=True past the catalog window.
+            billing_expires_at = metadata.get("billing_expires_at")
+            if billing_expires_at is not None:
+                try:
+                    expiry = datetime.fromisoformat(str(billing_expires_at))
+                    if expiry.tzinfo is None:
+                        expiry = expiry.replace(tzinfo=timezone.utc)
+                    if datetime.now(timezone.utc) >= expiry:
+                        continue
+                except (TypeError, ValueError):
+                    continue
             if resource["health"] not in {"healthy", "degraded"} or resource["available"] <= 0:
                 continue
             if resource["circuit_open_until"] > time.time():

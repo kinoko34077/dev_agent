@@ -391,3 +391,54 @@ def test_router_enforces_max_latency_from_resource_metadata(tmp_path):
 def test_route_request_rejects_invalid_limits(field, value):
     with pytest.raises(ValueError, match=field):
         RouteRequest(**{field: value})
+
+
+# P0-3 regression: billing authority expiry is re-evaluated at dispatch time
+def test_router_rejects_resource_with_expired_billing(tmp_path):
+    ledger = ResourceLedger(tmp_path / "billing-expiry.sqlite3")
+    past = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    ledger.register_resource(
+        "expired",
+        provider_id="gemini",
+        native_unit="request",
+        capacity=10,
+        capabilities=["text"],
+        cost_minor=0,
+        metadata={
+            "billing_authority": "trusted_catalog",
+            "billing_mode": "recurring_allowance",
+            "no_charge_guaranteed": True,
+            "billing_verified_at": (datetime.now(timezone.utc) - timedelta(days=31)).isoformat(),
+            "billing_expires_at": past,
+        },
+    )
+    ledger.observe("expired", available=10, health="healthy")
+
+    with pytest.raises(NoRoute, match="no eligible resource"):
+        ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}))
+
+
+def test_router_accepts_resource_with_current_billing(tmp_path):
+    ledger = ResourceLedger(tmp_path / "billing-current.sqlite3")
+    future = (datetime.now(timezone.utc) + timedelta(days=28)).isoformat()
+    ledger.register_resource(
+        "current",
+        provider_id="gemini",
+        native_unit="request",
+        capacity=10,
+        capabilities=["text"],
+        cost_minor=0,
+        quota_domain="gemini-quota",
+        metadata={
+            "billing_authority": "trusted_catalog",
+            "billing_mode": "recurring_allowance",
+            "no_charge_guaranteed": True,
+            "billing_verified_at": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(),
+            "billing_expires_at": future,
+        },
+    )
+    ledger.observe("current", available=10, health="healthy")
+    ledger.observe_quota("current", unit="requests", limit=100, remaining=80)
+
+    selection = ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}))
+    assert selection.resource_id == "current"

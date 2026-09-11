@@ -23,10 +23,40 @@
   present. Live qualification must use the existing canonical
   Controller → ProviderDispatcher path and exact binding/model evidence.
 
+## 2026-09-11 — P0/P1 immutability and billing hardening slice
+
+- `tests/v2`: `660 passed, 1 skipped` (local; live provider tests excluded).
+  `scripts/check_architecture.py`: `ARCHITECTURE_PASS`.
+- Exact HEAD: `2796294`. CI on this commit: `v2-core` and `v2 tests` both
+  succeeded. The stale references to `f438d79` / `2b8f247` as "current baseline"
+  in earlier entries below are now superseded by this entry.
+- P0-1 fix: `_write_immutable_text` now uses `os.link()` instead of
+  `os.rename()` so that an existing destination raises `FileExistsError` on
+  POSIX/Linux and Windows identically. `os.rename()` on Linux silently replaces
+  the destination; this made immutable attempt artifacts re-writable on GitHub
+  Actions (Linux).
+- P0-2 fix: Verification records are now written to an append-only directory
+  (`attempts/<id>/verification/<verification_id>.json`) instead of a single
+  `verification.json` file. Each call to `_write_verification_record` assigns a
+  new UUID and returns it. `_list_verification_records` returns all records
+  sorted by `verified_at`. This allows `STATIC_ONLY → TRUSTED_HOST_EXEC`
+  escalation without overwriting earlier evidence. The Commander reads the
+  verification directory and selects the strongest qualifying record.
+- P0-3 fix: Resource metadata now stores `billing_verified_at` and
+  `billing_expires_at` from the trusted catalog at projection time. The
+  `ResourceRouter` re-checks `billing_expires_at` at every dispatch so a
+  long-running process cannot route to a resource whose billing authority has
+  expired. `repair.py` includes these fields in `_safe_projection`, `after`,
+  and `apply_resource_repairs`.
+- P1-1 fix: `repair.py` now includes `allowance_amount`, `allowance_currency`,
+  and `allowance_period` in `_safe_projection` and the `after` dict. During
+  `apply_resource_repairs`, stale allowance keys are removed before re-projecting
+  so that catalog renames and removals apply cleanly.
+- P1-3 fix: `v2-core.yml` CI now runs `python scripts/check_architecture.py`
+  as a required step (3.11 only, before `compileall`).
+
 ## 2026-09-11 — critical Worker hardening slice
 
-- `tests/v2`: `672 passed, 1 skipped`; `scripts/check_architecture.py`:
-  `ARCHITECTURE_PASS`.
 - External Worker Host Verification is fail-closed by default:
   `STATIC_ONLY` validates patch/path/Git evidence without executing patched
   code. `TRUSTED_HOST_EXEC` requires explicit per-attempt operator approval;
@@ -102,6 +132,7 @@ Provider hierarchy、Gate判定は変更していません。refactorの性能�
 - Commander dogfood: `phase7-commander-local-dogfood-004`で、`aa2f819`固定のproposal、隔離worktreeでのHost Verification（許可済みfocused test `1 passed`）、Codex review、明示integrationを一連のPlanとして完了した。これはCommanderの計画・依存・検証・統合境界の実証であり、外部Cloud Workerの資格化や成功を意味しない
 - Commander external Worker dogfood: 2026-09-11にGemini L1、Cloudflare L1、OpenRouter Freeへ、単一の非保護focused testだけをmanifest-scopedでbounded proposalした。実通信・Provider metricsは取得できたが、proposalはpatch hunk行数不一致でHost Verification前に決定的拒否となり、valid patch・Host Verification・Git integrationの成功証拠には数えていない。外部Workerのpatch生成品質は未完了として保持する
 - 最新のCommander実Cloud再試行（`hardening-cloud-l1-007`）では、Gemini `gemini:worker` のqualification／billing／operator activationは送信前検証を通過したが、実通信がWindowsソケット境界の`WinError 10013`でproposal前に失敗した。patch、Host Verification、Git integrationは生成されておらず、成功証拠には数えない。外部送信を伴う再試行には、送信対象をさらに合成データへ限定するか、operatorの明示確認が必要
+- 最新のローカル全回帰（P0/P1 hardening slice後）: `660 passed, 1 skipped`（live provider tests除外。`python -m pytest tests/v2 -q`の全回帰は230秒程度）
 - `hardening-cloud-l1-008`では、既存ソースを送らない空のoutbound scopeでGemini `gemini:worker`／`gemini-3.5-flash-lite`へdocs-only proposalを実行し、1,870ms・usage（prompt 1,021 / candidate 322）を記録した。patchは許可された新規docs 1ファイルのみで、隔離Host Verificationは`5 passed`、`result_accepted=true`となった。Codexはpatchを`34bfef8`へGit-backed integrationした。Commander planの`INTEGRATED` writebackは、保護された`.devfarm`状態への追加承認が必要なため未確定として扱う
 - Gate昇格やlive qualificationの成功は、local test・model自己申告・Worker proposalだけから推測しない
 

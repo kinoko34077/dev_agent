@@ -47,6 +47,11 @@ def _safe_projection(resource: Mapping[str, Any]) -> dict[str, Any]:
         "billing_mode": metadata.get("billing_mode"),
         "overage_policy": metadata.get("overage_policy"),
         "no_charge_guaranteed": metadata.get("no_charge_guaranteed"),
+        "billing_verified_at": metadata.get("billing_verified_at"),
+        "billing_expires_at": metadata.get("billing_expires_at"),
+        "allowance_amount": metadata.get("allowance_amount"),
+        "allowance_currency": metadata.get("allowance_currency"),
+        "allowance_period": metadata.get("allowance_period"),
         "privacy_profile": metadata.get("privacy_profile"),
         "intelligence_tier": metadata.get("intelligence_tier"),
     }
@@ -105,6 +110,11 @@ def _plan_one(resource: Mapping[str, Any], resolver: QualificationResolver, *, n
         "billing_mode": profile.billing_mode,
         "overage_policy": profile.overage_policy,
         "no_charge_guaranteed": profile.no_charge_guaranteed,
+        "billing_verified_at": profile.verified_at,
+        "billing_expires_at": profile.expires_at,
+        "allowance_amount": profile.allowance_amount,
+        "allowance_currency": profile.allowance_currency,
+        "allowance_period": profile.allowance_period,
         "privacy_profile": privacy_profile,
         "intelligence_tier": tier,
     }
@@ -145,6 +155,10 @@ def apply_resource_repairs(
             continue
         resource = ledger.get_resource(plan.resource_id)
         metadata = dict(resource.get("metadata") or {})
+        # Remove stale allowance keys before re-projecting so that renames or
+        # removals in the billing catalog are applied cleanly.
+        for _stale in ("allowance_amount", "allowance_currency", "allowance_period"):
+            metadata.pop(_stale, None)
         metadata.update(
             {
                 "provider_binding_id": plan.after["provider_binding_id"],
@@ -155,9 +169,17 @@ def apply_resource_repairs(
                 "billing_mode": plan.after["billing_mode"],
                 "overage_policy": plan.after["overage_policy"],
                 "no_charge_guaranteed": plan.after["no_charge_guaranteed"],
+                "billing_verified_at": plan.after["billing_verified_at"],
+                "billing_expires_at": plan.after["billing_expires_at"],
                 "privacy_profile": plan.after["privacy_profile"],
             }
         )
+        if plan.after["allowance_amount"] is not None:
+            metadata["allowance_amount"] = plan.after["allowance_amount"]
+        if plan.after["allowance_currency"] is not None:
+            metadata["allowance_currency"] = plan.after["allowance_currency"]
+        if plan.after["allowance_period"] is not None:
+            metadata["allowance_period"] = plan.after["allowance_period"]
         if plan.after["intelligence_tier"] is not None:
             metadata["intelligence_tier"] = plan.after["intelligence_tier"]
         created_at = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).isoformat()

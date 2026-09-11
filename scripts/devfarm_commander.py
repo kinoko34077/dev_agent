@@ -979,31 +979,51 @@ def _verified_worker_patch(root: Path, task: Mapping[str, Any]) -> tuple[str, di
     actual_changed_files = validate_patch(patch, manifest=manifest)
     if not actual_changed_files:
         raise DevFarmError("worker integration requires a non-empty verified patch")
-    verification_path = result_path.parent / "verification.json"
-    if not verification_path.is_file():
-        raise DevFarmError("worker integration requires an immutable verification record")
-    verification = _read_json(verification_path)
-    if not isinstance(verification, Mapping):
-        raise DevFarmError("verification record must be an object")
+    verification_dir = result_path.parent / "verification"
+    if not verification_dir.is_dir():
+        raise DevFarmError("worker integration requires an immutable verification directory")
+    records = []
+    for vpath in sorted(verification_dir.iterdir()):
+        if vpath.suffix == ".json" and not vpath.stem.startswith("."):
+            try:
+                rec = _read_json(vpath)
+                if isinstance(rec, Mapping):
+                    records.append(rec)
+            except DevFarmError:
+                pass
+    if not records:
+        raise DevFarmError("worker integration requires at least one verification record")
     patch_digest = hashlib.sha256(patch.encode("utf-8")).hexdigest()
     manifest_digest = hashlib.sha256(json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
     test_spec_digest = hashlib.sha256(json.dumps(manifest["test_commands"], ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
-    if verification.get("attempt_id") != attempt_id or verification.get("base_revision") != manifest["base_revision"]:
-        raise DevFarmError("verification record identity does not match the attempt")
-    if verification.get("patch_sha256") != patch_digest:
-        raise DevFarmError("verified patch digest does not match immutable verification evidence")
-    if verification.get("manifest_sha256") != manifest_digest or verification.get("test_spec_sha256") != test_spec_digest:
-        raise DevFarmError("verification manifest or test specification digest does not match")
-    trust_level = verification.get("containment_level")
-    if trust_level == "TRUSTED_HOST_EXEC" and verification.get("operator_approved") is not True:
-        raise DevFarmError("trusted host verification lacks explicit operator approval")
-    if trust_level not in {"TRUSTED_HOST_EXEC", "OS_SANDBOXED"}:
-        raise DevFarmError("worker integration requires executable verification evidence")
-    verified_tests = verification.get("verified_tests")
-    if not isinstance(verified_tests, list) or not verified_tests or not all(isinstance(item, Mapping) and item.get("passed") is True for item in verified_tests):
-        raise DevFarmError("worker integration requires passing verified tests")
-    if verification.get("independent_verification") is not True:
-        raise DevFarmError("worker integration requires verification outside Worker-owned changes")
+    # Select the strongest qualifying verification record for this attempt.
+    # A record qualifies when its digests match and it carries executable evidence.
+    verification: Mapping[str, Any] | None = None
+    for rec in records:
+        if rec.get("attempt_id") != attempt_id or rec.get("base_revision") != manifest["base_revision"]:
+            continue
+        if rec.get("patch_sha256") != patch_digest:
+            continue
+        if rec.get("manifest_sha256") != manifest_digest or rec.get("test_spec_sha256") != test_spec_digest:
+            continue
+        trust = rec.get("containment_level")
+        if trust == "TRUSTED_HOST_EXEC" and rec.get("operator_approved") is not True:
+            continue
+        if trust not in {"TRUSTED_HOST_EXEC", "OS_SANDBOXED"}:
+            continue
+        vtests = rec.get("verified_tests")
+        if not isinstance(vtests, list) or not vtests or not all(isinstance(item, Mapping) and item.get("passed") is True for item in vtests):
+            continue
+        if rec.get("independent_verification") is not True:
+            continue
+        verification = rec
+        break
+    if verification is None:
+        raise DevFarmError(
+            "no qualifying verification record found: "
+            "requires TRUSTED_HOST_EXEC+operator_approved or OS_SANDBOXED, "
+            "matching digests, passing independent tests"
+        )
     return patch, manifest, attempt_id
 
 

@@ -25,6 +25,9 @@ jobs:
         run: python scripts/check_head.py --expected "$GITHUB_SHA"
       - run: mkdir -p artifacts
       - run: python -m pytest tests/v2 -q --junitxml=artifacts/v2-core-junit-${{ matrix.python-version }}.xml
+      - name: Architecture boundaries
+        if: matrix.python-version == '3.11'
+        run: python scripts/check_architecture.py
       - name: Compile Python sources
         if: matrix.python-version == '3.11'
         run: python -m compileall -q src recovery
