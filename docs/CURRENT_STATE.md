@@ -45,6 +45,7 @@ Provider hierarchy、Gate判定は変更していません。refactorの性能�
 - Development Commander: `scripts/devfarm_commander.py`が既存DevFarmの上にdevelopment-only親Planを提供する。`.devfarm/plans/<run-id>.json`へobjective、base revision、Task、依存、非重複ownership、assignment、result参照をdurably保存し、plan／dispatch／status／collect／verify／resume／reassign／mark-integratedを既存境界のcompositionで提供する。Taskごとの固定revisionを許容し、code dependencyは明示的な`mark-integrated`後だけreleaseする。非自明なGoalではCodexが分解・依存・ownership・risk・Worker適格性を先に記録し、狭いpatch/test/docs等を原則Worker候補とする。Codex担当へ残す場合も理由を記録する。Production Runtimeのstate／Scheduler／authorityやAgentBackendではない
 - Commander dogfood: `phase7-commander-local-dogfood-004`で、`aa2f819`固定のproposal、隔離worktreeでのHost Verification（許可済みfocused test `1 passed`）、Codex review、明示integrationを一連のPlanとして完了した。これはCommanderの計画・依存・検証・統合境界の実証であり、外部Cloud Workerの資格化や成功を意味しない
 - Commander external Worker dogfood: 2026-09-11にGemini L1、Cloudflare L1、OpenRouter Freeへ、単一の非保護focused testだけをmanifest-scopedでbounded proposalした。実通信・Provider metricsは取得できたが、proposalはpatch hunk行数不一致でHost Verification前に決定的拒否となり、valid patch・Host Verification・Git integrationの成功証拠には数えていない。外部Workerのpatch生成品質は未完了として保持する
+- 最新のCommander実Cloud再試行（`hardening-cloud-l1-007`）では、Gemini `gemini:worker` のqualification／billing／operator activationは送信前検証を通過したが、実通信がWindowsソケット境界の`WinError 10013`でproposal前に失敗した。patch、Host Verification、Git integrationは生成されておらず、成功証拠には数えない。外部送信を伴う再試行には、送信対象をさらに合成データへ限定するか、operatorの明示確認が必要
 - Gate昇格やlive qualificationの成功は、local test・model自己申告・Worker proposalだけから推測しない
 
 ## 検証
