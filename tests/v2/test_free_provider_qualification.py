@@ -34,17 +34,16 @@ def test_free_provider_qualification_rejects_untrusted_binding_model_before_http
 
 def _add_fixture_free_profile(monkeypatch, provider: str, model: str):
     binding = f"{provider}:qualification"
-    import scripts.qualify_free_provider as qualification_module
+    from src.dev_agent.resources.billing_catalog import BillingResolver, TRUSTED_RESOURCE_CATALOG
+    import src.dev_agent.resources.billing_catalog as billing_module
 
-    original_profile_for = qualification_module.profile_for
     fixture = TrustedResourceProfile(provider, binding, model, 0, "JPY", False)
 
-    def profile_for(provider_id, provider_binding_id, model_id):
-        if (provider_id, provider_binding_id, model_id) == (provider, binding, model):
-            return fixture
-        return original_profile_for(provider_id, provider_binding_id, model_id)
+    fixture_catalog = dict(TRUSTED_RESOURCE_CATALOG)
+    fixture_catalog[(provider, binding, model)] = fixture
 
-    monkeypatch.setattr(qualification_module, "profile_for", profile_for)
+    fixture_resolver = BillingResolver(catalog=fixture_catalog)
+    monkeypatch.setattr(billing_module, "_default_resolver", fixture_resolver)
 
 
 def test_free_provider_qualification_uses_live_response_for_quota_and_dispatch(monkeypatch):

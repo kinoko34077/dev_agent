@@ -1,5 +1,32 @@
 # Current State — v2/bootstrap
 
+## Current — 2026-09-12
+
+| Field | Value |
+| --- | --- |
+| **Current HEAD** | `pending-commit` (BillingResolver DI + full billing match + schema validator) |
+| **v2 tests** | success (`678 passed, 1 skipped` — all 2 previously-failing free-provider tests now fixed) |
+| **v2-core (Python 3.10 / 3.11)** | success (previously 2 failures; fixed by BillingResolver authority injection) |
+| **Local regression** | `678 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 198s) |
+| **Architecture check** | `ARCHITECTURE_PASS` |
+
+### Current blockers
+
+- **Branch protection** (external): `protected=false`, `rulesets=[]` — CI failure does not block push; force-push and branch deletion are not guarded. Requires GitHub-side setup (required `v2-core`, required `v2 tests`, force-push禁止, branch-deletion禁止) before autonomous Agent branch access.
+- **G6O1**: Real paid-provider worst-case billing proof + deployment-owned budget config (external condition — not a code gap).
+- **OS_SANDBOXED**: Declared but unavailable; unattended external Worker code execution remains disabled.
+
+### Completed this session (2026-09-12)
+
+- **P0 — v2-core fix**: `BillingResolver` class introduced as injectable authority. `profile_for()` module function delegates to `_default_resolver` at call-time, so test monkeypatching of `billing_module._default_resolver` propagates correctly to both qualify script and router. The two free-provider qualification tests now pass.
+- **P1-2 — Billing full-match**: Router now verifies `price_currency`, `billing_mode`, `overage_policy`, and `no_charge_guaranteed` bidirectionally against catalog profile, not just `cost_minor`.
+- **P1-3 — Recovery authority schema**: `legacy_resource_metadata` upgraded to full authority schema validator: `trusted_catalog` resources require `provider_binding_id`, `model_id`, `billing_expires_at`, valid `billing_mode`, and valid `overage_policy` in metadata; remote resources must not carry `privacy_profile="local_only"`.
+- **Prior session — P0–P6 security hardening**: billing authority fail-open fix, verification write-order fix, HOST_VERIFIED gate, trust priority, tool_call shortcut removed, schema-based legacy detection.
+
+---
+
+## History / Superseded Snapshots
+
 ## 2026-09-11 — configured provider bindings (implementation slice)
 
 - ProviderFactory now exposes separate `ollama_cloud` and `vercel` identities

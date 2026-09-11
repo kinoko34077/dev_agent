@@ -272,7 +272,17 @@ class ResourceRouter:
                     continue
                 if resource.get("cost_minor") != _catalog_profile.cost_minor:
                     continue
-                if metadata.get("no_charge_guaranteed") is True and not _catalog_profile.no_charge_guaranteed:
+                if resource.get("price_currency") is not None and _catalog_profile.price_currency is not None:
+                    if resource.get("price_currency") != _catalog_profile.price_currency:
+                        continue
+                persisted_billing_mode = metadata.get("billing_mode")
+                if persisted_billing_mode is not None and persisted_billing_mode != _catalog_profile.billing_mode:
+                    continue
+                persisted_overage = metadata.get("overage_policy")
+                if persisted_overage is not None and persisted_overage != _catalog_profile.overage_policy:
+                    continue
+                persisted_no_charge = metadata.get("no_charge_guaranteed")
+                if persisted_no_charge is not None and persisted_no_charge != _catalog_profile.no_charge_guaranteed:
                     continue
             elif billing_expires_at is not None:
                 try:

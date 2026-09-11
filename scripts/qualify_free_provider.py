@@ -25,7 +25,7 @@ from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.dispatch import ProviderDispatcher, ProviderRegistry
 from src.dev_agent.providers.factory import ProviderDefinition, ProviderFactory
 from src.dev_agent.resources.budget import BudgetAuthority, BudgetGovernor, BudgetPolicy
-from src.dev_agent.resources.billing_catalog import profile_for
+from src.dev_agent.resources.billing_catalog import profile_for as _billing_profile_for
 from src.dev_agent.resources.control import ResourceControlPlane
 from src.dev_agent.resources.ledger import ResourceLedger
 from src.dev_agent.resources.router import ResourceRouter
@@ -60,7 +60,7 @@ def _has_routable_quota_headroom(observation: object) -> bool:
 
 def _trusted_free_profile(provider_name: str, model: str, binding_id: str | None = None):
     binding_id = binding_id or f"{provider_name}:qualification"
-    profile = profile_for(provider_name, binding_id, model)
+    profile = _billing_profile_for(provider_name, binding_id, model)
     if profile is None or not profile.no_charge_guaranteed:
         raise FreeProviderQualificationBlocked(
             f"provider/model is not in the trusted free catalog: {provider_name}/{binding_id}/{model}"

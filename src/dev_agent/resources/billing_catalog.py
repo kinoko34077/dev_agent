@@ -159,20 +159,38 @@ for _slot in ("2", "3", "4", "5"):
 TRUSTED_RESOURCE_CATALOG: Mapping[tuple[str, str, str], TrustedResourceProfile] = MappingProxyType(_TRUSTED_RESOURCE_CATALOG)
 
 
+class BillingResolver:
+    """Resolve billing facts for an exact provider/binding/model identity."""
+
+    def __init__(self, catalog: Mapping[tuple[str, str, str], TrustedResourceProfile] | None = None) -> None:
+        self._catalog = catalog or TRUSTED_RESOURCE_CATALOG
+
+    def profile_for(self, provider_id: str, provider_binding_id: str, model_id: str) -> TrustedResourceProfile | None:
+        """Return current facts only for an exact provider/binding/model identity."""
+
+        profile = self._catalog.get((provider_id, provider_binding_id, model_id))
+        return profile if profile is not None and profile.is_current() else None
+
+    def default_binding_id(self, provider_id: str, model_id: str) -> str:
+        """Return a catalog binding for an exact model, or a non-free fallback."""
+
+        for provider, binding, model in self._catalog:
+            if provider == provider_id and model == model_id and ":qualification" not in binding:
+                return binding
+        return "fake:default" if provider_id == "fake" else provider_id
+
+
+_default_resolver = BillingResolver()
+
+
 def profile_for(provider_id: str, provider_binding_id: str, model_id: str) -> TrustedResourceProfile | None:
     """Return current facts only for an exact provider/binding/model identity."""
-
-    profile = TRUSTED_RESOURCE_CATALOG.get((provider_id, provider_binding_id, model_id))
-    return profile if profile is not None and profile.is_current() else None
+    return _default_resolver.profile_for(provider_id, provider_binding_id, model_id)
 
 
 def default_binding_id(provider_id: str, model_id: str) -> str:
     """Return a catalog binding for an exact model, or a non-free fallback."""
-
-    for provider, binding, model in TRUSTED_RESOURCE_CATALOG:
-        if provider == provider_id and model == model_id and ":qualification" not in binding:
-            return binding
-    return "fake:default" if provider_id == "fake" else provider_id
+    return _default_resolver.default_binding_id(provider_id, model_id)
 
 
-__all__ = ["TRUSTED_RESOURCE_CATALOG", "TrustedResourceProfile", "default_binding_id", "profile_for"]
+__all__ = ["TRUSTED_RESOURCE_CATALOG", "TrustedResourceProfile", "BillingResolver", "default_binding_id", "profile_for"]

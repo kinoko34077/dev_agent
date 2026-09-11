@@ -115,18 +115,16 @@ def validate_resource_ledger(path: str | Path) -> tuple[bool, str]:
 
 
 def legacy_resource_metadata(path: str | Path) -> list[str]:
-    """Return cloud Resource ids that still lack the current qualification marker.
+    """Return cloud Resource ids that do not satisfy the current authority schema.
 
-    Recovery stays runtime-independent and deliberately performs only a
-    conservative structural check.  It does not infer billing, qualification,
-    or privacy facts; the explicit Operation repair command performs those
-    authority checks before mutation.
+    Recovery stays runtime-independent and performs a structural schema check.
+    It does not infer billing facts; the Operation repair command handles that.
     """
 
     database = Path(path).expanduser()
-    # Local-only providers never need a qualification marker; all others do.
-    # Using an allowlist for local providers (rather than a denylist of cloud
-    # providers) ensures that new cloud providers are automatically included.
+    # Local-only providers are exempt from cloud authority schema requirements.
+    # Using an allowlist rather than a denylist ensures new cloud providers are
+    # automatically included in the strict checks.
     local_only_providers = {"ollama", "fake"}
     try:
         with sqlite3.connect(database) as connection:
@@ -146,9 +144,11 @@ def legacy_resource_metadata(path: str | Path) -> list[str]:
         except json.JSONDecodeError:
             metadata = {}
         is_legacy = False
+        # All remote resources must carry the qualification marker.
         if metadata.get("qualification_required") is not True:
             is_legacy = True
-        if metadata.get("billing_authority") == "trusted_catalog" and not isinstance(metadata.get("billing_expires_at"), str):
+        # Remote resource must not carry a local-only privacy profile.
+        if metadata.get("privacy_profile") == "local_only":
             is_legacy = True
         billing_mode = metadata.get("billing_mode")
         if billing_mode is not None and billing_mode not in _VALID_BILLING_MODES:
@@ -156,6 +156,18 @@ def legacy_resource_metadata(path: str | Path) -> list[str]:
         overage_policy = metadata.get("overage_policy")
         if overage_policy is not None and overage_policy not in _VALID_OVERAGE_POLICIES:
             is_legacy = True
+        # trusted_catalog resources require the full billing contract schema.
+        if metadata.get("billing_authority") == "trusted_catalog":
+            if not isinstance(metadata.get("provider_binding_id"), str) or not metadata["provider_binding_id"].strip():
+                is_legacy = True
+            if not isinstance(metadata.get("model_id"), str) or not metadata["model_id"].strip():
+                is_legacy = True
+            if not isinstance(metadata.get("billing_expires_at"), str):
+                is_legacy = True
+            if billing_mode not in _VALID_BILLING_MODES:
+                is_legacy = True
+            if overage_policy not in _VALID_OVERAGE_POLICIES:
+                is_legacy = True
         if is_legacy:
             legacy.append(str(resource_id))
     return sorted(legacy)
