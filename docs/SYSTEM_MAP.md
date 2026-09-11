@@ -8,24 +8,27 @@
 | Domain | `src/dev_agent/domain/` | Task、Model、Tool、Event protocol | 下層なし | protocol意味 | `spec/v2/PROTOCOL.md`, `tests/v2/test_protocol.py` |
 | Runtime | `src/dev_agent/runtime/` | Controller、checkpoint、resume、Model turn | domain / state / providers / resources | lifecycle、transition | `tests/v2/test_runtime_*.py` |
 | Scheduler | `src/dev_agent/scheduler/` | Durable Queue、Worker、lease、wake | state / runtime | ownership、fencing | `tests/v2/test_phase6_scheduler.py` |
-| State | `src/dev_agent/state/` | SQLite/JSON durable state、transaction | domain | `commit_transition()` atomicity | `tests/v2/test_recovery_sqlite.py` |
+| Persistence primitive | `src/dev_agent/persistence/lease.py` | State／Scheduler shared lease proof and stale-lease assertion | domain / SQLite primitive | atomic lease fencing | `tests/v2/test_lease_fencing_architecture.py` |
+| State | `src/dev_agent/state/` | SQLite/JSON durable state、transaction、narrow state views、control repository | domain / persistence primitive | `commit_transition()` atomicity | `tests/v2/test_recovery_sqlite.py`, `test_lease_fencing_architecture.py` |
 | Providers | `src/dev_agent/providers/` | Adapter、Factory、Registry、Dispatcher、journal | domain / resources | Provider intent、audit、reconciliation | `tests/v2/test_phase6_provider_*.py` |
-| Resources | `src/dev_agent/resources/` | Resource、quota、health、router、budget | domain / state | Hard Budget、quota、privacy、survival | `tests/v2/test_resource_*.py`, `test_quota_*.py` |
+| Resources | `src/dev_agent/resources/` | ResourceLedger facade、catalog／observation／quota／health／budget、router、schema/migrations | domain / state | Hard Budget、quota、privacy、survival | `tests/v2/test_resource_*.py`, `test_quota_*.py` |
 | Tools | `src/dev_agent/tools/` | policy、executor、subprocess、effect guard | domain / state | approval、scope、process containment | `tests/v2/test_tool_*.py` |
 | Security | `src/dev_agent/security/protected_paths.py`, `src/dev_agent/security/` | protected responsibility path、PathPolicy、audit sanitizer | domain / policy | protected authority、secret boundary | `tests/v2/test_security_boundaries.py` |
 | Intelligence | `src/dev_agent/intelligence/` | tier policy、Evaluator、escalation、lifecycle | domain / providers / resources / state | finite execution、explicit review | `tests/v2/test_intelligence_*.py` |
 | AgentBackend | `src/dev_agent/backends/` | thin typed contract、effect intent接続dispatcher | domain / state | dispatch authorityは注入Control Plane、contractは所有しない | `tests/v2/test_agent_backend_protocol.py`, `test_agent_backend_dispatcher.py`, requirements §20-22 |
 | Recovery | `recovery/` | runtime-independent diagnose、backup、restore、rollback | durable artifacts / Git | external recovery authority | `tests/v2/test_recovery*.py` |
-| Operation | `src/dev_agent/operation.py`, `src/dev_agent/__main__.py` | `start`、`submit`、`status`、`stop` | existing runtime stack | no CLI-owned state | `tests/v2/test_operation.py` |
+| Operation | `src/dev_agent/operation.py`, `operation_bootstrap.py`, `operation_planning.py`, `cli.py`, `src/dev_agent/__main__.py` | `start`、`submit`、`status`、`stop`と既存componentのcomposition | existing runtime stack / state control | no CLI-owned state | `tests/v2/test_operation.py`, `test_operation_boundaries.py` |
 | DevFarm | `scripts/devfarm*.py` | manifest、proposal、Host Verification、metrics | ProviderFactory + Git artifacts | outbound scope、worktree、patch | `tests/v2/test_devfarm_*.py` |
 | Commander | `scripts/devfarm_commander.py` | development-only parent Plan、DAG、dispatch、collect、verify | existing DevFarm only | ownership、bounded reassign | `tests/v2/test_devfarm_commander.py` |
 | DevFarm data | `.devfarm/` | plans、tasks、results、worktrees、metrics | ignored local artifacts | never source/Gate authority | `docs/DEVFARM.md` |
 | Formal spec | `spec/v2/` | requirements、ADR、Gate、traceability、schemas | documentation | Gate promotion evidence | `spec/v2/GATE_STATUS.json` |
 | Current state | `docs/CURRENT_STATE.md` | implementation baseline、tests、live state | evidence references | no duplicated authority | this document / changelog |
+| Refactor tooling | `scripts/check_architecture.py`, `scripts/test_scope.py` | dependency preflight、affected-test selection | repository read-only checks | no runtime authority | `tests/v2/test_architecture_script.py`, `test_test_scope.py` |
 
 ## Dependency constraints
 
-`domain` is foundational. `runtime` composes state, provider, resource, and
+`domain` is foundational. `persistence` contains only small SQLite safety
+primitives shared by State and Scheduler. `runtime` composes state, provider, resource, and
 tool boundaries. `scheduler` owns queue/lease mechanics; `recovery` remains
 independent of Controller and Scheduler. `DevFarm` and `Commander` are
 development tooling and do not become Production Runtime components.
@@ -44,5 +47,6 @@ Commander Plan -> manifest -> Remote proposal -> deterministic validation
 ```
 
 No layer may reach through a facade into another layer's private repository or
-authority. A new external AgentBackend, MCP, A2A, or UI integration must be an
-adapter around these boundaries, not a replacement for them.
+authority. Internal modules use leaf imports; package barrel exports exist only
+for public compatibility. A new external AgentBackend, MCP, A2A, or UI integration
+must be an adapter around these boundaries, not a replacement for them.

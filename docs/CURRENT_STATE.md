@@ -1,8 +1,16 @@
 # Current State — v2/bootstrap
 
-実装基準は `a9774ca` です。直近のローカル全回帰もこのコード基準で検証し、
+実装基準は `5e41200` です。直近のローカル全回帰もこのコード基準で検証し、
 本書はそのコードと、直近の外部資格化・DevFarm実行結果を同期したCurrent Stateです。
 GATE_STATUSの既存statusは変更していません。
+
+今回の軽量化リファクタでは、Qualification Catalogのsession内共有、planning snapshotの再利用、
+lease fencing primitiveの中立化、Operationのbootstrap／planning／CLI／control repository分離、
+Provider／Intelligenceのlazy export、ProviderFactoryの遅延構築、Controllerのphase helper分離、
+ResourceLedger schema migrationの分離、architecture dependency check、affected-test mapを追加しました。
+外部API、Task lifecycle、Budget／Quota、Approval、Lease/Fencing、UNKNOWN／Reconciliation、
+Provider hierarchy、Gate判定は変更していません。refactorの性能比較は
+`docs/superpowers/plans/2026-09-11-lightweight-refactor.md`に記録しています。
 
 ## 判定
 
@@ -39,7 +47,7 @@ GATE_STATUSの既存statusは変更していません。
 
 ## 検証
 
-- v2ローカル全回帰: `602 passed, 1 skipped`（`python -m pytest -q tests/v2`、136.53秒。所要時間は実行環境依存）
+- v2ローカル全回帰（`5e41200`）: `620 passed, 1 skipped`（`python -m pytest tests/v2 -q`、133.14秒。所要時間は実行環境依存）。`602 passed, 1 skipped`はrefactor前の履歴baselineとして保持する
 - DevFarm admission／hierarchy focused: `54 passed`（qualified bindingの送信前再検証、未資格model拒否、L1 alternate→L2横断証拠を含む）
 - 追加監査focused: Provider quota分類／DevFarm model-qualified activation／trusted free qualificationを含む`45 passed`
 - Operation hardening focused: `94 passed, 1 skipped`（Operation、quota、DevFarm attempt、SQLite contention、security、budget境界）
@@ -96,6 +104,11 @@ thoughtSignature、thinking設定はAdapter内部で保持・変換し、Kernel 
 - `EvaluationDispatchCoordinator`はhost evaluator結果を一回の明示review済みdispatchへ接続します。host test、最終的なTask terminal transition、次cycleのevidence生成は呼出側が所有し、自動無限retry、model自己昇格、自動mergeはありません
 
 ## Refactor Freezeの内容
+
+- 軽量化リファクタの現行sliceでは、`src/dev_agent/operation_bootstrap.py`がprovider／qualification／resource／budgetのcomposition、`src/dev_agent/operation_planning.py`がplanning contextとchild dependency、`src/dev_agent/cli.py`がCLI parser、`src/dev_agent/state/control_repository.py`がdurable stop controlを所有する。`OperationService`は後方互換facadeとしてこれらをcompositionする
+- `src/dev_agent/persistence/lease.py`がStateとSchedulerの共有lease fencing primitiveを所有し、StateからScheduler concrete implementationへのimportを除去した。`state/views.py`にはcomponent向けnarrow Protocol viewを置くが、SQLiteStateStoreのtransaction ownerは維持する
+- `src/dev_agent/resources/schema.py`がResourceLedgerのschema／ordered migrationを所有する。ResourceLedger facade、既存store、schema versionは維持し、内部storeへの外部直接アクセスを新たに追加していない
+- `scripts/check_architecture.py`はstdlib ASTで禁止依存とinternal barrel importを検査し、`scripts/test_scope.py`は変更pathからaffected test clusterを決定する。どちらもfull regressionの代替ではない
 
 - Controllerのprovider request実行を `runtime/model_turn.py`、compatibility direct-provider実行を `runtime/legacy_provider.py` へ分離。canonical経路は `Controller -> ProviderDispatcher` のままです
 - ResourceLedgerは同一SQLite connection / lock / transaction semanticsを維持し、Catalog、Observation、Quota、Health、Budget Reservation storeを内部分離しました。schema v9でquotaのmetric／unit／window／reset／blocked stateとbounded unknown-quota admissionをordered migrationしています

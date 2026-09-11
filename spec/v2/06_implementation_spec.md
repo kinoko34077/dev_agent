@@ -9,13 +9,14 @@
 | Domain | `src/dev_agent/domain/` | Task、Model、Tool、Event の typed protocol |
 | Security / Policy | `src/dev_agent/security/`、`src/dev_agent/intelligence/` | scope、audit、Evaluator、finite escalation、authority policy、execution target seam |
 | State | `src/dev_agent/state/` | SQLite connection/transaction owner、core/effect repository |
+| Persistence primitive | `src/dev_agent/persistence/lease.py` | State／Schedulerが共有するLeaseProof、StaleLease、atomic fence assertion |
 | Tools | `src/dev_agent/tools/` | Tool policy、executor、effect guard、timeout/cancel |
-| Resources | `src/dev_agent/resources/` | ResourceLedger facade、catalog/observation/quota/health/budget、trusted billing catalog、router/control |
+| Resources | `src/dev_agent/resources/` | ResourceLedger facade、catalog/observation/quota/health/budget、trusted billing catalog、router/control、schema/migrations |
 | Providers | `src/dev_agent/providers/` | Adapter、Factory、Registry、Dispatcher、journal |
 | AgentBackend | `src/dev_agent/backends/` | 外部Agent harnessとのthin typed contract、`BackendAdmission`付きdispatcher。実adapterは別slice |
 | Runtime | `src/dev_agent/runtime/` | Controller、model turn、legacy compatibility、checkpoint/resume |
 | Scheduler | `src/dev_agent/scheduler/` | DurableQueue、WorkerRunner、lease、quota wake/requalification |
-| Operation | `src/dev_agent/operation.py`、`src/dev_agent/__main__.py` | 人間向け start/submit/status/stop、maintenance、既存 Evaluator/Lifecycle の明示 composition |
+| Operation | `src/dev_agent/operation.py`、`operation_bootstrap.py`、`operation_planning.py`、`cli.py`、`src/dev_agent/__main__.py` | 人間向け start/submit/status/stop、maintenance、既存 Evaluator/Lifecycle の明示 composition |
 | Recovery | `recovery/` | Runtime から独立した backup/restore/diagnostics/repair boundary |
 | DevFarm | `scripts/devfarm*.py`、`.devfarm/` | development-only proposal、verification、Commander parent plan |
 | Formal contract | `spec/v2/` | API/implementation contract、requirements、ADR、Gate、traceability |
@@ -32,6 +33,8 @@ domain
 policy / security
   ↑
 state / tools / resources / providers / intelligence
+  ↑        ↑
+persistence (lease primitive only)
   ↑
 runtime
   ↑
@@ -41,15 +44,18 @@ scheduler / operation composition
 - `domain` は runtime、provider SDK、SQLite 実装を import しない。
 - `policy/security` は domain を利用できるが、runtime の具体実装を所有しない。
 - `state`、`tools`、`resources`、`providers`、`intelligence` は domain と policy の typed 契約を利用できるが、互いの内部実体を直接参照しない。
+- `persistence/lease.py` は State と Scheduler が共有する小さなSQLite安全primitiveだけを所有し、StateからScheduler concrete implementationをimportしない。
 - `runtime` は上記 facade/public protocol を composition する。Provider 通信は `ProviderDispatcher`、Resource 操作は `ResourceControlPlane` を経由する。
 - `scheduler` は Queue/Worker/lease と runtime lifecycle を接続するが、Provider SDK の分岐や新しい Task state machine を所有しない。lease claim統計とlogical execution retryは別カウンタとして保持する。
 - `operation` は既存部品を composition する薄い入口であり、production scheduler を並立させない。
+- Operationの内部変更理由は、`operation_bootstrap.py`（composition）、`operation_planning.py`（proposal／dependency）、`cli.py`（CLI parsing）、`state/control_repository.py`（durable stop control）へ分離する。`operation.py`は外部互換facadeとして残す。
 - `operation` は起動時に既存 Resource を再構成・上書きせず、trusted billing catalog と operator-owned quota domain を検証する。Provider の正常応答／bounded quota probe が Resource observation freshness の唯一の更新入口であり、未知価格・未観測quotaは fail-closed とする。timeout後のlate provider successは同一effect intentへreconcileしてから、保存済み応答を通常Controller経路へreplayする。
 - `intelligence`／`operation` はTaskのcanonical execution capability、competency、policy traitを分類し、Routerへはexecution capabilityだけを渡す。qualification projectionは期限内のexact provider／binding／modelから導出し、model名heuristicや未知文字列でproduction routeを許可しない。provider execution saturationはbinding lane単位のwake reasonへ写像する。
 - `backends` は外部Agent harnessのidentity、session、event、cancellation、resultをtyped化し、既存StateStoreのeffect intent／Event／reconciliationへ接続する薄い境界である。`AgentBackendDispatcher`は既存authorityの証拠を`BackendAdmission`として要求し、lease／budget／approval／privacyの各strict-`True` flagとTask／Backend identityのcapability coverageをstart前に検証する。Runtime/State/Scheduler/Budget/Recoveryの所有権を持たず、Backend固有adapterはこの境界の外側に置く。
 - `intelligence/target.py` の `ExecutionTargetPolicy` は ModelProvider と AgentBackend の実行先を分離する。通常はModelProviderを選び、AgentBackendは明示autonomy、approval、budget、privacy、capabilityの既存証拠が揃った場合だけ許可する。tierだけを理由に自動昇格しない。
 - `recovery/` は runtime/controller から独立し、durable artifact と operator authority を扱う。Recovery が Controller の内部状態を書き換える設計にしない。
 - `devfarm` は production scheduler/state/authority と独立した development-only 層で、既存 WorkerRunner/ProviderFactory 等の公開境界を composition できるが、公式 branch を自動変更しない。
+- `scripts/check_architecture.py` と `scripts/test_scope.py` はread-onlyの開発preflightであり、runtime authority、StateStore、Schedulerを所有しない。affected-test mapはfull regressionの代替ではない。
 
 ## 禁止される実装
 

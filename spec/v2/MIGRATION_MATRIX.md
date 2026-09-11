@@ -12,3 +12,16 @@
 | internal dialogue | workflow concept only | Critic / Evaluator として後続実装 |
 | dynamic `function_loader.py` import | prohibited | isolated Tool Runtime が代替 |
 | `memory/memory_manager.py` | legacy branch only / fixture concept | knowledge / state / event / artifact に分割 |
+
+## v2 internal refactor ownership
+
+| 現行責務 | 正本位置 | 移行ルール |
+| --- | --- | --- |
+| Qualification load／exact identity／canonical capability projection | `src/dev_agent/resources/qualification.py` | runtime session内でCatalogを一度だけ構築し、expired／duplicate／invalid identityはfail-closed。global singletonやimport-time readは導入しない |
+| Operation composition | `src/dev_agent/operation_bootstrap.py`, `operation_planning.py`, `cli.py` | `OperationService` facadeと外部CLI意味を維持し、内部componentを直接公開しない |
+| Durable stop control | `src/dev_agent/state/control_repository.py` | Operation専用の第二StateStoreを作らず、既存SQLite SSOTへ接続する |
+| Lease fencing primitive | `src/dev_agent/persistence/lease.py` | StateからScheduler concrete implementationを参照せず、atomic transaction semanticsを維持する |
+| Resource schema／ordered migration | `src/dev_agent/resources/schema.py` | ResourceLedger facadeとschema versionを維持し、migration順序を変更しない |
+| Architecture/preflight tooling | `scripts/check_architecture.py`, `scripts/test_scope.py` | read-only開発補助。runtime authority、Scheduler、StateStoreを所有しない |
+
+この表はv1資産の復活を意味しない。v2の内部責務移動と互換facadeの所有者を記録するためのものとする。
