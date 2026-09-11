@@ -62,10 +62,10 @@
 
 ### Task 5: Real Cloud L1 Commander dogfood
 
-- [ ] Revalidate current qualification, billing, activation, and credentials immediately before dispatch.
-- [ ] Create 2–3 non-protected narrow tasks with disjoint ownership and at least one real Cloud Worker assignment.
-- [ ] Collect proposal, Host Verification, metrics, and Git-backed integration evidence; never auto-merge or accept model self-report as proof.
-- [ ] If provider or GitHub authority is unavailable, record the exact external blocker instead of fabricating success.
+- [x] Revalidate current qualification, billing, activation, and credentials immediately before dispatch.
+- [x] Create a non-protected narrow docs task with zero outbound repository files and a real Gemini L1 assignment (`hardening-cloud-l1-008`).
+- [x] Collect proposal, Host Verification (`5 passed`), metrics, and Git-backed integration evidence (`34bfef8`); never auto-merge or accept model self-report as proof.
+- [x] Record the first attempt's Windows socket blocker and the remaining Commander `.devfarm` integration-writeback authorization boundary without fabricating success.
 
 ### Task 6: External gates
 

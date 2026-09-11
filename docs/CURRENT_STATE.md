@@ -46,6 +46,7 @@ Provider hierarchy、Gate判定は変更していません。refactorの性能�
 - Commander dogfood: `phase7-commander-local-dogfood-004`で、`aa2f819`固定のproposal、隔離worktreeでのHost Verification（許可済みfocused test `1 passed`）、Codex review、明示integrationを一連のPlanとして完了した。これはCommanderの計画・依存・検証・統合境界の実証であり、外部Cloud Workerの資格化や成功を意味しない
 - Commander external Worker dogfood: 2026-09-11にGemini L1、Cloudflare L1、OpenRouter Freeへ、単一の非保護focused testだけをmanifest-scopedでbounded proposalした。実通信・Provider metricsは取得できたが、proposalはpatch hunk行数不一致でHost Verification前に決定的拒否となり、valid patch・Host Verification・Git integrationの成功証拠には数えていない。外部Workerのpatch生成品質は未完了として保持する
 - 最新のCommander実Cloud再試行（`hardening-cloud-l1-007`）では、Gemini `gemini:worker` のqualification／billing／operator activationは送信前検証を通過したが、実通信がWindowsソケット境界の`WinError 10013`でproposal前に失敗した。patch、Host Verification、Git integrationは生成されておらず、成功証拠には数えない。外部送信を伴う再試行には、送信対象をさらに合成データへ限定するか、operatorの明示確認が必要
+- `hardening-cloud-l1-008`では、既存ソースを送らない空のoutbound scopeでGemini `gemini:worker`／`gemini-3.5-flash-lite`へdocs-only proposalを実行し、1,870ms・usage（prompt 1,021 / candidate 322）を記録した。patchは許可された新規docs 1ファイルのみで、隔離Host Verificationは`5 passed`、`result_accepted=true`となった。Codexはpatchを`34bfef8`へGit-backed integrationした。Commander planの`INTEGRATED` writebackは、保護された`.devfarm`状態への追加承認が必要なため未確定として扱う
 - Gate昇格やlive qualificationの成功は、local test・model自己申告・Worker proposalだけから推測しない
 
 ## 検証
@@ -60,7 +61,7 @@ Provider hierarchy、Gate判定は変更していません。refactorの性能�
 - intelligence routing / escalation execution focused: `26 passed in 1.28s`
 - DevFarm manifest / patch / host verification focused: `24 passed in 27.50s`
 - Commander focused: `4 passed`（親Plan、ownership／dependency validation、dispatch／collect／Host Verification、bounded reassign、CLI status）
-- Commander dogfood: `phase7-commander-local-dogfood-004`のWorker成果をHost Verified後にCodexが明示統合。host testは`1 passed`、metricsは`provider_id=local-harness`のdurable artifactへ記録
+- Commander dogfood: `phase7-commander-local-dogfood-004`のWorker成果をHost Verified後にCodexが明示統合。host testは`1 passed`、metricsは`provider_id=local-harness`のdurable artifactへ記録。実Cloudの`hardening-cloud-l1-008`はGemini L1 proposal、Host Verification（`5 passed`）、metrics、Git-backed integration commitまで完了したが、Commander planの保護状態writebackは未確定
 - Operation external E2E: Cloudflare `@cf/meta/llama-3.1-8b-instruct`で`submit`、`start --once`、ToolCall／ToolResult、final response、durable `task.completed`、provider audit成功2件を確認。証跡: [`phase7-operation-cloudflare`](../spec/v2/evidence/phase7-operation-cloudflare-2026-09-10.json)
 - Phase 7 integration acceptance: Commander parallel baseline、`INTEGRATED` dependency、FiniteLifecycle restart、quota reset→bounded probe→wake、Operation external E2E、Commander dogfoodを確認済み。Evidence routingは実Provider Worker metricsのminimum sample／freshness／rollback証拠が揃うまで`DEFERRED_ADVISORY`とし、ResourceRouterへhard接続しない。実AgentBackend adapter／MCPはこの条件の完了後に着手する
 - AgentBackend boundary: `src/dev_agent/backends/protocol.py`に外部Agent harnessのidentity、scoped request、session、event stream、cancellation、completion／failure／unknown／reconciliation resultを定義し、`dispatcher.py`に既存authorityの証拠を束ねる`BackendAdmission`を追加した。Task／Backend identityのrequired capability coverage、strict-`True` authorization、scope／budget／approval／lease／privacy証拠をstart前に検証する。実Codex App Server adapter、MCPは未実装で、既存Runtime／State／Scheduler／Budget／Recoveryの所有権を移していない

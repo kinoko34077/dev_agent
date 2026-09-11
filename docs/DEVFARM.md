@@ -182,6 +182,15 @@ quality failure, not as a successful Worker proof. The Cloudflare adapter fix
 in `a9774ca` separately normalizes a backend-reported model alias into
 `usage.provider_reported_model` while preserving the admitted binding identity.
 
+The subsequent `hardening-cloud-l1-008` run used an empty outbound scope and a
+new documentation-only target, so no existing repository source was sent to
+Gemini. Gemini `gemini:worker` / `gemini-3.5-flash-lite` produced a valid patch
+in 1,870 ms; the isolated Host Verification test passed (`5 passed`) and the
+reviewed patch was Git-integrated by Codex in `34bfef8`. The ignored Commander
+plan remains `HOST_VERIFIED` until its protected `.devfarm` integration
+writeback is explicitly authorized; the Git commit and host evidence are
+independently recorded above.
+
 ## Commander parent plans
 
 `python scripts/devfarm.py plan` creates a development-only parent Plan above
