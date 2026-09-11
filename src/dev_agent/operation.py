@@ -15,12 +15,10 @@ import inspect
 import math
 import os
 from pathlib import Path
-import sqlite3
-from threading import Event, RLock
+from threading import Event
 from typing import Any, Callable, Mapping
 from uuid import NAMESPACE_URL, uuid5
 
-from ._sqlite import connect
 from .domain.protocol import Event as ProtocolEvent
 from .domain.protocol import ModelRequest, RiskLevel, Task, TaskStatus, TaskType
 from .providers.dispatch import ProviderDispatcher
@@ -41,6 +39,7 @@ from .resources.router import ResourceRouter
 from .scheduler.queue import DurableQueue
 from .scheduler.quota import QuotaRequalificationCoordinator, QuotaWakeScheduler
 from .scheduler.worker import WorkerRunner
+from .state.control_repository import OperationControl
 from .state.sqlite_store import SQLiteStateStore
 from .tools.registry import ToolRegistry, ToolSpec
 from .tools.runtime import ToolRuntime
@@ -280,45 +279,6 @@ class OperationConfig:
             lease_seconds=lease_seconds if lease_seconds is not None else env_float("DEV_AGENT_LEASE_SECONDS", 30.0),
             idle_sleep_seconds=idle_sleep_seconds if idle_sleep_seconds is not None else env_float("DEV_AGENT_IDLE_SLEEP_SECONDS", 1.0),
         )
-
-
-class OperationControl:
-    """Durable stop signal shared by separate ``start`` and ``stop`` calls."""
-
-    _SCHEMA = """
-    CREATE TABLE IF NOT EXISTS operation_control (
-        id INTEGER PRIMARY KEY CHECK (id=1),
-        stop_requested INTEGER NOT NULL DEFAULT 0
-    );
-    """
-
-    def __init__(self, path: str | Path) -> None:
-        self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.connection = connect(self.path)
-        self._lock = RLock()
-        self.connection.executescript(self._SCHEMA)
-        self.connection.execute("INSERT OR IGNORE INTO operation_control(id, stop_requested) VALUES (1, 0)")
-        self.connection.commit()
-
-    def request_stop(self) -> None:
-        with self._lock:
-            self.connection.execute("UPDATE operation_control SET stop_requested=1 WHERE id=1")
-            self.connection.commit()
-
-    def clear_stop(self) -> None:
-        with self._lock:
-            self.connection.execute("UPDATE operation_control SET stop_requested=0 WHERE id=1")
-            self.connection.commit()
-
-    def stop_requested(self) -> bool:
-        with self._lock:
-            row = self.connection.execute("SELECT stop_requested FROM operation_control WHERE id=1").fetchone()
-            return bool(row and row[0])
-
-    def close(self) -> None:
-        with self._lock:
-            self.connection.close()
 
 
 def _echo(arguments: dict[str, Any]) -> dict[str, Any]:

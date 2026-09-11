@@ -110,13 +110,14 @@
 - Planning module owns proposal validation, child creation, and dependency release.
 - Control repository exposes only stop control operations and does not create a second StateStore.
 
-- [ ] Step 1: Add characterization tests for external Operation behavior, including existing-resource non-overwrite, stop persistence, maintenance, planner, and reviewed escalation paths.
-- [ ] Step 2: Run the characterization tests before moving code.
-- [ ] Step 3: Extract bootstrap functions with unchanged signatures/return values at the facade boundary.
-- [ ] Step 4: Extract planning functions and pass one planning context per operation.
-- [ ] Step 5: Extract CLI parsing only if public `python -m dev_agent` behavior remains identical.
-- [ ] Step 6: Move OperationControl persistence behind a narrow repository using the existing SQLite authority.
-- [ ] Step 7: Run operation/planner/CLI focused tests and commit `refactor: split Operation composition boundaries`.
+- [x] Step 1: Existing Operation tests cover existing-resource non-overwrite, stop persistence, maintenance, planner, and reviewed escalation; the new boundary test fixes the intended ownership.
+- [x] Step 2: Run the characterization tests before moving code; Operation boundary plus Operation suite result is `33 passed`.
+- [x] Step 3: Move the durable `OperationControl` repository into `state/control_repository.py` and preserve the `dev_agent.operation.OperationControl` compatibility export.
+- [ ] Step 4: Extract bootstrap/planning/CLI only after each boundary has its own focused characterization test.
+- [ ] Step 5: Extract bootstrap functions with unchanged signatures/return values at the facade boundary.
+- [ ] Step 6: Extract planning functions and pass one planning context per operation.
+- [ ] Step 7: Extract CLI parsing only if public `python -m dev_agent` behavior remains identical.
+- [ ] Step 8: Run operation/planner/CLI focused tests and commit the remaining Operation composition slice.
 
 ### Task 6: Import graph reduction and cold paths
 
