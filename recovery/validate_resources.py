@@ -124,7 +124,10 @@ def legacy_resource_metadata(path: str | Path) -> list[str]:
     """
 
     database = Path(path).expanduser()
-    cloud_providers = {"gemini", "cloudflare", "openrouter", "groq", "mistral", "sambanova"}
+    # Local-only providers never need a qualification marker; all others do.
+    # Using an allowlist for local providers (rather than a denylist of cloud
+    # providers) ensures that new cloud providers are automatically included.
+    local_only_providers = {"ollama", "fake"}
     try:
         with sqlite3.connect(database) as connection:
             rows = connection.execute(
@@ -134,7 +137,7 @@ def legacy_resource_metadata(path: str | Path) -> list[str]:
         return []
     legacy: list[str] = []
     for resource_id, provider_id, cost_minor, metadata_json in rows:
-        if provider_id not in cloud_providers:
+        if provider_id in local_only_providers:
             continue
         try:
             metadata = json.loads(metadata_json) if isinstance(metadata_json, str) else {}

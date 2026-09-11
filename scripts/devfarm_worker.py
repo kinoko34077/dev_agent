@@ -28,8 +28,10 @@ from scripts.devfarm import (
     MAX_OUTBOUND_BYTES,
     VERIFICATION_TRUST_LEVELS,
     _is_protected,
+    canonical_digest,
     parse_host_test_command,
     prepare_worktree,
+    sha256_text,
     validate_manifest,
     validate_patch,
     validate_result,
@@ -692,6 +694,29 @@ def _validate_host_test_targets(workspace: Path, tokens: list[str]) -> None:
             raise DevFarmError(f"host test target resolves outside the worktree: {target}")
 
 
+def _target_is_independent(workspace: Path, target: str, changed_set: frozenset[str]) -> bool:
+    """True when the test target covers at least one file not authored by the worker.
+
+    A file target is independent when it is not in the changed set.  A directory
+    target is independent only when it contains at least one file that is not in
+    the changed set; this prevents a worker from satisfying the independence
+    requirement by authoring every file under the target directory.
+    """
+    path = (workspace / target).resolve()
+    if path.is_dir():
+        for child in path.rglob("*"):
+            if not child.is_file():
+                continue
+            try:
+                rel = child.relative_to(workspace).as_posix()
+            except ValueError:
+                continue
+            if rel not in changed_set:
+                return True
+        return False
+    return target not in changed_set
+
+
 def _bounded_test_output(value: str) -> dict[str, Any]:
     original_chars = len(value)
     clipped = value[:MAX_TEST_OUTPUT_CHARS]
@@ -736,6 +761,8 @@ def _write_immutable_text(path: Path, content: str) -> None:
             os.link(temporary, path)
         except FileExistsError as exc:
             raise DevFarmError(f"immutable worker artifact already exists: {path.name}") from exc
+        except OSError as exc:
+            raise DevFarmError(f"immutable worker artifact link failed: {path.name}: {exc}") from exc
     finally:
         try:
             temporary.unlink()
@@ -778,17 +805,8 @@ def _list_verification_records(root: Path, task_id: str, attempt_id: str) -> lis
     return records
 
 
-def _canonical_digest(value: Any) -> str:
-    import hashlib
-
-    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
-
-
-def _sha256_text(value: str) -> str:
-    import hashlib
-
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+_canonical_digest = canonical_digest
+_sha256_text = sha256_text
 
 
 def _write_latest_result_projection(root: Path, result: Mapping[str, Any], *, manifest: Mapping[str, Any]) -> Path:
@@ -1066,9 +1084,10 @@ def apply_and_verify(
 
     verified: list[dict[str, Any]] = []
     independent_verification = False
-    if trust_level == "TRUSTED_HOST_EXEC" or (not manifest["external_provider_allowed"] and trust_level == "OS_SANDBOXED"):
+    if trust_level == "TRUSTED_HOST_EXEC":
         verification_runner = HostVerificationRunner(timeout_seconds=120)
         verification_started = time.monotonic()
+        changed_set = frozenset(actual_changed_files)
         for command in manifest["test_commands"]:
             if time.monotonic() - verification_started >= MAX_VERIFICATION_WALL_CLOCK_SECONDS:
                 raise DevFarmError("worker verification exceeded total wall-clock budget")
@@ -1079,7 +1098,7 @@ def apply_and_verify(
                 for token in tokens[3:]
                 if token not in {"-q", "-x"} and not token.startswith("--maxfail=")
             }
-            if targets - set(actual_changed_files):
+            if any(_target_is_independent(workspace, t, changed_set) for t in targets):
                 independent_verification = True
             host_result = verification_runner.run(tokens, cwd=workspace)
             verified.append(
@@ -1436,12 +1455,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--model")
     parser.add_argument("--timeout-seconds", type=float, default=30.0)
     parser.add_argument("--apply-and-verify", action="store_true")
+    parser.add_argument(
+        "--trust-level",
+        default="STATIC_ONLY",
+        choices=list(VERIFICATION_TRUST_LEVELS),
+        help="verification containment level; requires --operator-approved for TRUSTED_HOST_EXEC",
+    )
+    parser.add_argument("--operator-approved", action="store_true", help="explicit operator approval for TRUSTED_HOST_EXEC")
     args = parser.parse_args(argv)
     try:
         if args.apply_and_verify:
             if args.provider is not None or args.model is not None:
                 parser.error("--apply-and-verify cannot be combined with --provider or --model")
-            result = apply_and_verify(args.root, args.manifest)
+            result = apply_and_verify(args.root, args.manifest, trust_level=args.trust_level, operator_approved=args.operator_approved)
         else:
             if args.provider is None or not args.model:
                 parser.error("--provider and --model are required unless --apply-and-verify is used")

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+import hashlib
 import json
 from pathlib import Path, PurePosixPath
 import re
@@ -28,6 +29,17 @@ from src.dev_agent.security.protected_paths import PROTECTED_AUTHORITY_PATHS, is
 
 class DevFarmError(ValueError):
     """A development-farm manifest or result is unsafe or malformed."""
+
+
+def sha256_text(value: str) -> str:
+    """SHA-256 hex digest of a UTF-8 encoded string."""
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def canonical_digest(value: Any) -> str:
+    """Deterministic SHA-256 hex digest of a JSON-serialisable value."""
+    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 _TASK_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,100}$")

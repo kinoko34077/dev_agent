@@ -22,7 +22,7 @@ import tempfile
 from typing import Any, Mapping, Sequence
 import uuid
 
-from scripts.devfarm import DevFarmError, init_farm, validate_manifest, validate_patch, validate_result
+from scripts.devfarm import DevFarmError, canonical_digest, init_farm, sha256_text, validate_manifest, validate_patch, validate_result
 from scripts.devfarm_orchestrator import DevFarmOrchestrator, WorkerAssignment
 from src.dev_agent.providers.base import ModelProvider
 from src.dev_agent.security.protected_paths import PROTECTED_AUTHORITY_PATHS, is_protected_path
@@ -967,6 +967,8 @@ def _verified_worker_patch(root: Path, task: Mapping[str, Any]) -> tuple[str, di
     if not result_path.is_file():
         raise DevFarmError("worker integration result artifact is missing")
     result = validate_result(_read_json(result_path), manifest=manifest)
+    if result.get("status") != "completed":
+        raise DevFarmError("worker integration requires a completed result artifact")
     if result.get("attempt_id") != attempt_id:
         raise DevFarmError("integration source_attempt_id does not match result artifact")
     patch_path = result_path.parent / "patch.diff"
@@ -984,7 +986,7 @@ def _verified_worker_patch(root: Path, task: Mapping[str, Any]) -> tuple[str, di
         raise DevFarmError("worker integration requires an immutable verification directory")
     records = []
     for vpath in sorted(verification_dir.iterdir()):
-        if vpath.suffix == ".json" and not vpath.stem.startswith("."):
+        if vpath.suffix == ".json" and vpath.stem and not vpath.stem.startswith("."):
             try:
                 rec = _read_json(vpath)
                 if isinstance(rec, Mapping):
@@ -993,13 +995,20 @@ def _verified_worker_patch(root: Path, task: Mapping[str, Any]) -> tuple[str, di
                 pass
     if not records:
         raise DevFarmError("worker integration requires at least one verification record")
-    patch_digest = hashlib.sha256(patch.encode("utf-8")).hexdigest()
-    manifest_digest = hashlib.sha256(json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
-    test_spec_digest = hashlib.sha256(json.dumps(manifest["test_commands"], ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    patch_digest = sha256_text(patch)
+    manifest_digest = canonical_digest(manifest)
+    test_spec_digest = canonical_digest(manifest["test_commands"])
     # Select the strongest qualifying verification record for this attempt.
-    # A record qualifies when its digests match and it carries executable evidence.
+    # TRUSTED_HOST_EXEC outranks OS_SANDBOXED; sort highest priority first so
+    # the first qualifying record encountered is always the strongest available.
+    _TRUST_PRIORITY = {"TRUSTED_HOST_EXEC": 1, "OS_SANDBOXED": 0}
+    sorted_records = sorted(
+        records,
+        key=lambda r: _TRUST_PRIORITY.get(r.get("containment_level", ""), -1),
+        reverse=True,
+    )
     verification: Mapping[str, Any] | None = None
-    for rec in records:
+    for rec in sorted_records:
         if rec.get("attempt_id") != attempt_id or rec.get("base_revision") != manifest["base_revision"]:
             continue
         if rec.get("patch_sha256") != patch_digest:

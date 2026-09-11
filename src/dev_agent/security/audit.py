@@ -20,7 +20,7 @@ class AuditRecorder:
     SECRET_PATTERNS = (
         re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{8,}"),
         re.compile(r"(?i)\b(?:api[_-]?key|secret|token|password)\s*[:=]\s*[^\s,;]+"),
-        re.compile(r"\b(?:sk-(?:proj-)?|AIza|ghp_|github_pat_|AKIA)[A-Za-z0-9._-]{8,}\b"),
+        re.compile(r"\b(?:sk-(?:proj-)?|AIza|ghp_|ghu_|ghs_|gho_|github_pat_|AKIA)[A-Za-z0-9._-]{8,}\b"),
         re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----"),
     )
 
