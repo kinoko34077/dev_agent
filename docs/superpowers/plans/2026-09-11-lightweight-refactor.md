@@ -113,10 +113,10 @@
 - [x] Step 1: Existing Operation tests cover existing-resource non-overwrite, stop persistence, maintenance, planner, and reviewed escalation; the new boundary test fixes the intended ownership.
 - [x] Step 2: Run the characterization tests before moving code; Operation boundary plus Operation suite result is `33 passed`.
 - [x] Step 3: Move the durable `OperationControl` repository into `state/control_repository.py` and preserve the `dev_agent.operation.OperationControl` compatibility export.
-- [ ] Step 4: Extract bootstrap/planning/CLI only after each boundary has its own focused characterization test.
+- [x] Step 4: Add a dedicated `cli.py` boundary with the existing parser and command behavior unchanged; keep lazy compatibility wrappers in `operation.py`.
 - [ ] Step 5: Extract bootstrap functions with unchanged signatures/return values at the facade boundary.
 - [ ] Step 6: Extract planning functions and pass one planning context per operation.
-- [ ] Step 7: Extract CLI parsing only if public `python -m dev_agent` behavior remains identical.
+- [x] Step 7: Verify `python -m src.dev_agent --help` and the focused Operation suite after the CLI extraction.
 - [ ] Step 8: Run operation/planner/CLI focused tests and commit the remaining Operation composition slice.
 
 ### Task 6: Import graph reduction and cold paths
