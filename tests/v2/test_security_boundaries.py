@@ -1,8 +1,12 @@
 from pathlib import Path
 
+import pytest
+
 from src.dev_agent.policy import PathPolicy
 from src.dev_agent.security.audit import AuditRecorder
 from src.dev_agent.security.protected_paths import is_protected_path
+
+pytestmark = pytest.mark.security
 
 
 def test_path_policy_uses_the_most_specific_matching_rule():

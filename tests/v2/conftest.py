@@ -2,9 +2,11 @@
 
 The stub qualification resolver lets tests that are NOT testing qualification
 behavior (billing, dispatch, routing, capacity, etc.) create resources with
-arbitrary provider IDs without setting up real qualification evidence.  Tests
-that exercise the qualification security boundary inject their own resolver
-explicitly, so the autouse fixture does not affect them.
+arbitrary provider IDs without setting up real qualification evidence.
+
+Tests marked ``@pytest.mark.security`` opt out of the stub entirely — they
+manage their own resolver (or use _NullQualificationResolver) so the gate is
+exercised without an implicit bypass.
 """
 
 from __future__ import annotations
@@ -72,14 +74,16 @@ class _StubQualificationResolver:
 
 
 @pytest.fixture(autouse=True)
-def _stub_qualification_resolver(monkeypatch):
+def _stub_qualification_resolver(request, monkeypatch):
     """Replace the default QualificationResolver in both the router and
     operation modules so tests without explicit resolver injection are not
     blocked by the P0-1 qualification gate.
 
-    Tests that need to verify the gate rejects unqualified providers must
-    create a ResourceRouter with an explicit resolver that returns None.
+    Tests marked @pytest.mark.security opt out of this stub — they own
+    their resolver and must exercise the real gate.
     """
+    if request.node.get_closest_marker("security"):
+        return  # security tests manage their own qualification resolver
     stub_class = lambda **_kw: _StubQualificationResolver()  # noqa: E731
     import src.dev_agent.resources.router as _router_mod
     import src.dev_agent.operation as _operation_mod

@@ -430,6 +430,7 @@ class _NullQualificationResolver:
         return None
 
 
+@pytest.mark.security
 def test_remote_provider_without_qualification_is_rejected(tmp_path):
     ledger = ResourceLedger(tmp_path / "no-qual.sqlite3")
     ledger.register_resource(
@@ -450,6 +451,7 @@ def test_remote_provider_without_qualification_is_rejected(tmp_path):
         )
 
 
+@pytest.mark.security
 def test_persisted_resource_capabilities_alone_do_not_grant_routing(tmp_path):
     """Capability fields in the resource row are never authoritative without qualification."""
     ledger = ResourceLedger(tmp_path / "persisted-caps.sqlite3")
@@ -471,6 +473,7 @@ def test_persisted_resource_capabilities_alone_do_not_grant_routing(tmp_path):
         )
 
 
+@pytest.mark.security
 def test_remote_provider_with_blank_binding_id_is_rejected(tmp_path):
     """A remote resource with no binding_id is rejected before the resolver is called."""
     ledger = ResourceLedger(tmp_path / "blank-binding.sqlite3")
@@ -490,6 +493,7 @@ def test_remote_provider_with_blank_binding_id_is_rejected(tmp_path):
         )
 
 
+@pytest.mark.security
 def test_qualification_exempt_providers_route_without_qualification(tmp_path):
     """ollama and fake are exempt from the qualification gate."""
     ledger = ResourceLedger(tmp_path / "exempt-qual.sqlite3")
