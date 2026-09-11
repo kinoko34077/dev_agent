@@ -13,3 +13,9 @@ def test_cli_parser_is_available_from_the_dedicated_cli_boundary():
 
     assert arguments.command == "status"
     assert arguments.task_id == "task-1"
+
+
+def test_operation_bootstrap_exposes_a_composition_boundary():
+    from src.dev_agent.operation_bootstrap import open_components
+
+    assert callable(open_components)

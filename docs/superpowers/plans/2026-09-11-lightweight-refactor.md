@@ -114,10 +114,10 @@
 - [x] Step 2: Run the characterization tests before moving code; Operation boundary plus Operation suite result is `33 passed`.
 - [x] Step 3: Move the durable `OperationControl` repository into `state/control_repository.py` and preserve the `dev_agent.operation.OperationControl` compatibility export.
 - [x] Step 4: Add a dedicated `cli.py` boundary with the existing parser and command behavior unchanged; keep lazy compatibility wrappers in `operation.py`.
-- [ ] Step 5: Extract bootstrap functions with unchanged signatures/return values at the facade boundary.
+- [x] Step 5: Extract bootstrap construction into `operation_bootstrap.open_components` with unchanged callback compatibility and cleanup semantics.
 - [ ] Step 6: Extract planning functions and pass one planning context per operation.
 - [x] Step 7: Verify `python -m src.dev_agent --help` and the focused Operation suite after the CLI extraction.
-- [ ] Step 8: Run operation/planner/CLI focused tests and commit the remaining Operation composition slice.
+- [x] Step 8: Run the bootstrap/Operation/planner focused suite; result is `44 passed`.
 
 ### Task 6: Import graph reduction and cold paths
 

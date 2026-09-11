@@ -11,7 +11,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import json
-import inspect
 import math
 import os
 from pathlib import Path
@@ -24,23 +23,21 @@ from .domain.protocol import ModelRequest, RiskLevel, Task, TaskStatus, TaskType
 from .providers.dispatch import ProviderDispatcher
 from .providers.factory import ProviderDefinition, ProviderFactory
 from .providers.fake import FakeProvider
-from .providers.registry import ProviderRegistry
-from .resources.budget import BudgetAuthority, BudgetGovernor, BudgetPolicy
+from .resources.budget import BudgetAuthority, BudgetPolicy
 from .resources.billing_catalog import (
     TRUSTED_RESOURCE_CATALOG,
     TrustedResourceProfile,
     default_binding_id as _catalog_default_binding_id,
     profile_for as _catalog_profile_for,
 )
-from .resources.control import ResourceControlPlane
 from .resources.ledger import ResourceLedger, unknown_quota_wake_reason
 from .resources.qualification import QualificationResolver
-from .resources.router import ResourceRouter
 from .scheduler.queue import DurableQueue
 from .scheduler.quota import QuotaRequalificationCoordinator, QuotaWakeScheduler
 from .scheduler.worker import WorkerRunner
 from .state.control_repository import OperationControl
 from .state.sqlite_store import SQLiteStateStore
+from .operation_bootstrap import open_components
 from .tools.registry import ToolRegistry, ToolSpec
 from .tools.runtime import ToolRuntime
 from .runtime.controller import Controller
@@ -356,80 +353,28 @@ class OperationService:
     @classmethod
     def open(cls, config: OperationConfig | None = None) -> "OperationService":
         config = config or OperationConfig.from_environment()
-        store = queue = ledger = control = None
-        try:
-            store = SQLiteStateStore(config.state_path)
-            queue = DurableQueue(config.queue_path)
-            ledger = ResourceLedger(config.resources_path)
-            control = OperationControl(config.queue_path)
-            qualification_resolver = QualificationResolver()
-            cls._ensure_budget(ledger)
-            bindings = config.provider_bindings
-            providers = []
-            trusted_free_binding_present = False
-            for binding in bindings:
-                # Keep the narrow helper compatible with existing test and
-                # embedding overrides that still expose the pre-catalog
-                # one-argument signature.
-                build_provider = cls._build_provider
-                try:
-                    accepts_resolver = "qualification_resolver" in inspect.signature(build_provider).parameters
-                except (TypeError, ValueError):
-                    accepts_resolver = False
-                provider = (
-                    build_provider(binding, qualification_resolver=qualification_resolver)
-                    if accepts_resolver
-                    else build_provider(binding)
-                )
-                cls._ensure_resource(ledger, provider, binding, qualification_resolver=qualification_resolver)
-                profile = _operation_resource_profile(binding.provider_id, binding.binding_id, binding.model)
-                trusted_free_binding_present = trusted_free_binding_present or bool(profile is not None and profile.cost_minor == 0)
-                providers.append(provider)
-            resource_control = ResourceControlPlane(ResourceRouter(ledger, qualification_resolver=qualification_resolver), BudgetGovernor(ledger))
-            dispatcher = ProviderDispatcher(ProviderRegistry(providers), resource_control)
-            # The default fake adapter is an explicitly local smoke mode.  A
-            # real or explicitly pooled Operation always enables exact-tier
-            # routing; the smoke adapter remains compatible with the legacy
-            # deterministic test path.
-            intelligence_routing = config.provider_pool is not None or config.provider_id != "fake"
-            controller = Controller(
-                dispatcher,
-                ToolRuntime(_tool_registry()),
-                store,
-                resource_policy=resource_control,
-                intelligence_routing=intelligence_routing,
-                allow_unknown_quota=trusted_free_binding_present,
-                provider_capacity_wakeup=lambda _binding_id: cls._wake_provider_capacity(queue, _binding_id),
-            )
-            worker = WorkerRunner(
-                queue,
-                controller,
-                worker_id=config.worker_id,
-                lease_seconds=config.lease_seconds,
-            )
-            return cls(
-                config,
-                store=store,
-                queue=queue,
-                ledger=ledger,
-                control=control,
-                controller=controller,
-                worker=worker,
-                dispatcher=dispatcher,
-                evaluation=EvaluationCoordinator(store),
-                lifecycle=TaskLifecycleCoordinator(store),
-                qualification_resolver=qualification_resolver,
-            )
-        except Exception:
-            if control is not None:
-                control.close()
-            if ledger is not None:
-                ledger.close()
-            if queue is not None:
-                queue.close()
-            if store is not None:
-                store.close()
-            raise
+        components = open_components(
+            config,
+            build_provider=cls._build_provider,
+            ensure_resource=cls._ensure_resource,
+            ensure_budget=cls._ensure_budget,
+            resource_profile=_operation_resource_profile,
+            tool_registry_factory=_tool_registry,
+            wake_provider_capacity=cls._wake_provider_capacity,
+        )
+        return cls(
+            config,
+            store=components.store,
+            queue=components.queue,
+            ledger=components.ledger,
+            control=components.control,
+            controller=components.controller,
+            worker=components.worker,
+            dispatcher=components.dispatcher,
+            evaluation=components.evaluation,
+            lifecycle=components.lifecycle,
+            qualification_resolver=components.qualification_resolver,
+        )
 
     def _lifecycle_loop(self, task_id: str, *, max_cycles: int) -> FiniteLifecycleLoop:
         """Build one finite lifecycle view over the existing durable boundaries.
