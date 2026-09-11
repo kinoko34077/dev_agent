@@ -12,6 +12,7 @@ import time
 from uuid import uuid4
 
 from .._sqlite import connect
+from ..persistence.lease import LeaseProof, StaleLease, assert_active_lease
 
 
 class QueueEmpty(RuntimeError):
@@ -22,24 +23,12 @@ class MaintenanceMode(RuntimeError):
     pass
 
 
-class StaleLease(RuntimeError):
-    pass
-
-
 def _epoch(value: datetime | float | int | None) -> float:
     if value is None:
         return time.time()
     if isinstance(value, datetime):
         return value.timestamp()
     return float(value)
-
-
-@dataclass(frozen=True)
-class LeaseProof:
-    task_id: str
-    worker_id: str
-    lease_token: str
-    state_version: int
 
 
 @dataclass(frozen=True)
@@ -257,9 +246,7 @@ class DurableQueue:
 
     def assert_proof(self, proof: LeaseProof) -> None:
         with self._lock:
-            row = self.connection.execute("SELECT 1 FROM queue_items WHERE task_id=? AND state='leased' AND lease_owner=? AND lease_token=? AND state_version=? AND lease_until > ?", (proof.task_id, proof.worker_id, proof.lease_token, proof.state_version, time.time())).fetchone()
-            if row is None:
-                raise StaleLease(proof.task_id)
+            assert_active_lease(self.connection, proof)
 
     def set_max_attempts(self, task_id: str, *, worker_id: str, state_version: int, max_attempts: int) -> QueueItem:
         """Bind a claimed queue item to the task's persisted retry ceiling."""

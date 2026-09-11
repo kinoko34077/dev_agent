@@ -87,11 +87,12 @@
 - `persistence.lease` owns `LeaseProof`, `StaleLease`, and `assert_active_lease(connection, proof)`.
 - `SQLiteStateStore` remains transaction owner; component-facing Protocol views expose only the operations each component needs.
 
-- [ ] Step 1: Add an AST/import regression test showing State no longer imports concrete Scheduler modules while lease fencing remains atomic.
-- [ ] Step 2: Run the test and confirm the current reverse import is detected.
-- [ ] Step 3: Move only the shared lease proof/check into the neutral persistence module; preserve the SQL transaction and stale-lease behavior.
-- [ ] Step 4: Add/use narrow State Protocol views without splitting the SQLite connection or changing public facade methods.
-- [ ] Step 5: Run state, scheduler, recovery, and architecture focused tests; commit `refactor: isolate lease fencing primitive`.
+- [x] Step 1: Add an import regression test showing State no longer imports concrete Scheduler modules while lease fencing remains atomic.
+- [x] Step 2: Run the test and confirm the current reverse import is detected.
+- [x] Step 3: Move only the shared lease proof/check into the neutral persistence module; preserve the SQL transaction and stale-lease behavior.
+- [x] Step 4: Add/use narrow State Protocol views without splitting the SQLite connection or changing public facade methods.
+- [x] Step 5: Run state, scheduler, recovery, and architecture focused tests; focused result is `44 passed`.
+- [x] Step 6: Run the full regression; result is `611 passed, 1 skipped`.
 
 ### Task 5: Operation composition decomposition
 

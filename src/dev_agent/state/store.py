@@ -5,9 +5,10 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 from ..domain.protocol import Event, Step, Task, ToolResult
+from .views import EffectIntentStore, EventStore, ProviderAuditStore, TaskStateView
 
 
-class StateStore(Protocol):
+class StateStore(TaskStateView, EventStore, EffectIntentStore, ProviderAuditStore, Protocol):
     def save_task(self, task: Task) -> None: ...
     def request_cancellation(self, task_id: str, *, reason: str) -> Task: ...
     def latest_cancellation(self, task_id: str) -> dict[str, Any] | None: ...

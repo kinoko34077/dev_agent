@@ -16,7 +16,7 @@ from typing import Any, TYPE_CHECKING
 from ..domain.protocol import Event
 
 if TYPE_CHECKING:
-    from ..state.store import StateStore
+    from ..state.views import EventStore
 
 
 class EvaluatorDecision(str, Enum):
@@ -136,7 +136,7 @@ class TaskEvaluator:
 class EvaluationRecorder:
     """Persist evaluator evidence through the existing durable Event API."""
 
-    def __init__(self, store: "StateStore", *, actor: str = "host-evaluator") -> None:
+    def __init__(self, store: "EventStore", *, actor: str = "host-evaluator") -> None:
         if not isinstance(actor, str) or not actor.strip():
             raise ValueError("actor must be a non-empty string")
         self._store = store

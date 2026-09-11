@@ -13,6 +13,7 @@ from typing import Any
 
 from .._sqlite import connect
 from ..domain.protocol import Event, Step, Task, TaskStatus, ToolResult
+from ..persistence.lease import assert_active_lease
 from .core_repository import CoreStateRepository
 from .effects_repository import EffectAuditRepository
 from .schema import StateSchema
@@ -270,11 +271,8 @@ class SQLiteStateStore:
     def transition_effect_intent(self, key: str, *, to_status: str, result: dict[str, Any] | None = None, lease_proof: Any | None = None) -> None:
         try:
             self.connection.execute("BEGIN IMMEDIATE")
-            if lease_proof is not None and self.connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='queue_items'").fetchone() is not None:
-                row = self.connection.execute("SELECT 1 FROM queue_items WHERE task_id=? AND state='leased' AND lease_owner=? AND lease_token=? AND state_version=? AND lease_until > ?", (lease_proof.task_id, lease_proof.worker_id, lease_proof.lease_token, lease_proof.state_version, time.time())).fetchone()
-                if row is None:
-                    from ..scheduler.queue import StaleLease
-                    raise StaleLease(lease_proof.task_id)
+            if lease_proof is not None:
+                assert_active_lease(self.connection, lease_proof)
             self._effects.transition_effect_intent(
                 key,
                 to_status=to_status,
@@ -311,11 +309,8 @@ class SQLiteStateStore:
         """Atomically persist the records belonging to one runtime transition."""
         try:
             self.connection.execute("BEGIN IMMEDIATE")
-            if lease_proof is not None and self.connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='queue_items'").fetchone() is not None:
-                row = self.connection.execute("SELECT 1 FROM queue_items WHERE task_id=? AND state='leased' AND lease_owner=? AND lease_token=? AND state_version=? AND lease_until > ?", (lease_proof.task_id, lease_proof.worker_id, lease_proof.lease_token, lease_proof.state_version, time.time())).fetchone()
-                if row is None:
-                    from ..scheduler.queue import StaleLease
-                    raise StaleLease(lease_proof.task_id)
+            if lease_proof is not None:
+                assert_active_lease(self.connection, lease_proof)
             transition_events = list(events or [])
             if event is not None:
                 transition_events.append(event)
