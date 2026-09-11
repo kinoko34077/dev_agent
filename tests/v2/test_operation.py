@@ -812,3 +812,43 @@ def test_operation_config_can_explicitly_build_configured_cloud_provider_pool(mo
     assert bindings["ollama_cloud:free"].api_key_env == "OLLAMA_API_KEY"
     assert bindings["vercel:free"].api_key_env == "AI_GATEWAY_API_KEY"
     assert all("secret-not-read" not in repr(binding) for binding in bindings.values())
+
+
+# P0 regression: Ollama is a local provider and must not fail the startup
+# qualification or billing check when Operation is restarted with an existing
+# ollama resource.  The bug was that the check used `!= "fake"` instead of
+# `provider_policy.requires_qualification()`, which treated ollama as remote.
+
+def test_ollama_resource_survives_operation_restart_without_qualification(tmp_path):
+    from src.dev_agent.operation import OperationService
+    from src.dev_agent.resources.ledger import ResourceLedger
+
+    ledger_path = tmp_path / "resources.sqlite3"
+    binding_id = "ollama:llama3"
+    model_id = "llama3"
+
+    config = OperationConfig(
+        data_dir=tmp_path,
+        provider_id="ollama",
+        model=model_id,
+        provider_binding_id=binding_id,
+        worker_id="ollama-restart-test",
+    )
+
+    # Simulate first Operation open: register the ollama resource
+    with ResourceLedger(ledger_path) as ledger:
+        provider = type("OllamaProvider", (), {
+            "provider_id": "ollama",
+            "provider_binding_id": binding_id,
+            "model_id": model_id,
+            "intelligence_tier": None,
+        })()
+        OperationService._ensure_resource(ledger, provider, config)
+        resource = ledger.get_resource(binding_id)
+        assert resource["provider_id"] == "ollama"
+        assert resource["sensitivity"] == "sensitive"
+
+    # Simulate Operation restart: call _ensure_resource again on the existing row
+    with ResourceLedger(ledger_path) as ledger:
+        OperationService._ensure_resource(ledger, provider, config)
+        assert ledger.get_resource(binding_id)["provider_id"] == "ollama"

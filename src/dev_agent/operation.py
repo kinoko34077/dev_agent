@@ -36,6 +36,7 @@ from .resources.billing_catalog import (
     profile_for as _catalog_profile_for,
 )
 from .resources.ledger import ResourceLedger, unknown_quota_wake_reason
+from .resources.provider_policy import is_local_provider as _is_local_provider, max_sensitivity as _provider_max_sensitivity, privacy_profile as _provider_privacy_profile, requires_qualification as _requires_qualification
 from .resources.qualification import QualificationResolver
 from .scheduler.queue import DurableQueue
 from .scheduler.quota import QuotaRequalificationCoordinator, QuotaWakeScheduler
@@ -88,10 +89,7 @@ def _operation_resource_profile(provider_id: str, binding_id: str, model_id: str
 
 def _operation_resource_sensitivity(provider_id: str) -> tuple[str, str]:
     """Return the conservative privacy profile for an Operation resource."""
-
-    if provider_id == "ollama":
-        return "sensitive", "local_only"
-    return "normal", "remote_cloud"
+    return _provider_max_sensitivity(provider_id), _provider_privacy_profile(provider_id)
 
 
 def _positive_number(value: float, name: str) -> float:
@@ -753,20 +751,22 @@ class OperationService:
                     raise OperationError(
                         f"existing resource billing currency is not trusted for binding/model: {binding_id}/{model_id}"
                     )
-            if profile is None and existing.get("cost_minor") == 0:
+            if profile is None and existing.get("cost_minor") == 0 and _requires_qualification(config.provider_id):
                 # A historical/provider-name bootstrap may have marked an
                 # unqualified model as free.  Preserve the record for an
                 # explicit admin repair, but never let normal Operation use a
                 # zero-cost assumption that is not backed by the exact
-                # binding/model catalog.
+                # binding/model catalog.  Local providers (ollama, fake) are
+                # intentionally catalog-free and are exempt from this check.
                 raise OperationError(
                     f"existing resource billing metadata is not trusted for binding/model: {binding_id}/{model_id}"
                 )
-            # Startup qualification check for non-local providers.  An
-            # existing resource without a current qualification record must
-            # not remain routable just because Operation was restarted; the
-            # operator must re-qualify the binding before it can dispatch.
-            if config.provider_id != "fake":
+            # Startup qualification check for cloud providers.  An existing
+            # resource without a current qualification record must not remain
+            # routable just because Operation was restarted; the operator must
+            # re-qualify the binding before it can dispatch.  Local providers
+            # (ollama, fake) are exempt via provider_policy.
+            if _requires_qualification(config.provider_id):
                 if qualification is None:
                     raise OperationError(
                         f"existing resource has no current qualification record: {binding_id}/{model_id}"
@@ -800,7 +800,7 @@ class OperationService:
         # exact binding/model qualification projection at route time.  Fake
         # smoke resources intentionally remain outside that external
         # qualification authority.
-        resource_metadata["qualification_required"] = config.provider_id != "fake"
+        resource_metadata["qualification_required"] = _requires_qualification(config.provider_id)
         if tier:
             resource_metadata["intelligence_tier"] = tier
         if profile is not None:

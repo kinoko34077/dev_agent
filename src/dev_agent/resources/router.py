@@ -9,6 +9,7 @@ import time
 from typing import Protocol
 
 from .billing_catalog import profile_for
+from . import provider_policy
 from .qualification import QualificationResolver
 from .snapshot import RoutingSnapshot
 
@@ -94,17 +95,8 @@ class RouteSelection:
 
 _SENSITIVITY = {"public": 0, "normal": 1, "internal": 2, "sensitive": 3}
 
-# Providers in this set do not require a QualificationResolver record at
-# dispatch time.  Local providers run under operator control, so they are
-# exempt.  Every new cloud provider must qualify explicitly before routes
-# are granted.  This set must stay aligned with _LOCAL_ONLY_PROVIDERS.
-_QUALIFICATION_EXEMPT_PROVIDERS: frozenset[str] = frozenset({"ollama", "fake"})
-
-# Providers whose resources may carry sensitivity levels above "normal".
-# Remote/cloud providers are capped at "normal" at route time regardless
-# of the persisted sensitivity field to prevent sensitive data being sent
-# to an untrusted cloud endpoint.
-_LOCAL_ONLY_PROVIDERS: frozenset[str] = frozenset({"ollama", "fake"})
+# Provider classification authority lives in provider_policy.  Do not add
+# inline provider-name comparisons here; extend provider_policy instead.
 
 
 class ResourceRouter:
@@ -228,12 +220,11 @@ class ResourceRouter:
                 continue
             effective_capabilities = set(resource["capabilities"])
             effective_tier = metadata.get("intelligence_tier")
-            # Provider-based runtime authority: only providers in
-            # _QUALIFICATION_EXEMPT_PROVIDERS skip QualificationResolver.
-            # The persisted qualification_required flag is not the gate:
-            # it may be absent on legacy rows, and remote providers must
-            # always present a current qualification record at route time.
-            requires_qualification = resource["provider_id"] not in _QUALIFICATION_EXEMPT_PROVIDERS
+            # Provider-based runtime authority: provider_policy is the sole
+            # gate.  The persisted qualification_required flag is not the
+            # gate: it may be absent on legacy rows, and remote providers
+            # must always present a current qualification record at route time.
+            requires_qualification = provider_policy.requires_qualification(resource["provider_id"])
             if requires_qualification:
                 _eff_binding = provider_binding_id.strip() if isinstance(provider_binding_id, str) else ""
                 if not _eff_binding:
@@ -267,7 +258,7 @@ class ResourceRouter:
             # at route time regardless of the persisted value.  Sensitive
             # data must never be dispatched to a cloud provider.
             effective_sensitivity = resource["sensitivity"]
-            if resource["provider_id"] not in _LOCAL_ONLY_PROVIDERS:
+            if not provider_policy.is_local_provider(resource["provider_id"]):
                 if _SENSITIVITY.get(effective_sensitivity, 0) > _SENSITIVITY["normal"]:
                     effective_sensitivity = "normal"
             if _SENSITIVITY.get(effective_sensitivity, -1) < _SENSITIVITY[request.sensitivity]:

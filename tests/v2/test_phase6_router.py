@@ -536,3 +536,66 @@ def test_router_accepts_resource_with_current_billing(tmp_path):
 
     selection = ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}))
     assert selection.resource_id == "current"
+
+
+# P0-2 regression: remote provider sensitivity is capped at "normal" at route
+# time.  A persisted "sensitive" or "internal" claim on a cloud resource must
+# never be honoured; only local providers (ollama, fake) may carry sensitive data.
+
+def test_remote_resource_with_sensitive_sensitivity_is_rejected_for_sensitive_request(tmp_path):
+    """Persisted 'sensitive' on a cloud resource is capped to 'normal' — cannot serve sensitive requests."""
+    ledger = ResourceLedger(tmp_path / "remote-sensitive.sqlite3")
+    ledger.register_resource(
+        "cloud",
+        provider_id="gemini",
+        provider_binding_id="gemini:worker",
+        native_unit="request",
+        capacity=10,
+        capabilities=["text"],
+        sensitivity="sensitive",
+        cost_minor=0,
+        metadata={"provider_binding_id": "gemini:worker", "model_id": "gemini-flash"},
+    )
+    ledger.observe("cloud", available=10, health="healthy")
+
+    with pytest.raises(NoRoute, match="no eligible resource"):
+        ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}, sensitivity="sensitive"))
+
+
+def test_remote_resource_with_internal_sensitivity_is_rejected_for_internal_request(tmp_path):
+    """Persisted 'internal' on a cloud resource is capped to 'normal' — cannot serve internal requests."""
+    ledger = ResourceLedger(tmp_path / "remote-internal.sqlite3")
+    ledger.register_resource(
+        "cloud",
+        provider_id="groq",
+        provider_binding_id="groq:worker",
+        native_unit="request",
+        capacity=10,
+        capabilities=["text"],
+        sensitivity="internal",
+        cost_minor=0,
+        metadata={"provider_binding_id": "groq:worker", "model_id": "some-model"},
+    )
+    ledger.observe("cloud", available=10, health="healthy")
+
+    with pytest.raises(NoRoute, match="no eligible resource"):
+        ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}, sensitivity="internal"))
+
+
+def test_local_provider_retains_sensitive_sensitivity_for_routing(tmp_path):
+    """ollama with 'sensitive' is not capped and can serve sensitive requests."""
+    ledger = ResourceLedger(tmp_path / "local-sensitive.sqlite3")
+    ledger.register_resource(
+        "local",
+        provider_id="ollama",
+        native_unit="request",
+        capacity=10,
+        capabilities=["text"],
+        sensitivity="sensitive",
+        cost_minor=0,
+    )
+    ledger.observe("local", available=10, health="healthy")
+
+    selection = ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}, sensitivity="sensitive"))
+    assert selection.resource_id == "local"
+    assert selection.provider_id == "ollama"

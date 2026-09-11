@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from .billing_catalog import TRUSTED_RESOURCE_CATALOG
 from .ledger import ResourceLedger
+from . import provider_policy
 from .qualification import QualificationResolver
 
 
@@ -88,11 +89,10 @@ def _plan_one(resource: Mapping[str, Any], resolver: QualificationResolver, *, n
     if profile.quota_required and not isinstance(resource.get("quota_domain"), str):
         return ResourceRepairPlan(resource_id, "blocked", before, before, "quota_domain is required for this binding")
     qualification = resolver.resolve(provider_id, binding_id, model_id, now=now)
-    qualification_required = provider_id != "fake"
-    if qualification_required and qualification is None:
+    if provider_policy.requires_qualification(provider_id) and qualification is None:
         return ResourceRepairPlan(resource_id, "blocked", before, before, "qualification is expired or unqualified")
-    resource_sensitivity = "sensitive" if provider_id == "ollama" else "normal"
-    privacy_profile = "local_only" if provider_id == "ollama" else "remote_cloud"
+    resource_sensitivity = provider_policy.max_sensitivity(provider_id)
+    resource_privacy_profile = provider_policy.privacy_profile(provider_id)
     tier = qualification.intelligence_tier if qualification is not None else profile.intelligence_tier
     capabilities = sorted(qualification.routing_capabilities if qualification is not None else {"text"})
     after = {
@@ -104,7 +104,7 @@ def _plan_one(resource: Mapping[str, Any], resolver: QualificationResolver, *, n
         "cost_minor": profile.cost_minor,
         "price_currency": profile.price_currency,
         "quota_domain": resource.get("quota_domain"),
-        "qualification_required": qualification_required,
+        "qualification_required": provider_policy.requires_qualification(provider_id),
         "qualification_confidence": qualification.confidence if qualification is not None else None,
         "billing_authority": "trusted_catalog",
         "billing_mode": profile.billing_mode,
@@ -115,7 +115,7 @@ def _plan_one(resource: Mapping[str, Any], resolver: QualificationResolver, *, n
         "allowance_amount": profile.allowance_amount,
         "allowance_currency": profile.allowance_currency,
         "allowance_period": profile.allowance_period,
-        "privacy_profile": privacy_profile,
+        "privacy_profile": resource_privacy_profile,
         "intelligence_tier": tier,
     }
     status = "current" if before == after else "repairable"
