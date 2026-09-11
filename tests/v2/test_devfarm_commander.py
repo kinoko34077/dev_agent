@@ -319,6 +319,64 @@ def test_commander_persists_host_verification_boundary_failure(tmp_path):
     assert "verification boundary unavailable" in result["tasks"][0]["last_error"]
     assert any(item["stage"] == "host_verification" and item["status"] == "failed" for item in result["results"])
 
+    recovered = verify_plan(root, "verification-failure-run")
+    assert recovered["tasks"][0]["status"] == "HOST_VERIFIED"
+    assert "block_reason" not in recovered["tasks"][0]
+    assert "last_error" not in recovered["tasks"][0]
+
+
+def test_commander_clears_stale_verification_error_after_reassigned_success(tmp_path):
+    root, targets, revision = _repo(tmp_path)
+    _manifest(root, revision, "worker-a", targets[0])
+    create_plan(
+        root,
+        {
+            "run_id": "verification-retry-clean-run",
+            "objective": "clear stale verification state after a successful retry",
+            "base_revision": revision,
+            "tasks": [
+                {
+                    "task_id": "worker-a",
+                    "owner": "worker",
+                    "manifest_path": ".devfarm/tasks/worker-a.json",
+                    "ownership": [targets[0]],
+                    "max_attempts": 2,
+                    "assignment": {"provider_id": "cloudflare", "model_id": "@cf/meta/llama-3.1-8b-instruct"},
+                }
+            ],
+        },
+    )
+    provider = _WorkerProvider(
+        {
+            "status": "completed",
+            "changed_files": [targets[0]],
+            "tests_run": [],
+            "tests_passed": True,
+            "known_issues": [],
+            "assumptions": [],
+            "patch": _patch(targets[0]),
+            "notes": "ready",
+        }
+    )
+    dispatch_plan(root, "verification-retry-clean-run", providers={"worker-a": provider})
+    failed = verify_plan(root, "verification-retry-clean-run", orchestrator=_FailingVerifier())
+    assert failed["tasks"][0]["status"] == "REJECTED"
+
+    reassign_task(
+        root,
+        "verification-retry-clean-run",
+        "worker-a",
+        provider_id="cloudflare",
+        model_id="@cf/meta/llama-3.1-8b-instruct",
+    )
+    dispatch_plan(root, "verification-retry-clean-run", providers={"worker-a": provider})
+    verified = verify_plan(root, "verification-retry-clean-run")
+
+    task = verified["tasks"][0]
+    assert task["status"] == "HOST_VERIFIED"
+    assert "block_reason" not in task
+    assert "last_error" not in task
+
 
 def test_commander_rejects_dependency_cycles_and_cli_can_read_status(tmp_path, capsys):
     root, _targets, revision = _repo(tmp_path)

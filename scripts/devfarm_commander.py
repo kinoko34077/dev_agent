@@ -792,6 +792,8 @@ def collect_plan(root: str | Path, run_id: str) -> dict[str, Any]:
         if task["status"] != "INTEGRATED":
             if result["status"] == "completed" and host_verified and accepted:
                 task["status"] = "HOST_VERIFIED"
+                task.pop("block_reason", None)
+                task.pop("last_error", None)
                 _record_result(plan, task["task_id"], "host_verification", result["status"], attempt_ref, attempt_id=task.get("last_attempt_id"))
             elif result["status"] == "completed":
                 task["status"] = "PROPOSED"
@@ -864,7 +866,10 @@ def verify_plan(
         attempt_id = result.get("attempt_id")
         if attempt_id is not None:
             current["last_attempt_id"] = _text(attempt_id, "attempt_id", max_length=101)
-        if not accepted:
+        if accepted:
+            current.pop("block_reason", None)
+            current.pop("last_error", None)
+        else:
             current["block_reason"] = "host_verification_failed"
         _record_result(
             plan,
