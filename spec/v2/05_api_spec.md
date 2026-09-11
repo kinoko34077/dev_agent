@@ -126,3 +126,28 @@
 - 入力/出力: Plan/Task manifest と `.devfarm/plans/` の status/result。Worker成果は Host Verification 前に正式成果とみなさない。
 - 権限: Codex が decomposition、review、integration を行う。Protected authority と Production scheduler/state を変更しない。
 - 禁止: Worker の自動 merge、重複 ownership、`HOST_VERIFIED` だけで code dependency を release、Production Runtime の Multi-Agent framework 化。
+
+### Resource qualification / repair
+
+- `QualificationResolver.resolve(provider_id, provider_binding_id, model_id)` は Production
+  routing projectionであり、exact current identityかつ`high` confidenceだけを返す。
+  low/medium confidenceの観測は`resolve_observed(...)`で監査・repair用途に参照できるが、
+  Routerのrouting grantにはならない。
+- `dev-agent resource validate` は旧Resourceを非破壊で報告する。`resource migrate`は
+  dry-runが既定で、`--apply --operator-ref`を伴う明示操作だけがResource catalogを更新し、
+  schema-v10の`resource_repairs`へbefore/afterを監査保存する。通常Operation起動はrepairを行わない。
+
+### Planner dependency release
+
+- `ChildTaskProposal.dependency_types` は依存keyごとの`ARTIFACT_READY`、`TASK_COMPLETED`、
+  `CODE_INTEGRATED`を表す。旧`dependencies`だけの入力は`TASK_COMPLETED`として扱う。
+- `CODE_INTEGRATED`は依存Taskの`integration_status=INTEGRATED`と非空`integration_revision`を
+  必須とし、Task完了だけでは後続Taskをreleaseしない。Planner出力は証拠を発行せず、Host側で
+  検証されたdurable metadataだけがrelease authorityになる。
+
+### Provider execution saturation wake
+
+- binding単位のsaturationは`resource:provider_execution_saturated:<binding>`へparkする。
+  一つのdispatch cycleで全eligible bindingがsaturatedになった場合は
+  `resource:provider_execution_saturated:pool`へparkし、任意のlane capacity recovery通知で
+  一回だけwakeして再選択する。busy polling、無関係waitのwake、外部結果不明のblind retryは禁止する。

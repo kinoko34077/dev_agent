@@ -11,7 +11,7 @@
 | Persistence primitive | `src/dev_agent/persistence/lease.py` | State／Scheduler shared lease proof and stale-lease assertion | domain / SQLite primitive | atomic lease fencing | `tests/v2/test_lease_fencing_architecture.py` |
 | State | `src/dev_agent/state/` | SQLite/JSON durable state、transaction、narrow state views、control repository | domain / persistence primitive | `commit_transition()` atomicity | `tests/v2/test_recovery_sqlite.py`, `test_lease_fencing_architecture.py` |
 | Providers | `src/dev_agent/providers/` | Adapter、Factory、Registry、Dispatcher、journal | domain / resources | Provider intent、audit、reconciliation | `tests/v2/test_phase6_provider_*.py` |
-| Resources | `src/dev_agent/resources/` | ResourceLedger facade、catalog／observation／quota／health／budget、router、schema/migrations | domain / state | Hard Budget、quota、privacy、survival | `tests/v2/test_resource_*.py`, `test_quota_*.py` |
+| Resources | `src/dev_agent/resources/` | ResourceLedger facade、catalog／observation／quota／health／budget、qualification projection、explicit legacy repair、router、schema/migrations | domain / state | Hard Budget、quota、privacy、qualification、survival | `tests/v2/test_resource_*.py`, `test_quota_*.py`, `test_resource_repair.py` |
 | Tools | `src/dev_agent/tools/` | policy、executor、subprocess、effect guard | domain / state | approval、scope、process containment | `tests/v2/test_tool_*.py` |
 | Security | `src/dev_agent/security/protected_paths.py`, `src/dev_agent/security/` | protected responsibility path、PathPolicy、audit sanitizer | domain / policy | protected authority、secret boundary | `tests/v2/test_security_boundaries.py` |
 | Intelligence | `src/dev_agent/intelligence/` | tier policy、Evaluator、escalation、lifecycle | domain / providers / resources / state | finite execution、explicit review | `tests/v2/test_intelligence_*.py` |
@@ -50,3 +50,8 @@ No layer may reach through a facade into another layer's private repository or
 authority. Internal modules use leaf imports; package barrel exports exist only
 for public compatibility. A new external AgentBackend, MCP, A2A, or UI integration
 must be an adapter around these boundaries, not a replacement for them.
+
+Production qualification admission requires an exact current identity and high
+confidence. Low/medium confidence remains inspectable evidence but is not a
+routing grant. Legacy Resource catalog changes use the explicit operator CLI
+repair path and schema-v10 audit; normal Operation startup remains read-only.

@@ -31,6 +31,11 @@ Request outcomeの不確実性を別状態で保持する。
 resource:provider_execution_saturated:<provider_binding_id-or-lane>
 ```
 
+複数のeligible laneを一つのdispatch cycleで使い切った場合は、pool wait identity
+`resource:provider_execution_saturated:pool`を使用する。いずれか一つのlaneが復帰した
+通知でpool waitを一度wakeし、WorkerRunnerがResourceRouterで再選択する。単一laneの
+waitは従来どおりbinding単位に限定し、quota／approval等の無関係なwaitはwakeしない。
+
 capacityが解放されたことを、ModelTurnExecutorのcompletion通知または既存Operation /
 Scheduler maintenance boundaryからboundedにQueueへ伝える。
 

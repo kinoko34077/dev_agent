@@ -1,6 +1,6 @@
 # Current State — v2/bootstrap
 
-実装基準は `9689f41` です。直近のローカル全回帰もこのコード基準で検証し、
+実装基準は `2b8f247` です。直近のローカル全回帰もこのコード基準で検証し、
 本書はそのコードと、直近の外部資格化・DevFarm実行結果を同期したCurrent Stateです。
 GATE_STATUSの既存statusは変更していません。
 
@@ -29,6 +29,7 @@ Provider hierarchy、Gate判定は変更していません。refactorの性能�
 - Phase 7 Operation lifecycle composition: `OperationService.evaluate_task()`／`review_task()`／`dispatch_reviewed()`を追加し、既存の`FiniteLifecycleLoop`、`EvaluationCoordinator`、`TaskLifecycleCoordinator`、`EscalationExecutor`、`ProviderDispatcher`を明示review境界のまま接続した。reviewed dispatchは`DurableQueue`のlease proofでeffect intent、Provider dispatch、Task transitionをfenceする。自動昇格・自動承認・新Schedulerは追加していない
 - Phase 7 root planning boundary: `RootPlanningProposal`／`RootPlanningValidator`を追加し、reasoning rootからの有限child proposalをTask作成前に検証する。TaskGraph上限、dependency cycle、未知capability、protected worker assignment、sensitivity downgradeをfail-closedで拒否し、依存childは既存StateStoreへ`WAITING_DEPENDENCY`として保存する。Plannerはauthorityを発行しない
 - Planner dependency lifecycle: 依存childは既存Operation maintenance境界で前段Taskの完了を再評価し、全依存が`COMPLETED`のときだけ既存Durable Queueへreleaseする。失敗／取消依存はchildを実行せずterminalizeし、独立Schedulerは追加していない
+- Planner dependency types: 既存依存は後方互換の`TASK_COMPLETED`として扱い、新規proposalは`ARTIFACT_READY`、`TASK_COMPLETED`、`CODE_INTEGRATED`を依存ごとにdurably保存する。`CODE_INTEGRATED`は`integration_status=INTEGRATED`と非空`integration_revision`の両方を要求し、完了だけではreleaseしない
 - Late provider completion: timeout後も生存するprovider callの結果を同じdurable effect intent／budget reservationへ一度だけreconcileし、既知の成功応答は新しいProvider requestなしでControllerが保存済み応答をreplayできる。`Operation.maintenance_tick()`はreconciliation済みの待機TaskだけをQueueへwakeし、結果不明は`WAITING_RECONCILIATION`に留める
 - Queue attempt accounting: statusの`current_attempt`／`execution_attempts`は実行回数、`claim_count`／`claim_streak`はlease claimの統計・crash-loop fenceとして分離し、waiting・wakeだけではlogical execution budgetを消費しない
 - Phase 7 hierarchy Operation E2E: 通常の`OperationService` compositionで、L1 primary failure→別quota domainのL1 fallback→明示review済みL2 dispatch→terminal completionを確認する。各dispatchはexact current tier、既存effect identity、lease proof、Task／Queue lifecycleを通過する。同一UNKNOWN quota domainのadmissionを無制限に再利用しない境界も維持する
@@ -37,8 +38,9 @@ Provider hierarchy、Gate判定は変更していません。refactorの性能�
 - DevFarm admission hardening: proposal段階の各外部Providerを送信直前に再検証し、operator activation、期限内capability qualification、正確なprovider binding／model／L1 tier、trusted no-charge billingをすべて満たさないProviderをfail-closedで拒否する。Provider名だけのfree判定や、直接注入された未資格Providerによる迂回を許可しない
 - Intelligence hierarchy evidence: `tests/v2/test_phase7_hierarchy_e2e.py`で、失敗したL1 bindingから同Tierの別L1 bindingを先に試し、その後に明示承認されたL2へ有限に昇格するcanonical ProviderDispatcher経路を確認した。各dispatchは今回のexact tierをhard filterし、unknown effectは再送しない
 - Cross-process safety hardening: cancellation requestはappend-onlyの`task_controls`へ保存し、terminal transition直前に再読込してlate completionをfenceする。Provider healthはresource/binding単位、quota wakeは`quota:<domain>`単位で、別Resource／別domainのTaskを誤って起こさない
-- Capability and waiting hardening: QualificationResolverは資格化証拠からcanonicalな`text`／`tool_call`等だけをrouting projectionへ導出し、`architecture`等のTask competency／policy traitをProvider capabilityへ渡さない。submit／Policy入口では未知capabilityを永続化前にfail-fastし、binding単位のprovider execution saturationは同じlaneの待機Taskだけをwakeする。late completionは同じintent／reservationへ一度だけreconcileし、既知成功を保存済み応答のreplayへ戻す
-- Phase 6 quota operation: ResourceLedger schema v9でmetric／unit／window／reset source／blocked-until／block reasonとbounded unknown-quota admissionを保持し、ProviderErrorの429／quota／transport分類をrouting blockへ接続済み。blocked observationは新しい正常観測で明示的に復帰する。Scheduler queue schema v4と`QuotaWakeScheduler`はreset boundaryへのdurable parking／wakeを提供し、`QuotaRequalificationCoordinator`は呼出側が明示した一回のbounded probeについて、freshな正常観測の保存後だけdue taskをwakeする。Operation Layerの`maintenance_tick`がdue domainだけを対象にprobe上限を適用し、`start`／`start --once`からも同じmaintenance boundaryを通る。OpenAI互換adapterはtelemetryを返す場合だけ既存`/models` probeからquota observationを返し、typed probe failureには保守的cooldownを永続化する。Provider再probeの無制限loopやclockだけによるblock解除は行わない
+- Capability and waiting hardening: QualificationResolverは資格化証拠からcanonicalな`text`／`tool_call`等だけをrouting projectionへ導出し、`architecture`等のTask competency／policy traitをProvider capabilityへ渡さない。submit／Policy入口では未知capabilityを永続化前にfail-fastし、binding単位のprovider execution saturationは同じlaneの待機Taskをwakeし、全eligible lane飽和時のpool waitは任意laneの復帰で一回だけ再選択する。late completionは同じintent／reservationへ一度だけreconcileし、既知成功を保存済み応答のreplayへ戻す
+- Residual hardening: `dev-agent resource validate`／`resource migrate --apply --operator-ref ...`で旧Resourceを通常起動から分離した明示repairへ送り、schema v10の`resource_repairs`へbefore/after auditを保存する。Qualification routing admissionはcurrentかつ`high` confidenceだけを許可し、low/mediumは観測として保持してもProduction routeへ投影しない。複数bindingが全て飽和した場合はpool waitへparkし、任意lane復帰で一回だけ再選択する
+- Phase 6 quota operation: ResourceLedger schema v10でmetric／unit／window／reset source／blocked-until／block reasonとbounded unknown-quota admission、明示Resource repair auditを保持し、ProviderErrorの429／quota／transport分類をrouting blockへ接続済み。blocked observationは新しい正常観測で明示的に復帰する。Scheduler queue schema v4と`QuotaWakeScheduler`はreset boundaryへのdurable parking／wakeを提供し、`QuotaRequalificationCoordinator`は呼出側が明示した一回のbounded probeについて、freshな正常観測の保存後だけdue taskをwakeする。Operation Layerの`maintenance_tick`がdue domainだけを対象にprobe上限を適用し、`start`／`start --once`からも同じmaintenance boundaryを通る。OpenAI互換adapterはtelemetryを返す場合だけ既存`/models` probeからquota observationを返し、typed probe failureには保守的cooldownを永続化する。Provider再probeの無制限loopやclockだけによるblock解除は行わない
 - DevFarm orchestration: Remote proposalとHost verificationを分離し、remote inference枠とworktree verification枠を別Governorでboundedに制御する。proposal失敗時にworktreeを作成せず、自動mergeもしない。Host Verificationはsanitized environment、temporary HOME、bounded output、timeout時のprocess-tree終了を持つが、OS filesystem/network sandboxではない
 - Development Commander: `scripts/devfarm_commander.py`が既存DevFarmの上にdevelopment-only親Planを提供する。`.devfarm/plans/<run-id>.json`へobjective、base revision、Task、依存、非重複ownership、assignment、result参照をdurably保存し、plan／dispatch／status／collect／verify／resume／reassign／mark-integratedを既存境界のcompositionで提供する。Taskごとの固定revisionを許容し、code dependencyは明示的な`mark-integrated`後だけreleaseする。非自明なGoalではCodexが分解・依存・ownership・risk・Worker適格性を先に記録し、狭いpatch/test/docs等を原則Worker候補とする。Codex担当へ残す場合も理由を記録する。Production Runtimeのstate／Scheduler／authorityやAgentBackendではない
 - Commander dogfood: `phase7-commander-local-dogfood-004`で、`aa2f819`固定のproposal、隔離worktreeでのHost Verification（許可済みfocused test `1 passed`）、Codex review、明示integrationを一連のPlanとして完了した。これはCommanderの計画・依存・検証・統合境界の実証であり、外部Cloud Workerの資格化や成功を意味しない
@@ -47,7 +49,7 @@ Provider hierarchy、Gate判定は変更していません。refactorの性能�
 
 ## 検証
 
-- v2ローカル全回帰（`0e43718`）: `625 passed, 1 skipped`（`python -m pytest tests/v2 -q`、186.11秒。所要時間は実行環境依存）。`602 passed, 1 skipped`はrefactor前の履歴baselineとして保持する
+- v2ローカル全回帰（`2b8f247`）: `636 passed, 1 skipped`（`python -m pytest tests/v2 -q`、160.09秒。所要時間は実行環境依存）。`625 passed, 1 skipped`以前は履歴baselineとして保持する
 - DevFarm admission／hierarchy focused: `54 passed`（qualified bindingの送信前再検証、未資格model拒否、L1 alternate→L2横断証拠を含む）
 - 追加監査focused: Provider quota分類／DevFarm model-qualified activation／trusted free qualificationを含む`45 passed`
 - Operation hardening focused: `94 passed, 1 skipped`（Operation、quota、DevFarm attempt、SQLite contention、security、budget境界）
@@ -70,12 +72,13 @@ Provider hierarchy、Gate判定は変更していません。refactorの性能�
 - Worker metricsはhost側で `provider_id`、`provider_binding_id`、`model_id`、`intelligence_tier`、`task_type`、request id、elapsed、許可されたusage scalar、host test結果を記録し、`.devfarm/metrics.sqlite3`へ`task_id + request_id`単位で冪等に蓄積する。Modelのtests claimは証拠に採用しない。metricsはrouting候補の観測値であり、Policyやacceptanceを上書きしない
 - Commander/Worker履歴 hardening: Commander Planは`plan_revision`付きCASで並行更新を検出し、Worker結果は`attempt_id`ごとのimmutable artifactと履歴を正本とする。検証時はrootの最新投影へフォールバックせず、選択attemptのpatchを必須として読む
 - Protected policy / audit hardening: protected responsibility path、PathPolicyの最長prefix、secret semantic sanitizerを共有境界へ集約し、token使用量・session telemetryは保持しつつcredential値だけをredactする
-- quota/reset focused regression: 既存のquota policy、schema v9 migration、blocked routing、bounded typed probe failure、DevFarm remote/host concurrencyに加え、同一domain内のdue Resource選択回帰を全回帰へ追加
+- quota/reset focused regression: 既存のquota policy、schema v10 migration、明示Resource repair audit、blocked routing、bounded typed probe failure、DevFarm remote/host concurrencyに加え、同一domain内のdue Resource選択回帰を全回帰へ追加
 - Provider alias focused regression: OpenAI互換／Cloudflareのbackend-reported model aliasを要求bindingへ正規化する回帰を含む`15 passed`。実Providerの応答内容はtelemetryへ分離し、外部Workerのpatch成功とは別に扱う
 - SQLite contention: 独立processのqueue／state／stop／status同時操作、WAL、5秒bounded busy timeoutを確認。既存のWindows ACL skipは継続
 - skip: `tests/v2/test_budget_reservations.py:142`（Windows ACLはdeployment-owned）
 - 最新コード基準のexact-head GitHub Actionsは、push後に`v2-core`（Python 3.10/3.11）と`v2 tests`を外部観測する。repo内GATE_STATUSへCI結果を書き戻してexact-headを自己参照しない
 - exact-head CI evidence: `929651cf3f16c6422e3e4d7178e48a6e88627878`に対し、`v2 tests` run `34539178663` と `v2-core` run `34539178669` がsuccess。これはCI証跡として記録するが、保護された`GATE_STATUS.json`は自己参照を避けるため書き換えていない
+- 最新の`2b8f247`については、この実行環境のGitHub CLIが未認証のためActionsのexact-head結果を独立取得できていない。ローカル回帰とarchitecture checkは確認済みだが、最新CIは未確認として扱う
 
 ## Provider状態
 
@@ -111,7 +114,7 @@ thoughtSignature、thinking設定はAdapter内部で保持・変換し、Kernel 
 - `providers`／`intelligence`に加えて`resources`／`backends`／`scheduler`／`state`のpackage exportをlazy compatibility facade化し、Controllerのlegacy provider pathも互換resource-policy経路だけで構築する。`scripts/check_architecture.py`はstdlib ASTで禁止依存とinternal barrel importを検査し、`scripts/test_scope.py`は変更pathからaffected test clusterを決定する。どちらもfull regressionの代替ではない
 
 - Controllerのprovider request実行を `runtime/model_turn.py`、compatibility direct-provider実行を `runtime/legacy_provider.py` へ分離。canonical経路は `Controller -> ProviderDispatcher` のままです
-- ResourceLedgerは同一SQLite connection / lock / transaction semanticsを維持し、Catalog、Observation、Quota、Health、Budget Reservation storeを内部分離しました。schema v9でquotaのmetric／unit／window／reset／blocked stateとbounded unknown-quota admissionをordered migrationしています
+- ResourceLedgerは同一SQLite connection / lock / transaction semanticsを維持し、Catalog、Observation、Quota、Health、Budget Reservation storeを内部分離しました。schema v10でquotaのmetric／unit／window／reset／blocked state、bounded unknown-quota admission、明示Resource repair auditをordered migrationしています
 - SQLiteStateStoreはconnection / transaction ownerを維持し、`state/schema.py`、`state/core_repository.py`、`state/effects_repository.py`へ内部整理しました
 - ToolRuntimeは `tools/executor.py` と `tools/effect_guard.py`へ実行／副作用責務を分離し、timeout、process-tree kill、cancellation、approval、idempotency、reconciliation semanticsを維持しました
 - ProviderRegistryは `providers/registry.py` を責務所有者とし、DispatcherはControlPlaneのSnapshot API経由でrouting/budget viewを取得します

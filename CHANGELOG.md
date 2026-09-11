@@ -4,6 +4,14 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-09-11 JST — Residual hardening gate
+
+- 旧Resourceの通常起動時silent repairを行わず、`resource validate`／明示`resource migrate`とschema v10のbefore/after auditへ分離した。
+- Qualification routingはexact current identityかつ`high` confidenceだけをProduction admissionとし、low/medium evidenceは観測用途へ限定した。
+- 全eligible Provider laneが飽和した場合のpool waitと、任意lane復帰によるbounded再選択wakeを追加した。単一bindingのwake境界は維持している。
+- Planner dependencyへ`ARTIFACT_READY`／`TASK_COMPLETED`／`CODE_INTEGRATED`を追加し、code dependencyはintegration statusとrevision証拠なしにreleaseしない。
+- focused regression、architecture check、全`tests/v2`（`636 passed, 1 skipped`）を確認した。G6O1と最新exact-head CIの外部判定は変更していない。
+
 ### 2026-09-11 JST — Provider response identity and external Worker boundary evidence
 
 - OpenAI互換／Cloudflare adapterが、free/wildcard endpointのbackend-reported model aliasを要求されたbinding identityと混同しないよう正規化した。実体名は`usage.provider_reported_model`へ分離し、focused adapter regressionは`15 passed`。

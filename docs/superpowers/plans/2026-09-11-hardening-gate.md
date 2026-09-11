@@ -27,11 +27,11 @@
 - Modify: `src/dev_agent/providers/dispatch.py`, `src/dev_agent/runtime/model_turn.py`, `src/dev_agent/runtime/controller.py`, `src/dev_agent/operation.py`
 - Test: `tests/v2/test_provider_saturation_and_wake.py` and existing provider/queue tests
 
-- [ ] Add a failing regression showing a task parked while multiple eligible bindings are saturated wakes when any one lane recovers.
-- [ ] Preserve concrete single-binding wake reasons and introduce only a stable pool wait identity for multi-lane saturation.
-- [ ] Carry the saturated binding set through ProviderDispatcher without importing runtime code into providers.
-- [ ] Wake pool waits on capacity recovery and let ResourceRouter reselect; do not busy-poll or wake unrelated waits.
-- [ ] Run the focused saturation and queue tests, then commit the independently testable slice.
+- [x] Add a failing regression showing a task parked while multiple eligible bindings are saturated wakes when any one lane recovers.
+- [x] Preserve concrete single-binding wake reasons and introduce only a stable pool wait identity for multi-lane saturation.
+- [x] Carry the saturated binding set through ProviderDispatcher without importing runtime code into providers.
+- [x] Wake pool waits on capacity recovery and let ResourceRouter reselect; do not busy-poll or wake unrelated waits.
+- [x] Run the focused saturation and queue tests, then commit the independently testable slice (`e94f308`).
 
 ### Task 2: Qualification confidence admission
 
@@ -39,9 +39,9 @@
 - Modify: `src/dev_agent/resources/qualification.py` and the routing projection boundary
 - Test: qualification projection/router tests
 
-- [ ] Add failing tests for high/current admission, low/medium rejection, expired rejection, and invalid confidence fail-closed behavior.
-- [ ] Keep raw qualification evidence available for inspection/repair while making Production routing require the documented confidence threshold.
-- [ ] Run the qualification/resource focused cluster and commit.
+- [x] Add failing tests for high/current admission, low/medium rejection, expired rejection, and invalid confidence fail-closed behavior.
+- [x] Keep raw qualification evidence available for inspection/repair while making Production routing require the documented confidence threshold.
+- [x] Run the qualification/resource focused cluster and commit (`809b728`).
 
 ### Task 3: Typed Planner dependency semantics
 
@@ -49,15 +49,15 @@
 - Modify: `src/dev_agent/operation_planning.py`, TaskGraph/dependency schema owner, relevant docs/spec
 - Test: planner dependency and restart persistence tests
 
-- [ ] Add failing tests for `ARTIFACT_READY`, `TASK_COMPLETED`, and `CODE_INTEGRATED` release conditions, including integration revision proof.
-- [ ] Preserve backward compatibility for existing dependency records with an explicit safe default.
-- [ ] Persist and validate dependency type and reject cycles/invalid integration evidence.
-- [ ] Run planner/state focused tests and commit.
+- [x] Add failing tests for `ARTIFACT_READY`, `TASK_COMPLETED`, and `CODE_INTEGRATED` release conditions, including integration revision proof.
+- [x] Preserve backward compatibility for existing dependency records with an explicit safe default.
+- [x] Persist and validate dependency type and reject cycles/invalid integration evidence.
+- [x] Run planner/state focused tests and commit (`f5155d6`).
 
 ### Task 4: Regression and evidence gate
 
-- [ ] Run `python -m pytest tests/v2 -q`, architecture checks, and read-only gate checks.
-- [ ] Update Current State, Traceability, relevant specs, and Changelog with only verified evidence.
+- [x] Run `python -m pytest tests/v2 -q`, architecture checks, and read-only gate checks (`636 passed, 1 skipped`; `ARCHITECTURE_PASS`; G6O1 remains blocked).
+- [x] Update Current State, Traceability, relevant specs, and Changelog with only verified evidence.
 - [ ] Re-check exact HEAD and attempt GitHub Actions inspection with authenticated `gh`; report external auth blockers truthfully.
 
 ### Task 5: Real Cloud L1 Commander dogfood

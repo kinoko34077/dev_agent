@@ -11,7 +11,7 @@
 | State | `src/dev_agent/state/` | SQLite connection/transaction owner、core/effect repository |
 | Persistence primitive | `src/dev_agent/persistence/lease.py` | State／Schedulerが共有するLeaseProof、StaleLease、atomic fence assertion |
 | Tools | `src/dev_agent/tools/` | Tool policy、executor、effect guard、timeout/cancel |
-| Resources | `src/dev_agent/resources/` | ResourceLedger facade、catalog/observation/quota/health/budget、trusted billing catalog、router/control、schema/migrations、unknown-quota admission store |
+| Resources | `src/dev_agent/resources/` | ResourceLedger facade、catalog/observation/quota/health/budget、qualification projection、trusted billing catalog、explicit repair audit、router/control、schema/migrations、unknown-quota admission store |
 | Providers | `src/dev_agent/providers/` | Adapter、Factory、Registry、Dispatcher、journal |
 | AgentBackend | `src/dev_agent/backends/` | 外部Agent harnessとのthin typed contract、`BackendAdmission`付きdispatcher。実adapterは別slice |
 | Runtime | `src/dev_agent/runtime/` | Controller、model turn、legacy compatibility、checkpoint/resume |
@@ -50,7 +50,7 @@ scheduler / operation composition
 - `operation` は既存部品を composition する薄い入口であり、production scheduler を並立させない。
 - Operationの内部変更理由は、`operation_bootstrap.py`（composition）、`operation_planning.py`（proposal／dependency）、`cli.py`（CLI parsing）、`state/control_repository.py`（durable stop control）へ分離する。`operation.py`は外部互換facadeとして残す。
 - `operation` は起動時に既存 Resource を再構成・上書きせず、trusted billing catalog と operator-owned quota domain を検証する。Provider の正常応答／bounded quota probe が Resource observation freshness の唯一の更新入口であり、未知価格・未観測quotaは fail-closed とする。timeout後のlate provider successは同一effect intentへreconcileしてから、保存済み応答を通常Controller経路へreplayする。
-- `intelligence`／`operation` はTaskのcanonical execution capability、competency、policy traitを分類し、Routerへはexecution capabilityだけを渡す。qualification projectionは期限内のexact provider／binding／modelから導出し、model名heuristicや未知文字列でproduction routeを許可しない。provider execution saturationはbinding lane単位のwake reasonへ写像する。
+- `intelligence`／`operation` はTaskのcanonical execution capability、competency、policy traitを分類し、Routerへはexecution capabilityだけを渡す。qualification projectionは期限内のexact provider／binding／modelかつhigh confidenceから導出し、model名heuristicや未知文字列でproduction routeを許可しない。provider execution saturationはbinding lane単位または全eligible lane時のpool wait reasonへ写像する。
 - `backends` は外部Agent harnessのidentity、session、event、cancellation、resultをtyped化し、既存StateStoreのeffect intent／Event／reconciliationへ接続する薄い境界である。`AgentBackendDispatcher`は既存authorityの証拠を`BackendAdmission`として要求し、lease／budget／approval／privacyの各strict-`True` flagとTask／Backend identityのcapability coverageをstart前に検証する。Runtime/State/Scheduler/Budget/Recoveryの所有権を持たず、Backend固有adapterはこの境界の外側に置く。
 - `intelligence/target.py` の `ExecutionTargetPolicy` は ModelProvider と AgentBackend の実行先を分離する。通常はModelProviderを選び、AgentBackendは明示autonomy、approval、budget、privacy、capabilityの既存証拠が揃った場合だけ許可する。tierだけを理由に自動昇格しない。
 - `recovery/` は runtime/controller から独立し、durable artifact と operator authority を扱う。Recovery が Controller の内部状態を書き換える設計にしない。
@@ -75,10 +75,12 @@ scheduler / operation composition
 - FiniteLifecycle の使用数は durable Task/Event history から復元し、process restart で retry 上限をリセットしない。
 - Quota は observation の `quota_domain` と reset/blocked_until を正本とし、reset 到達だけで復帰させず、bounded probe と正常観測の永続化後に routing へ戻す。
 - cancellation は Task payload の競合する全置換だけに依存せず、append-only control record を terminal transition 直前に再読込する。Provider health は selected resource/binding、quota wake は `quota:<domain>` に限定する。
-- waiting reasonはwake authorityとrestart behaviorを持つ。provider saturationはmatching binding capacity、quotaはmatching domainのbounded requalification、late provider completionは同一effect intentのdurable replayだけがwakeし、unknown outcomeを別dispatchへ変換しない。
+- waiting reasonはwake authorityとrestart behaviorを持つ。provider saturationはmatching binding capacity、全lane飽和時は`resource:provider_execution_saturated:pool`を任意laneのcapacity recoveryでwakeする。quotaはmatching domainのbounded requalification、late provider completionは同一effect intentのdurable replayだけがwakeし、unknown outcomeを別dispatchへ変換しない。
 - Evidence-based routing は現段階では advisory とし、minimum sample、freshness、rollback 条件を満たすまで hard routing policy に接続しない。
 - Operation の lifecycle composition は `OperationService` が `EvaluationCoordinator`、`FiniteLifecycleLoop`、`TaskLifecycleCoordinator`、`EscalationExecutor` を composition する。Operation はこれらの内部state machineを複製せず、reviewed dispatchには `DurableQueue` の lease proofを要求する。
 - Root planning は `src/dev_agent/intelligence/planner.py` のproposal／validatorを使い、Task作成前に既存`TaskGraph`制約と親子privacyを検証する。依存childは独立schedulerを作らず、`WAITING_DEPENDENCY`としてStateStoreに保存する。
+- Planner dependencyは依存keyごとに`ARTIFACT_READY`、`TASK_COMPLETED`、`CODE_INTEGRATED`を保存する。`CODE_INTEGRATED`は`integration_status=INTEGRATED`と非空`integration_revision`を要求し、旧文字列dependencyは`TASK_COMPLETED`として後方互換に扱う。
+- Resource schema v10の`resource_repairs`はoperator明示migrationのbefore/after auditを保持する。通常Operation startupはcatalogをrepair/upsertせず、Qualificationのlow/medium confidenceは観測としてのみ扱いroutingへ投影しない。
 
 ## 実装・検証ルール
 

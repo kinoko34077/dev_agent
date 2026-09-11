@@ -109,6 +109,15 @@ childのtierは全てL1に固定しない。
 依存patchを必要とする後続Taskは、依存Taskが実際に `INTEGRATED` され、integration revisionを
 baselineとして受け取るまでreleaseしない。artifactだけを受け取るTaskとは依存型を分ける。
 
+Planner dependencyは依存ごとに次の型をdurably保持する。
+
+- `TASK_COMPLETED`: 依存Taskが`COMPLETED`であること
+- `ARTIFACT_READY`: 依存Taskがhost-validated artifactを`artifact_ready=true`として公開したこと
+- `CODE_INTEGRATED`: `integration_status=INTEGRATED`かつ非空`integration_revision`が存在すること
+
+旧形式の文字列dependencyは`TASK_COMPLETED`として読み、既存Taskのrestart/replay互換を
+維持する。`CODE_INTEGRATED`は完了状態だけではreleaseしない。
+
 ## AgentBackend execution target
 
 L3はL3 ModelProviderとCodex等のAgentBackendを混同しない。既存

@@ -81,6 +81,11 @@ raw evidence
 Resource catalogの静的identityを資格化更新で上書きせず、`Resource policy ∩ current
 qualification`をEffective Routing Viewとする。
 
+Production routingのconfidence admissionは`high`だけを許可する。`low`／`medium`は
+resolverの観測projection（`resolve_observed`）で監査・repair用途に保持できるが、
+ResourceRouterへrouting grantとして渡してはならない。confidence値が未知または不正な
+場合はcatalog読込をfail-closedにする。
+
 ## A3 — Task capability / competency / policy trait
 
 次の3種類を分離する。
