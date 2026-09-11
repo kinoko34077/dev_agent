@@ -134,7 +134,7 @@
 - [x] Step 1: Add failing subprocess import checks for unnecessary barrel and eager adapter imports.
 - [x] Step 2: Run them and confirm the pre-change provider and intelligence barrels loaded the full adapter/pipeline set.
 - [x] Step 3: Implement lazy compatibility exports and ProviderFactory local construction imports; public exports remain stable.
-- [x] Step 4: Leave legacy provider compatibility paths intact; no active path was removed while the package imports became cold.
+- [x] Step 4: Leave legacy provider compatibility paths intact while making them cold: Controller imports and constructs the legacy executor only for the compatibility resource-policy path; resource, backend, scheduler, and state package exports are lazy compatibility facades.
 - [x] Step 5: Run import/provider/intelligence suites; results are `25 passed`, `19 passed`, and `10 passed` across the focused slices.
 
 ### Task 7: Controller and Ledger readability slices
@@ -171,8 +171,8 @@
 - [x] Step 2: Implement the stdlib-only checks with a small explicit allowlist and a subprocess regression test.
 - [x] Step 3: Add affected-test scope data and a command that prints focused paths for changed files; the CLI regression passes.
 - [x] Step 4: Measure import time, Operation open time, qualification load count, planner snapshot count, focused time, and full-suite time before/after where the metric exists. The fixed pre-refactor worktree measured provider-dispatch import at `1267.71ms` and fake Operation open at `108.26ms`; the current code measured `345.80ms` and `90.17ms`, respectively. Current qualification load count is `1`, and the planning regression observes one snapshot per apply (pre-refactor characterization was `2`).
-- [x] Step 5: Run the full regression and read-only Gate check. Current cumulative result is `620 passed, 1 skipped in 133.14s`; the Gate remains externally blocked by G6O1. Exact-head CI is pending the next push.
-- [x] Step 6: Synchronize docs without changing Gate status; architecture/scope tooling was pushed in `5e41200` and the ownership/baseline documentation slice in `18b22c1`.
+- [x] Step 5: Run the full regression and read-only Gate check. Current cumulative result is `625 passed, 1 skipped in 186.11s`; the Gate remains externally blocked by G6O1. Exact-head CI is pending the next push.
+- [x] Step 6: Synchronize docs without changing Gate status; architecture/scope tooling was pushed in `5e41200`, ownership/baseline documentation in `18b22c1`, and the remaining lazy-import slice in `0e43718`.
 
 #### Stage 8 evidence
 
@@ -184,16 +184,18 @@ Full-suite timing collected during the refactor slices:
 | qualification catalog | 607 passed, 1 skipped | 131.33s |
 | planning snapshot reuse | 608 passed, 1 skipped | 124.41s |
 | lease/state views | 611 passed, 1 skipped | 167.23s |
-| architecture/scope tooling | 620 passed, 1 skipped | 133.14s |
+| lazy import + architecture/scope tooling | 625 passed, 1 skipped | 186.11s |
 
 Process/open measurements:
 
 | metric | pre-refactor `00596b8` | current `5e41200` |
 | --- | ---: | ---: |
 | `import src.dev_agent.providers.dispatch` | 1267.71ms | 345.80ms |
-| fake `OperationService.open` | 108.26ms | 90.17ms |
+| fake `OperationService.open` | 108.26ms | 84.00ms |
 | Qualification Matrix loads per Operation open | not available in the pre-catalog implementation | 1 |
 | planning snapshots per apply | 2 (characterization) | 1 |
+
+Additional current import measurements: `src.dev_agent.resources.router` loaded in `160.38ms`; the result is a point-in-time local measurement and is not a CI threshold.
 
 The timing is evidence only, not a claim that every slice improved runtime. The focused architecture checks and affected-test map are intended to reduce iteration scope while the full suite remains the final gate.
 

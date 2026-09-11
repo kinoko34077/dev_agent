@@ -22,6 +22,7 @@
 | Durable stop control | `src/dev_agent/state/control_repository.py` | Operation専用の第二StateStoreを作らず、既存SQLite SSOTへ接続する |
 | Lease fencing primitive | `src/dev_agent/persistence/lease.py` | StateからScheduler concrete implementationを参照せず、atomic transaction semanticsを維持する |
 | Resource schema／ordered migration | `src/dev_agent/resources/schema.py` | ResourceLedger facadeとschema versionを維持し、migration順序を変更しない |
+| Package compatibility exports／legacy provider path | `src/dev_agent/{providers,intelligence,resources,backends,scheduler,state}/__init__.py`、`src/dev_agent/runtime/controller.py` | public import namesは維持し、未使用のadapter／legacy compatibility pathをcanonical importから遅延する。legacy path自体は削除しない |
 | Architecture/preflight tooling | `scripts/check_architecture.py`, `scripts/test_scope.py` | read-only開発補助。runtime authority、Scheduler、StateStoreを所有しない |
 
 この表はv1資産の復活を意味しない。v2の内部責務移動と互換facadeの所有者を記録するためのものとする。
