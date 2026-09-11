@@ -151,8 +151,8 @@
 - [x] Step 1: Existing Controller regression suites cover success, ToolCall, resume, timeout, quota, budget, saturation, late completion, cancel, UNKNOWN, and reconciliation; the new architecture test fixes the intended phase boundary.
 - [x] Step 2: Run those characterization suites before extraction; the selected controller/intelligence/provider set was green before the phase split.
 - [x] Step 3: Extract step preparation, ModelRequest construction, and request checkpoint/accounting helpers without introducing a state-machine/handler framework; focused result is `71 passed`.
-- [ ] Step 4: Move Ledger schema/quota internals only when tests show a clear boundary; retain transaction semantics.
-- [ ] Step 5: Run the controller/resource focused suites and commit separate `refactor:` slices.
+- [x] Step 4: Move Ledger DDL and ordered schema migrations into `resources/schema.py`; retain the same connection, schema version, and transaction semantics.
+- [x] Step 5: Run the controller/resource focused suites; Controller result is `71 passed`, Resource/schema/budget/quota result is `77 passed, 1 skipped`.
 
 ### Task 8: Architecture/preflight tooling and final validation
 

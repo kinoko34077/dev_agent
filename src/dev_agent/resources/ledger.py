@@ -21,6 +21,7 @@ from .catalog import ResourceCatalogStore
 from .health import ProviderHealthStore
 from .observations import QuotaObservationStore, ResourceObservationStore
 from .quota_policy import QuotaBlockDecision
+from . import schema as resource_schema
 
 
 # Capability held only by the explicit budget-administration facade. Runtime
@@ -138,116 +139,10 @@ class QuotaObservation:
 class ResourceLedger:
     """SQLite-backed resource observations and budget reservation records."""
 
-    SCHEMA_VERSION = 9
+    SCHEMA_VERSION = resource_schema.SCHEMA_VERSION
     UNKNOWN_QUOTA_ADMISSION_LIMIT = 1
     UNKNOWN_QUOTA_ADMISSION_WINDOW_SECONDS = 60.0
-    _SCHEMA = """
-    CREATE TABLE IF NOT EXISTS resources (
-        resource_id TEXT PRIMARY KEY,
-        provider_id TEXT NOT NULL,
-        native_unit TEXT NOT NULL,
-        capacity REAL NOT NULL,
-        capabilities_json TEXT NOT NULL,
-        sensitivity TEXT NOT NULL,
-        cost_minor INTEGER,
-        price_currency TEXT,
-        quota_domain TEXT,
-        quota_remaining_ratio REAL,
-        quota_reset_at TEXT,
-        latency_ewma_ms REAL,
-        failure_ewma REAL,
-        inflight REAL NOT NULL DEFAULT 0,
-        concurrency_limit REAL,
-        available REAL NOT NULL,
-        health TEXT NOT NULL,
-        confidence REAL NOT NULL,
-        observed_at TEXT NOT NULL,
-        consecutive_failures INTEGER NOT NULL DEFAULT 0,
-        circuit_open_until REAL NOT NULL DEFAULT 0,
-        metadata_json TEXT NOT NULL DEFAULT '{}'
-    );
-    CREATE TABLE IF NOT EXISTS resource_observations (
-        observation_id TEXT PRIMARY KEY,
-        resource_id TEXT NOT NULL,
-        available REAL NOT NULL,
-        health TEXT NOT NULL,
-        confidence REAL NOT NULL,
-        observed_at TEXT NOT NULL,
-        quota_remaining_ratio REAL,
-        quota_reset_at TEXT,
-        latency_ewma_ms REAL,
-        failure_ewma REAL,
-        inflight REAL NOT NULL DEFAULT 0,
-        concurrency_limit REAL
-    );
-    CREATE TABLE IF NOT EXISTS quota_observations (
-        observation_id TEXT PRIMARY KEY,
-        resource_id TEXT NOT NULL,
-        quota_domain TEXT NOT NULL,
-        unit TEXT NOT NULL DEFAULT 'requests',
-        limit_value REAL,
-        remaining_value REAL,
-        consumed_value REAL,
-        authority TEXT NOT NULL DEFAULT 'provider',
-        metric TEXT NOT NULL DEFAULT 'quota',
-        window TEXT NOT NULL DEFAULT 'unknown',
-        reset_source TEXT,
-        blocked_until TEXT,
-        block_reason TEXT,
-        request_limit INTEGER,
-        request_remaining INTEGER,
-        token_limit INTEGER,
-        token_remaining INTEGER,
-        reset_at TEXT,
-        daily_remaining INTEGER,
-        concurrency_limit REAL,
-        confidence REAL NOT NULL,
-        observed_at TEXT NOT NULL,
-        source TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS budget_config (
-        id INTEGER PRIMARY KEY CHECK (id = 1),
-        hard_cap_minor INTEGER NOT NULL,
-        recovery_reserve_minor INTEGER NOT NULL,
-        currency TEXT NOT NULL
-        , period_id TEXT NOT NULL DEFAULT 'legacy'
-        , period_starts_at TEXT NOT NULL DEFAULT ''
-        , period_ends_at TEXT NOT NULL DEFAULT ''
-    );
-    CREATE TABLE IF NOT EXISTS budget_reservations (
-        reservation_id TEXT PRIMARY KEY,
-        task_id TEXT NOT NULL,
-        resource_id TEXT NOT NULL,
-        intent_key TEXT UNIQUE,
-        estimated_minor INTEGER NOT NULL,
-        actual_minor INTEGER,
-        recovery INTEGER NOT NULL,
-        status TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        reconciled_at TEXT
-        , period_id TEXT NOT NULL DEFAULT 'legacy'
-        , currency TEXT NOT NULL DEFAULT 'JPY'
-    );
-    CREATE TABLE IF NOT EXISTS resource_reservations (
-        reservation_id TEXT PRIMARY KEY,
-        resource_id TEXT NOT NULL,
-        native_units REAL NOT NULL,
-        status TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS resource_control (
-        id INTEGER PRIMARY KEY CHECK (id = 1),
-        maintenance INTEGER NOT NULL DEFAULT 0
-    );
-    CREATE TABLE IF NOT EXISTS resource_schema_meta (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS quota_unknown_admissions (
-        quota_domain TEXT PRIMARY KEY,
-        window_started_at REAL NOT NULL,
-        admitted_count INTEGER NOT NULL
-    );
-    """
+    _SCHEMA = resource_schema.SCHEMA
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
@@ -260,124 +155,7 @@ class ResourceLedger:
         self._quota_store = QuotaObservationStore(self.connection, self._lock)
         self._health_store = ProviderHealthStore(self.connection, self._lock)
         self._budget_store = BudgetReservationStore(self.connection, self._lock)
-        existing_tables = {row[0] for row in self.connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")}
-        try:
-            self.connection.executescript(self._SCHEMA)
-            if not existing_tables:
-                self.connection.execute("INSERT OR REPLACE INTO resource_schema_meta(key, value) VALUES ('schema_version', ?)", (str(self.SCHEMA_VERSION),))
-                self.connection.commit()
-                return
-            self.connection.execute("INSERT OR IGNORE INTO resource_schema_meta(key, value) VALUES ('schema_version', '1')")
-            current = int(self.connection.execute("SELECT value FROM resource_schema_meta WHERE key='schema_version'").fetchone()[0])
-            if current > self.SCHEMA_VERSION:
-                raise ValueError(f"unsupported resource schema version: {current}")
-            self.connection.commit()
-            self.connection.execute("BEGIN")
-            if current < 2:
-                self._ensure_column("resources", "price_currency", "TEXT")
-                self._ensure_column("budget_config", "period_id", "TEXT NOT NULL DEFAULT 'legacy'")
-                self._ensure_column("budget_config", "period_starts_at", "TEXT NOT NULL DEFAULT ''")
-                self._ensure_column("budget_config", "period_ends_at", "TEXT NOT NULL DEFAULT ''")
-                self._ensure_column("budget_reservations", "period_id", "TEXT NOT NULL DEFAULT 'legacy'")
-                self._ensure_column("budget_reservations", "currency", "TEXT NOT NULL DEFAULT 'JPY'")
-                self.connection.execute("UPDATE resource_schema_meta SET value='2' WHERE key='schema_version'")
-                current = 2
-            if current < 3:
-                config = self.connection.execute("SELECT currency, period_id, period_starts_at, period_ends_at FROM budget_config WHERE id=1").fetchone()
-                if config is not None and (config["period_id"] == "legacy" or not config["period_starts_at"] or not config["period_ends_at"]):
-                    now = datetime.now(timezone.utc)
-                    start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-                    end = start.replace(year=start.year + 1, month=1) if start.month == 12 else start.replace(month=start.month + 1)
-                    period_id = start.strftime("%Y-%m")
-                    self.connection.execute("UPDATE budget_config SET period_id=?, period_starts_at=?, period_ends_at=? WHERE id=1", (period_id, start.isoformat(), end.isoformat()))
-                    self.connection.execute("UPDATE budget_reservations SET period_id=?, currency=? WHERE period_id='legacy'", (period_id, config["currency"]))
-                self.connection.execute("UPDATE budget_reservations SET status='prepared' WHERE status='reserved'")
-                self.connection.execute("UPDATE resource_schema_meta SET value='3' WHERE key='schema_version'")
-            if current < 4:
-                self._ensure_column("budget_reservations", "intent_key", "TEXT")
-                self.connection.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_budget_reservations_intent_key ON budget_reservations(intent_key) WHERE intent_key IS NOT NULL")
-                self.connection.execute("UPDATE resource_schema_meta SET value='4' WHERE key='schema_version'")
-                current = 4
-            if current < 5:
-                self._ensure_column("resources", "quota_domain", "TEXT")
-                self.connection.execute(
-                    """CREATE TABLE IF NOT EXISTS quota_observations (
-                        observation_id TEXT PRIMARY KEY,
-                        resource_id TEXT NOT NULL,
-                        quota_domain TEXT NOT NULL,
-                        request_limit INTEGER,
-                        request_remaining INTEGER,
-                        token_limit INTEGER,
-                        token_remaining INTEGER,
-                        reset_at TEXT,
-                        daily_remaining INTEGER,
-                        concurrency_limit REAL,
-                        confidence REAL NOT NULL,
-                        observed_at TEXT NOT NULL,
-                        source TEXT NOT NULL
-                    )"""
-                )
-                self.connection.execute("CREATE INDEX IF NOT EXISTS idx_quota_observations_resource_observed_at ON quota_observations(resource_id, observed_at)")
-                self.connection.execute("UPDATE resource_schema_meta SET value='5' WHERE key='schema_version'")
-                current = 5
-            if current < 6:
-                for column, definition in (
-                    ("quota_remaining_ratio", "REAL"),
-                    ("quota_reset_at", "TEXT"),
-                    ("latency_ewma_ms", "REAL"),
-                    ("failure_ewma", "REAL"),
-                    ("inflight", "REAL NOT NULL DEFAULT 0"),
-                    ("concurrency_limit", "REAL"),
-                ):
-                    self._ensure_column("resources", column, definition)
-                    self._ensure_column("resource_observations", column, definition)
-                self.connection.execute("UPDATE resource_schema_meta SET value='6' WHERE key='schema_version'")
-                current = 6
-            if current < 7:
-                for column, definition in (
-                    ("unit", "TEXT NOT NULL DEFAULT 'requests'"),
-                    ("limit_value", "REAL"),
-                    ("remaining_value", "REAL"),
-                    ("consumed_value", "REAL"),
-                    ("authority", "TEXT NOT NULL DEFAULT 'provider'"),
-                ):
-                    self._ensure_column("quota_observations", column, definition)
-                self.connection.execute(
-                    "UPDATE quota_observations SET unit='tokens', limit_value=token_limit, remaining_value=token_remaining WHERE request_limit IS NULL AND request_remaining IS NULL AND token_limit IS NOT NULL"
-                )
-                self.connection.execute(
-                    "UPDATE quota_observations SET unit='requests', limit_value=request_limit, remaining_value=request_remaining WHERE request_limit IS NOT NULL OR request_remaining IS NOT NULL"
-                )
-                self.connection.execute("UPDATE resource_schema_meta SET value='7' WHERE key='schema_version'")
-            if current < 8:
-                for column, definition in (
-                    ("metric", "TEXT NOT NULL DEFAULT 'quota'"),
-                    ("window", "TEXT NOT NULL DEFAULT 'unknown'"),
-                    ("reset_source", "TEXT"),
-                    ("blocked_until", "TEXT"),
-                    ("block_reason", "TEXT"),
-                ):
-                    self._ensure_column("quota_observations", column, definition)
-                self.connection.execute("UPDATE resource_schema_meta SET value='8' WHERE key='schema_version'")
-                current = 8
-            if current < 9:
-                self.connection.execute(
-                    """CREATE TABLE IF NOT EXISTS quota_unknown_admissions (
-                        quota_domain TEXT PRIMARY KEY,
-                        window_started_at REAL NOT NULL,
-                        admitted_count INTEGER NOT NULL
-                    )"""
-                )
-                self.connection.execute("UPDATE resource_schema_meta SET value='9' WHERE key='schema_version'")
-            self.connection.commit()
-        except Exception:
-            self.connection.rollback()
-            raise
-
-    def _ensure_column(self, table: str, column: str, definition: str) -> None:
-        existing = {row[1] for row in self.connection.execute(f"PRAGMA table_info({table})")}
-        if column not in existing:
-            self.connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+        resource_schema.ensure_schema(self.connection, schema_version=self.SCHEMA_VERSION)
 
     def close(self) -> None:
         self.connection.close()
