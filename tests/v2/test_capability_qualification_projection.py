@@ -3,7 +3,14 @@ from datetime import datetime, timezone
 import pytest
 
 from src.dev_agent.operation import OperationConfig, OperationProviderBinding, OperationService
-from src.dev_agent.resources.qualification import QualificationResolver
+from src.dev_agent.resources.qualification import (
+    CANONICAL_ROUTING_CAPABILITIES,
+    QualificationCatalog,
+    QualificationError,
+    QualificationResolver,
+)
+from src.dev_agent.domain.capabilities import CANONICAL_EXECUTION_CAPABILITIES
+from src.dev_agent.intelligence.capabilities import CANONICAL_EXECUTION_CAPABILITIES as INTELLIGENCE_EXECUTION_CAPABILITIES
 from src.dev_agent.resources.ledger import ResourceLedger
 from src.dev_agent.resources.router import NoRoute, ResourceRouter, RouteRequest
 
@@ -99,6 +106,51 @@ def test_unknown_qualification_identity_does_not_fall_back_to_model_name():
     resolver = QualificationResolver(entries=[])
 
     assert resolver.resolve("gemini", "gemini:fast-fallback", "gemini-3.7-flash") is None
+
+
+def test_qualification_catalog_indexes_exact_identity():
+    entry = _qualification_entry(expires_at="2026-10-01T00:00:00+00:00")
+    catalog = QualificationCatalog.from_entries([entry])
+
+    assert catalog.lookup("fixture", "fixture:worker", "fixture-model") == entry
+    assert catalog.lookup("fixture", "fixture:other", "fixture-model") is None
+
+
+def test_qualification_catalog_rejects_duplicate_identity():
+    entry = _qualification_entry(expires_at="2026-10-01T00:00:00+00:00")
+
+    with pytest.raises(QualificationError, match="duplicate qualification identity"):
+        QualificationCatalog.from_entries([entry, dict(entry)])
+
+
+def test_qualification_catalog_rejects_unknown_confidence():
+    entry = _qualification_entry(expires_at="2026-10-01T00:00:00+00:00")
+    entry["confidence"] = "unverified"
+
+    with pytest.raises(QualificationError, match="confidence"):
+        QualificationCatalog.from_entries([entry])
+
+
+def test_canonical_execution_capabilities_have_one_source_of_truth():
+    assert CANONICAL_ROUTING_CAPABILITIES is CANONICAL_EXECUTION_CAPABILITIES
+    assert INTELLIGENCE_EXECUTION_CAPABILITIES is CANONICAL_EXECUTION_CAPABILITIES
+
+
+def test_operation_opens_one_shared_qualification_catalog(monkeypatch, tmp_path):
+    loads = []
+    original_load = QualificationCatalog.load
+
+    def counted_load(cls, path=None):
+        loads.append(path)
+        return original_load(path)
+
+    monkeypatch.setattr(QualificationCatalog, "load", classmethod(counted_load))
+    service = OperationService.open(OperationConfig(data_dir=tmp_path))
+    try:
+        assert len(loads) == 1
+        assert service.qualification_resolver is service.controller.resource_policy.router.qualification_resolver
+    finally:
+        service.close()
 
 
 def test_unqualified_model_name_does_not_assign_production_tier(tmp_path):

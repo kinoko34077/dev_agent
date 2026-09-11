@@ -13,12 +13,13 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Iterable, Mapping
 
+from ..domain.capabilities import CANONICAL_EXECUTION_CAPABILITIES
 
-CANONICAL_ROUTING_CAPABILITIES = frozenset(
-    {"text", "tool_call", "structured_output", "json", "long_context"}
-)
+CANONICAL_ROUTING_CAPABILITIES = CANONICAL_EXECUTION_CAPABILITIES
+_VALID_CONFIDENCE = frozenset({"low", "medium", "high"})
 _INTEGRATION_EVIDENCE = frozenset(
     {"controller_e2e", "thought_signature_roundtrip", "durable_provider_audit", "budget_reconciliation"}
 )
@@ -75,6 +76,64 @@ def _entry_key(entry: Mapping[str, Any]) -> tuple[str, str, str]:
     return provider, binding, model
 
 
+def _identity(provider_id: str, provider_binding_id: str, model_id: str) -> tuple[str, str, str]:
+    values = (provider_id, provider_binding_id, model_id)
+    if not all(isinstance(value, str) and value.strip() for value in values):
+        raise ValueError("provider, binding, and model identity are required")
+    return tuple(value.strip() for value in values)
+
+
+def _validate_entry(entry: Mapping[str, Any]) -> tuple[str, str, str]:
+    identity = _entry_key(entry)
+    _parse_timestamp(entry.get("tested_at"), name="tested_at")
+    _parse_timestamp(entry.get("expires_at"), name="expires_at")
+    raw_values = entry.get("capabilities")
+    if not isinstance(raw_values, list) or not all(isinstance(value, str) and value.strip() for value in raw_values):
+        raise QualificationError("qualification capabilities must be a non-empty string array")
+    tier = entry.get("intelligence_tier")
+    if tier is not None and tier not in {"L0", "L1", "L2", "L3"}:
+        raise QualificationError("qualification intelligence_tier is invalid")
+    confidence = entry.get("confidence")
+    if not isinstance(confidence, str) or confidence.strip().lower() not in _VALID_CONFIDENCE:
+        raise QualificationError("qualification confidence is invalid")
+    return identity
+
+
+@dataclass(frozen=True)
+class QualificationCatalog:
+    """Immutable, indexed qualification evidence for one runtime session."""
+
+    _entries_by_identity: Mapping[tuple[str, str, str], Mapping[str, Any]]
+
+    @classmethod
+    def from_entries(cls, entries: Iterable[Mapping[str, Any]]) -> "QualificationCatalog":
+        if not isinstance(entries, Iterable) or isinstance(entries, (str, bytes, Mapping)):
+            raise QualificationError("capability matrix entries must be an array")
+        indexed: dict[tuple[str, str, str], Mapping[str, Any]] = {}
+        for raw_entry in entries:
+            if not isinstance(raw_entry, Mapping):
+                raise QualificationError("qualification entries must be objects")
+            entry = dict(raw_entry)
+            identity = _validate_entry(entry)
+            if identity in indexed:
+                raise QualificationError(f"duplicate qualification identity: {identity!r}")
+            indexed[identity] = MappingProxyType(entry)
+        return cls(MappingProxyType(indexed))
+
+    @classmethod
+    def load(cls, path: str | Path | None = None) -> "QualificationCatalog":
+        matrix_path = Path(path) if path is not None else QualificationResolver.DEFAULT_MATRIX_PATH
+        try:
+            document = json.loads(matrix_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise QualificationError(f"unable to read capability matrix: {matrix_path}") from exc
+        entries = document.get("entries") if isinstance(document, dict) else None
+        return cls.from_entries(entries)
+
+    def lookup(self, provider_id: str, provider_binding_id: str, model_id: str) -> Mapping[str, Any] | None:
+        return self._entries_by_identity.get(_identity(provider_id, provider_binding_id, model_id))
+
+
 def _derive_capabilities(raw: frozenset[str]) -> frozenset[str]:
     capabilities: set[str] = set()
     if "text" in raw:
@@ -92,17 +151,24 @@ class QualificationResolver:
 
     DEFAULT_MATRIX_PATH = Path(__file__).resolve().parents[3] / "spec" / "v2" / "PROVIDER_CAPABILITY_MATRIX.json"
 
-    def __init__(self, *, matrix_path: str | Path | None = None, entries: Iterable[Mapping[str, Any]] | None = None) -> None:
-        if entries is None:
-            path = Path(matrix_path) if matrix_path is not None else self.DEFAULT_MATRIX_PATH
-            try:
-                document = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError) as exc:
-                raise QualificationError(f"unable to read capability matrix: {path}") from exc
-            entries = document.get("entries") if isinstance(document, dict) else None
-        if not isinstance(entries, Iterable) or isinstance(entries, (str, bytes, Mapping)):
-            raise QualificationError("capability matrix entries must be an array")
-        self._entries = tuple(dict(entry) for entry in entries if isinstance(entry, Mapping))
+    def __init__(
+        self,
+        *,
+        matrix_path: str | Path | None = None,
+        entries: Iterable[Mapping[str, Any]] | None = None,
+        catalog: QualificationCatalog | None = None,
+    ) -> None:
+        if catalog is not None and (matrix_path is not None or entries is not None):
+            raise ValueError("catalog cannot be combined with matrix_path or entries")
+        if catalog is None:
+            catalog = QualificationCatalog.from_entries(entries) if entries is not None else QualificationCatalog.load(matrix_path)
+        if not isinstance(catalog, QualificationCatalog):
+            raise TypeError("catalog must be a QualificationCatalog")
+        self._catalog = catalog
+
+    @property
+    def catalog(self) -> QualificationCatalog:
+        return self._catalog
 
     def resolve(
         self,
@@ -112,15 +178,8 @@ class QualificationResolver:
         *,
         now: datetime | None = None,
     ) -> QualificationProjection | None:
-        identity = (provider_id.strip(), provider_binding_id.strip(), model_id.strip())
-        if not all(identity):
-            raise ValueError("provider, binding, and model identity are required")
-        for entry in self._entries:
-            if _entry_key(entry) != identity:
-                continue
-            projection = self._project(entry, now=now)
-            return projection
-        return None
+        entry = self._catalog.lookup(provider_id, provider_binding_id, model_id)
+        return None if entry is None else self._project(entry, now=now)
 
     @staticmethod
     def _project(entry: Mapping[str, Any], *, now: datetime | None) -> QualificationProjection | None:
@@ -130,7 +189,7 @@ class QualificationResolver:
         if current.tzinfo is None:
             current = current.replace(tzinfo=timezone.utc)
         current = current.astimezone(timezone.utc)
-        if expires <= tested or not tested <= current < expires:
+        if not tested <= current < expires:
             return None
         raw_values = entry.get("capabilities")
         if not isinstance(raw_values, list) or not all(isinstance(value, str) and value.strip() for value in raw_values):
@@ -144,8 +203,8 @@ class QualificationResolver:
         if tier is not None and tier not in {"L0", "L1", "L2", "L3"}:
             raise QualificationError("qualification intelligence_tier is invalid")
         confidence = entry.get("confidence")
-        if not isinstance(confidence, str) or not confidence.strip():
-            raise QualificationError("qualification confidence is required")
+        if not isinstance(confidence, str) or confidence.strip().lower() not in _VALID_CONFIDENCE:
+            raise QualificationError("qualification confidence is invalid")
         return QualificationProjection(
             provider_id=identity[0],
             provider_binding_id=identity[1],
@@ -156,12 +215,13 @@ class QualificationResolver:
             intelligence_tier=tier,
             tested_at=entry["tested_at"].strip(),
             expires_at=entry["expires_at"].strip(),
-            confidence=confidence.strip(),
+            confidence=confidence.strip().lower(),
         )
 
 
 __all__ = [
     "CANONICAL_ROUTING_CAPABILITIES",
+    "QualificationCatalog",
     "QualificationError",
     "QualificationProjection",
     "QualificationResolver",

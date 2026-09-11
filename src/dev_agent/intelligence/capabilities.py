@@ -11,10 +11,8 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from ..domain.capabilities import CANONICAL_EXECUTION_CAPABILITIES
 
-CANONICAL_EXECUTION_CAPABILITIES = frozenset(
-    {"text", "tool_call", "structured_output", "json", "long_context"}
-)
 TASK_COMPETENCIES = frozenset(
     {
         "architecture",

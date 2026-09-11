@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import json
+import inspect
 import math
 import os
 from pathlib import Path
@@ -344,7 +345,7 @@ def _tool_registry() -> ToolRegistry:
     return registry
 
 
-def _inferred_tier(config: OperationConfig) -> str | None:
+def _inferred_tier(config: OperationConfig | OperationProviderBinding, *, qualification_resolver: QualificationResolver | None = None) -> str | None:
     """Resolve a tier from an explicit or qualified identity only.
 
     Model-name heuristics are unsafe for the production pool: a model can be
@@ -358,7 +359,8 @@ def _inferred_tier(config: OperationConfig) -> str | None:
     model_id = getattr(config, "model", None)
     provider_id = getattr(config, "provider_id", None)
     if binding_id and model_id and provider_id:
-        qualification = QualificationResolver().resolve(provider_id, binding_id, model_id)
+        resolver = qualification_resolver or QualificationResolver()
+        qualification = resolver.resolve(provider_id, binding_id, model_id)
         if qualification is not None and qualification.intelligence_tier is not None:
             return qualification.intelligence_tier
         profile = _operation_resource_profile(provider_id, binding_id, model_id)
@@ -372,7 +374,7 @@ def _inferred_tier(config: OperationConfig) -> str | None:
 class OperationService:
     """Compose existing v2 components for the minimum operational commands."""
 
-    def __init__(self, config: OperationConfig, *, store: SQLiteStateStore, queue: DurableQueue, ledger: ResourceLedger, control: OperationControl, controller: Controller, worker: WorkerRunner, dispatcher: ProviderDispatcher, evaluation: EvaluationCoordinator, lifecycle: TaskLifecycleCoordinator) -> None:
+    def __init__(self, config: OperationConfig, *, store: SQLiteStateStore, queue: DurableQueue, ledger: ResourceLedger, control: OperationControl, controller: Controller, worker: WorkerRunner, dispatcher: ProviderDispatcher, evaluation: EvaluationCoordinator, lifecycle: TaskLifecycleCoordinator, qualification_resolver: QualificationResolver | None = None) -> None:
         self.config = config
         self.store = store
         self.queue = queue
@@ -383,7 +385,13 @@ class OperationService:
         self.dispatcher = dispatcher
         self._evaluation = evaluation
         self._lifecycle = lifecycle
+        self._qualification_resolver = qualification_resolver or QualificationResolver()
         self._closed = False
+
+    @property
+    def qualification_resolver(self) -> QualificationResolver:
+        """Return the immutable qualification view used by this session."""
+        return self._qualification_resolver
 
     @classmethod
     def open(cls, config: OperationConfig | None = None) -> "OperationService":
@@ -394,17 +402,30 @@ class OperationService:
             queue = DurableQueue(config.queue_path)
             ledger = ResourceLedger(config.resources_path)
             control = OperationControl(config.queue_path)
+            qualification_resolver = QualificationResolver()
             cls._ensure_budget(ledger)
             bindings = config.provider_bindings
             providers = []
             trusted_free_binding_present = False
             for binding in bindings:
-                provider = cls._build_provider(binding)
-                cls._ensure_resource(ledger, provider, binding)
+                # Keep the narrow helper compatible with existing test and
+                # embedding overrides that still expose the pre-catalog
+                # one-argument signature.
+                build_provider = cls._build_provider
+                try:
+                    accepts_resolver = "qualification_resolver" in inspect.signature(build_provider).parameters
+                except (TypeError, ValueError):
+                    accepts_resolver = False
+                provider = (
+                    build_provider(binding, qualification_resolver=qualification_resolver)
+                    if accepts_resolver
+                    else build_provider(binding)
+                )
+                cls._ensure_resource(ledger, provider, binding, qualification_resolver=qualification_resolver)
                 profile = _operation_resource_profile(binding.provider_id, binding.binding_id, binding.model)
                 trusted_free_binding_present = trusted_free_binding_present or bool(profile is not None and profile.cost_minor == 0)
                 providers.append(provider)
-            resource_control = ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger))
+            resource_control = ResourceControlPlane(ResourceRouter(ledger, qualification_resolver=qualification_resolver), BudgetGovernor(ledger))
             dispatcher = ProviderDispatcher(ProviderRegistry(providers), resource_control)
             # The default fake adapter is an explicitly local smoke mode.  A
             # real or explicitly pooled Operation always enables exact-tier
@@ -437,6 +458,7 @@ class OperationService:
                 dispatcher=dispatcher,
                 evaluation=EvaluationCoordinator(store),
                 lifecycle=TaskLifecycleCoordinator(store),
+                qualification_resolver=qualification_resolver,
             )
         except Exception:
             if control is not None:
@@ -767,13 +789,13 @@ class OperationService:
             BudgetAuthority.configure(ledger, BudgetPolicy(hard_cap_minor=0, recovery_reserve_minor=0, currency="JPY"))
 
     @staticmethod
-    def _build_provider(config: OperationConfig | OperationProviderBinding):
+    def _build_provider(config: OperationConfig | OperationProviderBinding, *, qualification_resolver: QualificationResolver | None = None):
         if config.provider_id == "fake":
             provider = FakeProvider()
             provider_binding_id = config.binding_id
             setattr(provider, "provider_binding_id", provider_binding_id)
             setattr(provider, "model_id", config.model)
-            setattr(provider, "intelligence_tier", _inferred_tier(config))
+            setattr(provider, "intelligence_tier", _inferred_tier(config, qualification_resolver=qualification_resolver))
             return provider
         definition = ProviderDefinition(
             provider_id=config.provider_id,
@@ -782,17 +804,18 @@ class OperationService:
             credential_id=getattr(config, "credential_id", None),
             base_url=getattr(config, "base_url", None),
             timeout_seconds=getattr(config, "timeout_seconds", 30.0),
-            intelligence_tier=_inferred_tier(config),
+            intelligence_tier=_inferred_tier(config, qualification_resolver=qualification_resolver),
         )
         return ProviderFactory().create(definition)
 
     @staticmethod
-    def _ensure_resource(ledger: ResourceLedger, provider: Any, config: OperationConfig) -> None:
+    def _ensure_resource(ledger: ResourceLedger, provider: Any, config: OperationConfig | OperationProviderBinding, *, qualification_resolver: QualificationResolver | None = None) -> None:
         binding_id = getattr(provider, "provider_binding_id", None) or config.binding_id
         model_id = getattr(provider, "model_id", None) or config.model
         profile = _operation_resource_profile(config.provider_id, binding_id, model_id)
-        qualification = QualificationResolver().resolve(config.provider_id, binding_id, model_id)
-        tier = getattr(provider, "intelligence_tier", None) or (profile.intelligence_tier if profile else None) or _inferred_tier(config)
+        resolver = qualification_resolver or QualificationResolver()
+        qualification = resolver.resolve(config.provider_id, binding_id, model_id)
+        tier = getattr(provider, "intelligence_tier", None) or (profile.intelligence_tier if profile else None) or _inferred_tier(config, qualification_resolver=resolver)
         try:
             existing = ledger.get_resource(binding_id)
         except KeyError:

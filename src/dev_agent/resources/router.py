@@ -104,6 +104,11 @@ class ResourceRouter:
         """Compatibility view; routing itself only requires read access."""
         return self._read_view
 
+    @property
+    def qualification_resolver(self) -> QualificationResolver:
+        """Return the runtime-scoped qualification resolver."""
+        return self._qualification_resolver
+
     @staticmethod
     def _quota_ratio(observation: dict[str, object]) -> float | None:
         ratios: list[float] = []

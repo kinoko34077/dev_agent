@@ -31,11 +31,11 @@
 - Consumes: current `v2/bootstrap` checkout and existing docs.
 - Produces: recorded baseline for HEAD, full regression, import/open timing, and qualification read behavior.
 
-- [ ] Step 1: Confirm branch, exact HEAD, clean status, and current Gate status with command-local `safe.directory`.
-- [ ] Step 2: Run `python -m pytest tests/v2 -q` and preserve the result as the pre-refactor baseline.
+- [x] Step 1: Confirm branch, exact HEAD, clean status, and current Gate status with command-local `safe.directory`.
+- [x] Step 2: Run `python -m pytest tests/v2 -q` and preserve the result as the pre-refactor baseline (`602 passed, 1 skipped`, 138.13s).
 - [ ] Step 3: Measure `dev_agent` import time and representative `OperationService.open` time without changing production code.
-- [ ] Step 4: Record known external blockers without changing Gate status.
-- [ ] Step 5: Commit only the plan/evidence documentation when no source change is needed.
+- [x] Step 4: Record known external blockers without changing Gate status; G6O1 remains externally blocked.
+- [x] Step 5: Commit only the plan/evidence documentation when no source change is needed (`2052d73`).
 
 ### Task 2: Indexed QualificationCatalog and canonical capability ownership
 
@@ -50,12 +50,12 @@
 - Produces `QualificationCatalog.load(path)`, an immutable indexed catalog keyed by `(provider_id, provider_binding_id, model_id)`, and `QualificationResolver(catalog=...)`.
 - `QualificationResolver.resolve(...)` remains backward-compatible for existing callers, while Operation composition injects one resolver instance into tier resolution, resource projection, and `ResourceRouter`.
 
-- [ ] Step 1: Add failing tests for one explicit matrix load per catalog, exact-index lookup, duplicate identity rejection, invalid confidence rejection, expiry rejection, and shared resolver identity in Operation composition.
-- [ ] Step 2: Run only those tests and confirm they fail for the missing catalog/index/shared-instance behavior.
-- [ ] Step 3: Implement immutable catalog loading/validation/indexing without globals, import-time reads, refresh threads, or model-name tier inference.
-- [ ] Step 4: Move canonical routing vocabulary to one directionally neutral owner; keep task competencies/policy traits separate from provider execution capabilities.
-- [ ] Step 5: Inject the resolver through the existing Operation/Router composition and keep default construction only for compatibility/test callers.
-- [ ] Step 6: Run qualification, router, intelligence, and operation focused tests; commit `refactor: centralize qualification catalog`.
+- [x] Step 1: Add failing tests for one explicit matrix load per catalog, exact-index lookup, duplicate identity rejection, invalid confidence rejection, expiry rejection, and shared resolver identity in Operation composition.
+- [x] Step 2: Run only those tests and confirm they fail for the missing catalog/index/shared-instance behavior.
+- [x] Step 3: Implement immutable catalog loading/validation/indexing without globals, import-time reads, refresh threads, or model-name tier inference.
+- [x] Step 4: Move canonical routing vocabulary to one directionally neutral owner; keep task competencies/policy traits separate from provider execution capabilities.
+- [x] Step 5: Inject the resolver through the existing Operation/Router composition and keep default construction only for compatibility/test callers.
+- [x] Step 6: Run qualification, router, intelligence, and operation focused tests; full regression is `607 passed, 1 skipped`.
 
 ### Task 3: Hot-path context reuse
 
