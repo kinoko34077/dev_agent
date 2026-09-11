@@ -1,6 +1,6 @@
 # Current State — v2/bootstrap
 
-実装基準は `0e43718` です。直近のローカル全回帰もこのコード基準で検証し、
+実装基準は `9689f41` です。直近のローカル全回帰もこのコード基準で検証し、
 本書はそのコードと、直近の外部資格化・DevFarm実行結果を同期したCurrent Stateです。
 GATE_STATUSの既存statusは変更していません。
 
@@ -107,7 +107,7 @@ thoughtSignature、thinking設定はAdapter内部で保持・変換し、Kernel 
 
 - 軽量化リファクタの現行sliceでは、`src/dev_agent/operation_bootstrap.py`がprovider／qualification／resource／budgetのcomposition、`src/dev_agent/operation_planning.py`がplanning contextとchild dependency、`src/dev_agent/cli.py`がCLI parser、`src/dev_agent/state/control_repository.py`がdurable stop controlを所有する。`OperationService`は後方互換facadeとしてこれらをcompositionする
 - `src/dev_agent/persistence/lease.py`がStateとSchedulerの共有lease fencing primitiveを所有し、StateからScheduler concrete implementationへのimportを除去した。`state/views.py`にはcomponent向けnarrow Protocol viewを置くが、SQLiteStateStoreのtransaction ownerは維持する
-- `src/dev_agent/resources/schema.py`がResourceLedgerのschema／ordered migrationを所有する。ResourceLedger facade、既存store、schema versionは維持し、内部storeへの外部直接アクセスを新たに追加していない
+- `src/dev_agent/resources/schema.py`がResourceLedgerのschema／ordered migration、`resources/quota_store.py`がunknown-quota admission windowを所有する。ResourceLedger facade、既存store、schema version、同一SQLite transaction semanticsは維持し、内部storeへの外部直接アクセスを新たに追加していない
 - `providers`／`intelligence`に加えて`resources`／`backends`／`scheduler`／`state`のpackage exportをlazy compatibility facade化し、Controllerのlegacy provider pathも互換resource-policy経路だけで構築する。`scripts/check_architecture.py`はstdlib ASTで禁止依存とinternal barrel importを検査し、`scripts/test_scope.py`は変更pathからaffected test clusterを決定する。どちらもfull regressionの代替ではない
 
 - Controllerのprovider request実行を `runtime/model_turn.py`、compatibility direct-provider実行を `runtime/legacy_provider.py` へ分離。canonical経路は `Controller -> ProviderDispatcher` のままです

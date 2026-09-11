@@ -70,4 +70,5 @@
 | Operation composition boundaries | `src/dev_agent/operation_bootstrap.py`, `operation_planning.py`, `cli.py`, `state/control_repository.py` | `tests/v2/test_operation_boundaries.py` |
 | Lazy package/provider construction | `src/dev_agent/providers/__init__.py`, `providers/factory.py`, `intelligence/__init__.py` | `tests/v2/test_provider_exports.py`, `test_import_boundaries.py` |
 | Controller phase helpers and Resource schema owner | `src/dev_agent/runtime/controller.py`, `src/dev_agent/resources/schema.py` | `tests/v2/test_controller_refactor.py`, `test_resource_ledger_architecture.py` |
+| Unknown-quota local admission store | `src/dev_agent/resources/quota_store.py` | `tests/v2/test_resource_control.py`, `test_quota_scheduler.py`, `test_resource_observations.py` |
 | Dependency preflight and affected-test selection | `scripts/check_architecture.py`, `scripts/test_scope.py` | `tests/v2/test_architecture_script.py`, `test_test_scope.py` |

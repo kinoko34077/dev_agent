@@ -153,6 +153,7 @@
 - [x] Step 3: Extract step preparation, ModelRequest construction, and request checkpoint/accounting helpers without introducing a state-machine/handler framework; focused result is `71 passed`.
 - [x] Step 4: Move Ledger DDL and ordered schema migrations into `resources/schema.py`; retain the same connection, schema version, and transaction semantics.
 - [x] Step 5: Run the controller/resource focused suites; Controller result is `71 passed`, Resource/schema/budget/quota result is `77 passed, 1 skipped`.
+- [x] Step 6: Extract the local unknown-quota admission window into `resources/quota_store.py`; keep `ResourceLedger` as the facade and preserve the same SQLite lock/transaction behavior. Focused resource/quota result is `57 passed`; cumulative full regression is `625 passed, 1 skipped`.
 
 ### Task 8: Architecture/preflight tooling and final validation
 
@@ -171,8 +172,8 @@
 - [x] Step 2: Implement the stdlib-only checks with a small explicit allowlist and a subprocess regression test.
 - [x] Step 3: Add affected-test scope data and a command that prints focused paths for changed files; the CLI regression passes.
 - [x] Step 4: Measure import time, Operation open time, qualification load count, planner snapshot count, focused time, and full-suite time before/after where the metric exists. The fixed pre-refactor worktree measured provider-dispatch import at `1267.71ms` and fake Operation open at `108.26ms`; the current code measured `345.80ms` and `90.17ms`, respectively. Current qualification load count is `1`, and the planning regression observes one snapshot per apply (pre-refactor characterization was `2`).
-- [x] Step 5: Run the full regression and read-only Gate check. Current cumulative result is `625 passed, 1 skipped in 186.11s`; the Gate remains externally blocked by G6O1. Exact-head CI is pending the next push.
-- [x] Step 6: Synchronize docs without changing Gate status; architecture/scope tooling was pushed in `5e41200`, ownership/baseline documentation in `18b22c1`, and the remaining lazy-import slice in `0e43718`.
+- [x] Step 5: Run the full regression and read-only Gate check. The latest cumulative result is `625 passed, 1 skipped in 158.89s`; the Gate remains externally blocked by G6O1. Exact-head CI is pending the next push.
+- [x] Step 6: Synchronize docs without changing Gate status; architecture/scope tooling was pushed in `5e41200`, ownership/baseline documentation in `18b22c1`, the lazy-import slice in `0e43718`, and quota admission extraction in `9689f41`.
 
 #### Stage 8 evidence
 
@@ -185,6 +186,7 @@ Full-suite timing collected during the refactor slices:
 | planning snapshot reuse | 608 passed, 1 skipped | 124.41s |
 | lease/state views | 611 passed, 1 skipped | 167.23s |
 | lazy import + architecture/scope tooling | 625 passed, 1 skipped | 186.11s |
+| quota admission store | 625 passed, 1 skipped | 158.89s |
 
 Process/open measurements:
 

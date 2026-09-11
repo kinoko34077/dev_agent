@@ -11,7 +11,7 @@
 | State | `src/dev_agent/state/` | SQLite connection/transaction owner、core/effect repository |
 | Persistence primitive | `src/dev_agent/persistence/lease.py` | State／Schedulerが共有するLeaseProof、StaleLease、atomic fence assertion |
 | Tools | `src/dev_agent/tools/` | Tool policy、executor、effect guard、timeout/cancel |
-| Resources | `src/dev_agent/resources/` | ResourceLedger facade、catalog/observation/quota/health/budget、trusted billing catalog、router/control、schema/migrations |
+| Resources | `src/dev_agent/resources/` | ResourceLedger facade、catalog/observation/quota/health/budget、trusted billing catalog、router/control、schema/migrations、unknown-quota admission store |
 | Providers | `src/dev_agent/providers/` | Adapter、Factory、Registry、Dispatcher、journal |
 | AgentBackend | `src/dev_agent/backends/` | 外部Agent harnessとのthin typed contract、`BackendAdmission`付きdispatcher。実adapterは別slice |
 | Runtime | `src/dev_agent/runtime/` | Controller、model turn、legacy compatibility、checkpoint/resume |
