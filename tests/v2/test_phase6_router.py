@@ -141,6 +141,7 @@ def test_router_allows_one_explicit_unknown_quota_bootstrap_for_trusted_free_res
         capabilities=["text"],
         quota_domain="google-project",
         cost_minor=0,
+        price_currency="JPY",
         metadata={
             "provider_binding_id": "gemini:worker",
             "model_id": "gemini-3.5-flash-lite",
@@ -520,6 +521,7 @@ def test_router_accepts_resource_with_current_billing(tmp_path):
         capacity=10,
         capabilities=["text"],
         cost_minor=0,
+        price_currency="JPY",
         quota_domain="gemini-quota",
         metadata={
             "provider_binding_id": "gemini:worker",
@@ -599,3 +601,83 @@ def test_local_provider_retains_sensitive_sensitivity_for_routing(tmp_path):
     selection = ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}, sensitivity="sensitive"))
     assert selection.resource_id == "local"
     assert selection.provider_id == "ollama"
+
+
+# P1-5 regression: trusted_catalog billing fields are required — missing or
+# mismatched billing_mode / overage_policy / no_charge_guaranteed / price_currency
+# must all cause NoRoute.
+
+def _trusted_catalog_ledger(tmp_path, suffix, *, extra_meta=None, **overrides):
+    ledger = ResourceLedger(tmp_path / f"billing-required-{suffix}.sqlite3")
+    base_meta = {
+        "provider_binding_id": "gemini:worker",
+        "model_id": "gemini-3.5-flash-lite",
+        "billing_authority": "trusted_catalog",
+        "billing_expires_at": "2099-01-01T00:00:00+00:00",
+        "billing_mode": "recurring_allowance",
+        "overage_policy": "hard_stop",
+        "no_charge_guaranteed": True,
+    }
+    if extra_meta:
+        base_meta.update(extra_meta)
+    ledger.register_resource(
+        "r",
+        provider_id="gemini",
+        provider_binding_id="gemini:worker",
+        native_unit="request",
+        capacity=10,
+        capabilities=["text"],
+        cost_minor=0,
+        price_currency="JPY",
+        quota_domain="gemini-quota",
+        metadata=base_meta,
+        **overrides,
+    )
+    ledger.observe("r", available=10, health="healthy")
+    ledger.observe_quota("r", unit="requests", limit=100, remaining=80)
+    return ledger
+
+
+def test_trusted_catalog_missing_billing_mode_is_rejected(tmp_path):
+    ledger = _trusted_catalog_ledger(tmp_path, "no-mode", extra_meta={"billing_mode": None})
+    with pytest.raises(NoRoute, match="no eligible resource"):
+        ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}))
+
+
+def test_trusted_catalog_wrong_billing_mode_is_rejected(tmp_path):
+    ledger = _trusted_catalog_ledger(tmp_path, "bad-mode", extra_meta={"billing_mode": "free_fixed"})
+    with pytest.raises(NoRoute, match="no eligible resource"):
+        ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}))
+
+
+def test_trusted_catalog_missing_overage_policy_is_rejected(tmp_path):
+    ledger = _trusted_catalog_ledger(tmp_path, "no-overage", extra_meta={"overage_policy": None})
+    with pytest.raises(NoRoute, match="no eligible resource"):
+        ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}))
+
+
+def test_trusted_catalog_wrong_overage_policy_is_rejected(tmp_path):
+    ledger = _trusted_catalog_ledger(tmp_path, "bad-overage", extra_meta={"overage_policy": "best_effort"})
+    with pytest.raises(NoRoute, match="no eligible resource"):
+        ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}))
+
+
+def test_trusted_catalog_missing_no_charge_guaranteed_is_rejected(tmp_path):
+    ledger = _trusted_catalog_ledger(tmp_path, "no-ncg", extra_meta={"no_charge_guaranteed": None})
+    with pytest.raises(NoRoute, match="no eligible resource"):
+        ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}))
+
+
+def test_trusted_catalog_wrong_no_charge_guaranteed_is_rejected(tmp_path):
+    ledger = _trusted_catalog_ledger(tmp_path, "bad-ncg", extra_meta={"no_charge_guaranteed": False})
+    with pytest.raises(NoRoute, match="no eligible resource"):
+        ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}))
+
+
+def test_trusted_catalog_wrong_price_currency_is_rejected(tmp_path):
+    ledger = _trusted_catalog_ledger(tmp_path, "bad-currency")
+    # Override the resource's price_currency after registration to simulate tampering
+    ledger.connection.execute("UPDATE resources SET price_currency='USD' WHERE resource_id='r'")
+    ledger.connection.commit()
+    with pytest.raises(NoRoute, match="no eligible resource"):
+        ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}))

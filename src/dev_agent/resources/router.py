@@ -288,17 +288,18 @@ class ResourceRouter:
                     continue
                 if resource.get("cost_minor") != _catalog_profile.cost_minor:
                     continue
-                if resource.get("price_currency") is not None and _catalog_profile.price_currency is not None:
+                # price_currency must match the catalog when the catalog specifies one.
+                # A missing field in the resource row is treated as a tampered/legacy row.
+                if _catalog_profile.price_currency is not None:
                     if resource.get("price_currency") != _catalog_profile.price_currency:
                         continue
-                persisted_billing_mode = metadata.get("billing_mode")
-                if persisted_billing_mode is not None and persisted_billing_mode != _catalog_profile.billing_mode:
+                # billing_mode, overage_policy, and no_charge_guaranteed are required.
+                # A missing field is treated as a tampered or legacy row: fail-closed.
+                if metadata.get("billing_mode") != _catalog_profile.billing_mode:
                     continue
-                persisted_overage = metadata.get("overage_policy")
-                if persisted_overage is not None and persisted_overage != _catalog_profile.overage_policy:
+                if metadata.get("overage_policy") != _catalog_profile.overage_policy:
                     continue
-                persisted_no_charge = metadata.get("no_charge_guaranteed")
-                if persisted_no_charge is not None and persisted_no_charge != _catalog_profile.no_charge_guaranteed:
+                if metadata.get("no_charge_guaranteed") != _catalog_profile.no_charge_guaranteed:
                     continue
             elif billing_expires_at is not None:
                 try:

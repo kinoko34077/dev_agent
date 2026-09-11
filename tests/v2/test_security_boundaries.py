@@ -21,11 +21,14 @@ def test_path_policy_uses_the_most_specific_matching_rule():
 
 
 def test_protected_authority_policy_covers_responsibility_paths():
+    assert is_protected_path("src/dev_agent/resources/provider_policy.py")
     assert is_protected_path("src/dev_agent/resources/budget.py")
     assert is_protected_path("src/dev_agent/resources/budget_store.py")
     assert is_protected_path("src/dev_agent/resources/billing_catalog.py")
     assert is_protected_path("src/dev_agent/resources/qualification.py")
     assert is_protected_path("src/dev_agent/resources/control.py")
+    assert is_protected_path("src/dev_agent/resources/router.py")
+    assert is_protected_path("src/dev_agent/resources/repair.py")
     assert is_protected_path("src/dev_agent/backends/dispatcher.py")
     assert is_protected_path("spec/v2/PROVIDER_CAPABILITY_MATRIX.json")
     assert is_protected_path("config/v2.yaml")
