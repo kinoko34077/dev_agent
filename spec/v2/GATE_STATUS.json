@@ -40,6 +40,20 @@
       "requirements": ["C19/generated Tool full lifecycle: generate, inspect, register, disable, and revoke"]
     }
   },
+  "hardening_audit_v2_bootstrap": {
+    "completed_at": "2026-09-12",
+    "audit_head": "d5a66b4",
+    "result": "PASS — no residual authority violations",
+    "findings": "Remaining hardcoded provider comparisons in operation.py/_build_provider, billing_catalog.py/default_binding_id, and control.py/legacy_test_free are implementation-selection paths, not authority decisions; all local/remote authority decisions delegate to provider_policy.py.",
+    "hardening_steps_completed": [
+      "Step 1-2: provider_policy SSOT — is_local_provider/requires_qualification/max_sensitivity/privacy_profile; Ollama restart regression fixed",
+      "Step 3: billing fail-closed — billing_mode, overage_policy, no_charge_guaranteed, price_currency all required to match trusted_catalog",
+      "Step 4: recovery alignment — repair.py uses provider_policy; dispatch.py has no hardcoded identity decisions",
+      "Step 5: protected paths — provider_policy.py, router.py, repair.py added to PROTECTED_AUTHORITY_PATHS",
+      "Step 6: apply_proposal idempotent — deterministic child IDs via uuid5; partial-state recovery; 7 new crash-resistance tests",
+      "Step 7: test architecture — @pytest.mark.security opts security tests out of autouse qualification stub"
+    ]
+  },
   "stages": {
     "A": {
       "A1": {"status": "VERIFIED", "evidence": ["tests/v2/test_effect_reconciliation.py::test_external_handler_exception_is_unknown_not_terminal_failure"]},
