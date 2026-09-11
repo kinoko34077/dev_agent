@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import sqlite3
 
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS resources (
@@ -113,6 +113,16 @@ CREATE TABLE IF NOT EXISTS quota_unknown_admissions (
     quota_domain TEXT PRIMARY KEY,
     window_started_at REAL NOT NULL,
     admitted_count INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS resource_repairs (
+    audit_id TEXT PRIMARY KEY,
+    resource_id TEXT NOT NULL,
+    operator_ref TEXT NOT NULL,
+    status TEXT NOT NULL,
+    before_json TEXT NOT NULL,
+    after_json TEXT NOT NULL,
+    reason TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
 );
 """
 
@@ -261,6 +271,21 @@ def ensure_schema(connection: sqlite3.Connection, *, schema_version: int = SCHEM
                 )"""
             )
             connection.execute("UPDATE resource_schema_meta SET value='9' WHERE key='schema_version'")
+            current = 9
+        if current < 10:
+            connection.execute(
+                """CREATE TABLE IF NOT EXISTS resource_repairs (
+                    audit_id TEXT PRIMARY KEY,
+                    resource_id TEXT NOT NULL,
+                    operator_ref TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    before_json TEXT NOT NULL,
+                    after_json TEXT NOT NULL,
+                    reason TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL
+                )"""
+            )
+            connection.execute("UPDATE resource_schema_meta SET value='10' WHERE key='schema_version'")
         connection.commit()
     except Exception:
         connection.rollback()

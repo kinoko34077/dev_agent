@@ -87,5 +87,80 @@ class ResourceCatalogStore:
         with self._lock:
             return self.connection.execute("SELECT * FROM resources ORDER BY resource_id").fetchall()
 
+    def repair_projection(
+        self,
+        *,
+        resource_id: str,
+        capabilities: tuple[str, ...],
+        sensitivity: str,
+        cost_minor: int | None,
+        price_currency: str | None,
+        metadata: Mapping[str, Any],
+        audit_id: str,
+        operator_ref: str,
+        before: Mapping[str, Any],
+        after: Mapping[str, Any],
+        reason: str,
+        created_at: str,
+    ) -> None:
+        """Apply an explicit operator repair and record its safe projection."""
+
+        with self._lock:
+            row = self.connection.execute(
+                "SELECT 1 FROM resources WHERE resource_id=?",
+                (resource_id,),
+            ).fetchone()
+            if row is None:
+                raise KeyError(resource_id)
+            self.connection.execute(
+                """UPDATE resources
+                   SET capabilities_json=?, sensitivity=?, cost_minor=?,
+                       price_currency=?, metadata_json=?
+                   WHERE resource_id=?""",
+                (
+                    json.dumps(capabilities),
+                    sensitivity,
+                    cost_minor,
+                    price_currency,
+                    json.dumps(dict(metadata), ensure_ascii=False),
+                    resource_id,
+                ),
+            )
+            self.connection.execute(
+                """INSERT INTO resource_repairs(
+                       audit_id, resource_id, operator_ref, status,
+                       before_json, after_json, reason, created_at
+                   ) VALUES (?, ?, ?, 'repaired', ?, ?, ?, ?)""",
+                (
+                    audit_id,
+                    resource_id,
+                    operator_ref,
+                    json.dumps(dict(before), ensure_ascii=False),
+                    json.dumps(dict(after), ensure_ascii=False),
+                    reason,
+                    created_at,
+                ),
+            )
+            self.connection.commit()
+
+    def list_repairs(self, *, resource_id: str | None = None) -> list[dict[str, Any]]:
+        with self._lock:
+            if resource_id is None:
+                rows = self.connection.execute(
+                    "SELECT * FROM resource_repairs ORDER BY created_at, audit_id"
+                ).fetchall()
+            else:
+                rows = self.connection.execute(
+                    "SELECT * FROM resource_repairs WHERE resource_id=? ORDER BY created_at, audit_id",
+                    (resource_id,),
+                ).fetchall()
+            result = []
+            for row in rows:
+                item = dict(row)
+                item["before"] = json.loads(item.pop("before_json"))
+                item["after"] = json.loads(item.pop("after_json"))
+                result.append(item)
+            return result
+
 
 __all__ = ["ResourceCatalogStore"]

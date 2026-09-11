@@ -622,6 +622,49 @@ class ResourceLedger:
     def list_resources(self) -> list[dict[str, Any]]:
         return self._catalog_store.list()
 
+    def repair_resource_projection(
+        self,
+        resource_id: str,
+        *,
+        capabilities: Iterable[str],
+        sensitivity: str,
+        cost_minor: int | None,
+        price_currency: str | None,
+        metadata: Mapping[str, Any],
+        audit_id: str,
+        operator_ref: str,
+        before: Mapping[str, Any],
+        after: Mapping[str, Any],
+        reason: str,
+        created_at: str,
+    ) -> None:
+        """Apply an explicit catalog repair without touching observations."""
+
+        normalized = tuple(sorted({str(item).strip() for item in capabilities if str(item).strip()}))
+        if not normalized:
+            raise ValueError("resource repair requires at least one capability")
+        if sensitivity not in {"public", "normal", "internal", "sensitive"}:
+            raise ValueError("invalid resource sensitivity")
+        if not isinstance(operator_ref, str) or not operator_ref.strip():
+            raise ValueError("operator_ref is required for resource repair")
+        self._catalog_store.repair_projection(
+            resource_id=resource_id,
+            capabilities=normalized,
+            sensitivity=sensitivity,
+            cost_minor=cost_minor,
+            price_currency=price_currency,
+            metadata=metadata,
+            audit_id=audit_id,
+            operator_ref=operator_ref.strip(),
+            before=before,
+            after=after,
+            reason=reason,
+            created_at=created_at,
+        )
+
+    def list_resource_repairs(self, *, resource_id: str | None = None) -> list[dict[str, Any]]:
+        return self._catalog_store.list_repairs(resource_id=resource_id)
+
     def routing_snapshot(self) -> RoutingSnapshot:
         """Read resources and current-domain quota observations in one batch.
 

@@ -5,9 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 import sqlite3
 import math
+import json
 
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 
 def validate_resource_ledger(path: str | Path) -> tuple[bool, str]:
@@ -15,7 +16,7 @@ def validate_resource_ledger(path: str | Path) -> tuple[bool, str]:
     try:
         with sqlite3.connect(database) as connection:
             tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-            required = {"resources", "resource_observations", "quota_observations", "budget_config", "budget_reservations", "resource_reservations", "resource_schema_meta"}
+            required = {"resources", "resource_observations", "quota_observations", "budget_config", "budget_reservations", "resource_reservations", "resource_schema_meta", "resource_repairs"}
             missing = required - tables
             if missing:
                 return False, f"resource ledger missing tables: {', '.join(sorted(missing))}"
@@ -46,6 +47,9 @@ def validate_resource_ledger(path: str | Path) -> tuple[bool, str]:
                 if not all(math.isfinite(float(value)) for value in (capacity, available, confidence)) or capacity < 0 or available < 0 or available > capacity or confidence < 0 or confidence > 1 or health not in {"healthy", "degraded", "unhealthy", "unknown"}:
                     return False, f"resource record is invalid: {resource_id}"
                 resource_domains[resource_id] = quota_domain
+            legacy = legacy_resource_metadata(path)
+            if legacy:
+                return False, f"legacy resource metadata requires explicit repair: {', '.join(legacy)}"
             quota_observations = connection.execute(
                 """SELECT resource_id, quota_domain, unit, limit_value,
                           remaining_value, consumed_value, authority, metric,
@@ -110,4 +114,35 @@ def validate_resource_ledger(path: str | Path) -> tuple[bool, str]:
     return True, "Phase 6 resource ledger is readable"
 
 
-__all__ = ["validate_resource_ledger"]
+def legacy_resource_metadata(path: str | Path) -> list[str]:
+    """Return cloud Resource ids that still lack the current qualification marker.
+
+    Recovery stays runtime-independent and deliberately performs only a
+    conservative structural check.  It does not infer billing, qualification,
+    or privacy facts; the explicit Operation repair command performs those
+    authority checks before mutation.
+    """
+
+    database = Path(path).expanduser()
+    cloud_providers = {"gemini", "cloudflare", "openrouter", "groq", "mistral", "sambanova"}
+    try:
+        with sqlite3.connect(database) as connection:
+            rows = connection.execute(
+                "SELECT resource_id, provider_id, cost_minor, metadata_json FROM resources"
+            ).fetchall()
+    except (OSError, sqlite3.DatabaseError):
+        return []
+    legacy: list[str] = []
+    for resource_id, provider_id, cost_minor, metadata_json in rows:
+        if provider_id not in cloud_providers:
+            continue
+        try:
+            metadata = json.loads(metadata_json) if isinstance(metadata_json, str) else {}
+        except json.JSONDecodeError:
+            metadata = {}
+        if cost_minor == 0 and metadata.get("qualification_required") is not True:
+            legacy.append(str(resource_id))
+    return sorted(legacy)
+
+
+__all__ = ["legacy_resource_metadata", "validate_resource_ledger"]
