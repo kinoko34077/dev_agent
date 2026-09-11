@@ -24,7 +24,6 @@ from ..tools.runtime import ToolRuntime
 from ..intelligence.policy import TaskIntelligencePolicy
 from ..intelligence.routing import IntelligenceRoutePolicy
 from ..intelligence.capabilities import execution_capabilities
-from .legacy_provider import LegacyDirectProviderExecutor, LegacyDirectProviderJournal
 from .model_turn import ModelTurnExecutor, ProviderExecutionSaturated, ProviderRequestCancelled
 from .state import RuntimeState
 
@@ -93,24 +92,32 @@ class Controller:
         self._model_turn_executor = ModelTurnExecutor(self.provider, lease_guard=self._active_lease_guard)
         self._binding_model_turn_executors: dict[str, ModelTurnExecutor] = {}
         self._binding_executor_lock = RLock()
-        self._legacy_provider_journal = LegacyDirectProviderJournal(
-            store,
-            provider_id=self.provider.provider_id,
-            lease_proof=self._active_lease_proof,
-        )
-        self._legacy_provider_executor = LegacyDirectProviderExecutor(
-            provider_id=self.provider.provider_id,
-            provider=self.provider,
-            resource_policy=resource_policy,
-            state_store=store,
-            prepare_intent=lambda request, reservation, **kwargs: self._prepare_provider_intent(request, reservation, **kwargs),
-            record_audit=lambda request, reservation, outcome, intent_key, **kwargs: self._record_provider_audit(request, reservation, outcome, intent_key, **kwargs),
-            transition_intent=lambda key, **kwargs: self._provider_intent(key, **kwargs),
-            replay=lambda key: self._provider_replay(key),
-            request_provider=lambda request, deadline, cancel_event: self._provider_request(request, deadline, cancel_event),
-            lease_guard=self._active_lease_guard,
-            has_lease_guard=lambda: self.lease_guard is not None,
-        )
+        self._legacy_provider_journal = None
+        self._legacy_provider_executor = None
+        if resource_policy is not None and not getattr(self.provider, "handles_resource_policy", False):
+            # Keep the compatibility-only direct-provider path cold for the
+            # canonical Dispatcher path.  Its adapter and journal are loaded
+            # only for the legacy resource-policy composition that needs them.
+            from .legacy_provider import LegacyDirectProviderExecutor, LegacyDirectProviderJournal
+
+            self._legacy_provider_journal = LegacyDirectProviderJournal(
+                store,
+                provider_id=self.provider.provider_id,
+                lease_proof=self._active_lease_proof,
+            )
+            self._legacy_provider_executor = LegacyDirectProviderExecutor(
+                provider_id=self.provider.provider_id,
+                provider=self.provider,
+                resource_policy=resource_policy,
+                state_store=store,
+                prepare_intent=lambda request, reservation, **kwargs: self._prepare_provider_intent(request, reservation, **kwargs),
+                record_audit=lambda request, reservation, outcome, intent_key, **kwargs: self._record_provider_audit(request, reservation, outcome, intent_key, **kwargs),
+                transition_intent=lambda key, **kwargs: self._provider_intent(key, **kwargs),
+                replay=lambda key: self._provider_replay(key),
+                request_provider=lambda request, deadline, cancel_event: self._provider_request(request, deadline, cancel_event),
+                lease_guard=self._active_lease_guard,
+                has_lease_guard=lambda: self.lease_guard is not None,
+            )
         binder = getattr(provider, "bind_runtime", None)
         if callable(binder):
             binder(state_store=store, lease_guard=self._active_lease_guard, lease_proof=self._active_lease_proof)
@@ -755,7 +762,7 @@ class Controller:
                 provider_intent_key = None
                 replayed_response = None
                 legacy_execution = None
-                if self._legacy_provider_executor.applies():
+                if self._legacy_provider_executor is not None and self._legacy_provider_executor.applies():
                     preparation = self._legacy_provider_executor.prepare(request)
                     reservation = preparation.reservation
                     provider_intent_key = preparation.intent_key

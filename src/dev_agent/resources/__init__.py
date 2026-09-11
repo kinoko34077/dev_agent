@@ -1,45 +1,62 @@
-"""Phase 6 resource, budget, routing, and survival control plane."""
+"""Resource control-plane boundaries with lazy compatibility exports.
 
-from .budget import BudgetAuthority, BudgetExceeded, BudgetGovernor, BudgetPolicy, BudgetReconciliationRequired, BudgetReservation, MaintenanceActive, ResourceUnavailable, UnknownPrice
-from .control import DispatchDenied, DispatchReservation, ResourceControlPlane
-from .ledger import BudgetPeriod, MoneyAmount, QuotaObservation, ResourceLedger, ResourcePrice, ResourceSpec, UnknownQuotaAdmission
-from .router import NoRoute, ResourceReadView, ResourceRouter, RouteRequest, RouteSelection
-from .snapshot import RoutingSnapshot
-from .survival import SurvivalGovernor, SurvivalMode, SurvivalSnapshot, SurvivalState
-from .quota_policy import QuotaBlockDecision, classify_provider_error, next_reset_at, provider_reset_window
+Internal modules should import the leaf module that owns their dependency.
+The package-level names remain available for public consumers without loading
+the budget, ledger, router, and survival implementations together.
+"""
 
-__all__ = [
-    "BudgetExceeded",
-    "BudgetAuthority",
-    "BudgetGovernor",
-    "BudgetPolicy",
-    "BudgetReconciliationRequired",
-    "BudgetReservation",
-    "ResourceUnavailable",
-    "MaintenanceActive",
-    "BudgetPeriod",
-    "UnknownPrice",
-    "DispatchDenied",
-    "DispatchReservation",
-    "ResourceControlPlane",
-    "NoRoute",
-    "MoneyAmount",
-    "ResourcePrice",
-    "ResourceLedger",
-    "ResourceRouter",
-    "ResourceReadView",
-    "ResourceSpec",
-    "QuotaObservation",
-    "UnknownQuotaAdmission",
-    "RouteRequest",
-    "RouteSelection",
-    "RoutingSnapshot",
-    "SurvivalGovernor",
-    "SurvivalMode",
-    "SurvivalSnapshot",
-    "SurvivalState",
-    "QuotaBlockDecision",
-    "classify_provider_error",
-    "next_reset_at",
-    "provider_reset_window",
-]
+from importlib import import_module
+
+
+_LAZY_EXPORTS = {
+    "BudgetExceeded": (".budget", "BudgetExceeded"),
+    "BudgetAuthority": (".budget", "BudgetAuthority"),
+    "BudgetGovernor": (".budget", "BudgetGovernor"),
+    "BudgetPolicy": (".budget", "BudgetPolicy"),
+    "BudgetReconciliationRequired": (".budget", "BudgetReconciliationRequired"),
+    "BudgetReservation": (".budget", "BudgetReservation"),
+    "MaintenanceActive": (".budget", "MaintenanceActive"),
+    "ResourceUnavailable": (".budget", "ResourceUnavailable"),
+    "UnknownPrice": (".budget", "UnknownPrice"),
+    "DispatchDenied": (".control", "DispatchDenied"),
+    "DispatchReservation": (".control", "DispatchReservation"),
+    "ResourceControlPlane": (".control", "ResourceControlPlane"),
+    "BudgetPeriod": (".ledger", "BudgetPeriod"),
+    "MoneyAmount": (".ledger", "MoneyAmount"),
+    "QuotaObservation": (".ledger", "QuotaObservation"),
+    "ResourceLedger": (".ledger", "ResourceLedger"),
+    "ResourcePrice": (".ledger", "ResourcePrice"),
+    "ResourceSpec": (".ledger", "ResourceSpec"),
+    "UnknownQuotaAdmission": (".ledger", "UnknownQuotaAdmission"),
+    "NoRoute": (".router", "NoRoute"),
+    "ResourceReadView": (".router", "ResourceReadView"),
+    "ResourceRouter": (".router", "ResourceRouter"),
+    "RouteRequest": (".router", "RouteRequest"),
+    "RouteSelection": (".router", "RouteSelection"),
+    "RoutingSnapshot": (".snapshot", "RoutingSnapshot"),
+    "SurvivalGovernor": (".survival", "SurvivalGovernor"),
+    "SurvivalMode": (".survival", "SurvivalMode"),
+    "SurvivalSnapshot": (".survival", "SurvivalSnapshot"),
+    "SurvivalState": (".survival", "SurvivalState"),
+    "QuotaBlockDecision": (".quota_policy", "QuotaBlockDecision"),
+    "classify_provider_error": (".quota_policy", "classify_provider_error"),
+    "next_reset_at": (".quota_policy", "next_reset_at"),
+    "provider_reset_window": (".quota_policy", "provider_reset_window"),
+}
+
+
+def __getattr__(name: str):
+    target = _LAZY_EXPORTS.get(name)
+    if target is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module_name, attribute_name = target
+    value = getattr(import_module(module_name, __name__), attribute_name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(__all__))
+
+
+__all__ = list(_LAZY_EXPORTS)
