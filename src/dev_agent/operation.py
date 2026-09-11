@@ -787,6 +787,8 @@ class OperationService:
         if profile is not None:
             resource_metadata["billing_authority"] = "trusted_catalog"
             resource_metadata["billing_mode"] = profile.billing_mode
+            resource_metadata["overage_policy"] = profile.overage_policy
+            resource_metadata["no_charge_guaranteed"] = profile.no_charge_guaranteed
             if profile.allowance_amount is not None:
                 resource_metadata["allowance_amount"] = profile.allowance_amount
             if profile.allowance_currency is not None:

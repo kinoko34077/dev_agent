@@ -67,6 +67,7 @@ def test_devfarm_activation_requires_current_capability_and_billing_evidence(tmp
                         "role": "bounded development worker",
                         "tested_at": "2026-09-01T00:00:00+00:00",
                         "expires_at": "2026-09-11T00:00:00+00:00",
+                        "confidence": "high",
                         "capabilities": ["text"],
                     }
                 ]
@@ -109,7 +110,9 @@ def test_devfarm_eligibility_does_not_collapse_unknown_billing_into_free(tmp_pat
                         "model": "unlisted-model",
                         "provider_binding_id": "cloudflare:unlisted",
                         "intelligence_tier": "L1",
+                        "tested_at": "2026-09-01T00:00:00+00:00",
                         "expires_at": "2026-09-11T00:00:00+00:00",
+                        "confidence": "high",
                         "capabilities": ["text"],
                     }
                 ]
@@ -328,5 +331,39 @@ def test_manifest_allows_only_bounded_host_test_command_shapes():
         validate_manifest(manifest)
 
     manifest["test_commands"] = ["python -m pytest tests/v2/test_target.py -q; whoami"]
+    with pytest.raises(DevFarmError, match="test_commands"):
+        validate_manifest(manifest)
+
+
+@pytest.mark.parametrize(
+    "unsafe",
+    [
+        "python -m pytest tests/v2/test_target.py --basetemp=outside",
+        "python -m pytest tests/v2/test_target.py --junitxml=outside.xml",
+        "python -m pytest tests/v2/test_target.py -p pytest_cov",
+        "python -m pytest tests/v2/test_target.py --override-ini=addopts=-x",
+        "python -m pytest tests/v2/test_target.py --rootdir=outside",
+        "python -m pytest tests/v2/test_target.py --confcutdir=outside",
+        "python -m pytest tests/v2/test_target.py --pyargs",
+        "python -m pytest tests/v2/test_target.py -c outside.ini",
+    ],
+)
+def test_manifest_rejects_host_output_and_plugin_escape_options(unsafe):
+    manifest = {
+        "task_id": "unsafe-options-001",
+        "objective": "test",
+        "base_revision": "0" * 40,
+        "allowed_files": ["tests/v2/test_target.py"],
+        "read_files": ["tests/v2/test_target.py"],
+        "forbidden_files": [],
+        "external_provider_allowed": True,
+        "approved_provider_ids": ["cloudflare"],
+        "outbound_files": ["tests/v2/test_target.py"],
+        "requirements": [],
+        "acceptance": [],
+        "test_commands": [unsafe],
+        "max_attempts": 1,
+        "output_contract": {},
+    }
     with pytest.raises(DevFarmError, match="test_commands"):
         validate_manifest(manifest)

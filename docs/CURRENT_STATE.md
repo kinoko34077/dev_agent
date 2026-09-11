@@ -23,6 +23,39 @@
   present. Live qualification must use the existing canonical
   Controller → ProviderDispatcher path and exact binding/model evidence.
 
+## 2026-09-11 — critical Worker hardening slice
+
+- `tests/v2`: `672 passed, 1 skipped`; `scripts/check_architecture.py`:
+  `ARCHITECTURE_PASS`.
+- External Worker Host Verification is fail-closed by default:
+  `STATIC_ONLY` validates patch/path/Git evidence without executing patched
+  code. `TRUSTED_HOST_EXEC` requires explicit per-attempt operator approval;
+  `OS_SANDBOXED` is declared but unavailable. Unattended external Worker code
+  execution therefore remains disabled.
+- Host commands are strict `pytest`/`compileall` structures with relative
+  worktree targets and bounded safe options only. Environment, output, total
+  verification budget, and target resolution are bounded; stdout/stderr are
+  secret-sanitized. Worker-owned test changes alone cannot yield acceptance.
+- Verification writes immutable attempt evidence containing patch, manifest,
+  test-spec, base-revision, containment, and verified-test digests. Commander
+  integration reads that evidence rather than the mutable latest projection.
+- Allowance billing is not inferred from `cost_minor=0`; current trusted
+  billing mode, overage policy, and no-charge guarantee are required. Failed
+  planner dependencies are durably terminalized.
+
+- External Worker hardening: verification defaults to `STATIC_ONLY`; external
+  patches are not executed on the Host unless an operator explicitly approves
+  that attempt as `TRUSTED_HOST_EXEC`. `OS_SANDBOXED` is defined but not yet
+  available, so unattended external Worker code execution remains disabled.
+  Host test commands use a strict pytest/compileall allowlist, targets are
+  resolved inside the worktree, output is bounded and secret-sanitized, and
+  Worker-owned test changes alone cannot produce an accepted result.
+- Billing hardening: `cost_minor=0` is not sufficient evidence of no charge.
+  Current trusted profiles carry billing mode, overage policy, and a durable
+  no-charge guarantee; allowance-backed resources without a hard-stop guarantee
+  are fail-closed. Verification records bind immutable attempt, manifest, test
+  specification, containment, and patch SHA-256 evidence.
+
 実装基準は `f438d79` です。直近のローカル全回帰もこのコード基準で検証し、
 本書はそのコードと、直近の外部資格化・DevFarm実行結果を同期したCurrent Stateです。
 GATE_STATUSの既存statusは変更していません。

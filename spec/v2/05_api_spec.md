@@ -117,7 +117,8 @@
 - 出力: proposal、validated patch、host-verified result、metrics artifact。
 - retry artifact: proposal/result は attempt identity ごとの immutable artifact を正本とし、root の latest projection を検証対象へフォールバックしない。
 - 権限: 指定 worktree/proposal artifact のみ。公式 branch への自動 apply/merge はしない。
-- Host Verificationはsanitized environment、temporary HOME、bounded output、timeout時のprocess-tree終了を提供するが、OS filesystem/network sandboxではない。未sandbox実行をunattended最高信頼モードやsecurity sandboxとして扱わない。
+- Host Verificationは`STATIC_ONLY`を外部Providerの既定とし、patch/path/Git適用性とimmutable evidenceだけを検証してpatched codeを実行しない。`TRUSTED_HOST_EXEC`はattempt単位のoperator approvalが必要で、`OS_SANDBOXED`はfilesystem/network/resource isolationが実装されるまで利用不可。現行のsanitized environment、temporary HOME、bounded/secret-sanitized output、timeout時process-tree終了はOS sandboxではない。
+- Host test commandはpytest/compileall、相対worktree target、`-q`／`-x`／bounded `--maxfail=N`だけを許可する。Worker変更ファイルだけを対象にしたtestは正式acceptance evidenceにならず、unmodified trusted targetも必要とする。attemptのpatch、manifest、test spec digestとverification recordをGit integration proofへ結合する。
 - 禁止: root fallback、未承認送信、worker 間直接通信、Model 自己申告 test の証拠化。
 
 ### `CommanderPlanStore` / Commander

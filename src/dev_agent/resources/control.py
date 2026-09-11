@@ -33,6 +33,9 @@ class DispatchReservation:
     provider_binding_id: str | None = None
     model_id: str | None = None
     unknown_quota_domain: str | None = None
+    billing_mode: str = "unknown"
+    overage_policy: str = "unknown"
+    no_charge_guaranteed: bool = False
 
 
 class ResourcePolicy(Protocol):
@@ -185,6 +188,21 @@ class ResourceControlPlane:
             if unknown_quota_admitted:
                 self.governor.ledger.release_unknown_quota_admission(unknown_quota_domain)
             raise DispatchDenied("invalid_request", str(exc)) from exc
+        resource = self.governor.ledger.get_resource(selection.resource_id)
+        metadata = resource.get("metadata") if isinstance(resource.get("metadata"), dict) else {}
+        raw_billing_mode = metadata.get("billing_mode")
+        billing_mode = raw_billing_mode if isinstance(raw_billing_mode, str) else "unknown"
+        overage_policy = metadata.get("overage_policy") if isinstance(metadata.get("overage_policy"), str) else "unknown"
+        # Resources created by the focused in-process/fake-provider contract
+        # predate billing metadata and have no external billing authority. Keep
+        # that compatibility path for explicitly zero-priced non-authority
+        # resources; any catalog/allowance/paid metadata remains fail-closed.
+        legacy_test_free = (
+            resource.get("cost_minor") == 0
+            and "billing_authority" not in metadata
+            and "billing_mode" not in metadata
+        )
+        no_charge_guaranteed = metadata.get("no_charge_guaranteed") is True or legacy_test_free
         return DispatchReservation(
             reservation,
             selection.provider_id,
@@ -194,6 +212,9 @@ class ResourceControlPlane:
             selection.provider_binding_id,
             selection.model_id,
             unknown_quota_domain if unknown_quota_admitted else None,
+            billing_mode,
+            overage_policy,
+            no_charge_guaranteed,
         )
 
     def reconcile_response(self, reservation: DispatchReservation, response: ModelResponse) -> None:
@@ -204,7 +225,7 @@ class ResourceControlPlane:
             # metadata.  Paid reservations must never receive that implicit
             # default: their missing cost observation is an unresolved
             # external accounting outcome.
-            if reservation.budget.estimated_cost_minor == 0:
+            if reservation.budget.estimated_cost_minor == 0 and reservation.no_charge_guaranteed:
                 self.governor.reconcile(reservation.budget.reservation_id, actual_cost_minor=0)
                 return
             self.governor.mark_unknown(reservation.budget.reservation_id)

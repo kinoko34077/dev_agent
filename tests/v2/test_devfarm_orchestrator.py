@@ -72,6 +72,8 @@ def _repo(tmp_path, targets, provider_ids=None):
         path = root / target
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("def test_target():\n    assert True\n", encoding="utf-8")
+    baseline = root / "tests/v2/baseline.py"
+    baseline.write_text("def test_baseline():\n    assert True\n", encoding="utf-8")
     _git(root, "add", ".")
     _git(root, "commit", "-m", "proposal baseline")
     revision = _git(root, "rev-parse", "HEAD").stdout.strip()
@@ -95,7 +97,7 @@ def _repo(tmp_path, targets, provider_ids=None):
                     "outbound_files": [target],
                     "requirements": [],
                     "acceptance": ["focused test passes"],
-                    "test_commands": [f"python -m pytest {target} -q"],
+                    "test_commands": [f"python -m pytest {target} tests/v2/baseline.py -q"],
                     "max_attempts": 1,
                     "output_contract": {},
                 },
@@ -136,6 +138,8 @@ def test_remote_proposals_are_bounded_without_creating_worktrees(tmp_path):
     orchestrator = DevFarmOrchestrator(
         remote_governor=RemoteConcurrencyGovernor(max_inflight=2),
         host_governor=HostConcurrencyGovernor(worktree_verification_slots=1),
+        verification_trust_level="TRUSTED_HOST_EXEC",
+        operator_approved=True,
     )
 
     proposals = orchestrator.propose(
@@ -159,6 +163,8 @@ def test_run_creates_worktree_only_for_host_verification(tmp_path):
     orchestrator = DevFarmOrchestrator(
         remote_governor=RemoteConcurrencyGovernor(max_inflight=2),
         host_governor=HostConcurrencyGovernor(worktree_verification_slots=1),
+        verification_trust_level="TRUSTED_HOST_EXEC",
+        operator_approved=True,
     )
 
     report = orchestrator.run(root, [(manifests[0], _ConcurrentProvider(_output(target)))])
@@ -191,6 +197,8 @@ def test_remote_binding_limit_serializes_same_quota_identity(tmp_path):
     orchestrator = DevFarmOrchestrator(
         remote_governor=RemoteConcurrencyGovernor(max_inflight=2, per_binding_limits={"cloudflare": 1}),
         host_governor=HostConcurrencyGovernor(worktree_verification_slots=1),
+        verification_trust_level="TRUSTED_HOST_EXEC",
+        operator_approved=True,
     )
 
     proposals = orchestrator.propose(
@@ -213,6 +221,8 @@ def test_remote_binding_limits_allow_independent_quota_identities_in_parallel(tm
     orchestrator = DevFarmOrchestrator(
         remote_governor=RemoteConcurrencyGovernor(max_inflight=2, per_binding_limits={"cloudflare": 1, "gemini:worker": 1}),
         host_governor=HostConcurrencyGovernor(worktree_verification_slots=1),
+        verification_trust_level="TRUSTED_HOST_EXEC",
+        operator_approved=True,
     )
 
     proposals = orchestrator.propose(

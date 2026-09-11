@@ -23,7 +23,7 @@
 
 `.devfarm/` は runtime の正式データ領域ではなく、development-only の ignored artifact である。Credentials、`.env*`、private key、budget authority、Recovery、Gate status は保護領域として扱う。
 
-Provider billing projectionは`TrustedResourceProfile.billing_mode`を使用する。`free_fixed`、`recurring_allowance`、`recurring_credit`、`paid`、`unknown`を混同せず、allowance-backed bindingを`cost_minor=0`というprovider名だけの近道で登録しない。Ollama Cloud／Vercelのexact model profileとlive qualificationが揃うまでは構成可能だが、production qualification済みとは扱わない。
+Provider billing projectionは`TrustedResourceProfile.billing_mode`を使用する。`free_fixed`、`recurring_allowance`、`recurring_credit`、`paid`、`unknown`を混同せず、allowance-backed bindingを`cost_minor=0`というprovider名だけの近道で登録しない。`no_charge_guaranteed`はcurrent trusted profileと`hard_stop` overage policyからのみ導出し、応答costが欠落してもこの証拠なしに0円確定しない。Ollama Cloud／Vercelのexact model profileとlive qualificationが揃うまでは構成可能だが、production qualification済みとは扱わない。
 
 ## 許可された依存方向
 

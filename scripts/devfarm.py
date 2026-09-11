@@ -53,6 +53,19 @@ _MANIFEST_FIELDS = {
 _RESULT_FIELDS = {"status", "base_revision", "changed_files", "tests_run", "tests_passed", "known_issues", "assumptions"}
 _ATTEMPT_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,100}$")
 _HUNK_HEADER = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(?: .*)?$")
+VERIFICATION_TRUST_LEVELS = frozenset({"STATIC_ONLY", "TRUSTED_HOST_EXEC", "OS_SANDBOXED"})
+
+# Development-worker inputs are deliberately bounded before any provider call
+# or host-side worktree/test allocation.  These are contract limits, not a
+# replacement for the provider and host resource governors.
+MAX_OBJECTIVE_CHARS = 4_000
+MAX_REQUIREMENTS = 32
+MAX_REQUIREMENT_CHARS = 4_000
+MAX_ACCEPTANCE = 32
+MAX_ACCEPTANCE_CHARS = 4_000
+MAX_TEST_COMMANDS = 16
+MAX_OUTBOUND_FILES = 64
+MAX_OUTBOUND_BYTES = 512 * 1024
 
 
 def _nonempty(value: Any, name: str) -> str:
@@ -89,26 +102,49 @@ def _strings(value: Any, name: str) -> list[str]:
     return result
 
 
+def parse_host_test_command(command: str) -> list[str]:
+    """Parse one strictly allowlisted host verification command.
+
+    This intentionally accepts command strings for backwards-compatible
+    manifests, but the accepted language is a small structured subset rather
+    than a general shell or pytest command line.
+    """
+    if not isinstance(command, str) or not command.strip():
+        raise DevFarmError("test_commands must contain non-empty strings")
+    if any(char in command for char in ";&|<>`$()\r\n"):
+        raise DevFarmError("test_commands contain shell syntax")
+    try:
+        tokens = shlex.split(command, posix=True)
+    except ValueError as exc:
+        raise DevFarmError("test_commands must be parseable without a shell") from exc
+    if len(tokens) < 3 or tokens[0] not in {"python", "python3", "py"} or tokens[1:2] != ["-m"] or tokens[2] not in {"pytest", "compileall"}:
+        raise DevFarmError("test_commands must use python -m pytest or python -m compileall")
+    targets = 0
+    for token in tokens[3:]:
+        if token in {"-q", "-x"}:
+            continue
+        if token.startswith("--maxfail="):
+            value = token.partition("=")[2]
+            if not value.isdigit() or not 0 < int(value) <= 10:
+                raise DevFarmError("test_commands --maxfail must be between 1 and 10")
+            continue
+        if token.startswith("-"):
+            raise DevFarmError(f"test_commands contain an unsafe option: {token}")
+        target = token.split("::", 1)[0]
+        parsed = PurePosixPath(target.replace("\\", "/"))
+        if parsed.is_absolute() or ".." in parsed.parts or not target:
+            raise DevFarmError("test_commands paths must stay relative to the worker worktree")
+        targets += 1
+    if tokens[2] == "pytest" and targets == 0:
+        raise DevFarmError("pytest test_commands must name at least one relative target")
+    return tokens
+
+
 def _test_commands(value: Any) -> list[str]:
     commands = _strings(value, "test_commands")
     normalized: list[str] = []
     for command in commands:
-        if any(char in command for char in ";&|<>`$()\r\n"):
-            raise DevFarmError("test_commands contain shell syntax")
-        try:
-            tokens = shlex.split(command, posix=True)
-        except ValueError as exc:
-            raise DevFarmError("test_commands must be parseable without a shell") from exc
-        if len(tokens) < 3 or tokens[0] not in {"python", "python3", "py"} or tokens[1:2] != ["-m"] or tokens[2] not in {"pytest", "compileall"}:
-            raise DevFarmError("test_commands must use python -m pytest or python -m compileall")
-        if any(token in {"-c", "--config-file", "--rootdir", "--confcutdir", "--pyargs"} or token.startswith(("--config-file=", "--rootdir=", "--confcutdir=")) for token in tokens[3:]):
-            raise DevFarmError("test_commands contain an unsafe pytest option")
-        for token in tokens[3:]:
-            if token.startswith("-"):
-                continue
-            parsed = PurePosixPath(token.replace("\\", "/"))
-            if parsed.is_absolute() or ".." in parsed.parts:
-                raise DevFarmError("test_commands paths must stay relative to the worker worktree")
+        parse_host_test_command(command)
         normalized.append(command)
     return normalized
 
@@ -137,6 +173,8 @@ def validate_manifest(value: Mapping[str, Any]) -> dict[str, Any]:
     if len(task_type) > 64:
         raise DevFarmError("task_type must be at most 64 characters")
     objective = _nonempty(value["objective"], "objective")
+    if len(objective) > MAX_OBJECTIVE_CHARS:
+        raise DevFarmError(f"objective must be at most {MAX_OBJECTIVE_CHARS} characters")
     base_revision = _revision(value["base_revision"], "base_revision")
     allowed = _paths(value["allowed_files"], "allowed_files")
     read = _paths(value["read_files"], "read_files")
@@ -148,6 +186,8 @@ def validate_manifest(value: Mapping[str, Any]) -> dict[str, Any]:
     if len(approved_provider_ids) != len(set(approved_provider_ids)):
         raise DevFarmError("approved_provider_ids must not contain duplicates")
     outbound = _paths(value["outbound_files"], "outbound_files")
+    if len(outbound) > MAX_OUTBOUND_FILES:
+        raise DevFarmError(f"outbound_files must contain at most {MAX_OUTBOUND_FILES} paths")
     readable = set(read) | set(allowed)
     outside_outbound = sorted(set(outbound) - readable)
     if outside_outbound:
@@ -172,6 +212,19 @@ def validate_manifest(value: Mapping[str, Any]) -> dict[str, Any]:
         raise DevFarmError("max_attempts must be a positive integer")
     if not isinstance(value["output_contract"], Mapping):
         raise DevFarmError("output_contract must be an object")
+    requirements = _strings(value["requirements"], "requirements")
+    acceptance = _strings(value["acceptance"], "acceptance")
+    test_commands = _test_commands(value["test_commands"])
+    if len(requirements) > MAX_REQUIREMENTS:
+        raise DevFarmError(f"requirements must contain at most {MAX_REQUIREMENTS} items")
+    if len(acceptance) > MAX_ACCEPTANCE:
+        raise DevFarmError(f"acceptance must contain at most {MAX_ACCEPTANCE} items")
+    if any(len(item) > MAX_REQUIREMENT_CHARS for item in requirements):
+        raise DevFarmError(f"requirements entries must be at most {MAX_REQUIREMENT_CHARS} characters")
+    if any(len(item) > MAX_ACCEPTANCE_CHARS for item in acceptance):
+        raise DevFarmError(f"acceptance entries must be at most {MAX_ACCEPTANCE_CHARS} characters")
+    if len(test_commands) > MAX_TEST_COMMANDS:
+        raise DevFarmError(f"test_commands must contain at most {MAX_TEST_COMMANDS} items")
     return {
         "schema_version": 1,
         "task_id": task_id,
@@ -184,9 +237,9 @@ def validate_manifest(value: Mapping[str, Any]) -> dict[str, Any]:
         "external_provider_allowed": external_provider_allowed,
         "approved_provider_ids": approved_provider_ids,
         "outbound_files": outbound,
-        "requirements": _strings(value["requirements"], "requirements"),
-        "acceptance": _strings(value["acceptance"], "acceptance"),
-        "test_commands": _test_commands(value["test_commands"]),
+        "requirements": requirements,
+        "acceptance": acceptance,
+        "test_commands": test_commands,
         "max_attempts": value["max_attempts"],
         "output_contract": dict(value["output_contract"]),
     }
@@ -407,9 +460,9 @@ def write_result(root: str | Path, value: Mapping[str, Any], *, manifest: Mappin
     attempt_id = result.get("attempt_id") or uuid4().hex
     result["attempt_id"] = attempt_id
     attempt_directory = directory / "attempts" / attempt_id
-    attempt_directory.mkdir(parents=True, exist_ok=True)
+    attempt_directory.mkdir(parents=True, exist_ok=False)
     attempt_path = attempt_directory / "result.json"
-    attempt_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    attempt_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", errors="strict")
     path = directory / "result.json"
     path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     history_path = directory / "attempts.jsonl"
@@ -478,6 +531,8 @@ def main(argv: list[str] | None = None) -> int:
     verify = sub.add_parser("verify", help="host-verify proposed Worker results")
     verify.add_argument("run_id")
     verify.add_argument("--task-id", action="append", dest="task_ids")
+    verify.add_argument("--trust-level", choices=sorted(VERIFICATION_TRUST_LEVELS), default="STATIC_ONLY")
+    verify.add_argument("--operator-approved", action="store_true")
     verify.add_argument("--root", type=Path, default=Path.cwd())
     resume = sub.add_parser("resume", help="reconcile artifacts and release dependency-ready tasks")
     resume.add_argument("run_id")
@@ -541,7 +596,19 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "verify":
             from scripts.devfarm_commander import verify_plan
 
-            print(json.dumps(verify_plan(args.root, args.run_id, task_ids=args.task_ids), ensure_ascii=False, indent=2))
+            print(
+                json.dumps(
+                    verify_plan(
+                        args.root,
+                        args.run_id,
+                        task_ids=args.task_ids,
+                        verification_trust_level=args.trust_level,
+                        operator_approved=args.operator_approved,
+                    ),
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
         elif args.command == "resume":
             from scripts.devfarm_commander import resume_plan
 

@@ -85,7 +85,7 @@ def open_components(
             )
             ensure_resource(ledger, provider, binding, qualification_resolver=qualification_resolver)
             profile = resource_profile(binding.provider_id, binding.binding_id, binding.model)
-            trusted_free_binding_present = trusted_free_binding_present or bool(profile is not None and profile.cost_minor == 0)
+            trusted_free_binding_present = trusted_free_binding_present or bool(profile is not None and profile.no_charge_guaranteed)
             providers.append(provider)
 
         resource_control = ResourceControlPlane(

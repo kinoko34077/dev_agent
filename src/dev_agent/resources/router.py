@@ -299,6 +299,7 @@ class ResourceRouter:
                         request.allow_unknown_quota
                         and resource.get("cost_minor") == 0
                         and metadata.get("billing_authority") == "trusted_catalog"
+                        and metadata.get("no_charge_guaranteed") is True
                     )
                     if not unknown_bootstrap:
                         continue

@@ -815,6 +815,8 @@ def verify_plan(
     *,
     task_ids: Sequence[str] | None = None,
     orchestrator: DevFarmOrchestrator | None = None,
+    verification_trust_level: str = "STATIC_ONLY",
+    operator_approved: bool = False,
 ) -> dict[str, Any]:
     """Host-verify PROPOSED tasks through the existing bounded verifier."""
 
@@ -832,7 +834,10 @@ def verify_plan(
         raise DevFarmError(f"tasks are not ready for host verification: {', '.join(missing)}")
     if not selected:
         return plan
-    farm = orchestrator or DevFarmOrchestrator()
+    farm = orchestrator or DevFarmOrchestrator(
+        verification_trust_level=verification_trust_level,
+        operator_approved=operator_approved,
+    )
     manifest_paths = [_manifest_for(root_path, task)[0] for task in selected]
     try:
         results = farm.verify(root_path, manifest_paths)
@@ -964,9 +969,6 @@ def _verified_worker_patch(root: Path, task: Mapping[str, Any]) -> tuple[str, di
     result = validate_result(_read_json(result_path), manifest=manifest)
     if result.get("attempt_id") != attempt_id:
         raise DevFarmError("integration source_attempt_id does not match result artifact")
-    metrics = result.get("worker_metrics")
-    if result.get("status") != "completed" or not isinstance(metrics, Mapping) or metrics.get("host_verified") is not True or metrics.get("result_accepted") is not True:
-        raise DevFarmError("worker integration requires an accepted Host Verification result")
     patch_path = result_path.parent / "patch.diff"
     if not patch_path.is_file():
         raise DevFarmError("verified worker patch artifact is missing")
@@ -977,6 +979,31 @@ def _verified_worker_patch(root: Path, task: Mapping[str, Any]) -> tuple[str, di
     actual_changed_files = validate_patch(patch, manifest=manifest)
     if not actual_changed_files:
         raise DevFarmError("worker integration requires a non-empty verified patch")
+    verification_path = result_path.parent / "verification.json"
+    if not verification_path.is_file():
+        raise DevFarmError("worker integration requires an immutable verification record")
+    verification = _read_json(verification_path)
+    if not isinstance(verification, Mapping):
+        raise DevFarmError("verification record must be an object")
+    patch_digest = hashlib.sha256(patch.encode("utf-8")).hexdigest()
+    manifest_digest = hashlib.sha256(json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    test_spec_digest = hashlib.sha256(json.dumps(manifest["test_commands"], ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    if verification.get("attempt_id") != attempt_id or verification.get("base_revision") != manifest["base_revision"]:
+        raise DevFarmError("verification record identity does not match the attempt")
+    if verification.get("patch_sha256") != patch_digest:
+        raise DevFarmError("verified patch digest does not match immutable verification evidence")
+    if verification.get("manifest_sha256") != manifest_digest or verification.get("test_spec_sha256") != test_spec_digest:
+        raise DevFarmError("verification manifest or test specification digest does not match")
+    trust_level = verification.get("containment_level")
+    if trust_level == "TRUSTED_HOST_EXEC" and verification.get("operator_approved") is not True:
+        raise DevFarmError("trusted host verification lacks explicit operator approval")
+    if trust_level not in {"TRUSTED_HOST_EXEC", "OS_SANDBOXED"}:
+        raise DevFarmError("worker integration requires executable verification evidence")
+    verified_tests = verification.get("verified_tests")
+    if not isinstance(verified_tests, list) or not verified_tests or not all(isinstance(item, Mapping) and item.get("passed") is True for item in verified_tests):
+        raise DevFarmError("worker integration requires passing verified tests")
+    if verification.get("independent_verification") is not True:
+        raise DevFarmError("worker integration requires verification outside Worker-owned changes")
     return patch, manifest, attempt_id
 
 

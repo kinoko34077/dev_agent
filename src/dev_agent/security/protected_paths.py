@@ -29,6 +29,14 @@ PROTECTED_AUTHORITY_PATHS = frozenset(
         "scripts/devfarm_worker.py",
         "scripts/devfarm_commander.py",
         "scripts/devfarm_orchestrator.py",
+        ".gitmodules",
+        "AGENTS.md",
+        "pytest.ini",
+        "pyproject.toml",
+        "setup.py",
+        "setup.cfg",
+        "tox.ini",
+        "Dockerfile",
     }
 )
 
@@ -40,6 +48,7 @@ PROTECTED_DIRECTORY_PREFIXES = frozenset(
         "recovery",
         "src/dev_agent/security",
         ".devfarm",
+        ".github",
     }
 )
 
@@ -56,6 +65,17 @@ PROTECTED_PART_NAMES = frozenset(
         "private_key",
     }
 )
+PROTECTED_SECRET_FILENAMES = frozenset(
+    {
+        "credentials.json",
+        "credential.json",
+        "token.txt",
+        "secret.txt",
+        "private_key.pem",
+        "service-account.json",
+    }
+)
+PROTECTED_SECRET_SUFFIXES = frozenset({".pem", ".key", ".p12", ".pfx"})
 
 
 def _normalized_parts(path: Any) -> tuple[str, ...] | None:
@@ -82,12 +102,23 @@ def is_protected_path(path: Any) -> bool:
     for prefix in PROTECTED_DIRECTORY_PREFIXES:
         if normalized == prefix or normalized.startswith(prefix + "/"):
             return True
-    return any(part == ".git" or part.startswith(".env") or part.lower() in PROTECTED_PART_NAMES for part in parts)
+    for part in parts:
+        lowered = part.lower()
+        if part == ".git" or lowered.startswith(".env") or lowered in PROTECTED_PART_NAMES:
+            return True
+        if lowered in PROTECTED_SECRET_FILENAMES or any(lowered.endswith(suffix) for suffix in PROTECTED_SECRET_SUFFIXES):
+            return True
+        stem = lowered.rsplit(".", 1)[0]
+        if any(marker in stem for marker in ("credential", "private_key", "secret_token", "access_token", "api_key")):
+            return True
+    return False
 
 
 __all__ = [
     "PROTECTED_AUTHORITY_PATHS",
     "PROTECTED_DIRECTORY_PREFIXES",
     "PROTECTED_PART_NAMES",
+    "PROTECTED_SECRET_FILENAMES",
+    "PROTECTED_SECRET_SUFFIXES",
     "is_protected_path",
 ]

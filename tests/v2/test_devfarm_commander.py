@@ -76,6 +76,8 @@ def _repo(tmp_path):
         path = root / target
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("def test_target():\n    assert True\n", encoding="utf-8")
+    baseline = root / "tests/v2/baseline.py"
+    baseline.write_text("def test_baseline():\n    assert True\n", encoding="utf-8")
     _git(root, "add", ".")
     _git(root, "commit", "-m", "commander baseline")
     return root, targets, _git(root, "rev-parse", "HEAD").stdout.strip()
@@ -96,7 +98,7 @@ def _manifest(root, revision, task_id, target):
             "outbound_files": [target],
             "requirements": [],
             "acceptance": ["focused test passes"],
-            "test_commands": [f"python -m pytest {target} -q"],
+            "test_commands": [f"python -m pytest {target} tests/v2/baseline.py -q"],
             "max_attempts": 2,
             "output_contract": {},
         },
@@ -181,6 +183,8 @@ def test_commander_plan_dispatch_verify_resume_and_integrate(tmp_path):
     orchestrator = DevFarmOrchestrator(
         remote_governor=RemoteConcurrencyGovernor(max_inflight=2),
         host_governor=HostConcurrencyGovernor(worktree_verification_slots=1),
+        verification_trust_level="TRUSTED_HOST_EXEC",
+        operator_approved=True,
     )
     proposed = dispatch_plan(root, "commander-run-001", providers=providers, orchestrator=orchestrator)
     assert {task["status"] for task in proposed["tasks"][:2]} == {"PROPOSED"}
@@ -319,7 +323,7 @@ def test_commander_persists_host_verification_boundary_failure(tmp_path):
     assert "verification boundary unavailable" in result["tasks"][0]["last_error"]
     assert any(item["stage"] == "host_verification" and item["status"] == "failed" for item in result["results"])
 
-    recovered = verify_plan(root, "verification-failure-run")
+    recovered = verify_plan(root, "verification-failure-run", verification_trust_level="TRUSTED_HOST_EXEC", operator_approved=True)
     assert recovered["tasks"][0]["status"] == "HOST_VERIFIED"
     assert "block_reason" not in recovered["tasks"][0]
     assert "last_error" not in recovered["tasks"][0]
@@ -370,7 +374,7 @@ def test_commander_clears_stale_verification_error_after_reassigned_success(tmp_
         model_id="@cf/meta/llama-3.1-8b-instruct",
     )
     dispatch_plan(root, "verification-retry-clean-run", providers={"worker-a": provider})
-    verified = verify_plan(root, "verification-retry-clean-run")
+    verified = verify_plan(root, "verification-retry-clean-run", verification_trust_level="TRUSTED_HOST_EXEC", operator_approved=True)
 
     task = verified["tasks"][0]
     assert task["status"] == "HOST_VERIFIED"
@@ -469,7 +473,7 @@ def test_commander_integration_requires_git_evidence_and_records_it(tmp_path):
             )
         },
     )
-    verified = verify_plan(root, "integration-evidence-run")
+    verified = verify_plan(root, "integration-evidence-run", verification_trust_level="TRUSTED_HOST_EXEC", operator_approved=True)
     task = verified["tasks"][0]
     attempt_id = task["last_attempt_id"]
     patch_path = root / ".devfarm" / "results" / "worker-a" / "attempts" / attempt_id / "patch.diff"
@@ -553,7 +557,7 @@ def test_commander_reissues_dependent_manifest_from_integration_revision(tmp_pat
             )
         },
     )
-    verified = verify_plan(root, "dependent-baseline-run")
+    verified = verify_plan(root, "dependent-baseline-run", verification_trust_level="TRUSTED_HOST_EXEC", operator_approved=True)
     integration_revision, attempt_id, digest = _integrate_worker_patch(root, "worker-a", verified["tasks"][0])
     integrated = mark_integrated(
         root,

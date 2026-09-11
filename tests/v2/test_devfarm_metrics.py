@@ -7,6 +7,10 @@ from scripts.devfarm_worker import apply_and_verify, run_worker
 from tests.v2.devfarm_test_support import _WorkerProvider, _workspace, _patch
 
 
+def _trusted_apply(root, manifest_path):
+    return apply_and_verify(root, manifest_path, trust_level="TRUSTED_HOST_EXEC", operator_approved=True)
+
+
 def _proposal_output():
     return {
         "status": "completed",
@@ -24,7 +28,7 @@ def test_host_verification_accumulates_safe_metrics_and_exposes_summary(tmp_path
     root, manifest_path = _workspace(tmp_path)
     run_worker(root, manifest_path, provider=_WorkerProvider(_proposal_output()))
 
-    verified = apply_and_verify(root, manifest_path)
+    verified = _trusted_apply(root, manifest_path)
 
     assert verified["worker_metrics"]["durable_recorded"] is True
     with WorkerMetricsStore(root / ".devfarm" / "metrics.sqlite3") as store:

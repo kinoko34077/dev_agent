@@ -44,6 +44,9 @@ def _safe_projection(resource: Mapping[str, Any]) -> dict[str, Any]:
         "qualification_required": metadata.get("qualification_required"),
         "qualification_confidence": metadata.get("qualification_confidence"),
         "billing_authority": metadata.get("billing_authority"),
+        "billing_mode": metadata.get("billing_mode"),
+        "overage_policy": metadata.get("overage_policy"),
+        "no_charge_guaranteed": metadata.get("no_charge_guaranteed"),
         "privacy_profile": metadata.get("privacy_profile"),
         "intelligence_tier": metadata.get("intelligence_tier"),
     }
@@ -99,6 +102,9 @@ def _plan_one(resource: Mapping[str, Any], resolver: QualificationResolver, *, n
         "qualification_required": qualification_required,
         "qualification_confidence": qualification.confidence if qualification is not None else None,
         "billing_authority": "trusted_catalog",
+        "billing_mode": profile.billing_mode,
+        "overage_policy": profile.overage_policy,
+        "no_charge_guaranteed": profile.no_charge_guaranteed,
         "privacy_profile": privacy_profile,
         "intelligence_tier": tier,
     }
@@ -146,6 +152,9 @@ def apply_resource_repairs(
                 "qualification_required": plan.after["qualification_required"],
                 "qualification_confidence": plan.after["qualification_confidence"],
                 "billing_authority": plan.after["billing_authority"],
+                "billing_mode": plan.after["billing_mode"],
+                "overage_policy": plan.after["overage_policy"],
+                "no_charge_guaranteed": plan.after["no_charge_guaranteed"],
                 "privacy_profile": plan.after["privacy_profile"],
             }
         )

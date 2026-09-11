@@ -145,6 +145,9 @@ def test_router_allows_one_explicit_unknown_quota_bootstrap_for_trusted_free_res
             "provider_binding_id": "gemini:worker",
             "model_id": "gemini-3.5-flash-lite",
             "billing_authority": "trusted_catalog",
+            "billing_mode": "free_fixed",
+            "overage_policy": "hard_stop",
+            "no_charge_guaranteed": True,
             "intelligence_tier": "L1",
         },
     )
@@ -188,7 +191,12 @@ def test_router_does_not_use_unknown_bootstrap_to_bypass_a_quota_block(tmp_path)
         capabilities=["text"],
         quota_domain="gemini-project",
         cost_minor=0,
-        metadata={"billing_authority": "trusted_catalog"},
+        metadata={
+            "billing_authority": "trusted_catalog",
+            "billing_mode": "free_fixed",
+            "overage_policy": "hard_stop",
+            "no_charge_guaranteed": True,
+        },
     )
     ledger.observe("blocked-free", available=1, health="degraded", confidence=0.0)
     ledger.observe_quota(

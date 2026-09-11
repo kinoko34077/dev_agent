@@ -64,6 +64,9 @@ def test_legacy_resource_reservation_can_use_explicit_unknown_quota_bootstrap(tm
             quota_domain="cloud-project",
             metadata={
                 "billing_authority": "trusted_catalog",
+                "billing_mode": "free_fixed",
+                "overage_policy": "hard_stop",
+                "no_charge_guaranteed": True,
                 "model_id": "free-model",
                 "intelligence_tier": "L1",
             },
@@ -105,5 +108,38 @@ def test_unknown_quota_admission_is_domain_scoped_and_expires(tmp_path):
         after_window = ledger.claim_unknown_quota_admission("cloud-free", now_epoch=161.0)
         assert after_window.admitted is True
         assert unknown_quota_wake_reason("cloud-free") == "quota_unknown:cloud-free"
+    finally:
+        ledger.close()
+
+
+def test_recurring_allowance_without_no_charge_authority_cannot_settle_missing_cost_as_zero(tmp_path):
+    ledger, control = _control(tmp_path)
+    try:
+        ledger.register_resource(
+            "allowance",
+            provider_id="cloud",
+            provider_binding_id="cloud:allowance",
+            native_unit="request",
+            capacity=1,
+            capabilities=["text"],
+            cost_minor=0,
+            price_currency="JPY",
+            quota_domain="cloud-project",
+            metadata={
+                "billing_authority": "trusted_catalog",
+                "billing_mode": "recurring_allowance",
+                "overage_policy": "unknown",
+                "no_charge_guaranteed": False,
+                "model_id": "cloud-model",
+            },
+        )
+        ledger.observe("allowance", available=1, health="degraded")
+        request = ModelRequest(
+            task_id=str(uuid4()),
+            messages=[{"role": "user", "content": "admit only under explicit unknown policy"}],
+            metadata={"allow_unknown_quota": True},
+        )
+        with pytest.raises(DispatchDenied, match="no eligible resource"):
+            control.reserve_for_provider(request.task_id, "cloud", request)
     finally:
         ledger.close()

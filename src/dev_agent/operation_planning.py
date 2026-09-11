@@ -184,6 +184,15 @@ def release_dependencies(
             task.metadata["planner_failed_dependency"] = failed.task_id
             event_type = "task.planner_dependency_failed"
             payload = {"dependency_task_id": failed.task_id, "dependency_status": failed.status.value}
+            event = ProtocolEvent(
+                event_id=str(uuid5(NAMESPACE_URL, f"dev-agent:planner:{current_proposal}:{task.task_id}:{event_type}")),
+                task_id=task.task_id,
+                event_type=event_type,
+                payload={"proposal_id": current_proposal, "child_key": child_key, **payload},
+            )
+            store.commit_transition(task=task, event=event)
+            changed.append(task)
+            continue
         dependency_types = constraints.get("planner_dependency_types", {})
         if not isinstance(dependency_types, Mapping):
             dependency_types = {}

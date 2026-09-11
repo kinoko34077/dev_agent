@@ -17,6 +17,7 @@ from types import MappingProxyType
 _DEFAULT_VERIFIED_AT = "2026-09-09T00:00:00+00:00"
 _DEFAULT_EXPIRES_AT = "2026-10-09T00:00:00+00:00"
 _BILLING_MODES = frozenset({"free_fixed", "recurring_allowance", "recurring_credit", "paid", "unknown"})
+_OVERAGE_POLICIES = frozenset({"hard_stop", "billable", "unknown"})
 
 
 @dataclass(frozen=True)
@@ -35,10 +36,13 @@ class TrustedResourceProfile:
     allowance_amount: int | None = None
     allowance_currency: str | None = None
     allowance_period: str | None = None
+    overage_policy: str = "unknown"
 
     def __post_init__(self) -> None:
         if self.billing_mode not in _BILLING_MODES:
             raise ValueError(f"billing_mode must be one of {sorted(_BILLING_MODES)}")
+        if self.overage_policy not in _OVERAGE_POLICIES:
+            raise ValueError(f"overage_policy must be one of {sorted(_OVERAGE_POLICIES)}")
         if self.allowance_amount is not None and (
             isinstance(self.allowance_amount, bool)
             or not isinstance(self.allowance_amount, int)
@@ -82,6 +86,14 @@ class TrustedResourceProfile:
         expiry_utc = expiry.astimezone(timezone.utc)
         return verified_utc <= current_utc < expiry_utc
 
+    @property
+    def no_charge_guaranteed(self) -> bool:
+        """Whether this reviewed profile guarantees zero overage charge."""
+        return self.cost_minor == 0 and (
+            self.billing_mode == "free_fixed"
+            or (self.billing_mode == "recurring_allowance" and self.overage_policy == "hard_stop")
+        )
+
 
 # This is deliberately a concrete binding/model catalog, not a provider-level
 # free list.  ``:qualification`` bindings are isolated temporary resources
@@ -92,10 +104,10 @@ _TRUSTED_RESOURCE_CATALOG: dict[tuple[str, str, str], TrustedResourceProfile] = 
         "fake", "fake:default", "deterministic", 0, "JPY", False, "L1"
     ),
     ("cloudflare", "cloudflare", "@cf/meta/llama-3.1-8b-instruct"): TrustedResourceProfile(
-        "cloudflare", "cloudflare", "@cf/meta/llama-3.1-8b-instruct", 0, "JPY", True, "L1", billing_mode="recurring_allowance", allowance_period="daily"
+        "cloudflare", "cloudflare", "@cf/meta/llama-3.1-8b-instruct", 0, "JPY", True, "L1", billing_mode="recurring_allowance", allowance_period="daily", overage_policy="hard_stop"
     ),
     ("cloudflare", "cloudflare:qualification", "@cf/meta/llama-3.1-8b-instruct"): TrustedResourceProfile(
-        "cloudflare", "cloudflare:qualification", "@cf/meta/llama-3.1-8b-instruct", 0, "JPY", True, "L1", billing_mode="recurring_allowance", allowance_period="daily"
+        "cloudflare", "cloudflare:qualification", "@cf/meta/llama-3.1-8b-instruct", 0, "JPY", True, "L1", billing_mode="recurring_allowance", allowance_period="daily", overage_policy="hard_stop"
     ),
     ("openrouter", "openrouter:free", "openrouter/free"): TrustedResourceProfile(
         "openrouter", "openrouter:free", "openrouter/free", 0, "JPY", True, "L1"
@@ -104,22 +116,22 @@ _TRUSTED_RESOURCE_CATALOG: dict[tuple[str, str, str], TrustedResourceProfile] = 
         "openrouter", "openrouter:qualification", "openrouter/free", 0, "JPY", True, "L1"
     ),
     ("gemini", "gemini:compat", "gemini-2.5-flash"): TrustedResourceProfile(
-        "gemini", "gemini:compat", "gemini-2.5-flash", 0, "JPY", True, None, billing_mode="recurring_allowance", allowance_period="daily"
+        "gemini", "gemini:compat", "gemini-2.5-flash", 0, "JPY", True, None, billing_mode="recurring_allowance", allowance_period="daily", overage_policy="hard_stop"
     ),
     ("gemini", "gemini:worker", "gemini-3.5-flash-lite"): TrustedResourceProfile(
-        "gemini", "gemini:worker", "gemini-3.5-flash-lite", 0, "JPY", True, "L1", billing_mode="recurring_allowance", allowance_period="daily"
+        "gemini", "gemini:worker", "gemini-3.5-flash-lite", 0, "JPY", True, "L1", billing_mode="recurring_allowance", allowance_period="daily", overage_policy="hard_stop"
     ),
     ("gemini", "gemini:core", "gemini-3.8-flash"): TrustedResourceProfile(
-        "gemini", "gemini:core", "gemini-3.8-flash", 0, "JPY", True, "L2", billing_mode="recurring_allowance", allowance_period="daily"
+        "gemini", "gemini:core", "gemini-3.8-flash", 0, "JPY", True, "L2", billing_mode="recurring_allowance", allowance_period="daily", overage_policy="hard_stop"
     ),
     ("gemini", "gemini:qualification", "gemini-2.5-flash"): TrustedResourceProfile(
-        "gemini", "gemini:qualification", "gemini-2.5-flash", 0, "JPY", True, None, billing_mode="recurring_allowance", allowance_period="daily"
+        "gemini", "gemini:qualification", "gemini-2.5-flash", 0, "JPY", True, None, billing_mode="recurring_allowance", allowance_period="daily", overage_policy="hard_stop"
     ),
     ("gemini", "gemini:qualification", "gemini-3.5-flash-lite"): TrustedResourceProfile(
-        "gemini", "gemini:qualification", "gemini-3.5-flash-lite", 0, "JPY", True, "L1", billing_mode="recurring_allowance", allowance_period="daily"
+        "gemini", "gemini:qualification", "gemini-3.5-flash-lite", 0, "JPY", True, "L1", billing_mode="recurring_allowance", allowance_period="daily", overage_policy="hard_stop"
     ),
     ("gemini", "gemini:qualification", "gemini-3.8-flash"): TrustedResourceProfile(
-        "gemini", "gemini:qualification", "gemini-3.8-flash", 0, "JPY", True, "L2", billing_mode="recurring_allowance", allowance_period="daily"
+        "gemini", "gemini:qualification", "gemini-3.8-flash", 0, "JPY", True, "L2", billing_mode="recurring_allowance", allowance_period="daily", overage_policy="hard_stop"
     ),
     ("ollama", "ollama", "qwen3:8b"): TrustedResourceProfile(
         "ollama", "ollama", "qwen3:8b", 0, "JPY", False, None, billing_mode="free_fixed"
@@ -137,6 +149,7 @@ for _slot in ("2", "3", "4", "5"):
         "L1",
         billing_mode="recurring_allowance",
         allowance_period="daily",
+        overage_policy="hard_stop",
     )
 
 # Runtime callers receive an immutable view.  Adding or changing a billing

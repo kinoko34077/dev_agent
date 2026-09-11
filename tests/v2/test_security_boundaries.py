@@ -32,6 +32,10 @@ def test_protected_authority_policy_covers_responsibility_paths():
     assert is_protected_path("scripts/devfarm_worker.py")
     assert is_protected_path("src/dev_agent/security/audit.py")
     assert is_protected_path("recovery/validate_sqlite_state.py")
+    assert is_protected_path(".github/workflows/v2-core.yml")
+    assert is_protected_path("credentials.json")
+    assert is_protected_path("keys/deploy.key")
+    assert is_protected_path("config/service_api_key.json")
 
 
 def test_audit_keeps_usage_and_session_telemetry_but_redacts_secret_fields():

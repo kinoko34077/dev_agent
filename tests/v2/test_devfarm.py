@@ -132,3 +132,23 @@ def test_devfarm_direct_cli_can_validate_manifest(tmp_path):
         check=False,
     )
     assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(
+    "unsafe_option",
+    (
+        "--basetemp=outside",
+        "--junitxml=outside.xml",
+        "-p=pytest_cov",
+        "--override-ini=addopts=-x",
+        "--rootdir=outside",
+        "--confcutdir=outside",
+        "--pyargs",
+        "-c",
+    ),
+)
+def test_devfarm_manifest_rejects_host_escape_and_plugin_options(unsafe_option):
+    manifest = _manifest()
+    manifest["test_commands"] = [f"python -m pytest tests/v2/test_groq_provider.py -q {unsafe_option}"]
+    with pytest.raises(DevFarmError, match="test_commands"):
+        validate_manifest(manifest)

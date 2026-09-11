@@ -12,6 +12,10 @@ from src.dev_agent.providers.base import ModelProvider
 from tests.v2.devfarm_test_support import _RawWorkerProvider, _WorkerProvider, _workspace, _patch
 
 
+def _trusted_apply(root, manifest_path):
+    return apply_and_verify(root, manifest_path, trust_level="TRUSTED_HOST_EXEC", operator_approved=True)
+
+
 class _CapturingWorkerProvider(_WorkerProvider):
     def __init__(self, output):
         super().__init__(output)
@@ -64,6 +68,62 @@ def test_host_verification_runner_sanitizes_environment_and_records_boundary(tmp
     }
 
 
+def test_external_worker_defaults_to_static_only_and_does_not_execute_patch(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    run_worker(
+        root,
+        manifest_path,
+        provider=_WorkerProvider(
+            {
+                "status": "completed",
+                "changed_files": ["tests/v2/test_target.py"],
+                "tests_run": ["python -m pytest tests/v2/test_target.py -q"],
+                "tests_passed": True,
+                "known_issues": [],
+                "assumptions": [],
+                "patch": _patch(),
+                "notes": "proposal only",
+            }
+        ),
+    )
+
+    result = apply_and_verify(root, manifest_path)
+
+    assert result["host_verified_tests"] == []
+    assert result["tests_passed"] is False
+    assert result["worker_metrics"]["result_accepted"] is False
+    assert "STATIC_ONLY" in result["known_issues"][-1]
+
+
+def test_worker_owned_test_only_verification_is_not_accepted(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    run_worker(
+        root,
+        manifest_path,
+        provider=_WorkerProvider(
+            {
+                "status": "completed",
+                "changed_files": ["tests/v2/test_target.py"],
+                "tests_run": [],
+                "tests_passed": True,
+                "known_issues": [],
+                "assumptions": [],
+                "patch": _patch(),
+                "notes": "proposal only",
+            }
+        ),
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["test_commands"] = ["python -m pytest tests/v2/test_target.py -q"]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    result = _trusted_apply(root, manifest_path)
+
+    assert result["tests_passed"] is True
+    assert result["worker_metrics"]["independent_verification"] is False
+    assert result["worker_metrics"]["result_accepted"] is False
+
+
 def test_host_verification_runner_bounds_output(tmp_path):
     result = HostVerificationRunner(timeout_seconds=5, max_output_bytes=64).run(
         [sys.executable, "-c", "print('x' * 10000)"],
@@ -73,6 +133,17 @@ def test_host_verification_runner_bounds_output(tmp_path):
     assert result["returncode"] == 0
     assert result["output_truncated"] is True
     assert len(result["stdout"].encode("utf-8")) <= 64
+
+
+def test_host_verification_output_is_secret_sanitized(tmp_path):
+    result = HostVerificationRunner(timeout_seconds=5).run(
+        [sys.executable, "-c", "print('Authorization: Bearer abcdefghijklmnop')"],
+        cwd=tmp_path,
+    )
+
+    assert result["returncode"] == 0
+    assert "abcdefghijklmnop" not in result["stdout"]
+    assert "[REDACTED]" in result["stdout"]
 
 
 def test_host_verification_runner_terminates_timed_out_process(tmp_path):
@@ -141,13 +212,14 @@ def test_worker_records_host_measurements_and_updates_acceptance_after_verificat
     assert metrics["host_verified"] is False
     assert metrics["result_accepted"] is None
 
-    verified = apply_and_verify(root, manifest_path)
+    verified = _trusted_apply(root, manifest_path)
 
     verified_metrics = verified["worker_metrics"]
     assert verified_metrics["host_verified"] is True
     assert verified_metrics["host_verified_test_count"] == 1
     assert verified_metrics["host_tests_passed"] is True
     assert verified_metrics["result_accepted"] is True
+    assert verified_metrics["independent_verification"] is True
     stored = json.loads((root / ".devfarm/results/worker-test-001/result.json").read_text(encoding="utf-8"))
     assert stored["worker_metrics"]["result_accepted"] is True
 
@@ -198,7 +270,7 @@ def test_host_verification_reads_patch_from_the_selected_attempt(tmp_path):
     # applied during host verification.
     (result_dir / "patch.diff").write_text("not a unified diff\n", encoding="utf-8")
 
-    verified = apply_and_verify(root, manifest_path)
+    verified = _trusted_apply(root, manifest_path)
 
     assert proposed["attempt_id"]
     assert verified["status"] == "completed"
@@ -229,7 +301,7 @@ def test_host_verification_rejects_missing_selected_attempt_artifact(tmp_path):
     attempt_patch.unlink()
 
     with pytest.raises(DevFarmError, match="artifact is missing"):
-        apply_and_verify(root, manifest_path)
+        _trusted_apply(root, manifest_path)
 
 
 def test_worker_records_nonsemantic_final_newline_normalization(tmp_path):
@@ -392,7 +464,7 @@ def test_worker_proposal_without_worktree_is_verified_after_late_worktree_creati
     assert proposed["status"] == "completed"
     assert not (root / ".devfarm/worktrees/worker-test-001").exists()
 
-    verified = apply_and_verify(root, manifest_path)
+    verified = _trusted_apply(root, manifest_path)
     assert verified["status"] == "completed"
     assert verified["tests_passed"] is True
 
@@ -435,7 +507,7 @@ def test_worker_proposal_reads_the_manifest_commit_after_repository_head_advance
     assert proposed["status"] == "completed"
     assert "assert True" in provider.request_text
     assert "assert False" not in provider.request_text
-    verified = apply_and_verify(root, manifest_path)
+    verified = _trusted_apply(root, manifest_path)
     assert verified["status"] == "completed"
     assert verified["tests_passed"] is True
     assert (root / ".devfarm/worktrees/worker-test-001").is_dir()
@@ -519,7 +591,7 @@ def test_host_verification_applies_patch_only_in_worker_worktree(tmp_path):
     }
     run_worker(root, manifest_path, provider=_WorkerProvider(output))
 
-    verified = apply_and_verify(root, manifest_path)
+    verified = _trusted_apply(root, manifest_path)
 
     assert verified["status"] == "completed"
     assert verified["tests_passed"] is True
@@ -530,7 +602,7 @@ def test_host_verification_applies_patch_only_in_worker_worktree(tmp_path):
     assert "test_worker_patch" not in (root / "tests/v2/test_target.py").read_text(encoding="utf-8")
 
     stored = json.loads((root / ".devfarm/results/worker-test-001/result.json").read_text(encoding="utf-8"))
-    assert stored["host_verified_tests"][0]["command"] == "python -m pytest tests/v2/test_target.py -q"
+    assert stored["host_verified_tests"][0]["command"] == "python -m pytest tests/v2/test_target.py tests/v2/test_baseline.py -q"
 
 
 def test_host_verification_backfills_missing_notes_artifact(tmp_path):
@@ -552,7 +624,7 @@ def test_host_verification_backfills_missing_notes_artifact(tmp_path):
     )
     attempts_notes.unlink()
 
-    verified = apply_and_verify(root, manifest_path)
+    verified = _trusted_apply(root, manifest_path)
 
     assert verified["status"] == "completed"
     assert (root / ".devfarm/results/worker-test-001/notes.md").read_text(encoding="utf-8") == (

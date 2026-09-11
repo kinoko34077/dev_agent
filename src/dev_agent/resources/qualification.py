@@ -135,6 +135,17 @@ class QualificationCatalog:
     def lookup(self, provider_id: str, provider_binding_id: str, model_id: str) -> Mapping[str, Any] | None:
         return self._entries_by_identity.get(_identity(provider_id, provider_binding_id, model_id))
 
+    def identities_for(self, provider_id: str, model_id: str) -> tuple[tuple[str, str, str], ...]:
+        """Return exact identities for a provider/model pair.
+
+        Callers that do not know the binding must resolve this set before
+        choosing one; silently taking the first binding would make activation
+        order part of the security decision.
+        """
+        provider = provider_id.strip() if isinstance(provider_id, str) else ""
+        model = model_id.strip() if isinstance(model_id, str) else ""
+        return tuple(identity for identity in self._entries_by_identity if identity[0] == provider and identity[2] == model)
+
 
 def _derive_capabilities(raw: frozenset[str]) -> frozenset[str]:
     capabilities: set[str] = set()

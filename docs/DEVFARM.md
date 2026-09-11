@@ -44,10 +44,20 @@ status, budget authority, Recovery policy, credentials, or another Worker's
 worktree by convention and contract.
 
 Only after proposal review does Host Verification create the task's isolated
-worktree, require a clean checkout at the same base revision, apply the
-validated patch, and run the manifest-approved host tests. Git worktree
-isolation is not an OS filesystem/network sandbox; the runner records this
-boundary explicitly and must not be treated as a strong unattended sandbox.
+worktree and require a clean checkout at the same base revision. External
+provider manifests default to `STATIC_ONLY`: patch syntax, path policy, Git
+applicability, and immutable evidence are checked, but patched code is not
+executed. `TRUSTED_HOST_EXEC` is an explicit per-attempt operator decision;
+the CLI form is `python scripts/devfarm.py verify <run-id> --trust-level
+TRUSTED_HOST_EXEC --operator-approved`. `OS_SANDBOXED` is reserved for a
+future runner and is currently unavailable.
+
+The current trusted runner is contained host execution, not an OS
+filesystem/network sandbox. It uses sanitized environment variables,
+temporary HOME, bounded and secret-sanitized output, timeout/process-tree
+termination, and strict `pytest`/`compileall` command allowlists. An executable
+verification must include at least one trusted target outside the files changed
+by the Worker; a Worker-owned test alone cannot make a result accepted.
 
 Prepare a separate checkout with an `agent/<provider>/<task>` branch:
 

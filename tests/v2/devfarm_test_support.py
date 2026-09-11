@@ -55,7 +55,7 @@ def _manifest(root, *, base_revision):
             "outbound_files": ["tests/v2/test_target.py"],
             "requirements": ["Do not change production code."],
             "acceptance": ["The focused test passes."],
-            "test_commands": ["python -m pytest tests/v2/test_target.py -q"],
+            "test_commands": ["python -m pytest tests/v2/test_target.py tests/v2/test_baseline.py -q"],
             "max_attempts": 1,
             "output_contract": {"files": ["result.json", "patch.diff", "tests.json", "notes.md"]},
         },
@@ -79,9 +79,11 @@ def _workspace(tmp_path, *, prepare=True):
     _git("config", "user.email", "worker-tests@example.invalid", cwd=root)
     _git("config", "user.name", "Worker Tests", cwd=root)
     target = root / "tests/v2/test_target.py"
+    baseline = root / "tests/v2/test_baseline.py"
     target.parent.mkdir(parents=True)
     target.write_text("def test_target():\n    assert True\n", encoding="utf-8")
-    _git("add", "tests/v2/test_target.py", cwd=root)
+    baseline.write_text("def test_baseline():\n    assert True\n", encoding="utf-8")
+    _git("add", "tests/v2/test_target.py", "tests/v2/test_baseline.py", cwd=root)
     _git("commit", "-m", "test baseline", cwd=root)
     revision = _git("rev-parse", "HEAD", cwd=root).stdout.strip()
     manifest_path = _manifest(root, base_revision=revision)

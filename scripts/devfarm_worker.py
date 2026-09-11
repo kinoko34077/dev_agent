@@ -25,7 +25,10 @@ if str(ROOT) not in sys.path:
 
 from scripts.devfarm import (
     DevFarmError,
+    MAX_OUTBOUND_BYTES,
+    VERIFICATION_TRUST_LEVELS,
     _is_protected,
+    parse_host_test_command,
     prepare_worktree,
     validate_manifest,
     validate_patch,
@@ -36,6 +39,7 @@ from src.dev_agent.domain.protocol import ModelRequest
 from src.dev_agent.providers.base import ModelProvider, ProviderError
 from src.dev_agent.providers.factory import ProviderDefinition, ProviderFactory
 from src.dev_agent.resources.billing_catalog import TRUSTED_RESOURCE_CATALOG
+from src.dev_agent.resources.qualification import QualificationError, QualificationResolver
 from src.dev_agent.security.audit import AuditRecorder
 from scripts.devfarm_metrics import WorkerMetricsError, WorkerMetricsStore
 
@@ -43,6 +47,7 @@ from scripts.devfarm_metrics import WorkerMetricsError, WorkerMetricsStore
 MAX_INPUT_FILE_BYTES = 64 * 1024
 MAX_OUTPUT_TEXT_CHARS = 32 * 1024
 MAX_TEST_OUTPUT_CHARS = 32 * 1024
+MAX_VERIFICATION_WALL_CLOCK_SECONDS = 10 * 60
 _MODEL_STATUS_ALIASES = {
     "success": "completed",
     "complete": "completed",
@@ -106,38 +111,10 @@ class DevFarmActivationPolicy:
         if now is not None and not isinstance(now, datetime):
             raise ValueError("now must be a datetime or None")
         self._now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-        self._capability_matrix_path = Path(capability_matrix_path) if capability_matrix_path is not None else ROOT / "spec" / "v2" / "PROVIDER_CAPABILITY_MATRIX.json"
         try:
-            payload = json.loads(self._capability_matrix_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            payload = {}
-        entries = payload.get("entries", []) if isinstance(payload, Mapping) else []
-        self._capability_entries = tuple(entry for entry in entries if isinstance(entry, Mapping))
-
-    def _qualified_worker_entry(self, provider_id: str, model_id: str) -> Mapping[str, Any] | None:
-        provider_id = provider_id.strip()
-        model_id = model_id.strip()
-        for entry in self._capability_entries:
-            if entry.get("provider") != provider_id or entry.get("model") != model_id:
-                continue
-            if entry.get("intelligence_tier") != "L1":
-                continue
-            capabilities = entry.get("capabilities")
-            if not isinstance(capabilities, list) or "text" not in capabilities:
-                continue
-            try:
-                expires_at = datetime.fromisoformat(str(entry["expires_at"]))
-            except (KeyError, TypeError, ValueError):
-                continue
-            if expires_at.tzinfo is None:
-                expires_at = expires_at.replace(tzinfo=timezone.utc)
-            if self._now >= expires_at.astimezone(timezone.utc):
-                continue
-            binding_id = entry.get("provider_binding_id")
-            if not isinstance(binding_id, str) or not binding_id.strip():
-                continue
-            return entry
-        return None
+            self._qualification_resolver = QualificationResolver(matrix_path=capability_matrix_path)
+        except QualificationError as exc:
+            raise DevFarmError(f"development worker qualification matrix is invalid: {exc}") from exc
 
     def eligibility_for(
         self,
@@ -176,8 +153,7 @@ class DevFarmActivationPolicy:
                 False,
                 "operator_inactive",
             )
-        entry = self._qualified_worker_entry(normalized_provider, normalized_model) if normalized_model else None
-        if entry is None:
+        if not normalized_model:
             return DevFarmWorkerEligibility(
                 normalized_provider,
                 normalized_model,
@@ -192,10 +168,47 @@ class DevFarmActivationPolicy:
                 False,
                 "capability_unqualified_or_expired",
             )
-
-        binding_id = str(entry["provider_binding_id"])
-        tier = str(entry["intelligence_tier"])
-        capability_expiry = str(entry.get("expires_at")) if entry.get("expires_at") is not None else None
+        identities = self._qualification_resolver.catalog.identities_for(normalized_provider, normalized_model)
+        if normalized_binding is None and len(identities) != 1:
+            reason = "ambiguous_binding" if len(identities) > 1 else "capability_unqualified_or_expired"
+            return DevFarmWorkerEligibility(
+                normalized_provider,
+                normalized_model,
+                None,
+                None,
+                True,
+                False,
+                None,
+                False,
+                None,
+                None,
+                False,
+                reason,
+            )
+        binding_id = normalized_binding or identities[0][1]
+        qualification = self._qualification_resolver.resolve(
+            normalized_provider,
+            binding_id,
+            normalized_model,
+            now=self._now,
+        )
+        if qualification is None or qualification.intelligence_tier != "L1" or "text" not in qualification.routing_capabilities:
+            return DevFarmWorkerEligibility(
+                normalized_provider,
+                normalized_model,
+                binding_id,
+                None if qualification is None else qualification.intelligence_tier,
+                True,
+                False,
+                None if qualification is None else qualification.expires_at,
+                False,
+                None,
+                None,
+                False,
+                "capability_unqualified_or_expired",
+            )
+        tier = qualification.intelligence_tier
+        capability_expiry = qualification.expires_at
         if normalized_binding is not None and normalized_binding != binding_id:
             return DevFarmWorkerEligibility(
                 normalized_provider,
@@ -228,7 +241,7 @@ class DevFarmActivationPolicy:
                 "billing_unknown",
             )
         billing_current = profile.is_current(now=self._now)
-        billing_admitted = profile.cost_minor == 0 and billing_current
+        billing_admitted = profile.no_charge_guaranteed and billing_current
         if not billing_admitted:
             reason = "billing_expired" if not billing_current else "billing_not_no_charge"
             return DevFarmWorkerEligibility(
@@ -423,6 +436,8 @@ class HostVerificationRunner:
                 "HOMEDRIVE": home.drive,
                 "HOMEPATH": home_value[len(home.drive) :] if home.drive else home_value,
                 "DEV_AGENT_HOST_VERIFICATION": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "PYTHONNOUSERSITE": "1",
             }
         )
         return environment
@@ -500,8 +515,8 @@ class HostVerificationRunner:
                 thread.join(timeout=5)
             return {
                 "returncode": None if timed_out else return_code,
-                "stdout": bytes(stdout).decode("utf-8", errors="replace"),
-                "stderr": bytes(stderr).decode("utf-8", errors="replace"),
+                "stdout": AuditRecorder.sanitize_payload({"text": bytes(stdout).decode("utf-8", errors="replace")})["text"],
+                "stderr": AuditRecorder.sanitize_payload({"text": bytes(stderr).decode("utf-8", errors="replace")})["text"],
                 "timed_out": timed_out,
                 "output_truncated": output_state["stdout_truncated"] or output_state["stderr_truncated"],
                 "containment": {
@@ -658,10 +673,33 @@ def _contains_secret(value: str) -> bool:
     return any(pattern.search(value) for pattern in AuditRecorder.SECRET_PATTERNS)
 
 
+def _validate_host_test_targets(workspace: Path, tokens: list[str]) -> None:
+    """Resolve every structured test target inside the verification worktree."""
+    for token in tokens[3:]:
+        if token in {"-q", "-x"} or token.startswith("--maxfail="):
+            continue
+        target = token.split("::", 1)[0].replace("\\", "/")
+        parsed = PurePosixPath(target)
+        if parsed.is_absolute() or any(part in {"", ".", ".."} for part in parsed.parts) or _is_protected(target):
+            raise DevFarmError(f"host test target is outside the allowed worktree scope: {target}")
+        current = workspace
+        for part in parsed.parts:
+            current = current / part
+            if current.is_symlink():
+                raise DevFarmError(f"host test target symlink is not allowed: {target}")
+        resolved = (workspace / target).resolve()
+        if not _is_within(workspace, resolved):
+            raise DevFarmError(f"host test target resolves outside the worktree: {target}")
+
+
 def _bounded_test_output(value: str) -> dict[str, Any]:
-    if len(value) <= MAX_TEST_OUTPUT_CHARS:
-        return {"text": value, "truncated": False}
-    return {"text": value[:MAX_TEST_OUTPUT_CHARS], "truncated": True, "original_chars": len(value)}
+    original_chars = len(value)
+    clipped = value[:MAX_TEST_OUTPUT_CHARS]
+    sanitized = AuditRecorder.sanitize_payload({"text": clipped})["text"]
+    result: dict[str, Any] = {"text": sanitized, "truncated": original_chars > MAX_TEST_OUTPUT_CHARS}
+    if original_chars > MAX_TEST_OUTPUT_CHARS:
+        result["original_chars"] = original_chars
+    return result
 
 
 def _attempt_id(value: Any = None) -> str:
@@ -680,9 +718,67 @@ def _result_directories(root: Path, task_id: str, attempt_id: str) -> tuple[Path
     return base, attempt
 
 
+def _write_immutable_text(path: Path, content: str) -> None:
+    """Create an attempt artifact once, refusing all later rewrites."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
+    try:
+        with temporary.open("x", encoding="utf-8", newline="\n") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        try:
+            os.rename(temporary, path)
+        except FileExistsError as exc:
+            raise DevFarmError(f"immutable worker artifact already exists: {path.name}") from exc
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def _write_verification_record(root: Path, manifest: Mapping[str, Any], attempt_id: str, record: Mapping[str, Any]) -> None:
+    _base, attempt = _result_directories(root, manifest["task_id"], attempt_id)
+    payload = json.dumps(dict(record), ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+    _write_immutable_text(attempt / "verification.json", payload)
+
+
+def _canonical_digest(value: Any) -> str:
+    import hashlib
+
+    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _sha256_text(value: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _write_latest_result_projection(root: Path, result: Mapping[str, Any], *, manifest: Mapping[str, Any]) -> Path:
+    normalized_manifest = validate_manifest(manifest)
+    normalized = validate_result(result, manifest=normalized_manifest)
+    directory = root / ".devfarm" / "results" / normalized_manifest["task_id"]
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / "result.json"
+    temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
+    try:
+        temporary.write_text(json.dumps(normalized, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        os.replace(temporary, path)
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+    return path
+
+
 def _input_context(workspace: Path, manifest: Mapping[str, Any]) -> str:
     manifest = validate_manifest(manifest)
     chunks: list[str] = []
+    aggregate_bytes = 0
     for relative in manifest["outbound_files"]:
         try:
             data = read_file_at_revision(workspace, manifest["base_revision"], relative)
@@ -690,6 +786,9 @@ def _input_context(workspace: Path, manifest: Mapping[str, Any]) -> str:
             raise DevFarmError(f"worker input file cannot be read: {relative}: {exc}") from exc
         if len(data) > MAX_INPUT_FILE_BYTES:
             raise DevFarmError(f"worker input file exceeds {MAX_INPUT_FILE_BYTES} bytes: {relative}")
+        aggregate_bytes += len(data)
+        if aggregate_bytes > MAX_OUTBOUND_BYTES:
+            raise DevFarmError(f"worker outbound files exceed {MAX_OUTBOUND_BYTES} aggregate bytes")
         try:
             content = data.decode("utf-8")
         except UnicodeDecodeError as exc:
@@ -791,10 +890,15 @@ def _write_auxiliary_artifacts(
         )
     if len(notes) > MAX_OUTPUT_TEXT_CHARS:
         notes = notes[:MAX_OUTPUT_TEXT_CHARS] + f"\n...[TRUNCATED original_chars={len(notes)}]"
-    for directory in directories:
-        directory.joinpath("patch.diff").write_text(patch, encoding="utf-8")
-        directory.joinpath("tests.json").write_text(json.dumps(tests, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        directory.joinpath("notes.md").write_text(notes + "\n", encoding="utf-8")
+    root_directory, attempt_directory = directories
+    # The root files are explicitly latest projections.  Only the attempt
+    # directory is immutable evidence.
+    root_directory.joinpath("patch.diff").write_text(patch, encoding="utf-8")
+    root_directory.joinpath("tests.json").write_text(json.dumps(tests, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    root_directory.joinpath("notes.md").write_text(notes + "\n", encoding="utf-8")
+    _write_immutable_text(attempt_directory / "patch.diff", patch)
+    _write_immutable_text(attempt_directory / "tests.json", json.dumps(tests, ensure_ascii=False, indent=2) + "\n")
+    _write_immutable_text(attempt_directory / "notes.md", notes + "\n")
 
 
 def _record_failed_model_output(
@@ -879,13 +983,35 @@ def _attempt_artifact_path(
     return None
 
 
-def apply_and_verify(root: str | Path, manifest_path: str | Path) -> dict[str, Any]:
-    """Create an isolated worktree, apply a validated proposal, and run tests."""
+def apply_and_verify(
+    root: str | Path,
+    manifest_path: str | Path,
+    *,
+    trust_level: str = "STATIC_ONLY",
+    operator_approved: bool = False,
+) -> dict[str, Any]:
+    """Apply a proposal and optionally run host tests behind an explicit gate.
+
+    External-provider manifests default to STATIC_ONLY.  A caller must make
+    the attempt-scoped operator decision explicit before TRUSTED_HOST_EXEC is
+    allowed; OS_SANDBOXED is intentionally unavailable until a real OS
+    sandbox implementation is supplied.
+    """
+
+    if trust_level not in VERIFICATION_TRUST_LEVELS:
+        raise DevFarmError(f"unsupported verification trust level: {trust_level}")
 
     root = Path(root).resolve()
     manifest = validate_manifest(_read_json(Path(manifest_path)))
     result = _read_result_artifact(root, manifest)
     attempt_id = _attempt_id(result.get("attempt_id") or "legacy")
+    if trust_level == "OS_SANDBOXED":
+        raise DevFarmError("OS_SANDBOXED verification is not available on this host")
+    if manifest["external_provider_allowed"]:
+        if trust_level == "TRUSTED_HOST_EXEC" and operator_approved is not True:
+            raise DevFarmError("TRUSTED_HOST_EXEC requires explicit operator approval for this attempt")
+    elif trust_level == "TRUSTED_HOST_EXEC" and operator_approved is not True:
+        raise DevFarmError("TRUSTED_HOST_EXEC requires explicit operator approval")
     if result["status"] != "completed" or not result["changed_files"]:
         raise DevFarmError("only a completed worker proposal with a non-empty patch may be applied")
     patch_path = _attempt_artifact_path(root, manifest["task_id"], attempt_id, "patch.diff")
@@ -905,43 +1031,63 @@ def apply_and_verify(root: str | Path, manifest_path: str | Path) -> dict[str, A
             raise DevFarmError(f"worker patch apply failed: {detail}")
 
     verified: list[dict[str, Any]] = []
-    verification_runner = HostVerificationRunner(timeout_seconds=120)
-    for command in manifest["test_commands"]:
-        tokens = shlex.split(command, posix=True)
-        host_result = verification_runner.run(tokens, cwd=workspace)
-        verified.append(
-            {
-                "command": command,
-                "exit_code": host_result["returncode"],
-                "passed": host_result["returncode"] == 0 and not host_result["timed_out"],
-                "stdout": _bounded_test_output(host_result["stdout"]),
-                "stderr": _bounded_test_output(host_result["stderr"]),
-                "timed_out": host_result["timed_out"],
-                "output_truncated": host_result["output_truncated"],
-                "containment": host_result["containment"],
+    independent_verification = False
+    if trust_level == "TRUSTED_HOST_EXEC" or (not manifest["external_provider_allowed"] and trust_level == "OS_SANDBOXED"):
+        verification_runner = HostVerificationRunner(timeout_seconds=120)
+        verification_started = time.monotonic()
+        for command in manifest["test_commands"]:
+            if time.monotonic() - verification_started >= MAX_VERIFICATION_WALL_CLOCK_SECONDS:
+                raise DevFarmError("worker verification exceeded total wall-clock budget")
+            tokens = parse_host_test_command(command)
+            _validate_host_test_targets(workspace, tokens)
+            targets = {
+                token.split("::", 1)[0].replace("\\", "/")
+                for token in tokens[3:]
+                if token not in {"-q", "-x"} and not token.startswith("--maxfail=")
             }
-        )
+            if targets - set(actual_changed_files):
+                independent_verification = True
+            host_result = verification_runner.run(tokens, cwd=workspace)
+            verified.append(
+                {
+                    "command": command,
+                    "exit_code": host_result["returncode"],
+                    "passed": host_result["returncode"] == 0 and not host_result["timed_out"],
+                    "stdout": _bounded_test_output(host_result["stdout"]),
+                    "stderr": _bounded_test_output(host_result["stderr"]),
+                    "timed_out": host_result["timed_out"],
+                    "output_truncated": host_result["output_truncated"],
+                    "containment": host_result["containment"],
+                }
+            )
 
     tests_passed = bool(verified) and all(item["passed"] for item in verified)
     result["tests_run"] = list(manifest["test_commands"])
     result["tests_passed"] = tests_passed
     result["host_verified_tests"] = verified
-    result["status"] = "completed" if tests_passed else "failed"
+    result["status"] = "completed" if (tests_passed or trust_level == "STATIC_ONLY") else "failed"
     metrics = dict(result.get("worker_metrics", {}))
     metrics.update(
         {
-            "host_verified": True,
+            "host_verified": bool(verified),
             "host_verified_test_count": len(verified),
             "host_tests_passed": tests_passed,
-            "result_accepted": result["status"] == "completed" and tests_passed,
+            "independent_verification": independent_verification,
+            "result_accepted": result["status"] == "completed" and tests_passed and independent_verification and (trust_level == "OS_SANDBOXED" or (trust_level == "TRUSTED_HOST_EXEC" and operator_approved is True)),
+            "verification_trust_level": trust_level,
+            "operator_approved": operator_approved is True,
         }
     )
     result["worker_metrics"] = metrics
     result["attempt_id"] = attempt_id
+    issues = list(result["known_issues"])
     if not tests_passed:
-        issues = list(result["known_issues"])
         issues.append("host verification did not pass")
-        result["known_issues"] = issues
+    if trust_level == "STATIC_ONLY":
+        issues.append("STATIC_ONLY: patched code was not executed on the host")
+    elif not independent_verification:
+        issues.append("host verification did not include an unmodified trusted target")
+    result["known_issues"] = issues
     try:
         with WorkerMetricsStore(root / ".devfarm" / "metrics.sqlite3") as metrics_store:
             metrics_store.record(manifest=manifest, result=result)
@@ -954,7 +1100,7 @@ def apply_and_verify(root: str | Path, manifest_path: str | Path) -> dict[str, A
     else:
         metrics["durable_recorded"] = True
     result["worker_metrics"] = metrics
-    write_result(root, result, manifest=manifest)
+    _write_latest_result_projection(root, result, manifest=manifest)
     notes_path = _attempt_artifact_path(
         root,
         manifest["task_id"],
@@ -963,13 +1109,21 @@ def apply_and_verify(root: str | Path, manifest_path: str | Path) -> dict[str, A
         required=False,
     )
     notes = notes_path.read_text(encoding="utf-8") if notes_path is not None else "Host verification completed; no model notes artifact was available."
-    _write_auxiliary_artifacts(
-        root,
-        manifest["task_id"],
-        {**result, "patch": patch, "notes": notes},
-        worker_metrics=metrics,
-        attempt_id=attempt_id,
-    )
+    if notes_path is None:
+        (root / ".devfarm" / "results" / manifest["task_id"] / "notes.md").write_text(notes + "\n", encoding="utf-8")
+    verification_record = {
+        "attempt_id": attempt_id,
+        "patch_sha256": _sha256_text(patch),
+        "manifest_sha256": _canonical_digest(manifest),
+        "base_revision": manifest["base_revision"],
+        "test_spec_sha256": _canonical_digest(manifest["test_commands"]),
+        "containment_level": trust_level,
+        "verified_tests": verified,
+        "independent_verification": independent_verification,
+        "verified_at": datetime.now(timezone.utc).isoformat(),
+        "operator_approved": operator_approved is True,
+    }
+    _write_verification_record(root, manifest, attempt_id, verification_record)
     return result
 
 

@@ -61,7 +61,7 @@ def _has_routable_quota_headroom(observation: object) -> bool:
 def _trusted_free_profile(provider_name: str, model: str, binding_id: str | None = None):
     binding_id = binding_id or f"{provider_name}:qualification"
     profile = profile_for(provider_name, binding_id, model)
-    if profile is None or profile.cost_minor != 0:
+    if profile is None or not profile.no_charge_guaranteed:
         raise FreeProviderQualificationBlocked(
             f"provider/model is not in the trusted free catalog: {provider_name}/{binding_id}/{model}"
         )
@@ -101,11 +101,14 @@ def qualify(*, provider_name: str, model: str, timeout_seconds: float, provider_
                 price_currency=profile.price_currency,
                 quota_domain=observed_quota_domain,
                 provider_binding_id=getattr(concrete, "provider_binding_id", provider_name),
-                metadata={
-                    "provider_binding_id": getattr(concrete, "provider_binding_id", provider_name),
-                    "model_id": model,
-                    "billing_authority": "trusted_catalog",
-                },
+                    metadata={
+                        "provider_binding_id": getattr(concrete, "provider_binding_id", provider_name),
+                        "model_id": model,
+                        "billing_authority": "trusted_catalog",
+                        "billing_mode": profile.billing_mode,
+                        "overage_policy": profile.overage_policy,
+                        "no_charge_guaranteed": profile.no_charge_guaranteed,
+                    },
             )
             ledger.observe(resource_id, available=1, health="healthy", confidence=1.0, concurrency_limit=1)
             if observed_quota_domain is not None:

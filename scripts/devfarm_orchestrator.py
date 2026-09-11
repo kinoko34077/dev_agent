@@ -200,9 +200,13 @@ class DevFarmOrchestrator:
         *,
         remote_governor: RemoteConcurrencyGovernor | None = None,
         host_governor: HostConcurrencyGovernor | None = None,
+        verification_trust_level: str = "STATIC_ONLY",
+        operator_approved: bool = False,
     ) -> None:
         self.remote_governor = remote_governor or RemoteConcurrencyGovernor()
         self.host_governor = host_governor or HostConcurrencyGovernor()
+        self.verification_trust_level = verification_trust_level
+        self.operator_approved = operator_approved
 
     @staticmethod
     def _normalize_assignments(assignments: Sequence[WorkerAssignment | tuple[str | Path, ModelProvider]]) -> list[WorkerAssignment]:
@@ -246,7 +250,12 @@ class DevFarmOrchestrator:
 
     def _verify(self, root: Path, manifest_path: Path) -> dict[str, Any]:
         with self.host_governor.slot("worktree_verification"):
-            return apply_and_verify(root, manifest_path)
+            return apply_and_verify(
+                root,
+                manifest_path,
+                trust_level=self.verification_trust_level,
+                operator_approved=self.operator_approved,
+            )
 
     def verify(self, root: str | Path, manifest_paths: Sequence[str | Path]) -> list[dict[str, Any]]:
         """Verify completed proposals behind the host worktree budget."""

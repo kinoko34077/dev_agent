@@ -270,3 +270,39 @@ def test_artifact_dependency_releases_from_explicit_artifact_evidence(tmp_path):
         released = service.release_planner_dependencies(proposal_id=proposal.proposal_id)
 
     assert [task.task_id for task in released] == [consumer.task_id]
+
+
+def test_failed_planner_dependency_is_durable_and_never_released_by_artifact_metadata(tmp_path):
+    config = _config(tmp_path)
+    root = _root(config)
+    proposal = RootPlanningProposal(
+        parent_task_id=root.task_id,
+        rationale="failed dependency must terminalize the consumer",
+        children=(
+            ChildTaskProposal(child_key="producer", objective="fail", task_type=TaskType.WORKER),
+            ChildTaskProposal(
+                child_key="consumer",
+                objective="must not run",
+                task_type=TaskType.DETERMINISTIC,
+                dependencies=("producer",),
+            ),
+        ),
+    )
+
+    with OperationService.open(config) as service:
+        producer, consumer = service.apply_planning_proposal(proposal)
+        producer.status = TaskStatus.FAILED
+        producer.metadata["artifact_ready"] = True
+        producer.metadata["integration_status"] = "INTEGRATED"
+        producer.metadata["integration_revision"] = "deadbeef"
+        service.store.save_task(producer)
+
+        changed = service.release_planner_dependencies(proposal_id=proposal.proposal_id)
+
+        assert [task.task_id for task in changed] == [consumer.task_id]
+        durable = service.store.load_task(consumer.task_id)
+        assert durable.status is TaskStatus.FAILED
+        assert durable.metadata["planner_dependency_state"] == "failed"
+        with pytest.raises(KeyError):
+            service.queue.snapshot(consumer.task_id)
+        assert service.store.has_event(consumer.task_id, "task.planner_dependency_failed")
