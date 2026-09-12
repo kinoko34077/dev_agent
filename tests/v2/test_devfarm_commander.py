@@ -292,16 +292,24 @@ def test_supervisor_approved_integration_applies_patch_and_records_git_proof(tmp
         verification_trust_level="TRUSTED_HOST_EXEC",
         operator_approved=True,
     )
-    dispatch_plan(root, "supervisor-integration-run", providers={"worker-a": provider}, orchestrator=orchestrator)
-    verify_plan(root, "supervisor-integration-run", orchestrator=orchestrator)
     runner = CodexSupervisedCommanderRun(root, "supervisor-integration-run")
     runner.create()
-    review_step = runner.advance(providers={})
+    review_step = runner.run_until_intervention(
+        providers={"worker-a": provider},
+        orchestrator=orchestrator,
+        verification_trust_level="TRUSTED_HOST_EXEC",
+        operator_approved=True,
+        max_wait_seconds=60,
+        sleep_fn=lambda _seconds: (_ for _ in ()).throw(AssertionError("completed worker must not sleep")),
+    )
     assert review_step.status == "REVIEWING"
     assert review_step.metrics["codex_review_request_count"] == 1
     assert review_step.metrics["codex_review_count"] == 0
     assert len(review_step.review_packets) == 1
     assert "patch" not in review_step.review_packets[0]
+    assert review_step.review_packets[0]["patch_sha256"] == hashlib.sha256(
+        _patch(targets[0]).encode("utf-8")
+    ).hexdigest()
     task = runner.plan()["tasks"][0]
     with pytest.raises(DevFarmError, match="approval"):
         runner.integrate_approved_worker(
@@ -379,6 +387,13 @@ def test_supervisor_rework_decision_creates_next_attempt_manifest(tmp_path):
     runner.advance(providers={})
     task = runner.plan()["tasks"][0]
     attempt_id = task["last_attempt_id"]
+    with pytest.raises(DevFarmError, match="required_correction"):
+        runner.record_review_decision(
+            "worker-a",
+            attempt_id=attempt_id,
+            decision="REWORK",
+            evidence_refs=[{"kind": "verification", "path": task["result_ref"]}],
+        )
     runner.record_review_decision(
         "worker-a",
         attempt_id=attempt_id,
@@ -413,6 +428,47 @@ def test_supervisor_rework_decision_creates_next_attempt_manifest(tmp_path):
     assert new_manifest["rework_handoff"]["kind"] == "repair_request"
     dispatch_plan(root, "supervisor-rework-run", providers={"worker-a": provider}, orchestrator=orchestrator)
     assert runner.plan()["tasks"][0]["status"] == "PROPOSED"
+
+
+def test_supervisor_reject_decision_is_terminal_across_resume(tmp_path):
+    root, targets, revision = _repo(tmp_path)
+    _manifest(root, revision, "worker-a", targets[0])
+    create_plan(
+        root,
+        {
+            "run_id": "supervisor-reject-run",
+            "objective": "persist an explicit review rejection",
+            "base_revision": revision,
+            "tasks": [
+                {
+                    "task_id": "worker-a",
+                    "owner": "worker",
+                    "status": "HOST_VERIFIED",
+                    "manifest_path": ".devfarm/tasks/worker-a.json",
+                    "ownership": [targets[0]],
+                    "last_attempt_id": "attempt-001",
+                    "assignment": {"provider_id": "cloudflare", "model_id": "worker-model"},
+                }
+            ],
+        },
+    )
+    runner = CodexSupervisedCommanderRun(root, "supervisor-reject-run")
+    runner.create()
+
+    decision_step = runner.record_review_decision(
+        "worker-a",
+        attempt_id="attempt-001",
+        decision="REJECT",
+        findings=["The candidate does not satisfy the acceptance contract."],
+    )
+
+    assert decision_step.status == "BLOCKED"
+    assert runner.plan()["status"] == "REJECTED"
+    assert runner.plan()["tasks"][0]["status"] == "REJECTED"
+
+    resumed = runner.advance(providers={})
+    assert resumed.status == "BLOCKED"
+    assert resumed.metrics["codex_review_request_count"] == 0
 
 
 def test_commander_keeps_sibling_proposal_when_one_worker_raises(tmp_path):

@@ -31,12 +31,19 @@
           "last_attempt_id": {"type": "string"},
           "result_ref": {"type": "string"},
           "last_result_status": {"type": "string"},
+          "last_error": {"type": "string"},
           "block_reason": {"type": "string"},
           "integration_note": {"type": "string"},
           "target_ref": {"type": "string"},
           "integration_revision": {"type": "string"},
           "source_attempt_id": {"type": "string"},
           "verified_patch_digest": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
+          "dispatch_id": {"type": "string"},
+          "dispatch_started_at": {"type": "string"},
+          "dispatch_deadline_at": {"type": "string"},
+          "dispatch_owner_pid": {"type": "integer", "minimum": 1},
+          "dispatch_recovery": {"type": "string"},
+          "stale_result_attempt_id": {"type": "string"},
           "assignment": {"$ref": "#/$defs/assignment"}
         }
       }
@@ -45,6 +52,7 @@
     "ownership": {"type": "array", "items": {"type": "object", "required": ["task_id", "paths"], "properties": {"task_id": {"type": "string"}, "paths": {"type": "array", "items": {"type": "string"}}}}},
     "assignments": {"type": "array", "items": {"$ref": "#/$defs/assignment"}},
     "results": {"type": "array", "items": {"type": "object", "required": ["task_id", "stage", "status"], "properties": {"task_id": {"type": "string"}, "stage": {"type": "string"}, "status": {"type": "string"}, "result_ref": {"type": "string"}, "attempt_id": {"type": "string"}, "recorded_at": {"type": "string"}}}},
+    "review_decisions": {"type": "array", "items": {"$ref": "#/$defs/review_decision"}},
     "supervisor": {"$ref": "#/$defs/supervisor"},
     "created_at": {"type": "string"},
     "updated_at": {"type": "string"}
@@ -76,7 +84,23 @@
         "overall_deadline": {"type": ["string", "null"]},
         "next_action": {"type": "string"},
         "wake_events": {"type": "array", "maxItems": 64, "items": {"type": "object"}},
+        "review_packets": {"type": "array", "maxItems": 64, "items": {"type": "object"}},
         "metrics": {"type": "object"}
+      }
+    },
+    "review_decision": {
+      "type": "object",
+      "required": ["decision_id", "task_id", "attempt_id", "decision", "findings", "evidence_refs"],
+      "properties": {
+        "decision_id": {"type": "string"},
+        "task_id": {"type": "string"},
+        "attempt_id": {"type": "string"},
+        "decision": {"enum": ["APPROVE_INTEGRATION", "REWORK", "REJECT", "ESCALATE"]},
+        "findings": {"type": "array", "items": {"type": "string"}},
+        "evidence_refs": {"type": "array", "items": {"type": "object"}},
+        "required_correction": {"type": "string"},
+        "reviewer_role": {"type": "string"},
+        "decided_at": {"type": "string"}
       }
     }
   }

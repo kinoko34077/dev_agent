@@ -919,7 +919,21 @@ def verify_plan(
     selected = [
         task
         for task in plan["tasks"]
-        if task["owner"] == "worker" and task["status"] == "PROPOSED" and (wanted is None or task["task_id"] in wanted)
+        if (
+            task["owner"] == "worker"
+            and (
+                task["status"] == "PROPOSED"
+                # A verifier boundary failure is a retryable host-side
+                # condition.  Keep review/rework/rejection terminal states
+                # out of collection, but allow the operator to rerun the
+                # failed verification explicitly.
+                or (
+                    task["status"] == "REJECTED"
+                    and task.get("block_reason") == "host_verification_failed"
+                )
+            )
+            and (wanted is None or task["task_id"] in wanted)
+        )
     ]
     if wanted is not None and any(item not in {task["task_id"] for task in selected} for item in wanted):
         missing = sorted(wanted - {task["task_id"] for task in selected})
