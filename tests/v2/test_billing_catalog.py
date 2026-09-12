@@ -11,13 +11,34 @@ _NOW = datetime(2026, 9, 11, tzinfo=timezone.utc)
 @pytest.mark.parametrize(
     ("verified_at", "expires_at"),
     (
+        # Non-ISO strings are now rejected at construction time.
         ("not-a-timestamp", "2026-10-09T00:00:00+00:00"),
         ("2026-09-09T00:00:00+00:00", "not-a-timestamp"),
+    ),
+)
+def test_trusted_billing_profile_rejects_invalid_iso_timestamps(verified_at, expires_at):
+    with pytest.raises(ValueError, match="ISO datetime"):
+        TrustedResourceProfile(
+            provider_id="example",
+            provider_binding_id="example:free",
+            model_id="example-model",
+            cost_minor=0,
+            price_currency="JPY",
+            quota_required=True,
+            verified_at=verified_at,
+            expires_at=expires_at,
+        )
+
+
+@pytest.mark.parametrize(
+    ("verified_at", "expires_at"),
+    (
+        # Valid ISO timestamps but outside the review window → is_current() is False.
         ("2026-09-12T00:00:00+00:00", "2026-10-09T00:00:00+00:00"),
         ("2026-09-09T00:00:00+00:00", "2026-09-08T00:00:00+00:00"),
     ),
 )
-def test_trusted_billing_profile_requires_coherent_review_timestamps(verified_at, expires_at):
+def test_trusted_billing_profile_is_not_current_outside_review_window(verified_at, expires_at):
     profile = TrustedResourceProfile(
         provider_id="example",
         provider_binding_id="example:free",

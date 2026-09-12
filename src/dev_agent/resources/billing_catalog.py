@@ -39,6 +39,16 @@ class TrustedResourceProfile:
     overage_policy: str = "unknown"
 
     def __post_init__(self) -> None:
+        # verified_at and expires_at must be non-empty ISO 8601 datetime strings.
+        # bool is a subclass of int and must be rejected first.
+        for field_name in ("verified_at", "expires_at"):
+            value = getattr(self, field_name)
+            if isinstance(value, bool) or not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{field_name} must be a non-empty ISO datetime string")
+            try:
+                datetime.fromisoformat(value)
+            except (TypeError, ValueError):
+                raise ValueError(f"{field_name} must be a valid ISO datetime string, got {value!r}")
         if self.billing_mode not in _BILLING_MODES:
             raise ValueError(f"billing_mode must be one of {sorted(_BILLING_MODES)}")
         if self.overage_policy not in _OVERAGE_POLICIES:
