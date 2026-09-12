@@ -144,7 +144,11 @@ def test_communicate_failure_is_reported_as_unknown(tmp_path):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True,
+        # Binary mode, matching production's Popen contract exactly (see
+        # codex_exec.py's start()) -- _write_stdin() writes
+        # request.objective.encode("utf-8") (bytes). A text-mode pipe here
+        # would reject that write with a TypeError, exercising a mismatch
+        # that can never occur against a real production-shaped process.
     )
 
     class _BrokenReadPipe:
@@ -191,7 +195,8 @@ def test_io_failure_terminates_a_long_running_process_no_orphan_survives(tmp_pat
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True,
+        # Binary mode -- see the matching note in
+        # test_communicate_failure_is_reported_as_unknown above.
     )
     assert real_process.poll() is None  # confirm it is genuinely running
 
@@ -513,7 +518,7 @@ def test_watchdog_does_not_flag_deadline_exceeded_for_an_already_exited_process(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True,
+        # Binary mode -- matches production's Popen contract.
     )
 
     class _ClaimsAlreadyExitedProcess:

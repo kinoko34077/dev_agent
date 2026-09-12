@@ -135,13 +135,6 @@ _SAFE_ENVIRONMENT_KEYS = frozenset(
         "SYSTEMROOT",
         "TEMP",
         "TMP",
-        # Needed for a toolchain-installed Python interpreter (e.g. the
-        # binaries actions/setup-python downloads on CI runners) invoked by
-        # its absolute sys.executable path to actually start and load its
-        # shared libraries -- none of these carry credentials.
-        "LD_LIBRARY_PATH",
-        "DYLD_LIBRARY_PATH",
-        "PYTHONHOME",
     }
 )
 
