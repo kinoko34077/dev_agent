@@ -93,7 +93,9 @@ def _stub_qualification_resolver(request, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _stub_provider_class_identity(request, monkeypatch):
-    """Disable the exact-type canonical-adapter check for non-security tests.
+    """Disable two Provider-instance Authority checks for non-security tests:
+    the exact-type canonical-adapter check, and the HTTP-transport-opener
+    identity check.
 
     validate_provider_class_identity() (in resources/provider_policy.py) is
     a production Authority boundary: it requires an already-constructed
@@ -106,21 +108,34 @@ def _stub_provider_class_identity(request, monkeypatch):
     call, but they are not the canonical class either, so the real check
     would reject them.
 
-    Per the P0-3 re-audit: that mismatch must be resolved on the test side,
-    not by weakening the production validator with a class-based exemption
-    (an isinstance-based "FakeProvider is always allowed" carve-out is
-    defeatable by any subclass that overrides request() to do real I/O).
-    This fixture is the test-side composition — it swaps the real check for
-    a no-op only within test collection, following the same
+    validate_transport_identity() requires the OpenAI-compatible family's
+    ``provider._http._opener`` to be exactly the shared canonical
+    ``urlopen_no_redirect`` function. Several existing integration tests
+    (e.g. test_free_provider_qualification.py) legitimately simulate a live
+    HTTP response by monkeypatching a provider module's
+    ``urlopen_no_redirect`` name *before* constructing the real, canonical
+    provider class through ProviderFactory — a different, well-established
+    testing need (simulate the network) from what this check exists to
+    catch (an already-trusted instance's opener silently swapped to
+    something else after the fact). Both are opted out here, not by
+    weakening the production validators themselves — an isinstance-based or
+    "close enough" exemption inside the validator can be defeated by a
+    determined subclass/wrapper, which is exactly the P0-3 re-audit's
+    lesson. This fixture is the test-side composition: it swaps the real
+    checks for no-ops only within test collection, following the same
     @pytest.mark.security opt-out convention as _stub_qualification_resolver
-    above. Tests marked @pytest.mark.security exercise the real,
-    unmodified validate_provider_class_identity().
+    above. Tests marked @pytest.mark.security exercise the real, unmodified
+    checks.
     """
     if request.node.get_closest_marker("security"):
-        return  # security tests must exercise the real class-identity check
+        return  # security tests must exercise the real checks
     import src.dev_agent.resources.provider_policy as _provider_policy_mod
 
     def _noop_class_identity_check(provider_id, provider):
         return None
 
+    def _noop_transport_identity_check(provider_id, provider):
+        return None
+
     monkeypatch.setattr(_provider_policy_mod, "validate_provider_class_identity", _noop_class_identity_check)
+    monkeypatch.setattr(_provider_policy_mod, "validate_transport_identity", _noop_transport_identity_check)

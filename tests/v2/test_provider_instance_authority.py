@@ -62,7 +62,11 @@ def test_approved_provider_id_with_unapproved_api_key_env_is_rejected():
 
 def test_provider_mutated_after_construction_is_rejected_on_revalidation():
     """Provider生成後にbase_urlを書換え -> re-validation rejects."""
-    provider = GeminiHttpProvider(model="gemini-flash", api_key="secret")
+    # Factory-built providers never receive an inline api_key (see
+    # test_provider_no_inline_credential.py) -- omitted here to match that
+    # shape, since an inline credential is independently rejected (item 9)
+    # and would make this test ambiguous about which check failed.
+    provider = GeminiHttpProvider(model="gemini-flash")
     # Passes at construction time (default approved base_url).
     validate_provider_instance_authority(provider)
     # Attacker (or a bug) mutates the live instance after it was trusted once.
@@ -75,7 +79,6 @@ def test_factory_built_provider_passes_instance_revalidation():
     """正規Factory生成Provider -> pass."""
     provider = GeminiHttpProvider(
         model="gemini-flash",
-        api_key="secret",
         base_url="https://generativelanguage.googleapis.com/v1beta",
     )
     provider.api_key_env = "GEMINI_API_KEY"
@@ -365,3 +368,61 @@ def test_provider_factory_built_instances_all_pass_class_identity(monkeypatch):
             monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "tok")
         provider = factory.create(ProviderDefinition(**kwargs))
         validate_provider_instance_authority(provider)  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# Item 9: Provider instance provenance -- inline credentials and transport
+# identity, beyond exact-type checking alone.
+# ---------------------------------------------------------------------------
+
+def test_inline_api_key_on_gemini_instance_is_rejected():
+    """Even the exact canonical class, at the exact approved origin, with a
+    canonical api_key_env recorded, must be rejected if it also carries an
+    inline api_key value -- exact-type alone is not sufficient Authority
+    evidence when a hardcoded secret can still be sent with every request."""
+    provider = GeminiHttpProvider(model="gemini-flash", api_key="hardcoded-secret-value")
+    with pytest.raises(ValueError, match="inline 'api_key'"):
+        validate_provider_instance_authority(provider)
+
+
+def test_inline_api_token_on_cloudflare_instance_is_rejected():
+    provider = CloudflareWorkersAIHttpProvider(model="@cf/meta/llama-3.1-8b-instruct", account_id="acct", api_token="hardcoded-token")
+    with pytest.raises(ValueError, match="inline 'api_token'"):
+        validate_provider_instance_authority(provider)
+
+
+def test_inline_api_key_on_openai_compatible_family_is_rejected():
+    provider = OpenRouterHttpProvider(model="openrouter/free", api_key="hardcoded-secret-value")
+    with pytest.raises(ValueError, match="inline 'api_key'"):
+        validate_provider_instance_authority(provider)
+
+
+def test_provider_without_inline_credential_passes():
+    """The normal, correct shape -- api_key left None, resolved from the
+    environment at call time -- must still pass."""
+    provider = GeminiHttpProvider(model="gemini-flash")
+    validate_provider_instance_authority(provider)  # must not raise
+
+
+def test_transport_opener_mutation_on_openai_compatible_family_is_rejected():
+    """provider._http._opener is the object that actually performs the HTTP
+    call for the OpenAI-compatible family (groq/mistral/openrouter/
+    sambanova/ollama_cloud/vercel). A caller (or attacker) replacing it
+    after construction bypasses base_url entirely -- exact-type,
+    endpoint, and api_key_env checks all still pass while every request
+    is silently redirected to arbitrary logic."""
+    provider = OpenRouterHttpProvider(model="openrouter/free")
+    validate_provider_instance_authority(provider)  # passes before mutation
+
+    def evil_opener(request, timeout=None):
+        raise AssertionError("should never be called by a security test")
+
+    provider._http._opener = evil_opener
+    with pytest.raises(ValueError, match="opener"):
+        validate_provider_instance_authority(provider)
+
+
+def test_unmutated_transport_opener_passes():
+    provider = OpenRouterHttpProvider(model="openrouter/free")
+    assert provider._http._opener is not None
+    validate_provider_instance_authority(provider)  # must not raise

@@ -75,6 +75,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import tempfile
 import time
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
@@ -110,6 +111,54 @@ _FORBIDDEN_DEFAULT_FLAGS = (
     "--danger-full-access",
 )
 
+# The only sandbox modes the production path may request. "danger-full-access"
+# is a real codex sandbox value but must never be reachable from this
+# adapter's construction path -- fail-closed: reject it (and anything else
+# outside this set), rather than passing an unrecognized or dangerous value
+# through to the CLI.
+_ALLOWED_SANDBOX_MODES = frozenset({"read-only", "workspace-write"})
+
+# Environment variable names inherited from this process's own environment
+# into the codex subprocess, mirroring
+# scripts/devfarm_worker.py's HostVerificationRunner._environment() allowlist
+# approach: only what is needed to locate the interpreter/CLI and behave
+# consistently with the host locale, never a blanket inheritance of the
+# full parent environment (which would hand the subprocess every Provider
+# API key, credential, and secret already present there).
+_SAFE_ENVIRONMENT_KEYS = frozenset(
+    {
+        "COMSPEC",
+        "LANG",
+        "LC_ALL",
+        "PATH",
+        "PATHEXT",
+        "SYSTEMROOT",
+        "TEMP",
+        "TMP",
+    }
+)
+
+
+def _sanitized_environment(home: Path, *, extra_env_passthrough: frozenset[str]) -> dict[str, str]:
+    """Build the environment for one codex subprocess: an allowlisted base
+    plus a fresh, throwaway HOME/USERPROFILE/CODEX_HOME so any config or
+    state codex itself writes never touches the real operator's home
+    directory, plus only the explicitly-named extra variables an operator
+    has opted into passing through (e.g. codex's own auth variable) -- never
+    anything else from this process's environment, in particular no
+    Provider API keys or other secrets that happen to be set here.
+    """
+    environment = {key: value for key, value in os.environ.items() if key.upper() in _SAFE_ENVIRONMENT_KEYS}
+    for name in extra_env_passthrough:
+        value = os.environ.get(name)
+        if value is not None:
+            environment[name] = value
+    home_value = str(home)
+    environment["HOME"] = home_value
+    environment["USERPROFILE"] = home_value
+    environment["CODEX_HOME"] = home_value
+    return environment
+
 
 def _build_default_command(
     *,
@@ -117,9 +166,12 @@ def _build_default_command(
     ignore_user_config: bool,
     ignore_rules: bool,
 ) -> tuple[str, ...]:
-    command = ["codex", "exec", "--json"]
-    if sandbox_mode:
-        command.extend(["--sandbox", sandbox_mode])
+    if sandbox_mode not in _ALLOWED_SANDBOX_MODES:
+        raise ValueError(
+            f"sandbox_mode must be one of {sorted(_ALLOWED_SANDBOX_MODES)}, got {sandbox_mode!r}. "
+            "\"danger-full-access\", unknown values, and an empty string are rejected fail-closed."
+        )
+    command = ["codex", "exec", "--json", "--sandbox", sandbox_mode]
     if ignore_user_config:
         command.append("--ignore-user-config")
     if ignore_rules:
@@ -137,6 +189,15 @@ class CodexExecBackendError(RuntimeError):
     """Raised for adapter-local usage errors (unknown session, bad request)."""
 
 
+def _remove_directory(path: str) -> None:
+    import shutil
+
+    try:
+        shutil.rmtree(path, ignore_errors=True)
+    except Exception:
+        pass
+
+
 class _SessionState:
     __slots__ = (
         "process",
@@ -149,16 +210,21 @@ class _SessionState:
         "stderr_truncated",
         "returncode",
         "communicate_failed",
+        "io_failure_confirmed_stopped",
         "deadline_exceeded",
         "started_at",
         "started_event_emitted",
         "completion_event_emitted",
+        "home_dir",
+        "home_dir_cleaned_up",
     )
 
-    def __init__(self, *, process: "subprocess.Popen[str]", task_id: str) -> None:
+    def __init__(self, *, process: "subprocess.Popen[str]", task_id: str, home_dir: str | None = None) -> None:
         self.process = process
         self.thread: Thread | None = None
         self.task_id = task_id
+        self.home_dir = home_dir
+        self.home_dir_cleaned_up = False
         self.cancelled = False
         self.stdout: str | None = None
         self.stderr: str | None = None
@@ -170,32 +236,41 @@ class _SessionState:
         # "still running": we can no longer observe this process's true
         # state at all, which is exactly what UNKNOWN means.
         self.communicate_failed = False
+        self.io_failure_confirmed_stopped: bool | None = None
         self.deadline_exceeded = False
         self.started_at = time.monotonic()
         self.started_event_emitted = False
         self.completion_event_emitted = False
 
 
-_STREAM_CHUNK_CHARS = 65536
+_STREAM_CHUNK_BYTES = 65536
 
 
-def _drain_bounded(pipe: Any, max_chars: int, out: dict[str, Any]) -> None:
-    """Read ``pipe`` to EOF, keeping at most ``max_chars`` and discarding the
-    rest -- but continuing to read past the cap so the writing process is
-    never blocked on a full pipe buffer. Writes "text" and "truncated" into
-    ``out``. Runs on its own thread; a caller must run one of these per pipe
-    (stdout and stderr) concurrently to avoid the classic dual-pipe deadlock.
+def _drain_bounded(pipe: Any, max_bytes: int, out: dict[str, Any]) -> None:
+    """Read ``pipe`` (binary mode) to EOF, keeping at most ``max_bytes`` raw
+    bytes and discarding the rest -- but continuing to read past the cap so
+    the writing process is never blocked on a full pipe buffer. The kept
+    bytes are decoded as UTF-8 (replacing invalid sequences) into "text";
+    "truncated" records whether the cap was hit. Runs on its own thread; a
+    caller must run one of these per pipe (stdout and stderr) concurrently
+    to avoid the classic dual-pipe deadlock.
+
+    The limit is enforced in actual bytes, not decoded characters: reading
+    the pipe in text mode would count a multi-byte UTF-8 character (e.g.
+    most non-ASCII text) as one unit against the cap while it actually
+    consumes several bytes of process memory and matches the documented
+    max_output_bytes contract only for ASCII-only output.
     """
-    collected: list[str] = []
+    collected: list[bytes] = []
     total = 0
     truncated = False
     try:
         while True:
-            chunk = pipe.read(_STREAM_CHUNK_CHARS)
+            chunk = pipe.read(_STREAM_CHUNK_BYTES)
             if not chunk:
                 break
             if not truncated:
-                remaining = max_chars - total
+                remaining = max_bytes - total
                 if remaining > 0:
                     collected.append(chunk[:remaining])
                     total += min(len(chunk), remaining)
@@ -206,13 +281,29 @@ def _drain_bounded(pipe: Any, max_chars: int, out: dict[str, Any]) -> None:
         return
     # The `truncated` flag is the authoritative signal -- no in-band marker
     # is appended to `text`, since doing so would itself push the captured
-    # text past max_chars.
-    out["text"] = "".join(collected)
+    # bytes past max_bytes. errors="replace" because a truncation cut can
+    # land in the middle of a multi-byte UTF-8 sequence.
+    out["text"] = b"".join(collected).decode("utf-8", errors="replace")
     out["truncated"] = truncated
 
 
-class CodexExecBackend:
-    """AgentBackend adapter that runs one ``codex exec`` invocation per session."""
+class _CodexExecBackendImpl:
+    """Full implementation, parameterized by an arbitrary ``command_builder``.
+
+    Not part of the public production surface -- see ``CodexExecBackend``
+    below, which is what production composition code (Operation, DevFarm,
+    etc.) must use, and whose public constructor does not accept a
+    ``command_builder`` at all. An arbitrary command_builder can bypass
+    every safety default this module establishes (sandbox mode,
+    --ignore-user-config, --ignore-rules, the stdin-prompt convention that
+    prevents argument/option injection) -- production code must never be
+    able to construct an instance with one. This class exists so that this
+    module's own test suite can exercise the real subprocess/threading
+    machinery with an injected fake command (no real ``codex`` binary is
+    installed in most environments) without that same door being open to
+    Operation or any other production caller. Tests import this class
+    directly; production code only ever sees ``CodexExecBackend``.
+    """
 
     identity = AgentBackendIdentity(
         backend_id="codex-exec",
@@ -223,15 +314,13 @@ class CodexExecBackend:
     def __init__(
         self,
         *,
-        command_builder: CommandBuilder | None = None,
+        command_builder: CommandBuilder,
         popen: PopenFactory | None = None,
         backend_version: str | None = None,
         max_output_bytes: int = 2 * 1024 * 1024,
         default_wait_seconds: float = 0.0,
         max_runtime_seconds: float = DEFAULT_MAX_RUNTIME_SECONDS,
-        sandbox_mode: str = "read-only",
-        ignore_user_config: bool = True,
-        ignore_rules: bool = True,
+        extra_env_passthrough: frozenset[str] = frozenset(),
     ) -> None:
         if backend_version is not None:
             self.identity = AgentBackendIdentity(
@@ -241,16 +330,11 @@ class CodexExecBackend:
             )
         if isinstance(max_runtime_seconds, bool) or not isinstance(max_runtime_seconds, (int, float)) or max_runtime_seconds <= 0:
             raise ValueError("max_runtime_seconds must be a positive number")
-        if command_builder is not None:
-            self._command_builder: CommandBuilder = command_builder
-        else:
-            default_command = _build_default_command(
-                sandbox_mode=sandbox_mode,
-                ignore_user_config=ignore_user_config,
-                ignore_rules=ignore_rules,
-            )
-            self._command_builder = lambda _request: default_command
+        if not callable(command_builder):
+            raise TypeError("command_builder must be callable")
+        self._command_builder: CommandBuilder = command_builder
         self._popen: PopenFactory = popen or subprocess.Popen
+        self._extra_env_passthrough = frozenset(extra_env_passthrough)
         self._max_output_bytes = max_output_bytes
         self._max_runtime_seconds = float(max_runtime_seconds)
         # result() returns AgentBackendStatus.RUNNING (a known, non-terminal,
@@ -286,27 +370,66 @@ class CodexExecBackend:
         if not command:
             raise CodexExecBackendError("command_builder produced an empty command")
 
+        # A fresh, throwaway HOME/CODEX_HOME per session -- codex's own
+        # config/state writes never touch the real operator's home
+        # directory, and this directory (along with everything codex wrote
+        # into it) is removed once the session's I/O drain completes.
+        home_dir = tempfile.mkdtemp(prefix="codex-exec-home-")
+        environment = _sanitized_environment(Path(home_dir), extra_env_passthrough=self._extra_env_passthrough)
+
         creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) if os.name == "nt" else 0
-        process = self._popen(
-            list(command),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            stdin=subprocess.PIPE,
-            text=True,
-            cwd=str(workspace),
-            start_new_session=os.name != "nt",
-            creationflags=creationflags,
-        )
         try:
-            process.stdin.write(request.objective)
-            process.stdin.close()
+            process = self._popen(
+                list(command),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                stdin=subprocess.PIPE,
+                # Binary mode (no text=True): _drain_bounded enforces
+                # max_output_bytes in actual bytes, not decoded characters
+                # -- a text-mode pipe would undercount multi-byte UTF-8
+                # output against the same nominal limit.
+                cwd=str(workspace),
+                env=environment,
+                start_new_session=os.name != "nt",
+                creationflags=creationflags,
+            )
         except BaseException:
-            terminate_process_tree(process)
+            _remove_directory(home_dir)
             raise
 
-        state = _SessionState(process=process, task_id=request.task_id)
+        state = _SessionState(process=process, task_id=request.task_id, home_dir=home_dir)
         session_id = str(uuid4())
         exited = Event()
+
+        def _write_stdin() -> None:
+            # Runs on its own thread, started only after the drain and
+            # watchdog threads are already running: if the child process
+            # never reads stdin (e.g. it is waiting on something else, or
+            # never starts reading until some other condition), this
+            # write() call can block indefinitely on a full pipe buffer.
+            # Blocking start() itself on that write was the original bug --
+            # a caller expects start() to return promptly regardless of
+            # whether the child ever consumes its prompt.
+            try:
+                process.stdin.write(request.objective.encode("utf-8"))
+                process.stdin.close()
+            except BaseException:
+                if process.poll() is not None:
+                    # The child already exited (e.g. it never reads stdin
+                    # at all) -- a closed-pipe/broken-pipe write failure
+                    # here is benign, not a genuinely ambiguous outcome.
+                    # The real result still comes from _wait()'s own
+                    # observation of the exit code; do not override it.
+                    return
+                # The child is still running and something unexpected went
+                # wrong writing its prompt -- treat this the same as an
+                # I/O drain failure: terminate and confirm, rather than
+                # leaving a process that never received its prompt running
+                # unattended.
+                terminate_process_tree(process)
+                with self._lock:
+                    state.communicate_failed = True
+                exited.set()
 
         def _wait() -> None:
             stdout_box: dict[str, Any] = {}
@@ -322,23 +445,46 @@ class CodexExecBackend:
                     raise stdout_box.get("error") or stderr_box.get("error")
                 process.wait()
             except BaseException:
+                # An I/O failure while draining the pipes leaves the actual
+                # subprocess outcome ambiguous, but the subprocess itself
+                # must not be left running unattended in the background --
+                # terminate it immediately and confirm the termination
+                # actually took effect before reporting anything.
+                terminate_process_tree(process)
+                confirmed_stopped = False
+                for _ in range(20):  # bounded confirmation wait, ~2s total
+                    if process.poll() is not None:
+                        confirmed_stopped = True
+                        break
+                    time.sleep(0.1)
                 with self._lock:
                     state.communicate_failed = True
+                    state.io_failure_confirmed_stopped = confirmed_stopped
                 exited.set()
                 return
             finally:
-                # Explicitly close pipe file descriptors as soon as this
-                # session is done with them, rather than relying on garbage
-                # collection -- a long test/CI run that spawns many sessions
-                # in one process should not accumulate open fds waiting for
-                # GC, especially under a container's typically low fd
-                # ulimit.
-                for pipe in (getattr(process, "stdin", None), getattr(process, "stdout", None), getattr(process, "stderr", None)):
+                # Explicitly close the pipe file descriptors this thread
+                # owns (stdout/stderr) as soon as it is done with them,
+                # rather than relying on garbage collection -- a long
+                # test/CI run that spawns many sessions in one process
+                # should not accumulate open fds waiting for GC, especially
+                # under a container's typically low fd ulimit. stdin is
+                # deliberately NOT closed here: _write_stdin() owns writing
+                # to and closing stdin on its own thread, and closing it
+                # from here too would race with that thread (this thread's
+                # process.wait() can return before _write_stdin has run at
+                # all if the child exits very quickly without reading
+                # stdin).
+                for pipe in (getattr(process, "stdout", None), getattr(process, "stderr", None)):
                     if pipe is not None:
                         try:
                             pipe.close()
                         except Exception:
                             pass
+                with self._lock:
+                    if state.home_dir is not None and not state.home_dir_cleaned_up:
+                        state.home_dir_cleaned_up = True
+                        _remove_directory(state.home_dir)
             with self._lock:
                 state.stdout = stdout_box.get("text")
                 state.stdout_truncated = bool(stdout_box.get("truncated"))
@@ -350,6 +496,16 @@ class CodexExecBackend:
         def _watchdog() -> None:
             if exited.wait(timeout=self._max_runtime_seconds):
                 return
+            # exited.wait() timing out means the deadline elapsed before
+            # _wait() called exited.set() -- but _wait() could still be in
+            # the narrow window between the process actually exiting and
+            # acquiring self._lock to record that. process.poll() is the
+            # authoritative, race-free check of whether the process has
+            # already exited on its own; only fall back to state's flags
+            # for the (much rarer) case where the process is genuinely
+            # still running.
+            if process.poll() is not None:
+                return
             with self._lock:
                 if state.returncode is not None or state.communicate_failed:
                     return
@@ -360,8 +516,13 @@ class CodexExecBackend:
         state.thread = thread
         with self._lock:
             self._sessions[session_id] = state
+        # Order matters: the drain and watchdog threads must already be
+        # running before the prompt is written, so a child that starts
+        # producing output (or needs to be killed) the moment it starts
+        # reading stdin is never left undrained or unbounded even briefly.
         thread.start()
         Thread(target=_watchdog, daemon=True).start()
+        Thread(target=_write_stdin, daemon=True).start()
 
         return AgentBackendSession(
             session_id=session_id,
@@ -439,7 +600,17 @@ class CodexExecBackend:
                 return AgentBackendResult(
                     session_id=session_id,
                     status=AgentBackendStatus.UNKNOWN,
-                    reconciliation_metadata={"reason": "communicate_failed"},
+                    reconciliation_metadata={
+                        "reason": "communicate_failed",
+                        # The subprocess *outcome* remains ambiguous after an
+                        # I/O failure -- UNKNOWN is still correct -- but this
+                        # confirms whether the process itself was actually
+                        # terminated (no orphan left running) or whether
+                        # termination could not be confirmed within the
+                        # bounded wait, which an operator should treat as a
+                        # more urgent reconciliation case.
+                        "process_confirmed_stopped": state.io_failure_confirmed_stopped,
+                    },
                 )
             if state.returncode is None:
                 winding_down = state.cancelled or state.deadline_exceeded
@@ -481,6 +652,67 @@ class CodexExecBackend:
                     "stderr_truncated": state.stderr_truncated,
                 },
             )
+
+
+class CodexExecBackend:
+    """Production AgentBackend adapter for one ``codex exec`` invocation per session.
+
+    This is the only entry point production composition code (Operation,
+    DevFarm, etc.) may use. Unlike ``_CodexExecBackendImpl``, its
+    constructor does not accept a ``command_builder`` at all -- every
+    instance always uses the canonical command (``_build_default_command``):
+    a pinned ``--sandbox`` mode from a fail-closed allowlist,
+    ``--ignore-user-config``, ``--ignore-rules``, and the objective sent
+    over stdin rather than argv. There is no parameter, override, or
+    subclassing hook here that lets a caller substitute an arbitrary
+    command -- that capability exists only in ``_CodexExecBackendImpl``,
+    which this module's own tests import directly and which is never
+    reachable from this class's public API.
+    """
+
+    def __init__(
+        self,
+        *,
+        popen: PopenFactory | None = None,
+        backend_version: str | None = None,
+        max_output_bytes: int = 2 * 1024 * 1024,
+        default_wait_seconds: float = 0.0,
+        max_runtime_seconds: float = DEFAULT_MAX_RUNTIME_SECONDS,
+        sandbox_mode: str = "read-only",
+        ignore_user_config: bool = True,
+        ignore_rules: bool = True,
+        extra_env_passthrough: frozenset[str] = frozenset(),
+    ) -> None:
+        canonical_command = _build_default_command(
+            sandbox_mode=sandbox_mode,
+            ignore_user_config=ignore_user_config,
+            ignore_rules=ignore_rules,
+        )
+        self._impl = _CodexExecBackendImpl(
+            command_builder=lambda _request: canonical_command,
+            popen=popen,
+            backend_version=backend_version,
+            max_output_bytes=max_output_bytes,
+            default_wait_seconds=default_wait_seconds,
+            max_runtime_seconds=max_runtime_seconds,
+            extra_env_passthrough=extra_env_passthrough,
+        )
+
+    @property
+    def identity(self) -> AgentBackendIdentity:
+        return self._impl.identity
+
+    def start(self, request: AgentBackendRequest) -> AgentBackendSession:
+        return self._impl.start(request)
+
+    def events(self, session_id: str) -> Iterable[AgentBackendEvent]:
+        return self._impl.events(session_id)
+
+    def cancel(self, session_id: str) -> None:
+        return self._impl.cancel(session_id)
+
+    def result(self, session_id: str, *, wait_seconds: float | None = None) -> AgentBackendResult:
+        return self._impl.result(session_id, wait_seconds=wait_seconds)
 
 
 __all__ = ["CodexExecBackend", "CodexExecBackendError", "CommandBuilder", "DEFAULT_MAX_RUNTIME_SECONDS"]

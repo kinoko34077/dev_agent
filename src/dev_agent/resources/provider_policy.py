@@ -205,3 +205,71 @@ def validate_provider_instance_authority(provider: Any) -> None:
     validate_provider_class_identity(provider_id, provider)
     validate_endpoint_authority(provider_id, getattr(provider, "base_url", None))
     validate_api_key_env_authority(provider_id, getattr(provider, "api_key_env", None))
+    validate_no_inline_credential(provider_id, provider)
+    validate_transport_identity(provider_id, provider)
+
+
+def validate_no_inline_credential(provider_id: str, provider: Any) -> None:
+    """Raise ValueError if the instance embeds a credential value directly.
+
+    ``ProviderDefinition``'s own docstring states the design intent
+    explicitly: "API keys are deliberately resolved by each adapter from
+    its external environment; they cannot be embedded in this definition."
+    Every HTTP adapter's constructor nonetheless accepts an optional
+    ``api_key``/``api_token`` positional/keyword argument (used for
+    non-production embedding scenarios such as direct unit tests of the
+    adapter itself) that, if set, is used INSTEAD of resolving from
+    ``os.environ`` at call time. exact-type and endpoint/api_key_env
+    checks alone do not catch this: an instance can be the exact canonical
+    class, pointed at the exact approved origin, with a canonical
+    api_key_env value recorded -- and still send a hardcoded secret with
+    every request because ``api_key`` (or ``api_token``) was set at
+    construction. Reject any network-capable provider instance that has
+    either attribute set to a truthy value.
+    """
+    if provider_id not in _NETWORK_CAPABLE:
+        return
+    for attribute in ("api_key", "api_token"):
+        value = getattr(provider, attribute, None)
+        if value:
+            raise ValueError(
+                f"provider_id {provider_id!r} instance has an inline {attribute!r} "
+                "value set; credentials must be resolved from an approved "
+                "environment variable at call time, never embedded on the "
+                "instance."
+            )
+
+
+def validate_transport_identity(provider_id: str, provider: Any) -> None:
+    """Raise ValueError if the instance's underlying HTTP opener was swapped.
+
+    ``base_url`` and ``api_key_env`` are plain string attributes checked by
+    ``validate_endpoint_authority``/``validate_api_key_env_authority``, and
+    ``validate_provider_class_identity`` confirms the instance is the exact
+    canonical class -- but for the OpenAI-compatible family of adapters
+    (groq, mistral, openrouter, sambanova, ollama_cloud, vercel), the
+    object that actually performs the HTTP call is a separate,
+    independently mutable attribute: ``provider._http._opener``. All three
+    prior checks can pass while a caller has replaced that opener with an
+    arbitrary callable, silently redirecting every request regardless of
+    what ``base_url`` says. This checks that, when a ``_http`` attribute
+    with an ``_opener`` is present, the opener is exactly the shared
+    canonical ``urlopen_no_redirect`` function -- not merely non-None, not
+    merely callable, but the exact expected object.
+    """
+    if provider_id not in _NETWORK_CAPABLE:
+        return
+    http_transport = getattr(provider, "_http", None)
+    if http_transport is None:
+        return
+    opener = getattr(http_transport, "_opener", None)
+    if opener is None:
+        return
+    from ..providers.openai_compatible.http import urlopen_no_redirect
+
+    if opener is not urlopen_no_redirect:
+        raise ValueError(
+            f"provider_id {provider_id!r} instance's HTTP transport opener "
+            "has been replaced with a non-canonical callable; the opener "
+            "must be exactly urlopen_no_redirect."
+        )
