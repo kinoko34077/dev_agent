@@ -8,6 +8,7 @@ import math
 from typing import Any
 
 from ..domain.protocol import IntelligenceTier
+from ..resources.provider_policy import validate_api_key_env_authority, validate_endpoint_authority
 
 
 @dataclass(frozen=True)
@@ -57,6 +58,10 @@ class ProviderDefinition:
             object.__setattr__(self, "api_key_env", self.api_key_env.strip())
         if self.project_id is not None:
             object.__setattr__(self, "project_id", self.project_id.strip())
+        # Endpoint and credential authority — must run after normalization so the
+        # stripped values are checked.
+        validate_endpoint_authority(self.provider_id, self.base_url)
+        validate_api_key_env_authority(self.provider_id, self.api_key_env)
 
     @property
     def model_id(self) -> str:
