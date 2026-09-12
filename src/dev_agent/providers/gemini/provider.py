@@ -19,6 +19,7 @@ from urllib.request import Request, urlopen
 
 from ...domain.protocol import ModelRequest, ModelResponse
 from ..base import ModelProvider, ProviderError
+from ..openai_compatible.http import _read_bounded
 from .decoder import decode_generate_content
 from .transcript import GeminiTranscriptStore, function_call_count
 from ..normalize import normalize_response
@@ -213,7 +214,7 @@ class GeminiHttpProvider(ModelProvider):
         http_request = Request(url, data=body, headers={"Content-Type": "application/json", "x-goog-api-key": key}, method="POST")
         try:
             with urlopen(http_request, timeout=self.timeout_seconds) as response:
-                raw = json.loads(response.read().decode("utf-8"))
+                raw = json.loads(_read_bounded(response).decode("utf-8"))
         except HTTPError as exc:
             category = "rate_limit" if exc.code == 429 else "authentication" if exc.code == 401 else "authorization" if exc.code == 403 else "provider_http"
             detail = self._safe_error_detail(exc)

@@ -18,6 +18,7 @@ from urllib.request import Request, urlopen
 from ...domain.protocol import ModelRequest, ModelResponse, ProtocolError, ToolCall
 from ..base import ModelProvider, ProviderError
 from ..openai_compatible import OpenAICompatibleProvider
+from ..openai_compatible.http import _read_bounded
 
 
 class CloudflareWorkersAIProvider(OpenAICompatibleProvider):
@@ -188,7 +189,7 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
         )
         try:
             with urlopen(http_request, timeout=self.timeout_seconds) as response:
-                raw = json.loads(response.read().decode("utf-8"))
+                raw = json.loads(_read_bounded(response).decode("utf-8"))
         except HTTPError as exc:
             category = "authentication" if exc.code == 401 else "authorization" if exc.code == 403 else "rate_limit" if exc.code == 429 else "provider_http"
             raise ProviderError(f"cloudflare {category}: HTTP {exc.code}", category=category, retryable=category == "rate_limit", http_status=exc.code) from exc

@@ -13,6 +13,30 @@ from urllib.request import Request, urlopen
 from ...domain.protocol import ModelRequest, ModelResponse, ProtocolError, ToolCall
 from ..base import ModelProvider, ProviderError
 
+# Hard upper bound on raw HTTP response bytes from any provider.  This prevents
+# a malicious or malfunctioning endpoint from causing a memory DoS by returning
+# an unbounded body.  The limit is intentionally larger than any legitimate LLM
+# response (max_output_tokens caps token count; JSON framing adds ~10% overhead
+# plus tool-call schemas) while still being finite.
+MAX_PROVIDER_RESPONSE_BYTES: int = 10 * 1024 * 1024  # 10 MiB
+
+
+def _read_bounded(response: Any, max_bytes: int = MAX_PROVIDER_RESPONSE_BYTES) -> bytes:
+    """Read up to max_bytes+1 then reject if the limit is exceeded.
+
+    Content-Length is not trusted on its own — the actual read amount is also
+    checked.  This prevents a response that lies about its length from slipping
+    through.
+    """
+    data = response.read(max_bytes + 1)
+    if len(data) > max_bytes:
+        raise ProviderError(
+            f"provider response exceeded {max_bytes} bytes",
+            category="provider_decode",
+            retryable=False,
+        )
+    return data
+
 
 class OpenAICompatibleHttpTransport:
     """Perform one JSON POST without leaking provider SDK objects."""
@@ -76,7 +100,7 @@ class OpenAICompatibleHttpTransport:
         )
         try:
             with self._opener(request, timeout=timeout_seconds) as response:
-                raw = json.loads(response.read().decode("utf-8"))
+                raw = json.loads(_read_bounded(response).decode("utf-8"))
                 return raw, response.headers
         except HTTPError as exc:
             category = "authentication" if exc.code == 401 else "authorization" if exc.code == 403 else "rate_limit" if exc.code == 429 else "provider_http"

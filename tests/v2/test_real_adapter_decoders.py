@@ -45,8 +45,9 @@ def test_ollama_response_records_explicit_zero_local_cost(monkeypatch):
         def __exit__(self, *_):
             return False
 
-        def read(self):
-            return b'{"model":"local-test","done_reason":"stop","message":{"role":"assistant","content":"ok"},"prompt_eval_count":1,"eval_count":2}'
+        def read(self, n: int = -1) -> bytes:
+            data = b'{"model":"local-test","done_reason":"stop","message":{"role":"assistant","content":"ok"},"prompt_eval_count":1,"eval_count":2}'
+            return data if n < 0 else data[:n]
 
     monkeypatch.setattr("src.dev_agent.providers.ollama.provider.urlopen", lambda request, timeout: Response())
     response = OllamaProvider(model="local-test").request(ModelRequest(task_id=_id(), messages=[{"role": "user", "content": "x"}]))
@@ -103,8 +104,9 @@ def test_gemini_http_provider_replays_exact_model_parts_and_thought_signature(mo
         def __exit__(self, *_):
             return False
 
-        def read(self):
-            return json.dumps(self.raw).encode("utf-8")
+        def read(self, n: int = -1) -> bytes:
+            data = json.dumps(self.raw).encode("utf-8")
+            return data if n < 0 else data[:n]
 
     def fake_urlopen(request, timeout):
         captured.append(json.loads(request.data))
@@ -176,8 +178,9 @@ def test_gemini_http_provider_replays_parallel_function_call_parts_in_order(monk
         def __exit__(self, *_):
             return False
 
-        def read(self):
-            return json.dumps(next(responses)).encode("utf-8")
+        def read(self, n: int = -1) -> bytes:
+            data = json.dumps(next(responses)).encode("utf-8")
+            return data if n < 0 else data[:n]
 
     monkeypatch.setattr(gemini_provider_module, "urlopen", lambda request, timeout: (captured.append(json.loads(request.data)) or Response()))
     task_id = _id()
@@ -223,8 +226,9 @@ def test_gemini_http_provider_decodes_mocked_generate_content(monkeypatch):
         def __exit__(self, *_):
             return False
 
-        def read(self):
-            return b'{"candidates":[{"content":{"parts":[{"text":"ok"}]},"finishReason":"STOP"}]}'
+        def read(self, n: int = -1) -> bytes:
+            data = b'{"candidates":[{"content":{"parts":[{"text":"ok"}]},"finishReason":"STOP"}]}'
+            return data if n < 0 else data[:n]
 
     captured = {}
 

@@ -8,6 +8,7 @@ from urllib.request import Request, urlopen
 
 from ...domain.protocol import ModelRequest, ModelResponse, ToolCall
 from ..base import ModelProvider, ProviderError
+from ..openai_compatible.http import _read_bounded
 
 
 class OllamaProvider(ModelProvider):
@@ -38,7 +39,7 @@ class OllamaProvider(ModelProvider):
         http_request = Request(f"{self.base_url}/api/chat", data=body, headers={"Content-Type": "application/json"}, method="POST")
         try:
             with urlopen(http_request, timeout=self.timeout_seconds) as response:
-                raw = json.loads(response.read().decode("utf-8"))
+                raw = json.loads(_read_bounded(response).decode("utf-8"))
         except (URLError, OSError, json.JSONDecodeError) as exc:
             raise ProviderError(f"ollama transport failed: {exc}", category="transport", retryable=True) from exc
         try:

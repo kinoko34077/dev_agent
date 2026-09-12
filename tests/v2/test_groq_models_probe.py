@@ -17,8 +17,10 @@ class _Response:
     def __exit__(self, *_):
         return False
 
-    def read(self):
-        return self._payload
+    def read(self, n: int = -1) -> bytes:
+        if n < 0:
+            return self._payload
+        return self._payload[:n]
 
 
 def test_groq_models_probe_distinguishes_listed_and_unlisted_models(monkeypatch):
