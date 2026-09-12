@@ -18,14 +18,32 @@ PROTECTED_AUTHORITY_PATHS = frozenset(
     {
         "spec/v2/GATE_STATUS.json",
         "spec/v2/PROVIDER_CAPABILITY_MATRIX.json",
+        # Provider authority — locality, endpoint, credential, qualification
+        "src/dev_agent/resources/provider_authority_constants.py",
         "src/dev_agent/resources/provider_policy.py",
+        "src/dev_agent/providers/factory.py",
+        # Billing and budget authority
         "src/dev_agent/resources/budget.py",
         "src/dev_agent/resources/budget_store.py",
         "src/dev_agent/resources/billing_catalog.py",
+        "src/dev_agent/resources/quota_policy.py",
+        # Qualification and routing authority
         "src/dev_agent/resources/qualification.py",
         "src/dev_agent/resources/control.py",
         "src/dev_agent/resources/router.py",
         "src/dev_agent/resources/repair.py",
+        # Approval and permission authority
+        "src/dev_agent/policy/approvals.py",
+        "src/dev_agent/policy/permissions.py",
+        # Tool side-effect and effect guard authority
+        "src/dev_agent/tools/registry.py",
+        "src/dev_agent/tools/runtime.py",
+        "src/dev_agent/tools/effect_guard.py",
+        "src/dev_agent/state/effects_repository.py",
+        # Operation and bootstrap authority
+        "src/dev_agent/operation.py",
+        "src/dev_agent/operation_bootstrap.py",
+        # AgentBackend dispatch authority
         "src/dev_agent/backends/dispatcher.py",
         "config/v2.yaml",
         "scripts/devfarm.py",

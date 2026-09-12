@@ -6,6 +6,19 @@ from dataclasses import dataclass, field
 import math
 from typing import Any, Callable
 
+# Canonical side-effect level set.  Unknown values are rejected at ToolSpec
+# construction time so a typo can never silently fall through to a weaker guard.
+KNOWN_SIDE_EFFECT_LEVELS: frozenset[str] = frozenset({
+    "none",
+    "network_read",
+    "local_write",
+    "process",
+    "external_write",
+    "financial",
+    "credential",
+    "destructive",
+})
+
 
 @dataclass(frozen=True)
 class ToolSpec:
@@ -51,6 +64,10 @@ class ToolSpec:
             raise ValueError("handler_ref must be a module:qualname string")
         if self.trust_level in {"untrusted", "generated"} and self.isolation != "subprocess":
             raise ValueError("untrusted and generated tools require subprocess isolation")
+        if self.side_effect_level not in KNOWN_SIDE_EFFECT_LEVELS:
+            raise ValueError(
+                f"side_effect_level must be one of {sorted(KNOWN_SIDE_EFFECT_LEVELS)!r}, got {self.side_effect_level!r}"
+            )
         if self.side_effect_level == "process" and self.isolation != "subprocess":
             raise ValueError("process tools require subprocess isolation")
         self._validate_schema_subset(self.input_schema)

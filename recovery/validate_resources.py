@@ -123,9 +123,10 @@ def legacy_resource_metadata(path: str | Path) -> list[str]:
 
     database = Path(path).expanduser()
     # Local-only providers are exempt from cloud authority schema requirements.
-    # Using an allowlist rather than a denylist ensures new cloud providers are
-    # automatically included in the strict checks.
-    local_only_providers = {"ollama", "fake"}
+    # Derived from the single authority source — provider_authority_constants —
+    # so adding a new local provider updates runtime and recovery together.
+    from dev_agent.resources.provider_authority_constants import LOCAL_PROVIDER_IDS as _pac
+    local_only_providers = _pac
     try:
         with sqlite3.connect(database) as connection:
             rows = connection.execute(

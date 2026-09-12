@@ -10,13 +10,10 @@ cloud-facing qualification, privacy, and sensitivity constraints.
 
 from __future__ import annotations
 
-# Providers that run under operator control without cloud endpoints.
-# Extend here — never duplicate inline elsewhere.
-_LOCAL_PROVIDERS: frozenset[str] = frozenset({"ollama", "fake"})
-
-# Local providers that handle real data and may carry sensitive payloads.
-# "fake" is a synthetic test provider and never routes real data.
-_REAL_LOCAL_PROVIDERS: frozenset[str] = frozenset({"ollama"})
+from .provider_authority_constants import (
+    LOCAL_PROVIDER_IDS as _LOCAL_PROVIDERS,
+    REAL_LOCAL_PROVIDER_IDS as _REAL_LOCAL_PROVIDERS,
+)
 
 
 def is_local_provider(provider_id: str) -> bool:
