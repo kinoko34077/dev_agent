@@ -45,6 +45,7 @@ class AuthoritySource(str, Enum):
     CURRENT_PROJECT_SOURCE = "current_project_source"
     PROVIDED_PAYLOAD = "provided_payload"
     PREVIOUS_FINDINGS = "previous_findings"
+    REVIEW_DECISION = "review_decision"
     DOMAIN_SOURCE = "domain_source"
     CORE_SOURCE = "core_source"
     PREVIOUS_CONTEXT = "previous_context"
@@ -80,6 +81,7 @@ _AUTHORITY_ORDER = (
     AuthoritySource.CORE_SOURCE.value,
     AuthoritySource.PREVIOUS_CONTEXT.value,
     AuthoritySource.PREVIOUS_FINDINGS.value,
+    AuthoritySource.REVIEW_DECISION.value,
     AuthoritySource.PROVIDED_PAYLOAD.value,
     AuthoritySource.GENERAL_DEFAULT.value,
 )

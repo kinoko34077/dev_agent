@@ -231,6 +231,20 @@ class DevFarmOrchestrator:
         with self.remote_governor.slot(binding_id):
             return run_worker(root, assignment.manifest_path, provider=assignment.provider)
 
+    @staticmethod
+    def _failed_boundary_result(exc: Exception) -> dict[str, Any]:
+        """Represent one unexpected worker boundary failure independently."""
+
+        return {
+            "status": "failed",
+            "changed_files": [],
+            "tests_run": [],
+            "tests_passed": False,
+            "known_issues": [f"worker boundary exception: {str(exc)[:900]}"],
+            "assumptions": ["The sibling assignments were collected independently."],
+            "worker_metrics": {"boundary_exception": True},
+        }
+
     def propose(
         self,
         root: str | Path,
@@ -246,7 +260,13 @@ class DevFarmOrchestrator:
             raise ConcurrencyLimitError("remote inference concurrency is disabled")
         with ThreadPoolExecutor(max_workers=self.remote_governor.max_inflight) as pool:
             futures = [pool.submit(self._propose, root, assignment) for assignment in normalized]
-            return [future.result() for future in futures]
+            results: list[dict[str, Any]] = []
+            for future in futures:
+                try:
+                    results.append(future.result())
+                except Exception as exc:
+                    results.append(self._failed_boundary_result(exc))
+            return results
 
     def _verify(self, root: Path, manifest_path: Path) -> dict[str, Any]:
         with self.host_governor.slot("worktree_verification"):
@@ -269,7 +289,13 @@ class DevFarmOrchestrator:
             raise ConcurrencyLimitError("host worktree verification is disabled")
         with ThreadPoolExecutor(max_workers=limit) as pool:
             futures = [pool.submit(self._verify, root, path) for path in paths]
-            return [future.result() for future in futures]
+            results: list[dict[str, Any]] = []
+            for future in futures:
+                try:
+                    results.append(future.result())
+                except Exception as exc:
+                    results.append(self._failed_boundary_result(exc))
+            return results
 
     def run(
         self,

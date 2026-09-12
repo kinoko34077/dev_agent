@@ -5,7 +5,7 @@ import sys
 import pytest
 
 from scripts import devfarm_worker
-from scripts.devfarm import DevFarmError, validate_patch
+from scripts.devfarm import DevFarmError, normalize_patch_hunk_counts, validate_patch
 from scripts.devfarm_worker import HostVerificationRunner, apply_and_verify, run_worker
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.providers.fake.provider import FakeProvider
@@ -418,7 +418,7 @@ def test_worker_records_malformed_model_json_as_failed_artifact(tmp_path):
     assert (result_dir / "patch.diff").read_text(encoding="utf-8") == ""
 
 
-def test_worker_rejects_patch_that_is_path_safe_but_not_applicable(tmp_path):
+def test_worker_normalizes_literal_hunk_counts_before_validation(tmp_path):
     root, manifest_path = _workspace(tmp_path)
     output = {
         "status": "completed",
@@ -433,9 +433,18 @@ def test_worker_rejects_patch_that_is_path_safe_but_not_applicable(tmp_path):
 
     result = run_worker(root, manifest_path, provider=_WorkerProvider(output))
 
-    assert result["status"] == "failed"
-    assert any("hunk line counts" in issue for issue in result["known_issues"])
-    assert (root / ".devfarm/results/worker-test-001/patch.diff").read_text(encoding="utf-8") == ""
+    assert result["status"] == "completed"
+    assert result["worker_metrics"]["patch_normalizations"]
+    assert "@@ -1,2 +1,3 @@" in (root / ".devfarm/results/worker-test-001/patch.diff").read_text(encoding="utf-8")
+
+
+def test_patch_transport_normalization_rejects_malformed_headers():
+    with pytest.raises(DevFarmError, match="hunk header"):
+        normalize_patch_hunk_counts(
+            "diff --git a/tests/v2/test_target.py b/tests/v2/test_target.py\n"
+            "@@ -1,2 +1,3\n"
+            " line\n"
+        )
 
 
 def test_patch_validation_rejects_invalid_hunk_header(tmp_path):

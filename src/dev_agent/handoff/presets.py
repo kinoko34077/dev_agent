@@ -325,7 +325,10 @@ def rework_request(
             payload_semantics="implementation_instruction",
             exclusions=tuple(exclusions),
             source_requirements=("execution_evidence",),
-            authority_source="current_user_instruction",
+            # A review-generated correction is evidence for the Executor,
+            # not a new Human instruction.  Human precedence remains in the
+            # canonical authority order when an actual user decision exists.
+            authority_source="review_decision",
             authority_precedence=DEFAULT_AUTHORITY_PRECEDENCE,
             continuation_mode="continue",
         ),

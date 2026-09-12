@@ -19,6 +19,7 @@ from scripts.devfarm_commander import (
     verify_plan,
 )
 from scripts.devfarm_orchestrator import DevFarmOrchestrator, HostConcurrencyGovernor, RemoteConcurrencyGovernor
+from scripts.devfarm_supervisor import CodexSupervisedCommanderRun
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.providers.fake.provider import FakeProvider
 
@@ -43,6 +44,13 @@ class _WorkerProvider(FakeProvider):
 class _FailingVerifier:
     def verify(self, root, manifest_paths):
         raise RuntimeError("verification boundary unavailable")
+
+
+class _OneProposalExplodes(DevFarmOrchestrator):
+    def _propose(self, root, assignment):
+        if assignment.manifest_path.stem == "worker-a":
+            raise RuntimeError("unexpected worker exception")
+        return super()._propose(root, assignment)
 
 
 def _git(cwd, *args):
@@ -246,6 +254,125 @@ def test_commander_plan_dispatch_verify_resume_and_integrate(tmp_path):
     assert final["tasks"][2]["status"] == "INTEGRATED"
 
 
+def test_supervisor_approved_integration_applies_patch_and_records_git_proof(tmp_path):
+    root, targets, revision = _repo(tmp_path)
+    _manifest(root, revision, "worker-a", targets[0])
+    create_plan(
+        root,
+        {
+            "run_id": "supervisor-integration-run",
+            "objective": "integrate one explicitly approved worker patch",
+            "base_revision": revision,
+            "tasks": [
+                {
+                    "task_id": "worker-a",
+                    "owner": "worker",
+                    "manifest_path": ".devfarm/tasks/worker-a.json",
+                    "ownership": [targets[0]],
+                    "assignment": {"provider_id": "cloudflare", "model_id": "worker-model"},
+                }
+            ],
+        },
+    )
+    provider = _WorkerProvider(
+        {
+            "status": "completed",
+            "changed_files": [targets[0]],
+            "tests_run": [],
+            "tests_passed": True,
+            "known_issues": [],
+            "assumptions": [],
+            "patch": _patch(targets[0]),
+            "notes": "ready",
+        }
+    )
+    orchestrator = DevFarmOrchestrator(
+        verification_trust_level="TRUSTED_HOST_EXEC",
+        operator_approved=True,
+    )
+    dispatch_plan(root, "supervisor-integration-run", providers={"worker-a": provider}, orchestrator=orchestrator)
+    verify_plan(root, "supervisor-integration-run", orchestrator=orchestrator)
+    runner = CodexSupervisedCommanderRun(root, "supervisor-integration-run")
+    runner.create()
+    task = runner.plan()["tasks"][0]
+    with pytest.raises(DevFarmError, match="approval"):
+        runner.integrate_approved_worker(
+            "worker-a",
+            decision_id="missing-review",
+            commit_message="integrate worker patch",
+            target_checkout=root,
+            target_ref="HEAD",
+        )
+
+    decision_step = runner.record_review_decision(
+        "worker-a",
+        attempt_id=task["last_attempt_id"],
+        decision="APPROVE_INTEGRATION",
+        evidence_refs=[{"kind": "verification", "path": task["result_ref"]}],
+    )
+    decision_id = runner.plan()["review_decisions"][0]["decision_id"]
+    integrated = runner.integrate_approved_worker(
+        "worker-a",
+        decision_id=decision_id,
+        commit_message="integrate worker patch",
+        target_checkout=root,
+        target_ref="HEAD",
+    )
+
+    assert decision_step.status == "INTEGRATING"
+    assert integrated.plan_status == "INTEGRATED"
+    integrated_plan = runner.plan()
+    integrated_task = integrated_plan["tasks"][0]
+    assert integrated_task["status"] == "INTEGRATED"
+    assert integrated_task["integration_revision"] == _git(root, "rev-parse", "HEAD").stdout.strip()
+    assert "return None" in (root / targets[0]).read_text(encoding="utf-8")
+
+
+def test_commander_keeps_sibling_proposal_when_one_worker_raises(tmp_path):
+    root, targets, revision = _repo(tmp_path)
+    _plan(root, revision, targets)
+    providers = {
+        "worker-a": _WorkerProvider(
+            {
+                "status": "completed",
+                "changed_files": [targets[0]],
+                "tests_run": [],
+                "tests_passed": True,
+                "known_issues": [],
+                "assumptions": [],
+                "patch": _patch(targets[0]),
+            }
+        ),
+        "worker-b": _WorkerProvider(
+            {
+                "status": "completed",
+                "changed_files": [targets[1]],
+                "tests_run": [],
+                "tests_passed": True,
+                "known_issues": [],
+                "assumptions": [],
+                "patch": _patch(targets[1]),
+            }
+        ),
+    }
+
+    dispatched = dispatch_plan(
+        root,
+        "commander-run-001",
+        providers=providers,
+        orchestrator=_OneProposalExplodes(),
+    )
+
+    by_id = {task["task_id"]: task for task in dispatched["tasks"]}
+    assert by_id["worker-a"]["status"] == "REJECTED"
+    assert by_id["worker-a"]["block_reason"] == "proposal_failed"
+    assert by_id["worker-b"]["status"] == "PROPOSED"
+    assert any(
+        item["task_id"] == "worker-b" and item["status"] == "completed"
+        for item in dispatched["results"]
+    )
+
+
 def test_commander_rejects_overlapping_ownership(tmp_path):
     root, _targets, revision = _repo(tmp_path)
     with pytest.raises(DevFarmError, match="ownership"):
@@ -295,6 +422,53 @@ def test_commander_reassigns_a_failed_worker_within_attempt_limit(tmp_path):
     )
     assert reassigned["tasks"][0]["status"] == "READY"
     assert reassigned["tasks"][0]["assignment"]["provider_id"] == "openrouter"
+
+
+def test_commander_reassign_with_rework_creates_immutable_manifest_revision(tmp_path):
+    root, targets, revision = _repo(tmp_path)
+    original = _manifest(root, revision, "worker-a", targets[0]).relative_to(root).as_posix()
+    plan = create_plan(
+        root,
+        {
+            "run_id": "rework-manifest-run",
+            "objective": "reassign with review correction",
+            "base_revision": revision,
+            "tasks": [
+                {
+                    "task_id": "worker-a",
+                    "owner": "worker",
+                    "status": "REJECTED",
+                    "manifest_path": original,
+                    "ownership": [targets[0]],
+                    "max_attempts": 2,
+                    "assignment": {"provider_id": "cloudflare", "model_id": "worker-model"},
+                }
+            ],
+        },
+    )
+
+    reworked = reassign_task(
+        root,
+        "rework-manifest-run",
+        "worker-a",
+        provider_id="openrouter",
+        model_id="openrouter/free",
+        rework_handoff={
+            "kind": "repair_request",
+            "requirements": ["Fix the failed assertion."],
+            "payload_reference": {"type": "result", "path": ".devfarm/results/worker-a/result.json"},
+        },
+    )
+
+    task = reworked["tasks"][0]
+    assert task["status"] == "READY"
+    assert task["manifest_path"] != original
+    assert original in task["manifest_history"]
+    assert (root / original).is_file()
+    new_manifest = json.loads((root / task["manifest_path"]).read_text(encoding="utf-8"))
+    assert new_manifest["base_revision"] == revision
+    assert new_manifest["rework_handoff"]["kind"] == "repair_request"
+    assert reworked["plan_revision"] == plan["plan_revision"] + 1
 
 
 def test_commander_persists_host_verification_boundary_failure(tmp_path):

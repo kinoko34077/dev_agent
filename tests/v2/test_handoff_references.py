@@ -80,3 +80,5 @@ def test_rework_request_uses_reference_first_control_and_payload():
     assert envelope.payload_reference["type"] == "rework"
     assert envelope.requirements == ("失敗したテストだけを修正すること",)
     assert envelope.directive.exclusions == ("protected authorityを変更しない",)
+    assert envelope.directive.authority_source == "review_decision"
+    assert envelope.directive.authority_source != "current_user_instruction"

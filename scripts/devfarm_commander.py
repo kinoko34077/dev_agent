@@ -955,6 +955,30 @@ def resume_plan(root: str | Path, run_id: str) -> dict[str, Any]:
     return collect_plan(root, run_id)
 
 
+def _write_rework_manifest(
+    root: Path,
+    old_path: Path,
+    manifest: Mapping[str, Any],
+    rework_handoff: Mapping[str, Any],
+) -> Path:
+    """Write a new immutable manifest containing only the rework delta."""
+
+    if not isinstance(rework_handoff, Mapping) or not rework_handoff:
+        raise DevFarmError("rework_handoff must be a non-empty object")
+    new_manifest = dict(manifest)
+    new_manifest["rework_handoff"] = dict(rework_handoff)
+    normalized = validate_manifest(new_manifest)
+    new_path = old_path.with_name(f"{old_path.stem}.rework-{uuid.uuid4().hex[:12]}{old_path.suffix}")
+    temporary = new_path.with_name(f".{new_path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        temporary.write_text(json.dumps(normalized, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        os.replace(temporary, new_path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+    return new_path
+
+
 def recover_orphaned_dispatches(
     root: str | Path,
     run_id: str,
@@ -1029,6 +1053,7 @@ def reassign_task(
     provider_id: str,
     model_id: str,
     provider_binding_id: str | None = None,
+    rework_handoff: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     store = CommanderPlanStore(root)
     plan = store.load(run_id)
@@ -1039,6 +1064,7 @@ def reassign_task(
         raise DevFarmError("only rejected or blocked worker tasks can be reassigned")
     if task["attempt_count"] >= task["max_attempts"]:
         raise DevFarmError("worker task attempt limit reached")
+    old_manifest_path, old_manifest = _manifest_for(Path(root).resolve(), task)
     assignment: dict[str, Any] = {
         "task_id": task_id,
         "owner": "worker",
@@ -1054,8 +1080,35 @@ def reassign_task(
             item.update(assignment)
             break
     task["status"] = "READY"
+    if rework_handoff is not None:
+        new_manifest_path = _write_rework_manifest(
+            Path(root).resolve(),
+            old_manifest_path,
+            old_manifest,
+            rework_handoff,
+        )
+        old_relative = task["manifest_path"]
+        new_relative = new_manifest_path.relative_to(Path(root).resolve()).as_posix()
+        task["manifest_path"] = new_relative
+        history = list(task.get("manifest_history", []))
+        if old_relative not in history:
+            history.append(old_relative)
+        if new_relative not in history:
+            history.append(new_relative)
+        task["manifest_history"] = history
     task.pop("block_reason", None)
     task.pop("last_error", None)
+    for key in (
+        "result_ref",
+        "last_attempt_id",
+        "last_result_status",
+        "verified_patch_digest",
+        "target_ref",
+        "integration_revision",
+        "source_attempt_id",
+        "integration_note",
+    ):
+        task.pop(key, None)
     return store.save(refresh_plan(plan))
 
 

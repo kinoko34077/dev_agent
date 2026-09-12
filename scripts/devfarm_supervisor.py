@@ -10,8 +10,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 import argparse
 from datetime import datetime, timezone
+import hashlib
 import json
 from pathlib import Path
+import subprocess
 import sys
 import time
 from typing import Any, Mapping
@@ -23,6 +25,7 @@ if str(ROOT) not in sys.path:
 from scripts.devfarm import DevFarmError
 from scripts.devfarm_commander import (
     CommanderPlanStore,
+    _verified_worker_patch,
     collect_plan,
     dispatch_plan,
     mark_integrated,
@@ -39,7 +42,41 @@ from scripts.devfarm_supervisor_protocol import (
     record_wake,
     select_heartbeat_cadence,
 )
+from scripts.devfarm import validate_patch
 from src.dev_agent.handoff import ExternalTextReference, HandoffEnvelope, rework_request
+
+
+def _git_process(cwd: Path, *arguments: str, input_text: str | None = None) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", "-c", f"safe.directory={cwd.as_posix()}", *arguments],
+        cwd=cwd,
+        input=input_text,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def _git_output(cwd: Path, *arguments: str) -> str:
+    result = _git_process(cwd, *arguments)
+    if result.returncode != 0:
+        raise DevFarmError(result.stderr.strip() or result.stdout.strip() or "Git command failed")
+    return result.stdout.strip()
+
+
+def _git_status(cwd: Path) -> str:
+    # .devfarm is the existing ignored/development artifact area.  It must
+    # never be staged by this helper, but its untracked attempt files should
+    # not make an otherwise clean integration checkout unusable.
+    return _git_output(
+        cwd,
+        "status",
+        "--porcelain",
+        "--untracked-files=all",
+        "--",
+        ".",
+        ":(exclude).devfarm",
+    )
 
 
 @dataclass(frozen=True)
@@ -467,7 +504,28 @@ class CodexSupervisedCommanderRun:
             required_correction=required_correction,
         )
 
-    def reassign(self, task_id: str, *, provider_id: str, model_id: str, provider_binding_id: str | None = None) -> SupervisorStep:
+    def reassign(
+        self,
+        task_id: str,
+        *,
+        provider_id: str,
+        model_id: str,
+        provider_binding_id: str | None = None,
+        rework_handoff: HandoffEnvelope | Mapping[str, Any] | None = None,
+    ) -> SupervisorStep:
+        handoff_value: Mapping[str, Any] | None = None
+        if rework_handoff is not None:
+            if isinstance(rework_handoff, HandoffEnvelope):
+                serialized = rework_handoff.to_dict()
+                # Keep the durable manifest delta reference-first.  In
+                # particular, do not copy the envelope's inline payload.
+                serialized.pop("payload", None)
+                serialized.pop("metadata", None)
+                handoff_value = serialized
+            elif isinstance(rework_handoff, Mapping):
+                handoff_value = dict(rework_handoff)
+            else:
+                raise TypeError("rework_handoff must be a HandoffEnvelope, object, or None")
         reassign_task(
             self.root,
             self.run_id,
@@ -475,11 +533,87 @@ class CodexSupervisedCommanderRun:
             provider_id=provider_id,
             model_id=model_id,
             provider_binding_id=provider_binding_id,
+            rework_handoff=handoff_value,
         )
         metadata = normalize_supervisor_metadata(self.store.load(self.run_id).get("supervisor"))
         metadata["status"] = "ACTIVE"
         metadata["next_action"] = "advance"
         metadata["metrics"]["worker_retry_count"] += 1
+        return self._step(self._save_supervisor(metadata))
+
+    def integrate_approved_worker(
+        self,
+        task_id: str,
+        *,
+        decision_id: str,
+        commit_message: str,
+        target_checkout: str | Path,
+        target_ref: str,
+    ) -> SupervisorStep:
+        """Apply and commit one already-approved, Host-verified patch.
+
+        The reviewer only supplies the durable decision.  All Git mutation is
+        deterministic Host work after verification proof is re-read.  This
+        helper never pushes, merges, edits protected files, or changes Gate
+        state.
+        """
+
+        target = Path(target_checkout).resolve()
+        if not target.is_dir():
+            raise DevFarmError("integration target checkout does not exist")
+        if not isinstance(target_ref, str) or not target_ref.strip():
+            raise DevFarmError("integration target_ref must be non-empty")
+        if not isinstance(commit_message, str) or not commit_message.strip() or len(commit_message.strip()) > 200:
+            raise DevFarmError("integration commit_message must be 1-200 characters")
+        plan = self.store.load(self.run_id)
+        task = next((item for item in plan["tasks"] if item["task_id"] == task_id), None)
+        if task is None:
+            raise DevFarmError(f"Commander task does not exist: {task_id}")
+        if task.get("status") != "HOST_VERIFIED":
+            raise DevFarmError("integration requires a HOST_VERIFIED worker task")
+        decision = next((item for item in plan["review_decisions"] if item["decision_id"] == decision_id), None)
+        if decision is None:
+            raise DevFarmError("durable approval decision is missing")
+        if decision.get("task_id") != task_id or decision.get("attempt_id") != task.get("last_attempt_id"):
+            raise DevFarmError("approval decision does not match the verified attempt")
+        if decision.get("decision") != "APPROVE_INTEGRATION":
+            raise DevFarmError("integration requires APPROVE_INTEGRATION decision")
+        patch, manifest, attempt_id = _verified_worker_patch(self.root, task)
+        changed_files = validate_patch(patch, manifest=manifest)
+        patch_digest = hashlib.sha256(patch.encode("utf-8")).hexdigest()
+        if task.get("verified_patch_digest") is not None and task["verified_patch_digest"] != patch_digest:
+            raise DevFarmError("verified patch digest does not match the task record")
+        if _git_status(target):
+            raise DevFarmError("integration target checkout must be clean")
+        target_revision = _git_output(target, "rev-parse", target_ref)
+        try:
+            _git_output(target, "merge-base", "--is-ancestor", manifest["base_revision"], target_revision)
+        except DevFarmError as exc:
+            raise DevFarmError("integration target does not contain the worker base revision") from exc
+        checked = _git_process(target, "apply", "--check", "--whitespace=error", "-", input_text=patch)
+        if checked.returncode != 0:
+            raise DevFarmError(checked.stderr.strip() or checked.stdout.strip() or "verified patch does not apply")
+        applied = _git_process(target, "apply", "--whitespace=error", "-", input_text=patch)
+        if applied.returncode != 0:
+            raise DevFarmError(applied.stderr.strip() or applied.stdout.strip() or "verified patch application failed")
+        _git_output(target, "add", "--", *changed_files)
+        _git_output(target, "diff", "--cached", "--check")
+        _git_output(target, "commit", "-m", commit_message.strip())
+        integration_revision = _git_output(target, "rev-parse", "HEAD")
+        mark_integrated(
+            self.root,
+            self.run_id,
+            task_id,
+            note=f"approved by review decision {decision_id}",
+            target_ref=target_ref,
+            integration_revision=integration_revision,
+            source_attempt_id=attempt_id,
+            verified_patch_digest=patch_digest,
+        )
+        plan = refresh_plan(self.store.load(self.run_id))
+        metadata = normalize_supervisor_metadata(plan.get("supervisor"))
+        metadata["status"] = "COMPLETED" if plan["status"] == "INTEGRATED" else "ACTIVE"
+        metadata["next_action"] = "stop" if metadata["status"] == "COMPLETED" else "advance"
         return self._step(self._save_supervisor(metadata))
 
     def approve_integration(

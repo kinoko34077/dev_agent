@@ -66,6 +66,7 @@ _RESULT_FIELDS = {"status", "base_revision", "changed_files", "tests_run", "test
 _ATTEMPT_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,100}$")
 _HUNK_HEADER = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(?: .*)?$")
 VERIFICATION_TRUST_LEVELS = frozenset({"STATIC_ONLY", "TRUSTED_HOST_EXEC", "OS_SANDBOXED"})
+_EMBEDDED_OUTPUT_KEYS = frozenset({"raw_output", "conversation", "stdout", "stderr", "patch"})
 
 # Development-worker inputs are deliberately bounded before any provider call
 # or host-side worktree/test allocation.  These are contract limits, not a
@@ -112,6 +113,17 @@ def _strings(value: Any, name: str) -> list[str]:
     for item in value:
         result.append(_nonempty(item, name))
     return result
+
+
+def _reject_embedded_output(value: Any, name: str) -> None:
+    if isinstance(value, Mapping):
+        if _EMBEDDED_OUTPUT_KEYS.intersection(value):
+            raise DevFarmError(f"{name} must not contain raw Worker output")
+        for child in value.values():
+            _reject_embedded_output(child, name)
+    elif isinstance(value, list):
+        for child in value:
+            _reject_embedded_output(child, name)
 
 
 def parse_host_test_command(command: str) -> list[str]:
@@ -237,7 +249,7 @@ def validate_manifest(value: Mapping[str, Any]) -> dict[str, Any]:
         raise DevFarmError(f"acceptance entries must be at most {MAX_ACCEPTANCE_CHARS} characters")
     if len(test_commands) > MAX_TEST_COMMANDS:
         raise DevFarmError(f"test_commands must contain at most {MAX_TEST_COMMANDS} items")
-    return {
+    normalized = {
         "schema_version": 1,
         "task_id": task_id,
         "task_type": task_type,
@@ -255,6 +267,19 @@ def validate_manifest(value: Mapping[str, Any]) -> dict[str, Any]:
         "max_attempts": value["max_attempts"],
         "output_contract": dict(value["output_contract"]),
     }
+    rework_handoff = value.get("rework_handoff")
+    if rework_handoff is not None:
+        if not isinstance(rework_handoff, Mapping):
+            raise DevFarmError("rework_handoff must be an object")
+        _reject_embedded_output(rework_handoff, "rework_handoff")
+        try:
+            encoded_handoff = json.dumps(rework_handoff, ensure_ascii=False, allow_nan=False)
+        except (TypeError, ValueError) as exc:
+            raise DevFarmError("rework_handoff must be JSON-serializable") from exc
+        if len(encoded_handoff.encode("utf-8")) > 20_000:
+            raise DevFarmError("rework_handoff is too large")
+        normalized["rework_handoff"] = dict(rework_handoff)
+    return normalized
 
 
 def _diff_path(raw: str, prefix: str) -> str | None:
@@ -328,6 +353,77 @@ def _validate_hunk_ranges(lines: list[str]) -> None:
         if line[0] in {" ", "+"}:
             new_count += 1
     finish()
+
+
+def normalize_patch_hunk_counts(patch: Any) -> tuple[str, list[str]]:
+    """Correct only literal unified-diff hunk counts at the transport edge.
+
+    External models frequently emit a valid hunk body with stale header
+    counts.  Recomputing those counts is deterministic and does not alter a
+    path, line, mode, or byte of patch content.  The returned patch still
+    passes the normal fail-closed path/scope validation afterwards.
+    """
+
+    if not isinstance(patch, str):
+        raise DevFarmError("worker patch must be a string")
+    if not patch:
+        return patch, []
+    lines = patch.splitlines(keepends=True)
+    replacements: dict[int, str] = {}
+    normalizations: list[str] = []
+    active: tuple[int, re.Match[str], int, int] | None = None
+
+    def finish() -> None:
+        nonlocal active
+        if active is None:
+            return
+        line_index, match, old_count, new_count = active
+        expected_old = int(match.group(2) or "1")
+        expected_new = int(match.group(4) or "1")
+        if (old_count, new_count) != (expected_old, expected_new):
+            header = lines[line_index].rstrip("\r\n")
+            second_marker = header.find("@@", 2)
+            suffix = header[second_marker + 2 :] if second_marker >= 0 else ""
+            replacements[line_index] = (
+                f"@@ -{match.group(1)},{old_count} +{match.group(3)},{new_count} @@{suffix}"
+                + lines[line_index][len(header) :]
+            )
+            normalizations.append(
+                f"hunk_line_counts:{expected_old}/{expected_new}->{old_count}/{new_count}"
+            )
+        active = None
+
+    for index, raw_line in enumerate(lines):
+        line = raw_line.rstrip("\r\n")
+        if line.startswith("diff --git "):
+            finish()
+            continue
+        if line.startswith("@@"):
+            finish()
+            match = _HUNK_HEADER.fullmatch(line)
+            if match is None:
+                raise DevFarmError("patch hunk header is invalid")
+            active = (index, match, 0, 0)
+            continue
+        if active is None:
+            continue
+        if line == r"\ No newline at end of file":
+            continue
+        if not line or line[0] not in {" ", "+", "-"}:
+            raise DevFarmError("patch hunk contains an invalid line")
+        index_of_header, match, old_count, new_count = active
+        if line[0] in {" ", "-"}:
+            old_count += 1
+        if line[0] in {" ", "+"}:
+            new_count += 1
+        active = (index_of_header, match, old_count, new_count)
+    finish()
+    if not replacements:
+        return patch, []
+    normalized_lines = list(lines)
+    for index, replacement in replacements.items():
+        normalized_lines[index] = replacement
+    return "".join(normalized_lines), normalizations
 
 
 def validate_patch(patch: Any, *, manifest: Mapping[str, Any]) -> list[str]:
