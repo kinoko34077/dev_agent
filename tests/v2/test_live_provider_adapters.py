@@ -22,8 +22,10 @@ class _Response:
     def __exit__(self, *_):
         return False
 
-    def read(self):
-        return self.payload
+    def read(self, n: int = -1) -> bytes:
+        if n < 0:
+            return self.payload
+        return self.payload[:n]
 
 
 def test_groq_http_adapter_normalizes_tool_calls_usage_and_rate_limit_headers(monkeypatch):
