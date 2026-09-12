@@ -9,6 +9,7 @@ injected command_builder so no real `codex` binary is required.
 from __future__ import annotations
 
 import os
+import json
 import subprocess
 import sys
 import time
@@ -45,6 +46,15 @@ def _exit_code_builder(code: int):
 def _sleep_builder(seconds: float):
     def builder(request: AgentBackendRequest):
         return (sys.executable, "-c", f"import time; time.sleep({seconds})")
+
+    return builder
+
+
+def _jsonl_builder(records):
+    output = "\n".join(json.dumps(record) for record in records) + "\n"
+
+    def builder(request: AgentBackendRequest):
+        return (sys.executable, "-c", f"import sys; sys.stdout.write({output!r})")
 
     return builder
 
@@ -307,6 +317,59 @@ def test_events_emit_started_then_exited_exactly_once(tmp_path):
     assert [event.event_type for event in first] == ["process_started", "process_exited"]
     second = backend.events(session.session_id)
     assert second == ()  # already emitted, no duplicates
+
+
+def test_codex_jsonl_is_normalized_into_structured_events_and_usage(tmp_path):
+    backend = _CodexExecBackendImpl(
+        command_builder=_jsonl_builder(
+            [
+                {"type": "thread.started", "thread_id": "thread-42"},
+                {"type": "item.completed", "item": {"id": "item-1", "type": "command_execution", "command": "cat secret.txt", "exit_code": 0}},
+                {"type": "turn.completed", "usage": {"input_tokens": 11, "output_tokens": 7}},
+            ]
+        ),
+        parse_codex_output=True,
+    )
+
+    session = backend.start(_request(tmp_path))
+    result = backend.result(session.session_id, wait_seconds=5.0)
+
+    assert result.status == AgentBackendStatus.COMPLETED
+    assert result.reconciliation_metadata["provider_thread_id"] == "thread-42"
+    assert result.reconciliation_metadata["usage"] == {"input_tokens": 11, "output_tokens": 7}
+    assert result.reconciliation_metadata["structured_event_count"] == 3
+    assert result.reconciliation_metadata["structured_output_status"] == "parsed"
+
+    events = backend.events(session.session_id)
+    assert [event.sequence for event in events] == [1, 2, 3, 4, 5]
+    assert [event.event_type for event in events] == [
+        "process_started",
+        "thread.started",
+        "item.completed",
+        "turn.completed",
+        "process_exited",
+    ]
+    assert events[2].payload == {"item_id": "item-1", "item_type": "command_execution", "exit_code": 0}
+    assert "secret.txt" not in json.dumps([event.payload for event in events])
+
+
+def test_invalid_codex_jsonl_does_not_fail_process_or_retain_raw_output(tmp_path):
+    backend = _CodexExecBackendImpl(
+        command_builder=_echo_builder("not-json"),
+        parse_codex_output=True,
+    )
+
+    session = backend.start(_request(tmp_path))
+    result = backend.result(session.session_id, wait_seconds=5.0)
+
+    assert result.status == AgentBackendStatus.COMPLETED
+    metadata = result.reconciliation_metadata
+    assert metadata["structured_output_status"] == "invalid"
+    assert "not-json" not in json.dumps(metadata)
+    assert [event.event_type for event in backend.events(session.session_id)] == [
+        "process_started",
+        "process_exited",
+    ]
 
 
 def test_custom_backend_version_is_reflected_in_identity():

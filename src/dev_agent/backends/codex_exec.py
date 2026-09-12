@@ -38,8 +38,9 @@ Design notes:
   (``Popen.communicate()`` then truncate) would already have buffered the
   full output in memory before truncation ever ran.
 - result() never trusts the subprocess's own claims of success. Only the
-  process exit code (and, in the future, structured JSON output) are treated
-  as ground truth. A session whose subprocess has not yet exited returns
+  process exit code is treated as the process outcome; when enabled for the
+  production adapter, structured JSONL is retained only as bounded event and
+  usage evidence. A session whose subprocess has not yet exited returns
   AgentBackendStatus.RUNNING (or CANCELLING once cancel() has been called) --
   a known, non-terminal, Protocol-legal status distinct from UNKNOWN.
   UNKNOWN means "no confirmed evidence of the outcome at all" and durably
@@ -64,11 +65,10 @@ Design notes:
   ``--dangerously-bypass-approvals-and-sandbox`` or an equivalent
   full-access override; test_default_command_never_requests_full_access in
   test_codex_exec_backend.py asserts this.
-- The exact `codex exec` flags used here (including the stdin-prompt
-  convention and the config/sandbox/rules flag names) are unverified
-  against a live installed CLI in this environment -- neither `codex` nor
-  `claude` is installed here. Override command_builder at construction to
-  match the operator's actual installed CLI version before production use.
+- The default `codex exec` flags are pinned to the installed CLI contract used
+  by this adapter's smoke test. The injected implementation remains test-only;
+  production callers use `CodexExecBackend` and cannot provide an arbitrary
+  command builder.
 """
 
 from __future__ import annotations
@@ -78,12 +78,14 @@ import subprocess
 import tempfile
 import time
 from collections.abc import Callable, Iterable, Sequence
+from dataclasses import replace
 from pathlib import Path
 from threading import Event, Lock, Thread
 from typing import Any
 from uuid import uuid4
 
 from ..tools.executor import terminate_process_tree
+from .codex_jsonl import CodexJsonlParseError, parse_codex_jsonl
 from .protocol import (
     AgentBackendEvent,
     AgentBackendIdentity,
@@ -285,6 +287,10 @@ class _SessionState:
         "started_at",
         "started_event_emitted",
         "completion_event_emitted",
+        "codex_events",
+        "codex_thread_id",
+        "codex_usage",
+        "codex_parse_status",
         "home_dir",
         "home_dir_cleaned_up",
     )
@@ -312,6 +318,10 @@ class _SessionState:
         self.started_at = time.monotonic()
         self.started_event_emitted = False
         self.completion_event_emitted = False
+        self.codex_events: tuple[AgentBackendEvent, ...] = ()
+        self.codex_thread_id: str | None = None
+        self.codex_usage: dict[str, int] = {}
+        self.codex_parse_status: str | None = None
 
 
 _STREAM_CHUNK_BYTES = 65536
@@ -393,6 +403,7 @@ class _CodexExecBackendImpl:
         max_runtime_seconds: float = DEFAULT_MAX_RUNTIME_SECONDS,
         extra_env_passthrough: frozenset[str] = frozenset(),
         auth_file: str | Path | None = None,
+        parse_codex_output: bool = False,
     ) -> None:
         if backend_version is not None:
             self.identity = AgentBackendIdentity(
@@ -404,10 +415,13 @@ class _CodexExecBackendImpl:
             raise ValueError("max_runtime_seconds must be a positive number")
         if not callable(command_builder):
             raise TypeError("command_builder must be callable")
+        if not isinstance(parse_codex_output, bool):
+            raise ValueError("parse_codex_output must be a boolean")
         self._command_builder: CommandBuilder = command_builder
         self._popen: PopenFactory = popen or subprocess.Popen
         self._extra_env_passthrough = frozenset(extra_env_passthrough)
         self._auth_file = auth_file
+        self._parse_codex_output = parse_codex_output
         self._max_output_bytes = max_output_bytes
         self._max_runtime_seconds = float(max_runtime_seconds)
         # result() returns AgentBackendStatus.RUNNING (a known, non-terminal,
@@ -572,6 +586,22 @@ class _CodexExecBackendImpl:
                 state.stderr = stderr_box.get("text")
                 state.stderr_truncated = bool(stderr_box.get("truncated"))
                 state.returncode = process.returncode
+            if self._parse_codex_output:
+                try:
+                    parsed = parse_codex_jsonl(state.stdout or "", session_id=session_id)
+                except CodexJsonlParseError:
+                    # A malformed provider record must not turn a known
+                    # process exit into UNKNOWN, and the raw provider output
+                    # must not be copied into durable metadata.  The exit
+                    # code remains the authoritative process outcome.
+                    with self._lock:
+                        state.codex_parse_status = "invalid"
+                else:
+                    with self._lock:
+                        state.codex_events = parsed.events
+                        state.codex_thread_id = parsed.thread_id
+                        state.codex_usage = dict(parsed.usage)
+                        state.codex_parse_status = "parsed"
             exited.set()
 
         def _watchdog() -> None:
@@ -630,10 +660,12 @@ class _CodexExecBackendImpl:
                 )
             if state.returncode is not None and not state.completion_event_emitted:
                 state.completion_event_emitted = True
+                for event in state.codex_events:
+                    emitted.append(replace(event, sequence=event.sequence + 1))
                 emitted.append(
                     AgentBackendEvent(
                         session_id=session_id,
-                        sequence=2,
+                        sequence=len(state.codex_events) + 2,
                         event_type="process_exited",
                         payload={"returncode": state.returncode},
                     )
@@ -731,23 +763,43 @@ class _CodexExecBackendImpl:
                     reconciliation_metadata={"returncode": state.returncode},
                 )
             if state.returncode == 0:
+                metadata = {
+                    "returncode": 0,
+                    "stdout_bytes": len((state.stdout or "").encode("utf-8")),
+                    "stdout_truncated": state.stdout_truncated,
+                }
+                if self._parse_codex_output:
+                    metadata.update(
+                        {
+                            "provider_thread_id": state.codex_thread_id,
+                            "usage": dict(state.codex_usage),
+                            "structured_event_count": len(state.codex_events),
+                            "structured_output_status": state.codex_parse_status,
+                        }
+                    )
                 return AgentBackendResult(
                     session_id=session_id,
                     status=AgentBackendStatus.COMPLETED,
-                    reconciliation_metadata={
-                        "returncode": 0,
-                        "stdout_bytes": len((state.stdout or "").encode("utf-8")),
-                        "stdout_truncated": state.stdout_truncated,
-                    },
+                    reconciliation_metadata=metadata,
+                )
+            metadata = {
+                "returncode": state.returncode,
+                "stderr_excerpt": (state.stderr or "")[:2000],
+                "stderr_truncated": state.stderr_truncated,
+            }
+            if self._parse_codex_output:
+                metadata.update(
+                    {
+                        "provider_thread_id": state.codex_thread_id,
+                        "usage": dict(state.codex_usage),
+                        "structured_event_count": len(state.codex_events),
+                        "structured_output_status": state.codex_parse_status,
+                    }
                 )
             return AgentBackendResult(
                 session_id=session_id,
                 status=AgentBackendStatus.FAILED,
-                reconciliation_metadata={
-                    "returncode": state.returncode,
-                    "stderr_excerpt": (state.stderr or "")[:2000],
-                    "stderr_truncated": state.stderr_truncated,
-                },
+                reconciliation_metadata=metadata,
             )
 
 
@@ -797,6 +849,7 @@ class CodexExecBackend:
             max_runtime_seconds=max_runtime_seconds,
             extra_env_passthrough=extra_env_passthrough,
             auth_file=auth_file,
+            parse_codex_output=True,
         )
 
     @property
