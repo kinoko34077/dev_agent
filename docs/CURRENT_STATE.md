@@ -11,7 +11,7 @@
 | **Local regression** | `873 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 204.91s) |
 | **Architecture check** | `ARCHITECTURE_PASS` |
 | **compileall** | `python -m compileall -q src recovery scripts` clean |
-| **External CI** | このsliceの最終push後にexact-headを再確認する。現時点では未確認のためGate昇格を主張しない |
+| **External CI** | exact-head `100dc26` の `v2-core`（Python 3.10 / 3.11）と `v2-provider-smoke` が成功（run `34705665777` / `34705665702`）。これはこのsliceの実装commitに対する証跡であり、Gateの無条件昇格ではない |
 
 ### Implemented scope
 
