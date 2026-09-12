@@ -8,13 +8,21 @@ Budget、Authority、AgentBackendを置き換えない。
 
 `CodexSupervisedCommanderRun`（`scripts/devfarm_supervisor.py`）は、既存の
 `CommanderPlanStore`、`dispatch_plan`、`collect_plan`、`verify_plan`、
-`reassign_task`、`mark_integrated`を一回ずつcompositionする薄いfacadeである。
-新しいScheduler、常駐process、retry state machineは作らない。
+`reassign_task`、`mark_integrated`をcompositionする薄いfacadeである。
+`advance()`はsnapshot取得用の一回のbounded pass、`run_until_intervention()`は
+同じPlanを内部で再開し続けるblocking入口である。新しいScheduler、常駐daemon、
+retry state machineは作らない。
 
-`advance()`はboundedな一回のpassだけを実行する。Workerが実行中ならPlanの
-`supervisor.status=WAITING_FOR_WORKER`と`next_action=wait_for_worker`を保存し、
-LLMやCodexのraw会話を保存・再送しない。次の`status`／`resume`呼出し、または
-将来のwake eventが同じ境界を再開する。
+`advance()`はboundedな一回のpassだけを実行する。同期的な既存DevFarm proposalは
+その呼出しの中で完了まで待つため、正常系ではWorker処理中にCodex推論を増やさない。
+再起動後などresultのない`DISPATCHED`が残った場合は、durableなdispatch deadlineを
+越えるまで`WAITING_FOR_WORKER`とし、期限後は`orphaned_dispatch`として再実行せず
+reconciliation要求へ送る。LLMやCodexのraw会話は保存・再送しない。
+
+`run_until_intervention()`はこのpassをWorker完了・Host Verification・review要求・
+terminal failure・overall deadlineのいずれかまで内部継続する。待機中はCodexを
+pollせず、Planのcadence（1 / 5 / 10 / 15分）だけでsleepする。呼出元へ戻るのは
+review、Human判断、完了、または安全に継続できない境界である。
 
 ## Supervisor metadata
 
@@ -24,6 +32,7 @@ LLMやCodexのraw会話を保存・再送しない。次の`status`／`resume`�
 - `cadence_minutes`（1 / 5 / 10 / 15）
 - `unchanged_check_limit`（最大3）と`unchanged_check_count`
 - `next_action`、boundedな`wake_events[]`
+- `review_packets[]`、`review_decisions[]`（attempt、evidence、decisionをdurableに記録）
 - Codex wake/review、Worker dispatch/success/retry、payload/artifact参照のcompact metrics
 
 同じwakeはkind/task/attempt/digestでdedupeする。raw conversation、patch、stdout、
@@ -48,29 +57,39 @@ PROPOSEDだけを既存Host Verificationへ渡す
   ↓
 HOST_VERIFIEDならCodex review wakeを記録
   ↓
-Codexが明示approveした場合だけ既存Git integration boundaryへ進む
+Codexのreview decisionをdurably記録
+  ├─ APPROVE_INTEGRATION → deterministic Host integration helper
+  ├─ REWORK → 差分Handoff付きの新attempt manifest
+  ├─ REJECT → terminal rejection
+  └─ ESCALATE → Human decision
 ```
 
 `HOST_VERIFIED`だけでは自動integrationしない。UNKNOWN、approval、budget、privacy、
 protected path、STATIC_ONLYの制約を緩和しない。実行可能なHost Verificationは既存の
 attempt単位operator approvalを要求し、外部Workerの自己申告を証拠にしない。
+`integrate_approved_worker()`を使う場合、Codexは採否だけを判断し、Hostが検証済み
+patchを再読込して適用・commitし、既存`mark_integrated()`のGit証拠へ接続する。
 
 ## CLI
 
 ```text
 python scripts/devfarm_supervisor.py status <run-id> --root .
 python scripts/devfarm_supervisor.py resume <run-id> --root .
+python scripts/devfarm_supervisor.py run <run-id> --root . \
+  --trust-level TRUSTED_HOST_EXEC --operator-approved
 ```
 
 `status`はcompactなPlan/Supervisor metadataだけを出力する。`resume`は既存のProvider
-activation境界を通して一回だけ`advance()`し、既定trust levelは`STATIC_ONLY`である。
-実際のProvider作業が完了した証拠を持たないまま、Codexの推論を無限に継続したり、
-Worker終了を自動検知したと称したりしない。
+activation境界を通して一回だけ`advance()`する。`run`は同じactivation境界で
+`run_until_intervention()`を呼ぶblocking運用入口である。既定trust levelは
+`STATIC_ONLY`で、明示されたattempt承認なしに外部生成コードをHost実行しない。
+`dispatch_timeout_seconds`、`max_wait_seconds`、Planの`overall_deadline`で待機はbounded。
 
 ## Handoff / payload
 
 再作業は初回指示全文を複製せず、既存Task reference、failure evidence、review finding、
-required correctionだけを`rework_request()`で渡す。外部本文を使う場合も
+required correctionだけを`rework_request()`で渡し、`reassign()`が旧manifestを履歴へ残した
+新manifestへ接続する。外部本文を使う場合も
 `ExternalTextReference`のHTTPS・SHA-256・size・expiry metadataだけをHandoffへ保持し、
 取得・upload・権限発行はこの層の責務にしない。外部本文はPayloadであり、Controlを上書きしない。
 

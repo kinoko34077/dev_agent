@@ -1,5 +1,44 @@
 # Current State — v2/bootstrap
 
+## Current — 2026-09-13 (Supervisor run-until-intervention hardening)
+
+今回の実装基準は`5d61e3c`（直前のSupervisor hardening commitsを含む）。
+`advance()`を一回のbounded snapshot入口として残しつつ、
+`run_until_intervention()`を追加し、既存の同期DevFarm proposalをWorker完了・Host
+Verification・review要求・terminal／deadline境界まで内部継続できるようにした。
+待機中はLLMをpollせず、既存の1/5/10/15分cadenceだけでsleepする。
+
+| Field | Value |
+| --- | --- |
+| **Branch** | `v2/bootstrap` |
+| **Implementation baseline** | `5d61e3c` |
+| **Local regression** | `886 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 203.82s) |
+| **Architecture check** | `ARCHITECTURE_PASS` |
+| **compileall** | `python -m compileall -q src recovery scripts` clean |
+| **Remote CI** | この実装基準のpush前。直前remote `ec052af`のCI成功は今回の後続commitの証跡ではない |
+
+### Implemented scope
+
+- result-lessでdeadlineを越えた`DISPATCHED`を`orphaned_dispatch`としてdurableに停止し、
+  外部効果をblind retryしない。既存resultが後着した場合は先にcollectする。
+- `run_until_intervention()`と`run` CLIを追加し、通常の同期Worker処理をCodex推論なしで
+  待機する。overall／dispatch／最大待機時間をboundedにし、期限到達時はHuman decision
+  境界へ返す。
+- Host Verification後のcompact `review_packets`、attempt/evidenceに結合したdurable
+  `review_decisions`、REWORKの差分Handoff付きimmutable manifest、明示承認後にHostが
+  patchを適用・commitする`integrate_approved_worker()`を追加した。review decision後の
+  resumeで同じreviewを再発火せず、REJECTはterminal化する。
+- Commander Plan schemaへdispatch recovery、review decision、review packetのprojection
+  を同期し、Host Verification再試行可能な境界とreview terminal stateの回帰を追加した。
+
+### Explicitly not implemented or verified
+
+今回のローカル検証では実Cloud Workerを新Supervisor経路から実際に完走させるdogfood証拠、
+GitHub branch protectionのrequired status checks、OS-level sandbox、Compression Service、
+実Planner/Reviewer adapter、finite multi-cycle、MCP、Codex App Server実adapter、
+自動merge/pushは完了扱いにしていない。`STATIC_ONLY`既定、Codex明示review、Host側Git証拠、
+既存のTask／Budget／Approval／Privacy／Recovery authorityは維持する。
+
 ## Current — 2026-09-13 (Codex Supervisor / reference-first Handoff)
 
 このsliceは、既存Commanderを置き換えずにCodexが一回のbounded passを管理・待機・再開

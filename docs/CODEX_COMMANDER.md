@@ -84,11 +84,12 @@ Host Verificationを呼び、valid proposalだけを専用worktreeへ適用す�
 `mark-integrated`を明示的に記録する。
 
 CodexがWorker完了を待つ場合は、`scripts/devfarm_supervisor.py`の
-`CodexSupervisedCommanderRun`を使う。`advance()`は一回のbounded passだけを実行し、
-実行中は既存Planのoptional `supervisor` projectionへ
-`WAITING_FOR_WORKER`、次動作、1/5/10/15分の再開目安、compact wakeを保存する。
-raw conversationをCodexへ繰り返し流したり、HOST_VERIFIEDだけで自動integrationしたり
-しない。詳細は[`docs/CODEX_SUPERVISOR.md`](CODEX_SUPERVISOR.md)を参照する。
+`CodexSupervisedCommanderRun`を使う。`advance()`は一回のbounded snapshot pass、
+`run_until_intervention()`は同じPlanをWorker terminal／Host Verification／review要求／
+安全停止点まで内部継続するblocking入口である。実行中は既存Planのoptional
+`supervisor` projectionへ`WAITING_FOR_WORKER`、次動作、1/5/10/15分の再開目安、
+compact wakeを保存する。raw conversationをCodexへ繰り返し流したり、HOST_VERIFIEDだけで
+自動integrationしたりしない。詳細は[`docs/CODEX_SUPERVISOR.md`](CODEX_SUPERVISOR.md)を参照する。
 
 ## 状態と失敗
 
@@ -109,7 +110,9 @@ manifestは作成／再割当時にfail-closedで拒否する。
 
 unknownな外部効果の再送、approval／budget／privacyの迂回、model自己申告だけの
 verification、自動integrationは禁止する。`resume`はartifactを再読込して依存を
-解放するだけで、Providerを勝手に再実行しない。
+解放するだけで、Providerを勝手に再実行しない。Supervisorのreview decisionは
+attempt/evidenceと結合してPlanへ保存し、REWORKは差分Handoffを付けた新manifestへ、
+APPROVE_INTEGRATIONは明示承認後のHost側Git integration helperへ接続する。
 
 ## Codexの統合チェックリスト
 

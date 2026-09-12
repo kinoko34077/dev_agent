@@ -10,18 +10,21 @@ durable Planだけを残して次の意味ある結果で再開する。
 ## 契約
 
 既存Commander Planのoptional `supervisor` metadataが、runのroadmap位置、次動作、
-bounded heartbeat cadence、wake record、compact metricsを保持する。`advance()`は一回の
-bounded passであり、既存DevFarmのdispatch / collect / verifyをcompositionするだけである。
+bounded heartbeat cadence、wake record、compact metrics、review packet／decisionを保持する。
+`advance()`は一回のbounded snapshot passであり、`run_until_intervention()`は既存DevFarmの
+dispatch / collect / verifyをcompositionしながら同じrunをblocking継続する。
 
 通常経路ではWorker完了だけを理由にHumanへ返さず、HOST_VERIFIED後にCodex reviewを要求する。
 Codexが明示承認するまでintegrationしない。
 
 ## 待機
 
-待機はLLMのbusy loopではない。`WAITING_FOR_WORKER`をdurableに保存し、外部の既存
-呼出し機構がcompact statusを再取得して同じrunをresumeする。cadenceは1 / 5 / 10 / 15分に
-boundedとし、同一結果が続く場合でも最大15分を超えない。wakeはWorker terminal、
-HOST_VERIFIED、retry上限、integration conflict、Human decisionなど意味のある結果に限定する。
+待機はLLMのbusy loopではない。`run_until_intervention()`は同期的な既存Worker処理が
+返るまでCodex推論を消費せず、再起動後のresult-less `DISPATCHED`についてはdurable deadlineを
+使って期限切れをorphanとして安全停止する。内部sleepは1 / 5 / 10 / 15分にboundedで、
+同一結果が続く場合でも最大15分を超えない。wakeはWorker terminal、HOST_VERIFIED、
+retry上限、integration conflict、Human decisionなど意味のある結果に限定する。
+`advance()`／`resume`は外部からの明示的な一回再開が必要なsnapshot APIとして残る。
 
 ## Reference-first
 
@@ -39,3 +42,6 @@ runtime証明もこの仕様では行わない。
 - protected path、Budget、credential、privacy、approval、Recovery、UNKNOWN semanticsを
   Supervisorが所有・緩和しない。
 - raw Worker conversation、patch、stdout、stderrをSupervisor metadataへ保存しない。
+- review decisionはCodex／Reviewerの判断証拠としてattemptとevidence referenceを保存するが、
+  Human仕様Authorityへ自動昇格させない。REWORKは差分Handoff付きの新manifestへ接続し、
+  APPROVE_INTEGRATION後のGit操作はHostの既存integration boundaryで行う。

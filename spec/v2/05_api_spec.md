@@ -32,10 +32,10 @@ correctionの差分だけを参照形式で渡す。
 
 ### `CodexSupervisedCommanderRun`
 
-- 責務: development-only Commander PlanへSupervisor metadataを保存し、既存のrefresh、dispatch、collect、Host Verification、明示review/integration境界を一回ずつcompositionする。
-- 公開入口: `create(...)`、`status()`、`advance(...)`、`rework_handoff(...)`、`reassign(...)`、`approve_integration(...)`、`python scripts/devfarm_supervisor.py status|resume`。
-- 入力/出力: existing Commander plan、qualified Worker assignment、compact result/evidence reference、`SupervisorStep`。waitはPlanへ保存される1/5/10/15分のbounded cadence情報であり、LLM busy loopではない。
-- 権限: 既存Commander、DevFarm、Host Verification、Git-backed integration authorityをcompositionするだけ。Codex承認なしのintegration、Production Scheduler/Task state/Budget authorityの所有、Worker raw conversationの保存を行わない。
+- 責務: development-only Commander PlanへSupervisor metadataを保存し、既存のrefresh、dispatch、collect、Host Verification、明示review/integration境界をcompositionする。`advance(...)`は一回のbounded snapshot、`run_until_intervention(...)`は同じrunをWorker terminal／review／安全停止点までblocking継続する。
+- 公開入口: `create(...)`、`status()`、`advance(...)`、`run_until_intervention(...)`、`rework_handoff(...)`、`reassign(...)`、`record_review_decision(...)`、`integrate_approved_worker(...)`、互換用`approve_integration(...)`、`python scripts/devfarm_supervisor.py status|resume|run`。
+- 入力/出力: existing Commander plan、qualified Worker assignment、compact result/evidence reference、`SupervisorStep`。waitはPlanへ保存される1/5/10/15分のbounded cadence情報であり、LLM busy loopではない。dispatch deadline超過のresult-less taskはorphanとして再送せずreconciliation要求へ送る。review packetはpatch本文ではなくattempt artifact referenceとdigestを返す。
+- 権限: 既存Commander、DevFarm、Host Verification、Git-backed integration authorityをcompositionするだけ。Codexの明示承認なしのintegration、Production Scheduler/Task state/Budget authorityの所有、Worker raw conversationの保存を行わない。Codex review decisionはattempt／evidenceへdurably結合するがHuman仕様Authorityへ昇格させない。
 
 ### Development handoff roles / one cycle
 
