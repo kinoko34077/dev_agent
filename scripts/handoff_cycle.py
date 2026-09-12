@@ -19,6 +19,7 @@ from src.dev_agent.compression import CompressionService, compress_handoff_paylo
 from src.dev_agent.handoff import (
     ExecutorRole,
     HandoffEnvelope,
+    HandoffDirective,
     HandoffKind,
     HandoffRole,
     PlannerRole,
@@ -92,6 +93,7 @@ class OneCycleDevelopmentLoop:
         conditions: tuple[str, ...] = (),
         cautions: tuple[str, ...] = (),
         requirements: tuple[str, ...] = (),
+        directive: HandoffDirective | Mapping[str, Any] | None = None,
         payload: Any = None,
         repository_reference: Mapping[str, Any] | None = None,
         roadmap_reference: Mapping[str, Any] | None = None,
@@ -111,6 +113,7 @@ class OneCycleDevelopmentLoop:
             conditions=conditions,
             cautions=cautions,
             requirements=requirements,
+            directive=directive or HandoffDirective(),
             source_role=HandoffRole.HUMAN.value,
             target_role=HandoffRole.PLANNER.value,
             payload=payload,

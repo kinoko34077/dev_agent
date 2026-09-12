@@ -160,6 +160,7 @@ def compress_handoff_payload(
         conditions=validated.conditions,
         cautions=validated.cautions,
         requirements=validated.requirements,
+        directive=validated.directive,
         payload=result.compressed_text,
         payload_mode=PayloadMode.COMPRESSED.value,
         payload_reference=validated.payload_reference,

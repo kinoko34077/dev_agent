@@ -19,7 +19,7 @@ from src.dev_agent.backends.protocol import (
     AgentBackendSession,
     AgentBackendStatus,
 )
-from src.dev_agent.handoff import HandoffEnvelope, HandoffKind, HandoffRole
+from src.dev_agent.handoff import HandoffDirective, HandoffEnvelope, HandoffKind, HandoffRole
 
 
 def _git(*args: str, cwd: Path) -> str:
@@ -168,3 +168,44 @@ def test_cycle_rejects_role_that_attempts_to_continue_automatically():
             instruction="instruction",
             payload={"manifest_path": "not-used"},
         )
+
+
+def test_one_cycle_preserves_human_control_directive_and_stops():
+    captured: list[HandoffEnvelope] = []
+
+    class _DirectivePlanner:
+        def plan(self, request: HandoffEnvelope) -> HandoffEnvelope:
+            captured.append(request)
+            return HandoffEnvelope(
+                kind=HandoffKind.IMPLEMENTATION_INSTRUCTION.value,
+                subject=request.subject,
+                instruction="execute",
+                source_role=HandoffRole.PLANNER.value,
+                target_role=HandoffRole.EXECUTOR.value,
+            )
+
+    class _NoopExecutor:
+        def execute(self, request: HandoffEnvelope) -> HandoffEnvelope:
+            return HandoffEnvelope(
+                kind=HandoffKind.EXECUTION_RESULT.value,
+                subject=request.subject,
+                instruction="review",
+                source_role=HandoffRole.EXECUTOR.value,
+                target_role=HandoffRole.REVIEWER.value,
+            )
+
+    directive = HandoffDirective(
+        continuation_mode="recheck",
+        authority_source="current_repository",
+        source_requirements=("current_repository",),
+        exclusions=("Compression APIには接続しない",),
+    )
+
+    result = OneCycleDevelopmentLoop(_DirectivePlanner(), _NoopExecutor(), _Reviewer()).run(
+        objective="objective",
+        instruction="instruction",
+        directive=directive,
+    )
+
+    assert result.stopped is True
+    assert captured[0].directive == directive

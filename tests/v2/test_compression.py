@@ -11,7 +11,7 @@ from src.dev_agent.compression import (
     compress_handoff_payload,
     inspect_information_retention,
 )
-from src.dev_agent.handoff import HandoffEnvelope, PayloadMode
+from src.dev_agent.handoff import HandoffDirective, HandoffEnvelope, PayloadMode
 
 
 class _FakeCompressionService:
@@ -60,6 +60,29 @@ def test_compression_only_receives_payload_and_preserves_provenance():
     assert compressed.compression_prompt_version == "semantic-dense-v1"
     assert compressed.compression_model == "fake-compressor"
     assert compressed.payload == "2026-09-12 commit abcdef1 禁止変更"
+
+
+def test_compression_preserves_directive_but_never_sends_it_to_the_service():
+    service = _FakeCompressionService("compressed")
+    envelope = HandoffEnvelope(
+        kind="analysis_result",
+        subject="CONTROL_SUBJECT",
+        instruction="CONTROL_INSTRUCTION",
+        source_role="planner",
+        target_role="reviewer",
+        directive=HandoffDirective(
+            exclusions=("CONTROL_EXCLUSION",),
+            authority_source="current_repository",
+            source_requirements=("current_repository",),
+            output_contract={"section_detail_policy": {"issues": "detailed"}},
+        ),
+        payload="payload " * 40,
+    )
+
+    compressed = compress_handoff_payload(envelope, service, max_uncompressed_chars=20)
+
+    assert service.received == [(envelope.payload, "semantic-dense-v1")]
+    assert compressed.directive == envelope.directive
 
 
 def test_short_payload_skips_compression():

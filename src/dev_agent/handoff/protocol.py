@@ -15,6 +15,8 @@ import re
 from typing import Any
 from uuid import uuid4
 
+from .directive import HandoffDirective
+
 
 class HandoffKind(str, Enum):
     ANALYSIS_RESULT = "analysis_result"
@@ -106,6 +108,7 @@ class HandoffEnvelope:
     conditions: tuple[str, ...] = ()
     cautions: tuple[str, ...] = ()
     requirements: tuple[str, ...] = ()
+    directive: HandoffDirective | Mapping[str, Any] = field(default_factory=HandoffDirective)
     payload: Any = None
     payload_mode: str = PayloadMode.ORIGINAL.value
     payload_reference: Mapping[str, Any] | None = None
@@ -126,6 +129,12 @@ class HandoffEnvelope:
         object.__setattr__(self, "conditions", _strings(self.conditions, "conditions"))
         object.__setattr__(self, "cautions", _strings(self.cautions, "cautions"))
         object.__setattr__(self, "requirements", _strings(self.requirements, "requirements"))
+        directive = self.directive
+        if isinstance(directive, Mapping):
+            directive = HandoffDirective.from_dict(directive)
+        if not isinstance(directive, HandoffDirective):
+            raise TypeError("directive must be a HandoffDirective or object")
+        object.__setattr__(self, "directive", directive)
 
         mode = _identifier(self.payload_mode, "payload_mode")
         if mode not in {item.value for item in PayloadMode}:
@@ -153,7 +162,7 @@ class HandoffEnvelope:
     def control_payload(self) -> dict[str, Any]:
         """Return only control data; safe compression callers must not pass it."""
 
-        return {
+        value = {
             "subject": self.subject,
             "instruction": self.instruction,
             "conditions": list(self.conditions),
@@ -162,6 +171,9 @@ class HandoffEnvelope:
             "source_role": self.source_role,
             "target_role": self.target_role,
         }
+        if not self.directive.is_empty:
+            value["directive"] = self.directive.to_dict()
+        return value
 
     def payload_for_compression(self) -> Any:
         """Return payload only, never instructions or authority constraints."""
@@ -177,6 +189,7 @@ class HandoffEnvelope:
             "conditions": list(self.conditions),
             "cautions": list(self.cautions),
             "requirements": list(self.requirements),
+            "directive": self.directive.to_dict(),
             "payload": self.payload,
             "payload_mode": self.payload_mode,
             "payload_reference": dict(self.payload_reference) if self.payload_reference is not None else None,
@@ -208,6 +221,7 @@ class HandoffEnvelope:
             conditions=value.get("conditions", ()),
             cautions=value.get("cautions", ()),
             requirements=value.get("requirements", ()),
+            directive=value.get("directive", {}),
             payload=value.get("payload"),
             payload_mode=value.get("payload_mode", PayloadMode.ORIGINAL.value),
             payload_reference=value.get("payload_reference"),
@@ -220,4 +234,4 @@ class HandoffEnvelope:
         )
 
 
-__all__ = ["HandoffEnvelope", "HandoffKind", "HandoffRole", "PayloadMode"]
+__all__ = ["HandoffDirective", "HandoffEnvelope", "HandoffKind", "HandoffRole", "PayloadMode"]
