@@ -40,12 +40,15 @@ class SourceRequirement(str, Enum):
 class AuthoritySource(str, Enum):
     CURRENT_USER_INSTRUCTION = "current_user_instruction"
     LATEST_USER_CORRECTION = "latest_user_correction"
+    SPECIFIC_REQUIREMENT = "specific_requirement"
     CURRENT_REPOSITORY = "current_repository"
     CURRENT_PROJECT_SOURCE = "current_project_source"
     PROVIDED_PAYLOAD = "provided_payload"
     PREVIOUS_FINDINGS = "previous_findings"
     DOMAIN_SOURCE = "domain_source"
     CORE_SOURCE = "core_source"
+    PREVIOUS_CONTEXT = "previous_context"
+    GENERAL_DEFAULT = "general_default"
 
 
 class ContinuationMode(str, Enum):
@@ -60,12 +63,25 @@ class ContinuationMode(str, Enum):
 DEFAULT_AUTHORITY_PRECEDENCE = (
     AuthoritySource.CURRENT_USER_INSTRUCTION.value,
     AuthoritySource.LATEST_USER_CORRECTION.value,
-    AuthoritySource.CURRENT_REPOSITORY.value,
-    AuthoritySource.CURRENT_PROJECT_SOURCE.value,
-    AuthoritySource.PROVIDED_PAYLOAD.value,
-    AuthoritySource.PREVIOUS_FINDINGS.value,
+    AuthoritySource.SPECIFIC_REQUIREMENT.value,
     AuthoritySource.DOMAIN_SOURCE.value,
     AuthoritySource.CORE_SOURCE.value,
+    AuthoritySource.PREVIOUS_CONTEXT.value,
+    AuthoritySource.GENERAL_DEFAULT.value,
+)
+
+_AUTHORITY_ORDER = (
+    AuthoritySource.CURRENT_USER_INSTRUCTION.value,
+    AuthoritySource.LATEST_USER_CORRECTION.value,
+    AuthoritySource.SPECIFIC_REQUIREMENT.value,
+    AuthoritySource.CURRENT_PROJECT_SOURCE.value,
+    AuthoritySource.CURRENT_REPOSITORY.value,
+    AuthoritySource.DOMAIN_SOURCE.value,
+    AuthoritySource.CORE_SOURCE.value,
+    AuthoritySource.PREVIOUS_CONTEXT.value,
+    AuthoritySource.PREVIOUS_FINDINGS.value,
+    AuthoritySource.PROVIDED_PAYLOAD.value,
+    AuthoritySource.GENERAL_DEFAULT.value,
 )
 
 _MAX_TEXT = 20_000
@@ -171,7 +187,7 @@ class HandoffDirective:
             "authority_precedence",
             _enum_strings(self.authority_precedence, AuthoritySource, "authority_precedence"),
         )
-        positions = [DEFAULT_AUTHORITY_PRECEDENCE.index(item) for item in self.authority_precedence]
+        positions = [_AUTHORITY_ORDER.index(item) for item in self.authority_precedence]
         if len(set(positions)) != len(positions) or positions != sorted(positions):
             raise ValueError("authority_precedence must preserve the canonical source order")
         object.__setattr__(

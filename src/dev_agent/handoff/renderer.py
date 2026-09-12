@@ -32,12 +32,15 @@ def _authority_line(value: str) -> str:
     names = {
         AuthoritySource.CURRENT_USER_INSTRUCTION.value: "現在のユーザー明示指示",
         AuthoritySource.LATEST_USER_CORRECTION.value: "最新のユーザー訂正",
+        AuthoritySource.SPECIFIC_REQUIREMENT.value: "より具体的な個別仕様",
         AuthoritySource.CURRENT_REPOSITORY.value: "現行repository",
         AuthoritySource.CURRENT_PROJECT_SOURCE.value: "現行project source",
         AuthoritySource.PROVIDED_PAYLOAD.value: "提供されたPayload",
         AuthoritySource.PREVIOUS_FINDINGS.value: "前回findings",
         AuthoritySource.DOMAIN_SOURCE.value: "関連Domain Source",
         AuthoritySource.CORE_SOURCE.value: "Core Source",
+        AuthoritySource.PREVIOUS_CONTEXT.value: "関連する過去context",
+        AuthoritySource.GENERAL_DEFAULT.value: "一般既定値",
     }
     return f"正本は{names.get(value, value)}として扱うこと。"
 

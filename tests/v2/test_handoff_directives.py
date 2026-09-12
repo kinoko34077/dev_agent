@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from src.dev_agent.handoff import (
+    DEFAULT_AUTHORITY_PRECEDENCE,
     HandoffDirective,
     HandoffEnvelope,
     PayloadMode,
@@ -107,6 +108,18 @@ def test_directive_rejects_authority_precedence_that_reverses_user_correction():
         HandoffDirective(
             authority_precedence=("current_repository", "latest_user_correction"),
         )
+
+
+def test_default_authority_precedence_keeps_latest_correction_above_prior_context():
+    assert DEFAULT_AUTHORITY_PRECEDENCE[:7] == (
+        "current_user_instruction",
+        "latest_user_correction",
+        "specific_requirement",
+        "domain_source",
+        "core_source",
+        "previous_context",
+        "general_default",
+    )
 
 
 def test_kinotch_renderer_renders_control_before_payload_stably():
