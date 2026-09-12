@@ -8,6 +8,7 @@ injected command_builder so no real `codex` binary is required.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import time
@@ -54,6 +55,18 @@ def _request(tmp_path, task_id="00000000-0000-0000-0000-000000000001"):
         objective="run a bounded codex exec turn",
         scope=AgentBackendScope(workspace_id=str(tmp_path)),
     )
+
+
+def _process_group_kwargs() -> dict:
+    """Match production's process-group creation flags (see codex_exec.py's
+    start()) for a real subprocess.Popen constructed directly by a test
+    fixture -- so that a fixture-side real_process is killable through the
+    exact same terminate_process_tree() code path (os.killpg on POSIX,
+    taskkill /T /F on Windows) production sessions use, not merely killable
+    via a bare process.kill() fallback."""
+    if os.name == "nt":
+        return {"creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)}
+    return {"start_new_session": True}
 
 
 # ---------------------------------------------------------------------------
@@ -149,6 +162,7 @@ def test_communicate_failure_is_reported_as_unknown(tmp_path):
         # request.objective.encode("utf-8") (bytes). A text-mode pipe here
         # would reject that write with a TypeError, exercising a mismatch
         # that can never occur against a real production-shaped process.
+        **_process_group_kwargs(),
     )
 
     class _BrokenReadPipe:
@@ -168,6 +182,19 @@ def test_communicate_failure_is_reported_as_unknown(tmp_path):
 
         def poll(self):
             return self._inner.poll()
+
+        def kill(self):
+            # terminate_process_tree() falls through to process.kill() as
+            # its last resort when the OS-level group termination
+            # (taskkill /T /F on Windows, os.killpg on POSIX) does not
+            # immediately reflect the process as stopped when re-checked.
+            # A fake process wrapper without this method makes that
+            # fallback raise AttributeError from inside an already-running
+            # exception handler, which can silently crash the background
+            # thread before it ever records communicate_failed/exited --
+            # leaving the session stuck as RUNNING forever instead of
+            # resolving to UNKNOWN as this test expects.
+            return self._inner.kill()
 
         @property
         def returncode(self):
@@ -197,6 +224,7 @@ def test_io_failure_terminates_a_long_running_process_no_orphan_survives(tmp_pat
         stdin=subprocess.PIPE,
         # Binary mode -- see the matching note in
         # test_communicate_failure_is_reported_as_unknown above.
+        **_process_group_kwargs(),
     )
     assert real_process.poll() is None  # confirm it is genuinely running
 
@@ -217,6 +245,12 @@ def test_io_failure_terminates_a_long_running_process_no_orphan_survives(tmp_pat
 
         def poll(self):
             return self._inner.poll()
+
+        def kill(self):
+            # See the matching note in
+            # test_communicate_failure_is_reported_as_unknown above --
+            # terminate_process_tree()'s fallback call requires this.
+            return self._inner.kill()
 
         @property
         def returncode(self):
@@ -519,6 +553,7 @@ def test_watchdog_does_not_flag_deadline_exceeded_for_an_already_exited_process(
         stderr=subprocess.PIPE,
         stdin=subprocess.PIPE,
         # Binary mode -- matches production's Popen contract.
+        **_process_group_kwargs(),
     )
 
     class _ClaimsAlreadyExitedProcess:
@@ -534,6 +569,14 @@ def test_watchdog_does_not_flag_deadline_exceeded_for_an_already_exited_process(
 
         def wait(self, *args, **kwargs):
             return self._inner.wait(*args, **kwargs)
+
+        def kill(self):
+            # terminate_process_tree() never reaches this fallback for this
+            # particular wrapper (poll() always reports "exited" so it
+            # returns immediately) -- present anyway for consistency with
+            # the real Popen interface and in case that short-circuit
+            # behavior ever changes.
+            return self._inner.kill()
 
         @property
         def returncode(self):
