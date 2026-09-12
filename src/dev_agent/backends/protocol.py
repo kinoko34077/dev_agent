@@ -164,8 +164,20 @@ class AgentBackendResult:
             AgentBackendStatus.UNKNOWN,
             AgentBackendStatus.RECONCILING,
             AgentBackendStatus.WAITING_APPROVAL,
+            # RUNNING and CANCELLING are known, non-terminal states: the
+            # adapter has confirmed evidence the backend is still active (or
+            # winding down after a cancel request), which is a materially
+            # different claim from UNKNOWN ("no confirmed evidence of the
+            # outcome at all"). AgentBackendDispatcher.result() keeps the
+            # durable effect intent in "dispatching" for either of these
+            # (see the trailing `else` branch there) so a later poll can
+            # still resolve it normally -- unlike UNKNOWN, which durably
+            # commits to "needs explicit reconciliation" and cannot self-heal
+            # on a plain retry.
+            AgentBackendStatus.RUNNING,
+            AgentBackendStatus.CANCELLING,
         }:
-            raise ValueError("result status must represent a completed or waiting backend outcome")
+            raise ValueError("result status must represent a completed, waiting, or known non-terminal backend outcome")
         object.__setattr__(self, "output_artifacts", _strings(self.output_artifacts, "output_artifacts"))
         if not isinstance(self.reconciliation_metadata, Mapping):
             raise TypeError("reconciliation_metadata must be a mapping")

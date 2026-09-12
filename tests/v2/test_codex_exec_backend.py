@@ -8,6 +8,7 @@ injected command_builder so no real `codex` binary is required.
 
 from __future__ import annotations
 
+import subprocess
 import sys
 import time
 
@@ -86,13 +87,67 @@ def test_nonzero_exit_normalizes_to_failed_not_trusting_self_report(tmp_path):
     assert result.reconciliation_metadata["returncode"] == 1
 
 
-def test_incomplete_session_returns_unknown_not_a_guess(tmp_path):
+def test_incomplete_session_returns_running_not_unknown(tmp_path):
+    """A still-active process is confirmed evidence of RUNNING, not an
+    unknown outcome -- see the module docstring for why conflating the two
+    used to force a 300s blocking workaround."""
     backend = CodexExecBackend(command_builder=_sleep_builder(3.0))
     session = backend.start(_request(tmp_path))
     result = backend.result(session.session_id, wait_seconds=0.1)
-    assert result.status == AgentBackendStatus.UNKNOWN
+    assert result.status == AgentBackendStatus.RUNNING
     assert result.reconciliation_metadata["reason"] == "still_running"
     backend.cancel(session.session_id)
+
+
+def test_cancelling_session_reports_cancelling_not_unknown(tmp_path):
+    """After cancel() but before the process has actually exited, the known
+    state is CANCELLING (winding down), not RUNNING and not UNKNOWN."""
+    backend = CodexExecBackend(command_builder=_sleep_builder(5.0))
+    session = backend.start(_request(tmp_path))
+    backend.cancel(session.session_id)
+    result = backend.result(session.session_id, wait_seconds=0.0)
+    # terminate_process_tree is not instantaneous; if the OS already reaped
+    # the process before this check, CANCELLED is also an acceptable
+    # (correct) outcome for this poll.
+    assert result.status in {AgentBackendStatus.CANCELLING, AgentBackendStatus.CANCELLED}
+
+
+def test_communicate_failure_is_reported_as_unknown(tmp_path):
+    """UNKNOWN is reserved for genuinely losing the ability to observe the
+    process's outcome -- simulated here via an injected popen factory whose
+    resulting handle's communicate() raises, standing in for a real
+    OS-level pipe failure."""
+    real_process = subprocess.Popen(
+        (sys.executable, "-c", "print('ok')"),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        stdin=subprocess.DEVNULL,
+        text=True,
+    )
+
+    class _BrokenCommunicateProcess:
+        def __init__(self, inner):
+            self._inner = inner
+
+        def communicate(self):
+            raise OSError("simulated pipe failure")
+
+        def poll(self):
+            return self._inner.poll()
+
+        @property
+        def returncode(self):
+            return self._inner.returncode
+
+    def fake_popen(*args, **kwargs):
+        return _BrokenCommunicateProcess(real_process)
+
+    backend = CodexExecBackend(command_builder=_echo_builder("unused"), popen=fake_popen)
+    session = backend.start(_request(tmp_path))
+    result = backend.result(session.session_id, wait_seconds=2.0)
+    assert result.status == AgentBackendStatus.UNKNOWN
+    assert result.reconciliation_metadata["reason"] == "communicate_failed"
+    real_process.wait(timeout=5.0)
 
 
 def test_cancel_terminates_process_and_result_reports_cancelled(tmp_path):
@@ -185,14 +240,15 @@ def _dispatcher(store, task):
     return AgentBackendDispatcher(store, authorize=lambda t, r: True, admission=admission)
 
 
-def test_dispatcher_drives_codex_exec_backend_to_completion(store, task, tmp_path):
-    # AgentBackendDispatcher.result() calls backend.result(session_id) with
-    # no wait argument and treats a returned UNKNOWN as durably needing
-    # reconciliation -- a plain retry cannot self-heal. So the adapter's
-    # *default* wait must itself be enough to observe this fast echo command
-    # finish; a short default here (not the 300s production default) keeps
-    # the test fast while still exercising the real, unmodified code path.
-    backend = CodexExecBackend(command_builder=_echo_builder("dispatcher e2e"), default_wait_seconds=5.0)
+def test_dispatcher_polls_through_running_to_completion(store, task, tmp_path):
+    """Demonstrates the actual fix: RUNNING is a legal, non-terminal result
+    status, so AgentBackendDispatcher.result() keeps the durable effect
+    intent in "dispatching" while the process is still going -- a plain
+    poll loop resolves normally once it finishes. Before this fix, a
+    not-yet-finished poll had to return UNKNOWN, which durably committed
+    the dispatch to "needs explicit reconciliation" on the very first poll
+    and could never resolve via a second dispatcher.result() call."""
+    backend = CodexExecBackend(command_builder=_sleep_builder(0.3))
     dispatcher = _dispatcher(store, task)
     request = AgentBackendRequest(
         task_id=task.task_id,
@@ -203,12 +259,19 @@ def test_dispatcher_drives_codex_exec_backend_to_completion(store, task, tmp_pat
     session = dispatcher.dispatch(request, backend, dispatch_id="codex-exec-e2e-1", attempt=1)
     assert session.status == AgentBackendStatus.RUNNING
 
-    result = dispatcher.result("codex-exec-e2e-1", backend)
+    first_poll = dispatcher.result("codex-exec-e2e-1", backend)
+    assert first_poll.status == AgentBackendStatus.RUNNING
+
+    deadline = time.monotonic() + 5.0
+    result = first_poll
+    while result.status == AgentBackendStatus.RUNNING and time.monotonic() < deadline:
+        time.sleep(0.05)
+        result = dispatcher.result("codex-exec-e2e-1", backend)
     assert result.status == AgentBackendStatus.COMPLETED
 
 
 def test_dispatcher_cancel_reaches_codex_exec_backend_process(store, task, tmp_path):
-    backend = CodexExecBackend(command_builder=_sleep_builder(30.0), default_wait_seconds=5.0)
+    backend = CodexExecBackend(command_builder=_sleep_builder(30.0))
     dispatcher = _dispatcher(store, task)
     request = AgentBackendRequest(
         task_id=task.task_id,
@@ -218,5 +281,9 @@ def test_dispatcher_cancel_reaches_codex_exec_backend_process(store, task, tmp_p
     dispatcher.dispatch(request, backend, dispatch_id="codex-exec-e2e-cancel", attempt=1)
     dispatcher.cancel("codex-exec-e2e-cancel", backend)
 
+    deadline = time.monotonic() + 5.0
     result = dispatcher.result("codex-exec-e2e-cancel", backend)
+    while result.status in {AgentBackendStatus.RUNNING, AgentBackendStatus.CANCELLING} and time.monotonic() < deadline:
+        time.sleep(0.05)
+        result = dispatcher.result("codex-exec-e2e-cancel", backend)
     assert result.status == AgentBackendStatus.CANCELLED

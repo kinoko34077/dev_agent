@@ -20,11 +20,15 @@ Design notes:
 - result() never trusts the subprocess's own claims of success. Only the
   process exit code (and, in the future, structured JSON output) are treated
   as ground truth. A session whose subprocess has not yet exited returns
-  AgentBackendStatus.UNKNOWN rather than inventing a "still running" result
-  status that AgentBackendResult's schema does not accept -- this is
-  intentional: "not enough confirmed evidence yet" is exactly what UNKNOWN
-  means throughout this codebase's fail-closed design, and the caller is
-  expected to poll result() again.
+  AgentBackendStatus.RUNNING (or CANCELLING once cancel() has been called) --
+  a known, non-terminal, Protocol-legal status distinct from UNKNOWN.
+  UNKNOWN means "no confirmed evidence of the outcome at all" and durably
+  commits AgentBackendDispatcher's effect intent to "needs explicit
+  reconciliation", a state a plain retry cannot self-heal out of even once
+  the process finishes moments later; RUNNING/CANCELLING instead keep the
+  intent in "dispatching" so a later poll resolves normally. UNKNOWN is
+  reserved for when this adapter's own subprocess-output reader thread
+  fails unexpectedly, i.e. genuinely losing the ability to observe outcome.
 - No discover() method is implemented, so AgentBackendDispatcher.reconcile_start
   correctly falls through to "backend discovery unavailable" and marks the
   dispatch UNKNOWN. This is honest: an in-process-memory session map cannot
@@ -84,6 +88,7 @@ class _SessionState:
         "stdout",
         "stderr",
         "returncode",
+        "communicate_failed",
         "started_event_emitted",
         "completion_event_emitted",
     )
@@ -96,6 +101,11 @@ class _SessionState:
         self.stdout: str | None = None
         self.stderr: str | None = None
         self.returncode: int | None = None
+        # True only if the background reader thread itself raised while
+        # draining the process's pipes -- a distinct, genuinely ambiguous
+        # condition from "still running": we can no longer observe this
+        # process's true state at all, which is exactly what UNKNOWN means.
+        self.communicate_failed = False
         self.started_event_emitted = False
         self.completion_event_emitted = False
 
@@ -125,7 +135,7 @@ class CodexExecBackend:
         popen: PopenFactory | None = None,
         backend_version: str | None = None,
         max_output_bytes: int = 2 * 1024 * 1024,
-        default_wait_seconds: float = 300.0,
+        default_wait_seconds: float = 0.0,
     ) -> None:
         if backend_version is not None:
             self.identity = AgentBackendIdentity(
@@ -136,15 +146,16 @@ class CodexExecBackend:
         self._command_builder = command_builder or _default_command_builder
         self._popen: PopenFactory = popen or subprocess.Popen
         self._max_output_bytes = max_output_bytes
-        # AgentBackendDispatcher.result() calls backend.result(session_id)
-        # with no wait argument, and treats a returned UNKNOWN as a durable
-        # "needs explicit reconciliation" signal -- once persisted, a plain
-        # retry cannot self-heal even if the process finishes moments later.
-        # So the *default* wait must itself be long enough to cover a normal
-        # completion; only a genuinely stuck process should fall through to
-        # UNKNOWN. Override default_wait_seconds for one call via the
-        # wait_seconds keyword (used by this module's own tests to observe
-        # the "still running" branch quickly).
+        # result() returns AgentBackendStatus.RUNNING (a known, non-terminal,
+        # Protocol-legal status) rather than UNKNOWN while the process is
+        # still active, so AgentBackendDispatcher.result() keeps the durable
+        # effect intent in "dispatching" and a later poll can resolve
+        # normally -- see result()'s docstring for why an earlier revision
+        # of this adapter needed a long blocking default instead, and why
+        # that is no longer necessary. default_wait_seconds is now purely a
+        # convenience for a caller that wants one call to block briefly
+        # rather than poll in a tight loop; 0.0 (non-blocking) is the
+        # correct default now that RUNNING is a legal result status.
         self._default_wait_seconds = default_wait_seconds
         self._lock = Lock()
         self._sessions: dict[str, _SessionState] = {}
@@ -187,7 +198,9 @@ class CodexExecBackend:
             try:
                 stdout, stderr = process.communicate()
             except BaseException:
-                stdout, stderr = None, None
+                with self._lock:
+                    state.communicate_failed = True
+                return
             with self._lock:
                 state.stdout = _truncate(stdout, self._max_output_bytes)
                 state.stderr = _truncate(stderr, self._max_output_bytes)
@@ -239,30 +252,43 @@ class CodexExecBackend:
         terminate_process_tree(state.process)
 
     def result(self, session_id: str, *, wait_seconds: float | None = None) -> AgentBackendResult:
-        """Block for up to ``wait_seconds`` (default: ``default_wait_seconds``
-        from construction) for the process to exit, then return the terminal
-        outcome -- or UNKNOWN if it still has not exited within that bound.
+        """Return the current known outcome; optionally block briefly first.
 
         ``wait_seconds`` (adapter-specific, not part of the AgentBackend
-        Protocol signature) lets a caller override the adapter's configured
-        default for one call, e.g. a short wait in tests. The default is
-        deliberately generous (not 0): AgentBackendDispatcher.result() calls
-        this with no argument and treats a returned UNKNOWN as "needs
-        explicit reconciliation" durably -- a plain retry cannot undo that
-        even if the process finishes moments later -- so returning UNKNOWN
-        must mean "genuinely stuck past its allotted time", not merely
-        "check back shortly".
+        Protocol signature) lets a caller block for up to that long for the
+        process to exit before checking, instead of polling in a tight
+        loop; it defaults to ``default_wait_seconds`` from construction
+        (0.0 -- a non-blocking check).
+
+        While the process has not yet exited, this returns
+        AgentBackendStatus.RUNNING (or CANCELLING if cancel() was already
+        called) -- not UNKNOWN. RUNNING/CANCELLING mean "confirmed evidence
+        the backend is still active"; UNKNOWN means "no confirmed evidence
+        of the outcome at all". AgentBackendDispatcher.result() keeps the
+        durable effect intent in "dispatching" for either of the former,
+        so a caller can simply poll result() again later. Returning UNKNOWN
+        for "not done yet" would instead durably commit the dispatch to
+        "needs explicit reconciliation" -- a state a plain retry cannot
+        undo even once the process finishes moments later -- so UNKNOWN is
+        reserved here for a communicate() thread that raised unexpectedly
+        (see the ``except BaseException`` in the background thread).
         """
         state = self._require_session(session_id)
         effective_wait = self._default_wait_seconds if wait_seconds is None else wait_seconds
         if state.thread is not None:
             state.thread.join(timeout=max(0.0, effective_wait))
         with self._lock:
-            if state.returncode is None:
+            if state.communicate_failed:
                 return AgentBackendResult(
                     session_id=session_id,
                     status=AgentBackendStatus.UNKNOWN,
-                    reconciliation_metadata={"reason": "still_running"},
+                    reconciliation_metadata={"reason": "communicate_failed"},
+                )
+            if state.returncode is None:
+                return AgentBackendResult(
+                    session_id=session_id,
+                    status=AgentBackendStatus.CANCELLING if state.cancelled else AgentBackendStatus.RUNNING,
+                    reconciliation_metadata={"reason": "cancel_requested" if state.cancelled else "still_running"},
                 )
             if state.cancelled:
                 return AgentBackendResult(

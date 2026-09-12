@@ -81,3 +81,23 @@ def test_agent_backend_records_can_rehydrate_enum_statuses_from_durable_json():
     assert session.status is AgentBackendStatus.RUNNING
     assert event.status is AgentBackendStatus.WAITING_APPROVAL
     assert result.status is AgentBackendStatus.COMPLETED
+
+
+@pytest.mark.parametrize("status", [AgentBackendStatus.RUNNING, AgentBackendStatus.CANCELLING])
+def test_agent_backend_result_accepts_known_non_terminal_statuses(status):
+    """RUNNING/CANCELLING are confirmed-evidence, non-terminal outcomes --
+    distinct from UNKNOWN ("no confirmed evidence at all"). A poller must be
+    able to express "the backend is still going" without a Protocol
+    violation forcing it to either lie (claim COMPLETED/FAILED) or overuse
+    UNKNOWN (which AgentBackendDispatcher treats as durably needing
+    reconciliation)."""
+    result = AgentBackendResult(session_id="s", status=status)
+    assert result.status is status
+
+
+def test_agent_backend_result_still_rejects_prepared_status():
+    """Not every AgentBackendStatus value is a legal *result* -- PREPARED
+    describes a session that has not started dispatching at all, which is
+    not a claim result() should ever make."""
+    with pytest.raises(ValueError, match="result status must represent"):
+        AgentBackendResult(session_id="s", status=AgentBackendStatus.PREPARED)
