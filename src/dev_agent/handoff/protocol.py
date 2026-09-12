@@ -16,6 +16,7 @@ from typing import Any
 from uuid import uuid4
 
 from .directive import HandoffDirective
+from .references import ExternalTextReference
 
 
 class HandoffKind(str, Enum):
@@ -144,6 +145,8 @@ class HandoffEnvelope:
         payload_reference = _mapping(self.payload_reference, "payload_reference")
         if mode == PayloadMode.REFERENCE.value and not payload_reference:
             raise ValueError("reference payload_mode requires payload_reference")
+        if payload_reference is not None and payload_reference.get("type") == "external_text":
+            payload_reference = ExternalTextReference.from_dict(payload_reference).to_dict()
         object.__setattr__(self, "payload_reference", payload_reference)
 
         object.__setattr__(self, "original_reference", _mapping(self.original_reference, "original_reference"))
@@ -234,4 +237,4 @@ class HandoffEnvelope:
         )
 
 
-__all__ = ["HandoffDirective", "HandoffEnvelope", "HandoffKind", "HandoffRole", "PayloadMode"]
+__all__ = ["ExternalTextReference", "HandoffDirective", "HandoffEnvelope", "HandoffKind", "HandoffRole", "PayloadMode"]

@@ -18,15 +18,17 @@ from .presets import (
     reanalyze_after_correction,
     reaudit_after_change,
     roadmap_comparison,
+    rework_request,
     sequence_planning_request,
 )
-from .protocol import HandoffEnvelope, HandoffKind, HandoffRole, PayloadMode
+from .protocol import ExternalTextReference, HandoffEnvelope, HandoffKind, HandoffRole, PayloadMode
 from .renderer import render_handoff
 from .roles import ExecutorRole, PlannerRole, ReviewerRole
 from .validation import validate_handoff
 
 __all__ = [
     "HandoffEnvelope",
+    "ExternalTextReference",
     "HandoffDirective",
     "HandoffKind",
     "HandoffRole",
@@ -50,5 +52,6 @@ __all__ = [
     "reanalyze_after_correction",
     "reaudit_after_change",
     "roadmap_comparison",
+    "rework_request",
     "sequence_planning_request",
 ]

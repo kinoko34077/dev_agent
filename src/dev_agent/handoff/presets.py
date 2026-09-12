@@ -10,7 +10,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from .directive import DEFAULT_AUTHORITY_PRECEDENCE, HandoffDirective
-from .protocol import HandoffEnvelope, HandoffKind, HandoffRole, PayloadMode
+from .protocol import ExternalTextReference, HandoffEnvelope, HandoffKind, HandoffRole, PayloadMode
 
 
 def _references(**values: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -278,6 +278,61 @@ def sequence_planning_request(
     )
 
 
+def _reference_mapping(value: Mapping[str, Any] | ExternalTextReference, name: str) -> dict[str, Any]:
+    if isinstance(value, ExternalTextReference):
+        return value.to_dict()
+    if not isinstance(value, Mapping) or not value:
+        raise TypeError(f"{name} must be a non-empty reference object")
+    if value.get("type") == "external_text":
+        return ExternalTextReference.from_dict(value).to_dict()
+    return dict(value)
+
+
+def rework_request(
+    *,
+    task_reference: Mapping[str, Any],
+    failure_evidence_reference: Mapping[str, Any] | ExternalTextReference,
+    review_findings_reference: Mapping[str, Any] | ExternalTextReference | None = None,
+    required_correction: str,
+    exclusions: Sequence[str] = (),
+    subject: str = "Worker成果の再作業",
+    instruction: str = "元のTaskを再送せず、失敗証拠とレビュー差分だけを確認して修正すること",
+) -> HandoffEnvelope:
+    """Build a compact, reference-first rework handoff.
+
+    The references are data.  They do not grant authority to the receiving
+    role, and this helper does not fetch or execute anything.
+    """
+
+    if not isinstance(task_reference, Mapping) or not task_reference:
+        raise TypeError("task_reference must be a non-empty object")
+    references: dict[str, Any] = {
+        "type": "rework",
+        "task": dict(task_reference),
+        "failure_evidence": _reference_mapping(failure_evidence_reference, "failure_evidence_reference"),
+    }
+    if review_findings_reference is not None:
+        references["review_findings"] = _reference_mapping(review_findings_reference, "review_findings_reference")
+    return _envelope(
+        kind=HandoffKind.REPAIR_REQUEST.value,
+        subject=subject,
+        instruction=instruction,
+        source_role=HandoffRole.REVIEWER.value,
+        target_role=HandoffRole.EXECUTOR.value,
+        conditions=("既存のTask scopeとAuthorityを維持する",),
+        requirements=(required_correction,),
+        directive=HandoffDirective(
+            payload_semantics="implementation_instruction",
+            exclusions=tuple(exclusions),
+            source_requirements=("execution_evidence",),
+            authority_source="current_user_instruction",
+            authority_precedence=DEFAULT_AUTHORITY_PRECEDENCE,
+            continuation_mode="continue",
+        ),
+        references=references,
+    )
+
+
 __all__ = [
     "critical_adjacent_audit",
     "current_state_analysis",
@@ -288,5 +343,6 @@ __all__ = [
     "reanalyze_after_correction",
     "reaudit_after_change",
     "roadmap_comparison",
+    "rework_request",
     "sequence_planning_request",
 ]
