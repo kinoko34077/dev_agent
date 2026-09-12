@@ -42,6 +42,7 @@ from src.dev_agent.providers.base import ModelProvider, ProviderError
 from src.dev_agent.providers.factory import ProviderDefinition, ProviderFactory
 from src.dev_agent.resources.billing_catalog import TRUSTED_RESOURCE_CATALOG
 from src.dev_agent.resources.provider_policy import is_local_provider as _is_local_provider
+from src.dev_agent.resources.provider_policy import validate_provider_instance_authority
 from src.dev_agent.resources.qualification import QualificationError, QualificationResolver
 from src.dev_agent.security.audit import AuditRecorder
 from scripts.devfarm_metrics import WorkerMetricsError, WorkerMetricsStore
@@ -1325,6 +1326,15 @@ def _worker_provider_identity(provider: ModelProvider) -> tuple[str, str, str, s
 
 def _validate_worker_provider(provider: ModelProvider) -> tuple[str, str, str, str | None, DevFarmWorkerEligibility]:
     provider_id, model_id, binding_id, tier = _worker_provider_identity(provider)
+    # Identity fields (provider_id/model_id/binding_id/tier) can be correct
+    # while the instance itself points at an unapproved endpoint or
+    # credential source — the instance may have been constructed directly
+    # rather than through ProviderDefinition, or mutated afterward.  Re-derive
+    # the same endpoint/credential/adapter-class checks from the live object.
+    try:
+        validate_provider_instance_authority(provider)
+    except ValueError as exc:
+        raise DevFarmError(f"worker provider failed authority validation: {exc}") from exc
     eligibility = DevFarmActivationPolicy().eligibility_for(
         provider_id,
         model_id,

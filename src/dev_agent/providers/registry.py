@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+from ..resources.provider_policy import validate_provider_instance_authority
 from .base import ModelProvider, ProviderError
 
 
@@ -33,6 +34,11 @@ class ProviderRegistry:
         for provider in providers:
             if not isinstance(provider.provider_id, str) or not provider.provider_id.strip():
                 raise ValueError("provider_id must be a non-empty string")
+            # A Provider instance can be constructed and injected directly,
+            # bypassing ProviderDefinition's construction-time endpoint and
+            # credential authority checks entirely.  Re-derive the same
+            # checks from the live instance before it is trusted to dispatch.
+            validate_provider_instance_authority(provider)
             binding_id = getattr(provider, "provider_binding_id", None) or provider.provider_id
             if not isinstance(binding_id, str) or not binding_id.strip():
                 raise ValueError("provider_binding_id must be a non-empty string")

@@ -9,6 +9,7 @@ from typing import Any, Callable, TYPE_CHECKING
 from ..domain.protocol import ModelRequest, ModelResponse
 from ..resources.budget import BudgetExceeded, BudgetReconciliationRequired
 from ..resources.control import DispatchDenied, DispatchReservation, ResourceControlPlane
+from ..resources.provider_policy import validate_provider_instance_authority
 from ..resources.router import NoRoute, RouteSelection
 from ..resources.survival import SurvivalGovernor, SurvivalMode, SurvivalSnapshot
 from .base import ModelProvider, ProviderError
@@ -295,6 +296,19 @@ class ProviderDispatcher(ModelProvider):
                     raise last_error
                 raise DispatchDenied("no_route", str(exc)) from exc
             provider = self.registry.get_binding(selection.provider_binding_id or selection.provider_id)
+            # Re-validate immediately before trusting this instance to
+            # dispatch.  ProviderRegistry validated it at registration time,
+            # but a caller holding a reference to the same object can mutate
+            # base_url / api_key_env after registration; this catches that
+            # mutation at the last point before an external call is made.
+            try:
+                validate_provider_instance_authority(provider)
+            except ValueError as exc:
+                raise ProviderError(
+                    f"provider instance failed authority validation: {exc}",
+                    category="authority_violation",
+                    retryable=False,
+                ) from exc
             # Resolve the concrete provider and durable intent before
             # acquiring a budget/capacity reservation.  A replayed succeeded
             # intent must not create a fresh reservation, and a stale

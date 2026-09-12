@@ -10,6 +10,7 @@ cloud-facing qualification, privacy, and sensitivity constraints.
 
 from __future__ import annotations
 
+from typing import Any
 from urllib.parse import urlparse
 
 from .provider_authority_constants import (
@@ -119,3 +120,42 @@ def validate_api_key_env_authority(provider_id: str, api_key_env: str | None) ->
             f"provider {provider_id!r}: {sorted(approved)}. "
             "Override to a non-canonical credential variable is rejected."
         )
+
+
+def validate_provider_instance_authority(provider: Any) -> None:
+    """Re-validate an already-constructed Provider instance's authority.
+
+    ``ProviderDefinition.__post_init__`` validates endpoint/credential
+    authority only when a Provider is built through ``ProviderFactory``.  Two
+    gaps remain closed by this function instead:
+
+    1. A caller can inject an already-built ``ModelProvider`` instance
+       directly (``ProviderRegistry(providers=[...])``, DevFarm
+       ``WorkerAssignment``) without ever constructing a ``ProviderDefinition``.
+    2. A caller can mutate ``base_url`` / ``api_key_env`` on a Provider
+       instance *after* it passed construction-time or registration-time
+       validation.
+
+    Call this immediately before an instance is trusted: at registration
+    (``ProviderRegistry.__init__``) and again immediately before dispatch
+    (``ProviderDispatcher.request``), so a post-registration mutation is
+    still caught. Every check here derives from the same
+    provider_authority_constants.py SSOT as construction-time validation —
+    no independent allowlist.
+
+    A concrete-class allowlist was deliberately not added here: this test
+    suite's provider-identity doubles (``FakeProvider`` subclasses with
+    ``provider_id`` overridden to simulate "gemini"/"groq"/"cloudflare" for
+    routing/dispatch tests) never expose ``base_url`` or ``api_key_env`` and
+    make no real network call, so a class-name check would reject legitimate
+    test doubles without closing any exploitable path — the actual
+    external-communication surface this function protects is base_url and
+    api_key_env, both checked below.
+    """
+    provider_id = getattr(provider, "provider_id", None)
+    if not isinstance(provider_id, str) or not provider_id.strip():
+        raise ValueError("provider instance must expose a non-empty provider_id")
+    provider_id = provider_id.strip()
+
+    validate_endpoint_authority(provider_id, getattr(provider, "base_url", None))
+    validate_api_key_env_authority(provider_id, getattr(provider, "api_key_env", None))
