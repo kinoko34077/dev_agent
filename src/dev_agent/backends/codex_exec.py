@@ -326,6 +326,19 @@ class CodexExecBackend:
                     state.communicate_failed = True
                 exited.set()
                 return
+            finally:
+                # Explicitly close pipe file descriptors as soon as this
+                # session is done with them, rather than relying on garbage
+                # collection -- a long test/CI run that spawns many sessions
+                # in one process should not accumulate open fds waiting for
+                # GC, especially under a container's typically low fd
+                # ulimit.
+                for pipe in (getattr(process, "stdin", None), getattr(process, "stdout", None), getattr(process, "stderr", None)):
+                    if pipe is not None:
+                        try:
+                            pipe.close()
+                        except Exception:
+                            pass
             with self._lock:
                 state.stdout = stdout_box.get("text")
                 state.stdout_truncated = bool(stdout_box.get("truncated"))
