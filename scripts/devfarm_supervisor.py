@@ -276,15 +276,21 @@ class CodexSupervisedCommanderRun:
                 raise DevFarmError("review decision must match the current worker attempt")
             if task.get("status") != "HOST_VERIFIED":
                 raise DevFarmError("worker review decision requires a HOST_VERIFIED task")
+            if any(
+                item.get("task_id") == task_id and item.get("attempt_id") == attempt_id
+                for item in plan["review_decisions"]
+            ):
+                raise DevFarmError("review decision already exists for the current worker attempt")
         if normalized["decision"] == "REWORK":
             # Make the explicit review decision actionable.  Reassigning this
             # task then creates a new immutable manifest carrying the rework
             # delta; the old verified attempt remains historical evidence.
+            if not normalized.get("required_correction"):
+                raise DevFarmError("REWORK requires required_correction")
             task["status"] = "REJECTED"
             task["block_reason"] = "review_rework_required"
             correction = normalized.get("required_correction")
-            if correction:
-                task["last_error"] = correction
+            task["last_error"] = correction
             _record_result(
                 plan,
                 task_id,
@@ -293,7 +299,22 @@ class CodexSupervisedCommanderRun:
                 task.get("result_ref"),
                 attempt_id=attempt_id,
             )
+        elif normalized["decision"] == "REJECT":
+            task["status"] = "REJECTED"
+            task["block_reason"] = "review_rejected"
+            _record_result(
+                plan,
+                task_id,
+                "review",
+                "rejected",
+                task.get("result_ref"),
+                attempt_id=attempt_id,
+            )
         plan["review_decisions"].append(normalized)
+        # Keep the Plan projection consistent with the task terminal change;
+        # callers should not need a separate refresh just to observe REJECTED
+        # after an explicit review decision.
+        plan = refresh_plan(plan)
         saved = self.store.save(plan, expected_revision=plan["plan_revision"])
         metadata = normalize_supervisor_metadata(saved.get("supervisor"))
         metadata["metrics"]["codex_review_count"] += 1
@@ -415,8 +436,18 @@ class CodexSupervisedCommanderRun:
             (item.get("task_id"), item.get("attempt_id"))
             for item in metadata["review_packets"]
         }
+        review_decisions = {
+            (item.get("task_id"), item.get("attempt_id")): item
+            for item in plan["review_decisions"]
+        }
         for task in plan["tasks"]:
             if task["status"] == "HOST_VERIFIED":
+                review_decision = review_decisions.get((task.get("task_id"), task.get("last_attempt_id")))
+                if review_decision is not None:
+                    # A durable decision is already waiting for its next
+                    # Host-side action.  Do not emit another review request
+                    # after a resume or a status refresh.
+                    continue
                 before = len(metadata["wake_events"])
                 metadata = record_wake(
                     metadata,
@@ -452,6 +483,40 @@ class CodexSupervisedCommanderRun:
         if all(task["status"] == "INTEGRATED" for task in plan["tasks"]):
             metadata["status"] = "COMPLETED"
             metadata["next_action"] = "stop"
+        elif any(
+            item.get("decision") == "ESCALATE"
+            and any(
+                task.get("task_id") == item.get("task_id")
+                and task.get("last_attempt_id") == item.get("attempt_id")
+                for task in plan["tasks"]
+            )
+            for item in plan["review_decisions"]
+        ):
+            metadata["status"] = "HUMAN_DECISION_REQUIRED"
+            metadata["next_action"] = "resolve_escalation"
+        elif any(
+            item.get("decision") == "REWORK"
+            and any(
+                task.get("task_id") == item.get("task_id")
+                and task.get("last_attempt_id") == item.get("attempt_id")
+                for task in plan["tasks"]
+            )
+            for item in plan["review_decisions"]
+        ):
+            metadata["status"] = "ACTIVE"
+            metadata["next_action"] = "rework_worker"
+        elif any(
+            item.get("decision") == "APPROVE_INTEGRATION"
+            and any(
+                task.get("task_id") == item.get("task_id")
+                and task.get("last_attempt_id") == item.get("attempt_id")
+                and task.get("status") != "INTEGRATED"
+                for task in plan["tasks"]
+            )
+            for item in plan["review_decisions"]
+        ):
+            metadata["status"] = "INTEGRATING"
+            metadata["next_action"] = "integrate_verified_worker"
         elif any(task["status"] == "HOST_VERIFIED" for task in plan["tasks"]):
             metadata["status"] = "REVIEWING"
             metadata["next_action"] = "review_host_verified"
