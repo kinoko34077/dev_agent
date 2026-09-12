@@ -29,6 +29,7 @@ class HandoffKind(str, Enum):
 
 
 class HandoffRole(str, Enum):
+    HUMAN = "human"
     PLANNER = "planner"
     REVIEWER = "reviewer"
     EXECUTOR = "executor"
