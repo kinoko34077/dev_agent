@@ -75,6 +75,14 @@ TEST_SCOPE_MAP: dict[str, tuple[str, ...]] = {
         "tests/v2/test_devfarm_orchestrator.py",
         "tests/v2/test_devfarm_commander.py",
         "tests/v2/test_devfarm_metrics.py",
+        "tests/v2/test_devfarm_supervisor.py",
+    ),
+    "src/dev_agent/handoff/**": (
+        "tests/v2/test_handoff.py",
+        "tests/v2/test_handoff_directives.py",
+        "tests/v2/test_handoff_cycle.py",
+        "tests/v2/test_handoff_references.py",
+        "tests/v2/test_compression.py",
     ),
 }
 

@@ -24,6 +24,7 @@ import uuid
 
 from scripts.devfarm import DevFarmError, canonical_digest, init_farm, sha256_text, validate_manifest, validate_patch, validate_result
 from scripts.devfarm_orchestrator import DevFarmOrchestrator, WorkerAssignment
+from scripts.devfarm_supervisor_protocol import normalize_supervisor_metadata
 from src.dev_agent.providers.base import ModelProvider
 from src.dev_agent.security.protected_paths import PROTECTED_AUTHORITY_PATHS, is_protected_path
 
@@ -483,6 +484,7 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
         "plan_revision": plan_revision,
         "created_at": _text(value.get("created_at", _now()), "created_at", max_length=80),
         "updated_at": _text(value.get("updated_at", _now()), "updated_at", max_length=80),
+        "supervisor": normalize_supervisor_metadata(value.get("supervisor")),
     }
     return normalized
 
