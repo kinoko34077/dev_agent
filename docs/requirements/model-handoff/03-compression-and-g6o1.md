@@ -12,6 +12,13 @@ Serviceへ渡さないもの:
 - authority、approval、budget、privacy、security constraints
 - arbitrary system prompt、任意tool、provider固有option
 
+現行実装の `src/dev_agent/compression/` はこの契約のclient境界であり、
+`HttpCompressionService` は本文と固定profileだけをPOSTする。Service本体や
+Provider選択をdev_agentへ埋め込まず、endpointは明示的なcomposition設定とする。
+`compress_handoff_payload` はControlを保持したままPayloadだけを圧縮し、原文digest、
+Prompt version、model、警告をHandoffへ記録する。しきい値判定は呼出側Control Plane
+が行い、短いPayloadは圧縮しない。
+
 応答はcompressed text、profile/prompt version、model、文字数、input/output
 digest、warningsを返す。原文は呼出側のreferenceまたはdurable artifactで
 保持し、圧縮結果だけをSSOTにしない。

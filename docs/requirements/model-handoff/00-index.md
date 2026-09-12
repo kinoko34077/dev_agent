@@ -22,5 +22,7 @@ Task state、Scheduler、Budget、Provider routing、AgentBackend authorityを
   `kinotch-ja-v1` renderer。
 - 次slice: Planner → Executor → Reviewerの1 cycleを既存DevFarm/
   Host Verificationへcompositionする。
-- 後続slice: 独立Compression Service clientとpayload-only compression。
+- 実装済みslice: `src/dev_agent/compression/` の固定HTTP client、payload-only compression、
+  provenance/digest、機械的情報保持検査。独立Compression Service本体は別deploy境界。
+- 後続slice: Planner → Executor → Reviewerの1 cycleと、必要時のsimulated-paid接続。
 - G6O1-SIMは仕様分離済みとして扱い、Gate全体やG6O1-LIVEを自動昇格しない。

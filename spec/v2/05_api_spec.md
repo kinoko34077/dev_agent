@@ -17,6 +17,14 @@
 - 権限: 情報伝達の形式だけを担う。仕様、budget、approval、privacy、Gate、Task state、Schedulerを発行しない。
 - 禁止: ControlをCompressionへ渡すこと、自然言語rendererをSSOTにすること、compressed payloadを原文の代替にすること、model名をroleやauthorityとして扱うこと。
 
+### `CompressionService`
+
+- 責務: HandoffのPayloadだけを、固定profileで独立Compression Serviceへ送る薄いHTTP client境界。
+- 公開入口: `HttpCompressionService.compress(text, profile="semantic-dense-v1")`、`compress_handoff_payload(...)`。
+- 入力/出力: `/v1/compress`へ`text`と固定`profile`だけを送信し、compressed text、digest、文字数、Prompt version、model、warningsを検証して返す。呼出側は原文digestとCompression provenanceをHandoffへ保持する。
+- 権限: Compressionのtransportと機械的情報保持検査のみ。Provider routing、任意prompt、tool、budget、Task stateを所有しない。
+- 禁止: instruction、conditions、cautions、authority情報の圧縮、compressed payloadを原文SSOTとして扱うこと、未知profileや不一致digestの受理。
+
 ## Runtime / intelligence
 
 ### `ModelProvider`
