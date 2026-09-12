@@ -42,16 +42,26 @@
   },
   "hardening_audit_v2_bootstrap": {
     "completed_at": "2026-09-12",
-    "audit_head": "d5a66b4",
-    "result": "PASS — no residual authority violations",
-    "findings": "Remaining hardcoded provider comparisons in operation.py/_build_provider, billing_catalog.py/default_binding_id, and control.py/legacy_test_free are implementation-selection paths, not authority decisions; all local/remote authority decisions delegate to provider_policy.py.",
+    "audit_head": "cffecc6",
+    "result": "PASS — P0/P1/P2 security hardening pass complete; external gates remain open",
+    "findings": "All P0 endpoint/credential authority issues fixed. All P1 HTTP DoS, tool side_effect_level, and protected-path gaps closed. P2 billing type strictness and recovery dedup fixed. External gates OS_SANDBOXED and G6O1 remain open — code alone cannot close these.",
+    "open_external_gates": [
+      "OS_SANDBOXED: sanitized env/temp HOME/timeout/process-tree is NOT OS sandbox; requires filesystem/network/process/resource isolation evidence from deployment",
+      "G6O1: requires real paid-provider worst-case qualification and deployment-owned protected budget config; not satisfiable from test suite alone",
+      "CI required status checks (v2-core, v2 tests): MANUAL ACTION REQUIRED — gh CLI not authenticated; configure in GitHub → Repository → Settings → Branches → v2/bootstrap ruleset"
+    ],
     "hardening_steps_completed": [
       "Step 1-2: provider_policy SSOT — is_local_provider/requires_qualification/max_sensitivity/privacy_profile; Ollama restart regression fixed",
       "Step 3: billing fail-closed — billing_mode, overage_policy, no_charge_guaranteed, price_currency all required to match trusted_catalog",
       "Step 4: recovery alignment — repair.py uses provider_policy; dispatch.py has no hardcoded identity decisions",
       "Step 5: protected paths — provider_policy.py, router.py, repair.py added to PROTECTED_AUTHORITY_PATHS",
       "Step 6: apply_proposal idempotent — deterministic child IDs via uuid5; partial-state recovery; 7 new crash-resistance tests",
-      "Step 7: test architecture — @pytest.mark.security opts security tests out of autouse qualification stub"
+      "Step 7: test architecture — @pytest.mark.security opts security tests out of autouse qualification stub",
+      "P0 Group 1: provider_authority_constants.py (stdlib-only SSOT); provider_policy.py imports from constants; recovery/validate_resources.py dedup fixed; ToolSpec side_effect_level canonical validation; PROTECTED_AUTHORITY_PATHS expanded with 10 new authority files; test_security_boundaries.py updated",
+      "P1 Group 2: MAX_PROVIDER_RESPONSE_BYTES=10MiB + _read_bounded() in openai_compatible/http.py; all 4 HTTP providers (openai_compatible, gemini, cloudflare, ollama) use bounded read; 13 tests in test_provider_response_bounds.py; existing test mocks updated",
+      "P0 Group 3: validate_endpoint_authority() + validate_api_key_env_authority() in provider_policy.py; LOOPBACK_HOSTNAMES + APPROVED_CLOUD_ORIGINS + APPROVED_API_KEY_ENVS in provider_authority_constants.py; ProviderDefinition.__post_init__ enforces endpoint/credential authority at construction time; 14 tests in test_provider_endpoint_authority.py",
+      "P2 Group 5: TrustedResourceProfile.__post_init__ validates verified_at/expires_at as non-empty valid ISO datetime strings; test_billing_catalog.py updated to verify construction-time rejection",
+      "P2 Group 6 CI: permissions: contents: read added to v2-core.yml and v2-tests.yml"
     ]
   },
   "stages": {
