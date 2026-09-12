@@ -367,3 +367,29 @@ def test_manifest_rejects_host_output_and_plugin_escape_options(unsafe):
     }
     with pytest.raises(DevFarmError, match="test_commands"):
         validate_manifest(manifest)
+
+
+# ---------------------------------------------------------------------------
+# Step 11: Phase 7 Safe Extension — local providers are always blocked
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.security
+def test_devfarm_activation_policy_rejects_local_providers_regardless_of_active_set():
+    """ollama and fake must never receive DevFarm outbound tasks.
+
+    Even if an operator passes active_provider_ids={"ollama"} the local
+    provider guard must fire before the operator check, so provider_policy.py
+    is the single source of truth for the local/remote boundary.
+    """
+    # Default policy (remote-only allowlist) — local providers not even in it.
+    policy = DevFarmActivationPolicy()
+    with pytest.raises(DevFarmError, match="local providers are not permitted"):
+        policy.ensure_active("ollama", "qwen3:8b")
+    with pytest.raises(DevFarmError, match="local providers are not permitted"):
+        policy.ensure_active("fake", "deterministic")
+
+    # Explicitly expanded active set — local provider must still be refused.
+    policy_expanded = DevFarmActivationPolicy(active_provider_ids={"gemini", "ollama"})
+    with pytest.raises(DevFarmError, match="local providers are not permitted"):
+        policy_expanded.ensure_active("ollama", "qwen3:8b")

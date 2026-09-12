@@ -41,6 +41,7 @@ from src.dev_agent.domain.protocol import ModelRequest
 from src.dev_agent.providers.base import ModelProvider, ProviderError
 from src.dev_agent.providers.factory import ProviderDefinition, ProviderFactory
 from src.dev_agent.resources.billing_catalog import TRUSTED_RESOURCE_CATALOG
+from src.dev_agent.resources.provider_policy import is_local_provider as _is_local_provider
 from src.dev_agent.resources.qualification import QualificationError, QualificationResolver
 from src.dev_agent.security.audit import AuditRecorder
 from scripts.devfarm_metrics import WorkerMetricsError, WorkerMetricsStore
@@ -287,6 +288,10 @@ class DevFarmActivationPolicy:
         *,
         provider_binding_id: str | None = None,
     ) -> None:
+        # Local providers (ollama, fake) must never reach the DevFarm outbound boundary
+        # regardless of active_provider_ids — they have no external API to call.
+        if _is_local_provider(provider_id):
+            raise DevFarmError(f"development worker provider is not active: {provider_id} (local providers are not permitted in DevFarm)")
         if not isinstance(model_id, str) or not model_id.strip() or not self.eligibility_for(
             provider_id,
             model_id,
