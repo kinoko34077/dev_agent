@@ -1,5 +1,34 @@
 # Current State — v2/bootstrap
 
+## Current — 2026-09-12 (Group D: Codex JSONL normalization)
+
+This supersedes the previous Codex DevFarm dogfood snapshot. The code slice
+was verified at `84ce03d`; this entry records its regression evidence.
+
+| Field | Value |
+| --- | --- |
+| **Branch** | `v2/bootstrap` |
+| **Implementation commit** | `84ce03d` — bounded Codex JSONL parser and concrete adapter integration |
+| **Local regression** | `829 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 183.91s) |
+| **Architecture check** | `ARCHITECTURE_PASS` |
+| **compileall** | `src recovery scripts` clean |
+
+### Group D initial slice
+
+`src/dev_agent/backends/codex_jsonl.py` is a Codex-specific, bounded parser
+for `codex exec --json` output. It validates JSONL records, structural token
+fields, thread identity consistency, and non-negative usage counters. It
+retains only normalized structural events and usage; command text, model text,
+and aggregated tool output are deliberately discarded. The production
+`CodexExecBackend` uses this parser after process completion and exposes only
+the normalized event/usage evidence in its result and event stream. Malformed
+JSONL does not change a known process exit into success or UNKNOWN, and raw
+provider output is not copied into that metadata.
+
+This slice does not add Codex session discovery, restart recovery, or an OS
+sandbox. The in-memory `CodexExecBackend` session limitation and the existing
+contained-but-not-sandboxed Host Verification boundary remain explicit.
+
 ## Current — 2026-09-12 (Codex DevFarm dogfood v0)
 
 This supersedes the older snapshots below. The implementation slice was

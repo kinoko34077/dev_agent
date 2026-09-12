@@ -86,6 +86,18 @@ with one unmodified baseline test passing. Its containment record explicitly
 states `network=not_isolated` and `sandbox=not_provided`, so it is not evidence
 for unattended OS-sandboxed execution or official-branch integration.
 
+### Codex JSONL evidence
+
+`src/dev_agent/backends/codex_jsonl.py` normalizes the structural subset of
+`codex exec --json` output at the Codex adapter boundary. It enforces bounded
+records, consistent thread identity, and non-negative usage values. Only event
+type, item identity/type, exit code, thread identity, and usage counters cross
+the boundary; commands, model text, and aggregated output are not retained.
+The production `CodexExecBackend` emits the normalized events between its
+process lifecycle events and includes the normalized usage/thread identity in
+result metadata. Invalid JSONL is recorded as an invalid structured-output
+status while the confirmed subprocess exit code remains authoritative.
+
 Prepare a separate checkout with an `agent/<provider>/<task>` branch:
 
 ```text
