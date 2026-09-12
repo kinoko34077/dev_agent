@@ -4,8 +4,8 @@
 
 | Field | Value |
 | --- | --- |
-| **Current HEAD** | `f6711b3` |
-| **GitHub Actions exact-head CI** | Confirmed green through commit `a4ee679` (`kernel (3.10)`/`kernel (3.11)`/`provider-smoke` all success via `GET /repos/.../commits/a4ee679/check-runs`); `c98f25d` and `f6711b3` not yet independently re-queried — treat as pending confirmation, not self-declared success, until checked |
+| **Current HEAD** | `0606a46` |
+| **GitHub Actions exact-head CI** | Confirmed green through commit `0606a46` (`kernel (3.10)`/`kernel (3.11)`/`provider-smoke` all success via `GET /repos/.../commits/0606a46/check-runs`) |
 | **Local regression** | `766 passed, 1 skipped` (`python -m pytest tests/v2 -q`, ~168s) |
 | **Architecture check** | `ARCHITECTURE_PASS` |
 | **compileall** | `src recovery scripts` clean |
