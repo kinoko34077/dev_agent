@@ -17,6 +17,8 @@ _LAZY_EXPORTS = {
     "AgentBackendDispatcher": (".dispatcher", "AgentBackendDispatcher"),
     "BackendAdmission": (".dispatcher", "BackendAdmission"),
     "BackendDispatchUncertain": (".dispatcher", "BackendDispatchUncertain"),
+    "CodexExecBackend": (".codex_exec", "CodexExecBackend"),
+    "CodexExecBackendError": (".codex_exec", "CodexExecBackendError"),
 }
 
 
