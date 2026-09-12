@@ -100,6 +100,17 @@ def _revision(value: Any) -> str:
     return result
 
 
+def _timestamp(value: Any, name: str) -> str:
+    result = _text(value, name, max_length=80)
+    try:
+        parsed = datetime.fromisoformat(result)
+    except ValueError as exc:
+        raise DevFarmError(f"{name} must be an ISO-8601 timestamp") from exc
+    if parsed.tzinfo is None:
+        raise DevFarmError(f"{name} must include a timezone")
+    return result
+
+
 def _is_protected(path: str) -> bool:
     return is_protected_path(path)
 
@@ -404,6 +415,18 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
             if not re.fullmatch(r"[0-9a-f]{64}", digest):
                 raise DevFarmError("verified_patch_digest must be a SHA-256 hex digest")
             task["verified_patch_digest"] = digest
+        if raw.get("dispatch_id") is not None:
+            task["dispatch_id"] = _text(raw["dispatch_id"], "dispatch_id", max_length=101)
+        for key in ("dispatch_started_at", "dispatch_deadline_at"):
+            if raw.get(key) is not None:
+                task[key] = _timestamp(raw[key], key)
+        if raw.get("dispatch_owner_pid") is not None:
+            owner_pid = raw["dispatch_owner_pid"]
+            if isinstance(owner_pid, bool) or not isinstance(owner_pid, int) or owner_pid <= 0:
+                raise DevFarmError("dispatch_owner_pid must be a positive integer")
+            task["dispatch_owner_pid"] = owner_pid
+        if raw.get("dispatch_recovery") is not None:
+            task["dispatch_recovery"] = _text(raw["dispatch_recovery"], "dispatch_recovery", max_length=128)
         tasks.append(task)
     _check_unique_ids(task_ids, "plan tasks")
     task_id_set = set(task_ids)
@@ -722,10 +745,15 @@ def dispatch_plan(
     *,
     providers: Mapping[str, ModelProvider],
     orchestrator: DevFarmOrchestrator | None = None,
+    dispatch_timeout_seconds: int | float = 300.0,
 ) -> dict[str, Any]:
     """Dispatch all currently READY worker tasks through existing proposals."""
 
     root_path = Path(root).resolve()
+    if isinstance(dispatch_timeout_seconds, bool) or not isinstance(dispatch_timeout_seconds, (int, float)):
+        raise DevFarmError("dispatch_timeout_seconds must be numeric")
+    if dispatch_timeout_seconds <= 0:
+        raise DevFarmError("dispatch_timeout_seconds must be positive")
     store = CommanderPlanStore(root_path)
     plan = refresh_plan(store.load(run_id))
     # The plan baseline is a durable reference, not a lock on the mutable
@@ -748,6 +776,17 @@ def dispatch_plan(
         ready.append((task, manifest_path, provider))
         task["status"] = "DISPATCHED"
         task["attempt_count"] += 1
+        started_at = datetime.now(timezone.utc)
+        task["dispatch_id"] = uuid.uuid4().hex
+        task["dispatch_started_at"] = started_at.isoformat()
+        task["dispatch_deadline_at"] = (
+            started_at.timestamp() + float(dispatch_timeout_seconds)
+        )
+        task["dispatch_deadline_at"] = datetime.fromtimestamp(
+            task["dispatch_deadline_at"], tz=timezone.utc
+        ).isoformat()
+        task["dispatch_owner_pid"] = os.getpid()
+        task.pop("dispatch_recovery", None)
     plan = store.save(plan)
     if not ready:
         return refresh_plan(plan)
@@ -906,6 +945,72 @@ def resume_plan(root: str | Path, run_id: str) -> dict[str, Any]:
     """Reconcile result artifacts and release dependency-ready tasks only."""
 
     return collect_plan(root, run_id)
+
+
+def recover_orphaned_dispatches(
+    root: str | Path,
+    run_id: str,
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Classify expired, result-less dispatches without replaying the effect.
+
+    A dispatch deadline is durable evidence that the original owner may no
+    longer be able to report.  Before that deadline this helper is strictly a
+    no-op.  A result artifact, when present, is also left for ``collect_plan``
+    to reconcile.  The helper never increments ``attempt_count`` and never
+    starts another provider call.
+    """
+
+    root_path = Path(root).resolve()
+    store = CommanderPlanStore(root_path)
+    plan = store.load(run_id)
+    current_time = now or datetime.now(timezone.utc)
+    if current_time.tzinfo is None:
+        raise DevFarmError("now must include a timezone")
+    changed = False
+    for task in plan["tasks"]:
+        if task.get("owner") != "worker" or task.get("status") != "DISPATCHED":
+            continue
+        deadline_value = task.get("dispatch_deadline_at")
+        if not isinstance(deadline_value, str):
+            continue
+        try:
+            deadline = datetime.fromisoformat(deadline_value)
+        except ValueError as exc:
+            raise DevFarmError("dispatch_deadline_at must be an ISO-8601 timestamp") from exc
+        if deadline.tzinfo is None or current_time < deadline:
+            continue
+        latest = _repository_path(
+            root_path,
+            _result_ref(task["task_id"]),
+            required_parent=".devfarm/results",
+        )
+        attempt_id = task.get("last_attempt_id")
+        attempt_result = None
+        if isinstance(attempt_id, str) and attempt_id.strip():
+            attempt_result = _repository_path(
+                root_path,
+                _result_ref(task["task_id"], attempt_id),
+                required_parent=".devfarm/results",
+            )
+        if latest.is_file() or (attempt_result is not None and attempt_result.is_file()):
+            continue
+        task["status"] = "BLOCKED"
+        task["block_reason"] = "orphaned_dispatch"
+        task["dispatch_recovery"] = "reconciliation_required"
+        task["last_error"] = "dispatch deadline expired without a result artifact"
+        _record_result(
+            plan,
+            task["task_id"],
+            "dispatch_recovery",
+            "blocked",
+            attempt_id=attempt_id if isinstance(attempt_id, str) else None,
+        )
+        changed = True
+    if not changed:
+        return plan
+    return store.save(refresh_plan(plan), expected_revision=plan["plan_revision"])
 
 
 def reassign_task(
@@ -1259,6 +1364,7 @@ __all__ = [
     "dispatch_cli",
     "dispatch_plan",
     "mark_integrated",
+    "recover_orphaned_dispatches",
     "reassign_task",
     "refresh_plan",
     "resume_plan",

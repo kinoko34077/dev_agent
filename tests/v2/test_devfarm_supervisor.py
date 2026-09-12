@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from dataclasses import replace
 import pytest
 
 from scripts.devfarm_commander import validate_plan
@@ -119,6 +120,34 @@ def test_supervised_run_creates_durable_wait_metadata_without_integrating(tmp_pa
     assert step.next_action == "advance"
     assert step.metrics["worker_success_count"] == 0
     assert all(task["status"] != "INTEGRATED" for task in runner.plan()["tasks"])
+
+
+def test_supervised_run_waits_without_llm_polling_until_intervention(tmp_path):
+    create_plan(tmp_path, _plan())
+    runner = CodexSupervisedCommanderRun(tmp_path, "supervisor-test-001")
+    runner.create(expected_remaining_seconds=30)
+    baseline = runner.status()
+    calls = []
+    sleeps = []
+
+    def fake_advance(**_kwargs):
+        calls.append(True)
+        if len(calls) == 1:
+            return replace(baseline, status="WAITING_FOR_WORKER", next_action="wait_for_worker")
+        return replace(baseline, status="REVIEWING", next_action="review_host_verified")
+
+    runner.advance = fake_advance
+    monotonic_values = iter((0.0, 0.0, 0.0))
+    step = runner.run_until_intervention(
+        providers={},
+        max_wait_seconds=60,
+        sleep_fn=lambda seconds: sleeps.append(seconds),
+        monotonic_fn=lambda: next(monotonic_values),
+    )
+
+    assert step.status == "REVIEWING"
+    assert len(calls) == 2
+    assert sleeps == [60.0]
 
 
 def test_supervisor_cli_is_invokable_as_a_script():

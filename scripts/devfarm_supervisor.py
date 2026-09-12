@@ -12,6 +12,7 @@ import argparse
 import json
 from pathlib import Path
 import sys
+import time
 from typing import Any, Mapping
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,6 +25,7 @@ from scripts.devfarm_commander import (
     collect_plan,
     dispatch_plan,
     mark_integrated,
+    recover_orphaned_dispatches,
     reassign_task,
     refresh_plan,
     verify_plan,
@@ -128,9 +130,16 @@ class CodexSupervisedCommanderRun:
         expected_remaining_seconds: int | float | None = None,
         verification_trust_level: str = "STATIC_ONLY",
         operator_approved: bool = False,
+        dispatch_timeout_seconds: int | float = 300.0,
     ) -> SupervisorStep:
         """Run exactly one bounded refresh/dispatch/collect/verify pass."""
 
+        # Reconcile durable result artifacts before classifying an old
+        # dispatch.  An expired dispatch with a result must be collected, not
+        # blindly retried; a result-less expired dispatch is blocked by the
+        # Commander helper and requires an explicit recovery decision.
+        collect_plan(self.root, self.run_id)
+        recover_orphaned_dispatches(self.root, self.run_id)
         initial = refresh_plan(self.store.load(self.run_id))
         initial_metadata = normalize_supervisor_metadata(initial.get("supervisor"))
         initial["supervisor"] = initial_metadata
@@ -142,7 +151,13 @@ class CodexSupervisedCommanderRun:
         ]
         if ready_worker_ids:
             try:
-                dispatch_plan(self.root, self.run_id, providers=providers, orchestrator=orchestrator)
+                dispatch_plan(
+                    self.root,
+                    self.run_id,
+                    providers=providers,
+                    orchestrator=orchestrator,
+                    dispatch_timeout_seconds=dispatch_timeout_seconds,
+                )
             except (DevFarmError, TypeError, ValueError) as exc:
                 metadata = normalize_supervisor_metadata(self.store.load(self.run_id).get("supervisor"))
                 metadata["status"] = "HUMAN_DECISION_REQUIRED"
@@ -225,6 +240,69 @@ class CodexSupervisedCommanderRun:
         )
         return self._step(self._save_supervisor(metadata))
 
+    def run_until_intervention(
+        self,
+        *,
+        providers: Mapping[str, Any],
+        orchestrator: Any | None = None,
+        expected_remaining_seconds: int | float | None = None,
+        verification_trust_level: str = "STATIC_ONLY",
+        operator_approved: bool = False,
+        dispatch_timeout_seconds: int | float = 300.0,
+        max_wait_seconds: int | float = 900.0,
+        sleep_fn: Any = time.sleep,
+        monotonic_fn: Any = time.monotonic,
+    ) -> SupervisorStep:
+        """Keep the lightweight supervisor process alive until intervention.
+
+        Worker/provider execution remains synchronous where the existing
+        DevFarm is synchronous.  If a durable plan is already waiting on a
+        process that survived outside this call, this method sleeps without
+        invoking an LLM and resumes on the persisted cadence.  It returns
+        only at a review, terminal, blocker, or bounded-wait boundary.
+        """
+
+        if isinstance(max_wait_seconds, bool) or not isinstance(max_wait_seconds, (int, float)):
+            raise ValueError("max_wait_seconds must be numeric")
+        if max_wait_seconds <= 0:
+            raise ValueError("max_wait_seconds must be positive")
+        if not callable(sleep_fn) or not callable(monotonic_fn):
+            raise TypeError("sleep_fn and monotonic_fn must be callable")
+        started = float(monotonic_fn())
+        while True:
+            elapsed = max(0.0, float(monotonic_fn()) - started)
+            remaining = float(max_wait_seconds) - elapsed
+            if remaining <= 0:
+                metadata = normalize_supervisor_metadata(self.store.load(self.run_id).get("supervisor"))
+                metadata["status"] = "HUMAN_DECISION_REQUIRED"
+                metadata["next_action"] = "supervisor_wait_deadline"
+                metadata = record_wake(metadata, kind="SUPERVISOR_WAIT_DEADLINE")
+                return self._step(self._save_supervisor(metadata))
+
+            step = self.advance(
+                providers=providers,
+                orchestrator=orchestrator,
+                expected_remaining_seconds=expected_remaining_seconds,
+                verification_trust_level=verification_trust_level,
+                operator_approved=operator_approved,
+                dispatch_timeout_seconds=dispatch_timeout_seconds,
+            )
+            if step.status in {
+                "REVIEWING",
+                "HUMAN_DECISION_REQUIRED",
+                "COMPLETED",
+                "BLOCKED",
+            }:
+                return step
+            if step.status not in {"WAITING_FOR_WORKER", "ACTIVE", "WORKER_RESULT_READY", "INTEGRATING"}:
+                return step
+
+            # The cadence is a durable wake hint, not a second scheduler.
+            # Sleeping here consumes no Codex reasoning and never replays an
+            # external effect by itself.
+            sleep_for = min(remaining, max(1.0, step.cadence_minutes * 60.0))
+            sleep_fn(sleep_for)
+
     def rework_handoff(
         self,
         task_id: str,
@@ -304,7 +382,7 @@ def _providers_for_resume(root: Path, run_id: str, timeout_seconds: float) -> di
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="bounded Codex supervisor view over a Commander plan")
     sub = parser.add_subparsers(dest="command", required=True)
-    for command in ("status", "resume"):
+    for command in ("status", "resume", "run"):
         item = sub.add_parser(command)
         item.add_argument("run_id")
         item.add_argument("--root", type=Path, default=Path.cwd())
@@ -313,6 +391,13 @@ def main(argv: list[str] | None = None) -> int:
     resume.add_argument("--timeout-seconds", type=float, default=30.0)
     resume.add_argument("--trust-level", choices=("STATIC_ONLY", "TRUSTED_HOST_EXEC", "OS_SANDBOXED"), default="STATIC_ONLY")
     resume.add_argument("--operator-approved", action="store_true")
+    run = sub.choices["run"]
+    run.add_argument("--expected-remaining-seconds", type=float)
+    run.add_argument("--timeout-seconds", type=float, default=30.0)
+    run.add_argument("--dispatch-timeout-seconds", type=float, default=300.0)
+    run.add_argument("--max-wait-seconds", type=float, default=900.0)
+    run.add_argument("--trust-level", choices=("STATIC_ONLY", "TRUSTED_HOST_EXEC", "OS_SANDBOXED"), default="STATIC_ONLY")
+    run.add_argument("--operator-approved", action="store_true")
     args = parser.parse_args(argv)
     runner = CodexSupervisedCommanderRun(args.root, args.run_id)
     if args.command == "status":
@@ -324,6 +409,13 @@ def main(argv: list[str] | None = None) -> int:
         expected_remaining_seconds=args.expected_remaining_seconds,
         verification_trust_level=args.trust_level,
         operator_approved=args.operator_approved,
+    ) if args.command == "resume" else runner.run_until_intervention(
+        providers=providers,
+        expected_remaining_seconds=args.expected_remaining_seconds,
+        verification_trust_level=args.trust_level,
+        operator_approved=args.operator_approved,
+        dispatch_timeout_seconds=args.dispatch_timeout_seconds,
+        max_wait_seconds=args.max_wait_seconds,
     )
     print(json.dumps(step.to_dict(), ensure_ascii=False, indent=2))
     return 0

@@ -1,6 +1,7 @@
 import hashlib
 import json
 import subprocess
+from datetime import datetime, timezone
 
 import pytest
 
@@ -12,6 +13,7 @@ from scripts.devfarm_commander import (
     create_plan,
     dispatch_plan,
     mark_integrated,
+    recover_orphaned_dispatches,
     reassign_task,
     resume_plan,
     verify_plan,
@@ -188,6 +190,11 @@ def test_commander_plan_dispatch_verify_resume_and_integrate(tmp_path):
     )
     proposed = dispatch_plan(root, "commander-run-001", providers=providers, orchestrator=orchestrator)
     assert {task["status"] for task in proposed["tasks"][:2]} == {"PROPOSED"}
+    for task in proposed["tasks"][:2]:
+        assert task["dispatch_id"]
+        assert datetime.fromisoformat(task["dispatch_started_at"]).tzinfo is not None
+        assert datetime.fromisoformat(task["dispatch_deadline_at"]).tzinfo is not None
+        assert task["dispatch_owner_pid"] > 0
     assert not (root / ".devfarm/worktrees/worker-a").exists()
     assert not (root / ".devfarm/worktrees/worker-b").exists()
 
@@ -433,6 +440,96 @@ def test_commander_plan_save_uses_revision_cas(tmp_path):
     with pytest.raises(PlanConflictError, match="revision conflict"):
         store.save(second)
     assert store.load("cas-run")["tasks"][0]["integration_note"] == "first update"
+
+
+def test_commander_recovers_expired_dispatched_task_without_blind_retry(tmp_path):
+    root, targets, revision = _repo(tmp_path)
+    _manifest(root, revision, "worker-a", targets[0])
+    plan = create_plan(
+        root,
+        {
+            "run_id": "orphaned-dispatch-run",
+            "objective": "recover a lost worker process",
+            "base_revision": revision,
+            "tasks": [
+                {
+                    "task_id": "worker-a",
+                    "owner": "worker",
+                    "manifest_path": ".devfarm/tasks/worker-a.json",
+                    "ownership": [targets[0]],
+                    "assignment": {"provider_id": "cloudflare", "model_id": "worker-model"},
+                }
+            ],
+        },
+    )
+    task = plan["tasks"][0]
+    task.update(
+        {
+            "status": "DISPATCHED",
+            "attempt_count": 1,
+            "dispatch_id": "dispatch-001",
+            "dispatch_started_at": "2026-01-01T00:00:00+00:00",
+            "dispatch_deadline_at": "2026-01-01T00:01:00+00:00",
+            "dispatch_owner_pid": 999999,
+        }
+    )
+    CommanderPlanStore(root).save(plan, expected_revision=plan["plan_revision"])
+
+    recovered = recover_orphaned_dispatches(
+        root,
+        "orphaned-dispatch-run",
+        now=datetime(2026, 1, 1, 0, 2, tzinfo=timezone.utc),
+    )
+
+    recovered_task = recovered["tasks"][0]
+    assert recovered_task["status"] == "BLOCKED"
+    assert recovered_task["block_reason"] == "orphaned_dispatch"
+    assert recovered_task["dispatch_recovery"] == "reconciliation_required"
+    assert recovered_task["attempt_count"] == 1
+    assert recovered["results"][-1]["stage"] == "dispatch_recovery"
+
+
+def test_commander_keeps_dispatched_task_waiting_before_deadline(tmp_path):
+    root, targets, revision = _repo(tmp_path)
+    _manifest(root, revision, "worker-a", targets[0])
+    plan = create_plan(
+        root,
+        {
+            "run_id": "live-dispatch-run",
+            "objective": "keep a live dispatch waiting",
+            "base_revision": revision,
+            "tasks": [
+                {
+                    "task_id": "worker-a",
+                    "owner": "worker",
+                    "manifest_path": ".devfarm/tasks/worker-a.json",
+                    "ownership": [targets[0]],
+                    "assignment": {"provider_id": "cloudflare", "model_id": "worker-model"},
+                }
+            ],
+        },
+    )
+    task = plan["tasks"][0]
+    task.update(
+        {
+            "status": "DISPATCHED",
+            "attempt_count": 1,
+            "dispatch_id": "dispatch-002",
+            "dispatch_started_at": "2026-01-01T00:00:00+00:00",
+            "dispatch_deadline_at": "2026-01-01T00:10:00+00:00",
+            "dispatch_owner_pid": 999999,
+        }
+    )
+    CommanderPlanStore(root).save(plan, expected_revision=plan["plan_revision"])
+
+    waiting = recover_orphaned_dispatches(
+        root,
+        "live-dispatch-run",
+        now=datetime(2026, 1, 1, 0, 2, tzinfo=timezone.utc),
+    )
+
+    assert waiting["tasks"][0]["status"] == "DISPATCHED"
+    assert waiting["tasks"][0]["attempt_count"] == 1
 
 
 def test_commander_integration_requires_git_evidence_and_records_it(tmp_path):
