@@ -1,14 +1,20 @@
 # Current State — v2/bootstrap
 
-## Current — 2026-09-12 (re-audit: CI regression + Provider Authority bypass (3 layers) + HTTP redirect authority)
+## Current — 2026-09-12 (re-audit closure + Phase 7 latter half A: first concrete AgentBackend adapter)
 
 | Field | Value |
 | --- | --- |
-| **Current HEAD** | `c98f25d` |
-| **GitHub Actions exact-head CI** | Confirmed green through commit `00eff74` (`kernel (3.10)`/`kernel (3.11)`/`provider-smoke` all success via `GET /repos/.../commits/00eff74/check-runs`); `c98f25d` not yet independently re-queried — treat as pending confirmation, not self-declared success, until checked |
-| **Local regression** | `754 passed, 1 skipped` (`python -m pytest tests/v2 -q`, ~166s) |
+| **Current HEAD** | `f6711b3` |
+| **GitHub Actions exact-head CI** | Confirmed green through commit `a4ee679` (`kernel (3.10)`/`kernel (3.11)`/`provider-smoke` all success via `GET /repos/.../commits/a4ee679/check-runs`); `c98f25d` and `f6711b3` not yet independently re-queried — treat as pending confirmation, not self-declared success, until checked |
+| **Local regression** | `766 passed, 1 skipped` (`python -m pytest tests/v2 -q`, ~168s) |
 | **Architecture check** | `ARCHITECTURE_PASS` |
 | **compileall** | `src recovery scripts` clean |
+
+### Phase 7 latter half A — CodexExecBackend (commit `f6711b3`)
+
+First concrete implementation of the AgentBackend Protocol. Runs one `codex exec` invocation (or an injected equivalent command) per session as a bounded, non-blocking subprocess; `result()` normalizes only from confirmed process exit code, never the subprocess's own stdout claims; `cancel()` reuses `tools/executor.py`'s `terminate_process_tree`; no `discover()` (an in-memory session map cannot recover across a process restart, so reconciliation correctly falls back to UNKNOWN). Default `codex exec` CLI flags are unverified against a live binary — neither `codex` nor `claude` is installed in this environment — so `command_builder` is injectable and must be confirmed by an operator before production use.
+
+Notable interaction found while building this: `AgentBackendDispatcher.result()` durably persists `AgentBackendStatus.UNKNOWN` as "needs explicit reconciliation" — a plain retry cannot self-heal out of that even if the backend finishes moments later. `CodexExecBackend.result()` therefore blocks (default 300s, overridable per call) before falling back to UNKNOWN, so a normal-length turn resolves within one Dispatcher poll.
 
 ### Why this entry exists
 

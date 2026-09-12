@@ -47,7 +47,7 @@ Phase 0〜5 は current acceptance verified。Phase 3.5の後段要件、Phase 4
 
 | 軸 | 内容 |
 | --- | --- |
-| **Implementation Frontier**（実装が到達している範囲） | Phase 7 A〜Eのdeterministic evaluator、explicit review、EscalationExecutor、Evaluator→dispatch cycle、TaskLifecycleCoordinator、有限Lifecycle合成、workflow proposal境界、Root Planning、AgentBackend thin contract + dispatcher、development Commanderまで実装済み。Phase 7後半（実Codex adapter、MCP、OS Sandbox、Evidence routing接続、Workflow Promotion）は未着手 |
+| **Implementation Frontier**（実装が到達している範囲） | Phase 7 A〜Eのdeterministic evaluator、explicit review、EscalationExecutor、Evaluator→dispatch cycle、TaskLifecycleCoordinator、有限Lifecycle合成、workflow proposal境界、Root Planning、AgentBackend thin contract + dispatcher、development Commander、Phase 7後半A: `CodexExecBackend`（`codex exec`をbounded non-blocking subprocessとして実行する最初のconcrete adapter。exit codeのみを正とし、subprocess自身の自己申告は信用しない。discover()未実装は既知の制約として明示）まで実装済み。Phase 7後半の残り（MCP Adapter、OS Sandbox、Evidence routing接続、Workflow Promotion）は未着手 |
 | **Operational Acceptance**（運用受入として確定した範囲） | Phase 0〜5、Phase 6 foundation、Phase 6 Operational G6O2〜G6O6はVERIFIED。Phase 6 Operational G6O1はBLOCKED_EXTERNALのまま未確定 |
 | **External Blockers**（コード変更では閉じられない外部条件） | G6O1（実paid Providerのworst-case課金実証＋deployment-owned budget設定）、OS_SANDBOXED（filesystem/network/process/resource isolationの実証）、GitHub branch protectionのrequired status checks未設定（`gh` CLI未認証のためこの環境からは設定不可） |
 | **Next Development Target**（次に着手する開発） | 現行基盤の修復・整理（CI regression、Provider Authority迂回、HTTP redirect authority）が完了した後、Phase 7後半A〜F（AgentBackend concrete adapter → MCP Adapter → OS Sandbox → Evidence routing接続 → Workflow Promotion）へ進む |
