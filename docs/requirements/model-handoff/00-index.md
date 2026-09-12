@@ -16,6 +16,12 @@ Task state、Scheduler、Budget、Provider routing、AgentBackend authorityを
 実装証跡は `spec/v2/TRACEABILITY.md`、現在状態は
 `docs/CURRENT_STATE.md`、Gate判定は `spec/v2/GATE_STATUS.json` を正本とする。
 
+## 追加仕様
+
+| 内容 | 参照 |
+| --- | --- |
+| Codex Supervisor、bounded wait、reference-first dogfood | [04-codex-supervised-dogfood.md](04-codex-supervised-dogfood.md) |
+
 ## 実装段階
 
 - 初期slice: `src/dev_agent/handoff/` のHandoffEnvelope、validation、

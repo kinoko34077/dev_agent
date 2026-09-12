@@ -17,6 +17,11 @@
 - 権限: 情報伝達の形式だけを担う。仕様、budget、approval、privacy、Gate、Task state、Schedulerを発行しない。
 - 禁止: Control（Directiveを含む）をCompressionへ渡すこと、自然言語rendererをSSOTにすること、compressed payloadを原文の代替にすること、model名をroleやauthorityとして扱うこと、最新訂正と旧解釈を平均・再活性化すること。
 
+`ExternalTextReference`は、再取得可能なPayloadのHTTPS location、SHA-256、size、作成時刻、
+任意expiryを検証するmetadata valueである。取得・upload・authorityは所有せず、外部本文は
+Controlを上書きしない。`rework_request()`はTask、failure evidence、review finding、required
+correctionの差分だけを参照形式で渡す。
+
 ### `CompressionService`
 
 - 責務: HandoffのPayloadだけを、固定profileで独立Compression Serviceへ送る薄いHTTP client境界。
@@ -24,6 +29,13 @@
 - 入力/出力: `/v1/compress`へ`text`と固定`profile`だけを送信し、compressed text、digest、文字数、Prompt version、model、warningsを検証して返す。呼出側は原文digestとCompression provenanceをHandoffへ保持する。
 - 権限: Compressionのtransportと機械的情報保持検査のみ。Provider routing、任意prompt、tool、budget、Task stateを所有しない。
 - 禁止: instruction、conditions、cautions、Directive内authority/source/comparison/output contractの圧縮、compressed payloadを原文SSOTとして扱うこと、未知profileや不一致digestの受理。Service endpointやProviderをHandoff runtimeへ暗黙に接続しない。
+
+### `CodexSupervisedCommanderRun`
+
+- 責務: development-only Commander PlanへSupervisor metadataを保存し、既存のrefresh、dispatch、collect、Host Verification、明示review/integration境界を一回ずつcompositionする。
+- 公開入口: `create(...)`、`status()`、`advance(...)`、`rework_handoff(...)`、`reassign(...)`、`approve_integration(...)`、`python scripts/devfarm_supervisor.py status|resume`。
+- 入力/出力: existing Commander plan、qualified Worker assignment、compact result/evidence reference、`SupervisorStep`。waitはPlanへ保存される1/5/10/15分のbounded cadence情報であり、LLM busy loopではない。
+- 権限: 既存Commander、DevFarm、Host Verification、Git-backed integration authorityをcompositionするだけ。Codex承認なしのintegration、Production Scheduler/Task state/Budget authorityの所有、Worker raw conversationの保存を行わない。
 
 ### Development handoff roles / one cycle
 

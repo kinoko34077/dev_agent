@@ -83,6 +83,13 @@ Host Verificationを呼び、valid proposalだけを専用worktreeへ適用す�
 公式`v2/bootstrap`へ自動merge、commit、Gate promotionは行わない。Codexがreview後に
 `mark-integrated`を明示的に記録する。
 
+CodexがWorker完了を待つ場合は、`scripts/devfarm_supervisor.py`の
+`CodexSupervisedCommanderRun`を使う。`advance()`は一回のbounded passだけを実行し、
+実行中は既存Planのoptional `supervisor` projectionへ
+`WAITING_FOR_WORKER`、次動作、1/5/10/15分の再開目安、compact wakeを保存する。
+raw conversationをCodexへ繰り返し流したり、HOST_VERIFIEDだけで自動integrationしたり
+しない。詳細は[`docs/CODEX_SUPERVISOR.md`](CODEX_SUPERVISOR.md)を参照する。
+
 ## 状態と失敗
 
 Taskは`PLANNED → READY → DISPATCHED → PROPOSED → HOST_VERIFIED → INTEGRATED`を

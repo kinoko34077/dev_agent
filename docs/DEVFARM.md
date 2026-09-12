@@ -280,3 +280,11 @@ and its Python validation/transition owner is
 `scripts/devfarm_commander.py`. This layer does not own Production Runtime
 state, Scheduler leases, budget, quota, authority, or Gate promotion. It never
 automatically applies a patch to `v2/bootstrap`.
+
+## Codex Supervisor
+
+`scripts/devfarm_supervisor.py`はCommanderの既存dispatch／collect／verify／reassign／
+integrationを一回ずつ呼ぶdevelopment-only facadeである。Planのoptional `supervisor`
+projectionへbounded wait、wake、metricsを保存するが、常駐Scheduler、automatic integration、
+Worker raw outputの保存は行わない。既定のHost Verification trust levelは`STATIC_ONLY`で、
+再開は`python scripts/devfarm_supervisor.py resume <run-id>`から明示的に行う。

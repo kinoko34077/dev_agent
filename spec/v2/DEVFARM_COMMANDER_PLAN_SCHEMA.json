@@ -45,6 +45,7 @@
     "ownership": {"type": "array", "items": {"type": "object", "required": ["task_id", "paths"], "properties": {"task_id": {"type": "string"}, "paths": {"type": "array", "items": {"type": "string"}}}}},
     "assignments": {"type": "array", "items": {"$ref": "#/$defs/assignment"}},
     "results": {"type": "array", "items": {"type": "object", "required": ["task_id", "stage", "status"], "properties": {"task_id": {"type": "string"}, "stage": {"type": "string"}, "status": {"type": "string"}, "result_ref": {"type": "string"}, "attempt_id": {"type": "string"}, "recorded_at": {"type": "string"}}}},
+    "supervisor": {"$ref": "#/$defs/supervisor"},
     "created_at": {"type": "string"},
     "updated_at": {"type": "string"}
   },
@@ -59,6 +60,23 @@
         "provider_id": {"type": "string"},
         "provider_binding_id": {"type": "string"},
         "model_id": {"type": "string"}
+      }
+    },
+    "supervisor": {
+      "type": "object",
+      "required": ["schema_version", "status", "roadmap_reference", "cadence_minutes", "unchanged_check_limit", "unchanged_check_count", "next_action", "wake_events", "metrics"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "status": {"enum": ["ACTIVE", "WAITING_FOR_WORKER", "WORKER_RESULT_READY", "REVIEWING", "INTEGRATING", "HUMAN_DECISION_REQUIRED", "COMPLETED", "BLOCKED"]},
+        "roadmap_reference": {"type": "object"},
+        "roadmap_position": {"type": ["string", "null"]},
+        "cadence_minutes": {"enum": [1, 5, 10, 15]},
+        "unchanged_check_limit": {"type": "integer", "minimum": 1, "maximum": 3},
+        "unchanged_check_count": {"type": "integer", "minimum": 0},
+        "overall_deadline": {"type": ["string", "null"]},
+        "next_action": {"type": "string"},
+        "wake_events": {"type": "array", "maxItems": 64, "items": {"type": "object"}},
+        "metrics": {"type": "object"}
       }
     }
   }
