@@ -1,5 +1,48 @@
 # Current State — v2/bootstrap
 
+## Current — 2026-09-13 (Model Handoff Control semantics)
+
+This current record supersedes the earlier model-handoff boundary summary
+below; older entries remain historical evidence only.
+
+| Field | Value |
+| --- | --- |
+| **Branch** | `v2/bootstrap` |
+| **Implementation commits** | `7e87d79` typed HandoffDirective/presets/renderer/one-cycle control; `f9ce03f` canonical user-correction precedence |
+| **Local regression** | `856 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 186.98s) |
+| **Architecture check** | `ARCHITECTURE_PASS` |
+| **compileall** | `python -m compileall -q src scripts` clean |
+| **External CI** | exact-head observation pending after this documentation push |
+
+### Implemented scope
+
+`src/dev_agent/handoff/directive.py` adds an optional, typed and bounded
+Control value to `HandoffEnvelope`. It keeps exclusions, focus, payload
+semantics, comparison targets/axes, JSON-safe output contract, source
+requirements, authority source/precedence, and continuation mode out of the
+Payload. `reanalyze_after_correction` requires a current explicit correction,
+marks the previous interpretation invalid, and cannot be rendered or
+serialized as a merge of both interpretations.
+
+The existing `kinotch-ja-v1` renderer translates this Control into the
+established Japanese handoff shape without making its natural-language output
+an authority. Reference-first presets cover current inspection/analysis,
+roadmap comparison, re-audit, correction re-analysis, integration,
+implementation instruction, adjacent critical audit, decision, and sequence
+planning. The existing one-cycle adapter only passes a Human-supplied
+Directive to the Planner request and still stops at the Reviewer → Human
+boundary.
+
+### Explicitly not implemented or connected
+
+Compression client/protocol/integrity boundaries remain present, but no
+Compression Service endpoint, API key, alternate Provider, fake runtime
+provider, or Compression-based G6O1-SIM call is composed into the current
+runtime. No real Planner/Reviewer model adapter, finite multi-cycle,
+automatic integration, merge, deployment, or G6O1 Gate promotion is claimed.
+Payload-only compression remains a tested boundary: Directive/Control data is
+never sent to the client service contract.
+
 ## Current — 2026-09-12 (Model Handoff / Compression / one-cycle boundary)
 
 This entry records the first model-handoff integration slice after the Codex

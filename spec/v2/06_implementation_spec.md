@@ -14,7 +14,7 @@
 | Resources | `src/dev_agent/resources/` | ResourceLedger facade、catalog/observation/quota/health/budget、qualification projection、trusted billing catalog、explicit repair audit、router/control、schema/migrations、unknown-quota admission store |
 | Providers | `src/dev_agent/providers/` | Adapter、Factory、Registry、Dispatcher、journal。`ollama_cloud`／`vercel`は`openai_compatible`のHTTP boundaryを再利用し、local `ollama`とは別identity。Gemini追加keyは`api_key_env`／`project_id`／`quota_domain`をnon-secret binding metadataとして持つ |
 | AgentBackend | `src/dev_agent/backends/` | 外部Agent harnessとのthin typed contract、`BackendAdmission`付きdispatcher。実adapterは別slice |
-| Handoff | `src/dev_agent/handoff/`、`scripts/handoff_cycle.py` | model-neutralなControl/Payload envelope、role Protocol、kinotch-ja-v1 renderer、development-onlyの1-cycle composition。独立Compression ServiceやTask stateは所有しない |
+| Handoff | `src/dev_agent/handoff/`、`scripts/handoff_cycle.py` | model-neutralなControl/Payload envelope、typed Directive（source/authority/continuation/comparison/exclusion/output contract）、role Protocol、kinotch-ja-v1 renderer、development-onlyの1-cycle composition。独立Compression ServiceやTask stateは所有しない |
 | Compression | `src/dev_agent/compression/` | 固定profileの独立HTTP client、payload-only compression、digest/provenance、機械的情報保持検査。任意LLM proxyやProvider routingは所有しない |
 | Runtime | `src/dev_agent/runtime/` | Controller、model turn、legacy compatibility、checkpoint/resume |
 | Scheduler | `src/dev_agent/scheduler/` | DurableQueue、WorkerRunner、lease、quota wake/requalification |
@@ -59,7 +59,7 @@ scheduler / operation composition
 - `intelligence/target.py` の `ExecutionTargetPolicy` は ModelProvider と AgentBackend の実行先を分離する。通常はModelProviderを選び、AgentBackendは明示autonomy、approval、budget、privacy、capabilityの既存証拠が揃った場合だけ許可する。tierだけを理由に自動昇格しない。
 - `recovery/` は runtime/controller から独立し、durable artifact と operator authority を扱う。Recovery が Controller の内部状態を書き換える設計にしない。
 - `devfarm` は production scheduler/state/authority と独立した development-only 層で、既存 WorkerRunner/ProviderFactory 等の公開境界を composition できるが、公式 branch を自動変更しない。
-- `handoff` は role、instruction、constraints、payload、referenceの型とrendererだけを提供する。Planner/Executor/Reviewer orchestration、Budget、Scheduler、Task lifecycleを所有しない。Controlはpayload compressionへ渡さず、G6O1-SIM/LIVEのbilling identityも別のResource authorityで管理する。
+- `handoff` は role、instruction、constraints、typed Directive、payload、referenceの型とrendererだけを提供する。Planner/Executor/Reviewer orchestration、Budget、Scheduler、Task lifecycleを所有しない。Controlはpayload compressionへ渡さず、G6O1-SIM/LIVEのbilling identityも別のResource authorityで管理する。現行はCompression endpointをcompositionしない。
 - `compression` は固定`semantic-dense-v1` profileのHTTP transport、response integrity、payload-only provenance、機械的 retention warningを提供する。Compression Service本体、任意system prompt、Provider routing、Budget authorityを所有しない。
 - `handoff_cycle.py` はdevelopment-onlyの薄いcompositionで、既存DevFarm/Codex attemptを一回呼び、Reviewer handoffをHumanへ返して停止する。新しいScheduler、retry state machine、durable Task state、automatic integrationを追加しない。
 - `scripts/check_architecture.py` と `scripts/test_scope.py` はread-onlyの開発preflightであり、runtime authority、StateStore、Schedulerを所有しない。affected-test mapはfull regressionの代替ではない。

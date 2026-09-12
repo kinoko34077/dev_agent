@@ -22,7 +22,14 @@ Task state、Scheduler、Budget、Provider routing、AgentBackend authorityを
   `kinotch-ja-v1` renderer。
 - 実装済みslice: development-onlyの`OneCycleDevelopmentLoop`が
   Human → Planner → 既存DevFarm/Codex attempt → Reviewer → Human境界で停止する。
+- 実装済みslice: optionalな`HandoffDirective`が、exclusion、focus、payload
+  semantics、比較、source/authority、continuation、output contractをControlとして
+  表現する。最新の明示訂正は旧解釈を無効化し、renderer/preset/one-cycle requestへ
+  伝わる。
 - 実装済みslice: `src/dev_agent/compression/` の固定HTTP client、payload-only compression、
   provenance/digest、機械的情報保持検査。独立Compression Service本体は別deploy境界。
-- 後続slice: 必要時のsimulated-paid接続と、Control Planeが所有する有限cycle拡張。
+- **NOT CONNECTED**: Compression Service endpoint、代替Provider、仮Provider、
+  simulated-paid runtime E2E、実Planner/Reviewer adapter、有限multi-cycleは現行
+  compositionへ接続していない。これらはHumanの明示指示なしに開始しない。
+- 後続slice: 明示承認後に必要となるsimulated-paid接続と、Control Planeが所有する有限cycle拡張。
 - G6O1-SIMは仕様分離済みとして扱い、Gate全体やG6O1-LIVEを自動昇格しない。

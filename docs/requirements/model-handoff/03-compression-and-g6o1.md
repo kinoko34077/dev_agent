@@ -6,9 +6,15 @@ Compressionはdev_agent内部の自由なLLM promptではなく、将来の独�
 Serviceである。初期契約は`POST /v1/compress`で、呼出側が渡せるのは
 Payload本文と固定profile（初期値`semantic-dense-v1`）だけとする。
 
+現行repositoryにはclient/protocol/integrityの接続境界だけがある。**Compression
+ServiceはNOT CONNECTED**であり、Operation、Handoff one-cycle、Provider poolへ
+endpointやAPI keyをcompositionしていない。Humanの明示接続指示までは、代替API、
+仮Provider、runtime G6O1-SIM通信を追加しない。
+
 Serviceへ渡さないもの:
 
-- instruction、conditions、cautions
+- instruction、conditions、cautions、requirements、directive（exclusion、focus、
+  authority/source、comparison、output contract、continuationを含む）
 - authority、approval、budget、privacy、security constraints
 - arbitrary system prompt、任意tool、provider固有option
 
