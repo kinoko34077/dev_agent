@@ -1,5 +1,40 @@
 # Current State — v2/bootstrap
 
+## Current — 2026-09-13 (Codex Supervisor / reference-first Handoff)
+
+このsliceは、既存Commanderを置き換えずにCodexが一回のbounded passを管理・待機・再開
+するdevelopment-only境界を追加した。実装基準は`66850af`、`9bf452d`、`3e1fabf`。
+
+| Field | Value |
+| --- | --- |
+| **Branch** | `v2/bootstrap` |
+| **Local regression** | `873 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 204.91s) |
+| **Architecture check** | `ARCHITECTURE_PASS` |
+| **compileall** | `python -m compileall -q src recovery scripts` clean |
+| **External CI** | このsliceの最終push後にexact-headを再確認する。現時点では未確認のためGate昇格を主張しない |
+
+### Implemented scope
+
+`ExternalTextReference`は外部本文を取得・uploadせず、HTTPS location、SHA-256、size、
+created/expiryを検証するmetadata valueである。`rework_request()`は元Task全文を再送せず、
+Task・failure evidence・review finding・required correctionだけをreference-firstで渡す。
+既存HandoffのControl/Payload分離とCompression未接続境界は維持する。
+
+`CommanderPlanStore`はoptionalな`supervisor` projectionを既存Planへ保存する。
+`CodexSupervisedCommanderRun.advance()`はrefresh、既存Worker dispatch、collect、Host
+Verificationを一回だけcompositionし、HOST_VERIFIED後はCodex review wakeで停止する。
+自動integration、background scheduler、Worker raw conversation保存は行わない。
+Supervisorのcadenceは1/5/10/15分にboundedで、同一結果が続いた場合も最大15分である。
+`status`／`resume` CLIはcompact metadataだけを扱い、既定trust levelは`STATIC_ONLY`である。
+
+### Explicitly not implemented or verified
+
+このsliceでは外部Workerへrepository sourceを送る実dispatchは安全境界の明示承認不足で
+実行されず、Worker成功・Host Verification・Git integrationの実Cloud証拠は追加していない。
+これは失敗を成功へ読み替えたものではなく、作成済みPlanを残したままCodex側の最小実装へ
+切り替えた結果である。独立Compression Service、実Planner/Reviewer adapter、有限multi-cycle、
+G6O1-SIM runtime E2E、MCP、Codex App Server実adapter、自動merge/pushは未接続のままである。
+
 ## Current — 2026-09-13 (Model Handoff Control semantics)
 
 This current record supersedes the earlier model-handoff boundary summary
