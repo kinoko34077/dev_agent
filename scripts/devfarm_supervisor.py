@@ -1,8 +1,9 @@
 """Bounded Codex-supervised composition over the existing Commander primitives.
 
-The supervisor is deliberately a one-pass facade.  It never starts a
-background scheduler, auto-integrates, or treats Worker output as authority.
-The caller may invoke ``advance`` again after a durable wake/heartbeat.
+``advance`` remains a single bounded pass for callers that need a snapshot;
+``run_until_intervention`` provides the blocking, no-LLM-polling supervisor
+entrypoint.  The supervisor never starts a background scheduler,
+auto-integrates, or treats Worker output as authority.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ import subprocess
 import sys
 import time
 from typing import Any, Mapping
+from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -26,6 +28,7 @@ from scripts.devfarm import DevFarmError
 from scripts.devfarm_commander import (
     CommanderPlanStore,
     _verified_worker_patch,
+    _record_result,
     collect_plan,
     dispatch_plan,
     mark_integrated,
@@ -168,7 +171,13 @@ class CodexSupervisedCommanderRun:
         verification_ref = None
         if isinstance(verification_id, str) and verification_id.strip():
             verification_ref = (attempt_root / "verification" / f"{verification_id}.json").relative_to(self.root).as_posix()
-        patch_ref = (attempt_root / "patch.diff").relative_to(self.root).as_posix()
+        patch_path = attempt_root / "patch.diff"
+        patch_ref = patch_path.relative_to(self.root).as_posix()
+        patch_sha256 = task.get("verified_patch_digest")
+        if patch_path.is_file():
+            patch_sha256 = hashlib.sha256(patch_path.read_bytes()).hexdigest()
+        if task.get("verified_patch_digest") is not None and task["verified_patch_digest"] != patch_sha256:
+            raise DevFarmError("review packet patch digest does not match the Host artifact")
         manifest_ref = task.get("manifest_path")
         manifest: Mapping[str, Any] = {}
         if isinstance(manifest_ref, str):
@@ -202,7 +211,7 @@ class CodexSupervisedCommanderRun:
                 "provider": assignment.get("provider_id"),
                 "model": assignment.get("model_id"),
                 "changed_files": result.get("changed_files", []),
-                "patch_sha256": task.get("verified_patch_digest"),
+                "patch_sha256": patch_sha256,
                 "result_ref": result_ref,
                 "verification_ref": verification_ref,
                 "verification_summary": summary,
@@ -236,7 +245,7 @@ class CodexSupervisedCommanderRun:
             raise DevFarmError(f"Commander task does not exist: {task_id}")
         normalized = normalize_review_decision(
             {
-                "decision_id": f"review-{task_id}-{attempt_id}-{len(plan['review_decisions']) + 1}",
+                "decision_id": f"review-{uuid4().hex}",
                 "task_id": task_id,
                 "attempt_id": attempt_id,
                 "decision": decision,
@@ -247,6 +256,28 @@ class CodexSupervisedCommanderRun:
                 "decided_at": datetime.now(timezone.utc).isoformat(),
             }
         )
+        if normalized["decision"] in {"APPROVE_INTEGRATION", "REWORK", "REJECT"}:
+            if task.get("last_attempt_id") != attempt_id:
+                raise DevFarmError("review decision must match the current worker attempt")
+            if task.get("status") != "HOST_VERIFIED":
+                raise DevFarmError("worker review decision requires a HOST_VERIFIED task")
+        if normalized["decision"] == "REWORK":
+            # Make the explicit review decision actionable.  Reassigning this
+            # task then creates a new immutable manifest carrying the rework
+            # delta; the old verified attempt remains historical evidence.
+            task["status"] = "REJECTED"
+            task["block_reason"] = "review_rework_required"
+            correction = normalized.get("required_correction")
+            if correction:
+                task["last_error"] = correction
+            _record_result(
+                plan,
+                task_id,
+                "review",
+                "rework",
+                task.get("result_ref"),
+                attempt_id=attempt_id,
+            )
         plan["review_decisions"].append(normalized)
         saved = self.store.save(plan, expected_revision=plan["plan_revision"])
         metadata = normalize_supervisor_metadata(saved.get("supervisor"))

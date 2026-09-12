@@ -10,6 +10,7 @@ from scripts.devfarm import main as devfarm_main
 from scripts.devfarm_commander import (
     CommanderPlanStore,
     PlanConflictError,
+    collect_plan,
     create_plan,
     dispatch_plan,
     mark_integrated,
@@ -269,6 +270,7 @@ def test_supervisor_approved_integration_applies_patch_and_records_git_proof(tmp
                     "owner": "worker",
                     "manifest_path": ".devfarm/tasks/worker-a.json",
                     "ownership": [targets[0]],
+                    "max_attempts": 2,
                     "assignment": {"provider_id": "cloudflare", "model_id": "worker-model"},
                 }
             ],
@@ -332,6 +334,84 @@ def test_supervisor_approved_integration_applies_patch_and_records_git_proof(tmp
     assert integrated_task["status"] == "INTEGRATED"
     assert integrated_task["integration_revision"] == _git(root, "rev-parse", "HEAD").stdout.strip()
     assert "return None" in (root / targets[0]).read_text(encoding="utf-8")
+
+
+def test_supervisor_rework_decision_creates_next_attempt_manifest(tmp_path):
+    root, targets, revision = _repo(tmp_path)
+    _manifest(root, revision, "worker-a", targets[0])
+    create_plan(
+        root,
+        {
+            "run_id": "supervisor-rework-run",
+            "objective": "rework one verified worker proposal",
+            "base_revision": revision,
+            "tasks": [
+                {
+                    "task_id": "worker-a",
+                    "owner": "worker",
+                    "manifest_path": ".devfarm/tasks/worker-a.json",
+                    "ownership": [targets[0]],
+                    "max_attempts": 2,
+                    "assignment": {"provider_id": "cloudflare", "model_id": "worker-model"},
+                }
+            ],
+        },
+    )
+    provider = _WorkerProvider(
+        {
+            "status": "completed",
+            "changed_files": [targets[0]],
+            "tests_run": [],
+            "tests_passed": True,
+            "known_issues": [],
+            "assumptions": [],
+            "patch": _patch(targets[0]),
+        }
+    )
+    orchestrator = DevFarmOrchestrator(
+        verification_trust_level="TRUSTED_HOST_EXEC",
+        operator_approved=True,
+    )
+    dispatch_plan(root, "supervisor-rework-run", providers={"worker-a": provider}, orchestrator=orchestrator)
+    verify_plan(root, "supervisor-rework-run", orchestrator=orchestrator)
+    runner = CodexSupervisedCommanderRun(root, "supervisor-rework-run")
+    runner.create()
+    runner.advance(providers={})
+    task = runner.plan()["tasks"][0]
+    attempt_id = task["last_attempt_id"]
+    runner.record_review_decision(
+        "worker-a",
+        attempt_id=attempt_id,
+        decision="REWORK",
+        required_correction="Address the review finding before another verification.",
+        evidence_refs=[{"kind": "verification", "path": task["result_ref"]}],
+    )
+    assert runner.plan()["tasks"][0]["status"] == "REJECTED"
+    assert runner.plan()["results"][-1]["stage"] == "review"
+
+    handoff = runner.rework_handoff(
+        "worker-a",
+        failure_evidence_reference={"type": "result", "path": task["result_ref"]},
+        review_findings_reference={"type": "review", "attempt_id": attempt_id},
+        required_correction="Address the review finding before another verification.",
+    )
+    reassigned = runner.reassign(
+        "worker-a",
+        provider_id="cloudflare",
+        model_id="worker-model",
+        rework_handoff=handoff,
+    )
+    new_task = reassigned and runner.plan()["tasks"][0]
+    assert new_task["status"] == "READY"
+    assert new_task.get("last_attempt_id") is None
+    # The previous latest projection remains on disk, but cannot be collected
+    # as the new attempt before the new manifest is dispatched.
+    assert runner.plan()["tasks"][0]["manifest_path"] != ".devfarm/tasks/worker-a.json"
+    assert collect_plan(root, "supervisor-rework-run")["tasks"][0]["status"] == "READY"
+    new_manifest = json.loads((root / new_task["manifest_path"]).read_text(encoding="utf-8"))
+    assert new_manifest["rework_handoff"]["kind"] == "repair_request"
+    dispatch_plan(root, "supervisor-rework-run", providers={"worker-a": provider}, orchestrator=orchestrator)
+    assert runner.plan()["tasks"][0]["status"] == "PROPOSED"
 
 
 def test_commander_keeps_sibling_proposal_when_one_worker_raises(tmp_path):
@@ -637,6 +717,7 @@ def test_commander_recovers_expired_dispatched_task_without_blind_retry(tmp_path
                     "owner": "worker",
                     "manifest_path": ".devfarm/tasks/worker-a.json",
                     "ownership": [targets[0]],
+                    "max_attempts": 2,
                     "assignment": {"provider_id": "cloudflare", "model_id": "worker-model"},
                 }
             ],
@@ -667,6 +748,14 @@ def test_commander_recovers_expired_dispatched_task_without_blind_retry(tmp_path
     assert recovered_task["dispatch_recovery"] == "reconciliation_required"
     assert recovered_task["attempt_count"] == 1
     assert recovered["results"][-1]["stage"] == "dispatch_recovery"
+    with pytest.raises(DevFarmError, match="reconciliation"):
+        reassign_task(
+            root,
+            "orphaned-dispatch-run",
+            "worker-a",
+            provider_id="cloudflare",
+            model_id="worker-model",
+        )
 
 
 def test_commander_keeps_dispatched_task_waiting_before_deadline(tmp_path):

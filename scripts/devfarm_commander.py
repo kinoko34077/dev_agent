@@ -397,6 +397,12 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
             task["result_ref"] = _path(raw["result_ref"], "result_ref")
         if raw.get("last_attempt_id") is not None:
             task["last_attempt_id"] = _text(raw["last_attempt_id"], "last_attempt_id", max_length=101)
+        if raw.get("stale_result_attempt_id") is not None:
+            task["stale_result_attempt_id"] = _text(
+                raw["stale_result_attempt_id"],
+                "stale_result_attempt_id",
+                max_length=101,
+            )
         if raw.get("block_reason") is not None:
             task["block_reason"] = _text(raw["block_reason"], "block_reason", max_length=1000)
         if raw.get("last_result_status") is not None:
@@ -732,6 +738,7 @@ def _apply_proposal_result(plan: dict[str, Any], task: dict[str, Any], result: M
     if attempt_id is not None:
         task["last_attempt_id"] = _text(attempt_id, "attempt_id", max_length=101)
     task["last_result_status"] = status
+    task.pop("stale_result_attempt_id", None)
     if status == "completed" and result.get("changed_files"):
         task["status"] = "PROPOSED"
     elif status == "blocked_external":
@@ -830,6 +837,19 @@ def collect_plan(root: str | Path, run_id: str) -> dict[str, Any]:
             continue
         result = validate_result(_read_json(result_path), manifest=manifest)
         attempt_id = result.get("attempt_id")
+        stale_attempt_id = task.get("stale_result_attempt_id")
+        if (
+            isinstance(stale_attempt_id, str)
+            and isinstance(attempt_id, str)
+            and stale_attempt_id == attempt_id
+        ):
+            # A reassign/rework keeps the immutable old projection on disk.
+            # It must not be mistaken for the new dispatch's result.
+            continue
+        if task["status"] == "READY" and task.get("last_attempt_id") is None:
+            # A READY task has not yet established a new execution attempt.
+            # The mutable latest projection is not authoritative for it.
+            continue
         attempt_ref = _result_ref(task["task_id"], attempt_id if isinstance(attempt_id, str) and attempt_id.strip() else None)
         task["result_ref"] = attempt_ref
         if attempt_id is not None:
@@ -847,6 +867,17 @@ def collect_plan(root: str | Path, run_id: str) -> dict[str, Any]:
         if task["status"] != "INTEGRATED":
             if result["status"] == "completed" and host_verified and accepted and has_verification_record:
                 task["status"] = "HOST_VERIFIED"
+                patch_path = (
+                    root_path
+                    / ".devfarm"
+                    / "results"
+                    / task["task_id"]
+                    / "attempts"
+                    / str(attempt_id)
+                    / "patch.diff"
+                )
+                if patch_path.is_file():
+                    task["verified_patch_digest"] = hashlib.sha256(patch_path.read_bytes()).hexdigest()
                 task.pop("block_reason", None)
                 task.pop("last_error", None)
                 _record_result(plan, task["task_id"], "host_verification", result["status"], attempt_ref, attempt_id=task.get("last_attempt_id"))
@@ -934,6 +965,18 @@ def verify_plan(
         if attempt_id is not None:
             current["last_attempt_id"] = _text(attempt_id, "attempt_id", max_length=101)
         if accepted:
+            if current["status"] == "HOST_VERIFIED" and isinstance(attempt_id, str) and attempt_id.strip():
+                patch_path = (
+                    root_path
+                    / ".devfarm"
+                    / "results"
+                    / current["task_id"]
+                    / "attempts"
+                    / attempt_id
+                    / "patch.diff"
+                )
+                if patch_path.is_file():
+                    current["verified_patch_digest"] = hashlib.sha256(patch_path.read_bytes()).hexdigest()
             current.pop("block_reason", None)
             current.pop("last_error", None)
         else:
@@ -1026,7 +1069,19 @@ def recover_orphaned_dispatches(
                 _result_ref(task["task_id"], attempt_id),
                 required_parent=".devfarm/results",
             )
-        if latest.is_file() or (attempt_result is not None and attempt_result.is_file()):
+        latest_is_current = latest.is_file()
+        stale_attempt_id = task.get("stale_result_attempt_id")
+        if latest_is_current and isinstance(stale_attempt_id, str) and stale_attempt_id.strip():
+            try:
+                latest_value = _read_json(latest)
+            except DevFarmError:
+                latest_is_current = False
+            else:
+                latest_is_current = not (
+                    isinstance(latest_value, Mapping)
+                    and latest_value.get("attempt_id") == stale_attempt_id
+                )
+        if latest_is_current or (attempt_result is not None and attempt_result.is_file()):
             continue
         task["status"] = "BLOCKED"
         task["block_reason"] = "orphaned_dispatch"
@@ -1062,6 +1117,8 @@ def reassign_task(
         raise DevFarmError("only worker tasks can be reassigned")
     if task["status"] not in {"REJECTED", "BLOCKED"}:
         raise DevFarmError("only rejected or blocked worker tasks can be reassigned")
+    if task.get("dispatch_recovery") == "reconciliation_required":
+        raise DevFarmError("orphaned dispatch requires explicit reconciliation before reassignment")
     if task["attempt_count"] >= task["max_attempts"]:
         raise DevFarmError("worker task attempt limit reached")
     old_manifest_path, old_manifest = _manifest_for(Path(root).resolve(), task)
@@ -1098,6 +1155,9 @@ def reassign_task(
         task["manifest_history"] = history
     task.pop("block_reason", None)
     task.pop("last_error", None)
+    previous_attempt_id = task.get("last_attempt_id")
+    if isinstance(previous_attempt_id, str) and previous_attempt_id.strip():
+        task["stale_result_attempt_id"] = previous_attempt_id
     for key in (
         "result_ref",
         "last_attempt_id",
