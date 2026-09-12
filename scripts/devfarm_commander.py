@@ -1001,6 +1001,16 @@ def verify_plan(
             current.pop("last_error", None)
         else:
             current["block_reason"] = "host_verification_failed"
+            known_issues = result.get("known_issues")
+            if isinstance(known_issues, Sequence) and not isinstance(known_issues, (str, bytes)):
+                reasons = [
+                    item.strip()
+                    for item in known_issues
+                    if isinstance(item, str) and item.strip()
+                ]
+                if reasons:
+                    current["last_error"] = "; ".join(reasons)[:1000]
+            current.setdefault("last_error", "host verification result was not accepted")
         _record_result(
             plan,
             current["task_id"],

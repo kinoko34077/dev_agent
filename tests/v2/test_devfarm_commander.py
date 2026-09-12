@@ -47,6 +47,22 @@ class _FailingVerifier:
         raise RuntimeError("verification boundary unavailable")
 
 
+class _ResultFailingVerifier:
+    def verify(self, root, manifest_paths):
+        return [
+            {
+                "status": "failed",
+                "changed_files": [],
+                "tests_run": [],
+                "tests_passed": False,
+                "known_issues": ["worker patch apply check failed: malformed hunk"],
+                "assumptions": [],
+                "worker_metrics": {},
+            }
+            for _ in manifest_paths
+        ]
+
+
 class _OneProposalExplodes(DevFarmOrchestrator):
     def _propose(self, root, assignment):
         if assignment.manifest_path.stem == "worker-a":
@@ -651,6 +667,39 @@ def test_commander_persists_host_verification_boundary_failure(tmp_path):
     assert recovered["tasks"][0]["status"] == "HOST_VERIFIED"
     assert "block_reason" not in recovered["tasks"][0]
     assert "last_error" not in recovered["tasks"][0]
+
+
+def test_commander_persists_verifier_result_failure_reason(tmp_path):
+    root, targets, revision = _repo(tmp_path)
+    _manifest(root, revision, "worker-a", targets[0])
+    create_plan(
+        root,
+        {
+            "run_id": "verification-result-failure-run",
+            "objective": "persist verifier result failure reason",
+            "base_revision": revision,
+            "tasks": [
+                {
+                    "task_id": "worker-a",
+                    "owner": "worker",
+                    "manifest_path": ".devfarm/tasks/worker-a.json",
+                    "ownership": [targets[0]],
+                    "assignment": {"provider_id": "cloudflare", "model_id": "@cf/meta/llama-3.1-8b-instruct"},
+                }
+            ],
+        },
+    )
+    dispatch_plan(
+        root,
+        "verification-result-failure-run",
+        providers={"worker-a": _WorkerProvider({"status": "completed", "changed_files": [targets[0]], "tests_run": [], "tests_passed": True, "known_issues": [], "assumptions": [], "patch": _patch(targets[0]), "notes": "ready"})},
+    )
+
+    result = verify_plan(root, "verification-result-failure-run", orchestrator=_ResultFailingVerifier())
+
+    task = result["tasks"][0]
+    assert task["status"] == "REJECTED"
+    assert "malformed hunk" in task["last_error"]
 
 
 def test_commander_clears_stale_verification_error_after_reassigned_success(tmp_path):
