@@ -12,7 +12,8 @@ does not expose a durable remote-job completion event. ChatGPT Desktop Scheduled
 tasks can resume a chat on a time cadence, but the official product does not
 provide a custom local DevFarm-artifact event that directly resumes Codex.
 Therefore v0 uses a durable wake projection plus one changeable heartbeat
-cadence. It must not claim immediate event-driven Codex wakeup.
+cadence. It must not claim immediate event-driven Codex wakeup: while a Worker
+is nonterminal, the next scheduled heartbeat is the durable resumption request.
 
 ## Goals
 
@@ -69,8 +70,10 @@ Git-proven explicit integration
 ## Supervisor Run projection
 
 `CodexSupervisedCommanderRun` will be a development-only facade around an
-existing Commander `run_id`. A small durable sidecar under `.devfarm/` may store
-only information that is not already represented by the Plan:
+existing Commander `run_id`. It stores an optional typed `supervisor` metadata
+object in the existing Commander Plan, so all writes retain the existing Plan
+revision CAS. It stores only information that is not already represented by the
+Plan:
 
 - `run_id` and `plan_id`;
 - roadmap reference and current roadmap position;
@@ -80,8 +83,8 @@ only information that is not already represented by the Plan:
 - proxy metrics: Codex wakes/reviews, Worker dispatches/successes/retries,
   inline/reference payload sizes, and artifact fetch count.
 
-The sidecar is a resumable projection, not a second task scheduler or a second
-task state machine. Task eligibility, attempts, dependency release, and
+This metadata is a resumable projection, not a second task scheduler or a
+second task state machine. Task eligibility, attempts, dependency release, and
 terminal status continue to be derived from the Commander Plan.
 
 ### Supervisor projection states
@@ -137,6 +140,30 @@ Cadence is selected from the Worker deadline or expected duration:
 | more than 5 through 20 minutes | 5 minutes |
 | more than 20 through 60 minutes | 10 minutes |
 | more than 60 minutes or unspecified | 15 minutes |
+
+The heartbeat is logically one-shot: after each compact check it decides the
+next scheduled check. An app-level implementation may represent that as one
+recurring task whose recurrence is updated; it must have the same observable
+effect and must never leave overlapping heartbeat schedules active.
+
+`unchanged_check_limit` is a bounded Supervisor policy with a default of `2`
+and an allowed value of `3` for deliberately slower jobs. A check is unchanged
+only when all assigned Worker tasks are still nonterminal and no meaningful
+wake record was emitted. At the limit, the Supervisor promotes the next
+scheduled cadence exactly one stage:
+
+```text
+1 minute --(2 or 3 unchanged checks)--> 5 minutes
+5 minutes --(2 or 3 unchanged checks)--> 10 minutes
+10 minutes --(2 or 3 unchanged checks)--> 15 minutes
+15 minutes --(2 or 3 unchanged checks)--> 15 minutes
+```
+
+At 15 minutes it continues to schedule 15-minute checks until a Worker
+completion, existing attempt/deadline boundary, or a meaningful safety event.
+It does not create a longer unbounded timer or silently abandon a live Worker.
+The unchanged count resets whenever a task changes state, an artifact/evidence
+reference changes, or a meaningful wake is recorded.
 
 A heartbeat does one compact `supervisor status`/`resume` action. If no
 meaningful wake record is present it exits without Worker-log retrieval or
