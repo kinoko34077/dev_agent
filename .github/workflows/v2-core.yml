@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [v2/bootstrap, main]
 
+permissions:
+  contents: read
+
 jobs:
   kernel:
     runs-on: ubuntu-latest
