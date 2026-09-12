@@ -388,6 +388,7 @@ def test_supervisor_rework_decision_creates_next_attempt_manifest(tmp_path):
     )
     assert runner.plan()["tasks"][0]["status"] == "REJECTED"
     assert runner.plan()["results"][-1]["stage"] == "review"
+    assert collect_plan(root, "supervisor-rework-run")["tasks"][0]["status"] == "REJECTED"
 
     handoff = runner.rework_handoff(
         "worker-a",

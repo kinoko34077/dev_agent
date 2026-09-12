@@ -831,6 +831,12 @@ def collect_plan(root: str | Path, run_id: str) -> dict[str, Any]:
     for task in plan["tasks"]:
         if task["owner"] != "worker":
             continue
+        if task["status"] not in {"DISPATCHED", "PROPOSED"}:
+            # Result collection is an in-flight reconciliation operation.
+            # A terminal review decision, rejection, or reassign boundary
+            # must not be overwritten by the mutable latest projection from
+            # an earlier attempt.
+            continue
         _manifest_path, manifest = _manifest_for(root_path, task)
         result_path = _repository_path(root_path, _result_ref(task["task_id"]), required_parent=".devfarm/results")
         if not result_path.is_file():
