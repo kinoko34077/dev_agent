@@ -294,6 +294,12 @@ def test_supervisor_approved_integration_applies_patch_and_records_git_proof(tmp
     verify_plan(root, "supervisor-integration-run", orchestrator=orchestrator)
     runner = CodexSupervisedCommanderRun(root, "supervisor-integration-run")
     runner.create()
+    review_step = runner.advance(providers={})
+    assert review_step.status == "REVIEWING"
+    assert review_step.metrics["codex_review_request_count"] == 1
+    assert review_step.metrics["codex_review_count"] == 0
+    assert len(review_step.review_packets) == 1
+    assert "patch" not in review_step.review_packets[0]
     task = runner.plan()["tasks"][0]
     with pytest.raises(DevFarmError, match="approval"):
         runner.integrate_approved_worker(

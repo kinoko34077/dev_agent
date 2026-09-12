@@ -626,6 +626,33 @@ class CodexSupervisedCommanderRun:
         source_attempt_id: str,
         verified_patch_digest: str,
     ) -> SupervisorStep:
+        """Record approval for a pre-existing explicit Git integration.
+
+        This compatibility path is retained for callers that already
+        performed the Git commit.  New callers should use
+        ``integrate_approved_worker`` so the Host applies and commits the
+        verified patch deterministically after this same durable decision.
+        """
+
+        current = self.store.load(self.run_id)
+        task = next((item for item in current["tasks"] if item["task_id"] == task_id), None)
+        if task is None:
+            raise DevFarmError(f"Commander task does not exist: {task_id}")
+        if task.get("status") != "HOST_VERIFIED" or task.get("last_attempt_id") != source_attempt_id:
+            raise DevFarmError("approval must match the current HOST_VERIFIED attempt")
+        if not any(
+            item.get("task_id") == task_id
+            and item.get("attempt_id") == source_attempt_id
+            and item.get("decision") == "APPROVE_INTEGRATION"
+            for item in current["review_decisions"]
+        ):
+            self.record_review_decision(
+                task_id,
+                attempt_id=source_attempt_id,
+                decision="APPROVE_INTEGRATION",
+                findings=[note],
+                evidence_refs=[{"kind": "verified_patch", "sha256": verified_patch_digest}],
+            )
         mark_integrated(
             self.root,
             self.run_id,
