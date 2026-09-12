@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from typing import Any, Mapping
 
 
@@ -66,6 +67,19 @@ def _nonnegative_int(value: Any, name: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f"{name} must be a non-negative integer")
     return value
+
+
+def _timestamp(value: Any, name: str) -> str | None:
+    normalized = _text(value, name, optional=True, max_length=80)
+    if normalized is None:
+        return None
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an ISO-8601 timestamp") from exc
+    if parsed.tzinfo is None:
+        raise ValueError(f"{name} must include a timezone")
+    return normalized
 
 
 def _bounded_strings(value: Any, name: str, *, limit: int, max_length: int = 1000) -> list[str]:
@@ -231,7 +245,7 @@ def normalize_supervisor_metadata(value: Mapping[str, Any] | None = None) -> dic
         raise TypeError("supervisor.roadmap_reference must be an object")
     _json(roadmap, "supervisor.roadmap_reference")
     next_action = _text(value.get("next_action", "advance"), "supervisor.next_action")
-    deadline = _text(value.get("overall_deadline"), "supervisor.overall_deadline", optional=True)
+    deadline = _timestamp(value.get("overall_deadline"), "supervisor.overall_deadline")
     wake_events = value.get("wake_events", [])
     if not isinstance(wake_events, list):
         raise TypeError("supervisor.wake_events must be a list")

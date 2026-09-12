@@ -82,6 +82,21 @@ def _git_status(cwd: Path) -> str:
     )
 
 
+def _remaining_supervisor_deadline(metadata: Mapping[str, Any]) -> float | None:
+    value = metadata.get("overall_deadline")
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise DevFarmError("supervisor overall deadline is invalid")
+    try:
+        deadline = datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise DevFarmError("supervisor overall deadline is invalid") from exc
+    if deadline.tzinfo is None:
+        raise DevFarmError("supervisor overall deadline must include a timezone")
+    return (deadline - datetime.now(timezone.utc)).total_seconds()
+
+
 @dataclass(frozen=True)
 class SupervisorStep:
     run_id: str
@@ -487,6 +502,13 @@ class CodexSupervisedCommanderRun:
             raise TypeError("sleep_fn and monotonic_fn must be callable")
         started = float(monotonic_fn())
         while True:
+            current_metadata = normalize_supervisor_metadata(self.store.load(self.run_id).get("supervisor"))
+            deadline_remaining = _remaining_supervisor_deadline(current_metadata)
+            if deadline_remaining is not None and deadline_remaining <= 0:
+                current_metadata["status"] = "HUMAN_DECISION_REQUIRED"
+                current_metadata["next_action"] = "supervisor_overall_deadline"
+                current_metadata = record_wake(current_metadata, kind="SUPERVISOR_OVERALL_DEADLINE")
+                return self._step(self._save_supervisor(current_metadata))
             elapsed = max(0.0, float(monotonic_fn()) - started)
             remaining = float(max_wait_seconds) - elapsed
             if remaining <= 0:
@@ -517,7 +539,12 @@ class CodexSupervisedCommanderRun:
             # The cadence is a durable wake hint, not a second scheduler.
             # Sleeping here consumes no Codex reasoning and never replays an
             # external effect by itself.
-            sleep_for = min(remaining, max(1.0, step.cadence_minutes * 60.0))
+            sleep_limits = [remaining, max(1.0, step.cadence_minutes * 60.0)]
+            if deadline_remaining is not None:
+                sleep_limits.append(max(0.0, deadline_remaining))
+            sleep_for = min(sleep_limits)
+            if sleep_for <= 0:
+                continue
             sleep_fn(sleep_for)
 
     def rework_handoff(

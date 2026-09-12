@@ -3,6 +3,7 @@ from __future__ import annotations
 import subprocess
 import sys
 from dataclasses import replace
+from datetime import datetime, timedelta, timezone
 import pytest
 
 from scripts.devfarm_commander import validate_plan
@@ -212,6 +213,30 @@ def test_supervised_run_waits_without_llm_polling_until_intervention(tmp_path):
     assert step.status == "REVIEWING"
     assert len(calls) == 2
     assert sleeps == [60.0]
+
+
+def test_supervised_run_honors_durable_overall_deadline(tmp_path):
+    create_plan(tmp_path, _plan())
+    runner = CodexSupervisedCommanderRun(tmp_path, "supervisor-test-001")
+    runner.create(
+        overall_deadline=(datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat(),
+    )
+    calls = []
+
+    def should_not_advance(**_kwargs):
+        calls.append(True)
+        raise AssertionError("expired supervisor run must not dispatch")
+
+    runner.advance = should_not_advance
+    step = runner.run_until_intervention(
+        providers={},
+        max_wait_seconds=60,
+        sleep_fn=lambda _seconds: (_ for _ in ()).throw(AssertionError("expired run must not sleep")),
+    )
+
+    assert step.status == "HUMAN_DECISION_REQUIRED"
+    assert step.next_action == "supervisor_overall_deadline"
+    assert calls == []
 
 
 def test_supervisor_cli_is_invokable_as_a_script():
