@@ -9,6 +9,14 @@
 - API が実装済みであることだけでは Gate の VERIFIED を意味しない。
 - `StateStore`、Queue、Resource、Recovery の正本を二重化する実行系を作らない。
 
+### `HandoffEnvelope`
+
+- 責務: Human、Planner、Executor、Reviewer間のmodel-neutralな情報受渡しを、ControlとPayloadに分けて表現する。
+- 公開入口: `HandoffEnvelope(...)`、`validate_handoff(...)`、`render_handoff(..., renderer="kinotch-ja-v1")`。
+- 入力/出力: subject、instruction、conditions、cautions、roles、payload、payload mode、reference、compression provenance。`to_dict()`はJSON transport用のprojectionである。
+- 権限: 情報伝達の形式だけを担う。仕様、budget、approval、privacy、Gate、Task state、Schedulerを発行しない。
+- 禁止: ControlをCompressionへ渡すこと、自然言語rendererをSSOTにすること、compressed payloadを原文の代替にすること、model名をroleやauthorityとして扱うこと。
+
 ## Runtime / intelligence
 
 ### `ModelProvider`

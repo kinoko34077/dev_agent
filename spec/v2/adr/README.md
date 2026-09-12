@@ -14,3 +14,4 @@
 | ADR-008 | workflow-first の hybrid 実行 |
 | ADR-009 | AI company は Kernel ではなく benchmark / application |
 | ADR-010 | 初期追加外部費用は月 JPY 2,000 上限。拡張は realized profit と human approval |
+| ADR-012 | G6O1をsimulated-paidのコード検証とlive paid-provider外部証跡へ分離 |

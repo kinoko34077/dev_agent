@@ -14,6 +14,7 @@
 | Resources | `src/dev_agent/resources/` | ResourceLedger facade、catalog/observation/quota/health/budget、qualification projection、trusted billing catalog、explicit repair audit、router/control、schema/migrations、unknown-quota admission store |
 | Providers | `src/dev_agent/providers/` | Adapter、Factory、Registry、Dispatcher、journal。`ollama_cloud`／`vercel`は`openai_compatible`のHTTP boundaryを再利用し、local `ollama`とは別identity。Gemini追加keyは`api_key_env`／`project_id`／`quota_domain`をnon-secret binding metadataとして持つ |
 | AgentBackend | `src/dev_agent/backends/` | 外部Agent harnessとのthin typed contract、`BackendAdmission`付きdispatcher。実adapterは別slice |
+| Handoff | `src/dev_agent/handoff/` | model-neutralなControl/Payload envelope、validation、kinotch-ja-v1 renderer。独立Compression ServiceやTask stateは所有しない |
 | Runtime | `src/dev_agent/runtime/` | Controller、model turn、legacy compatibility、checkpoint/resume |
 | Scheduler | `src/dev_agent/scheduler/` | DurableQueue、WorkerRunner、lease、quota wake/requalification |
 | Operation | `src/dev_agent/operation.py`、`operation_bootstrap.py`、`operation_planning.py`、`cli.py`、`src/dev_agent/__main__.py` | 人間向け start/submit/status/stop、maintenance、既存 Evaluator/Lifecycle の明示 composition |
@@ -57,6 +58,7 @@ scheduler / operation composition
 - `intelligence/target.py` の `ExecutionTargetPolicy` は ModelProvider と AgentBackend の実行先を分離する。通常はModelProviderを選び、AgentBackendは明示autonomy、approval、budget、privacy、capabilityの既存証拠が揃った場合だけ許可する。tierだけを理由に自動昇格しない。
 - `recovery/` は runtime/controller から独立し、durable artifact と operator authority を扱う。Recovery が Controller の内部状態を書き換える設計にしない。
 - `devfarm` は production scheduler/state/authority と独立した development-only 層で、既存 WorkerRunner/ProviderFactory 等の公開境界を composition できるが、公式 branch を自動変更しない。
+- `handoff` は role、instruction、constraints、payload、referenceの型とrendererだけを提供する。Compression client、Planner/Executor/Reviewer orchestration、Budget、Scheduler、Task lifecycleを所有しない。Controlはpayload compressionへ渡さず、G6O1-SIM/LIVEのbilling identityも別のResource authorityで管理する。
 - `scripts/check_architecture.py` と `scripts/test_scope.py` はread-onlyの開発preflightであり、runtime authority、StateStore、Schedulerを所有しない。affected-test mapはfull regressionの代替ではない。
 
 ## 禁止される実装

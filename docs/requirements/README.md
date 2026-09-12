@@ -6,6 +6,7 @@
 
 - [Multi-Free Provider / Intelligence Hierarchy / External Agent Integration](multi-free-provider/00-index.md)
 - [Autonomous Hierarchy / Cross-cutting Hardening Audit](autonomous-hierarchy-hardening/00-index.md)
+- [Model Handoff / Compression / G6O1 split](model-handoff/00-index.md)
 
 「Autonomous Hierarchy / Cross-cutting Hardening Audit」は、既存の
 Multi-Free Provider要件を置き換えず、Phase 7後半へ進む前の横断hardening作業を
