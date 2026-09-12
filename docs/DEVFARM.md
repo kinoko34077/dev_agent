@@ -59,6 +59,33 @@ termination, and strict `pytest`/`compileall` command allowlists. An executable
 verification must include at least one trusted target outside the files changed
 by the Worker; a Worker-owned test alone cannot make a result accepted.
 
+## CodexExecBackend dogfood
+
+`scripts/devfarm_codex.py::run_codex_attempt()` is the development-only bridge
+for a Codex coding attempt. It composes an existing manifest with an
+attempt-specific Git worktree and the typed `CodexExecBackend`; it does not add
+a production scheduler or replace Commander/DevFarm state. The backend edits
+only that worktree, while the Host derives the complete patch from Git with a
+temporary index (including untracked files), validates the actual paths, and
+records the existing immutable attempt/verification artifacts. The official
+checkout is never used as the editing workspace and the result stops before
+integration.
+
+The default verification level is `STATIC_ONLY`. `TRUSTED_HOST_EXEC` requires
+explicit per-attempt operator approval and remains contained host execution,
+not an OS sandbox. A real CLI attempt may explicitly construct
+`CodexExecBackend(sandbox_mode="workspace-write", approve_for_me=True,
+auth_file=<one explicit auth.json>)`; the CLI's `--approve-for-me` mode is
+never combined with full-access flags. The auth projection copies only that
+selected file into the temporary Codex HOME. A successful attempt is accepted
+only after a Host-side test outside the Worker-owned change passes; backend
+self-reported tests are not evidence.
+
+The first real fixture dogfood reached `HOST_VERIFIED`/`result_accepted=true`
+with one unmodified baseline test passing. Its containment record explicitly
+states `network=not_isolated` and `sandbox=not_provided`, so it is not evidence
+for unattended OS-sandboxed execution or official-branch integration.
+
 Prepare a separate checkout with an `agent/<provider>/<task>` branch:
 
 ```text

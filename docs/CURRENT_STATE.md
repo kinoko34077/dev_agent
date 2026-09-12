@@ -1,5 +1,53 @@
 # Current State — v2/bootstrap
 
+## Current — 2026-09-12 (Codex DevFarm dogfood v0)
+
+This supersedes the older snapshots below. The implementation slice was
+verified at code commit `00d8f19` (the documentation commit that records this
+entry advances HEAD afterward).
+
+| Field | Value |
+| --- | --- |
+| **Branch** | `v2/bootstrap` |
+| **Implementation commits** | `ab4c21d` Codex subprocess safety/auth projection; `00d8f19` isolated DevFarm Codex runner |
+| **Local regression** | `820 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 222.14s) |
+| **Architecture check** | `ARCHITECTURE_PASS` |
+| **compileall** | `src recovery scripts` clean |
+| **Real Codex CLI** | `codex-cli 0.153.4`; login status confirmed without recording credentials |
+
+### Codex DevFarm proof
+
+The development-only `scripts/devfarm_codex.py::run_codex_attempt()` now
+composes the existing manifest, isolated worktree, typed AgentBackend,
+Host-side Git authority, and Host Verification boundaries. It derives the
+patch from Git using a temporary index, so untracked files are included
+without staging the official checkout. It stops at a candidate result;
+automatic integration, push, merge, and Gate changes are not performed.
+
+The real CLI read-only smoke returned `SMOKE_OK` in JSONL using an explicitly
+projected `auth.json`; no Provider keys or parent configuration were passed.
+In the disposable Git fixture, attempt `codex-real-004` used the
+`codex-exec` backend and changed only `tests/test_target.py`. Host-side
+verification ran the unmodified `tests/test_baseline.py` (`1 passed`) under
+`TRUSTED_HOST_EXEC` with explicit attempt approval. The result was
+`result_accepted=true`; patch SHA-256 was
+`b1b985cee9a71c43ac9554f44c4ece47d74eb9466f43e30c55b7b66e8003d3e7`, elapsed
+time was 37,155 ms, and verification ID was
+`fe9692c0e92f432793e35f75f16e2f8a`. This is fixture-level dogfood evidence,
+not an official branch change or a claim of OS sandboxing: the recorded
+containment remains sanitized environment, temporary HOME, bounded
+process-tree termination, `network=not_isolated`, and `sandbox=not_provided`.
+
+The Codex adapter's temporary HOME is now reversibly quarantined instead of
+being recursively deleted. `--approve-for-me` is an explicit CLI option only
+for `workspace-write`; the dangerous full-access/bypass flags remain
+unreachable, and the default remains read-only/static unless a caller opts in.
+
+The next Dogfood v0 follow-up is Group D (JSONL normalization, structured
+event/usage evidence, and restart/reconciliation helpers). `OS_SANDBOXED`,
+automatic integration, and external GitHub required-check configuration
+remain separate gates. Existing Gate status is unchanged.
+
 ## Current — 2026-09-12 (re-audit closure + Phase 7 latter half A: first concrete AgentBackend adapter)
 
 | Field | Value |

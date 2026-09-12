@@ -18,7 +18,7 @@
 | AgentBackend | `src/dev_agent/backends/` | thin typed contract、effect intent接続dispatcher | domain / state | dispatch authorityは注入Control Plane、contractは所有しない | `tests/v2/test_agent_backend_protocol.py`, `test_agent_backend_dispatcher.py`, requirements §20-22 |
 | Recovery | `recovery/` | runtime-independent diagnose、backup、restore、rollback | durable artifacts / Git | external recovery authority | `tests/v2/test_recovery*.py` |
 | Operation | `src/dev_agent/operation.py`, `operation_bootstrap.py`, `operation_planning.py`, `cli.py`, `src/dev_agent/__main__.py` | `start`、`submit`、`status`、`stop`と既存componentのcomposition | existing runtime stack / state control | no CLI-owned state | `tests/v2/test_operation.py`, `test_operation_boundaries.py` |
-| DevFarm | `scripts/devfarm*.py` | manifest、proposal、Host Verification、metrics | ProviderFactory + Git artifacts | outbound scope、worktree、patch | `tests/v2/test_devfarm_*.py` |
+| DevFarm | `scripts/devfarm*.py`（`devfarm_codex.py`を含む） | manifest、proposal、Codex AgentBackend attempt、Host Verification、metrics | ProviderFactory + Git artifacts | outbound scope、worktree、patch、no auto-integration | `tests/v2/test_devfarm_*.py` |
 | Commander | `scripts/devfarm_commander.py` | development-only parent Plan、DAG、dispatch、collect、verify | existing DevFarm only | ownership、bounded reassign | `tests/v2/test_devfarm_commander.py` |
 | DevFarm data | `.devfarm/` | plans、tasks、results、worktrees、metrics | ignored local artifacts | never source/Gate authority | `docs/DEVFARM.md` |
 | Formal spec | `spec/v2/` | requirements、ADR、Gate、traceability、schemas | documentation | Gate promotion evidence | `spec/v2/GATE_STATUS.json` |
