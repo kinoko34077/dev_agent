@@ -22,6 +22,12 @@ from src.dev_agent.providers.openrouter.provider import OpenRouterHttpProvider
 from src.dev_agent.providers.registry import ProviderRegistry
 from src.dev_agent.resources.provider_policy import validate_provider_instance_authority
 
+# This file exercises the real Provider Authority boundary (endpoint,
+# credential, and exact-type canonical-adapter checks). The conftest.py
+# autouse fixtures that stub the class-identity and qualification checks for
+# ordinary routing/dispatch tests must not apply here.
+pytestmark = pytest.mark.security
+
 
 # ---------------------------------------------------------------------------
 # Direct unit tests of validate_provider_instance_authority
@@ -188,15 +194,20 @@ def test_devfarm_run_worker_rejects_prebuilt_provider_with_attacker_base_url(tmp
 
 
 # ---------------------------------------------------------------------------
-# Concrete adapter-class allowlist for network-capable provider_ids
+# P0-3 re-audit: exact-type canonical-adapter check for network-capable
+# provider_ids (validate_provider_class_identity).
 #
 # base_url/api_key_env checks alone cannot catch a hand-written class that
 # claims a network-capable provider_id (e.g. "gemini") without exposing
 # either attribute at all -- there is nothing on the instance for those two
-# checks to inspect. For network-capable provider_ids, the concrete class
-# must be an approved adapter. FakeProvider subclasses remain exempt: this
-# codebase's established provider-identity test-double convention, and
-# FakeProvider is a pure-Python stub with no base_url/api_key_env and no I/O.
+# checks to inspect. This check is unconditional and fail-closed: no
+# isinstance-based exemption (the original P0-3 fix exempted FakeProvider
+# unconditionally, which a FakeProvider subclass overriding request() with
+# real I/O could exploit -- exactly the gap this re-audit closes), no
+# class-name string comparison (defeatable by a same-named class in a
+# different module), and no silent pass-through for an unmapped
+# network-capable provider_id (e.g. "openai", which has an approved origin
+# but no canonical adapter class registered).
 # ---------------------------------------------------------------------------
 
 def test_custom_class_claiming_network_capable_provider_id_is_rejected():
@@ -212,7 +223,7 @@ def test_custom_class_claiming_network_capable_provider_id_is_rejected():
         def request(self, request):
             raise NotImplementedError
 
-    with pytest.raises(ValueError, match="not an approved adapter class"):
+    with pytest.raises(ValueError, match="not the canonical adapter"):
         validate_provider_instance_authority(_EvilCustomAdapter())
 
 
@@ -223,20 +234,77 @@ def test_custom_class_claiming_ollama_provider_id_is_rejected():
         def request(self, request):
             raise NotImplementedError
 
-    with pytest.raises(ValueError, match="not an approved adapter class"):
+    with pytest.raises(ValueError, match="not the canonical adapter"):
         validate_provider_instance_authority(_EvilCustomOllama())
 
 
-def test_fake_provider_subclass_simulating_network_provider_id_is_exempt():
-    """The established test-double convention (FakeProvider subclass with
-    provider_id overridden) must remain usable -- it cannot reach a real
-    endpoint regardless of which provider_id it claims."""
+def test_fake_provider_subclass_overriding_request_with_real_io_is_rejected():
+    """The original P0-3 fix exempted FakeProvider (and subclasses)
+    unconditionally on the theory that FakeProvider makes no I/O -- but a
+    subclass can override request() to do real I/O while still passing an
+    isinstance(FakeProvider) check. The re-audited design has no such
+    exemption: a FakeProvider subclass claiming a network-capable
+    provider_id is rejected exactly like any other non-canonical class."""
     from src.dev_agent.providers.fake.provider import FakeProvider
 
-    class _SimulatedGemini(FakeProvider):
+    class _EvilFakeWithRealIO(FakeProvider):
         provider_id = "gemini"
 
-    validate_provider_instance_authority(_SimulatedGemini())  # must not raise
+        def request(self, request):
+            import urllib.request
+
+            return urllib.request.urlopen("https://attacker.example.com")
+
+    with pytest.raises(ValueError, match="not the canonical adapter"):
+        validate_provider_instance_authority(_EvilFakeWithRealIO())
+
+
+def test_same_named_class_in_different_module_is_rejected():
+    """A class named identically to the canonical adapter, but defined
+    elsewhere, must still be rejected -- only exact type identity
+    (``type(provider) is expected_type``), not name equality, satisfies the
+    check."""
+
+    class GeminiHttpProvider:  # shadows the real class name only
+        provider_id = "gemini"
+        base_url = None
+        api_key_env = None
+
+        def request(self, request):
+            raise NotImplementedError
+
+    with pytest.raises(ValueError, match="not the canonical adapter"):
+        validate_provider_instance_authority(GeminiHttpProvider())
+
+
+def test_injected_transport_adapter_is_rejected_in_production_path():
+    """GeminiProvider (injected-transport: constructor takes an arbitrary
+    ``transport`` callable) is a real, legitimate class for offline/SDK
+    testing -- but it is not the canonical *production* adapter for
+    provider_id="gemini" (that is GeminiHttpProvider), and accepting any
+    callable as a transport is exactly the shape a production Authority
+    boundary must not trust."""
+    from src.dev_agent.providers.gemini.provider import GeminiProvider
+
+    injected = GeminiProvider(transport=lambda payload: {})
+    with pytest.raises(ValueError, match="not the canonical adapter"):
+        validate_provider_instance_authority(injected)
+
+
+def test_unmapped_network_capable_provider_id_is_rejected_fail_closed():
+    """"openai" has an approved endpoint origin (APPROVED_CLOUD_ORIGINS) but
+    no canonical adapter class registered in canonical_types.py -- an
+    unmapped network-capable identity must be rejected, not silently
+    permitted."""
+
+    class _AnyClass:
+        provider_id = "openai"
+
+        def request(self, request):
+            raise NotImplementedError
+
+    with pytest.raises(ValueError, match="no canonical adapter type registered"):
+        validate_provider_instance_authority(_AnyClass())
 
 
 def test_custom_class_with_non_network_provider_id_is_unrestricted():
@@ -263,5 +331,37 @@ def test_provider_registry_rejects_custom_class_claiming_gemini_identity():
         def request(self, request):
             raise NotImplementedError
 
-    with pytest.raises(ValueError, match="not an approved adapter class"):
+    with pytest.raises(ValueError, match="not the canonical adapter"):
         ProviderRegistry([_EvilCustomAdapter()])
+
+
+def test_provider_factory_built_instances_all_pass_class_identity(monkeypatch):
+    """Every provider_id ProviderFactory can construct must produce an
+    instance that also passes the re-audited class-identity check --
+    ProviderFactory and validate_provider_class_identity share one SSOT
+    (providers/canonical_types.py) and must never diverge."""
+    import os
+
+    from src.dev_agent.providers.canonical_types import CANONICAL_PROVIDER_MODULES
+    from src.dev_agent.providers.factory import ProviderDefinition, ProviderFactory
+
+    factory = ProviderFactory()
+    for provider_id in CANONICAL_PROVIDER_MODULES:
+        kwargs = {"provider_id": provider_id, "model": "test-model"}
+        env_name = {
+            "gemini": "GEMINI_API_KEY",
+            "cloudflare": None,
+            "groq": "GROQ_API_KEY",
+            "mistral": "MISTRAL_API_KEY",
+            "openrouter": "OPENROUTER_API_KEY",
+            "sambanova": "SAMBANOVA_API_KEY",
+            "ollama_cloud": "OLLAMA_API_KEY",
+            "vercel": "AI_GATEWAY_API_KEY",
+        }.get(provider_id)
+        if env_name:
+            kwargs["api_key_env"] = env_name
+        if provider_id == "cloudflare":
+            monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "acct")
+            monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "tok")
+        provider = factory.create(ProviderDefinition(**kwargs))
+        validate_provider_instance_authority(provider)  # must not raise

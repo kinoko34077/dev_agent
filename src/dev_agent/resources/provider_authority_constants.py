@@ -55,28 +55,10 @@ APPROVED_API_KEY_ENVS: dict[str, frozenset[str]] = {
 }
 
 # provider_ids with a real network endpoint concept (base_url/api_key_env are
-# meaningful for them).  Only these identities are subject to the concrete
-# adapter-class allowlist below — "fake" and any other locally-invented test
-# identity have no endpoint to protect and are exempt.
+# meaningful for them).  Only these identities are subject to the exact-type
+# canonical-adapter check in provider_policy.validate_provider_class_identity
+# — "fake" and any other locally-invented test identity have no endpoint to
+# protect and are exempt. The concrete class allowlist itself lives in
+# providers/canonical_types.py (the same SSOT ProviderFactory constructs
+# from), not here, so this module can stay a plain provider_id set.
 NETWORK_CAPABLE_PROVIDER_IDS: frozenset[str] = REAL_LOCAL_PROVIDER_IDS | frozenset(APPROVED_CLOUD_ORIGINS)
-
-# Concrete adapter class names permitted for a network-capable provider_id.
-# A Provider instance can be injected directly (ProviderRegistry(providers=
-# [...]), a DevFarm WorkerAssignment, an OperationService._build_provider
-# override) without ever passing through ProviderFactory, so provider_id
-# alone is not proof of which code will actually run. Both the HTTP adapter
-# and the injected-transport adapter are legitimate — the injected-transport
-# class is used when a deployment supplies its own SDK-backed transport
-# callable instead of raw HTTP. Class names only (not the classes
-# themselves) so this module stays stdlib-only.
-APPROVED_PROVIDER_CLASSES: dict[str, frozenset[str]] = {
-    "ollama": frozenset({"OllamaProvider"}),
-    "gemini": frozenset({"GeminiProvider", "GeminiHttpProvider"}),
-    "cloudflare": frozenset({"CloudflareWorkersAIProvider", "CloudflareWorkersAIHttpProvider"}),
-    "groq": frozenset({"GroqProvider", "GroqHttpProvider"}),
-    "mistral": frozenset({"MistralProvider", "MistralHttpProvider"}),
-    "openrouter": frozenset({"OpenRouterFreeProvider", "OpenRouterHttpProvider"}),
-    "sambanova": frozenset({"SambaNovaProvider", "SambaNovaHttpProvider"}),
-    "ollama_cloud": frozenset({"OllamaCloudHttpProvider"}),
-    "vercel": frozenset({"VercelAIGatewayHttpProvider"}),
-}

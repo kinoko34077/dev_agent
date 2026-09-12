@@ -89,3 +89,38 @@ def _stub_qualification_resolver(request, monkeypatch):
     import src.dev_agent.operation as _operation_mod
     monkeypatch.setattr(_router_mod, "QualificationResolver", stub_class)
     monkeypatch.setattr(_operation_mod, "QualificationResolver", stub_class)
+
+
+@pytest.fixture(autouse=True)
+def _stub_provider_class_identity(request, monkeypatch):
+    """Disable the exact-type canonical-adapter check for non-security tests.
+
+    validate_provider_class_identity() (in resources/provider_policy.py) is
+    a production Authority boundary: it requires an already-constructed
+    Provider instance claiming a network-capable provider_id (e.g. "gemini")
+    to be the exact canonical adapter class ProviderFactory would have
+    built. Many routing/dispatch tests throughout this suite construct a
+    lightweight FakeProvider-based double with provider_id overridden to
+    simulate a real identity purely to exercise routing/fallback/saturation
+    logic — they never touch base_url/api_key_env and make no real network
+    call, but they are not the canonical class either, so the real check
+    would reject them.
+
+    Per the P0-3 re-audit: that mismatch must be resolved on the test side,
+    not by weakening the production validator with a class-based exemption
+    (an isinstance-based "FakeProvider is always allowed" carve-out is
+    defeatable by any subclass that overrides request() to do real I/O).
+    This fixture is the test-side composition — it swaps the real check for
+    a no-op only within test collection, following the same
+    @pytest.mark.security opt-out convention as _stub_qualification_resolver
+    above. Tests marked @pytest.mark.security exercise the real,
+    unmodified validate_provider_class_identity().
+    """
+    if request.node.get_closest_marker("security"):
+        return  # security tests must exercise the real class-identity check
+    import src.dev_agent.resources.provider_policy as _provider_policy_mod
+
+    def _noop_class_identity_check(provider_id, provider):
+        return None
+
+    monkeypatch.setattr(_provider_policy_mod, "validate_provider_class_identity", _noop_class_identity_check)

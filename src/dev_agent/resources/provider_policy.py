@@ -16,7 +16,6 @@ from urllib.parse import urlparse
 from .provider_authority_constants import (
     APPROVED_API_KEY_ENVS as _APPROVED_KEY_ENVS,
     APPROVED_CLOUD_ORIGINS as _APPROVED_ORIGINS,
-    APPROVED_PROVIDER_CLASSES as _APPROVED_CLASSES,
     LOCAL_PROVIDER_IDS as _LOCAL_PROVIDERS,
     LOOPBACK_HOSTNAMES as _LOOPBACK,
     NETWORK_CAPABLE_PROVIDER_IDS as _NETWORK_CAPABLE,
@@ -124,12 +123,62 @@ def validate_api_key_env_authority(provider_id: str, api_key_env: str | None) ->
         )
 
 
+def validate_provider_class_identity(provider_id: str, provider: Any) -> None:
+    """Raise ValueError unless provider is exactly the canonical adapter type.
+
+    For a network-capable provider_id (one with a real endpoint concept —
+    see NETWORK_CAPABLE_PROVIDER_IDS), ``type(provider)`` must be identical
+    (``is``, not name equality and not ``isinstance``) to the one canonical
+    adapter class ProviderFactory constructs for that identity (see
+    providers/canonical_types.py — the same SSOT ProviderFactory itself
+    uses, so the two cannot diverge).
+
+    This is deliberately unconditional and fail-closed, with no exemption
+    for any base class: a name-string comparison can be defeated by a
+    same-named class in a different module; an isinstance-based exemption
+    (e.g. "FakeProvider and its subclasses are always allowed") can be
+    defeated by subclassing the exempted class and overriding its request()
+    method to do real I/O. Only exact type identity against a fixed,
+    Factory-verified class closes both. Production code must never call
+    this with a test double claiming a real provider_id — tests that need
+    to simulate a network-capable identity without constructing the real
+    adapter must opt out of this check via test-side composition (see
+    tests/v2/conftest.py's ``@pytest.mark.security`` convention), not by
+    weakening this function.
+
+    A network-capable provider_id with no canonical class registered at all
+    (nothing in providers/canonical_types.py) is rejected, never silently
+    permitted — an unmapped identity is not evidence that no restriction is
+    needed.
+    """
+    if provider_id not in _NETWORK_CAPABLE:
+        return
+    from ..providers.canonical_types import canonical_class
+
+    expected_type = canonical_class(provider_id)
+    if expected_type is None:
+        raise ValueError(
+            f"provider_id {provider_id!r} is network-capable but has no "
+            "canonical adapter type registered in providers/canonical_types.py; "
+            "an unmapped network-capable identity is rejected, not permitted."
+        )
+    if type(provider) is not expected_type:
+        actual = f"{type(provider).__module__}.{type(provider).__qualname__}"
+        expected = f"{expected_type.__module__}.{expected_type.__qualname__}"
+        raise ValueError(
+            f"provider_id {provider_id!r} instance is of type {actual!r}, "
+            f"which is not the canonical adapter {expected!r} for this "
+            "provider identity."
+        )
+
+
 def validate_provider_instance_authority(provider: Any) -> None:
     """Re-validate an already-constructed Provider instance's authority.
 
     ``ProviderDefinition.__post_init__`` validates endpoint/credential
-    authority only when a Provider is built through ``ProviderFactory``.  Two
-    gaps remain closed by this function instead:
+    authority only when a Provider is built through ``ProviderFactory``.
+    This function closes the same gaps for an instance that bypassed that
+    path entirely:
 
     1. A caller can inject an already-built ``ModelProvider`` instance
        directly (``ProviderRegistry(providers=[...])``, DevFarm
@@ -137,46 +186,22 @@ def validate_provider_instance_authority(provider: Any) -> None:
     2. A caller can mutate ``base_url`` / ``api_key_env`` on a Provider
        instance *after* it passed construction-time or registration-time
        validation.
+    3. A hand-written class can claim a network-capable ``provider_id``
+       (e.g. "gemini") without exposing ``base_url``/``api_key_env`` at all
+       — see validate_provider_class_identity().
 
     Call this immediately before an instance is trusted: at registration
     (``ProviderRegistry.__init__``) and again immediately before dispatch
     (``ProviderDispatcher.request``), so a post-registration mutation is
     still caught. Every check here derives from the same
-    provider_authority_constants.py SSOT as construction-time validation —
-    no independent allowlist.
-
-    A third gap this also closes: nothing previously stopped a hand-written
-    class from claiming a network-capable ``provider_id`` (e.g. "gemini",
-    "cloudflare") without exposing ``base_url``/``api_key_env`` at all —
-    those two checks alone cannot catch an adapter that has no such
-    attributes to inspect but embeds its own request logic. For a
-    network-capable provider_id (one with a real endpoint concept — see
-    NETWORK_CAPABLE_PROVIDER_IDS), the concrete class must be one of the
-    approved adapter classes for that identity. ``FakeProvider`` and its
-    subclasses are exempt from this class check regardless of the
-    provider_id they simulate: this is this codebase's established
-    provider-identity test-double convention (used throughout tests/v2 for
-    routing/dispatch tests), and FakeProvider is a pure-Python stub with no
-    base_url/api_key_env and no I/O of any kind, so it cannot reach an
-    external endpoint no matter what provider_id it claims.
+    provider_authority_constants.py / canonical_types.py SSOT as
+    construction-time validation — no independent allowlist.
     """
     provider_id = getattr(provider, "provider_id", None)
     if not isinstance(provider_id, str) or not provider_id.strip():
         raise ValueError("provider instance must expose a non-empty provider_id")
     provider_id = provider_id.strip()
 
-    if provider_id in _NETWORK_CAPABLE:
-        from ..providers.fake.provider import FakeProvider
-
-        if not isinstance(provider, FakeProvider):
-            expected_classes = _APPROVED_CLASSES.get(provider_id)
-            concrete_name = type(provider).__name__
-            if expected_classes is not None and concrete_name not in expected_classes:
-                raise ValueError(
-                    f"provider_id {provider_id!r} is bound to adapter class "
-                    f"{concrete_name!r}, which is not an approved adapter class "
-                    f"for this provider identity: {sorted(expected_classes)}"
-                )
-
+    validate_provider_class_identity(provider_id, provider)
     validate_endpoint_authority(provider_id, getattr(provider, "base_url", None))
     validate_api_key_env_authority(provider_id, getattr(provider, "api_key_env", None))

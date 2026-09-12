@@ -9,6 +9,7 @@ from typing import Any
 
 from ..domain.protocol import IntelligenceTier
 from ..resources.provider_policy import validate_api_key_env_authority, validate_endpoint_authority
+from .canonical_types import CANONICAL_PROVIDER_MODULES
 
 
 @dataclass(frozen=True)
@@ -69,17 +70,9 @@ class ProviderDefinition:
 
 
 class ProviderFactory:
-    _PROVIDER_TYPES = {
-        "cloudflare": (".cloudflare", "CloudflareWorkersAIHttpProvider"),
-        "gemini": (".gemini", "GeminiHttpProvider"),
-        "groq": (".groq", "GroqHttpProvider"),
-        "mistral": (".mistral", "MistralHttpProvider"),
-        "ollama": (".ollama", "OllamaProvider"),
-        "openrouter": (".openrouter", "OpenRouterHttpProvider"),
-        "sambanova": (".sambanova", "SambaNovaHttpProvider"),
-        "ollama_cloud": (".ollama_cloud", "OllamaCloudHttpProvider"),
-        "vercel": (".vercel", "VercelAIGatewayHttpProvider"),
-    }
+    # SSOT shared with resources/provider_policy.py's instance-authority
+    # validator -- see canonical_types.py.
+    _PROVIDER_TYPES = CANONICAL_PROVIDER_MODULES
 
     def create(self, definition: ProviderDefinition) -> Any:
         if not isinstance(definition, ProviderDefinition):
