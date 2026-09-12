@@ -115,22 +115,30 @@ def test_cancelling_session_reports_cancelling_not_unknown(tmp_path):
 def test_communicate_failure_is_reported_as_unknown(tmp_path):
     """UNKNOWN is reserved for genuinely losing the ability to observe the
     process's outcome -- simulated here via an injected popen factory whose
-    resulting handle's communicate() raises, standing in for a real
-    OS-level pipe failure."""
+    resulting handle's stdout.read() raises, standing in for a real
+    OS-level pipe failure partway through the bounded streaming drain."""
     real_process = subprocess.Popen(
         (sys.executable, "-c", "print('ok')"),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        stdin=subprocess.DEVNULL,
+        stdin=subprocess.PIPE,
         text=True,
     )
+
+    class _BrokenReadPipe:
+        def read(self, *_args, **_kwargs):
+            raise OSError("simulated pipe failure")
 
     class _BrokenCommunicateProcess:
         def __init__(self, inner):
             self._inner = inner
+            self.stdout = _BrokenReadPipe()
+            self.stderr = _BrokenReadPipe()
+            self.stdin = inner.stdin
+            self.pid = inner.pid
 
-        def communicate(self):
-            raise OSError("simulated pipe failure")
+        def wait(self, *args, **kwargs):
+            return self._inner.wait(*args, **kwargs)
 
         def poll(self):
             return self._inner.poll()
@@ -287,3 +295,120 @@ def test_dispatcher_cancel_reaches_codex_exec_backend_process(store, task, tmp_p
         time.sleep(0.05)
         result = dispatcher.result("codex-exec-e2e-cancel", backend)
     assert result.status == AgentBackendStatus.CANCELLED
+
+
+# ---------------------------------------------------------------------------
+# Group C hardening: prompt via stdin, wall-clock deadline, bounded
+# streaming, explicit sandbox/config flags.
+# ---------------------------------------------------------------------------
+
+def test_objective_is_sent_via_stdin_not_argv():
+    """An objective that looks like a CLI option must never be parsed as
+    one -- it is sent over stdin, never placed in argv."""
+    from src.dev_agent.backends.codex_exec import _build_default_command
+
+    command = _build_default_command(sandbox_mode="read-only", ignore_user_config=True, ignore_rules=True)
+    dangerous_objective = "--dangerously-bypass-approvals-and-sandbox"
+    assert dangerous_objective not in command
+    # The stdin-prompt convention is the trailing "-" argument, not the
+    # objective text appearing anywhere in argv.
+    assert command[-1] == "-"
+
+
+def test_start_writes_objective_to_child_stdin(tmp_path):
+    def builder(request):
+        return (sys.executable, "-c", "import sys; print('received:' + sys.stdin.read())")
+
+    backend = CodexExecBackend(command_builder=builder)
+    request = AgentBackendRequest(
+        task_id="00000000-0000-0000-0000-000000000010",
+        objective="--looks-like-a-flag but is actually the prompt",
+        scope=AgentBackendScope(workspace_id=str(tmp_path)),
+    )
+    session = backend.start(request)
+    result = backend.result(session.session_id, wait_seconds=5.0)
+    assert result.status == AgentBackendStatus.COMPLETED
+
+
+def test_default_command_never_requests_full_access():
+    from src.dev_agent.backends.codex_exec import _build_default_command
+
+    for sandbox_mode in ("read-only", "workspace-write", "danger-full-access"):
+        command = _build_default_command(sandbox_mode=sandbox_mode, ignore_user_config=True, ignore_rules=True)
+        assert "--dangerously-bypass-approvals-and-sandbox" not in command
+        assert "--danger-full-access" not in command
+
+
+def test_default_command_ignores_user_config_and_rules_and_pins_sandbox():
+    from src.dev_agent.backends.codex_exec import _build_default_command
+
+    command = _build_default_command(sandbox_mode="read-only", ignore_user_config=True, ignore_rules=True)
+    assert "--ignore-user-config" in command
+    assert "--ignore-rules" in command
+    assert "--sandbox" in command
+    assert command[command.index("--sandbox") + 1] == "read-only"
+
+
+def test_sandbox_mode_is_configurable_at_construction():
+    backend = CodexExecBackend(sandbox_mode="workspace-write", ignore_user_config=False, ignore_rules=False)
+    command = backend._command_builder(None)
+    assert "--sandbox" in command
+    assert command[command.index("--sandbox") + 1] == "workspace-write"
+    assert "--ignore-user-config" not in command
+    assert "--ignore-rules" not in command
+
+
+def test_max_runtime_seconds_must_be_positive():
+    with pytest.raises(ValueError, match="max_runtime_seconds"):
+        CodexExecBackend(max_runtime_seconds=0)
+    with pytest.raises(ValueError, match="max_runtime_seconds"):
+        CodexExecBackend(max_runtime_seconds=-1.0)
+
+
+def test_process_exceeding_wall_clock_deadline_is_killed(tmp_path):
+    """The subprocess itself is bounded -- not just how long result() is
+    willing to wait for it. A background watchdog terminates the process
+    once max_runtime_seconds elapses, independent of any poll."""
+    backend = CodexExecBackend(command_builder=_sleep_builder(30.0), max_runtime_seconds=0.3)
+    session = backend.start(_request(tmp_path))
+
+    deadline = time.monotonic() + 5.0
+    result = backend.result(session.session_id)
+    while result.status in {AgentBackendStatus.RUNNING, AgentBackendStatus.CANCELLING} and time.monotonic() < deadline:
+        time.sleep(0.05)
+        result = backend.result(session.session_id)
+    assert result.status == AgentBackendStatus.CANCELLED
+    assert result.reconciliation_metadata["reason"] == "deadline_exceeded"
+
+
+def test_output_exceeding_max_bytes_is_bounded_not_buffered_in_full(tmp_path):
+    """Peak memory for one session's captured output is bounded by
+    max_output_bytes even when the process writes far more than that --
+    the drain keeps reading past the cap (so the child is never blocked on
+    a full pipe) but discards everything beyond the cap rather than
+    buffering it all before truncating after the fact."""
+    def builder(request):
+        return (sys.executable, "-c", "import sys; sys.stdout.write('A' * 5_000_000)")
+
+    backend = CodexExecBackend(command_builder=builder, max_output_bytes=1000)
+    session = backend.start(_request(tmp_path))
+    result = backend.result(session.session_id, wait_seconds=5.0)
+    assert result.status == AgentBackendStatus.COMPLETED
+    assert result.reconciliation_metadata["stdout_bytes"] <= 1000
+    assert result.reconciliation_metadata["stdout_truncated"] is True
+
+
+def test_concurrent_dual_pipe_output_does_not_deadlock(tmp_path):
+    """Writing large output to BOTH stdout and stderr concurrently must not
+    deadlock the drain -- both pipes must be read at the same time."""
+    def builder(request):
+        return (
+            sys.executable,
+            "-c",
+            "import sys; sys.stdout.write('O' * 200_000); sys.stderr.write('E' * 200_000)",
+        )
+
+    backend = CodexExecBackend(command_builder=builder, max_output_bytes=1_000_000)
+    session = backend.start(_request(tmp_path))
+    result = backend.result(session.session_id, wait_seconds=10.0)
+    assert result.status == AgentBackendStatus.COMPLETED
