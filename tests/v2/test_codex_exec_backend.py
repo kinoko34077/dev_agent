@@ -541,6 +541,35 @@ def test_default_command_ignores_user_config_and_rules_and_pins_sandbox():
     assert command[command.index("--sandbox") + 1] == "read-only"
 
 
+def test_automatic_codex_approval_is_explicit_and_keeps_workspace_sandbox():
+    from src.dev_agent.backends.codex_exec import _build_default_command
+
+    command = _build_default_command(
+        sandbox_mode="workspace-write",
+        ignore_user_config=True,
+        ignore_rules=True,
+        approve_for_me=True,
+    )
+    assert "--approve-for-me" in command
+    # The installed CLI rejects --approve-for-me together with --sandbox;
+    # --approve-for-me itself selects the workspace-write automatic-review
+    # policy.  Read-only callers never request this mode.
+    assert "--sandbox" not in command
+    assert "--dangerously-bypass-approvals-and-sandbox" not in command
+
+
+def test_automatic_codex_approval_rejects_read_only_mode():
+    from src.dev_agent.backends.codex_exec import _build_default_command
+
+    with pytest.raises(ValueError, match="workspace-write"):
+        _build_default_command(
+            sandbox_mode="read-only",
+            ignore_user_config=True,
+            ignore_rules=True,
+            approve_for_me=True,
+        )
+
+
 def test_sandbox_mode_is_configurable_at_construction():
     backend = CodexExecBackend(sandbox_mode="workspace-write", ignore_user_config=False, ignore_rules=False)
     command = backend._impl._command_builder(None)
@@ -758,6 +787,49 @@ def test_temporary_home_directory_is_removed_after_session_completes(tmp_path):
     home_dir = backend._sessions[session.session_id].home_dir
     assert home_dir is not None
     assert not Path(home_dir).exists()
+
+
+def test_temporary_home_disposal_is_reversible_and_rejects_root(tmp_path):
+    from src.dev_agent.backends.codex_exec import _remove_directory
+
+    home = tmp_path / "codex-exec-home-test"
+    home.mkdir()
+    marker = home / "session-state"
+    marker.write_text("preserve for recovery", encoding="utf-8")
+
+    _remove_directory(str(home), allowed_root=tmp_path)
+
+    assert not home.exists()
+    quarantined = list(tmp_path.glob("codex-exec-home-test.quarantine-*"))
+    assert len(quarantined) == 1
+    assert (quarantined[0] / "session-state").read_text(encoding="utf-8") == "preserve for recovery"
+
+    with pytest.raises(CodexExecBackendError, match="refusing to dispose root"):
+        _remove_directory(str(tmp_path), allowed_root=tmp_path)
+
+
+def test_explicit_auth_file_is_projected_without_parent_config(tmp_path):
+    auth_file = tmp_path / "auth.json"
+    auth_file.write_text('{"access_token":"not printed"}', encoding="utf-8")
+
+    def builder(request):
+        return (
+            sys.executable,
+            "-c",
+            "import os; from pathlib import Path; "
+            "p=Path(os.environ['CODEX_HOME']) / 'auth.json'; "
+            "print('AUTH_EXISTS=' + str(p.is_file())); "
+            "print('AUTH_SIZE=' + str(p.stat().st_size if p.is_file() else 0)); "
+            "print('PARENT_CONFIG=' + str((Path(os.environ['CODEX_HOME']) / 'config.toml').exists()))",
+        )
+
+    backend = _CodexExecBackendImpl(command_builder=builder, auth_file=auth_file)
+    session = backend.start(_request(tmp_path))
+    backend.result(session.session_id, wait_seconds=5.0)
+    stdout = backend._sessions[session.session_id].stdout or ""
+    assert "AUTH_EXISTS=True" in stdout
+    assert f"AUTH_SIZE={len(auth_file.read_bytes())}" in stdout
+    assert "PARENT_CONFIG=False" in stdout
 
 
 def test_extra_env_passthrough_allows_only_explicitly_named_variables(tmp_path, monkeypatch):

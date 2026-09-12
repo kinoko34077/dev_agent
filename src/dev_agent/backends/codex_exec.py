@@ -165,13 +165,24 @@ def _build_default_command(
     sandbox_mode: str,
     ignore_user_config: bool,
     ignore_rules: bool,
+    approve_for_me: bool = False,
 ) -> tuple[str, ...]:
     if sandbox_mode not in _ALLOWED_SANDBOX_MODES:
         raise ValueError(
             f"sandbox_mode must be one of {sorted(_ALLOWED_SANDBOX_MODES)}, got {sandbox_mode!r}. "
             "\"danger-full-access\", unknown values, and an empty string are rejected fail-closed."
         )
-    command = ["codex", "exec", "--json", "--sandbox", sandbox_mode]
+    if not isinstance(approve_for_me, bool):
+        raise ValueError("approve_for_me must be a boolean")
+    if approve_for_me and sandbox_mode != "workspace-write":
+        raise ValueError("approve_for_me requires workspace-write")
+    command = ["codex", "exec", "--json"]
+    if approve_for_me:
+        # The current Codex CLI rejects --approve-for-me alongside --sandbox;
+        # its documented automatic-review mode selects workspace-write itself.
+        command.append("--approve-for-me")
+    else:
+        command.extend(("--sandbox", sandbox_mode))
     if ignore_user_config:
         command.append("--ignore-user-config")
     if ignore_rules:
@@ -189,13 +200,71 @@ class CodexExecBackendError(RuntimeError):
     """Raised for adapter-local usage errors (unknown session, bad request)."""
 
 
-def _remove_directory(path: str) -> None:
-    import shutil
+def _project_auth_file(auth_file: str | Path | None, home: Path) -> None:
+    """Copy only an explicitly selected Codex auth file into session HOME.
 
+    Codex needs its login receipt under ``CODEX_HOME``.  Passing the
+    operator's whole home/config directory would also pass unrelated rules,
+    sessions, and credentials, so the adapter accepts only a caller-selected
+    file named ``auth.json`` and never copies any sibling files.
+    """
+    if auth_file is None:
+        return
+    source = Path(auth_file).resolve(strict=False)
+    if source.name.lower() != "auth.json" or not source.is_file():
+        raise CodexExecBackendError("auth_file must name an existing auth.json file")
+    destination = home / "auth.json"
+    if destination.exists():
+        raise CodexExecBackendError("session auth.json already exists")
     try:
-        shutil.rmtree(path, ignore_errors=True)
-    except Exception:
-        pass
+        destination.write_bytes(source.read_bytes())
+    except OSError as exc:
+        raise CodexExecBackendError(f"could not project Codex auth file: {exc}") from exc
+
+
+def _remove_directory(path: str, *, allowed_root: str | Path | None = None) -> None:
+    """Dispose of one Codex session directory without recursive deletion.
+
+    The caller supplies only a session HOME created directly below the
+    system temporary directory.  Disposition is a reversible rename into a
+    uniquely named sibling quarantine directory; the helper deliberately
+    has no general recursive-cleanup capability.
+    """
+    _dispose_directory(path, allowed_root=allowed_root or Path(tempfile.gettempdir()))
+
+
+def _dispose_directory(path: str, *, allowed_root: str | Path) -> None:
+    target = Path(path).resolve(strict=False)
+    root = Path(allowed_root).resolve(strict=False)
+    if not root.is_dir():
+        raise CodexExecBackendError(f"refusing to dispose missing quarantine root: {root}")
+    if not target.exists():
+        return
+    if not target.is_dir():
+        raise CodexExecBackendError(f"refusing to dispose non-directory: {target}")
+    if target == root:
+        raise CodexExecBackendError(f"refusing to dispose root: {root}")
+    if target.parent != root:
+        raise CodexExecBackendError(
+            f"refusing to dispose directory outside direct temporary scope: {target}"
+        )
+    if not target.name.startswith("codex-exec-home-"):
+        raise CodexExecBackendError(f"refusing to dispose unexpected directory: {target}")
+
+    module_repo_root = Path(__file__).resolve().parents[3]
+    protected = {
+        Path.cwd().resolve(),
+        Path.cwd().resolve().parent,
+        Path.home().resolve(),
+        Path.home().resolve().parent,
+        module_repo_root,
+        module_repo_root.parent,
+    }
+    if target in protected:
+        raise CodexExecBackendError(f"refusing to dispose protected directory: {target}")
+
+    quarantine = root / f"{target.name}.quarantine-{uuid4().hex}"
+    target.rename(quarantine)
 
 
 class _SessionState:
@@ -323,6 +392,7 @@ class _CodexExecBackendImpl:
         default_wait_seconds: float = 0.0,
         max_runtime_seconds: float = DEFAULT_MAX_RUNTIME_SECONDS,
         extra_env_passthrough: frozenset[str] = frozenset(),
+        auth_file: str | Path | None = None,
     ) -> None:
         if backend_version is not None:
             self.identity = AgentBackendIdentity(
@@ -337,6 +407,7 @@ class _CodexExecBackendImpl:
         self._command_builder: CommandBuilder = command_builder
         self._popen: PopenFactory = popen or subprocess.Popen
         self._extra_env_passthrough = frozenset(extra_env_passthrough)
+        self._auth_file = auth_file
         self._max_output_bytes = max_output_bytes
         self._max_runtime_seconds = float(max_runtime_seconds)
         # result() returns AgentBackendStatus.RUNNING (a known, non-terminal,
@@ -381,6 +452,7 @@ class _CodexExecBackendImpl:
 
         creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) if os.name == "nt" else 0
         try:
+            _project_auth_file(self._auth_file, Path(home_dir))
             process = self._popen(
                 list(command),
                 stdout=subprocess.PIPE,
@@ -706,12 +778,15 @@ class CodexExecBackend:
         sandbox_mode: str = "read-only",
         ignore_user_config: bool = True,
         ignore_rules: bool = True,
+        approve_for_me: bool = False,
         extra_env_passthrough: frozenset[str] = frozenset(),
+        auth_file: str | Path | None = None,
     ) -> None:
         canonical_command = _build_default_command(
             sandbox_mode=sandbox_mode,
             ignore_user_config=ignore_user_config,
             ignore_rules=ignore_rules,
+            approve_for_me=approve_for_me,
         )
         self._impl = _CodexExecBackendImpl(
             command_builder=lambda _request: canonical_command,
@@ -721,6 +796,7 @@ class CodexExecBackend:
             default_wait_seconds=default_wait_seconds,
             max_runtime_seconds=max_runtime_seconds,
             extra_env_passthrough=extra_env_passthrough,
+            auth_file=auth_file,
         )
 
     @property
