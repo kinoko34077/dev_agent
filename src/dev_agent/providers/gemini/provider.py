@@ -15,11 +15,11 @@ from threading import RLock
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from ...domain.protocol import ModelRequest, ModelResponse
 from ..base import ModelProvider, ProviderError
-from ..openai_compatible.http import _read_bounded
+from ..openai_compatible.http import REDIRECT_STATUS_CODES, _read_bounded, urlopen_no_redirect
 from .decoder import decode_generate_content
 from .transcript import GeminiTranscriptStore, function_call_count
 from ..normalize import normalize_response
@@ -213,9 +213,18 @@ class GeminiHttpProvider(ModelProvider):
         body = json.dumps(self._payload(request), ensure_ascii=False).encode("utf-8")
         http_request = Request(url, data=body, headers={"Content-Type": "application/json", "x-goog-api-key": key}, method="POST")
         try:
-            with urlopen(http_request, timeout=self.timeout_seconds) as response:
+            with urlopen_no_redirect(http_request, timeout=self.timeout_seconds) as response:
                 raw = json.loads(_read_bounded(response).decode("utf-8"))
         except HTTPError as exc:
+            if exc.code in REDIRECT_STATUS_CODES:
+                raise ProviderError(
+                    f"gemini endpoint attempted an HTTP {exc.code} redirect; "
+                    "redirects are not permitted and the request destination "
+                    "was not followed",
+                    category="provider_http",
+                    retryable=False,
+                    http_status=exc.code,
+                ) from exc
             category = "rate_limit" if exc.code == 429 else "authentication" if exc.code == 401 else "authorization" if exc.code == 403 else "provider_http"
             detail = self._safe_error_detail(exc)
             suffix = f": {detail}" if detail else ""

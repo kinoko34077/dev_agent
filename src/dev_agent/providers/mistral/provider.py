@@ -8,10 +8,10 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from typing import Any
-from urllib.request import urlopen
 
 from ...domain.protocol import ModelResponse
 from ..openai_compatible import OpenAICompatibleHttpProvider, OpenAICompatibleProvider
+from ..openai_compatible.http import urlopen_no_redirect
 
 
 class MistralProvider(OpenAICompatibleProvider):
@@ -37,4 +37,4 @@ class MistralHttpProvider(OpenAICompatibleHttpProvider):
         base_url: str = default_base_url,
         timeout_seconds: float = 30.0,
     ) -> None:
-        super().__init__(model=model, api_key=api_key, base_url=base_url, timeout_seconds=timeout_seconds, http_open=urlopen)
+        super().__init__(model=model, api_key=api_key, base_url=base_url, timeout_seconds=timeout_seconds, http_open=urlopen_no_redirect)

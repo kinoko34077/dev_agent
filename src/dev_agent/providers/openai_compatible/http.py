@@ -8,7 +8,7 @@ import os
 import re
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 from ...domain.protocol import ModelRequest, ModelResponse, ProtocolError, ToolCall
 from ..base import ModelProvider, ProviderError
@@ -19,6 +19,39 @@ from ..base import ModelProvider, ProviderError
 # response (max_output_tokens caps token count; JSON framing adds ~10% overhead
 # plus tool-call schemas) while still being finite.
 MAX_PROVIDER_RESPONSE_BYTES: int = 10 * 1024 * 1024  # 10 MiB
+
+# HTTP status codes urllib treats as a redirect.
+REDIRECT_STATUS_CODES: frozenset[int] = frozenset({301, 302, 303, 307, 308})
+
+
+class _NoRedirectHandler(HTTPRedirectHandler):
+    """Refuse every HTTP redirect; the caller sees the 3xx as an HTTPError.
+
+    provider_policy.validate_endpoint_authority() validates base_url once at
+    construction and again immediately before dispatch, but that check only
+    covers the URL the request is sent to — not where the server's response
+    tells the client to go next.  urllib's default HTTPRedirectHandler
+    follows redirects transparently, including cross-origin ones, and
+    forwards the Authorization header to the new host regardless of origin.
+    Refusing every redirect keeps the validated endpoint exact and never
+    forwards credentials to an unvalidated destination.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: D102 - urllib override signature
+        return None
+
+
+_NO_REDIRECT_OPENER = build_opener(_NoRedirectHandler)
+
+
+def urlopen_no_redirect(request: Any, *, timeout: float | None = None) -> Any:
+    """Open ``request`` with all HTTP redirects disabled.
+
+    Every concrete Provider HTTP call must go through this instead of raw
+    ``urllib.request.urlopen`` so an endpoint cannot redirect the actual
+    request destination outside its validated origin.
+    """
+    return _NO_REDIRECT_OPENER.open(request, timeout=timeout)
 
 
 def _read_bounded(response: Any, max_bytes: int = MAX_PROVIDER_RESPONSE_BYTES) -> bytes:
@@ -45,7 +78,7 @@ class OpenAICompatibleHttpTransport:
     _SECRET_TOKEN = re.compile(r"(?i)\b(?:sk|gsk|sn)[-_][a-z0-9_-]+\b")
 
     def __init__(self, opener: Callable[..., Any] | None = None) -> None:
-        self._opener = opener or urlopen
+        self._opener = opener or urlopen_no_redirect
 
     @staticmethod
     def _safe_error_detail(error: HTTPError) -> str | None:
@@ -103,6 +136,15 @@ class OpenAICompatibleHttpTransport:
                 raw = json.loads(_read_bounded(response).decode("utf-8"))
                 return raw, response.headers
         except HTTPError as exc:
+            if exc.code in REDIRECT_STATUS_CODES:
+                raise ProviderError(
+                    f"{provider_id} endpoint attempted an HTTP {exc.code} redirect; "
+                    "redirects are not permitted and the request destination "
+                    "was not followed",
+                    category="provider_http",
+                    retryable=False,
+                    http_status=exc.code,
+                ) from exc
             category = "authentication" if exc.code == 401 else "authorization" if exc.code == 403 else "rate_limit" if exc.code == 429 else "provider_http"
             detail = self._safe_error_detail(exc)
             suffix = f": {detail}" if detail else ""
@@ -371,4 +413,9 @@ class OpenAICompatibleHttpProvider(ModelProvider):
         return {"quota_observation": observation}
 
 
-__all__ = ["OpenAICompatibleHttpProvider", "OpenAICompatibleHttpTransport"]
+__all__ = [
+    "OpenAICompatibleHttpProvider",
+    "OpenAICompatibleHttpTransport",
+    "REDIRECT_STATUS_CODES",
+    "urlopen_no_redirect",
+]

@@ -66,7 +66,7 @@ def test_groq_http_adapter_normalizes_tool_calls_usage_and_rate_limit_headers(mo
             },
         )
 
-    monkeypatch.setattr("src.dev_agent.providers.groq.provider.urlopen", fake_urlopen)
+    monkeypatch.setattr("src.dev_agent.providers.groq.provider.urlopen_no_redirect", fake_urlopen)
     request = ModelRequest(
         task_id="00000000-0000-0000-0000-000000000001",
         messages=[{"role": "user", "content": "call echo"}],
@@ -101,7 +101,7 @@ def test_cloudflare_http_adapter_normalizes_rest_envelope_without_inventing_quot
         captured["payload"] = json.loads(request.data.decode("utf-8"))
         return _Response({"success": True, "result": {"response": "cloud answer"}})
 
-    monkeypatch.setattr("src.dev_agent.providers.cloudflare.provider.urlopen", fake_urlopen)
+    monkeypatch.setattr("src.dev_agent.providers.cloudflare.provider.urlopen_no_redirect", fake_urlopen)
     request = ModelRequest(
         task_id="00000000-0000-0000-0000-000000000001",
         messages=[{"role": "user", "content": "hello"}],
@@ -131,7 +131,7 @@ def test_cloudflare_http_adapter_preserves_requested_binding_when_backend_report
             }
         )
 
-    monkeypatch.setattr("src.dev_agent.providers.cloudflare.provider.urlopen", fake_urlopen)
+    monkeypatch.setattr("src.dev_agent.providers.cloudflare.provider.urlopen_no_redirect", fake_urlopen)
     request = ModelRequest(
         task_id="00000000-0000-0000-0000-000000000001",
         messages=[{"role": "user", "content": "hello"}],
@@ -159,7 +159,7 @@ def test_cloudflare_http_adapter_marks_neuron_usage_as_estimated(monkeypatch):
             }
         )
 
-    monkeypatch.setattr("src.dev_agent.providers.cloudflare.provider.urlopen", fake_urlopen)
+    monkeypatch.setattr("src.dev_agent.providers.cloudflare.provider.urlopen_no_redirect", fake_urlopen)
     request = ModelRequest(
         task_id="00000000-0000-0000-0000-000000000001",
         messages=[{"role": "user", "content": "hello"}],
@@ -242,7 +242,7 @@ def test_sambanova_http_adapter_normalizes_tool_calls_usage_and_rate_limit_heade
             },
         )
 
-    monkeypatch.setattr("src.dev_agent.providers.sambanova.provider.urlopen", fake_urlopen)
+    monkeypatch.setattr("src.dev_agent.providers.sambanova.provider.urlopen_no_redirect", fake_urlopen)
     request = ModelRequest(
         task_id="00000000-0000-0000-0000-000000000001",
         messages=[{"role": "user", "content": "call echo"}],
@@ -296,7 +296,7 @@ def test_openrouter_http_adapter_uses_openai_compatible_endpoint(monkeypatch):
             }
         )
 
-    monkeypatch.setattr("src.dev_agent.providers.openrouter.provider.urlopen", fake_urlopen)
+    monkeypatch.setattr("src.dev_agent.providers.openrouter.provider.urlopen_no_redirect", fake_urlopen)
     request = ModelRequest(
         task_id="00000000-0000-0000-0000-000000000001",
         messages=[{"role": "user", "content": "hello"}],
@@ -330,7 +330,7 @@ def test_mistral_http_adapter_uses_shared_transport_with_mistral_token_field(mon
             }
         )
 
-    monkeypatch.setattr("src.dev_agent.providers.mistral.provider.urlopen", fake_urlopen)
+    monkeypatch.setattr("src.dev_agent.providers.mistral.provider.urlopen_no_redirect", fake_urlopen)
     request = ModelRequest(
         task_id="00000000-0000-0000-0000-000000000001",
         messages=[{"role": "user", "content": "hello"}],

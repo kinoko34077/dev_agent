@@ -49,7 +49,7 @@ def test_ollama_response_records_explicit_zero_local_cost(monkeypatch):
             data = b'{"model":"local-test","done_reason":"stop","message":{"role":"assistant","content":"ok"},"prompt_eval_count":1,"eval_count":2}'
             return data if n < 0 else data[:n]
 
-    monkeypatch.setattr("src.dev_agent.providers.ollama.provider.urlopen", lambda request, timeout: Response())
+    monkeypatch.setattr("src.dev_agent.providers.ollama.provider.urlopen_no_redirect", lambda request, timeout: Response())
     response = OllamaProvider(model="local-test").request(ModelRequest(task_id=_id(), messages=[{"role": "user", "content": "x"}]))
     assert response.usage["cost_minor"] == 0
 
@@ -112,7 +112,7 @@ def test_gemini_http_provider_replays_exact_model_parts_and_thought_signature(mo
         captured.append(json.loads(request.data))
         return Response(next(responses))
 
-    monkeypatch.setattr(gemini_provider_module, "urlopen", fake_urlopen)
+    monkeypatch.setattr(gemini_provider_module, "urlopen_no_redirect", fake_urlopen)
     task_id = _id()
     provider = GeminiHttpProvider(model="gemini-3.8-flash", api_key="test-key")
     first = ModelRequest(task_id=task_id, messages=[{"role": "user", "content": "call echo"}], tool_definitions=[{"name": "echo"}])
@@ -182,7 +182,7 @@ def test_gemini_http_provider_replays_parallel_function_call_parts_in_order(monk
             data = json.dumps(next(responses)).encode("utf-8")
             return data if n < 0 else data[:n]
 
-    monkeypatch.setattr(gemini_provider_module, "urlopen", lambda request, timeout: (captured.append(json.loads(request.data)) or Response()))
+    monkeypatch.setattr(gemini_provider_module, "urlopen_no_redirect", lambda request, timeout: (captured.append(json.loads(request.data)) or Response()))
     task_id = _id()
     provider = GeminiHttpProvider(model="gemini-3.8-flash", api_key="test-key")
     provider.request(ModelRequest(task_id=task_id, messages=[{"role": "user", "content": "call both"}]))
@@ -238,7 +238,7 @@ def test_gemini_http_provider_decodes_mocked_generate_content(monkeypatch):
         captured["timeout"] = timeout
         return Response()
 
-    monkeypatch.setattr(gemini_provider_module, "urlopen", fake_urlopen)
+    monkeypatch.setattr(gemini_provider_module, "urlopen_no_redirect", fake_urlopen)
     request = ModelRequest(task_id=_id(), messages=[{"role": "user", "content": "x"}], max_output_tokens=9)
     response = GeminiHttpProvider(model="gemini-test", api_key="test-key").request(request)
     assert response.text_segments == ["ok"]
@@ -261,7 +261,7 @@ def test_gemini_http_provider_classifies_transport_failures(monkeypatch, kind, c
     def failing_urlopen(*_args, **_kwargs):
         raise error
 
-    monkeypatch.setattr(gemini_provider_module, "urlopen", failing_urlopen)
+    monkeypatch.setattr(gemini_provider_module, "urlopen_no_redirect", failing_urlopen)
     request = ModelRequest(task_id=_id(), messages=[{"role": "user", "content": "x"}])
     with pytest.raises(ProviderError, match=category):
         GeminiHttpProvider(model="gemini-test", api_key="test-key").request(request)
@@ -274,7 +274,7 @@ def test_gemini_http_provider_exposes_safe_http_diagnostic_without_secret(monkey
     def failing_urlopen(*_args, **_kwargs):
         raise error
 
-    monkeypatch.setattr(gemini_provider_module, "urlopen", failing_urlopen)
+    monkeypatch.setattr(gemini_provider_module, "urlopen_no_redirect", failing_urlopen)
     request = ModelRequest(task_id=_id(), messages=[{"role": "user", "content": "x"}])
     with pytest.raises(ProviderError) as exc_info:
         GeminiHttpProvider(model="gemini-test", api_key="test-key").request(request)

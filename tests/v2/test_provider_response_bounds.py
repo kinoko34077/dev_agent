@@ -171,14 +171,14 @@ def test_gemini_rejects_oversized_response():
 
     # monkey-patch urlopen inside the module
     import src.dev_agent.providers.gemini.provider as gemini_mod
-    original = gemini_mod.urlopen
-    gemini_mod.urlopen = _GeminiOverLimitOpener()
+    original = gemini_mod.urlopen_no_redirect
+    gemini_mod.urlopen_no_redirect = _GeminiOverLimitOpener()
     try:
         with pytest.raises(ProviderError) as exc_info:
             provider.request(_minimal_openai_request())
         assert exc_info.value.category in {"provider_decode", "transport"}
     finally:
-        gemini_mod.urlopen = original
+        gemini_mod.urlopen_no_redirect = original
 
 
 # ---------------------------------------------------------------------------
@@ -201,14 +201,14 @@ def test_cloudflare_rejects_oversized_response():
     )
 
     import src.dev_agent.providers.cloudflare.provider as cf_mod
-    original = cf_mod.urlopen
-    cf_mod.urlopen = _CfOverLimitOpener()
+    original = cf_mod.urlopen_no_redirect
+    cf_mod.urlopen_no_redirect = _CfOverLimitOpener()
     try:
         with pytest.raises(ProviderError) as exc_info:
             provider.request(_minimal_openai_request())
         assert exc_info.value.category in {"provider_decode", "transport"}
     finally:
-        cf_mod.urlopen = original
+        cf_mod.urlopen_no_redirect = original
 
 
 # ---------------------------------------------------------------------------
@@ -227,14 +227,14 @@ def test_ollama_rejects_oversized_response():
     provider = OllamaProvider(model="llama3", base_url="http://127.0.0.1:11434")
 
     import src.dev_agent.providers.ollama.provider as ollama_mod
-    original = ollama_mod.urlopen
-    ollama_mod.urlopen = _OllamaOverLimitOpener()
+    original = ollama_mod.urlopen_no_redirect
+    ollama_mod.urlopen_no_redirect = _OllamaOverLimitOpener()
     try:
         with pytest.raises(ProviderError) as exc_info:
             provider.request(_minimal_openai_request())
         assert exc_info.value.category in {"provider_decode", "transport"}
     finally:
-        ollama_mod.urlopen = original
+        ollama_mod.urlopen_no_redirect = original
 
 
 # ---------------------------------------------------------------------------

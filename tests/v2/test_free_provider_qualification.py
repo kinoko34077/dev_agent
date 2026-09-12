@@ -29,7 +29,7 @@ def test_free_provider_qualification_rejects_untrusted_binding_model_before_http
     def unexpected_http(*_args, **_kwargs):
         raise AssertionError("untrusted free candidate must be rejected before HTTP")
 
-    monkeypatch.setattr("src.dev_agent.providers.groq.provider.urlopen", unexpected_http)
+    monkeypatch.setattr("src.dev_agent.providers.groq.provider.urlopen_no_redirect", unexpected_http)
     with pytest.raises(FreeProviderQualificationBlocked, match="trusted free catalog"):
         qualify(provider_name="groq", model="untrusted-model", timeout_seconds=2)
 
@@ -88,7 +88,7 @@ def test_free_provider_qualification_uses_live_response_for_quota_and_dispatch(m
         assert timeout == 2.0
         return responses.pop(0)
 
-    monkeypatch.setattr("src.dev_agent.providers.groq.provider.urlopen", fake_urlopen)
+    monkeypatch.setattr("src.dev_agent.providers.groq.provider.urlopen_no_redirect", fake_urlopen)
 
     output = qualify(provider_name="groq", model="test-model", timeout_seconds=2)
 
@@ -138,7 +138,7 @@ def test_openrouter_free_qualification_uses_canonical_dispatch_path(monkeypatch)
         assert timeout == 2.0
         return responses.pop(0)
 
-    monkeypatch.setattr("src.dev_agent.providers.openrouter.provider.urlopen", fake_urlopen)
+    monkeypatch.setattr("src.dev_agent.providers.openrouter.provider.urlopen_no_redirect", fake_urlopen)
 
     output = qualify(provider_name="openrouter", model="openrouter/free", timeout_seconds=2)
 
@@ -189,7 +189,7 @@ def test_mistral_free_qualification_uses_canonical_dispatch_path(monkeypatch):
         assert timeout == 2.0
         return responses.pop(0)
 
-    monkeypatch.setattr("src.dev_agent.providers.mistral.provider.urlopen", fake_urlopen)
+    monkeypatch.setattr("src.dev_agent.providers.mistral.provider.urlopen_no_redirect", fake_urlopen)
 
     output = qualify(provider_name="mistral", model="mistral-small-latest", timeout_seconds=2)
 

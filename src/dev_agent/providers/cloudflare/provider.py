@@ -13,12 +13,12 @@ import os
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from ...domain.protocol import ModelRequest, ModelResponse, ProtocolError, ToolCall
 from ..base import ModelProvider, ProviderError
 from ..openai_compatible import OpenAICompatibleProvider
-from ..openai_compatible.http import _read_bounded
+from ..openai_compatible.http import REDIRECT_STATUS_CODES, _read_bounded, urlopen_no_redirect
 
 
 class CloudflareWorkersAIProvider(OpenAICompatibleProvider):
@@ -188,9 +188,18 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
             method="POST",
         )
         try:
-            with urlopen(http_request, timeout=self.timeout_seconds) as response:
+            with urlopen_no_redirect(http_request, timeout=self.timeout_seconds) as response:
                 raw = json.loads(_read_bounded(response).decode("utf-8"))
         except HTTPError as exc:
+            if exc.code in REDIRECT_STATUS_CODES:
+                raise ProviderError(
+                    f"cloudflare endpoint attempted an HTTP {exc.code} redirect; "
+                    "redirects are not permitted and the request destination "
+                    "was not followed",
+                    category="provider_http",
+                    retryable=False,
+                    http_status=exc.code,
+                ) from exc
             category = "authentication" if exc.code == 401 else "authorization" if exc.code == 403 else "rate_limit" if exc.code == 429 else "provider_http"
             raise ProviderError(f"cloudflare {category}: HTTP {exc.code}", category=category, retryable=category == "rate_limit", http_status=exc.code) from exc
         except (URLError, OSError) as exc:

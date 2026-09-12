@@ -32,7 +32,7 @@ def test_groq_models_probe_distinguishes_listed_and_unlisted_models(monkeypatch)
         assert timeout == 2.0
         return _Response({"object": "list", "data": [{"id": "llama-available", "owned_by": "groq"}]})
 
-    monkeypatch.setattr("src.dev_agent.providers.groq.provider.urlopen", fake_urlopen)
+    monkeypatch.setattr("src.dev_agent.providers.groq.provider.urlopen_no_redirect", fake_urlopen)
 
     listed = probe(model="llama-available", timeout_seconds=2)
     unlisted = probe(model="llama-missing", timeout_seconds=2)
@@ -57,7 +57,7 @@ def test_groq_models_probe_reports_account_permission_without_leaking_error_body
             BytesIO(b'{"error":{"message":"organization denied api_key=gsk-secret-value","type":"access_error"}}'),
         )
 
-    monkeypatch.setattr("src.dev_agent.providers.groq.provider.urlopen", fake_urlopen)
+    monkeypatch.setattr("src.dev_agent.providers.groq.provider.urlopen_no_redirect", fake_urlopen)
 
     output = probe(model="llama-any", timeout_seconds=2)
 
