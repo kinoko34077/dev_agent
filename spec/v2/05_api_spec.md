@@ -25,6 +25,14 @@
 - 権限: Compressionのtransportと機械的情報保持検査のみ。Provider routing、任意prompt、tool、budget、Task stateを所有しない。
 - 禁止: instruction、conditions、cautions、authority情報の圧縮、compressed payloadを原文SSOTとして扱うこと、未知profileや不一致digestの受理。
 
+### Development handoff roles / one cycle
+
+- 責務: `PlannerRole`、`ExecutorRole`、`ReviewerRole` のmodel-neutralなrole contractと、development-onlyの1回限りのcompositionを提供する。
+- 公開入口: `OneCycleDevelopmentLoop.run(...)`、`CodexDevFarmExecutor.execute(...)`。
+- 入力/出力: HumanからPlannerへの`analysis_result`、PlannerからExecutorへの`implementation_instruction`、ExecutorからReviewerへの`execution_result`、ReviewerからHumanへのreview/roadmap/decision handoff。
+- 権限: 既存DevFarmのmanifest、isolated worktree、Host Verification、attempt artifactをcompositionするだけで、公式branchへのintegration・push・merge・次cycle開始は行わない。
+- 禁止: Reviewer出力を自動的に次のPlannerへ送ること、Production Scheduler/Task state/Budget/authorityの二重化、External Workerの自己申告を証拠扱いすること。
+
 ## Runtime / intelligence
 
 ### `ModelProvider`

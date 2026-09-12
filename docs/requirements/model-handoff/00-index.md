@@ -20,9 +20,9 @@ Task state、Scheduler、Budget、Provider routing、AgentBackend authorityを
 
 - 初期slice: `src/dev_agent/handoff/` のHandoffEnvelope、validation、
   `kinotch-ja-v1` renderer。
-- 次slice: Planner → Executor → Reviewerの1 cycleを既存DevFarm/
-  Host Verificationへcompositionする。
+- 実装済みslice: development-onlyの`OneCycleDevelopmentLoop`が
+  Human → Planner → 既存DevFarm/Codex attempt → Reviewer → Human境界で停止する。
 - 実装済みslice: `src/dev_agent/compression/` の固定HTTP client、payload-only compression、
   provenance/digest、機械的情報保持検査。独立Compression Service本体は別deploy境界。
-- 後続slice: Planner → Executor → Reviewerの1 cycleと、必要時のsimulated-paid接続。
+- 後続slice: 必要時のsimulated-paid接続と、Control Planeが所有する有限cycle拡張。
 - G6O1-SIMは仕様分離済みとして扱い、Gate全体やG6O1-LIVEを自動昇格しない。

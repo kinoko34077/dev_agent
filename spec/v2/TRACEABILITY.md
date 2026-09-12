@@ -71,6 +71,7 @@
 | REQ-065 | Model handoffs separate Human-controlled instruction/conditions from payload, support model-neutral roles and reference-first transport, and render legacy Japanese text only as a replaceable presentation | `src/dev_agent/handoff/protocol.py`, `src/dev_agent/handoff/validation.py`, `src/dev_agent/handoff/renderer.py` | `tests/v2/test_handoff.py` / Handoff Protocol v0.1 |
 | REQ-066 | G6O1 evidence is split into code-verifiable simulated-paid behavior and externally blocked live paid-provider billing without promoting either scope by local test alone | `spec/v2/G6O1_SIM_LIVE.md`, `spec/v2/adr/ADR-012-g6o1-sim-live.md` | `docs/requirements/model-handoff/03-compression-and-g6o1.md` / G6O1 scope decision |
 | REQ-067 | Compression is an independent fixed-profile client that sends payload only, validates response provenance/digests, and records machine-checkable retention warnings without replacing the original payload authority | `src/dev_agent/compression/protocol.py`, `src/dev_agent/compression/client.py`, `src/dev_agent/compression/integrity.py` | `tests/v2/test_compression.py`, `docs/requirements/model-handoff/03-compression-and-g6o1.md` |
+| REQ-068 | One development cycle connects Human, Planner, existing DevFarm/Codex execution, and Reviewer through typed handoffs, then stops without automatic next-cycle execution or official-branch integration | `src/dev_agent/handoff/roles.py`, `scripts/handoff_cycle.py` | `tests/v2/test_handoff_cycle.py`, `docs/requirements/model-handoff/02-handoff-protocol.md` |
 
 ## Refactor implementation evidence
 

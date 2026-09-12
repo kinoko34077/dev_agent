@@ -42,3 +42,11 @@ compressed payloadはlossy transportであり、originalの代替SSOTではな�
 初期sliceはpure typed contractであり、独立したdurable state machineや
 Schedulerを追加しない。durableな実行結果は既存Task/Event/DevFarm artifact
 境界へ、後続の1-cycle compositionで接続する。
+
+## Role boundary and one cycle
+
+`PlannerRole`、`ExecutorRole`、`ReviewerRole` はmodel名を知らないProtocolで
+ある。development-onlyの `scripts/handoff_cycle.py` がこれらを一度だけ接続し、
+ReviewerからHumanへ戻った時点で停止する。Executorの実作業は既存のDevFarm、
+isolated worktree、Host Verificationを再利用し、handoff層がSchedulerやTask
+stateを所有しない。
