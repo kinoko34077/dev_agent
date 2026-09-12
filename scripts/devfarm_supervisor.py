@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import argparse
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import sys
@@ -33,6 +34,8 @@ from scripts.devfarm_commander import (
 from scripts.devfarm_supervisor_protocol import (
     advance_heartbeat,
     normalize_supervisor_metadata,
+    normalize_review_decision,
+    normalize_review_packet,
     record_wake,
     select_heartbeat_cadence,
 )
@@ -49,6 +52,7 @@ class SupervisorStep:
     unchanged_check_count: int
     next_action: str
     wake_events: tuple[Mapping[str, Any], ...]
+    review_packets: tuple[Mapping[str, Any], ...]
     metrics: Mapping[str, int]
 
     def to_dict(self) -> dict[str, Any]:
@@ -61,6 +65,7 @@ class SupervisorStep:
             "unchanged_check_count": self.unchanged_check_count,
             "next_action": self.next_action,
             "wake_events": [dict(item) for item in self.wake_events],
+            "review_packets": [dict(item) for item in self.review_packets],
             "metrics": dict(self.metrics),
         }
 
@@ -87,8 +92,142 @@ class CodexSupervisedCommanderRun:
             unchanged_check_count=metadata["unchanged_check_count"],
             next_action=metadata["next_action"],
             wake_events=tuple(metadata["wake_events"]),
+            review_packets=tuple(metadata["review_packets"]),
             metrics=metadata["metrics"],
         )
+
+    def _review_packet(self, task: Mapping[str, Any]) -> dict[str, Any]:
+        """Build a bounded packet from Host-side artifacts, never raw output."""
+
+        task_id = str(task["task_id"])
+        attempt_id = task.get("last_attempt_id")
+        if not isinstance(attempt_id, str) or not attempt_id.strip():
+            raise DevFarmError(f"review packet requires an attempt id: {task_id}")
+        result_ref = task.get("result_ref")
+        if not isinstance(result_ref, str) or not result_ref.strip():
+            raise DevFarmError(f"review packet requires a result reference: {task_id}")
+        result_path = (self.root / result_ref).resolve()
+        try:
+            result_path.relative_to(self.root)
+        except ValueError as exc:
+            raise DevFarmError("review result reference escapes repository") from exc
+        result: Mapping[str, Any] = {}
+        if result_path.is_file():
+            try:
+                loaded = json.loads(result_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                raise DevFarmError("review result artifact cannot be read") from exc
+            if not isinstance(loaded, Mapping):
+                raise DevFarmError("review result artifact must be an object")
+            result = loaded
+        assignment = task.get("assignment", {})
+        if not isinstance(assignment, Mapping):
+            assignment = {}
+        worker_metrics = result.get("worker_metrics", {})
+        if not isinstance(worker_metrics, Mapping):
+            worker_metrics = {}
+        verification_id = result.get("verification_id")
+        attempt_root = result_path.parent
+        verification_ref = None
+        if isinstance(verification_id, str) and verification_id.strip():
+            verification_ref = (attempt_root / "verification" / f"{verification_id}.json").relative_to(self.root).as_posix()
+        patch_ref = (attempt_root / "patch.diff").relative_to(self.root).as_posix()
+        manifest_ref = task.get("manifest_path")
+        manifest: Mapping[str, Any] = {}
+        if isinstance(manifest_ref, str):
+            manifest_path = (self.root / manifest_ref).resolve()
+            try:
+                manifest_path.relative_to(self.root)
+                if manifest_path.is_file():
+                    loaded_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                    if isinstance(loaded_manifest, Mapping):
+                        manifest = loaded_manifest
+            except (ValueError, OSError, json.JSONDecodeError):
+                manifest = {}
+        summary = {
+            key: worker_metrics[key]
+            for key in (
+                "host_verified",
+                "host_verified_test_count",
+                "host_tests_passed",
+                "independent_verification",
+                "result_accepted",
+                "verification_trust_level",
+                "operator_approved",
+            )
+            if key in worker_metrics and isinstance(worker_metrics[key], (str, int, bool, float))
+        }
+        return normalize_review_packet(
+            {
+                "task_id": task_id,
+                "attempt_id": attempt_id,
+                "status": task.get("status", result.get("status", "unknown")),
+                "provider": assignment.get("provider_id"),
+                "model": assignment.get("model_id"),
+                "changed_files": result.get("changed_files", []),
+                "patch_sha256": task.get("verified_patch_digest"),
+                "result_ref": result_ref,
+                "verification_ref": verification_ref,
+                "verification_summary": summary,
+                "known_issues": result.get("known_issues", []),
+                "acceptance": manifest.get("acceptance", []),
+                "artifact_refs": [
+                    {"kind": "result", "path": result_ref},
+                    {"kind": "patch", "path": patch_ref},
+                    *([{"kind": "verification", "path": verification_ref}] if verification_ref else []),
+                ],
+                "created_at": task.get("updated_at"),
+            }
+        )
+
+    def record_review_decision(
+        self,
+        task_id: str,
+        *,
+        attempt_id: str,
+        decision: str,
+        findings: tuple[str, ...] | list[str] = (),
+        evidence_refs: tuple[Mapping[str, Any], ...] | list[Mapping[str, Any]] = (),
+        required_correction: str | None = None,
+        reviewer_role: str = "reviewer",
+    ) -> SupervisorStep:
+        """Persist one explicit review decision through the plan CAS."""
+
+        plan = self.store.load(self.run_id)
+        task = next((item for item in plan["tasks"] if item["task_id"] == task_id), None)
+        if task is None:
+            raise DevFarmError(f"Commander task does not exist: {task_id}")
+        normalized = normalize_review_decision(
+            {
+                "decision_id": f"review-{task_id}-{attempt_id}-{len(plan['review_decisions']) + 1}",
+                "task_id": task_id,
+                "attempt_id": attempt_id,
+                "decision": decision,
+                "findings": list(findings),
+                "evidence_refs": list(evidence_refs),
+                "required_correction": required_correction,
+                "reviewer_role": reviewer_role,
+                "decided_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        plan["review_decisions"].append(normalized)
+        saved = self.store.save(plan, expected_revision=plan["plan_revision"])
+        metadata = normalize_supervisor_metadata(saved.get("supervisor"))
+        metadata["metrics"]["codex_review_count"] += 1
+        metadata["metrics"]["codex_review_decision_count"] += 1
+        if normalized["decision"] == "APPROVE_INTEGRATION":
+            metadata["status"] = "INTEGRATING"
+            metadata["next_action"] = "integrate_verified_worker"
+        elif normalized["decision"] == "REWORK":
+            metadata["status"] = "ACTIVE"
+            metadata["next_action"] = "rework_worker"
+        elif normalized["decision"] == "REJECT":
+            metadata["status"] = "BLOCKED"
+            metadata["next_action"] = "resolve_rejection"
+        else:
+            metadata["status"] = "HUMAN_DECISION_REQUIRED"
+            metadata["next_action"] = "resolve_escalation"
+        return self._step(self._save_supervisor(metadata))
 
     def _save_supervisor(self, metadata: Mapping[str, Any]) -> dict[str, Any]:
         current = self.store.load(self.run_id)
@@ -188,6 +327,11 @@ class CodexSupervisedCommanderRun:
             for item in metadata["wake_events"]
         }
         newly_verified = 0
+        new_review_requests = 0
+        packet_identities = {
+            (item.get("task_id"), item.get("attempt_id"))
+            for item in metadata["review_packets"]
+        }
         for task in plan["tasks"]:
             if task["status"] == "HOST_VERIFIED":
                 before = len(metadata["wake_events"])
@@ -200,6 +344,11 @@ class CodexSupervisedCommanderRun:
                 )
                 if len(metadata["wake_events"]) > before:
                     newly_verified += 1
+                    new_review_requests += 1
+                identity = (task.get("task_id"), task.get("last_attempt_id"))
+                if identity not in packet_identities:
+                    metadata["review_packets"].append(self._review_packet(task))
+                    packet_identities.add(identity)
             elif task["status"] == "REJECTED" and task.get("last_attempt_id"):
                 metadata = record_wake(
                     metadata,
@@ -213,7 +362,7 @@ class CodexSupervisedCommanderRun:
         }
         new_wakes = len(current_events - previous_events)
         metadata["metrics"]["codex_wake_count"] += new_wakes
-        metadata["metrics"]["codex_review_count"] += newly_verified
+        metadata["metrics"]["codex_review_request_count"] += new_review_requests
         metadata["metrics"]["worker_success_count"] += newly_verified
         metadata["metrics"]["worker_dispatch_count"] += len(ready_worker_ids)
 

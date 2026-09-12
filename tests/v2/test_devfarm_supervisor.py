@@ -9,6 +9,8 @@ from scripts.devfarm_commander import validate_plan
 from scripts.devfarm_supervisor_protocol import (
     advance_heartbeat,
     normalize_supervisor_metadata,
+    normalize_review_decision,
+    normalize_review_packet,
     record_wake,
     select_heartbeat_cadence,
 )
@@ -57,6 +59,7 @@ def test_commander_plan_preserves_bounded_supervisor_metadata():
     assert normalized["supervisor"]["cadence_minutes"] == 5
     assert normalized["supervisor"]["unchanged_check_limit"] == 3
     assert normalized["supervisor"]["metrics"]["codex_wake_count"] == 0
+    assert normalized["supervisor"]["review_packets"] == []
 
 
 @pytest.mark.parametrize(
@@ -92,6 +95,67 @@ def test_wake_event_is_deduplicated_without_raw_worker_output():
 def test_supervisor_metadata_rejects_raw_conversation_payloads():
     with pytest.raises(ValueError, match="raw"):
         normalize_supervisor_metadata({"wake_events": [{"kind": "x", "raw_output": "secret"}]})
+
+
+def test_review_packet_is_compact_and_rejects_raw_worker_output():
+    packet = normalize_review_packet(
+        {
+            "task_id": "task-001",
+            "attempt_id": "attempt-001",
+            "status": "HOST_VERIFIED",
+            "changed_files": ["src/example.py"],
+            "patch_sha256": "a" * 64,
+            "result_ref": ".devfarm/results/task-001/result.json",
+            "verification_ref": ".devfarm/results/task-001/verification/v-001.json",
+            "verification_summary": {"passed": True, "test_count": 1},
+            "known_issues": [],
+            "acceptance": ["focused test passes"],
+            "artifact_refs": [{"kind": "patch", "path": ".devfarm/results/task-001/patch.diff"}],
+        }
+    )
+    assert packet["patch_sha256"] == "a" * 64
+    assert "patch" not in packet
+    with pytest.raises(ValueError, match="raw"):
+        normalize_review_packet({**packet, "verification_summary": {"stdout": "secret"}})
+
+
+def test_review_decision_normalization_is_bounded_and_typed():
+    decision = normalize_review_decision(
+        {
+            "decision_id": "review-001",
+            "task_id": "task-001",
+            "attempt_id": "attempt-001",
+            "decision": "REWORK",
+            "findings": ["one focused correction is required"],
+            "evidence_refs": [{"kind": "verification", "path": ".devfarm/results/task-001/verification/v.json"}],
+            "required_correction": "Fix the focused assertion.",
+        }
+    )
+    assert decision["decision"] == "REWORK"
+    assert decision["findings"] == ["one focused correction is required"]
+    with pytest.raises(ValueError, match="decision"):
+        normalize_review_decision({**decision, "decision": "MAYBE"})
+    with pytest.raises(ValueError, match="raw"):
+        normalize_review_decision({**decision, "evidence_refs": [{"patch": "inline"}]})
+
+
+def test_supervisor_persists_review_decision_separately_from_wake_request(tmp_path):
+    create_plan(tmp_path, _plan())
+    runner = CodexSupervisedCommanderRun(tmp_path, "supervisor-test-001")
+    runner.create()
+
+    step = runner.record_review_decision(
+        "task-001",
+        attempt_id="attempt-001",
+        decision="ESCALATE",
+        findings=["Human decision is required"],
+        evidence_refs=[{"kind": "result", "path": ".devfarm/results/task-001/result.json"}],
+    )
+
+    assert step.status == "HUMAN_DECISION_REQUIRED"
+    assert step.metrics["codex_review_count"] == 1
+    assert step.metrics["codex_review_request_count"] == 0
+    assert runner.plan()["review_decisions"][0]["decision"] == "ESCALATE"
 
 
 def test_unchanged_heartbeat_escalates_after_bounded_checks():

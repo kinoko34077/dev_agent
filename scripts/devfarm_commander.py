@@ -24,7 +24,7 @@ import uuid
 
 from scripts.devfarm import DevFarmError, canonical_digest, init_farm, sha256_text, validate_manifest, validate_patch, validate_result
 from scripts.devfarm_orchestrator import DevFarmOrchestrator, WorkerAssignment
-from scripts.devfarm_supervisor_protocol import normalize_supervisor_metadata
+from scripts.devfarm_supervisor_protocol import normalize_review_decision, normalize_supervisor_metadata
 from src.dev_agent.providers.base import ModelProvider
 from src.dev_agent.security.protected_paths import PROTECTED_AUTHORITY_PATHS, is_protected_path
 
@@ -487,6 +487,13 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
             result_record["recorded_at"] = _text(raw_result["recorded_at"], "recorded_at", max_length=80)
         normalized_results.append(result_record)
 
+    review_decisions = value.get("review_decisions", [])
+    if not isinstance(review_decisions, list):
+        raise DevFarmError("review_decisions must be a list")
+    normalized_review_decisions = [normalize_review_decision(item) for item in review_decisions]
+    decision_ids = [item["decision_id"] for item in normalized_review_decisions]
+    _check_unique_ids(decision_ids, "review_decisions")
+
     plan_status = _text(value.get("status", "PLANNED"), "plan status", max_length=32).upper()
     if plan_status not in _PLAN_STATUSES:
         raise DevFarmError(f"unsupported plan status: {plan_status}")
@@ -504,6 +511,7 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
         "ownership": ownership,
         "assignments": assignments,
         "results": normalized_results,
+        "review_decisions": normalized_review_decisions,
         "plan_revision": plan_revision,
         "created_at": _text(value.get("created_at", _now()), "created_at", max_length=80),
         "updated_at": _text(value.get("updated_at", _now()), "updated_at", max_length=80),
