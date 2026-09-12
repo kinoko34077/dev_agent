@@ -442,6 +442,69 @@ def test_start_writes_objective_to_child_stdin(tmp_path):
     assert result.status == AgentBackendStatus.COMPLETED
 
 
+def test_stdin_is_closed_exactly_once_even_when_the_write_fails(tmp_path):
+    """_write_stdin() must close stdin via a finally-equivalent path no
+    matter how the write attempt ends -- a write() failure must not leak
+    the pipe's write-end fd, and it must not skip closing stdin just
+    because the failure path also terminates the process."""
+    real_process = subprocess.Popen(
+        (sys.executable, "-c", "import time; time.sleep(30)"),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        stdin=subprocess.PIPE,
+        **_process_group_kwargs(),
+    )
+    assert real_process.poll() is None  # confirm it is genuinely running
+
+    class _WriteFailsStdin:
+        def __init__(self, inner):
+            self._inner = inner
+            self.close_calls = 0
+
+        def write(self, _data):
+            raise OSError("simulated stdin write failure")
+
+        def close(self):
+            self.close_calls += 1
+            self._inner.close()
+
+    class _StdinWriteFailureProcess:
+        def __init__(self, inner):
+            self._inner = inner
+            self.stdout = inner.stdout
+            self.stderr = inner.stderr
+            self.stdin = _WriteFailsStdin(inner.stdin)
+            self.pid = inner.pid
+
+        def wait(self, *args, **kwargs):
+            return self._inner.wait(*args, **kwargs)
+
+        def poll(self):
+            return self._inner.poll()
+
+        def kill(self):
+            return self._inner.kill()
+
+        @property
+        def returncode(self):
+            return self._inner.returncode
+
+    def fake_popen(*args, **kwargs):
+        return _StdinWriteFailureProcess(real_process)
+
+    backend = _CodexExecBackendImpl(command_builder=_sleep_builder(30.0), popen=fake_popen)
+    session = backend.start(_request(tmp_path))
+    result = backend.result(session.session_id, wait_seconds=3.0)
+    assert result.status == AgentBackendStatus.UNKNOWN
+    assert result.reconciliation_metadata["reason"] == "communicate_failed"
+    # The write failure must not have left the process running unattended.
+    real_process.wait(timeout=5.0)
+    assert real_process.poll() is not None
+    # stdin must have been closed exactly once despite write() raising.
+    fake_process = backend._sessions[session.session_id].process
+    assert fake_process.stdin.close_calls == 1
+
+
 def test_default_command_never_requests_full_access():
     from src.dev_agent.backends.codex_exec import _build_default_command
 

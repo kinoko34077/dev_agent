@@ -202,6 +202,7 @@ class _SessionState:
     __slots__ = (
         "process",
         "thread",
+        "stdin_thread",
         "task_id",
         "cancelled",
         "stdout",
@@ -222,6 +223,7 @@ class _SessionState:
     def __init__(self, *, process: "subprocess.Popen[str]", task_id: str, home_dir: str | None = None) -> None:
         self.process = process
         self.thread: Thread | None = None
+        self.stdin_thread: Thread | None = None
         self.task_id = task_id
         self.home_dir = home_dir
         self.home_dir_cleaned_up = False
@@ -412,24 +414,31 @@ class _CodexExecBackendImpl:
             # whether the child ever consumes its prompt.
             try:
                 process.stdin.write(request.objective.encode("utf-8"))
-                process.stdin.close()
             except BaseException:
-                if process.poll() is not None:
-                    # The child already exited (e.g. it never reads stdin
-                    # at all) -- a closed-pipe/broken-pipe write failure
-                    # here is benign, not a genuinely ambiguous outcome.
-                    # The real result still comes from _wait()'s own
-                    # observation of the exit code; do not override it.
-                    return
-                # The child is still running and something unexpected went
-                # wrong writing its prompt -- treat this the same as an
-                # I/O drain failure: terminate and confirm, rather than
-                # leaving a process that never received its prompt running
-                # unattended.
-                terminate_process_tree(process)
-                with self._lock:
-                    state.communicate_failed = True
-                exited.set()
+                if process.poll() is None:
+                    # The child is still running and something unexpected
+                    # went wrong writing its prompt -- treat this the same
+                    # as an I/O drain failure: terminate and confirm,
+                    # rather than leaving a process that never received
+                    # its prompt running unattended.
+                    terminate_process_tree(process)
+                    with self._lock:
+                        state.communicate_failed = True
+                    exited.set()
+                # else: the child already exited (e.g. it never reads
+                # stdin at all) -- a closed-pipe/broken-pipe write failure
+                # here is benign, not a genuinely ambiguous outcome. The
+                # real result still comes from _wait()'s own observation
+                # of the exit code; do not override it.
+            finally:
+                # stdin must be closed exactly once regardless of which
+                # path above was taken -- a write failure must not leak
+                # the fd, and a terminated child's pipe still needs its
+                # write end released promptly.
+                try:
+                    process.stdin.close()
+                except BaseException:
+                    pass
 
         def _wait() -> None:
             stdout_box: dict[str, Any] = {}
@@ -513,7 +522,9 @@ class _CodexExecBackendImpl:
             terminate_process_tree(process)
 
         thread = Thread(target=_wait, daemon=True)
+        stdin_thread = Thread(target=_write_stdin, daemon=True)
         state.thread = thread
+        state.stdin_thread = stdin_thread
         with self._lock:
             self._sessions[session_id] = state
         # Order matters: the drain and watchdog threads must already be
@@ -522,7 +533,7 @@ class _CodexExecBackendImpl:
         # reading stdin is never left undrained or unbounded even briefly.
         thread.start()
         Thread(target=_watchdog, daemon=True).start()
-        Thread(target=_write_stdin, daemon=True).start()
+        stdin_thread.start()
 
         return AgentBackendSession(
             session_id=session_id,
@@ -593,8 +604,22 @@ class _CodexExecBackendImpl:
         """
         state = self._require_session(session_id)
         effective_wait = self._default_wait_seconds if wait_seconds is None else wait_seconds
+        # Both the drain thread (state.thread) and the stdin-write thread
+        # (state.stdin_thread) can independently observe the process's
+        # outcome and set communicate_failed -- e.g. the drain thread can
+        # see process.wait() return a real exit code at almost the same
+        # moment the stdin thread's write() failure handler is still
+        # mid-terminate_process_tree(), not yet having recorded
+        # communicate_failed. Joining only one of them let this method
+        # observe a bare returncode before the stdin failure was ever
+        # recorded, misreporting an I/O failure as a normal exit. Join
+        # both within the same overall wait budget so a caller-visible
+        # result always reflects whichever thread finishes last.
+        deadline = time.monotonic() + max(0.0, effective_wait)
         if state.thread is not None:
-            state.thread.join(timeout=max(0.0, effective_wait))
+            state.thread.join(timeout=max(0.0, deadline - time.monotonic()))
+        if state.stdin_thread is not None:
+            state.stdin_thread.join(timeout=max(0.0, deadline - time.monotonic()))
         with self._lock:
             if state.communicate_failed:
                 return AgentBackendResult(
