@@ -41,6 +41,19 @@ Phase 0〜5 は current acceptance verified。Phase 3.5の後段要件、Phase 4
 
 進行判定: Stage F foundation と Stage G operational を別々に自動判定する。G6O2〜G6O6は各責務の証拠でVERIFIED、G6O1は実paid Providerとdeployment-owned設定という外部条件でBLOCKED_EXTERNALのまま維持する。Phase 7A〜7Eは、bounded intelligence policy、thinking effort、deterministic evaluator、explicit review、EscalationExecutor、Evaluator→dispatch cycle、TaskLifecycleCoordinator、明示的な有限Lifecycle合成、workflow proposal、Gemini 3.x qualification、DevFarm host verificationを実装済みとして進める。ResourceLedger schema v9のquota block/reset policy、bounded unknown-quota admission、canonical capability projection、binding単位のprovider saturation wakeとDevFarmのRemote proposal／Host verification分離も実装済みである。最小Operation Layerの`start`／`submit`／`status`／`stop`は既存のQueue・WorkerRunner・Controller・ProviderDispatcherをcompositionして実装済みで、StateStoreとQueueは同一SQLiteを共有する。`QuotaRequalificationCoordinator`は、reset boundary後に明示された一回のProvider-neutral probe結果をfresh observationとして保存し、成功時だけdue queueをwakeする。Worker metricsにはminimum sample数・証拠期限・rollback条件を持つhard-filter限定のadvisory順位付けを追加したが、自動ResourceRouter接続は後段である。AgentBackendはthin contract、typed admission付きdispatcher、ModelProviderとAgentBackendを分けるexecution-target seamまで実装済みで、実Codex adapter、MCP、Self-Improvementは後段である。exact-head CIは `spec/v2/GATE_STATUS.json` の外部証跡方針に従う。
 
+#### 現状の4軸整理（2026-09-12 再監査で追加）
+
+単一の「現在フェーズ」表記だけでは、「Phase 7の実装は進んでいるが、Phase 6 Operationalの外部Gate（G6O1）は未完了」という状態を矛盾なく表現できない。以下の4軸で分けて管理する。この4軸はPhase判定を置き換えるものではなく、`spec/v2/GATE_STATUS.json`のstage別VERIFIED/BLOCKED判定が引き続き正本である。
+
+| 軸 | 内容 |
+| --- | --- |
+| **Implementation Frontier**（実装が到達している範囲） | Phase 7 A〜Eのdeterministic evaluator、explicit review、EscalationExecutor、Evaluator→dispatch cycle、TaskLifecycleCoordinator、有限Lifecycle合成、workflow proposal境界、Root Planning、AgentBackend thin contract + dispatcher、development Commanderまで実装済み。Phase 7後半（実Codex adapter、MCP、OS Sandbox、Evidence routing接続、Workflow Promotion）は未着手 |
+| **Operational Acceptance**（運用受入として確定した範囲） | Phase 0〜5、Phase 6 foundation、Phase 6 Operational G6O2〜G6O6はVERIFIED。Phase 6 Operational G6O1はBLOCKED_EXTERNALのまま未確定 |
+| **External Blockers**（コード変更では閉じられない外部条件） | G6O1（実paid Providerのworst-case課金実証＋deployment-owned budget設定）、OS_SANDBOXED（filesystem/network/process/resource isolationの実証）、GitHub branch protectionのrequired status checks未設定（`gh` CLI未認証のためこの環境からは設定不可） |
+| **Next Development Target**（次に着手する開発） | 現行基盤の修復・整理（CI regression、Provider Authority迂回、HTTP redirect authority）が完了した後、Phase 7後半A〜F（AgentBackend concrete adapter → MCP Adapter → OS Sandbox → Evidence routing接続 → Workflow Promotion）へ進む |
+
+「Phase 7の実装を進めている」ことと「Phase 6 OperationalのG6O1が未完了」であることは矛盾しない。Implementation FrontierがPhase 7へ進んでいても、Operational AcceptanceがPhase 6で止まっている限り、G6O1が要求するcapability（実paid Provider運用）はunblockされたと扱わない。
+
 ### 2026-09-11 の現在状態
 
 このCurrent State sliceのコード基準・検証HEADは `9689f41` である。下記のPhase 6/7履歴 baseline は当時の証跡を保持し、軽量化リファクタ後の全回帰は `625 passed, 1 skipped`（158.89秒）で確認している。push後のexact-head CIはこのHEADに対して外部観測する。

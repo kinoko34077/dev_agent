@@ -1,4 +1,4 @@
-name: v2 tests
+name: v2-provider-smoke
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  provider-smoke:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

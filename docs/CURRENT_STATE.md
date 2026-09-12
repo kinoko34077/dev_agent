@@ -1,31 +1,52 @@
 # Current State — v2/bootstrap
 
-## Current — 2026-09-12
+## Current — 2026-09-12 (re-audit: CI regression + prebuilt Provider authority bypass + HTTP redirect authority)
+
+| Field | Value |
+| --- | --- |
+| **Current HEAD** | `457b049` |
+| **GitHub Actions exact-head CI** | `kernel (3.10)`: success · `kernel (3.11)`: success · `test` (provider-exports smoke, now renamed `v2-provider-smoke` / job `provider-smoke`): success — confirmed via `GET /repos/.../commits/457b049/check-runs`, not self-declared |
+| **Local regression** | `749 passed, 1 skipped` (`python -m pytest tests/v2 -q`, ~166s) |
+| **Architecture check** | `ARCHITECTURE_PASS` |
+| **compileall** | `src recovery scripts` clean |
+
+### Why this entry exists
+
+A follow-up audit of the prior "Current" snapshot below (HEAD `a052b20`, claiming `v2-core` and `v2 tests` both success) found that claim had never been checked against exact-head GitHub Actions. When actually queried, the branch's most recent CI run at that time (HEAD `643d78e`, one commit before this session started) was **failing**: `v2-core` red on both Python 3.10 and 3.11 (`7 failed, 725 passed`), while `v2 tests` (which only runs a provider-exports smoke test, not the full regression) stayed green — meaning the CURRENT_STATE table's "v2-core success" claim was not evidence-backed. This entry replaces that unverified claim with a check-runs-API-confirmed result.
+
+### Fixed this session (2026-09-12, re-audit)
+
+- **P0-1 — v2-core exact-head regression** (commit `49f1baa`): `test_live_provider_adapters.py`'s `_Response` test stub still had `read(self)` with no arguments, unmatched to the bounded-read contract (`response.read(max_bytes + 1)`) introduced by the P1 HTTP-DoS fix in the prior session. That file had been excluded via `--ignore` during the prior session's local verification, so it passed locally but failed on GitHub Actions. Fixed the stub; searched for and found no other stale `read(self)` stubs.
+- **P0-2 — prebuilt Provider instance authority bypass** (commit `287d016`): the P0 endpoint/credential authority fix only validated at `ProviderDefinition.__post_init__` (Factory construction time). A caller could inject an already-built `ModelProvider` instance directly into `ProviderRegistry` or a DevFarm `WorkerAssignment` without ever touching `ProviderDefinition`, or mutate `base_url`/`api_key_env` on a live instance after it passed validation once. Added `validate_provider_instance_authority()` (same SSOT, no independent allowlist) and enforced it at `ProviderRegistry.__init__`, immediately before `ProviderDispatcher.request()` dispatches, and in DevFarm's `_validate_worker_provider()`. A concrete-adapter-class allowlist was evaluated and dropped — it broke ~46 legitimate `FakeProvider`-based test doubles without closing any exploitable path, since those doubles never expose `base_url`/`api_key_env` and make no real network call.
+- **P1-1 — HTTP redirect authority gap** (commit `457b049`): every Provider HTTP adapter used raw `urllib.request.urlopen()`, which follows a server's 3xx redirect transparently (including cross-origin) and forwards the `Authorization` header regardless of destination host — silently moving the actual request destination, and the credential with it, outside the validated `base_url` boundary. Added `urlopen_no_redirect()` (a `_NoRedirectHandler` that refuses every redirect) to the shared `openai_compatible/http.py` module and wired it into all 8 concrete provider modules. Verified against a real loopback HTTP server (not a mock): cross-origin and same-origin redirects both rejected, credential never reaches a redirect target (server hit_count stays 1), normal responses unaffected.
+- **P1-3 — workflow name/scope mismatch**: `.github/workflows/v2-tests.yml` renamed from `v2 tests` (job `test`) to `v2-provider-smoke` (job `provider-smoke`) — it has only ever run `tests/v2/test_provider_exports.py`, not a full regression; `v2-core` alone owns that.
+- Also added `permissions: contents: read` to both workflow files (least privilege) and construction-time ISO-datetime validation for `TrustedResourceProfile.verified_at`/`expires_at` in an earlier commit this session.
+
+### Still open (not closed by code alone)
+
+- **Branch protection required status checks**: `v2/bootstrap` ruleset already has deletion/non-fast-forward protection, but no required status checks are configured. **MANUAL ACTION REQUIRED** — this environment's `gh` CLI is not authenticated. Configure in GitHub → Repository → Settings → Branches → `v2/bootstrap` ruleset, using the exact check-run names from a live Actions run (`kernel (3.10)`, `kernel (3.11)`, `provider-smoke`), not the workflow file names.
+- **G6O1**: real paid-provider worst-case billing proof + deployment-owned budget config (external condition, not a code gap). Whether to scope G6O1 narrowly to a "paid provider activation" gate (so free/local Phase 7 development is not blocked by it) is an open decision, not yet made.
+- **OS_SANDBOXED**: declared but unavailable — sanitized env/temp HOME/timeout/process-tree kill is Host containment, not OS-level filesystem/network/process isolation. Unattended external Worker code execution remains disabled.
+- **Roadmap Phase representation**: still stated as a single "Current Phase" even though implementation has progressed into Phase 7 areas while Phase 6 Operational (G6O1) remains externally blocked. Splitting into Implementation Frontier / Operational Acceptance / External Blockers / Next Development Target axes is planned, not yet applied.
+
+---
+
+## History / Superseded Snapshots
+
+## 2026-09-12 — BillingResolver DI + full billing match + schema validator (superseded — CI claim unverified)
 
 | Field | Value |
 | --- | --- |
 | **Current HEAD** | `a052b20` (BillingResolver DI + full billing match + schema validator) |
 | **v2 tests** | success (`678 passed, 1 skipped` — all 2 previously-failing free-provider tests now fixed) |
-| **v2-core (Python 3.10 / 3.11)** | success (previously 2 failures; fixed by BillingResolver authority injection) |
+| **v2-core (Python 3.10 / 3.11)** | claimed success — **not independently confirmed against exact-head GitHub Actions at the time this entry was written; a later audit found the branch's actual next CI run (HEAD `643d78e`) was red on v2-core.** See the Current entry above for the verified replacement. |
 | **Local regression** | `678 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 198s) |
 | **Architecture check** | `ARCHITECTURE_PASS` |
-
-### Current blockers
-
-- **Branch protection** (external): `protected=false`, `rulesets=[]` — CI failure does not block push; force-push and branch deletion are not guarded. Requires GitHub-side setup (required `v2-core`, required `v2 tests`, force-push禁止, branch-deletion禁止) before autonomous Agent branch access.
-- **G6O1**: Real paid-provider worst-case billing proof + deployment-owned budget config (external condition — not a code gap).
-- **OS_SANDBOXED**: Declared but unavailable; unattended external Worker code execution remains disabled.
-
-### Completed this session (2026-09-12)
 
 - **P0 — v2-core fix**: `BillingResolver` class introduced as injectable authority. `profile_for()` module function delegates to `_default_resolver` at call-time, so test monkeypatching of `billing_module._default_resolver` propagates correctly to both qualify script and router. The two free-provider qualification tests now pass.
 - **P1-2 — Billing full-match**: Router now verifies `price_currency`, `billing_mode`, `overage_policy`, and `no_charge_guaranteed` bidirectionally against catalog profile, not just `cost_minor`.
 - **P1-3 — Recovery authority schema**: `legacy_resource_metadata` upgraded to full authority schema validator: `trusted_catalog` resources require `provider_binding_id`, `model_id`, `billing_expires_at`, valid `billing_mode`, and valid `overage_policy` in metadata; remote resources must not carry `privacy_profile="local_only"`.
 - **Prior session — P0–P6 security hardening**: billing authority fail-open fix, verification write-order fix, HOST_VERIFIED gate, trust priority, tool_call shortcut removed, schema-based legacy detection.
-
----
-
-## History / Superseded Snapshots
 
 ## 2026-09-11 — configured provider bindings (implementation slice)
 
