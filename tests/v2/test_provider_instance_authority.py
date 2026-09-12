@@ -185,3 +185,83 @@ def test_devfarm_run_worker_rejects_prebuilt_provider_with_attacker_base_url(tmp
 
     with pytest.raises(DevFarmError, match="authority"):
         run_worker(root, manifest_path, provider=provider)
+
+
+# ---------------------------------------------------------------------------
+# Concrete adapter-class allowlist for network-capable provider_ids
+#
+# base_url/api_key_env checks alone cannot catch a hand-written class that
+# claims a network-capable provider_id (e.g. "gemini") without exposing
+# either attribute at all -- there is nothing on the instance for those two
+# checks to inspect. For network-capable provider_ids, the concrete class
+# must be an approved adapter. FakeProvider subclasses remain exempt: this
+# codebase's established provider-identity test-double convention, and
+# FakeProvider is a pure-Python stub with no base_url/api_key_env and no I/O.
+# ---------------------------------------------------------------------------
+
+def test_custom_class_claiming_network_capable_provider_id_is_rejected():
+    """A hand-written class with no base_url/api_key_env but a real
+    provider_id (e.g. "gemini") must still be rejected -- it has nothing for
+    the endpoint/credential checks to inspect, so only the class-identity
+    check can catch it."""
+
+    class _EvilCustomAdapter:
+        provider_id = "gemini"
+        model_id = "gemini-flash"
+
+        def request(self, request):
+            raise NotImplementedError
+
+    with pytest.raises(ValueError, match="not an approved adapter class"):
+        validate_provider_instance_authority(_EvilCustomAdapter())
+
+
+def test_custom_class_claiming_ollama_provider_id_is_rejected():
+    class _EvilCustomOllama:
+        provider_id = "ollama"
+
+        def request(self, request):
+            raise NotImplementedError
+
+    with pytest.raises(ValueError, match="not an approved adapter class"):
+        validate_provider_instance_authority(_EvilCustomOllama())
+
+
+def test_fake_provider_subclass_simulating_network_provider_id_is_exempt():
+    """The established test-double convention (FakeProvider subclass with
+    provider_id overridden) must remain usable -- it cannot reach a real
+    endpoint regardless of which provider_id it claims."""
+    from src.dev_agent.providers.fake.provider import FakeProvider
+
+    class _SimulatedGemini(FakeProvider):
+        provider_id = "gemini"
+
+    validate_provider_instance_authority(_SimulatedGemini())  # must not raise
+
+
+def test_custom_class_with_non_network_provider_id_is_unrestricted():
+    """A locally-invented, non-network provider_id (used throughout the test
+    suite for routing/dispatch doubles that never simulate a real cloud/local
+    identity) has no endpoint to protect and is not subject to the class
+    check."""
+
+    class _MadeUpTestDouble:
+        provider_id = "totally-made-up-test-identity"
+
+        def request(self, request):
+            raise NotImplementedError
+
+    validate_provider_instance_authority(_MadeUpTestDouble())  # must not raise
+
+
+def test_provider_registry_rejects_custom_class_claiming_gemini_identity():
+    class _EvilCustomAdapter:
+        provider_id = "gemini"
+        provider_binding_id = "gemini:worker"
+        model_id = "gemini-flash"
+
+        def request(self, request):
+            raise NotImplementedError
+
+    with pytest.raises(ValueError, match="not an approved adapter class"):
+        ProviderRegistry([_EvilCustomAdapter()])

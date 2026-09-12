@@ -18,10 +18,10 @@ from scripts.devfarm_commander import (
 )
 from scripts.devfarm_orchestrator import DevFarmOrchestrator, HostConcurrencyGovernor, RemoteConcurrencyGovernor
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
-from src.dev_agent.providers.base import ModelProvider
+from src.dev_agent.providers.fake.provider import FakeProvider
 
 
-class _WorkerProvider(ModelProvider):
+class _WorkerProvider(FakeProvider):
     provider_id = "cloudflare"
     provider_binding_id = "cloudflare"
     model_id = "@cf/meta/llama-3.1-8b-instruct"

@@ -6,7 +6,8 @@ from src.dev_agent.domain.protocol import IntelligenceTier, ModelRequest, TaskSt
 from src.dev_agent.intelligence.escalation import EscalationContext
 from src.dev_agent.intelligence.evaluator import EvaluationEvidence
 from src.dev_agent.operation import OperationConfig, OperationProviderBinding, OperationService
-from src.dev_agent.providers.base import ModelProvider, ProviderError
+from src.dev_agent.providers.base import ProviderError
+from src.dev_agent.providers.fake.provider import FakeProvider
 from src.dev_agent.domain.protocol import ModelResponse
 
 
@@ -145,7 +146,7 @@ def test_operation_reviewed_lifecycle_dispatch_is_lease_fenced(tmp_path):
     assert status["queue_state"] == "completed"
 
 
-class _OperationTierProvider(ModelProvider):
+class _OperationTierProvider(FakeProvider):
     def __init__(self, provider_id, binding_id, model_id, tier, *, failure=None):
         self.provider_id = provider_id
         self.provider_binding_id = binding_id

@@ -5,7 +5,8 @@ import pytest
 
 from src.dev_agent.domain.protocol import ModelResponse, TaskStatus, TaskType
 from src.dev_agent.operation import OperationConfig, OperationProviderBinding, OperationService
-from src.dev_agent.providers.base import ModelProvider, ProviderError
+from src.dev_agent.providers.base import ProviderError
+from src.dev_agent.providers.fake.provider import FakeProvider
 
 
 def _config(tmp_path):
@@ -493,7 +494,7 @@ def test_operation_composes_an_explicit_multi_provider_pool_with_bounded_routing
         assert service.ledger.get_resource("cloudflare")["quota_domain"] == "cloudflare-account"
 
 
-class _OperationPoolProvider(ModelProvider):
+class _OperationPoolProvider(FakeProvider):
     def __init__(self, provider_id, binding_id, model_id, tier, *, fail_once=False):
         self.provider_id = provider_id
         self.provider_binding_id = binding_id

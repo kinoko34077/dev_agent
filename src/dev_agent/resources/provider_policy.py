@@ -16,8 +16,10 @@ from urllib.parse import urlparse
 from .provider_authority_constants import (
     APPROVED_API_KEY_ENVS as _APPROVED_KEY_ENVS,
     APPROVED_CLOUD_ORIGINS as _APPROVED_ORIGINS,
+    APPROVED_PROVIDER_CLASSES as _APPROVED_CLASSES,
     LOCAL_PROVIDER_IDS as _LOCAL_PROVIDERS,
     LOOPBACK_HOSTNAMES as _LOOPBACK,
+    NETWORK_CAPABLE_PROVIDER_IDS as _NETWORK_CAPABLE,
     REAL_LOCAL_PROVIDER_IDS as _REAL_LOCAL_PROVIDERS,
 )
 
@@ -143,19 +145,38 @@ def validate_provider_instance_authority(provider: Any) -> None:
     provider_authority_constants.py SSOT as construction-time validation —
     no independent allowlist.
 
-    A concrete-class allowlist was deliberately not added here: this test
-    suite's provider-identity doubles (``FakeProvider`` subclasses with
-    ``provider_id`` overridden to simulate "gemini"/"groq"/"cloudflare" for
-    routing/dispatch tests) never expose ``base_url`` or ``api_key_env`` and
-    make no real network call, so a class-name check would reject legitimate
-    test doubles without closing any exploitable path — the actual
-    external-communication surface this function protects is base_url and
-    api_key_env, both checked below.
+    A third gap this also closes: nothing previously stopped a hand-written
+    class from claiming a network-capable ``provider_id`` (e.g. "gemini",
+    "cloudflare") without exposing ``base_url``/``api_key_env`` at all —
+    those two checks alone cannot catch an adapter that has no such
+    attributes to inspect but embeds its own request logic. For a
+    network-capable provider_id (one with a real endpoint concept — see
+    NETWORK_CAPABLE_PROVIDER_IDS), the concrete class must be one of the
+    approved adapter classes for that identity. ``FakeProvider`` and its
+    subclasses are exempt from this class check regardless of the
+    provider_id they simulate: this is this codebase's established
+    provider-identity test-double convention (used throughout tests/v2 for
+    routing/dispatch tests), and FakeProvider is a pure-Python stub with no
+    base_url/api_key_env and no I/O of any kind, so it cannot reach an
+    external endpoint no matter what provider_id it claims.
     """
     provider_id = getattr(provider, "provider_id", None)
     if not isinstance(provider_id, str) or not provider_id.strip():
         raise ValueError("provider instance must expose a non-empty provider_id")
     provider_id = provider_id.strip()
+
+    if provider_id in _NETWORK_CAPABLE:
+        from ..providers.fake.provider import FakeProvider
+
+        if not isinstance(provider, FakeProvider):
+            expected_classes = _APPROVED_CLASSES.get(provider_id)
+            concrete_name = type(provider).__name__
+            if expected_classes is not None and concrete_name not in expected_classes:
+                raise ValueError(
+                    f"provider_id {provider_id!r} is bound to adapter class "
+                    f"{concrete_name!r}, which is not an approved adapter class "
+                    f"for this provider identity: {sorted(expected_classes)}"
+                )
 
     validate_endpoint_authority(provider_id, getattr(provider, "base_url", None))
     validate_api_key_env_authority(provider_id, getattr(provider, "api_key_env", None))

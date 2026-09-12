@@ -8,7 +8,7 @@ from scripts import devfarm_worker
 from scripts.devfarm import DevFarmError, validate_patch
 from scripts.devfarm_worker import HostVerificationRunner, apply_and_verify, run_worker
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
-from src.dev_agent.providers.base import ModelProvider
+from src.dev_agent.providers.fake.provider import FakeProvider
 from tests.v2.devfarm_test_support import _RawWorkerProvider, _WorkerProvider, _workspace, _patch
 
 
@@ -26,7 +26,7 @@ class _CapturingWorkerProvider(_WorkerProvider):
         return super().request(request)
 
 
-class _MeasuredWorkerProvider(ModelProvider):
+class _MeasuredWorkerProvider(FakeProvider):
     provider_id = "cloudflare"
     provider_binding_id = "cloudflare"
     model_id = "@cf/meta/llama-3.1-8b-instruct"

@@ -9,8 +9,9 @@ from src.dev_agent.intelligence.coordination import EvaluationCoordinator
 from src.dev_agent.intelligence.escalation import EscalationContext
 from src.dev_agent.intelligence.evaluator import EvaluationEvidence
 from src.dev_agent.intelligence.execution import EscalationExecutionError, EscalationExecutor
-from src.dev_agent.providers.base import ModelProvider, ProviderError
+from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.dispatch import ProviderDispatcher, ProviderRegistry
+from src.dev_agent.providers.fake.provider import FakeProvider
 from src.dev_agent.resources.budget import BudgetAuthority, BudgetGovernor, BudgetPolicy
 from src.dev_agent.resources.control import ResourceControlPlane
 from src.dev_agent.resources.ledger import ResourceLedger
@@ -21,7 +22,7 @@ from src.dev_agent.state import JsonStateStore
 _TASK_ID = "00000000-0000-0000-0000-000000000071"
 
 
-class _TierProvider(ModelProvider):
+class _TierProvider(FakeProvider):
     def __init__(self, provider_id: str, binding_id: str, tier: str, *, failure: ProviderError | None = None) -> None:
         self.provider_id = provider_id
         self.provider_binding_id = binding_id
