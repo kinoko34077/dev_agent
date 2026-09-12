@@ -1,5 +1,41 @@
 # Current State — v2/bootstrap
 
+## Current — 2026-09-12 (Model Handoff / Compression / one-cycle boundary)
+
+This entry records the first model-handoff integration slice after the Codex
+JSONL evidence work. The implementation is pushed through `1836093`.
+
+| Field | Value |
+| --- | --- |
+| **Branch** | `v2/bootstrap` |
+| **Implementation commits** | `44c252c` HandoffEnvelope; `f33f00b` payload-only Compression client; `777217d` bounded one-cycle DevFarm composition |
+| **Documentation commit** | `1836093` |
+| **Local regression** | `844 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 188.06s) |
+| **Architecture check** | `ARCHITECTURE_PASS` |
+| **compileall** | `src recovery scripts` clean |
+| **Remote** | `origin/v2/bootstrap` matches `1836093` |
+
+### Implemented boundary
+
+`src/dev_agent/handoff/` now provides the model-neutral envelope, role
+protocols, Control/Payload separation, reference-first fields, and the
+replaceable `kinotch-ja-v1` renderer. `src/dev_agent/compression/` provides a
+fixed-profile (`semantic-dense-v1`) independent HTTP client: only Payload is
+sent, the response digest/count contract is verified, and machine-checkable
+retention warnings are recorded without replacing the original payload
+authority.
+
+The development-only `scripts/handoff_cycle.py` composes Human → Planner →
+existing DevFarm/Codex attempt → Reviewer → Human and stops after exactly one
+cycle. `CodexDevFarmExecutor` reuses the existing isolated attempt and Host
+Verification boundary; it does not integrate, push, merge, start another
+cycle, or change production Task/Scheduler authority. The default execution
+trust level remains `STATIC_ONLY`.
+
+G6O1 is still split: G6O1-SIM has specification/ADR coverage but its
+simulated-paid runtime E2E is not yet implemented; G6O1-LIVE remains
+`BLOCKED_EXTERNAL`/`DEFERRED`. No Gate promotion is claimed by this slice.
+
 ## Current — 2026-09-12 (Group D: Codex JSONL normalization)
 
 This supersedes the previous Codex DevFarm dogfood snapshot. The code slice
