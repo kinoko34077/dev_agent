@@ -2,7 +2,7 @@
 
 ## Current — 2026-09-13 (Supervisor run-until-intervention hardening)
 
-今回の実装基準は`5d61e3c`（直前のSupervisor hardening commitsを含む）。
+今回のsource実装基準は`e460a0c`（Supervisor hardeningと検証拒否理由のdurable伝播を含む。以下のCurrent State文書同期はこの基準への追従）。
 `advance()`を一回のbounded snapshot入口として残しつつ、
 `run_until_intervention()`を追加し、既存の同期DevFarm proposalをWorker完了・Host
 Verification・review要求・terminal／deadline境界まで内部継続できるようにした。
@@ -11,11 +11,11 @@ Verification・review要求・terminal／deadline境界まで内部継続でき�
 | Field | Value |
 | --- | --- |
 | **Branch** | `v2/bootstrap` |
-| **Implementation baseline** | `5d61e3c` |
-| **Local regression** | `886 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 203.82s) |
+| **Implementation baseline** | `e460a0c` |
+| **Local regression** | `887 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 206.95s); verifier-focused suite `17 passed` |
 | **Architecture check** | `ARCHITECTURE_PASS` |
 | **compileall** | `python -m compileall -q src recovery scripts` clean |
-| **Remote CI** | この実装基準のpush前。直前remote `ec052af`のCI成功は今回の後続commitの証跡ではない |
+| **Remote CI** | exact-head `e460a0c` の `v2-core`（Python 3.10 / 3.11）PASS [run 34714275081](https://github.com/kinok34077/dev_agent/actions/runs/34714275081)、`v2-provider-smoke` PASS [run 34714275089](https://github.com/kinok34077/dev_agent/actions/runs/34714275089) |
 
 ### Implemented scope
 
@@ -30,10 +30,16 @@ Verification・review要求・terminal／deadline境界まで内部継続でき�
   resumeで同じreviewを再発火せず、REJECTはterminal化する。
 - Commander Plan schemaへdispatch recovery、review decision、review packetのprojection
   を同期し、Host Verification再試行可能な境界とreview terminal stateの回帰を追加した。
+- Host Verificationが返す境界失敗の`known_issues`をTaskのdurable`last_error`へ伝播し、
+  再開後も具体的な拒否理由を復元できるようにした。
 
 ### Explicitly not implemented or verified
 
-今回のローカル検証では実Cloud Workerを新Supervisor経路から実際に完走させるdogfood証拠、
+新Supervisor経路の実Cloud Worker dogfoodは試行したが、成功証拠には到達していない。
+Geminiの空patch、Geminiの不正hunk、Cloudflareの許可外path変更を、それぞれ決定的検証で
+拒否した。したがって`HOST_VERIFIED`、Codex review、Git-backed integrationの実Cloud証拠は
+未達であり、失敗を成功へ読み替えていない。
+今回のローカル検証では、実Cloud Workerを新Supervisor経路から実際に完走させるdogfood証拠、
 GitHub branch protectionのrequired status checks、OS-level sandbox、Compression Service、
 実Planner/Reviewer adapter、finite multi-cycle、MCP、Codex App Server実adapter、
 自動merge/pushは完了扱いにしていない。`STATIC_ONLY`既定、Codex明示review、Host側Git証拠、
