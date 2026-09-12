@@ -12,7 +12,7 @@ below; older entries remain historical evidence only.
 | **Local regression** | `856 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 186.98s) |
 | **Architecture check** | `ARCHITECTURE_PASS` |
 | **compileall** | `python -m compileall -q src scripts` clean |
-| **External CI** | exact-head observation pending after this documentation push |
+| **External CI** | implementation/documentation HEAD `ede0504`: `kernel (3.10)`, `kernel (3.11)`, and `provider-smoke` all succeeded ([v2-core](https://github.com/kinoko34077/dev_agent/actions/runs/34701132693), [v2 tests](https://github.com/kinoko34077/dev_agent/actions/runs/34701132696)). CI evidence is external; any later revision requires its own run. |
 
 ### Implemented scope
 
