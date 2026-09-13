@@ -203,7 +203,8 @@ class ModelPlanningAdapter:
         reference_text = json.dumps(dict(references), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         tier_text = required_intelligence_tier or "host-selected"
         return (
-            "Generate exactly one JSON object matching the supplied planning response schema.\n"
+            "Generate exactly one raw JSON object matching the supplied planning response schema. "
+            "Do not emit Markdown fences, explanatory prose, comments, or trailing text.\n"
             "This is a proposal only: do not claim authority, budget, approval, privacy relaxation, "
             "Gate changes, or direct Task creation. The host will validate the proposal.\n"
             f"parent_task_id: {parent_task_id}\n"
