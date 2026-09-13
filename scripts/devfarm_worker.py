@@ -902,6 +902,7 @@ def _prompt(manifest: Mapping[str, Any], inputs: str) -> str:
         "If the patch is non-empty, end its final line with one real newline so the host can apply it literally. "
         "Every diff header must use `diff --git a/relative/path b/relative/path`; for a new file use `--- /dev/null` and `+++ b/relative/path`. "
         "Do not include trailing whitespace on any added or context line. "
+        "Do not add an extra empty line after the final content line in a new-file patch. "
         "Use the exact supplied base-file content when calculating hunk line numbers. "
         "Keep `changed_files` exactly consistent with every path in the patch. "
         "Return one final newline after the patch. "

@@ -185,6 +185,7 @@ def test_worker_prompt_makes_patch_and_test_claim_boundaries_explicit(tmp_path):
     assert "Every diff header must use `diff --git a/relative/path b/relative/path`" in prompt
     assert "Do not include trailing whitespace" in prompt
     assert "Use the exact supplied base-file content when calculating hunk line numbers" in prompt
+    assert "Do not add an extra empty line after the final content line" in prompt
     assert "Keep `changed_files` exactly consistent with every path in the patch" in prompt
     assert "Return one final newline after the patch" in prompt
     assert "Do not use Markdown fences, `*** Begin Patch`, prose" in prompt
