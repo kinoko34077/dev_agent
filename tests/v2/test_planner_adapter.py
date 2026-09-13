@@ -3,9 +3,10 @@ from uuid import uuid4
 
 import pytest
 
-from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
+from src.dev_agent.domain.protocol import ModelRequest, ModelResponse, TaskType
 from src.dev_agent.intelligence.planner import PlanningValidationError, RootPlanningProposal
 from src.dev_agent.intelligence.planner_adapter import ModelPlanningAdapter, PlanningAdapterError
+from src.dev_agent.operation import OperationConfig, OperationService
 
 
 class _Provider:
@@ -122,3 +123,32 @@ def test_typed_proposal_round_trip_rejects_untracked_fields():
     payload["untracked_authority"] = "must not be accepted"
     with pytest.raises(PlanningValidationError, match="unknown planning proposal field"):
         RootPlanningProposal.from_dict(payload)
+
+
+def test_planner_output_is_only_a_proposal_until_operation_host_validation(tmp_path):
+    config = OperationConfig(
+        data_dir=tmp_path,
+        provider_id="fake",
+        model="deterministic",
+        worker_id="planner-shadow-test",
+        idle_sleep_seconds=0.01,
+    )
+    parent = OperationService.submit(config, "coordinate a bounded planner shadow", task_type=TaskType.REASONING)
+    provider = _Provider(
+        ModelResponse(
+            provider="planner-test",
+            model="free-l2-test",
+            structured_output=_payload(parent.task_id),
+        )
+    )
+    proposal = ModelPlanningAdapter(provider).propose(
+        parent_task_id=parent.task_id,
+        objective=parent.objective,
+    )
+
+    with OperationService.open(config) as service:
+        accepted = service.validate_planning_proposal(proposal)
+
+    assert len(accepted) == 1
+    assert accepted[0].child_key == "implementation"
+    assert OperationService.read_status(config, parent.task_id)["state"] == "queued"
