@@ -107,7 +107,7 @@
 
 ## Current facts after the model-evidence slice
 
-- `4b19716` is the current local implementation baseline for the D1/D2 evidence plus the Python 3.11 compatibility fix. The first synchronized push had `v2-core` collection failure on Python 3.11; exact-head CI for this fix remains pending until push.
+- `4e96630` is the current local implementation baseline for the D1/D2 evidence plus the Python 3.11 compatibility fixes. The synchronized pushes exposed two collection failures on Python 3.11; exact-head CI for this fix remains pending until push.
 - The reviewed evidence stack represents four exact Gemini L2 identities: `gemini:core` and `gemini:worker:free-3/-4/-5`. The latter three have current high-confidence text-only integration qualification; the separate benchmark snapshot supplies the L2 tier.
 - Read-only model-list observations produced `1289` entries from `12/14` explicit bindings. `groq` and local `ollama` discovery failures are recorded as typed bounded failures; no availability is inferred.
 - The first bounded D1 pool observation used `free-4` and `free-5`; both returned confirmed provider-unavailable and the pool ended `pool_exhausted`. A later bounded pool run selected `free-3` / `gemini-3.6-flash` and passed D1; D2 then passed through Host integration. Prior failures remain evidence, not retry instructions.

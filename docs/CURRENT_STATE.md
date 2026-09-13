@@ -5,12 +5,12 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Implementation/evidence baseline | `4b19716` (D1 live Planner proposal, D2 Worker integration evidence, and Python 3.11 compatibility fix) |
+| Implementation/evidence baseline | `4e96630` (D1 live Planner proposal, D2 Worker integration evidence, and Python 3.11 compatibility fixes) |
 | Worktree | clean after the synchronized D2 evidence/documentation commit |
-| Local regression | `993 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 284.59s) |
+| Local regression | `994 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 178.86s) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | The post-D2 `c036ff4` run had `v2-provider-smoke` PASS and `v2-core` fail during Python 3.11 collection because of the model-catalog dataclass default; fixed in `4b19716`, whose exact-head CI is pending |
+| Exact-head CI | The post-D2 `c036ff4` run had `v2-provider-smoke` PASS and `v2-core` failed during Python 3.11 collection; `cd2a39f` fixed the first model-catalog default and exposed the matching discovery default, fixed in `4e96630`; exact-head CI for `4e96630` is pending |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The detailed pre-consolidation snapshot is preserved at [`docs/archive/current-state/2026-09-13-pre-consolidation.md`](archive/current-state/2026-09-13-pre-consolidation.md).
@@ -44,7 +44,7 @@ The detailed pre-consolidation snapshot is preserved at [`docs/archive/current-s
 
 ## Current blockers and boundaries
 
-- D1/D2 live evidence is complete for the bounded slice above. Availability, transport, output syntax, schema, and Host validation failures remain separate categories; do not launch unbounded retries or silently downgrade to L1. The first post-D2 push exposed a Python 3.11-only collection defect; it is fixed by `4b19716` and does not change runtime semantics.
+- D1/D2 live evidence is complete for the bounded slice above. Availability, transport, output syntax, schema, and Host validation failures remain separate categories; do not launch unbounded retries or silently downgrade to L1. The post-D2 CI retries exposed two Python 3.11-only dataclass default defects; both are fixed by `4e96630` and do not change runtime semantics.
 - Model discovery is observation only. An API-listed model is not routable without exact current benchmark, capability, qualification, billing, privacy, quota, health, and explicit binding evidence.
 - Free-3/-4/-5 qualification used a bounded text-only bootstrap because their trusted allowance quota telemetry was unavailable. This does not establish tool-call qualification or numeric headroom.
 - Existing `.devfarm` operational artifacts may contain stale READY or rejected runs. A matching unfinished run is resumed only when its objective is still active; an already integrated objective is marked superseded operationally, not duplicated.
