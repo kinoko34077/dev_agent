@@ -44,7 +44,7 @@ The detailed pre-consolidation snapshot is preserved at [`docs/archive/current-s
 - D1/D2 require a bounded live external Planner observation and its exact evidence. Availability, transport, output syntax, schema, and Host validation failures must remain separate categories. The latest two D1 attempts are provider-availability blockers, not Planner-schema results; the new pool/failover path is locally verified, but no additional external payload was sent after the environment rejected transmission of the internal planning objective and repo/branch context.
 - Provider/API credentials and external payload transmission are not inferred from repository code. A live request requires an explicit approved payload/destination boundary; otherwise local fail-closed work continues.
 - Existing `.devfarm` operational artifacts may contain stale READY or rejected runs. A matching unfinished run is resumed only when its objective is still active; an already integrated objective is marked superseded operationally, not duplicated.
-- Branch protection and required checks are external GitHub controls; exact-head CI is evidence, not a substitute for configuration.
+- GitHub REST branch-protection endpoint is not enabled for this branch, but an active `v2/bootstrap` repository ruleset (`22939885`) requires `kernel (3.10)`, `kernel (3.11)`, and `provider-smoke`; exact-head CI remains evidence separate from that configuration. The ruleset also has an always-bypass actor, so direct push remains an explicitly authorized operator action rather than an unattended promotion path.
 
 ## Immediate next target
 
