@@ -24,6 +24,7 @@ _MAX_REQUEST_ID = 128
 _MAX_ERROR_CODE = 128
 _MAX_REQUEST_BYTES = 16 * 1024
 _MAX_RESULT_BYTES = 64 * 1024
+_MAX_ARTIFACT_REFS = 64
 
 
 def _token(value: Any, name: str, *, maximum: int = 128) -> str:
@@ -315,6 +316,17 @@ class McpToolResult:
             artifact_refs = tuple(_reference(item, "artifact_refs[]") for item in self.artifact_refs)
         except TypeError as exc:
             raise TypeError("artifact_refs must be a sequence of references") from exc
+        if len(artifact_refs) > _MAX_ARTIFACT_REFS:
+            raise ValueError("artifact_refs exceeds the bounded reference count")
+        _json_bytes(
+            {
+                "data": data,
+                "error_code": error_code,
+                "artifact_refs": list(artifact_refs),
+            },
+            "result",
+            maximum=MCP_TOOL_SPECS[tool].max_result_bytes,
+        )
         object.__setattr__(self, "request_id", request_id)
         object.__setattr__(self, "tool", tool)
         object.__setattr__(self, "status", status)

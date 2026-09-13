@@ -116,3 +116,11 @@ def test_mcp_result_rejects_unbounded_or_unsafe_error_payload():
             status=McpResultStatus.FAILED,
             data={"bad": object()},
         )
+
+    with pytest.raises(ValueError, match="artifact_refs"):
+        McpToolResult(
+            request_id="req-003",
+            tool=McpToolName.STATUS,
+            status=McpResultStatus.OK,
+            artifact_refs=tuple(f".devfarm/artifacts/{index}" for index in range(65)),
+        )
