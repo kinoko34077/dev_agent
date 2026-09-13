@@ -288,3 +288,24 @@ integrationを一回ずつ呼ぶdevelopment-only facadeである。Planのoption
 projectionへbounded wait、wake、metricsを保存するが、常駐Scheduler、automatic integration、
 Worker raw outputの保存は行わない。既定のHost Verification trust levelは`STATIC_ONLY`で、
 再開は`python scripts/devfarm_supervisor.py resume <run-id>`から明示的に行う。
+
+`run_until_intervention()`はWorker待機時だけ、1 / 5 / 10 / 15分のbounded
+cadenceでsleepする。`REVIEWING`、`INTEGRATING`、REWORK、Codex所有Task、
+再割当などCodexの操作が必要な状態は、Human decisionとは区別して直ちに
+呼出元へ返す。最大待機時間の到達は`WAITING_FOR_WORKER`/
+`wait_budget_exhausted`として記録し、Human判断へ自動昇格させない。
+
+## Fixed capability probes
+
+`scripts/devfarm_capability_probe.py`は、既存のWorker activation／qualification／
+ProviderFactory境界を再利用する開発専用の有限Probeである。`P0`〜`P5`を
+名前で選択でき、`SENT 'A' ONLY`、算術、Python `print(`、NumPy行列操作、
+単純作業、複数のbounded判断を順に観測する。最大6段階で、任意prompt、任意
+system prompt、tool、temperature、Provider optionは受け付けない。
+
+Probeはrouting、qualification、activation、budget、authorityを変更しない。
+結果にはProvider/model identity、request/response digest、文字数、status、
+failure categoryだけを保存し、raw responseやcredentialを保存しない。
+`provider_error`／`provider_contract_mismatch`／`model_output_invalid`を別分類し、
+adapterや設定の不一致をモデル能力不足へ読み替えない。実行は段階的・有限に
+行い、最初に低レベルProbeを確認してから高レベルへ進める。

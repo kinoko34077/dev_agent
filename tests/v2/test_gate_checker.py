@@ -11,6 +11,14 @@ def test_current_gate_status_reports_only_external_phase6_blocker():
     assert details == ["G/G6O1: requires a real paid-provider worst-case qualification and deployment-owned protected budget configuration"]
 
 
+def test_g6o1_freeze_companion_preserves_unverified_nonblocking_state():
+    companion = Path("spec/v2/G6O1_DEFERRED.md").read_text(encoding="utf-8")
+    for marker in ("NOT VERIFIED", "roadmap_blocking: false", "G6O1-SIM", "G6O1-LIVE", "resume trigger", "GATE_STATUS.json"):
+        assert marker in companion
+    status = load_status(Path("spec/v2/GATE_STATUS.json"))
+    assert status["stages"]["G"]["G6O1"]["status"] == "BLOCKED"
+
+
 def test_gate_checker_distinguishes_all_external_blockers():
     value = {"schema_version": 1, "stages": {"D": {"D1": {"status": "BLOCKED", "actionable": False, "blocker": "credential"}}}}
     assert check(value) == (2, ["D/D1: credential"])

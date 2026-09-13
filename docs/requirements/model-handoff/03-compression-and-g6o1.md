@@ -50,5 +50,10 @@ G6O1-SIMの必須試験は、正常charge、budget境界、worst-case超過に�
 dispatch前拒否、timeout/server error後のUNKNOWN charge、reservation保持、
 reconciliation、restart後再利用、free/simulated identity分離とする。
 
+実paid-provider側の作業は、`spec/v2/G6O1_DEFERRED.md` により未検証のまま
+凍結し、現在の開発ロードマップに対してはnon-blockingとして扱う。これは
+`spec/v2/GATE_STATUS.json` の `G/G6O1 = BLOCKED` を変更せず、Gateの昇格を
+意味しない。
+
 本章は仕様分割のみを記録し、Compression ServiceやG6O1-SIM runtimeを
 このsliceで自動activationしない。
