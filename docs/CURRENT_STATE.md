@@ -1,5 +1,34 @@
 # Current State — v2/bootstrap
 
+## Current — 2026-09-13 (proposal-only Free L2 Planner boundary)
+
+Planner移管の初期境界として、注入済み`ModelProvider`から厳格なJSON形式の
+`RootPlanningProposal`だけを受け取る`ModelPlanningAdapter`を追加した。現在の
+資格証拠が実行能力として認める`text`を要求し、必要な場合は明示した
+`allowed_intelligence_tiers=["L2"]`を既存`ProviderDispatcher`へ渡す。これにより
+未資格の`structured_output`/`json`能力をRouterへ捏造せず、既存のqualification、
+billing、UNKNOWN quota、Budget境界を通したL2候補生成ができる。モデル出力はproposal
+に留まり、Task作成・authority発行・`.devfarm`書込み・dispatchは行わない。
+
+さらに、Hostが用意したmanifest／assignment情報と既存の`RootPlanningValidator`・
+`validate_manifest`・`validate_plan`を組み合わせる
+`DevelopmentPlanningBridge`を追加した。Bridgeは副作用のないCommander Plan候補を
+返し、実際の永続化は既存`write_manifest`→`create_plan`境界でのみ行う。protected／
+high-riskのWorker提案はCodex側へ補正し、現在のCommanderが保証できる
+`CODE_INTEGRATED`依存以外は意味を落とさずfail-closedする。
+
+| Field | Value |
+| --- | --- |
+| **Implementation commits** | `bff8087` (exact qualified-tier planner routing); `0e6c831` (Host-validated development planning bridge) |
+| **Focused regression** | `27 passed` (`test_planner_adapter.py`, `test_development_planning_bridge.py`, planner privacy/idempotency cluster) |
+| **Live Planner evidence** | No external Free L2 Planner dogfood claim; current tests use injected provider doubles and an existing Dispatcher route with explicit qualification/billing fixtures |
+| **Authority boundary** | Proposal-only model output; Host validation remains required; Bridge does not write `.devfarm` or dispatch |
+| **Unchanged scope** | Compression Service, MCP, G6O1-SIM/LIVE, live Reviewer, finite multi-cycle, automatic external-session discovery |
+| **Current next target** | Group D external-session discovery authority remains unresolved; after that, Free L2 Planner shadow dogfood can use the exact-tier Dispatcher seam |
+
+This is a code-verified adapter/bridge boundary, not evidence that autonomous Planner
+migration or live Free L2 planning is complete.
+
 ## Current — 2026-09-13 (Group D reconciliation replay boundary)
 
 UNKNOWN後のAgentBackend reconciliationが、audit evidenceの内側だけへ
