@@ -5,12 +5,12 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Implementation/evidence baseline | `66f4559599921b416f73ff4728aa2f2383b504f8` |
-| Worktree | clean at the evidence commit; later documentation-only synchronization may advance HEAD |
+| Implementation/evidence baseline | `e77725eaa33d0ff2d91da31d80fee15fac72ccb9` |
+| Worktree | clean at the current evidence/test-hardening commit; later documentation-only synchronization may advance HEAD |
 | Local regression | `945 passed, 1 skipped` (`python -m pytest tests/v2 -q`) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | `v2-core` PASS [run 34752465574](https://github.com/kinoko34077/dev_agent/actions/runs/34752465574); `v2-provider-smoke` PASS [run 34752465571](https://github.com/kinoko34077/dev_agent/actions/runs/34752465571) |
+| Exact-head CI | `v2-core` PASS [run 34754776566](https://github.com/kinoko34077/dev_agent/actions/runs/34754776566); `v2-provider-smoke` PASS [run 34754776538](https://github.com/kinoko34077/dev_agent/actions/runs/34754776538) |
 | Gate source | `spec/v2/GATE_STATUS.json` and exact-head external CI; this document does not promote a Gate |
 
 The detailed pre-consolidation snapshot is preserved at [`docs/archive/current-state/2026-09-13-pre-consolidation.md`](archive/current-state/2026-09-13-pre-consolidation.md).
@@ -46,7 +46,7 @@ The detailed pre-consolidation snapshot is preserved at [`docs/archive/current-s
 
 ## Immediate next target
 
-1. Keep D0 documentation consolidation and its exact-head CI evidence current.
+1. Keep D0 documentation consolidation and its exact-head CI evidence current; the current implementation/evidence baseline is `e77725e`.
 2. Do not automatically repeat the D1 live observation after the two provider-availability 503 results.
 3. When provider availability permits and a separately approved bounded observation is requested, continue through D1; only then attempt D2: Bridge → Commander Plan → known qualified L1 Worker → Host Verification → Codex review-only → Host integration.
 
