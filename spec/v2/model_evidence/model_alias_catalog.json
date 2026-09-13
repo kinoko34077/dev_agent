@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "provider_id": "gemini",
+      "model_id": "gemini-3.8-flash",
+      "canonical_model_id": "google/gemini-3.8-flash"
+    }
+  ]
+}

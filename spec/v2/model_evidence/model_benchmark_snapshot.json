@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "tier_thresholds": {
+    "L1": 0,
+    "L2": 30,
+    "L3": 60
+  },
+  "entries": [
+    {
+      "canonical_model_id": "google/gemini-3.8-flash",
+      "benchmark": "artificial_analysis_intelligence_index",
+      "benchmark_version": "not_disclosed_by_openrouter_models_api",
+      "model_version": "gemini-3.8-flash",
+      "source": "openrouter.models.api.provider_metrics.artificial_analysis",
+      "observed_at": "2026-09-13T15:00:00+00:00",
+      "expires_at": "2026-09-20T15:00:00+00:00",
+      "raw_score": 41.2,
+      "normalized_score": 41.2,
+      "confidence": "medium",
+      "task_fit": {
+        "planning": 41.1,
+        "coding": 76.3,
+        "review": 41.2,
+        "writing": 41.2
+      }
+    }
+  ]
+}

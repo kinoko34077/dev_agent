@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "bindings": [
+    {"provider_id": "gemini", "provider_binding_id": "gemini:core", "api_key_env": "GEMINI_API_KEY"},
+    {"provider_id": "gemini", "provider_binding_id": "gemini:worker", "api_key_env": "GEMINI_API_KEY"},
+    {"provider_id": "gemini", "provider_binding_id": "gemini:worker:free-2", "api_key_env": "GEMINI_API_KEY_2"},
+    {"provider_id": "gemini", "provider_binding_id": "gemini:worker:free-3", "api_key_env": "GEMINI_API_KEY_3"},
+    {"provider_id": "gemini", "provider_binding_id": "gemini:worker:free-4", "api_key_env": "GEMINI_API_KEY_4"},
+    {"provider_id": "gemini", "provider_binding_id": "gemini:worker:free-5", "api_key_env": "GEMINI_API_KEY_5"},
+    {"provider_id": "cloudflare", "provider_binding_id": "cloudflare:account", "api_key_env": "CLOUDFLARE_API_TOKEN", "account_id_env": "CLOUDFLARE_ACCOUNT_ID"},
+    {"provider_id": "openrouter", "provider_binding_id": "openrouter:account", "api_key_env": "OPENROUTER_API_KEY"},
+    {"provider_id": "groq", "provider_binding_id": "groq:account", "api_key_env": "GROQ_API_KEY"},
+    {"provider_id": "mistral", "provider_binding_id": "mistral:account", "api_key_env": "MISTRAL_API_KEY"},
+    {"provider_id": "sambanova", "provider_binding_id": "sambanova:account", "api_key_env": "SAMBANOVA_API_KEY"},
+    {"provider_id": "ollama", "provider_binding_id": "ollama:local"},
+    {"provider_id": "ollama_cloud", "provider_binding_id": "ollama_cloud:account", "api_key_env": "OLLAMA_API_KEY"},
+    {"provider_id": "vercel", "provider_binding_id": "vercel:account"}
+  ]
+}

@@ -815,6 +815,23 @@ def test_operation_config_can_explicitly_build_configured_cloud_provider_pool(mo
     assert all("secret-not-read" not in repr(binding) for binding in bindings.values())
 
 
+def test_operation_composes_model_evidence_only_when_explicitly_configured(tmp_path):
+    default_config = _config(tmp_path / "default")
+    assert default_config.model_evidence_directory is None
+
+    configured = OperationConfig(
+        data_dir=tmp_path / "configured",
+        provider_id="fake",
+        model="deterministic",
+        worker_id="model-evidence-operation-test",
+        model_evidence_directory="spec/v2/model_evidence",
+        idle_sleep_seconds=0.01,
+    )
+
+    with OperationService.open(configured) as service:
+        assert service.model_admission_resolver is not None
+
+
 # P0 regression: Ollama is a local provider and must not fail the startup
 # qualification or billing check when Operation is restarted with an existing
 # ollama resource.  The bug was that the check used `!= "fake"` instead of

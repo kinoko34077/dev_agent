@@ -36,6 +36,7 @@ from .resources.billing_catalog import (
     profile_for as _catalog_profile_for,
 )
 from .resources.ledger import ResourceLedger, unknown_quota_wake_reason
+from .resources.model_admission import ModelAdmissionResolver
 from .resources.provider_policy import is_local_provider as _is_local_provider, max_sensitivity as _provider_max_sensitivity, privacy_profile as _provider_privacy_profile, requires_qualification as _requires_qualification
 from .resources.qualification import QualificationResolver
 from .scheduler.queue import DurableQueue
@@ -223,7 +224,10 @@ class OperationConfig:
     The default provider is the deterministic ``fake`` adapter so invoking a
     local smoke command cannot unexpectedly spend quota or money.  A real
     adapter is selected explicitly with ``DEV_AGENT_PROVIDER`` and
-    ``DEV_AGENT_MODEL`` or the corresponding CLI flags.
+    ``DEV_AGENT_MODEL`` or the corresponding CLI flags.  The independent
+    model-evidence snapshots are also opt-in through
+    ``DEV_AGENT_MODEL_EVIDENCE_DIR``; leaving it unset preserves the legacy
+    Operation routing view while Planner composition can opt in explicitly.
     """
 
     data_dir: Path = field(default_factory=lambda: Path(".dev_agent"))
@@ -233,6 +237,7 @@ class OperationConfig:
     quota_domain: str | None = None
     intelligence_tier: str | None = None
     provider_pool: tuple[OperationProviderBinding, ...] | None = None
+    model_evidence_directory: Path | None = None
     worker_id: str = field(default_factory=lambda: f"operation-{os.getpid()}")
     lease_seconds: float = 30.0
     idle_sleep_seconds: float = 1.0
@@ -247,6 +252,9 @@ class OperationConfig:
         binding = self.provider_binding_id.strip() if isinstance(self.provider_binding_id, str) and self.provider_binding_id.strip() else None
         quota_domain = self.quota_domain.strip() if isinstance(self.quota_domain, str) and self.quota_domain.strip() else None
         tier = self.intelligence_tier.strip() if isinstance(self.intelligence_tier, str) and self.intelligence_tier.strip() else None
+        model_evidence_directory = None if self.model_evidence_directory is None else Path(self.model_evidence_directory).expanduser()
+        if model_evidence_directory is not None and not str(model_evidence_directory).strip():
+            raise ValueError("model_evidence_directory must not be empty")
         if not provider_id:
             raise ValueError("provider_id must be a non-empty string")
         if not model:
@@ -288,6 +296,7 @@ class OperationConfig:
         object.__setattr__(self, "quota_domain", quota_domain)
         object.__setattr__(self, "intelligence_tier", tier)
         object.__setattr__(self, "provider_pool", provider_pool)
+        object.__setattr__(self, "model_evidence_directory", model_evidence_directory)
         object.__setattr__(self, "worker_id", worker_id)
         object.__setattr__(self, "lease_seconds", _positive_number(self.lease_seconds, "lease_seconds"))
         object.__setattr__(self, "idle_sleep_seconds", _positive_number(self.idle_sleep_seconds, "idle_sleep_seconds"))
@@ -328,7 +337,7 @@ class OperationConfig:
         )
 
     @classmethod
-    def from_environment(cls, *, data_dir: str | Path | None = None, provider_id: str | None = None, model: str | None = None, provider_binding_id: str | None = None, quota_domain: str | None = None, intelligence_tier: str | None = None, provider_pool: str | list[Mapping[str, Any]] | tuple[OperationProviderBinding, ...] | None = None, worker_id: str | None = None, lease_seconds: float | None = None, idle_sleep_seconds: float | None = None) -> "OperationConfig":
+    def from_environment(cls, *, data_dir: str | Path | None = None, provider_id: str | None = None, model: str | None = None, provider_binding_id: str | None = None, quota_domain: str | None = None, intelligence_tier: str | None = None, provider_pool: str | list[Mapping[str, Any]] | tuple[OperationProviderBinding, ...] | None = None, model_evidence_directory: str | Path | None = None, worker_id: str | None = None, lease_seconds: float | None = None, idle_sleep_seconds: float | None = None) -> "OperationConfig":
         def env(name: str) -> str | None:
             value = os.environ.get(name)
             return value.strip() if isinstance(value, str) and value.strip() else None
@@ -355,6 +364,7 @@ class OperationConfig:
             quota_domain=quota_domain or env("DEV_AGENT_QUOTA_DOMAIN"),
             intelligence_tier=intelligence_tier or env("DEV_AGENT_INTELLIGENCE_TIER"),
             provider_pool=provider_pool_value,
+            model_evidence_directory=model_evidence_directory or env("DEV_AGENT_MODEL_EVIDENCE_DIR"),
             worker_id=worker_id or env("DEV_AGENT_WORKER_ID") or f"operation-{os.getpid()}",
             lease_seconds=lease_seconds if lease_seconds is not None else env_float("DEV_AGENT_LEASE_SECONDS", 30.0),
             idle_sleep_seconds=idle_sleep_seconds if idle_sleep_seconds is not None else env_float("DEV_AGENT_IDLE_SLEEP_SECONDS", 1.0),
@@ -414,7 +424,7 @@ def _inferred_tier(config: OperationConfig | OperationProviderBinding, *, qualif
 class OperationService:
     """Compose existing v2 components for the minimum operational commands."""
 
-    def __init__(self, config: OperationConfig, *, store: SQLiteStateStore, queue: DurableQueue, ledger: ResourceLedger, control: OperationControl, controller: Controller, worker: WorkerRunner, dispatcher: ProviderDispatcher, evaluation: EvaluationCoordinator, lifecycle: TaskLifecycleCoordinator, qualification_resolver: QualificationResolver | None = None) -> None:
+    def __init__(self, config: OperationConfig, *, store: SQLiteStateStore, queue: DurableQueue, ledger: ResourceLedger, control: OperationControl, controller: Controller, worker: WorkerRunner, dispatcher: ProviderDispatcher, evaluation: EvaluationCoordinator, lifecycle: TaskLifecycleCoordinator, qualification_resolver: QualificationResolver | None = None, model_admission_resolver: ModelAdmissionResolver | None = None) -> None:
         self.config = config
         self.store = store
         self.queue = queue
@@ -426,12 +436,18 @@ class OperationService:
         self._evaluation = evaluation
         self._lifecycle = lifecycle
         self._qualification_resolver = qualification_resolver or QualificationResolver()
+        self._model_admission_resolver = model_admission_resolver
         self._closed = False
 
     @property
     def qualification_resolver(self) -> QualificationResolver:
         """Return the immutable qualification view used by this session."""
         return self._qualification_resolver
+
+    @property
+    def model_admission_resolver(self) -> ModelAdmissionResolver | None:
+        """Return the optional explicitly composed model-evidence view."""
+        return self._model_admission_resolver
 
     @classmethod
     def open(cls, config: OperationConfig | None = None) -> "OperationService":
@@ -457,6 +473,7 @@ class OperationService:
             evaluation=components.evaluation,
             lifecycle=components.lifecycle,
             qualification_resolver=components.qualification_resolver,
+            model_admission_resolver=components.model_admission_resolver,
         )
 
     def _lifecycle_loop(self, task_id: str, *, max_cycles: int) -> FiniteLifecycleLoop:

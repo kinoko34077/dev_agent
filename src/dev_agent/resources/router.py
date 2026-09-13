@@ -10,6 +10,8 @@ from typing import Protocol
 
 from .billing_catalog import profile_for
 from . import provider_policy
+from .model_admission import ModelAdmissionResolver
+from .model_benchmarks import CANONICAL_TASK_FITS
 from .qualification import QualificationResolver
 from .snapshot import RoutingSnapshot
 
@@ -36,6 +38,8 @@ class RouteRequest:
     max_quota_observation_age_seconds: float | None = 300.0
     allow_unknown_quota: bool = False
     allowed_intelligence_tiers: set[str] | frozenset[str] | tuple[str, ...] | None = None
+    task_fit: str | None = None
+    minimum_task_fit_score: float | None = None
     allowed_provider_binding_ids: set[str] | frozenset[str] | tuple[str, ...] | None = None
     excluded_provider_binding_ids: set[str] | frozenset[str] | tuple[str, ...] = field(default_factory=set)
 
@@ -62,6 +66,21 @@ class RouteRequest:
             if not normalized:
                 raise ValueError("allowed_intelligence_tiers must not be empty")
             object.__setattr__(self, "allowed_intelligence_tiers", frozenset(normalized))
+        if self.task_fit is not None:
+            if not isinstance(self.task_fit, str) or self.task_fit.strip() not in CANONICAL_TASK_FITS:
+                raise ValueError("task_fit must be a supported task-fit name or None")
+            object.__setattr__(self, "task_fit", self.task_fit.strip())
+        if self.minimum_task_fit_score is not None:
+            if self.task_fit is None:
+                raise ValueError("minimum_task_fit_score requires task_fit")
+            if (
+                isinstance(self.minimum_task_fit_score, bool)
+                or not isinstance(self.minimum_task_fit_score, (int, float))
+                or not math.isfinite(float(self.minimum_task_fit_score))
+                or not 0 <= float(self.minimum_task_fit_score) <= 100
+            ):
+                raise ValueError("minimum_task_fit_score must be a finite score from 0 to 100")
+            object.__setattr__(self, "minimum_task_fit_score", float(self.minimum_task_fit_score))
         for name, value in (
             ("allowed_provider_binding_ids", self.allowed_provider_binding_ids),
             ("excluded_provider_binding_ids", self.excluded_provider_binding_ids),
@@ -100,9 +119,18 @@ _SENSITIVITY = {"public": 0, "normal": 1, "internal": 2, "sensitive": 3}
 
 
 class ResourceRouter:
-    def __init__(self, read_view: ResourceReadView, *, qualification_resolver: QualificationResolver | None = None) -> None:
+    def __init__(
+        self,
+        read_view: ResourceReadView,
+        *,
+        qualification_resolver: QualificationResolver | None = None,
+        model_admission_resolver: ModelAdmissionResolver | None = None,
+    ) -> None:
         self._read_view = read_view
         self._qualification_resolver = qualification_resolver or QualificationResolver()
+        if model_admission_resolver is not None and not isinstance(model_admission_resolver, ModelAdmissionResolver):
+            raise TypeError("model_admission_resolver must be a ModelAdmissionResolver or None")
+        self._model_admission_resolver = model_admission_resolver
 
     @property
     def ledger(self) -> ResourceReadView:
@@ -113,6 +141,11 @@ class ResourceRouter:
     def qualification_resolver(self) -> QualificationResolver:
         """Return the runtime-scoped qualification resolver."""
         return self._qualification_resolver
+
+    @property
+    def model_admission_resolver(self) -> ModelAdmissionResolver | None:
+        """Return the optional runtime-scoped discovery/benchmark evidence view."""
+        return self._model_admission_resolver
 
     @staticmethod
     def _quota_ratio(observation: dict[str, object]) -> float | None:
@@ -220,6 +253,7 @@ class ResourceRouter:
                 continue
             effective_capabilities = set(resource["capabilities"])
             effective_tier = metadata.get("intelligence_tier")
+            task_fit_score: float | None = None
             # Provider-based runtime authority: provider_policy is the sole
             # gate.  The persisted qualification_required flag is not the
             # gate: it may be absent on legacy rows, and remote providers
@@ -249,6 +283,31 @@ class ResourceRouter:
                 # explicit opinion; otherwise keep the resource's own tier.
                 if qualification.intelligence_tier is not None:
                     effective_tier = qualification.intelligence_tier
+            # Model discovery, benchmark intelligence, and adapter capability
+            # facts are a separate evidence stack.  Once explicitly composed
+            # into this Router, a resource must have exact current evidence;
+            # name similarity or legacy resource labels cannot promote it.
+            if self._model_admission_resolver is not None:
+                if not isinstance(provider_binding_id, str) or not provider_binding_id.strip() or not isinstance(model_id, str) or not model_id.strip():
+                    continue
+                try:
+                    model_admission = self._model_admission_resolver.resolve(
+                        resource["provider_id"],
+                        provider_binding_id.strip(),
+                        model_id.strip(),
+                    )
+                except (TypeError, ValueError):
+                    model_admission = None
+                if model_admission is None:
+                    continue
+                effective_capabilities &= set(model_admission.capabilities)
+                effective_tier = model_admission.intelligence_tier
+                if request.task_fit is not None:
+                    task_fit_score = model_admission.task_fit.get(request.task_fit)
+                    if task_fit_score is None:
+                        continue
+                    if request.minimum_task_fit_score is not None and task_fit_score < request.minimum_task_fit_score:
+                        continue
             if not request.capabilities.issubset(effective_capabilities):
                 continue
             if request.allowed_intelligence_tiers is not None:
@@ -384,6 +443,7 @@ class ResourceRouter:
             quota_rank = -quota_ratio if quota_ratio is not None else 0.0
             candidates.append((
                 _SENSITIVITY[resource["sensitivity"]],
+                -(task_fit_score if task_fit_score is not None else 0.0),
                 quota_rank,
                 resource["cost_minor"] if resource["cost_minor"] is not None else 10**18,
                 failure_rank,

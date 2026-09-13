@@ -107,6 +107,8 @@ class ResourceControlPlane:
             excluded_resource_ids=set(excluded_resource_ids),
             allow_unknown_quota=metadata.get("allow_unknown_quota") is True,
             allowed_intelligence_tiers=allowed_tiers,
+            task_fit=metadata.get("task_fit"),
+            minimum_task_fit_score=metadata.get("minimum_task_fit_score"),
             allowed_provider_binding_ids=metadata.get("allowed_provider_binding_ids"),
             excluded_provider_binding_ids=metadata.get("excluded_provider_binding_ids", ()),
         )

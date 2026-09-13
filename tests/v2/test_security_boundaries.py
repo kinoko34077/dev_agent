@@ -59,6 +59,7 @@ def test_protected_authority_policy_covers_responsibility_paths():
     assert is_protected_path("src/dev_agent/backends/dispatcher.py")
     # Legacy checks
     assert is_protected_path("spec/v2/PROVIDER_CAPABILITY_MATRIX.json")
+    assert is_protected_path("spec/v2/model_evidence/model_catalog_snapshot.json")
     assert is_protected_path("config/v2.yaml")
     assert is_protected_path("scripts/devfarm_worker.py")
     assert is_protected_path("src/dev_agent/security/audit.py")

@@ -18,6 +18,8 @@ from .providers.registry import ProviderRegistry
 from .resources.budget import BudgetGovernor
 from .resources.control import ResourceControlPlane
 from .resources.ledger import ResourceLedger
+from .resources.model_admission import ModelAdmissionResolver
+from .resources.model_evidence import ModelEvidenceCatalog
 from .resources.qualification import QualificationResolver
 from .resources.router import ResourceRouter
 from .runtime.controller import Controller
@@ -42,6 +44,7 @@ class OperationComponents:
     evaluation: EvaluationCoordinator
     lifecycle: TaskLifecycleCoordinator
     qualification_resolver: QualificationResolver
+    model_admission_resolver: ModelAdmissionResolver | None
 
 
 def open_components(
@@ -69,6 +72,10 @@ def open_components(
         ledger = ResourceLedger(config.resources_path)
         control = OperationControl(config.queue_path)
         qualification_resolver = QualificationResolver()
+        model_admission_resolver = None
+        model_evidence_directory = getattr(config, "model_evidence_directory", None)
+        if model_evidence_directory is not None:
+            model_admission_resolver = ModelEvidenceCatalog.load(model_evidence_directory).resolver
         ensure_budget(ledger)
 
         providers: list[Any] = []
@@ -89,7 +96,11 @@ def open_components(
             providers.append(provider)
 
         resource_control = ResourceControlPlane(
-            ResourceRouter(ledger, qualification_resolver=qualification_resolver),
+            ResourceRouter(
+                ledger,
+                qualification_resolver=qualification_resolver,
+                model_admission_resolver=model_admission_resolver,
+            ),
             BudgetGovernor(ledger),
         )
         dispatcher = ProviderDispatcher(ProviderRegistry(providers), resource_control)
@@ -120,6 +131,7 @@ def open_components(
             evaluation=EvaluationCoordinator(store),
             lifecycle=TaskLifecycleCoordinator(store),
             qualification_resolver=qualification_resolver,
+            model_admission_resolver=model_admission_resolver,
         )
     except Exception:
         if control is not None:

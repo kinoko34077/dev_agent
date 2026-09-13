@@ -68,6 +68,10 @@ PROTECTED_DIRECTORY_PREFIXES = frozenset(
     {
         "recovery",
         "src/dev_agent/security",
+        # Reviewed model availability, benchmark, and capability snapshots
+        # can influence Router admission.  Workers may consume them but must
+        # not rewrite the evidence that the Host composes.
+        "spec/v2/model_evidence",
         ".devfarm",
         ".github",
     }
