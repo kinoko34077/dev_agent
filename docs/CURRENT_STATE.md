@@ -6,11 +6,11 @@
 | --- | --- |
 | Branch | `v2/bootstrap` |
 | Implementation/evidence baseline | `956122b` (`model discovery/admission` plus additional exact Gemini L2 binding qualification) |
-| Worktree | code is committed; evidence/document synchronization is the remaining local change |
+| Worktree | clean at the model-evidence and Planner-pool documentation sync commit |
 | Local regression | `977 passed, 1 skipped` (`python -m pytest tests/v2 -q`) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | preceding remote baseline `738336d` passed; CI for the current unpushed commit is pending |
+| Exact-head CI | `v2-core` PASS [run 34769584761](https://github.com/kinoko34077/dev_agent/actions/runs/34769584761) and `v2-provider-smoke` PASS [run 34769584772](https://github.com/kinoko34077/dev_agent/actions/runs/34769584772) for implementation/evidence baseline `547c5ef`; any later commit requires its own exact-head check |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The detailed pre-consolidation snapshot is preserved at [`docs/archive/current-state/2026-09-13-pre-consolidation.md`](archive/current-state/2026-09-13-pre-consolidation.md).
