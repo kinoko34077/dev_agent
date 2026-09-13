@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-09-13T11:05:14.7632599Z",
+  "status": "blocked_external",
+  "failure_category": "provider_availability",
+  "provider": "gemini",
+  "binding": "gemini:core",
+  "model": "gemini-3.8-flash",
+  "intelligence_tier": "L2",
+  "repository": "kinoko34077/dev_agent",
+  "branch": "v2/bootstrap",
+  "parent_task_id": "7a3e8ac8-6c2e-4a5c-8a6a-52cdcb076f6f",
+  "request_sha256": "1546655ab20e415453a1e5b4b64bf0064bbb5558cff64e1dda507da270f7a5e3",
+  "request_scope": "objective_and_repository_metadata_only",
+  "host_validation": "not_reached",
+  "proposal": "not_generated",
+  "commander_plan": "not_created",
+  "worker_dispatch": "not_started",
+  "provider_error": "HTTP 503 UNAVAILABLE: model currently experiencing high demand",
+  "retry_policy": "one bounded observation; no automatic retry",
+  "authority_effect": "none",
+  "secrets_or_raw_response_recorded": false
+}
