@@ -4,7 +4,7 @@
 
 ## 現在位置
 
-`D0 Documentation SSOT consolidation` を実施中。`D1` は実Free L2 Plannerのstrict JSON proposalが、既存のQualification / Budget / Router / ProviderDispatcher経路を通り、Host validatorをPASSするまで未完了である。現在のPlanner live成功は未検証であり、bounded observationのみ許可する。
+`D0 Documentation SSOT consolidation` は完了。`D1` は、明示opt-inされた qualified L2 resource poolが既存のQualification / Billing / Budget / Router / ProviderDispatcher経路を通り、必要なら confirmed failover-safe failureから別のexact L2 bindingへ切替え、strict JSON proposalとHost validator PASSを証明するまで未完了である。現在のPlanner live成功は未検証であり、bounded observationのみ許可する。
 
 ## 順序とGate
 
@@ -18,9 +18,10 @@
 ### D1 — Valid live Free L2 proposal
 
 - 依存: D0。
-- 目的: qualified exact L2 bindingからbounded requestを1件行い、strict JSON decodeと`RootPlanningProposal`構築を証明する。
+- 目的: 明示opt-inされたqualified exact L2 resource poolからbounded requestを行い、strict JSON decodeと`RootPlanningProposal`構築を証明する。HTTP 503の明示Unavailable、429、quota、authentication/authorization等のconfirmed failover-safe failureは既存Dispatcherで別のeligible L2へ切替え、transport/timeout/decode/billing等のUNKNOWNはreconciliationへ閉じる。
 - Host確認: `parent_task_id`、child count、cycle、dependency type、sensitivity、protected boundary、capability vocabulary。
-- 完了Evidence: provider/binding/model、request/proposal digest、failure categoryまたはHost validation結果。成功するまでPlanner authorityはproposal-only。
+- pool admission: model名からL2を推測しない。current high-confidence qualification、trusted billing/no-charge authority、quota/privacy/tier admissionをidentity単位で満たす候補だけを使用し、L1への自動降格はしない。
+- 完了Evidence: eligible pool、selection order、provider/binding/model、request/proposal digest、failure categoryまたはHost validation結果。成功するまでPlanner authorityはproposal-only。
 - 制約: 自動連打・retry storm・Task作成・Commander書込みなし。
 
 ### D2 — Planner → Bridge → Commander → L1 Worker E2E

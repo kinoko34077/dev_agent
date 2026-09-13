@@ -40,9 +40,19 @@ The v2 `GeminiHttpProvider` now reads `GEMINI_API_KEY` from the process environm
 - Current gate: the live contract is verified; future 401/403 observations remain authentication/authorization blockers and are not capability passes. The adapter does not retry them automatically.
 - Follow-up: switching from URL query authentication to the official `x-goog-api-key` header still returned HTTP 403 for both the model-list request and the minimal completion. This rules out the original query-vs-header choice as the sole cause; credential/project restrictions remain the active blocker.
 
+### Gemini Planner HTTP 503 / high demand — 2026-09-13
+
+- Classification: a bounded HTTP response containing an explicit `UNAVAILABLE` status or `high demand` message is `provider_unavailable`, not a generic `provider_http` failure.
+- Safe failover: the response is known to be a confirmed provider-side rejection with no normalized model result. The same binding is not retried in the request; the existing `ProviderDispatcher` may select the next exact, currently qualified resource in the requested tier.
+- Unsafe retry: a bare 503, a connection drop, timeout after send, response decode ambiguity, result-persistence failure, or billing uncertainty remains `UNKNOWN`/reconciliation-required. It must not be sent to another binding.
+- Pool behavior: Planner requests are admitted from an explicit exact-identity pool only after current high-confidence qualification, billing admission, quota/privacy policy, and L2 tier filtering. L1 entries are never an automatic Planner fallback. If all admitted bindings fail with confirmed failover-safe errors, the bounded result is `pool_exhausted` with sanitized binding/model/category attempts.
+- Observation policy: provider availability errors may be recorded in health/cooldown state, but a single 503 does not justify an unbounded retry loop. Live Planner observations remain explicitly bounded and proposal-only.
+
 ## Failure classification
 
 - Connection refused / DNS / timeout: `transport`.
 - HTTP authentication / quota / 429: adapter must classify into `authentication`, `quota`, or `rate_limit`.
 - Unparseable provider response: `provider_decode`.
 - Tool result that cannot be correlated to its call: `schema_validation`.
+- Confirmed provider-side unavailability: `provider_unavailable` with `failover_safe=true`; this is distinct from `retryable` and from `requires_reconciliation`.
+- Unknown external outcome: `requires_reconciliation=true`; failover is prohibited even when a different resource exists.

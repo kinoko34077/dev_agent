@@ -17,11 +17,11 @@ Phase 7後半の安全な拡張と開発運用移管。既存のKernel、Resourc
 
 ### D0 — Documentation SSOT consolidation
 
-Current State、Main/Detailed Roadmap、Requirements、ADR、Evidence、作業Planの役割を分離し、過去の完了Planをarchiveする。
+Current State、Main/Detailed Roadmap、Requirements、ADR、Evidence、作業Planの役割を分離し、過去の完了Planをarchiveした。現在の詳細正本は`V2_DETAILED_ROADMAP.md`である。
 
 ### D1/D2 — Planner-to-Worker live development slice
 
-次の最重要Gateは、実Free L2 Plannerのvalid proposalをHost validationへ通し、既存BridgeからCommander Plan、qualified Free L1 Worker、Host Verification、Codex review-only、Host deterministic integrationまで一続きで証明すること。現在は未検証である。
+次の最重要Gateは、明示opt-inされたqualified L2 poolから実Free L2 Plannerのvalid proposalをHost validationへ通し、既存BridgeからCommander Plan、qualified Free L1 Worker、Host Verification、Codex review-only、Host deterministic integrationまで一続きで証明すること。confirmed failover-safe failureは同一tierの別bindingへ切替え、UNKNOWNはreconciliationへ閉じる。現在は未検証である。
 
 ## Operational acceptance
 
