@@ -43,6 +43,10 @@ Task state、Scheduler、Budget、Provider routing、AgentBackend authorityを
   呼ばない。Proposal-only Free L2 shadow commandも追加済みだが、実外部Plannerの成功は
   未検証であり、bounded attemptの分類は[`planner-shadow-20260913.json`](../../../spec/v2/evidence/planner-shadow-20260913.json)
   に記録する。Supervisor出力には既存Planから導出するdelegation summaryを追加した。
+- 実装済みslice: 将来のMCP adapter向けに、`src/dev_agent/mcp/contracts.py`へ
+  schema-onlyのtool／request／result契約を追加した。固定tool名、byte／timeout上限、
+  既存authority、UNKNOWN時のreconciliation、中央redaction、reference-firstを表現するが、
+  transport、server、runtime adapterは未接続である。
 - 実装済みslice: `src/dev_agent/compression/` の固定HTTP client、payload-only compression、
   provenance/digest、機械的情報保持検査。独立Compression Service本体は別deploy境界。
 - **NOT CONNECTED**: Compression Service endpoint、代替Provider、仮Provider、

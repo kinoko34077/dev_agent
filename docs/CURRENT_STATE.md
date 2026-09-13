@@ -20,15 +20,22 @@ delegation summaryを追加した。Worker適格だったがCodexが担当した
 実装実績へ推測変換しない。これは新しい永続状態ではなく、既存Planから再起動後も再計算
 できるcompact projectionである。
 
+さらに、将来のMCP adapterが既存Commander／Supervisor操作を薄く包むための
+schema-only契約を`src/dev_agent/mcp/contracts.py`へ追加した。tool名、引数／結果の
+JSON byte上限、timeout、既存authority要件、未知結果時のreconciliation方針、
+reference-first、中央redaction方針だけを固定し、transport、server、実行器、Budget、
+Scheduler、独自authorityは追加していない。全toolは現在`adapter_connected=false`であり、
+MCP実接続・G6O1-SIM・Compression接続の証拠にはしない。
+
 | Field | Value |
 | --- | --- |
-| **Implementation commits** | `d061182` (explicit Backend discovery authority); `1b5bb10` (proposal-only Free L2 shadow command); `b01dee5` (Plan-derived delegation summary) |
-| **Focused regression** | `105 passed` (AgentBackend／Planner／Bridge／Commander／Supervisor cluster) |
+| **Implementation commits** | `d061182` (explicit Backend discovery authority); `1b5bb10` (proposal-only Free L2 shadow command); `b01dee5` (Plan-derived delegation summary); `92cbc95` (schema-only MCP operation contract) |
+| **Focused regression** | `17 passed` (MCP contract); preceding AgentBackend／Planner／Bridge／Commander／Supervisor cluster `105 passed` |
 | **Local static checks** | `ARCHITECTURE_PASS`; `python -m compileall -q src recovery scripts` clean; `git diff --check` clean |
 | **Exact-head CI** | `v2-core` PASS [run 34744138098](https://github.com/kinoko34077/dev_agent/actions/runs/34744138098); `v2-provider-smoke` PASS [run 34744138277](https://github.com/kinoko34077/dev_agent/actions/runs/34744138277) |
 | **Live Planner evidence** | NOT VERIFIED. Bounded attempts are recorded in [`planner-shadow-20260913.json`](../spec/v2/evidence/planner-shadow-20260913.json); one diagnostic returned valid JSON, while other attempts hit strict-response rejection or HTTP 503. No retry storm or success claim |
-| **Unchanged scope** | Compression Service, MCP adapter, OpenAI/Claude API, G6O1-SIM/LIVE, automatic external-session discovery, paid-provider operation, OS-level sandbox |
-| **Current next target** | Use the existing Planner shadow/Bridge only after external availability permits a bounded live observation; then Worker-first Group D/Planner dogfood. Keep automatic discovery fail-closed and do not promote proposal-only Planning to autonomous authority |
+| **Unchanged scope** | Compression Service, MCP runtime adapter/transport, OpenAI/Claude API, G6O1-SIM/LIVE, automatic external-session discovery, paid-provider operation, OS-level sandbox |
+| **Current next target** | Use the existing Planner shadow/Bridge only after external availability permits a bounded live observation; then Worker-first Group D/Planner dogfood. Keep automatic discovery fail-closed, keep the MCP contract schema-only, and do not promote proposal-only Planning to autonomous authority |
 
 This slice is verified code and local/CI regression evidence, not live Free L2 Planner
 success. G6O1 remains `DEFERRED_FROZEN`／`NOT VERIFIED`／current roadmap non-blocking.
