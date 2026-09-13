@@ -104,6 +104,36 @@ class ChildTaskProposal:
         value["dependency_types"] = {key: value.value for key, value in self.dependency_types.items()}
         return value
 
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> "ChildTaskProposal":
+        """Decode a model-produced child without granting it authority.
+
+        The proposal schema is intentionally strict at this boundary.  A
+        model may omit optional fields, but it may not smuggle an untracked
+        field into the host-side Task conversion.
+        """
+
+        if not isinstance(data, Mapping):
+            raise PlanningValidationError("child proposal must be an object")
+        allowed = {
+            "child_key",
+            "objective",
+            "task_type",
+            "risk",
+            "sensitivity",
+            "required_capabilities",
+            "dependencies",
+            "dependency_types",
+            "suggested_owner",
+        }
+        unknown = set(data) - allowed
+        if unknown:
+            raise PlanningValidationError(f"unknown child proposal field: {sorted(unknown)[0]}")
+        try:
+            return cls(**dict(data))
+        except TypeError as exc:
+            raise PlanningValidationError(f"invalid child proposal: {exc}") from exc
+
 
 @dataclass(frozen=True)
 class RootPlanningProposal:
@@ -138,6 +168,27 @@ class RootPlanningProposal:
             "proposal_id": self.proposal_id,
             "children": [child.to_dict() for child in self.children],
         }
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> "RootPlanningProposal":
+        """Decode a bounded proposal returned by a Planner adapter."""
+
+        if not isinstance(data, Mapping):
+            raise PlanningValidationError("planning proposal must be an object")
+        allowed = {"parent_task_id", "rationale", "children", "planning_cycle", "proposal_id"}
+        unknown = set(data) - allowed
+        if unknown:
+            raise PlanningValidationError(f"unknown planning proposal field: {sorted(unknown)[0]}")
+        raw_children = data.get("children")
+        if isinstance(raw_children, (str, bytes)) or not isinstance(raw_children, (list, tuple)):
+            raise PlanningValidationError("planning proposal children must be a list")
+        children = tuple(ChildTaskProposal.from_dict(item) for item in raw_children)
+        values = dict(data)
+        values["children"] = children
+        try:
+            return cls(**values)
+        except TypeError as exc:
+            raise PlanningValidationError(f"invalid planning proposal: {exc}") from exc
 
 
 class RootPlanningValidator:
