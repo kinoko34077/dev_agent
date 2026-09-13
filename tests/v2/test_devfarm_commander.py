@@ -329,6 +329,11 @@ def test_supervisor_approved_integration_applies_patch_and_records_git_proof(tmp
     assert review_step.review_packets[0]["patch_sha256"] == hashlib.sha256(
         _patch(targets[0]).encode("utf-8")
     ).hexdigest()
+    stale_plan = runner.plan()
+    stale_plan["supervisor"]["review_packets"][0]["verification_summary"]["host_verified"] = False
+    runner.store.save(stale_plan, expected_revision=stale_plan["plan_revision"])
+    refreshed = runner.advance(providers={}, orchestrator=orchestrator)
+    assert refreshed.review_packets[0]["verification_summary"]["host_verified"] is True
     task = runner.plan()["tasks"][0]
     with pytest.raises(DevFarmError, match="approval"):
         runner.integrate_approved_worker(

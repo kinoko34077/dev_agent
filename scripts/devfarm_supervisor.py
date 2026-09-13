@@ -498,6 +498,16 @@ class CodexSupervisedCommanderRun:
                 if identity not in packet_identities:
                     metadata["review_packets"].append(self._review_packet(task))
                     packet_identities.add(identity)
+                else:
+                    # Rehydrate packets created by an older Supervisor
+                    # version so a durable plan cannot retain proposal-time
+                    # verification flags after the append-only record exists.
+                    for index, packet in enumerate(metadata["review_packets"]):
+                        if (packet.get("task_id"), packet.get("attempt_id")) == identity:
+                            refreshed = self._review_packet(task)
+                            if packet != refreshed:
+                                metadata["review_packets"][index] = refreshed
+                            break
             elif task["status"] == "REJECTED" and task.get("last_attempt_id"):
                 metadata = record_wake(
                     metadata,
