@@ -26,7 +26,7 @@ delegation summaryを追加した。Worker適格だったがCodexが担当した
 | **Focused regression** | `105 passed` (AgentBackend／Planner／Bridge／Commander／Supervisor cluster) |
 | **Local static checks** | `ARCHITECTURE_PASS`; `python -m compileall -q src recovery scripts` clean; `git diff --check` clean |
 | **Exact-head CI** | `v2-core` PASS [run 34744138098](https://github.com/kinoko34077/dev_agent/actions/runs/34744138098); `v2-provider-smoke` PASS [run 34744138277](https://github.com/kinoko34077/dev_agent/actions/runs/34744138277) |
-| **Live Planner evidence** | NOT VERIFIED. One bounded request reached Gemini but returned HTTP 503 after a separate diagnostic confirmed valid JSON/auth; no retry storm or success claim |
+| **Live Planner evidence** | NOT VERIFIED. Bounded attempts are recorded in [`planner-shadow-20260913.json`](../spec/v2/evidence/planner-shadow-20260913.json); one diagnostic returned valid JSON, while other attempts hit strict-response rejection or HTTP 503. No retry storm or success claim |
 | **Unchanged scope** | Compression Service, MCP adapter, OpenAI/Claude API, G6O1-SIM/LIVE, automatic external-session discovery, paid-provider operation, OS-level sandbox |
 | **Current next target** | Use the existing Planner shadow/Bridge only after external availability permits a bounded live observation; then Worker-first Group D/Planner dogfood. Keep automatic discovery fail-closed and do not promote proposal-only Planning to autonomous authority |
 

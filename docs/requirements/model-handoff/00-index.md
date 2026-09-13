@@ -41,7 +41,8 @@ Task state、Scheduler、Budget、Provider routing、AgentBackend authorityを
   authority receiptだけを`AgentBackendDispatcher`が受け付ける。identity／request
   fingerprint不一致やauthority未提供は`UNKNOWN`へ閉じ、Backendの`discover()`を暗黙に
   呼ばない。Proposal-only Free L2 shadow commandも追加済みだが、実外部Plannerの成功は
-  未検証である。Supervisor出力には既存Planから導出するdelegation summaryを追加した。
+  未検証であり、bounded attemptの分類は[`planner-shadow-20260913.json`](../../../spec/v2/evidence/planner-shadow-20260913.json)
+  に記録する。Supervisor出力には既存Planから導出するdelegation summaryを追加した。
 - 実装済みslice: `src/dev_agent/compression/` の固定HTTP client、payload-only compression、
   provenance/digest、機械的情報保持検査。独立Compression Service本体は別deploy境界。
 - **NOT CONNECTED**: Compression Service endpoint、代替Provider、仮Provider、

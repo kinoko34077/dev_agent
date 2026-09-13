@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "evidence_type": "free_l2_planner_shadow",
+  "observed_date": "2026-09-13",
+  "status": "NOT_VERIFIED",
+  "roadmap_blocking": false,
+  "scope": "development-only proposal generation through the qualified Gemini L2 Dispatcher path",
+  "provider": "gemini",
+  "provider_binding_id": "gemini:core",
+  "model": "gemini-3.8-flash",
+  "qualification_requirement": "current high-confidence exact L2",
+  "attempts": [
+    {
+      "ordinal": 1,
+      "status": "blocked_external",
+      "category": "transport_boundary",
+      "reason": "Windows socket access was denied before a provider response was available"
+    },
+    {
+      "ordinal": 2,
+      "status": "failed",
+      "category": "strict_response_validation",
+      "reason": "the bounded Planner request did not produce an accepted strict JSON response"
+    },
+    {
+      "ordinal": 3,
+      "status": "observed_but_unvalidated",
+      "category": "provider_availability",
+      "reason": "Gemini returned HTTP 503 indicating temporary high demand"
+    }
+  ],
+  "positive_observation": "a separate bounded diagnostic returned a STOP response containing valid proposal-shaped JSON; no secret or repository content was retained",
+  "authority": {
+    "proposal_only": true,
+    "host_validation_required": true,
+    "task_creation": false,
+    "commander_plan_write": false,
+    "worker_dispatch": false,
+    "compression_connected": false
+  },
+  "next_action": "retry one bounded live shadow only when external availability permits; retain fail-closed routing and do not promote Planner authority",
+  "recorded_without_credentials": true
+}
