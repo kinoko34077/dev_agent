@@ -270,3 +270,42 @@ def test_planner_output_is_only_a_proposal_until_operation_host_validation(tmp_p
     assert len(accepted) == 1
     assert accepted[0].child_key == "implementation"
     assert OperationService.read_status(config, parent.task_id)["state"] == "queued"
+
+
+def test_model_planner_accepts_fenced_json_object():
+    parent_task_id = str(uuid4())
+    payload = _payload(parent_task_id)
+    fenced_text = f"```json\n{json.dumps(payload)}\n```"
+    provider = _Provider(
+        ModelResponse(
+            provider="planner-test",
+            model="free-l2-test",
+            text_segments=[fenced_text],
+        )
+    )
+
+    proposal = ModelPlanningAdapter(provider).propose(
+        parent_task_id=parent_task_id,
+        objective="bounded objective with fenced json",
+    )
+
+    assert proposal.parent_task_id == parent_task_id
+    assert proposal.proposal_id == "planner-proposal-1"
+
+
+def test_model_planner_rejects_oversized_response():
+    parent_task_id = str(uuid4())
+    oversized_text = "x" * (ModelPlanningAdapter._MAX_RESPONSE_CHARS + 1)
+    provider = _Provider(
+        ModelResponse(
+            provider="planner-test",
+            model="free-l2-test",
+            text_segments=[oversized_text],
+        )
+    )
+
+    with pytest.raises(PlanningAdapterError, match="planner response exceeds the response limit"):
+        ModelPlanningAdapter(provider).propose(
+            parent_task_id=parent_task_id,
+            objective="bounded objective",
+        )
