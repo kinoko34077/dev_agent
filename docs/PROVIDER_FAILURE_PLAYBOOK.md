@@ -48,6 +48,13 @@ The v2 `GeminiHttpProvider` now reads `GEMINI_API_KEY` from the process environm
 - Pool behavior: Planner requests are admitted from an explicit exact-identity pool only after current high-confidence qualification, billing admission, quota/privacy policy, and L2 tier filtering. L1 entries are never an automatic Planner fallback. If all admitted bindings fail with confirmed failover-safe errors, the bounded result is `pool_exhausted` with sanitized binding/model/category attempts.
 - Observation policy: provider availability errors may be recorded in health/cooldown state, but a single 503 does not justify an unbounded retry loop. Live Planner observations remain explicitly bounded and proposal-only.
 
+### Model discovery refresh — 2026-09-14
+
+- Observation: the explicit read-only refresh recorded `1289` model identities from `12/14` configured bindings. Groq returned `HTTPError` and local Ollama returned `URLError`; neither failure is converted into model availability.
+- Classification: discovery is an availability observation only. It does not grant qualification, benchmark tier, capability, billing, privacy, quota, health, or routing admission.
+- Safe handling: retain the last reviewed evidence only within its expiry, record a bounded typed failure for an unavailable binding, and refresh through the operator-only candidate writer. Existing authoritative snapshots require explicit replacement intent.
+- Planner implication: the Router may choose only an exact model identity whose current discovery, benchmark, capability, qualification, billing, privacy, quota, health, and binding policy all admit it. A discovered L2 candidate is not a substitute for those gates.
+
 ## Failure classification
 
 - Connection refused / DNS / timeout: `transport`.

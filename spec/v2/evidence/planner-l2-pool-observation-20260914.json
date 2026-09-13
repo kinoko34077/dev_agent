@@ -1,0 +1,52 @@
+{
+  "kind": "bounded_live_planner_pool_observation",
+  "observed_at": "2026-09-13T16:07:32.953291+00:00",
+  "operation": "D1_valid_live_free_l2_proposal",
+  "required_intelligence_tier": "L2",
+  "requested_capability": "text",
+  "pool": [
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-4",
+      "model_id": "gemini-3.8-flash",
+      "quota_domain": "gemini:project:497456937770",
+      "qualification_evidence": "gemini-l2-qualification-free-4-20260914.json"
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-5",
+      "model_id": "gemini-3.8-flash",
+      "quota_domain": "gemini:project:691705059831",
+      "qualification_evidence": "gemini-l2-qualification-free-5-20260914.json"
+    }
+  ],
+  "attempts": [
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-4",
+      "model_id": "gemini-3.8-flash",
+      "category": "provider_unavailable",
+      "failover_safe": true,
+      "reconciliation_required": false
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-5",
+      "model_id": "gemini-3.8-flash",
+      "category": "provider_unavailable",
+      "failover_safe": true,
+      "reconciliation_required": false
+    }
+  ],
+  "outcome": "pool_exhausted",
+  "proposal": null,
+  "host_validation": "not_run",
+  "automatic_l1_downgrade": false,
+  "interpretation": "Both independently qualified Gemini project bindings returned a confirmed provider-side availability failure. The bounded pool path exhausted eligible L2 resources without retry storm, UNKNOWN failover, or Planner authority promotion.",
+  "prior_output_contract_corrections": [
+    "dependency_types must be an object and must be {} when there are no dependencies",
+    "suggested_owner must be exactly worker or codex",
+    "required_capabilities must use the canonical supported vocabulary"
+  ],
+  "raw_provider_output_stored": false
+}

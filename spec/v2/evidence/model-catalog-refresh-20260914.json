@@ -1,0 +1,33 @@
+{
+  "kind": "model_catalog_refresh",
+  "observed_at": "2026-09-13T15:40:19.616388+00:00",
+  "operation": "explicit_operator_refresh",
+  "snapshot": "../model_evidence/model_catalog_snapshot.json",
+  "snapshot_sha256": "F0B38E4B200C544431C87DD540CEB35A09C030210AC04272FA04C90A9B8760F1",
+  "binding_count": 14,
+  "successful_binding_count": 12,
+  "entry_count": 1289,
+  "provider_entry_counts": {
+    "cloudflare": 65,
+    "gemini": 330,
+    "mistral": 46,
+    "ollama_cloud": 20,
+    "openrouter": 445,
+    "sambanova": 7,
+    "vercel": 376
+  },
+  "failures": [
+    {
+      "provider_id": "groq",
+      "provider_binding_id": "groq:account",
+      "category": "HTTPError"
+    },
+    {
+      "provider_id": "ollama",
+      "provider_binding_id": "ollama:local",
+      "category": "URLError"
+    }
+  ],
+  "secrets_stored": false,
+  "admission_effect": "discovery_only; no qualification, benchmark, capability, billing, privacy, quota, or health promotion"
+}

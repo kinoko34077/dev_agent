@@ -51,6 +51,10 @@ Task分解、実行方針、Worker選択、Provider選択要求、結果統合�
 
 CoreBrain、Developer、Reviewerを特定Provider/Modelへ恒久固定しない。Roleを要求能力として定義し、その時点で利用可能なResourceから選択する。
 
+### INT-006 外部Benchmarkによる知能証拠
+
+L1/L2/L3の知能Tierはモデル名や単発のlive性能試験から推測せず、時点付き・期限付きのBenchmark Catalog証拠から算出する。証拠は取得元、取得日時、対象モデルversion、raw/normalized score、confidenceを保持し、全般性能（Global Intelligence）とplanning/coding/review/writing等のTask Fitを分離する。Benchmarkは知能Tierの根拠であって、Providerのqualification、capability、billing、privacy、quota、healthまたはrouting admissionを単独で与えない。
+
 ## 6. Task分類
 
 ### TASK-001 Task Type

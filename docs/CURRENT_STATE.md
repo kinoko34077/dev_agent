@@ -5,13 +5,13 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Implementation/evidence baseline | `24f4eb3` (planner child-shape contract fix; pool boundary remains `c9789b2`) |
-| Worktree | clean at the current planner-pool/failover evidence commit; later evidence-only synchronization may advance HEAD |
-| Local regression | `953 passed, 1 skipped` (`python -m pytest tests/v2 -q`) |
+| Implementation/evidence baseline | `956122b` (`model discovery/admission` plus additional exact Gemini L2 binding qualification) |
+| Worktree | code is committed; evidence/document synchronization is the remaining local change |
+| Local regression | `977 passed, 1 skipped` (`python -m pytest tests/v2 -q`) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | `v2-core` PASS [run 34763993712](https://github.com/kinoko34077/dev_agent/actions/runs/34763993712); `v2-provider-smoke` PASS [run 34763993759](https://github.com/kinoko34077/dev_agent/actions/runs/34763993759) |
-| Gate source | `spec/v2/GATE_STATUS.json` and exact-head external CI; this document does not promote a Gate |
+| Exact-head CI | preceding remote baseline `738336d` passed; CI for the current unpushed commit is pending |
+| Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The detailed pre-consolidation snapshot is preserved at [`docs/archive/current-state/2026-09-13-pre-consolidation.md`](archive/current-state/2026-09-13-pre-consolidation.md).
 
@@ -19,17 +19,17 @@ The detailed pre-consolidation snapshot is preserved at [`docs/archive/current-s
 
 - Group D boundary: `client_session_key`, provider `external_session_id`, bounded artifact references, replay/reconciliation projection, and explicit `BackendDiscoveryAuthority` with identity/fingerprint checks. Automatic external session discovery is not claimed.
 - Daily Supervisor path: Free L1 Worker dispatch, Host Verification, compact ReviewPacket, durable ReviewDecision, REWORK manifest, dependency release, and deterministic Host integration have existing evidence.
-- Planner code boundary: exact L2 routing composition, strict JSON parsing, proposal-only `ModelPlanningAdapter`, `RootPlanningProposal`, Host-only `DevelopmentPlanningBridge`, and `CODE_INTEGRATED` preservation. Unsupported development dependency types remain fail-closed.
-- Planner resource boundary: explicit `OperationProviderBinding` pool admission, exact current high-confidence L2 filtering, `ProviderDispatcher` failover-safe substitution, bounded `pool_exhausted` reporting, and no automatic L1 downgrade. Local fake-pool fallback and Host proposal validation are verified; live external success is not claimed.
+- Planner code boundary: exact routing composition, strict JSON parsing, proposal-only `ModelPlanningAdapter`, `RootPlanningProposal`, Host-only `DevelopmentPlanningBridge`, and `CODE_INTEGRATED` preservation. Unsupported development dependency types remain fail-closed.
+- Model evidence boundary: explicit read-only provider model discovery, exact Model Catalog and alias mapping, time-bounded external Benchmark Catalog with data-defined L1/L2/L3 thresholds and separate task-fit scores, canonical Capability Catalog, and Host-only `ModelAdmissionResolver`. Discovery, benchmark, capability, qualification, billing, privacy, quota, and health are not collapsed into one authority.
+- Operation integration: the four model-evidence layers are loaded only when `DEV_AGENT_MODEL_EVIDENCE_DIR` is explicitly configured; default Operation behavior remains unchanged. `spec/v2/model_evidence/**` is protected from Worker changes.
+- Planner resource boundary: exact current high-confidence qualification, benchmark-derived L2 admission, trusted no-charge billing, bounded `ProviderDispatcher` failover, structured `pool_exhausted` reporting, and no automatic L1 downgrade. The represented Gemini L2 identities are `gemini:core` and `gemini:worker:free-3/-4/-5`; free-3/-4/-5 have text-only unknown-quota qualification evidence and no tool-roundtrip claim.
 - MCP: schema-only operation contracts exist; no runtime adapter or transport is connected.
-- Capability probes: bounded fixed probes exist as measurement evidence only; they do not promote Provider qualification or routing authority.
 
 ## Partially implemented / not verified
 
-- Real Free L2 Planner success is `NOT VERIFIED`. The latest sanitized bounded observation reached the sole admitted `gemini:core` / `gemini-3.8-flash` route and returned confirmed `provider_unavailable` as bounded `pool_exhausted`; no proposal or Host validation was produced. No automatic retry storm or L1 downgrade is allowed. Evidence: [`planner-live-observation-20260913.json`](../spec/v2/evidence/planner-live-observation-20260913.json), [`planner-live-observation-20260913-02.json`](../spec/v2/evidence/planner-live-observation-20260913-02.json), [`planner-live-observation-20260913-03.json`](../spec/v2/evidence/planner-live-observation-20260913-03.json).
-- The current capability matrix still contains only one current high-confidence L2 planner identity (`gemini:core` / `gemini-3.8-flash`). The pool path is implemented, but there is no second qualified L2 binding to exercise with the live provider. Inventory and local fallback evidence: [`planner-pool-failover-20260913.json`](../spec/v2/evidence/planner-pool-failover-20260913.json).
-- The complete live chain `Free L2 proposal → Host validation → Bridge → Commander Plan → Free L1 Worker → Host Verification → Codex review → Host integration` is not yet evidenced as one Planner-originated development slice.
-- Codex direct implementation still accounts for most recent repository changes. Worker-first delegation must be used for the next narrow slice; target-child Codex implementation invalidates that E2E evidence.
+- D1 real Free L2 Planner success is `NOT VERIFIED`. The latest bounded pool observation used `gemini:worker:free-4` and `gemini:worker:free-5`; both returned confirmed `provider_unavailable`, so the pool ended as `pool_exhausted` without a proposal or Host validation. No automatic retry storm, UNKNOWN failover, or L1 downgrade occurred. See [`planner-l2-pool-observation-20260914.json`](../spec/v2/evidence/planner-l2-pool-observation-20260914.json).
+- The model catalog refresh observed `1289` model entries across `12/14` configured bindings. `groq` returned `HTTPError` and local `ollama` returned `URLError`; these are recorded as bounded discovery failures, not inferred availability. See [`model-catalog-refresh-20260914.json`](../spec/v2/evidence/model-catalog-refresh-20260914.json).
+- The complete live chain `Free L2 proposal → Host validation → Bridge → Commander Plan → Free L1 Worker → Host Verification → Codex review → Host integration` is not yet evidenced as one Planner-originated development slice. D2 remains pending on D1.
 - Concrete Codex external-session restart/discovery is not verified. Without an explicit discovery authority, recovery remains `UNKNOWN`/reconciliation rather than inferred resume.
 - MCP runtime, Free L2 Reviewer shadow, Codex-less cycle, and Self-Improvement F0–F2 are roadmap work, not current capability.
 
@@ -41,26 +41,25 @@ The detailed pre-consolidation snapshot is preserved at [`docs/archive/current-s
 
 ## Current blockers and boundaries
 
-- D1/D2 require a bounded live external Planner observation and its exact evidence. Availability, transport, output syntax, schema, and Host validation failures remain separate categories. The latest bounded observation is a provider-availability blocker after the pool/failover fix; the earlier schema-shape failure was corrected in `24f4eb3`, but no valid proposal has yet been returned and no alternate qualified L2 identity is currently available.
-- Provider/API credentials and external payload transmission are not inferred from repository code. A live request requires an explicit approved payload/destination boundary; otherwise local fail-closed work continues.
+- D1/D2 require a bounded live external Planner observation and exact evidence. Availability, transport, output syntax, schema, and Host validation failures remain separate categories. The latest availability failure exhausted the currently attempted L2 pool; do not launch unbounded retries or silently downgrade to L1.
+- Model discovery is observation only. An API-listed model is not routable without exact current benchmark, capability, qualification, billing, privacy, quota, health, and explicit binding evidence.
+- Free-3/-4/-5 qualification used a bounded text-only bootstrap because their trusted allowance quota telemetry was unavailable. This does not establish tool-call qualification or numeric headroom.
 - Existing `.devfarm` operational artifacts may contain stale READY or rejected runs. A matching unfinished run is resumed only when its objective is still active; an already integrated objective is marked superseded operationally, not duplicated.
-- GitHub REST branch-protection endpoint is not enabled for this branch, but an active `v2/bootstrap` repository ruleset (`22939885`) requires `kernel (3.10)`, `kernel (3.11)`, and `provider-smoke`; exact-head CI remains evidence separate from that configuration. The ruleset also has an always-bypass actor, so direct push remains an explicitly authorized operator action rather than an unattended promotion path.
+- GitHub branch protection and required checks remain external configuration/evidence; the repository ruleset and operator-authorized direct push do not turn local evidence into unattended promotion.
 
 ## Immediate next target
 
-1. Run the post-prompt-fix focused/full verification and publish the evidence synchronization.
-2. After provider availability changes or a second exact current high-confidence L2 is qualified, perform one further bounded pool-routed D1 observation under explicit payload approval.
-3. If D1 returns a valid proposal, continue without a new human stop through D2: Bridge → Commander Plan → known qualified L1 Worker → Host Verification → Codex review-only → Host integration.
+1. After a provider availability change or a new exact current high-confidence L2 qualification, run one further bounded D1 pool observation; do not retry the exhausted Gemini pool in a storm.
+2. If D1 returns a valid proposal, continue without a new human stop through D2: Bridge → Commander Plan → known qualified L1 Worker → Host Verification → Codex review-only → Host integration.
+3. If D1 remains unavailable, keep the failure evidence and proceed only with the next non-blocked roadmap work; no automatic L1 Planner fallback.
 
 The active working checklist is [`docs/superpowers/plans/2026-09-13-planner-to-worker-e2e.md`](superpowers/plans/2026-09-13-planner-to-worker-e2e.md). The ordered roadmap is [`docs/V2_DETAILED_ROADMAP.md`](V2_DETAILED_ROADMAP.md).
 
 ## Evidence index
 
-- Planner shadow: [`spec/v2/evidence/planner-shadow-20260913.json`](../spec/v2/evidence/planner-shadow-20260913.json)
-- Latest bounded live observations: [`spec/v2/evidence/planner-live-observation-20260913.json`](../spec/v2/evidence/planner-live-observation-20260913.json), [`spec/v2/evidence/planner-live-observation-20260913-02.json`](../spec/v2/evidence/planner-live-observation-20260913-02.json)
-- Latest pool-routed observation: [`spec/v2/evidence/planner-live-observation-20260913-03.json`](../spec/v2/evidence/planner-live-observation-20260913-03.json)
-- Planner pool/failover local evidence: [`spec/v2/evidence/planner-pool-failover-20260913.json`](../spec/v2/evidence/planner-pool-failover-20260913.json)
-- Worker Planner-adapter regression: [`spec/v2/evidence/planner-adapter-regression-20260913.json`](../spec/v2/evidence/planner-adapter-regression-20260913.json)
-- Daily Supervisor: [`spec/v2/evidence/daily-supervisor-20260913.json`](../spec/v2/evidence/daily-supervisor-20260913.json)
-- Existing qualification and provider evidence: [`spec/v2/evidence/`](../spec/v2/evidence/)
+- Model catalog refresh: [`spec/v2/evidence/model-catalog-refresh-20260914.json`](../spec/v2/evidence/model-catalog-refresh-20260914.json)
+- Planner L2 pool observation: [`spec/v2/evidence/planner-l2-pool-observation-20260914.json`](../spec/v2/evidence/planner-l2-pool-observation-20260914.json)
+- Gemini free binding qualification: [`gemini-l2-qualification-free-3-20260914.json`](../spec/v2/evidence/gemini-l2-qualification-free-3-20260914.json), [`gemini-l2-qualification-free-4-20260914.json`](../spec/v2/evidence/gemini-l2-qualification-free-4-20260914.json), [`gemini-l2-qualification-free-5-20260914.json`](../spec/v2/evidence/gemini-l2-qualification-free-5-20260914.json)
+- Reviewed model evidence snapshots: [`spec/v2/model_evidence/`](../spec/v2/model_evidence/)
+- Existing Supervisor and Planner evidence: [`spec/v2/evidence/`](../spec/v2/evidence/)
 - Requirement traceability: [`spec/v2/TRACEABILITY.md`](../spec/v2/TRACEABILITY.md)

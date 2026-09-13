@@ -20,25 +20,14 @@ Status: DRAFT -> ACCEPTED候補
 | [06 Workflow, Evaluator, Audit, Metrics, and Survival](06-workflow-evaluator-audit-metrics-and-survival.md) | 27-33 | Workflow promotion、Evaluator、Audit、Metric、Survival、障害耐性 |
 | [07 Phase Roadmap, Invariants, and Target State](07-phase-roadmap-invariants-and-target-state.md) | 34-42 | Phase 6更新、Phase 7条件、ロードマップ、完成像 |
 
-## 現行のPhase 6A / Phase 7実装境界
+## 文書の役割と更新境界
 
-Phase 6Aの第一バッチとして、ResourceLedger schema v8のquota_domain identity、generic quota observation、operational observation fields、fresh quota headroom routing、provider-neutralなquota observation取り込み、metric／window／reset／blocked stateを実装した。同一quota domainの複数Credentialは残量を加算せず、fresh observationの保守的headroomとconcurrency hard filterを使う。Phase 7A/BではTaskへtyped profileを追加し、決定的なIntelligence Policyの範囲、minimum tier、thinking effortをModelRequest metadataへ渡す。明示opt-in時はresource metadataのintelligence tierとexact matchしてroutingを制約するが、通常routingは変更しない。Phase 7C/D/Eではhost evaluator、durable evidence、有限plan、明示review、accepted handoffのcanonical実dispatch、冪等なTask lifecycle、bounded workflow proposal、Remote proposal／Host verification分離を実装した。Gemini 3.5 Flash-Liteと3.8 Flash、Cloudflare Workers AI、OpenRouter Free、Ollamaは対応するlive qualificationを取得済みである。Groqはmodels endpoint HTTP 403、SambaNovaはmodels endpoint HTTP 200後の推論HTTP 429/402、Mistralは推論HTTP 429で未 qualificationである。
+この章群は、multi-provider運用の安定要求、不変条件、authority、acceptanceを定義する。個別の実装進捗、現在のProvider availability、テスト件数、HEAD、未完Taskはここへ追加しない。
 
-- G6O1は BLOCKED_EXTERNAL のまま維持する。
-- 通常Provider経路は Controller -> ProviderDispatcher -> ProviderRegistry -> Concrete Provider とする。
-- Controllerのdirect Provider処理は compatibility / legacy path として残す。
-- ExecutionContext、ToolRuntime.bound_to()、RuntimeState、AuditRecorderは既存境界を維持する。
-- 後段の実績ベースrouting、Hedge、AgentBackend実adapter、MCP/API、Task lifecycleの次cycle自動循環、Provider別の完全なreset-aware Schedulerは次段階へ送る。明示opt-inのresource tier routing、GroqとSambaNovaのrate-limit headerを正規化した `usage.quota_observation` の取り込み、CloudflareのNeuron消費推定（`authority=estimated`）、quota block／保守的cooldown policy、Phase 7A/BのTask profile policyは現行境界に含む。Phase 7Dではhost/operatorがplanを明示reviewし、accepted/rejectedと受理済みplanのdispatch-ready handoffをdurable eventへ記録する。accepted handoffは`EscalationExecutor`が既存のeffect intent／budget／reconciliationを再利用してcanonical ProviderDispatcherへ有限dispatchし、`TaskLifecycleCoordinator`がhost outcomeを冪等なtransitionへ適用する。Phase 7後段のthin AgentBackend contract、typed `BackendAdmission`付きdispatcher、ModelProviderとAgentBackendを分けるexecution target seamも実装済みだが、実Codex adapterは未実装である。CloudflareとOpenRouter Freeのlive qualificationはToolCall往復とdurable auditを確認したが、quota残量は未報告のためunknownである。SambaNovaは `/v1/models` 接続を確認したが、推論はHTTP 429/402で停止しているためfree-provider qualificationから除外し、成功・無償tier・paid worst-caseを推測しない。Mistralはキー読込み後の推論HTTP 429で未資格化であり、成功や無料枠を推測しない。
-- 追加の接続境界として、`GEMINI_API_KEY_2`〜`_5`はproject-scoped quota domainを持つ個別Gemini bindingへ、Ollama Cloudは`ollama_cloud`、Vercel AI Gatewayは`vercel`へ分離して構成できる。両者は既存OpenAI-compatible HTTP adapterを利用するが、API keyの存在だけではqualification／billing admissionにならない。`TrustedResourceProfile.billing_mode`は`free_fixed`と`recurring_allowance`／`recurring_credit`を区別し、exact model profileがない新bindingはproduction routingへ投影しない。
+- 実装の現在状態: [`docs/CURRENT_STATE.md`](../../CURRENT_STATE.md)
+- 大きな順序: [`docs/V2_EXECUTION_PLAN.md`](../../V2_EXECUTION_PLAN.md)
+- 詳細Gate: [`docs/V2_DETAILED_ROADMAP.md`](../../V2_DETAILED_ROADMAP.md)
+- 観測済みProvider/model証拠: [`spec/v2/evidence/`](../../../spec/v2/evidence/)
+- 意思決定理由: [`spec/v2/adr/`](../../../spec/v2/adr/)
 
-## 選択的ロードの目安
-
-- Provider追加: 03, 04
-- quota-aware routing: 03
-- Intelligence hierarchy: 02, 06
-- Codex/MCP: 05
-- Phase移行判断: 07
-
-## 要件と現行実装の境界
-
-本章群は設計入力と実装進捗の境界を兼ねる。ここに書かれた将来要件を現行Gateの達成として扱わない。現行Phase 6では、FoundationがVERIFIED、G6O2〜G6O6がVERIFIED、G6O1が外部条件待ちである。Phase 6A quota基盤とAdapter contract、Phase 7のlocal/live qualification、DevFarm host verificationはそれぞれ別の証跡であり、成功を無関係なGateへ波及させない。
+章を更新する場合も、要求とacceptanceが変わった時だけ該当章を変更し、現在状態や作業履歴は上記の正本へ記録する。要求を満たしたことは、対応する実装・テスト・Evidenceを`spec/v2/TRACEABILITY.md`で追跡し、無関係なGateへ自動的に波及させない。

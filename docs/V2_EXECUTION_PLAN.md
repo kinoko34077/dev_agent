@@ -10,7 +10,7 @@ Phase 7後半の安全な拡張と開発運用移管。既存のKernel、Resourc
 
 - Group Dのsession identity、bounded artifact reference、reconciliation replay、明示的Backend discovery authority。
 - Free L1 WorkerのSupervisor/Host Verification/ReviewDecision/REWORK/依存integration経路。
-- Free L2 Plannerのproposal-only adapter、strict JSON boundary、RootPlanningProposal、Host-only DevelopmentPlanningBridge。
+- Free L2 Plannerのproposal-only adapter、strict JSON boundary、RootPlanningProposal、Host-only DevelopmentPlanningBridge、および明示的なModel Catalog / Benchmark Catalog / Capability Catalog / Runtime admission境界。
 - MCPはschema-only contractまで。runtime adapter、Compression、OpenAI/Claude APIは未接続。
 
 ## Current Gate
@@ -21,7 +21,7 @@ Current State、Main/Detailed Roadmap、Requirements、ADR、Evidence、作業Pl
 
 ### D1/D2 — Planner-to-Worker live development slice
 
-次の最重要Gateは、明示opt-inされたqualified L2 poolから実Free L2 Plannerのvalid proposalをHost validationへ通し、既存BridgeからCommander Plan、qualified Free L1 Worker、Host Verification、Codex review-only、Host deterministic integrationまで一続きで証明すること。confirmed failover-safe failureは同一tierの別bindingへ切替え、UNKNOWNはreconciliationへ閉じる。現在は未検証である。
+次の最重要Gateは、明示opt-inされたqualified L2 poolから実Free L2 Plannerのvalid proposalをHost validationへ通し、既存BridgeからCommander Plan、qualified Free L1 Worker、Host Verification、Codex review-only、Host deterministic integrationまで一続きで証明すること。Model discovery / benchmark / capability evidenceは候補化の入力に留まり、qualification・billing・privacy・quota・healthを代替しない。confirmed failover-safe failureは同一tierの別bindingへ切替え、UNKNOWNはreconciliationへ閉じる。現在は、複数exact L2 poolの構成とbounded failoverまでは実装済みだが、live valid proposalは未検証である。
 
 ## Operational acceptance
 
