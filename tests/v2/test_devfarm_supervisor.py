@@ -182,7 +182,7 @@ def test_supervised_run_creates_durable_wait_metadata_without_integrating(tmp_pa
     assert created.cadence_minutes == 1
     assert step.plan_status == "READY"
     assert step.status == "ACTIVE"
-    assert step.next_action == "advance"
+    assert step.next_action == "execute_codex_task"
     assert step.metrics["worker_success_count"] == 0
     assert all(task["status"] != "INTEGRATED" for task in runner.plan()["tasks"])
 
@@ -215,6 +215,73 @@ def test_supervised_run_waits_without_llm_polling_until_intervention(tmp_path):
     assert sleeps == [60.0]
 
 
+@pytest.mark.parametrize(
+    ("status", "next_action"),
+    [
+        ("REVIEWING", "review_host_verified"),
+        ("INTEGRATING", "integrate_verified_worker"),
+        ("ACTIVE", "rework_worker"),
+    ],
+)
+def test_supervised_run_returns_immediately_for_codex_action(tmp_path, status, next_action):
+    create_plan(tmp_path, _plan())
+    runner = CodexSupervisedCommanderRun(tmp_path, "supervisor-test-001")
+    runner.create()
+    baseline = runner.status()
+    runner.advance = lambda **_kwargs: replace(baseline, status=status, next_action=next_action)
+
+    step = runner.run_until_intervention(
+        providers={},
+        max_wait_seconds=60,
+        sleep_fn=lambda _seconds: (_ for _ in ()).throw(AssertionError("Codex action must not sleep")),
+    )
+
+    assert (step.status, step.next_action) == (status, next_action)
+
+
+def test_supervisor_exposes_codex_owned_ready_task_action_without_sleep(tmp_path):
+    create_plan(tmp_path, _plan())
+    runner = CodexSupervisedCommanderRun(tmp_path, "supervisor-test-001")
+    runner.create()
+
+    step = runner.run_until_intervention(
+        providers={},
+        max_wait_seconds=60,
+        sleep_fn=lambda _seconds: (_ for _ in ()).throw(AssertionError("Codex task must not sleep")),
+    )
+
+    assert step.status == "ACTIVE"
+    assert step.next_action == "execute_codex_task"
+
+
+def test_supervised_run_wait_budget_is_not_human_decision_and_wake_is_deduplicated(tmp_path):
+    create_plan(tmp_path, _plan())
+    runner = CodexSupervisedCommanderRun(tmp_path, "supervisor-test-001")
+    runner.create()
+    baseline = runner.status()
+    runner.advance = lambda **_kwargs: replace(baseline, status="WAITING_FOR_WORKER", next_action="wait_for_worker")
+
+    first = runner.run_until_intervention(
+        providers={},
+        max_wait_seconds=60,
+        sleep_fn=lambda _seconds: None,
+        monotonic_fn=iter((0.0, 0.0, 61.0)).__next__,
+    )
+    second = runner.run_until_intervention(
+        providers={},
+        max_wait_seconds=60,
+        sleep_fn=lambda _seconds: None,
+        monotonic_fn=iter((0.0, 61.0)).__next__,
+    )
+
+    assert first.status == "WAITING_FOR_WORKER"
+    assert first.next_action == "wait_budget_exhausted"
+    assert second.status == "WAITING_FOR_WORKER"
+    assert second.next_action == "wait_budget_exhausted"
+    events = [event for event in runner.plan()["supervisor"]["wake_events"] if event["kind"] == "SUPERVISOR_WAIT_BUDGET_EXHAUSTED"]
+    assert len(events) == 1
+
+
 def test_supervised_run_honors_durable_overall_deadline(tmp_path):
     create_plan(tmp_path, _plan())
     runner = CodexSupervisedCommanderRun(tmp_path, "supervisor-test-001")
@@ -234,7 +301,7 @@ def test_supervised_run_honors_durable_overall_deadline(tmp_path):
         sleep_fn=lambda _seconds: (_ for _ in ()).throw(AssertionError("expired run must not sleep")),
     )
 
-    assert step.status == "HUMAN_DECISION_REQUIRED"
+    assert step.status == "ACTIVE"
     assert step.next_action == "supervisor_overall_deadline"
     assert calls == []
 

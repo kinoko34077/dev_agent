@@ -97,6 +97,23 @@ def _remaining_supervisor_deadline(metadata: Mapping[str, Any]) -> float | None:
     return (deadline - datetime.now(timezone.utc)).total_seconds()
 
 
+def _requires_codex_action(plan: Mapping[str, Any], step: "SupervisorStep") -> bool:
+    """Return whether the caller, rather than the worker wait loop, must act."""
+
+    if step.status == "REVIEWING":
+        return True
+    if step.status == "INTEGRATING" and step.next_action == "integrate_verified_worker":
+        return True
+    if step.status == "ACTIVE" and step.next_action in {
+        "execute_codex_task",
+        "rework_worker",
+        "reassign_worker",
+        "resolve_rejection",
+    }:
+        return True
+    return False
+
+
 @dataclass(frozen=True)
 class SupervisorStep:
     run_id: str
@@ -403,8 +420,8 @@ class CodexSupervisedCommanderRun:
                 )
             except (DevFarmError, TypeError, ValueError) as exc:
                 metadata = normalize_supervisor_metadata(self.store.load(self.run_id).get("supervisor"))
-                metadata["status"] = "HUMAN_DECISION_REQUIRED"
-                metadata["next_action"] = "resolve_worker_admission"
+                metadata["status"] = "ACTIVE"
+                metadata["next_action"] = "reassign_worker"
                 metadata = record_wake(metadata, kind="NO_ELIGIBLE_WORKER", digest=None)
                 return self._step(self._save_supervisor(metadata))
 
@@ -523,6 +540,13 @@ class CodexSupervisedCommanderRun:
         elif any(task["status"] in {"DISPATCHED", "PROPOSED"} for task in plan["tasks"]):
             metadata["status"] = "WAITING_FOR_WORKER"
             metadata["next_action"] = "wait_for_worker"
+        elif any(
+            task.get("owner") == "codex"
+            and task.get("status") in {"PLANNED", "READY", "ACTIVE"}
+            for task in plan["tasks"]
+        ):
+            metadata["status"] = "ACTIVE"
+            metadata["next_action"] = "execute_codex_task"
         elif plan["status"] in {"BLOCKED", "REJECTED"}:
             metadata["status"] = "BLOCKED"
             metadata["next_action"] = "resolve_blocker"
@@ -570,7 +594,6 @@ class CodexSupervisedCommanderRun:
             current_metadata = normalize_supervisor_metadata(self.store.load(self.run_id).get("supervisor"))
             deadline_remaining = _remaining_supervisor_deadline(current_metadata)
             if deadline_remaining is not None and deadline_remaining <= 0:
-                current_metadata["status"] = "HUMAN_DECISION_REQUIRED"
                 current_metadata["next_action"] = "supervisor_overall_deadline"
                 current_metadata = record_wake(current_metadata, kind="SUPERVISOR_OVERALL_DEADLINE")
                 return self._step(self._save_supervisor(current_metadata))
@@ -578,9 +601,9 @@ class CodexSupervisedCommanderRun:
             remaining = float(max_wait_seconds) - elapsed
             if remaining <= 0:
                 metadata = normalize_supervisor_metadata(self.store.load(self.run_id).get("supervisor"))
-                metadata["status"] = "HUMAN_DECISION_REQUIRED"
-                metadata["next_action"] = "supervisor_wait_deadline"
-                metadata = record_wake(metadata, kind="SUPERVISOR_WAIT_DEADLINE")
+                metadata["status"] = "WAITING_FOR_WORKER"
+                metadata["next_action"] = "wait_budget_exhausted"
+                metadata = record_wake(metadata, kind="SUPERVISOR_WAIT_BUDGET_EXHAUSTED")
                 return self._step(self._save_supervisor(metadata))
 
             step = self.advance(
@@ -591,12 +614,9 @@ class CodexSupervisedCommanderRun:
                 operator_approved=operator_approved,
                 dispatch_timeout_seconds=dispatch_timeout_seconds,
             )
-            if step.status in {
-                "REVIEWING",
-                "HUMAN_DECISION_REQUIRED",
-                "COMPLETED",
-                "BLOCKED",
-            }:
+            if step.status in {"HUMAN_DECISION_REQUIRED", "COMPLETED", "BLOCKED"}:
+                return step
+            if _requires_codex_action(self.store.load(self.run_id), step):
                 return step
             if step.status not in {"WAITING_FOR_WORKER", "ACTIVE", "WORKER_RESULT_READY", "INTEGRATING"}:
                 return step

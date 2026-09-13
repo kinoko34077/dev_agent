@@ -16,6 +16,10 @@ dispatch / collect / verifyをcompositionしながら同じrunをblocking継続�
 
 通常経路ではWorker完了だけを理由にHumanへ返さず、HOST_VERIFIED後にCodex reviewを要求する。
 Codexが明示承認するまでintegrationしない。
+`REVIEWING`、`INTEGRATING/integrate_verified_worker`、`ACTIVE/rework_worker`、
+`ACTIVE/execute_codex_task`、`ACTIVE/reassign_worker`はCodex action requiredとして
+直ちに呼出元へ返す。これはHuman decisionとは別であり、Codexが処理した後は同じrunを
+再開する。
 
 ## 待機
 
@@ -25,6 +29,9 @@ Codexが明示承認するまでintegrationしない。
 同一結果が続く場合でも最大15分を超えない。wakeはWorker terminal、HOST_VERIFIED、
 retry上限、integration conflict、Human decisionなど意味のある結果に限定する。
 `advance()`／`resume`は外部からの明示的な一回再開が必要なsnapshot APIとして残る。
+`max_wait_seconds`の消費はHuman decisionではなく、`WAITING_FOR_WORKER`/
+`wait_budget_exhausted`と`SUPERVISOR_WAIT_BUDGET_EXHAUSTED` wakeで記録する。
+overall deadlineも自動的にHuman decisionへ昇格させず、期限到達として返す。
 
 ## Reference-first
 
