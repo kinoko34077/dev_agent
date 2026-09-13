@@ -77,6 +77,15 @@ python scripts/devfarm_supervisor.py status <run-id> --root .
 python scripts/devfarm_supervisor.py resume <run-id> --root .
 python scripts/devfarm_supervisor.py run <run-id> --root . \
   --trust-level TRUSTED_HOST_EXEC --operator-approved
+python scripts/devfarm_supervisor.py review <run-id> <task-id> --root . \
+  --attempt-id <attempt-id> --decision APPROVE_INTEGRATION \
+  --evidence-ref <verification-artifact>
+python scripts/devfarm_supervisor.py rework <run-id> <task-id> --root . \
+  --failure-evidence-ref <failure-artifact> \
+  --required-correction "<durable correction>"
+python scripts/devfarm_supervisor.py integrate <run-id> <task-id> --root . \
+  --decision-id <decision-id> --target-checkout . \
+  --target-ref HEAD --commit-message "<message>"
 ```
 
 `status`はcompactなPlan/Supervisor metadataだけを出力する。`resume`は既存のProvider
@@ -84,6 +93,16 @@ activation境界を通して一回だけ`advance()`する。`run`は同じactiva
 `run_until_intervention()`を呼ぶblocking運用入口である。既定trust levelは
 `STATIC_ONLY`で、明示されたattempt承認なしに外部生成コードをHost実行しない。
 `dispatch_timeout_seconds`、`max_wait_seconds`、Planの`overall_deadline`で待機はbounded。
+`review`、`rework`、`integrate`は新しい判断・統合エンジンではない。各々、既存の
+`record_review_decision()`、`rework_handoff()` + `reassign()`、
+`integrate_approved_worker()`へ渡す薄いCLI adapterである。`review`の決定は
+`APPROVE_INTEGRATION`、`REWORK`、`REJECT`、`ESCALATE`に限定される。`rework`は
+現在attemptに結び付いたdurableな`REWORK`決定が無ければ失敗し、`integrate`は
+durableな承認とHost側Git証拠を再検証する。
+
+日常の外部Worker dogfoodで`TRUSTED_HOST_EXEC`を使う場合も、承認はその実行対象の
+attemptに限る。既定値を変更したり、承認を全Planへ永続化したりしない。通常の短い
+運用手順と再開規則は[`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_DAILY_DOGFOOD.md)にまとめる。
 
 ## Handoff / payload
 

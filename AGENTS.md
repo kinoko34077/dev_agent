@@ -50,6 +50,33 @@ Protected areas include `spec/v2/GATE_STATUS.json`, budget authority,
 `recovery/`, credentials/secrets/private keys, `.env*`, `.git/`, and
 `.devfarm/`. Only a human-approved protected path operation may change those.
 
+## Default Daily Development Operation
+
+For non-trivial normal development, use an existing Commander Plan and the
+Supervisor path. A short request such as `現行ロードマップ進めて` is resolved
+from the standard preflight and current repository state; do not ask the Human
+for filenames, tests, or Worker choice when existing authority can decide.
+
+- Prefer narrow, qualified Free Worker tasks. Codex direct implementation is
+  an exception and keeps a concrete reason such as `protected`,
+  `cross_cutting`, `no_qualified_worker`, or `delegation_overhead`.
+- Use `python scripts/devfarm_supervisor.py run <run-id> --root .` for the
+  blocking Worker wait. Do not return a turn merely because a Worker was
+  dispatched; return at Codex action, Human decision, meaningful checkpoint,
+  terminal blocker, or slice completion.
+- Start review from the compact ReviewPacket. Do not normally read raw Worker
+  conversation or repeatedly poll while the Worker is running.
+- `APPROVE_INTEGRATION` goes through the Host integration helper; `REWORK`
+  goes through a durable decision and reference-first correction. Never bypass
+  Host Verification, approval, budget, privacy, recovery, or Gate authority.
+- Resume a matching unfinished plan under `.devfarm/plans/` instead of making
+  a duplicate. Skip frozen/non-blocking G6O1, Compression, paid-provider,
+  OS-sandbox, and other explicitly deferred work unless the Human reopens it.
+
+The short operator procedure is in `docs/CODEX_DAILY_DOGFOOD.md`; the durable
+contracts remain in `docs/CODEX_SUPERVISOR.md` and
+`docs/CODEX_COMMANDER.md`.
+
 ## Delivery
 
 Run focused tests, the full `tests/v2` regression, and relevant read-only Gate

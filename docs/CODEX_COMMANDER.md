@@ -83,6 +83,26 @@ Host Verificationを呼び、valid proposalだけを専用worktreeへ適用す�
 公式`v2/bootstrap`へ自動merge、commit、Gate promotionは行わない。Codexがreview後に
 `mark-integrated`を明示的に記録する。
 
+日常運用では、SupervisorのCLI adapterを使ってreview・rework・integrationを行う。
+
+```text
+python scripts/devfarm_supervisor.py run <run-id> --root . \
+  --trust-level TRUSTED_HOST_EXEC --operator-approved
+python scripts/devfarm_supervisor.py review <run-id> <task-id> --root . \
+  --attempt-id <attempt-id> --decision APPROVE_INTEGRATION \
+  --evidence-ref <verification-artifact>
+python scripts/devfarm_supervisor.py integrate <run-id> <task-id> --root . \
+  --decision-id <decision-id> --target-checkout . \
+  --target-ref HEAD --commit-message "<message>"
+```
+
+REWORK時は`review --decision REWORK --required-correction ...`を先にdurably記録し、
+その後`rework`で差分Handoff付きimmutable manifestを再発行する。CLIは既存Commander
+APIを呼ぶだけで、Host Verification、approval、Git証拠、dependency releaseの責務を
+複製しない。Worker作業中は`run`を使い、単なるdispatchだけでHumanへ戻らない。
+日常のpreflight、unfinished Planのresume、checkpoint、restartは
+[`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_DAILY_DOGFOOD.md)を参照する。
+
 CodexがWorker完了を待つ場合は、`scripts/devfarm_supervisor.py`の
 `CodexSupervisedCommanderRun`を使う。`advance()`は一回のbounded snapshot pass、
 `run_until_intervention()`は同じPlanをWorker terminal／Host Verification／review要求／
