@@ -23,6 +23,7 @@ known issueを保存する。これは実Worker成功の証拠ではなく、次
 | **Focused regression** | `48 passed` for the AgentBackend / DevFarm artifact-reference cluster; earlier backend / Codex / DevFarm focused suites were `121 passed` |
 | **Full regression** | `915 passed, 1 skipped` (`python -m pytest tests/v2 -q` at `fdf2434`; Windows ACL skip is deployment-owned) |
 | **Architecture / compileall** | `ARCHITECTURE_PASS`; `python -m compileall -q src recovery scripts` clean |
+| **Exact-head CI** | `v2-core` PASS [run 34739190768](https://github.com/kinoko34077/dev_agent/actions/runs/34739190768); `v2-provider-smoke` PASS [run 34739190776](https://github.com/kinoko34077/dev_agent/actions/runs/34739190776) for delivery HEAD `00a182f` |
 | **Real Worker evidence** | Gemini L1 candidate qualified and admitted, but Group D candidate attempt failed twice at the Worker boundary; no HOST_VERIFIED or integration claim |
 | **Current next target** | restart/reconciliation design with explicit external-session discovery authority; no automatic Codex resume is inferred from an artifact or provider thread ID |
 
