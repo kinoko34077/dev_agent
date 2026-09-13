@@ -161,6 +161,22 @@ for _slot in ("2", "3", "4", "5"):
         allowance_period="daily",
         overage_policy="hard_stop",
     )
+    # The Human-provided, separately-accounted Gemini free projects may use
+    # the discovered core model as an *unqualified* candidate.  Billing
+    # admission is exact and explicit, but intelligence tier remains absent:
+    # the separate benchmark catalog, not the billing table, decides L1/L2/L3.
+    _TRUSTED_RESOURCE_CATALOG[("gemini", f"gemini:worker:free-{_slot}", "gemini-3.8-flash")] = TrustedResourceProfile(
+        "gemini",
+        f"gemini:worker:free-{_slot}",
+        "gemini-3.8-flash",
+        0,
+        "JPY",
+        True,
+        None,
+        billing_mode="recurring_allowance",
+        allowance_period="daily",
+        overage_policy="hard_stop",
+    )
 
 # Runtime callers receive an immutable view.  Adding or changing a billing
 # fact is a reviewed code/configuration change, not a mutation available to a

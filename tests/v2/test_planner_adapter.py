@@ -105,6 +105,8 @@ def test_model_planner_returns_typed_proposal_and_keeps_host_authority(tmp_path)
     assert "trailing text" in request.messages[0]["content"]
     assert "Every child field" in request.messages[0]["content"]
     assert "do not place child fields at the top level" in request.messages[0]["content"]
+    assert "suggested_owner` exactly as `worker` or `codex`" in request.messages[0]["content"]
+    assert "Use only these exact required_capabilities values" in request.messages[0]["content"]
     assert '"children":[{"child_key"' in request.messages[0]["content"]
 
 

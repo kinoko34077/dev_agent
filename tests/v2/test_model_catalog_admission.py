@@ -12,7 +12,7 @@ from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
 from src.dev_agent.resources.ledger import ResourceLedger
 from src.dev_agent.resources.billing_catalog import profile_for
 from src.dev_agent.resources.router import NoRoute, ResourceRouter, RouteRequest
-from scripts.refresh_model_catalog import refresh
+from scripts.refresh_model_catalog import refresh, write_candidate
 
 
 NOW = datetime(2026, 9, 14, 12, tzinfo=timezone.utc)
@@ -308,6 +308,17 @@ def test_catalog_refresh_records_a_bounded_sanitized_failure_without_discarding_
         {"provider_id": "bad", "provider_binding_id": "bad:catalog", "category": "RuntimeError"}
     ]
     assert "credential-like" not in json.dumps(document)
+
+
+def test_catalog_candidate_writer_is_create_only_until_operator_explicitly_replaces(tmp_path):
+    output = tmp_path / "candidate.json"
+    write_candidate(output, {"schema_version": 1, "entries": []})
+
+    with pytest.raises(FileExistsError, match="replace_existing"):
+        write_candidate(output, {"schema_version": 1, "entries": [{"model_id": "new"}]})
+
+    write_candidate(output, {"schema_version": 1, "entries": [{"model_id": "new"}]}, replace_existing=True)
+    assert json.loads(output.read_text(encoding="utf-8"))["entries"][0]["model_id"] == "new"
 
 
 def test_operator_configured_gemini_free_slots_have_exact_billing_profiles_for_discovered_core_model():

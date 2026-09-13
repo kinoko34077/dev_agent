@@ -125,6 +125,10 @@ def qualify(*, provider_name: str, model: str, timeout_seconds: float, provider_
             )
             preflight_quota = preflight.usage.get("quota_observation") if isinstance(preflight.usage, dict) else None
             observed_quota_domain = quota_domain or (f"{provider_name}-account" if _has_routable_quota_headroom(preflight_quota) else None)
+            unknown_quota_bootstrap = (
+                observed_quota_domain is not None
+                and not _has_routable_quota_headroom(preflight_quota)
+            )
             ledger.register_resource(
                 resource_id,
                 provider_id=provider_name,
@@ -181,16 +185,35 @@ def qualify(*, provider_name: str, model: str, timeout_seconds: float, provider_
                     handler=lambda arguments: {"echo": arguments["value"]},
                 )
             )
-            task = Task(
-                objective=(
-                    "Call the echo tool exactly once with value 'free-provider-live'. "
-                    "After the tool result is returned, provide a short final confirmation."
-                ),
-                required_capabilities=["text", "tool_call"],
-                limits={"max_steps": 3, "max_model_calls": 3, "max_tool_calls": 2, "max_output_tokens": 256},
+            task = (
+                Task(
+                    objective="Reply with the single word ready.",
+                    required_capabilities=["text"],
+                    limits={"max_steps": 1, "max_model_calls": 1, "max_tool_calls": 1, "max_output_tokens": 64},
+                )
+                if unknown_quota_bootstrap
+                else Task(
+                    objective=(
+                        "Call the echo tool exactly once with value 'free-provider-live'. "
+                        "After the tool result is returned, provide a short final confirmation."
+                    ),
+                    required_capabilities=["text", "tool_call"],
+                    limits={"max_steps": 3, "max_model_calls": 3, "max_tool_calls": 2, "max_output_tokens": 256},
+                )
             )
             with SQLiteStateStore(root / "state.sqlite3") as store:
-                result = Controller(provider, ToolRuntime(tools), store).run(task)
+                # A supplied quota domain is authoritative identity metadata,
+                # not evidence of headroom.  When its first provider response
+                # carries no numeric quota telemetry, retain the existing
+                # one-shot UNKNOWN bootstrap only for this exact trusted,
+                # no-charge profile.  Paid/unknown profiles never reach this
+                # utility's dispatch path.
+                result = Controller(
+                    provider,
+                    ToolRuntime(tools),
+                    store,
+                    allow_unknown_quota=profile.no_charge_guaranteed,
+                ).run(task)
                 snapshot = store.snapshot()
                 audits = store.list_provider_audits(task_id=task.task_id)
                 intents = [dict(row) for row in store.connection.execute("SELECT idempotency_key, status FROM effect_intents ORDER BY idempotency_key").fetchall()]
@@ -216,18 +239,37 @@ def qualify(*, provider_name: str, model: str, timeout_seconds: float, provider_
                     else "observed"
                 ),
                 "billing_authority": "trusted_catalog",
+                "qualification_scope": "text_only_unknown_quota" if unknown_quota_bootstrap else "text_tool_roundtrip",
                 "gemini_transcript": transcript,
                 "budget": governor.snapshot(),
             }
             if result.status != TaskStatus.COMPLETED:
-                raise RuntimeError(f"qualification ended in {result.status.value}")
-            required = {"model.requested", "model.responded", "tool.completed", "task.completed"}
+                # Event kinds are bounded Host facts, not model output. Keep
+                # them in the diagnostic so an operator can distinguish
+                # admission/quota parking from an adapter failure without
+                # retaining a provider response.
+                raise RuntimeError(
+                    f"qualification ended in {result.status.value}; "
+                    f"events={','.join(event_types[-4:])}"
+                )
+            required = {"model.requested", "model.responded", "task.completed"}
+            if not unknown_quota_bootstrap:
+                required.add("tool.completed")
             missing = sorted(required - set(event_types))
             if missing:
                 raise RuntimeError(f"qualification missing events: {', '.join(missing)}")
-            if len(tool_results) != 1:
-                raise RuntimeError(f"qualification expected one tool result, got {len(tool_results)}")
-            if provider_name == "gemini" and model.startswith("gemini-3"):
+            expected_tool_results = 0 if unknown_quota_bootstrap else 1
+            if len(tool_results) != expected_tool_results:
+                raise RuntimeError(
+                    f"qualification expected {expected_tool_results} tool result(s), got {len(tool_results)}"
+                )
+            # Gemini 3 thought signatures are part of the tool-call
+            # continuation contract.  A quota-unknown bootstrap deliberately
+            # performs one text-only request, for which Gemini may omit a
+            # signature; do not reject a successful text contract for that
+            # reason.  The normal tool roundtrip still requires the durable
+            # signature evidence below.
+            if provider_name == "gemini" and model.startswith("gemini-3") and not unknown_quota_bootstrap:
                 if not transcript or transcript["thought_signatures_received"] < 1 or transcript["thought_signatures_replayed"] < 1:
                     raise RuntimeError("qualification missing Gemini 3 thought signature roundtrip")
             return output

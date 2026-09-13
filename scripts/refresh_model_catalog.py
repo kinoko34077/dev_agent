@@ -12,8 +12,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import sys
+import tempfile
 from typing import Any, Mapping
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -88,25 +90,52 @@ def refresh(bindings: tuple[ModelDiscoveryBinding, ...], *, discovery: ProviderM
     }
 
 
-def write_candidate(path: str | Path, document: Mapping[str, Any]) -> None:
-    """Atomically replace only the explicitly named operator output file."""
+def write_candidate(
+    path: str | Path,
+    document: Mapping[str, Any],
+    *,
+    replace_existing: bool = False,
+) -> None:
+    """Write an explicitly named candidate without implicit snapshot replacement."""
     target = Path(path).resolve()
     if target.parent == target or not target.name:
         raise ValueError("output path must be a file")
+    if target.exists() and not replace_existing:
+        raise FileExistsError("candidate output already exists; pass replace_existing explicitly")
     target.parent.mkdir(parents=True, exist_ok=True)
-    temporary = target.with_suffix(target.suffix + ".tmp")
-    temporary.write_text(json.dumps(document, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    temporary.replace(target)
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=target.parent,
+            prefix=f".{target.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as temporary:
+            temporary_path = Path(temporary.name)
+            temporary.write(json.dumps(document, ensure_ascii=False, indent=2) + "\n")
+            temporary.flush()
+            os.fsync(temporary.fileno())
+        temporary_path.replace(target)
+    finally:
+        if temporary_path is not None and temporary_path.exists():
+            temporary_path.unlink()
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bindings", default=ROOT / "spec" / "v2" / "model_evidence" / "model_discovery_bindings.json")
     parser.add_argument("--output", required=True, help="explicit candidate snapshot path; no default canonical overwrite")
+    parser.add_argument(
+        "--replace-existing",
+        action="store_true",
+        help="explicitly replace an existing candidate path; omitted paths are create-only",
+    )
     args = parser.parse_args(argv)
     try:
         document = refresh(load_bindings(args.bindings))
-        write_candidate(args.output, document)
+        write_candidate(args.output, document, replace_existing=args.replace_existing)
     except Exception as exc:
         # Do not echo endpoint payloads or exception internals that might have
         # included an upstream diagnostic.  The binding config and candidate

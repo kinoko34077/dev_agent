@@ -150,6 +150,70 @@ def test_openrouter_free_qualification_uses_canonical_dispatch_path(monkeypatch)
     assert responses == []
 
 
+def test_free_qualification_with_an_explicit_quota_domain_uses_only_bounded_unknown_bootstrap(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-secret")
+    responses = [
+        _Response(
+            {
+                "model": "openrouter/free",
+                "choices": [{"message": {"content": "ready"}, "finish_reason": "stop"}],
+                "usage": {"total_tokens": 2},
+            }
+        ),
+        _Response(
+            {
+                "model": "openrouter/free",
+                "choices": [{"message": {"content": "ready"}, "finish_reason": "stop"}],
+                "usage": {"total_tokens": 3},
+            }
+        ),
+    ]
+
+    monkeypatch.setattr(
+        "src.dev_agent.providers.openrouter.provider.urlopen_no_redirect",
+        lambda _request, timeout: responses.pop(0),
+    )
+
+    output = qualify(
+        provider_name="openrouter",
+        model="openrouter/free",
+        timeout_seconds=2,
+        quota_domain="openrouter:account",
+    )
+
+    assert output["status"] == "completed"
+    assert output["quota_status"] == "unknown_not_reported"
+    assert output["qualification_scope"] == "text_only_unknown_quota"
+    assert output["tool_result_count"] == 0
+    assert responses == []
+
+
+def test_gemini_text_only_unknown_quota_bootstrap_does_not_require_tool_signature(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-secret")
+    responses = [
+        _Response({"candidates": [{"content": {"parts": [{"text": "ready"}]}, "finishReason": "STOP"}]}),
+        _Response({"candidates": [{"content": {"parts": [{"text": "ready"}]}, "finishReason": "STOP"}]}),
+    ]
+    monkeypatch.setattr(
+        "src.dev_agent.providers.gemini.provider.urlopen_no_redirect",
+        lambda _request, timeout: responses.pop(0),
+    )
+
+    output = qualify(
+        provider_name="gemini",
+        model="gemini-3.8-flash",
+        timeout_seconds=2,
+        provider_binding_id="gemini:qualification",
+        api_key_env="GEMINI_API_KEY",
+        quota_domain="gemini:test-account",
+    )
+
+    assert output["status"] == "completed"
+    assert output["qualification_scope"] == "text_only_unknown_quota"
+    assert output["tool_result_count"] == 0
+    assert responses == []
+
+
 def test_mistral_free_qualification_uses_canonical_dispatch_path(monkeypatch):
     monkeypatch.setenv("MISTRAL_API_KEY", "test-secret")
     _add_fixture_free_profile(monkeypatch, "mistral", "mistral-small-latest")

@@ -38,6 +38,8 @@ from src.dev_agent.resources.budget import BudgetAuthority, BudgetGovernor, Budg
 from src.dev_agent.resources.billing_catalog import profile_for
 from src.dev_agent.resources.control import DispatchDenied, ResourceControlPlane
 from src.dev_agent.resources.ledger import ResourceLedger
+from src.dev_agent.resources.model_admission import ModelAdmissionResolver
+from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
 from src.dev_agent.resources.qualification import QualificationResolver
 from src.dev_agent.resources.router import ResourceRouter
 
@@ -102,18 +104,33 @@ def admit_planner_pool(
     bindings: tuple[OperationProviderBinding, ...] | list[OperationProviderBinding],
     *,
     resolver: QualificationResolver,
+    model_admission_resolver: ModelAdmissionResolver | None = None,
 ) -> tuple[tuple[OperationProviderBinding, object, object], ...]:
     """Return only exact, current, high-confidence L2 planner candidates.
 
-    The model name never supplies a tier.  Each identity must resolve through
-    the same qualification and billing catalogs used by ResourceRouter.
+    The model name never supplies a tier.  With model evidence composed, its
+    benchmark-derived tier supplies the role, while Qualification remains the
+    exact integration-compatibility evidence.
     """
 
     admitted: list[tuple[OperationProviderBinding, object, object]] = []
     for binding in bindings:
         qualification = resolver.resolve(binding.provider_id, binding.binding_id, binding.model, min_confidence="high")
-        if qualification is None or qualification.intelligence_tier != "L2":
+        if qualification is None:
             continue
+        if model_admission_resolver is None:
+            # Compatibility seam for isolated tests and legacy in-process
+            # callers. The CLI composes the reviewed model-evidence snapshot.
+            if qualification.intelligence_tier != "L2":
+                continue
+        else:
+            admission = model_admission_resolver.resolve(
+                binding.provider_id,
+                binding.binding_id,
+                binding.model,
+            )
+            if admission is None or admission.intelligence_tier != "L2":
+                continue
         profile = profile_for(binding.provider_id, binding.binding_id, binding.model)
         if profile is None or not profile.no_charge_guaranteed:
             continue
@@ -146,6 +163,7 @@ def run_shadow(
     repository: str,
     branch: str,
     provider_pool: tuple[OperationProviderBinding, ...] | list[OperationProviderBinding] | None = None,
+    model_admission_resolver: ModelAdmissionResolver | None = None,
 ) -> dict[str, object]:
     parent_task_id = validate_parent_task_id(parent_task_id)
     resolver = QualificationResolver()
@@ -159,15 +177,32 @@ def run_shadow(
             timeout_seconds=timeout_seconds,
         ),
     )
-    admitted = admit_planner_pool(bindings, resolver=resolver)
+    admitted = admit_planner_pool(
+        bindings,
+        resolver=resolver,
+        model_admission_resolver=model_admission_resolver,
+    )
     if not admitted:
         raise PlannerShadowBlocked("no exact current high-confidence L2 planner resource is admitted")
+
+    def _effective_tier(binding: OperationProviderBinding, qualification: object) -> str | None:
+        if model_admission_resolver is not None:
+            admission = model_admission_resolver.resolve(binding.provider_id, binding.binding_id, binding.model)
+            return None if admission is None else admission.intelligence_tier
+        return getattr(qualification, "intelligence_tier", None)
 
     with TemporaryDirectory(prefix="dev-agent-planner-shadow-") as directory:
         ledger = ResourceLedger(Path(directory) / "resources.sqlite3")
         try:
             concrete = []
             for binding, qualification, profile in admitted:
+                admission = (
+                    model_admission_resolver.resolve(binding.provider_id, binding.binding_id, binding.model)
+                    if model_admission_resolver is not None
+                    else None
+                )
+                if admission is None and model_admission_resolver is not None:
+                    raise PlannerShadowBlocked("planner model evidence expired after admission")
                 concrete.append(_build_provider(binding=binding))
                 resource_id = f"planner-shadow:{binding.binding_id}"
                 ledger.register_resource(
@@ -176,16 +211,19 @@ def run_shadow(
                     provider_binding_id=binding.binding_id,
                     native_unit="request",
                     capacity=1,
-                    capabilities=sorted(qualification.routing_capabilities),
+                    capabilities=sorted(
+                        set(qualification.routing_capabilities)
+                        & (set(admission.capabilities) if admission is not None else set(qualification.routing_capabilities))
+                    ),
                     sensitivity="normal",
                     cost_minor=profile.cost_minor,
                     price_currency=profile.price_currency,
                     quota_domain=binding.quota_domain,
-                    intelligence_tier=qualification.intelligence_tier,
+                    intelligence_tier=admission.intelligence_tier if admission is not None else qualification.intelligence_tier,
                     metadata={
                         "provider_binding_id": binding.binding_id,
                         "model_id": binding.model,
-                        "intelligence_tier": qualification.intelligence_tier,
+                        "intelligence_tier": admission.intelligence_tier if admission is not None else qualification.intelligence_tier,
                         "privacy_profile": "remote_cloud",
                         "qualification_required": True,
                         "billing_authority": "trusted_catalog",
@@ -202,7 +240,11 @@ def run_shadow(
             policy = BudgetPolicy(hard_cap_minor=0, recovery_reserve_minor=0)
             BudgetAuthority.configure(ledger, policy)
             control = ResourceControlPlane(
-                ResourceRouter(ledger, qualification_resolver=resolver),
+                ResourceRouter(
+                    ledger,
+                    qualification_resolver=resolver,
+                    model_admission_resolver=model_admission_resolver,
+                ),
                 BudgetGovernor(ledger, policy),
             )
             dispatcher = ProviderDispatcher(ProviderRegistry(concrete), control)
@@ -229,7 +271,7 @@ def run_shadow(
                             "binding": binding.binding_id,
                             "model": binding.model,
                             "quota_domain": binding.quota_domain,
-                            "intelligence_tier": qualification.intelligence_tier,
+                            "intelligence_tier": _effective_tier(binding, qualification),
                         }
                         for binding, qualification, _profile in admitted
                     ],
@@ -267,7 +309,7 @@ def run_shadow(
                             "binding": binding.binding_id,
                             "model": binding.model,
                             "quota_domain": binding.quota_domain,
-                            "intelligence_tier": qualification.intelligence_tier,
+                            "intelligence_tier": _effective_tier(binding, qualification),
                         }
                         for binding, qualification, _profile in admitted
                     ],
@@ -321,7 +363,7 @@ def run_shadow(
                         "binding": binding.binding_id,
                         "model": binding.model,
                         "quota_domain": binding.quota_domain,
-                        "intelligence_tier": qualification.intelligence_tier,
+                        "intelligence_tier": _effective_tier(binding, qualification),
                     }
                     for binding, qualification, _profile in admitted
                 ],
@@ -367,6 +409,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     try:
+        # Normal live invocation always uses the reviewed static evidence
+        # snapshot.  It is loaded here, never at module import time, and does
+        # not call a discovery/benchmark service during planner dispatch.
+        model_admission_resolver = ModelEvidenceCatalog.load_default().resolver
         provider_pool = None
         if args.pool_json is not None:
             try:
@@ -392,6 +438,7 @@ def main(argv: list[str] | None = None) -> int:
             repository=args.repository,
             branch=args.branch,
             provider_pool=provider_pool,
+            model_admission_resolver=model_admission_resolver,
         )
         code = 0 if output.get("status") == "live_shadow_validated" else 2
     except PlannerShadowInputError as exc:

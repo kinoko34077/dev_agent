@@ -15,8 +15,10 @@ import math
 import re
 from typing import Any
 
+from ..domain.capabilities import CANONICAL_EXECUTION_CAPABILITIES
 from ..domain.protocol import ModelRequest, ModelResponse
 from ..providers.base import ModelProvider
+from .capabilities import TASK_COMPETENCIES, TASK_POLICY_TRAITS
 from .planner import PlanningValidationError, RootPlanningProposal
 
 
@@ -47,7 +49,13 @@ PLANNING_PROPOSAL_RESPONSE_SCHEMA: dict[str, Any] = {
                     "task_type": {"type": "string"},
                     "risk": {"type": "string"},
                     "sensitivity": {"type": ["string", "null"]},
-                    "required_capabilities": {"type": "array", "items": {"type": "string"}},
+                    "required_capabilities": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": sorted(CANONICAL_EXECUTION_CAPABILITIES | TASK_COMPETENCIES | TASK_POLICY_TRAITS),
+                        },
+                    },
                     "dependencies": {"type": "array", "items": {"type": "string"}},
                     "dependency_types": {"type": "object", "additionalProperties": {"type": "string"}},
                     "suggested_owner": {"type": "string"},
@@ -135,6 +143,7 @@ class ModelPlanningAdapter:
             "planning_mode": "proposal_only",
             "authority": "host_validation_required",
             "planner_response_encoding": "strict_json_text",
+            "task_fit": "planning",
         }
         if required_intelligence_tier is not None:
             metadata.update(
@@ -209,6 +218,9 @@ class ModelPlanningAdapter:
             "Every child field, including `child_key`, `objective`, `task_type`, `risk`, `sensitivity`, "
             "`required_capabilities`, `dependencies`, `dependency_types`, and `suggested_owner`, "
             "must be nested inside one object in `children`; do not place child fields at the top level. "
+            "If a child has no dependencies, use `dependencies`: [] and `dependency_types`: {}; never use null for either field. "
+            "Use `suggested_owner` exactly as `worker` or `codex`, never a descriptive phrase. "
+            "Use only these exact required_capabilities values: architecture, coding, review, extraction, classification, translation, documentation, multilingual, security, protected, recovery, security_sensitive, private, sensitive, text, tool_call, structured_output, json, or long_context; use `coding` for a code/test task or [] when none is needed. "
             "Use this shape: {\"parent_task_id\":\"...\",\"rationale\":\"...\",\"children\":[{\"child_key\":\"...\",\"objective\":\"...\",\"task_type\":\"worker\"}]}.\n"
             "This is a proposal only: do not claim authority, budget, approval, privacy relaxation, "
             "Gate changes, or direct Task creation. The host will validate the proposal.\n"
