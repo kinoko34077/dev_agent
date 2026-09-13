@@ -1327,13 +1327,15 @@ def _prove_worker_patch_in_revision(root: Path, patch: str, revision: str, chang
             applied = subprocess.run(
                 ["git", "-c", f"safe.directory={worktree.as_posix()}", "apply", "--whitespace=error", "-"],
                 cwd=worktree,
-                input=patch,
+                input=patch.encode("utf-8"),
                 capture_output=True,
-                text=True,
+                text=False,
                 check=False,
             )
             if applied.returncode != 0:
-                detail = applied.stderr.strip() or applied.stdout.strip() or "patch does not apply to integration parent"
+                stderr = applied.stderr.decode("utf-8", errors="replace").strip()
+                stdout = applied.stdout.decode("utf-8", errors="replace").strip()
+                detail = stderr or stdout or "patch does not apply to integration parent"
                 raise DevFarmError(detail)
             _git(worktree, "add", "--all")
             compared = subprocess.run(
