@@ -102,12 +102,12 @@
 - [x] For each candidate L2 binding, run one bounded integration contract qualification; do not run model-performance batteries and do not elevate from a benchmark alone (`gemini:worker:free-3/-4/-5`, text-only unknown-quota scope).
 - [x] Run one bounded pool-routed D1 observation. It exhausted two confirmed-unavailable exact L2 bindings without a proposal; preserve the sanitized result in evidence.
 - [x] Continue immediately through existing Bridge → Commander → L1 Worker → Host Verification → ReviewDecision → deterministic integration, with target-child Codex implementation count zero. Verified by `planner-to-worker-e2e-20260914.json`.
-- [x] Run focused tests (`46 passed`), full `tests/v2` (`992 passed, 1 skipped`), architecture check, and compileall.
+- [x] Run focused tests (`24 passed` after the compatibility fix), full `tests/v2` (`993 passed, 1 skipped`), architecture check, and compileall.
 - [ ] Push the synchronized evidence/documentation commit and confirm exact-head CI; local D1/D2 evidence is truthful, while external CI remains pending until push.
 
 ## Current facts after the model-evidence slice
 
-- `ed83662` is the current local implementation baseline for the D1/D2 evidence. The preceding remote checks remain historical; exact-head CI for this synchronized commit remains pending until push.
+- `4b19716` is the current local implementation baseline for the D1/D2 evidence plus the Python 3.11 compatibility fix. The first synchronized push had `v2-core` collection failure on Python 3.11; exact-head CI for this fix remains pending until push.
 - The reviewed evidence stack represents four exact Gemini L2 identities: `gemini:core` and `gemini:worker:free-3/-4/-5`. The latter three have current high-confidence text-only integration qualification; the separate benchmark snapshot supplies the L2 tier.
 - Read-only model-list observations produced `1289` entries from `12/14` explicit bindings. `groq` and local `ollama` discovery failures are recorded as typed bounded failures; no availability is inferred.
 - The first bounded D1 pool observation used `free-4` and `free-5`; both returned confirmed provider-unavailable and the pool ended `pool_exhausted`. A later bounded pool run selected `free-3` / `gemini-3.6-flash` and passed D1; D2 then passed through Host integration. Prior failures remain evidence, not retry instructions.
