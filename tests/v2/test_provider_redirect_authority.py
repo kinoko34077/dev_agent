@@ -48,8 +48,12 @@ class _RedirectServer:
                 hit_counter.hit_count += 1
                 if capture_auth:
                     captured_auth_headers.append(handler_self.headers.get("Authorization"))
+                content_length = int(handler_self.headers.get("Content-Length", "0"))
+                if content_length:
+                    handler_self.rfile.read(content_length)
                 handler_self.send_response(status)
                 handler_self.send_header("Location", location)
+                handler_self.send_header("Content-Length", "0")
                 handler_self.end_headers()
 
             def log_message(handler_self, *_args):
