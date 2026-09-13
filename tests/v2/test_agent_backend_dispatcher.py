@@ -8,6 +8,7 @@ import pytest
 
 from src.dev_agent.backends import (
     BackendAdmission,
+    AgentBackendArtifactReference,
     AgentBackendDispatcher,
     AgentBackendDispatchError,
     AgentBackendEvent,
@@ -97,6 +98,15 @@ def test_dispatch_persists_identity_and_does_not_restart_existing_session(store,
         session_id=session.session_id,
         status=AgentBackendStatus.COMPLETED,
         external_session_id="provider-session-001",
+        artifact_references=(
+            AgentBackendArtifactReference(
+                artifact_id="result-001",
+                uri="artifact://result-001",
+                kind="result",
+                sha256="ab" * 32,
+                size_bytes=42,
+            ),
+        ),
     )
     dispatcher.result(dispatch_id, backend)
     same_session = _dispatcher(store).dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
@@ -111,6 +121,7 @@ def test_dispatch_persists_identity_and_does_not_restart_existing_session(store,
     assert intent["result"]["session"]["client_session_key"] == f"dev-agent:{dispatch_id}"
     assert intent["result"]["session"]["external_session_id"] == "provider-session-001"
     assert intent["result"]["backend_result"]["external_session_id"] == "provider-session-001"
+    assert intent["result"]["backend_result"]["artifact_references"][0]["artifact_id"] == "result-001"
     assert intent["arguments"]["attempt"] == 1
     assert intent["arguments"]["request_fingerprint"]
 

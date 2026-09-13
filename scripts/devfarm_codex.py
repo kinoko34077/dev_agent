@@ -84,6 +84,8 @@ class CodexDevFarmAttempt:
             "workspace": str(self.workspace),
             "backend_status": self.backend_result.status.value,
             "backend_session_id": self.backend_result.session_id,
+            "backend_external_session_id": self.backend_result.external_session_id,
+            "artifact_references": [reference.to_dict() for reference in self.backend_result.artifact_references],
             "events": [
                 {
                     "sequence": event.sequence,
@@ -236,6 +238,7 @@ def _base_result(
         "proposed_test_commands": list(manifest["test_commands"]),
         "host_verified_tests": [],
         "worker_metrics": metrics,
+        "artifact_references": [reference.to_dict() for reference in backend_result.artifact_references],
         "known_issues": known_issues,
         "assumptions": ["Host-side Git inspection and verification are authoritative; backend claims are not."],
     }

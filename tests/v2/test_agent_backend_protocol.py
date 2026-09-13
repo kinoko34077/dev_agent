@@ -1,9 +1,11 @@
 from collections.abc import Iterable
+import json
 
 import pytest
 
 from src.dev_agent.backends import (
     AgentBackend,
+    AgentBackendArtifactReference,
     AgentBackendDiscovery,
     AgentBackendEvent,
     AgentBackendIdentity,
@@ -55,6 +57,41 @@ def test_session_reference_keeps_local_and_external_identity_separate():
     assert session.client_session_key == "dev-agent:task-001:attempt-001"
     assert session.external_session_id == "provider-session-001"
     assert session.session_id != session.external_session_id
+
+
+def test_artifact_reference_is_bounded_machine_readable_and_round_trips():
+    reference = AgentBackendArtifactReference(
+        artifact_id="patch-001",
+        uri="artifact://dev-agent/patch-001",
+        kind="patch",
+        sha256="AB" * 32,
+        size_bytes=128,
+    )
+    result = AgentBackendResult(
+        session_id="session-001",
+        status=AgentBackendStatus.COMPLETED,
+        artifact_references=(reference,),
+    )
+
+    encoded = result.to_dict()
+    json.dumps(encoded)
+    restored = AgentBackendResult.from_dict(encoded)
+
+    assert restored.artifact_references == (reference,)
+    assert restored.artifact_references[0].sha256 == ("ab" * 32)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        {"artifact_id": "patch", "uri": "artifact://patch", "sha256": "bad"},
+        {"artifact_id": "patch", "uri": "artifact://patch", "size_bytes": -1},
+        {"artifact_id": "patch", "uri": "artifact://patch\nnext"},
+    ],
+)
+def test_artifact_reference_rejects_untrusted_identity_metadata(value):
+    with pytest.raises((TypeError, ValueError)):
+        AgentBackendArtifactReference.from_dict(value)
 
 
 def test_optional_backend_discovery_protocol_is_structural():

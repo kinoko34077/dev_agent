@@ -9,6 +9,7 @@ import pytest
 from scripts.devfarm import DevFarmError, write_manifest
 from scripts.devfarm_codex import run_codex_attempt
 from src.dev_agent.backends.protocol import (
+    AgentBackendArtifactReference,
     AgentBackendEvent,
     AgentBackendIdentity,
     AgentBackendRequest,
@@ -116,6 +117,37 @@ def test_codex_attempt_uses_isolated_worktree_and_detects_untracked_changes(tmp_
     assert " M tests/v2/test_target.py" in status
     artifact = root / ".devfarm" / "results" / "codex-attempt-001" / "attempts" / attempt["attempt_id"] / "patch.diff"
     assert artifact.read_text(encoding="utf-8") == attempt["patch"]
+
+
+def test_codex_attempt_exposes_bounded_backend_artifact_references(tmp_path: Path):
+    root, revision = _repo(tmp_path)
+    manifest_path = _manifest(root, revision, allowed_files=["tests/v2/test_target.py", "tests/v2/new_file.py"])
+    backend = _EditingBackend()
+    backend._result = AgentBackendResult(
+        session_id=backend._session,
+        status=AgentBackendStatus.COMPLETED,
+        artifact_references=(
+            AgentBackendArtifactReference(
+                artifact_id="worker-result",
+                uri="artifact://worker-result",
+                kind="result",
+                sha256="cd" * 32,
+                size_bytes=64,
+            ),
+        ),
+    )
+
+    attempt = run_codex_attempt(root, manifest_path, backend=backend)
+
+    assert attempt["result"]["artifact_references"] == [
+        {
+            "artifact_id": "worker-result",
+            "uri": "artifact://worker-result",
+            "kind": "result",
+            "sha256": "cd" * 32,
+            "size_bytes": 64,
+        }
+    ]
 
 
 def test_codex_attempt_rejects_out_of_scope_change_before_verification(tmp_path: Path):

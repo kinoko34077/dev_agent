@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from enum import Enum
+import re
 from typing import Any, Protocol, runtime_checkable
 
 
@@ -39,6 +40,15 @@ def _optional_text(value: Any, name: str, *, max_length: int = 512) -> str | Non
     normalized = _text(value, name)
     if len(normalized) > max_length:
         raise ValueError(f"{name} is too long")
+    return normalized
+
+
+def _bounded_reference_text(value: Any, name: str, *, max_length: int) -> str:
+    normalized = _text(value, name)
+    if len(normalized) > max_length:
+        raise ValueError(f"{name} is too long")
+    if any(character.isspace() or ord(character) < 32 or ord(character) == 127 for character in normalized):
+        raise ValueError(f"{name} contains unsafe whitespace or control characters")
     return normalized
 
 
@@ -139,6 +149,75 @@ class AgentBackendSession:
         object.__setattr__(self, "client_session_key", _optional_text(self.client_session_key, "client_session_key"))
         object.__setattr__(self, "external_session_id", _optional_text(self.external_session_id, "external_session_id"))
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "session_id": self.session_id,
+            "task_id": self.task_id,
+            "backend_id": self.backend_id,
+            "status": self.status.value,
+            "client_session_key": self.client_session_key,
+            "external_session_id": self.external_session_id,
+        }
+
+
+@dataclass(frozen=True)
+class AgentBackendArtifactReference:
+    """Bounded identity/reference for an output produced by a backend.
+
+    The reference is metadata only. It does not grant read access, prove
+    verification, or make an external URI authoritative; those decisions stay
+    with the existing DevFarm, Host Verification, and artifact authorities.
+    ``output_artifacts`` remains on :class:`AgentBackendResult` for backwards
+    compatibility with older adapters.
+    """
+
+    artifact_id: str
+    uri: str
+    kind: str = "output"
+    sha256: str | None = None
+    size_bytes: int | None = None
+
+    def __post_init__(self) -> None:
+        artifact_id = _bounded_reference_text(self.artifact_id, "artifact_id", max_length=256)
+        kind = _bounded_reference_text(self.kind, "kind", max_length=128)
+        if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}", kind) is None:
+            raise ValueError("kind must be a structural token")
+        uri = _bounded_reference_text(self.uri, "uri", max_length=2048)
+        sha256 = self.sha256
+        if sha256 is not None:
+            sha256 = _bounded_reference_text(sha256, "sha256", max_length=64).lower()
+            if re.fullmatch(r"[0-9a-f]{64}", sha256) is None:
+                raise ValueError("sha256 must be a 64-character hexadecimal digest")
+        size_bytes = self.size_bytes
+        if size_bytes is not None and (isinstance(size_bytes, bool) or not isinstance(size_bytes, int) or size_bytes < 0):
+            raise ValueError("size_bytes must be a non-negative integer")
+        object.__setattr__(self, "artifact_id", artifact_id)
+        object.__setattr__(self, "kind", kind)
+        object.__setattr__(self, "uri", uri)
+        object.__setattr__(self, "sha256", sha256)
+        object.__setattr__(self, "size_bytes", size_bytes)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "artifact_id": self.artifact_id,
+            "uri": self.uri,
+            "kind": self.kind,
+            "sha256": self.sha256,
+            "size_bytes": self.size_bytes,
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "AgentBackendArtifactReference":
+        if not isinstance(value, Mapping):
+            raise TypeError("artifact reference must be an object")
+        return cls(
+            artifact_id=value.get("artifact_id"),
+            uri=value.get("uri"),
+            kind=value.get("kind", "output"),
+            sha256=value.get("sha256"),
+            size_bytes=value.get("size_bytes"),
+        )
+
 
 @dataclass(frozen=True)
 class AgentBackendEvent:
@@ -166,6 +245,7 @@ class AgentBackendResult:
     output_artifacts: tuple[str, ...] = ()
     reconciliation_metadata: Mapping[str, Any] = field(default_factory=dict)
     external_session_id: str | None = None
+    artifact_references: tuple[AgentBackendArtifactReference, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "session_id", _text(self.session_id, "session_id"))
@@ -197,6 +277,37 @@ class AgentBackendResult:
             raise TypeError("reconciliation_metadata must be a mapping")
         object.__setattr__(self, "reconciliation_metadata", dict(self.reconciliation_metadata))
         object.__setattr__(self, "external_session_id", _optional_text(self.external_session_id, "external_session_id"))
+        references = self.artifact_references
+        if references is None:
+            references = ()
+        if isinstance(references, (str, bytes)):
+            raise TypeError("artifact_references must be a sequence of objects")
+        try:
+            normalized_references = tuple(
+                reference
+                if isinstance(reference, AgentBackendArtifactReference)
+                else AgentBackendArtifactReference.from_dict(reference)
+                for reference in references
+            )
+        except TypeError as exc:
+            raise TypeError("artifact_references must be a sequence of objects") from exc
+        object.__setattr__(self, "artifact_references", normalized_references)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "session_id": self.session_id,
+            "status": self.status.value,
+            "output_artifacts": list(self.output_artifacts),
+            "reconciliation_metadata": dict(self.reconciliation_metadata),
+            "external_session_id": self.external_session_id,
+            "artifact_references": [reference.to_dict() for reference in self.artifact_references],
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "AgentBackendResult":
+        if not isinstance(value, Mapping):
+            raise TypeError("backend result must be an object")
+        return cls(**dict(value))
 
 
 @runtime_checkable
@@ -236,6 +347,7 @@ class AgentBackend(Protocol):
 
 __all__ = [
     "AgentBackend",
+    "AgentBackendArtifactReference",
     "AgentBackendDiscovery",
     "AgentBackendEvent",
     "AgentBackendIdentity",

@@ -240,7 +240,7 @@ class AgentBackendDispatcher:
             self._mark_unknown(key, task, "agent_backend.start_unknown", {"error_type": type(exc).__name__})
             raise BackendDispatchUncertain(f"backend start outcome is unknown: {dispatch_id}") from exc
 
-        session_payload = {"session": session.__dict__, "request_fingerprint": fingerprint}
+        session_payload = {"session": session.to_dict(), "request_fingerprint": fingerprint}
         self._store.transition_effect_intent(key, to_status="dispatching", result=session_payload)
         self._append_event(task, "agent_backend.started", {**expected, "backend_session_id": session.session_id})
         return session
@@ -306,7 +306,7 @@ class AgentBackendDispatcher:
             )
             raise BackendDispatchUncertain(f"backend start discovery failed: {dispatch_id}") from exc
         payload = {
-            "session": session.__dict__,
+            "session": session.to_dict(),
             "start_reconciled": True,
             "actor": actor.strip(),
             "source": source.strip(),
@@ -400,7 +400,7 @@ class AgentBackendDispatcher:
             self._mark_unknown(key, task, "agent_backend.result_unknown", {"error_type": type(exc).__name__})
             return AgentBackendResult(session_id=session.session_id, status=AgentBackendStatus.UNKNOWN, reconciliation_metadata={"error_type": type(exc).__name__})
 
-        payload = {"session": session.__dict__, "backend_result": result.__dict__}
+        payload = {"session": session.to_dict(), "backend_result": result.to_dict()}
         if result.status is AgentBackendStatus.COMPLETED:
             effect_status = "succeeded"
         elif result.status is AgentBackendStatus.FAILED or result.status is AgentBackendStatus.CANCELLED:
@@ -465,7 +465,7 @@ class AgentBackendDispatcher:
             actor=actor.strip(),
             source=source.strip(),
             external_id=session.session_id,
-            evidence={"backend_result": result.__dict__},
+            evidence={"backend_result": result.to_dict()},
         )
         self._append_event(self._task_for_intent(intent), "agent_backend.reconciled", {"dispatch_id": dispatch_id, "status": result.status.value, "actor": actor.strip(), "source": source.strip()})
         return result
@@ -641,7 +641,7 @@ class AgentBackendDispatcher:
         if not isinstance(value, Mapping):
             return None
         try:
-            return AgentBackendResult(**dict(value))
+            return AgentBackendResult.from_dict(value)
         except (TypeError, ValueError):
             return None
 
