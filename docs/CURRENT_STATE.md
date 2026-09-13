@@ -1,5 +1,36 @@
 # Current State — v2/bootstrap
 
+## Current — 2026-09-13 (Group D session identity boundary / worker failure evidence)
+
+Group Dの次段として、AgentBackendのlocal session identityと外部Provider
+session identityを分離してdurableに扱う契約を追加した。`client_session_key`は
+dev_agent側の再開対象を識別し、`external_session_id`はProvider側で既に生成された
+sessionを追跡する。optionalな`AgentBackendDiscovery` contractも公開したが、
+CodexExecBackendへ自動discoveryを実装したわけではない。現行adapterはプロセス再起動後
+に安全な外部session再取得を保証できないため、unknown outcome / reconciliationを
+維持し、推測による自動resumeは行わない。
+
+また、実Gemini WorkerのGroup D候補Taskを2 bounded attempt実行したところ、
+qualificationやroutingの拒否ではなく、Worker/adapter境界の予期しない例外で
+`proposal_failed`となった。従来はplan-level errorだけでattempt result artifactが
+残らなかったため、現在は各attemptへfailed result artifact、attempt/base revision、
+known issueを保存する。これは実Worker成功の証拠ではなく、次回診断可能性を改善した
+証拠である。max-attemptを越えた同一Taskの抜け道再実行は行っていない。
+
+| Field | Value |
+| --- | --- |
+| **Implementation commits** | `f60f926` (session identity contract); `5a52720` (per-attempt Worker boundary failure evidence) |
+| **Focused regression** | `121 passed` for backend / Codex / DevFarm focused suites |
+| **Full regression** | `910 passed, 1 skipped` (`python -m pytest tests/v2 -q`; Windows ACL skip is deployment-owned) |
+| **Architecture / compileall** | `ARCHITECTURE_PASS`; `python -m compileall -q src recovery scripts` clean |
+| **Real Worker evidence** | Gemini L1 candidate qualified and admitted, but Group D candidate attempt failed twice at the Worker boundary; no HOST_VERIFIED or integration claim |
+| **Current next target** | artifact identity/reference extraction, then restart/reconciliation design with explicit external-session discovery authority |
+
+The corresponding code changes are intentionally narrow. `AgentBackendDiscovery` is a
+contract seam, not an automatic Codex resume implementation; `CodexExecBackend` still has
+no discovery method. Compression, MCP, Planner migration, G6O1-SIM/LIVE, and production
+paid-provider work remain unconnected or deferred as documented elsewhere.
+
 ## Current — 2026-09-13 (post-merge exact-head verification)
 
 The daily Supervisor dogfood slice is now present on the protected target branch.
