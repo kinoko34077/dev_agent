@@ -31,9 +31,7 @@
 
 ## Active working plan
 
-| Path | Role |
-| --- | --- |
-| `docs/superpowers/plans/2026-09-13-planner-to-worker-e2e.md` | D1/D2の現在の狭い実行Plan。詳細順序は`V2_DETAILED_ROADMAP.md`を参照 |
+現在、完了済みD1/D2の作業Planはありません。次の作業は`docs/V2_DETAILED_ROADMAP.md`のD3条件付き評価またはD4を、必要に応じて新しい狭いPlanとして開始する。
 
 ## Historical archive
 
@@ -50,6 +48,7 @@
 - `docs/archive/plans/2026-09/2026-09-13-daily-supervisor-operation.md`
 - `docs/archive/plans/2026-09/2026-09-13-supervisor-operation-and-worker-probes.md`
 - `docs/archive/plans/2026-09/2026-09-13-supervisor-runtime-hardening.md`
+- `docs/archive/plans/2026-09/2026-09-13-planner-to-worker-e2e.md`
 
 2026-09-13時点の`docs/archive/specs/2026-09/2026-09-13-*.md`は、既存のSupervisor契約のdecision rationaleを保持するため archiveへ移した。恒久契約は`CODEX_COMMANDER.md`、`CODEX_SUPERVISOR.md`、requirements、ADRを正本とする。
 

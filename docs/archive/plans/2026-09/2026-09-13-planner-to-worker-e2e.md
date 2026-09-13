@@ -1,5 +1,7 @@
 # Model-catalog admission and Planner-to-Worker implementation plan
 
+> Status: IMPLEMENTATION VERIFIED on 2026-09-14; external push/exact-head CI is tracked separately in the current state. The live D1/D2 evidence is recorded in `spec/v2/evidence/planner-l2-live-d1-20260914.json` and `spec/v2/evidence/planner-to-worker-e2e-20260914.json`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` or `superpowers:executing-plans` task-by-task. Steps use checkbox syntax for tracking.
 
 **Goal:** Make exact provider-model availability, externally sourced intelligence evidence, capability evidence, and existing runtime admission compose into Router candidates without weakening qualification, billing, privacy, quota, or reconciliation authority; then complete D1/D2 with a real Free L2 Planner and Free L1 Worker.
@@ -99,16 +101,16 @@
 - [x] Run a read-only discovery refresh for configured providers and record only sanitized counts/identities/digests (`1289` entries from `12/14` bindings; two typed failures).
 - [x] For each candidate L2 binding, run one bounded integration contract qualification; do not run model-performance batteries and do not elevate from a benchmark alone (`gemini:worker:free-3/-4/-5`, text-only unknown-quota scope).
 - [x] Run one bounded pool-routed D1 observation. It exhausted two confirmed-unavailable exact L2 bindings without a proposal; preserve the sanitized result in evidence.
-- [ ] Continue immediately through existing Bridge → Commander → L1 Worker → Host Verification → ReviewDecision → deterministic integration, with target-child Codex implementation count zero.
-- [x] Run focused tests (`46 passed`), full `tests/v2` (`977 passed, 1 skipped`), architecture check, and compileall.
-- [ ] Push the synchronized commits, confirm exact-head CI, and close this plan only after D1/D2 evidence is truthful.
+- [x] Continue immediately through existing Bridge → Commander → L1 Worker → Host Verification → ReviewDecision → deterministic integration, with target-child Codex implementation count zero. Verified by `planner-to-worker-e2e-20260914.json`.
+- [x] Run focused tests (`46 passed`), full `tests/v2` (`992 passed, 1 skipped`), architecture check, and compileall.
+- [ ] Push the synchronized evidence/documentation commit and confirm exact-head CI; local D1/D2 evidence is truthful, while external CI remains pending until push.
 
 ## Current facts after the model-evidence slice
 
-- `956122b` is the current local implementation baseline. The preceding remote `738336d` passed exact-head `v2-core` and `v2-provider-smoke`; CI for the new commits remains pending until push.
+- `ed83662` is the current local implementation baseline for the D1/D2 evidence. The preceding remote checks remain historical; exact-head CI for this synchronized commit remains pending until push.
 - The reviewed evidence stack represents four exact Gemini L2 identities: `gemini:core` and `gemini:worker:free-3/-4/-5`. The latter three have current high-confidence text-only integration qualification; the separate benchmark snapshot supplies the L2 tier.
 - Read-only model-list observations produced `1289` entries from `12/14` explicit bindings. `groq` and local `ollama` discovery failures are recorded as typed bounded failures; no availability is inferred.
-- The latest bounded D1 pool observation used `free-4` and `free-5`; both returned confirmed provider-unavailable and the pool ended `pool_exhausted`. D1 valid proposal and D2 remain unverified.
+- The first bounded D1 pool observation used `free-4` and `free-5`; both returned confirmed provider-unavailable and the pool ended `pool_exhausted`. A later bounded pool run selected `free-3` / `gemini-3.6-flash` and passed D1; D2 then passed through Host integration. Prior failures remain evidence, not retry instructions.
 
 ## Non-goals
 

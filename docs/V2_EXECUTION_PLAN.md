@@ -21,7 +21,9 @@ Current State、Main/Detailed Roadmap、Requirements、ADR、Evidence、作業Pl
 
 ### D1/D2 — Planner-to-Worker live development slice
 
-次の最重要Gateは、明示opt-inされたqualified L2 poolから実Free L2 Plannerのvalid proposalをHost validationへ通し、既存BridgeからCommander Plan、qualified Free L1 Worker、Host Verification、Codex review-only、Host deterministic integrationまで一続きで証明すること。Model discovery / benchmark / capability evidenceは候補化の入力に留まり、qualification・billing・privacy・quota・healthを代替しない。confirmed failover-safe failureは同一tierの別bindingへ切替え、UNKNOWNはreconciliationへ閉じる。現在は、複数exact L2 poolの構成とbounded failoverまでは実装済みだが、live valid proposalは未検証である。
+D1/D2のbounded live development sliceは、`gemini:worker:free-3` / `gemini-3.6-flash`によるstrict JSON Planner proposal、Host validation、DevelopmentPlanningBridge、Commander Plan、Free L1 Worker、独立Host Verification、Codex durable review、Host deterministic integrationまで完了した。詳細Evidenceは[`planner-l2-live-d1-20260914.json`](../spec/v2/evidence/planner-l2-live-d1-20260914.json)と[`planner-to-worker-e2e-20260914.json`](../spec/v2/evidence/planner-to-worker-e2e-20260914.json)を参照する。Model discovery / benchmark / capability evidenceは候補化の入力に留まり、qualification・billing・privacy・quota・healthを代替しない。confirmed failover-safe failureは同一tierの別bindingへ切替え、UNKNOWNはreconciliationへ閉じる。
+
+次のGateはD3の条件付きWorker reliability確認、D4のconcrete session restart/discoveryである。D3は記録済みfailure classが再発した場合だけ狭く修正し、D4では正式なdiscovery authorityが無い限りUNKNOWN/reconciliationを維持する。
 
 ## Operational acceptance
 

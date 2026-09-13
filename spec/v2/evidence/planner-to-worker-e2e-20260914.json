@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "status": "VERIFIED",
+  "observed_at": "2026-09-14T08:05:49.429139+09:00",
+  "purpose": "Planner-originated development slice through Host integration with no Codex direct implementation of the target child.",
+  "baseline": {
+    "base_revision": "ca0ce10c4a1c3a2d8df3c699bfdfac5e6b928ed5",
+    "integration_revision": "ed83662d69ceeec55120ec19fbecf673713d6836"
+  },
+  "planner": {
+    "source_evidence": "spec/v2/evidence/planner-l2-live-d1-20260914.json",
+    "provider": "gemini",
+    "binding": "gemini:worker:free-3::model::gemini-3.6-flash::cf27b68ecf38",
+    "model": "gemini-3.6-flash",
+    "intelligence_tier": "L2",
+    "proposal_id": "a67c3f46-271a-47ae-a9ab-08b006652baa",
+    "proposal_sha256": "b7f09ec8a5a9c327b9a3673a385ab10ed3b91310f5049b66472ab697ad5af5",
+    "host_validation": "passed",
+    "child_count": 1,
+    "suggested_owner": "codex"
+  },
+  "bridge": {
+    "status": "passed",
+    "run_id": "d2-planner-worker-retry2-20260914",
+    "proposal_id": "a67c3f46-271a-47ae-a9ab-08b006652baa",
+    "host_task_policy": {
+      "effective_owner": "worker",
+      "suggested_owner_overridden": true,
+      "reason": "narrow non-protected test-only implementation was Worker-eligible"
+    },
+    "ownership": ["tests/v2/test_agent_backend_dispatcher.py"],
+    "dependency_types": {},
+    "base_revision": "ca0ce10c4a1c3a2d8df3c699bfdfac5e6b928ed5"
+  },
+  "commander": {
+    "run_id": "d2-planner-worker-retry2-20260914",
+    "task_id": "824c0c90-e881-5865-a618-a3457c4d1b6b",
+    "manifest_path": ".devfarm/tasks/824c0c90-e881-5865-a618-a3457c4d1b6b.json",
+    "plan_status": "INTEGRATED",
+    "task_status": "INTEGRATED",
+    "plan_revision": 12,
+    "max_attempts": 1,
+    "attempt_count": 1
+  },
+  "worker": {
+    "provider": "gemini",
+    "binding": "gemini:worker",
+    "model": "gemini-3.5-flash-lite",
+    "attempt_id": "bc35ba2a6a794fc0ae6a6aa599fc0a51",
+    "changed_files": ["tests/v2/test_agent_backend_dispatcher.py"],
+    "patch_sha256": "963bec5b444a12d493d612d76c17d3b5b23fa72f0e4913e9c3e4d17078c8fde0",
+    "direct_codex_implementation_count": 0
+  },
+  "host_verification": {
+    "status": "passed",
+    "verification_ref": ".devfarm/results/824c0c90-e881-5865-a618-a3457c4d1b6b/attempts/bc35ba2a6a794fc0ae6a6aa599fc0a51/verification/79ef9b5d3cec4d25a932777168776ed6.json",
+    "trust_level": "TRUSTED_HOST_EXEC",
+    "operator_approved": true,
+    "independent_verification": true,
+    "verified_test_count": 2,
+    "tests": [
+      "python -m pytest tests/v2/test_agent_backend_dispatcher.py -q",
+      "python -m pytest tests/v2/test_model_catalog_admission.py -q"
+    ]
+  },
+  "review": {
+    "decision": "APPROVE_INTEGRATION",
+    "decision_id": "review-cbfee3a9f37244dfb50c3a62f5518b97",
+    "reviewer_role": "codex_supervisor",
+    "evidence_refs": [
+      ".devfarm/results/824c0c90-e881-5865-a618-a3457c4d1b6b/attempts/bc35ba2a6a794fc0ae6a6aa599fc0a51/verification/79ef9b5d3cec4d25a932777168776ed6.json"
+    ]
+  },
+  "bounded_prior_failures": [
+    {
+      "run_id": "d2-planner-worker-20260914",
+      "category": "provider_transport_unavailable",
+      "detail": "sandbox network denied the Gemini socket before request completion",
+      "action": "bounded reassignment; no code acceptance"
+    },
+    {
+      "run_id": "d2-planner-worker-20260914",
+      "category": "patch_format_failure",
+      "detail": "worker hunk context did not apply to the exact base file",
+      "action": "terminal attempt; validator remained fail-closed"
+    },
+    {
+      "run_id": "d2-planner-worker-retry-20260914",
+      "category": "host_verification_policy_rejection",
+      "detail": "manifest had no unmodified trusted verification target",
+      "action": "new bounded manifest added an independent existing suite"
+    }
+  ],
+  "delegation": {
+    "worker_owned_task_count": 1,
+    "worker_integrated_task_count": 1,
+    "codex_owned_task_count": 0,
+    "codex_direct_implementation_count": 0,
+    "codex_direct_reasons": []
+  },
+  "integration": {
+    "method": "integrate_approved_worker",
+    "target_ref": "HEAD",
+    "push": false,
+    "merge": false,
+    "gate_promotion": false
+  },
+  "raw_worker_conversation_recorded": false
+}
