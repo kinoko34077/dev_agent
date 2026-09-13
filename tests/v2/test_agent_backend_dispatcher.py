@@ -531,6 +531,42 @@ def test_explicit_reconciliation_can_confirm_result_without_restarting_backend(s
     assert backend.start_calls == 1
 
 
+def test_reconciliation_persists_session_and_artifacts_for_terminal_replay(store, task):
+    request = _request(task.task_id)
+    dispatch_id = str(uuid4())
+    backend = FakeAgentBackend(result_status=AgentBackendStatus.UNKNOWN)
+    dispatcher = _dispatcher(store)
+    session = dispatcher.dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
+    dispatcher.result(dispatch_id, backend)
+    backend.result_value = AgentBackendResult(
+        session_id=session.session_id,
+        status=AgentBackendStatus.COMPLETED,
+        external_session_id="provider-session-reconciled",
+        artifact_references=(
+            AgentBackendArtifactReference(
+                artifact_id="reconciled-output",
+                uri="artifact://reconciled-output",
+                kind="result",
+                sha256="cd" * 32,
+                size_bytes=17,
+            ),
+        ),
+    )
+
+    result = dispatcher.reconcile(dispatch_id, backend, actor="operator", source="restart-reconcile")
+
+    assert result.status is AgentBackendStatus.COMPLETED
+    intent = store.get_effect_intent(dispatcher.effect_key(dispatch_id))
+    assert intent["result"]["session"]["session_id"] == session.session_id
+    assert intent["result"]["session"]["external_session_id"] == "provider-session-reconciled"
+    assert intent["result"]["backend_result"]["artifact_references"][0]["artifact_id"] == "reconciled-output"
+    replayed = _dispatcher(store).dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
+
+    assert replayed.session_id == session.session_id
+    assert replayed.external_session_id == "provider-session-reconciled"
+    assert backend.start_calls == 1
+
+
 def test_cancel_is_forwarded_and_backend_failure_becomes_unknown(store, task):
     request = _request(task.task_id)
     dispatch_id = str(uuid4())

@@ -459,13 +459,21 @@ class AgentBackendDispatcher:
         except BaseException as exc:
             result = AgentBackendResult(session_id=session.session_id, status=AgentBackendStatus.UNKNOWN, reconciliation_metadata={"error_type": type(exc).__name__})
         status = "succeeded" if result.status is AgentBackendStatus.COMPLETED else "confirmed_failed" if result.status in {AgentBackendStatus.FAILED, AgentBackendStatus.CANCELLED} else "unknown"
-        self._store.reconcile_effect_intent(
+        # Use the generic late-result reconciliation projection so the
+        # normalized session and backend result remain top-level durable
+        # replay data.  ``reconcile_effect_intent`` stores evidence inside an
+        # audit wrapper, which is sufficient for a human audit but cannot
+        # reconstruct a terminal AgentBackend session after restart.
+        session_payload = session.to_dict()
+        result_payload = result.to_dict()
+        self._store.reconcile_effect_result(
             key,
             status=status,
             actor=actor.strip(),
             source=source.strip(),
-            external_id=session.session_id,
-            evidence={"backend_result": result.to_dict()},
+            external_id=session.external_session_id or session.session_id,
+            evidence={"session": session_payload, "backend_result": result_payload},
+            result={"session": session_payload, "backend_result": result_payload},
         )
         self._append_event(self._task_for_intent(intent), "agent_backend.reconciled", {"dispatch_id": dispatch_id, "status": result.status.value, "actor": actor.strip(), "source": source.strip()})
         return result
