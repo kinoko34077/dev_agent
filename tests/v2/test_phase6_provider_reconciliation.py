@@ -282,31 +282,47 @@ def test_canonical_dispatcher_saturation_is_scoped_to_provider_binding(tmp_path)
 # Tests split mechanically from test_phase6_integration.py; semantics are unchanged.
 
 def test_paid_provider_timeout_waits_for_reconciliation_instead_of_failing(tmp_path):
+    from threading import Event
+
     ledger = ResourceLedger(tmp_path / "provider-timeout.sqlite3")
     ledger.register_resource("paid", provider_id="slow", native_unit="request", capacity=10, capabilities=["text"], cost_minor=10)
     ledger.observe("paid", available=10, health="healthy")
     control = ResourceControlPlane(ResourceRouter(ledger), _governor(ledger, BudgetPolicy(hard_cap_minor=20, recovery_reserve_minor=0)))
 
     calls = []
+    started = Event()
+    release = Event()
+    completed = Event()
 
     class SlowProvider(FakeProvider):
         provider_id = "slow"
 
         def request(self, request):
-            import time
             calls.append(request.request_id)
-            time.sleep(0.2)
-            return ModelResponse(provider="slow", model="test", text_segments=["late"])
+            started.set()
+            release.wait(2)
+            try:
+                return ModelResponse(provider="slow", model="test", text_segments=["late"])
+            finally:
+                completed.set()
 
-    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
-        controller = Controller(SlowProvider(), ToolRuntime(ToolRegistry()), store, resource_policy=control)
-        task = Task(objective="timeout", limits={"max_wall_time_seconds": 0.03})
-        result = controller.run(task)
-        assert result.status.value == "waiting_reconciliation"
-        assert store.connection.execute("SELECT status FROM effect_intents").fetchone()[0] == "unknown"
-        resumed = controller.resume(task.task_id)
-    assert resumed.status.value == "waiting_reconciliation"
-    assert len(calls) == 1
+    try:
+        with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+            controller = Controller(SlowProvider(), ToolRuntime(ToolRegistry()), store, resource_policy=control)
+            # Leave enough setup budget for SQLite/state initialization, then
+            # hold the provider call open so the timeout is unambiguously
+            # exercised while an external request is in flight.
+            task = Task(objective="timeout", limits={"max_wall_time_seconds": 0.5})
+            result = controller.run(task)
+            assert started.is_set()
+            assert result.status.value == "waiting_reconciliation"
+            assert store.connection.execute("SELECT status FROM effect_intents").fetchone()[0] == "unknown"
+            resumed = controller.resume(task.task_id)
+        assert resumed.status.value == "waiting_reconciliation"
+        assert len(calls) == 1
+    finally:
+        release.set()
+        assert completed.wait(2)
 
 
 def test_late_provider_completion_reconciles_once_and_resumes_task(tmp_path):
