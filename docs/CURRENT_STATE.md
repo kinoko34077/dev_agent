@@ -1,5 +1,29 @@
 # Current State — v2/bootstrap
 
+## Current — 2026-09-13 (post-merge exact-head verification)
+
+The daily Supervisor dogfood slice is now present on the protected target branch.
+The only post-merge CI failure was a timing-sensitive reconciliation regression
+test: its 30ms task deadline could expire during SQLite setup before the fake
+Provider started. The test now synchronizes on Provider start and holds the
+request in flight, preserving the intended reconciliation assertion without
+changing runtime timeout semantics.
+
+| Field | Value |
+| --- | --- |
+| **Target branch** | `v2/bootstrap` |
+| **Exact HEAD** | `8eab23028af3e1060a13d21ce15de176c5067a39` |
+| **Change** | `test: stabilize provider reconciliation timeout` |
+| **Local regression** | `907 passed, 1 skipped` (`python -m pytest tests/v2 -q`) |
+| **Architecture / compileall** | `ARCHITECTURE_PASS`; `python -m compileall -q src recovery scripts` clean |
+| **Exact-head CI** | `v2-core` PASS [run 34734895874](https://github.com/kinoko34077/dev_agent/actions/runs/34734895874); `v2-provider-smoke` PASS [run 34734895900](https://github.com/kinoko34077/dev_agent/actions/runs/34734895900) |
+| **GitHub protection** | deletion/non-fast-forward and required checks remain active; direct push is allowed only for the explicitly configured user bypass actor |
+
+The earlier merge commit `ba2b4bd` had one Python 3.11 `v2-core` failure in
+`test_paid_provider_timeout_waits_for_reconciliation_instead_of_failing`;
+that failure was fixed by making the test exercise an in-flight Provider timeout
+deterministically. No production runtime file was changed for this correction.
+
 ## Current — 2026-09-13 (Daily Supervisor operation / Group D Worker slice)
 
 日常運用の最初の実案件を、今回整備したCLI導線で実証した。対象はGroup Dの
@@ -18,7 +42,7 @@ Gemini L1 Workerへ委譲した。
 | **Review** | durable `APPROVE_INTEGRATION`, decision `review-df3ec331356a43738966821e118b0e76` |
 | **Integration** | Host deterministic helper created `eca1af81729692096e8c314da56d4a45b259e7a1` |
 | **Focused regression** | `45 passed` (`test_devfarm_commander.py`, `test_devfarm_supervisor.py`, new Group D test) |
-| **Full/CI status** | This entry records the local slice; full `tests/v2`, architecture, compileall, and post-push exact-head CI remain to be run for this commit |
+| **Full/CI status** | Superseded by the post-merge exact-head verification entry above; full `tests/v2`, architecture, compileall, and target CI are green at `8eab230` |
 
 The first attempt (`daily-group-d-usage-20260913`) was rejected before Host
 Verification because its outbound input included an existing test fixture containing
