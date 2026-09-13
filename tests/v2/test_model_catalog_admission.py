@@ -7,7 +7,7 @@ from src.dev_agent.providers.model_discovery import ModelDiscoveryBinding, Provi
 from src.dev_agent.resources.model_admission import ModelAdmissionResolver
 from src.dev_agent.resources.model_benchmarks import BenchmarkCatalog
 from src.dev_agent.resources.model_capabilities import ModelCapabilityCatalog
-from src.dev_agent.resources.model_catalog import ModelAliasCatalog, ModelCatalog
+from src.dev_agent.resources.model_catalog import ModelAliasCatalog, ModelCatalog, ModelCatalogEntry
 from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
 from src.dev_agent.resources.ledger import ResourceLedger
 from src.dev_agent.resources.billing_catalog import profile_for
@@ -16,6 +16,20 @@ from scripts.refresh_model_catalog import merge_catalog_documents, refresh, writ
 
 
 NOW = datetime(2026, 9, 14, 12, tzinfo=timezone.utc)
+
+
+def test_model_catalog_entry_default_metadata_is_constructible_on_python_311() -> None:
+    entry = ModelCatalogEntry(
+        provider_id="gemini",
+        provider_binding_id="gemini:slot-a",
+        model_id="gemini-3.8-flash",
+        source="gemini.models.list",
+        observed_at="2026-09-14T00:00:00+00:00",
+        expires_at="2026-09-15T00:00:00+00:00",
+    )
+
+    assert dict(entry.metadata) == {}
+    assert entry.is_current(now=NOW)
 
 
 def _model_catalog(*, expires_at: str = "2026-09-15T00:00:00+00:00") -> ModelCatalog:

@@ -7,7 +7,7 @@ capability, billing, privacy, or runtime eligibility.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from types import MappingProxyType
 from typing import Any, Mapping
@@ -102,7 +102,7 @@ class ModelCatalogEntry:
     source: str
     observed_at: str
     expires_at: str
-    metadata: Mapping[str, Any] = MappingProxyType({})
+    metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         for name in (
