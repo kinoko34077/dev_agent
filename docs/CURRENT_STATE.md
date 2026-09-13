@@ -15,6 +15,8 @@ baselineとしてBをrelease・実行する依存Task chainまで完了した。
 | Field | Value |
 | --- | --- |
 | **Branch** | `v2/bootstrap` |
+| **Code fix baseline** | `1d3bee8` |
+| **Evidence/docs baseline** | `ab48bc2` |
 | **Supervisor E2E** | single task `INTEGRATED`; dependency A → B `INTEGRATED` |
 | **REWORK** | A: attempt 1 Host Verification reject → attempt 2 Host Verified |
 | **Worker** | `gemini` / `gemini:worker` / `gemini-3.5-flash-lite` |
@@ -22,7 +24,7 @@ baselineとしてBをrelease・実行する依存Task chainまで完了した。
 | **Capability probes** | P0/P1/P2 pass; P3/P4/P5は`model_output_invalid`として記録 |
 | **Local regression** | `903 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 308.67s) |
 | **Architecture / compileall** | `ARCHITECTURE_PASS`; `python -m compileall -q src recovery scripts` clean |
-| **External CI** | このCurrent State更新commit push後にexact-head確認 |
+| **External CI** | exact-head `ab48bc2` の `v2-core`（Python 3.10 / 3.11）PASS [run 34730987686](https://github.com/kinoko34077/dev_agent/actions/runs/34730987686)、`v2-provider-smoke` PASS [run 34730987680](https://github.com/kinoko34077/dev_agent/actions/runs/34730987680) |
 
 固定Capability Probeは、API transport/契約不一致とモデル出力形式不一致を
 分離して記録している。今回の失敗ProbeはProvider type/transport failureではなく、
