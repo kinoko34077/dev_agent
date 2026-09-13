@@ -380,6 +380,14 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
         if not isinstance(worker_candidate, bool):
             raise DevFarmError("worker_candidate must be a boolean")
         task["worker_candidate"] = worker_candidate
+        explicit_delegation_reason = raw.get("delegation_reason")
+        if owner == "codex" and worker_candidate:
+            if (
+                not isinstance(explicit_delegation_reason, str)
+                or not explicit_delegation_reason.strip()
+                or explicit_delegation_reason.strip() == "legacy_plan_reason_not_recorded"
+            ):
+                raise DevFarmError("Codex worker-candidate task requires an explicit delegation_reason")
         task["delegation_reason"] = _text(
             raw.get(
                 "delegation_reason",

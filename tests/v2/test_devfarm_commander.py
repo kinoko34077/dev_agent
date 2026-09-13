@@ -1139,6 +1139,27 @@ def test_delegation_summary_requires_a_reason_for_explicit_codex_direct_task():
         )
 
 
+def test_commander_rejects_codex_worker_candidate_without_explicit_reason(tmp_path):
+    root, _targets, revision = _repo(tmp_path)
+    with pytest.raises(DevFarmError, match="explicit delegation_reason"):
+        create_plan(
+            root,
+            {
+                "run_id": "missing-delegation-reason",
+                "objective": "reject unreasoned Codex ownership",
+                "base_revision": revision,
+                "tasks": [
+                    {
+                        "task_id": "codex-direct",
+                        "owner": "codex",
+                        "worker_candidate": True,
+                        "ownership": ["docs/review.md"],
+                    }
+                ],
+            },
+        )
+
+
 def test_commander_keeps_dispatched_task_waiting_before_deadline(tmp_path):
     root, targets, revision = _repo(tmp_path)
     _manifest(root, revision, "worker-a", targets[0])
