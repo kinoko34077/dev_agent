@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
@@ -7,6 +8,13 @@ from src.dev_agent.domain.protocol import ModelRequest, ModelResponse, TaskType
 from src.dev_agent.intelligence.planner import PlanningValidationError, RootPlanningProposal
 from src.dev_agent.intelligence.planner_adapter import ModelPlanningAdapter, PlanningAdapterError
 from src.dev_agent.operation import OperationConfig, OperationService
+from src.dev_agent.providers.base import ModelProvider
+from src.dev_agent.providers.dispatch import ProviderDispatcher, ProviderRegistry
+from src.dev_agent.resources.budget import BudgetAuthority, BudgetGovernor, BudgetPolicy
+from src.dev_agent.resources.control import ResourceControlPlane
+from src.dev_agent.resources.ledger import ResourceLedger
+from src.dev_agent.resources.qualification import QualificationResolver
+from src.dev_agent.resources.router import ResourceRouter
 
 
 class _Provider:
@@ -19,6 +27,25 @@ class _Provider:
     def request(self, request: ModelRequest) -> ModelResponse:
         self.requests.append(request)
         return self.response
+
+
+class _RoutedPlannerProvider(ModelProvider):
+    provider_id = "gemini"
+
+    def __init__(self, parent_task_id: str):
+        self.model = "gemini-3.8-flash"
+        self.provider_binding_id = "gemini:core"
+        self.parent_task_id = parent_task_id
+        self.requests: list[ModelRequest] = []
+
+    def request(self, request: ModelRequest) -> ModelResponse:
+        self.requests.append(request)
+        return ModelResponse(
+            provider=self.provider_id,
+            model=self.model,
+            structured_output=_payload(self.parent_task_id),
+            usage={"cost_minor": 0},
+        )
 
 
 def _payload(parent_task_id: str) -> dict:
@@ -66,12 +93,103 @@ def test_model_planner_returns_typed_proposal_and_keeps_host_authority(tmp_path)
     assert proposal.children[0].task_type.value == "worker"
     assert len(provider.requests) == 1
     request = provider.requests[0]
-    assert request.requested_capabilities == ["structured_output", "json"]
+    assert request.requested_capabilities == ["text"]
     assert request.response_schema is not None
     assert request.metadata["planning_mode"] == "proposal_only"
     assert request.metadata["authority"] == "host_validation_required"
     assert "split this narrow development objective" in request.messages[0]["content"]
     assert "v2/bootstrap" in request.messages[0]["content"]
+
+
+def test_model_planner_can_require_an_exact_l2_route_without_model_name_inference():
+    parent_task_id = str(uuid4())
+    provider = _Provider(
+        ModelResponse(
+            provider="planner-test",
+            model="planner-model",
+            structured_output=_payload(parent_task_id),
+        )
+    )
+
+    ModelPlanningAdapter(provider).propose(
+        parent_task_id=parent_task_id,
+        objective="split this narrow development objective",
+        required_intelligence_tier="L2",
+    )
+
+    request = provider.requests[0]
+    assert request.metadata["intelligence_routing"] == "bounded"
+    assert request.metadata["allowed_intelligence_tiers"] == ["L2"]
+
+
+def test_model_planner_can_use_existing_dispatcher_for_exact_qualified_l2(tmp_path):
+    parent_task_id = str(uuid4())
+    now = datetime.now(timezone.utc)
+    qualification = QualificationResolver(
+        entries=[
+            {
+                "provider": "gemini",
+                "provider_binding_id": "gemini:core",
+                "model": "gemini-3.8-flash",
+                "intelligence_tier": "L2",
+                "confidence": "high",
+                "tested_at": (now - timedelta(minutes=1)).isoformat(),
+                "expires_at": (now + timedelta(hours=1)).isoformat(),
+                "capabilities": [
+                    "text",
+                    "model_generated_tool_call",
+                    "tool_result_roundtrip",
+                    "final_response",
+                ],
+            }
+        ]
+    )
+    provider = _RoutedPlannerProvider(parent_task_id)
+    ledger = ResourceLedger(tmp_path / "planner-routing.sqlite3")
+    try:
+        ledger.register_resource(
+            "gemini:core",
+            provider_id="gemini",
+            provider_binding_id="gemini:core",
+            native_unit="request",
+            capacity=1,
+            capabilities=["text"],
+            sensitivity="normal",
+            cost_minor=0,
+            price_currency="JPY",
+            quota_domain="gemini-core-account",
+            intelligence_tier="L2",
+            metadata={
+                "provider_binding_id": "gemini:core",
+                "model_id": "gemini-3.8-flash",
+                "intelligence_tier": "L2",
+                "privacy_profile": "remote_cloud",
+                "qualification_required": True,
+                "billing_authority": "trusted_catalog",
+                "billing_mode": "recurring_allowance",
+                "overage_policy": "hard_stop",
+                "no_charge_guaranteed": True,
+                "billing_expires_at": (now + timedelta(hours=1)).isoformat(),
+            },
+        )
+        ledger.observe("gemini:core", available=1, health="healthy", concurrency_limit=1)
+        BudgetAuthority.configure(ledger, BudgetPolicy(hard_cap_minor=0, recovery_reserve_minor=0))
+        dispatcher = ProviderDispatcher(
+            ProviderRegistry([provider]),
+            ResourceControlPlane(ResourceRouter(ledger, qualification_resolver=qualification), BudgetGovernor(ledger)),
+        )
+
+        proposal = ModelPlanningAdapter(dispatcher, allow_unknown_quota=True).propose(
+            parent_task_id=parent_task_id,
+            objective="split this narrow development objective",
+            required_intelligence_tier="L2",
+        )
+
+        assert proposal.parent_task_id == parent_task_id
+        assert len(provider.requests) == 1
+        assert provider.requests[0].metadata["allowed_intelligence_tiers"] == ["L2"]
+    finally:
+        ledger.close()
 
 
 def test_model_planner_accepts_bounded_json_text_when_provider_has_no_structured_field():

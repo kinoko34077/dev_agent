@@ -58,6 +58,7 @@ PLANNING_PROPOSAL_RESPONSE_SCHEMA: dict[str, Any] = {
 }
 
 _SENSITIVITIES = {"public", "normal", "internal", "sensitive"}
+_INTELLIGENCE_TIERS = {"L0", "L1", "L2", "L3"}
 _FENCED_JSON = re.compile(r"^```(?:json)?\s*\r?\n(?P<body>.*?)\r?\n```$", re.IGNORECASE | re.DOTALL)
 
 
@@ -80,6 +81,7 @@ class ModelPlanningAdapter:
         *,
         max_output_tokens: int = 2_048,
         cost_ceiling: float = 0.0,
+        allow_unknown_quota: bool = False,
     ) -> None:
         if not callable(getattr(provider, "request", None)):
             raise TypeError("provider must expose request(ModelRequest)")
@@ -87,9 +89,12 @@ class ModelPlanningAdapter:
             raise ValueError("max_output_tokens must be between 1 and 8192")
         if isinstance(cost_ceiling, bool) or not isinstance(cost_ceiling, (int, float)) or not math.isfinite(float(cost_ceiling)) or cost_ceiling < 0:
             raise ValueError("cost_ceiling must be a finite non-negative number")
+        if not isinstance(allow_unknown_quota, bool):
+            raise TypeError("allow_unknown_quota must be a boolean")
         self.provider = provider
         self.max_output_tokens = max_output_tokens
         self.cost_ceiling = float(cost_ceiling)
+        self.allow_unknown_quota = allow_unknown_quota
 
     def propose(
         self,
@@ -97,6 +102,7 @@ class ModelPlanningAdapter:
         parent_task_id: str,
         objective: str,
         sensitivity: str = "normal",
+        required_intelligence_tier: str | None = None,
         context_references: Mapping[str, Any] | None = None,
     ) -> RootPlanningProposal:
         """Return one typed proposal; host validation remains a separate step."""
@@ -110,21 +116,53 @@ class ModelPlanningAdapter:
             raise PlanningAdapterError("objective exceeds the planning input limit")
         if not isinstance(sensitivity, str) or sensitivity.strip().lower() not in _SENSITIVITIES:
             raise PlanningAdapterError("sensitivity is invalid")
+        if required_intelligence_tier is not None:
+            if (
+                not isinstance(required_intelligence_tier, str)
+                or required_intelligence_tier.strip() not in _INTELLIGENCE_TIERS
+            ):
+                raise PlanningAdapterError("required_intelligence_tier is invalid")
+            required_intelligence_tier = required_intelligence_tier.strip()
         references = self._references(context_references)
-        content = self._prompt(parent_task_id.strip(), objective, sensitivity.strip().lower(), references)
+        content = self._prompt(
+            parent_task_id.strip(),
+            objective,
+            sensitivity.strip().lower(),
+            references,
+            required_intelligence_tier,
+        )
+        metadata = {
+            "planning_mode": "proposal_only",
+            "authority": "host_validation_required",
+            "planner_response_encoding": "strict_json_text",
+        }
+        if required_intelligence_tier is not None:
+            metadata.update(
+                {
+                    "intelligence_routing": "bounded",
+                    "allowed_intelligence_tiers": [required_intelligence_tier],
+                }
+            )
+        if self.allow_unknown_quota:
+            # This only permits the existing one-shot UNKNOWN quota admission
+            # path.  ResourceControlPlane still requires the exact trusted
+            # no-charge catalog entry; this flag never invents quota headroom.
+            metadata["allow_unknown_quota"] = True
         try:
             request = ModelRequest(
                 task_id=parent_task_id.strip(),
                 messages=[{"role": "user", "content": content}],
-                requested_capabilities=["structured_output", "json"],
+                # The current qualified L2 Gemini binding is certified for
+                # text plus strict JSON decoding, not for a separate
+                # structured-output routing capability.  Keep the wire
+                # requirement honest; response_schema remains a provider
+                # hint and the decoder is the authority at this boundary.
+                requested_capabilities=["text"],
                 response_schema=PLANNING_PROPOSAL_RESPONSE_SCHEMA,
                 max_output_tokens=self.max_output_tokens,
                 sensitivity=sensitivity.strip().lower(),
                 cost_ceiling=self.cost_ceiling,
-                metadata={
-                    "planning_mode": "proposal_only",
-                    "authority": "host_validation_required",
-                },
+                metadata=metadata,
             )
         except (TypeError, ValueError) as exc:
             raise PlanningAdapterError(f"invalid planning request: {exc}") from exc
@@ -155,14 +193,22 @@ class ModelPlanningAdapter:
         return dict(references)
 
     @staticmethod
-    def _prompt(parent_task_id: str, objective: str, sensitivity: str, references: Mapping[str, Any]) -> str:
+    def _prompt(
+        parent_task_id: str,
+        objective: str,
+        sensitivity: str,
+        references: Mapping[str, Any],
+        required_intelligence_tier: str | None,
+    ) -> str:
         reference_text = json.dumps(dict(references), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        tier_text = required_intelligence_tier or "host-selected"
         return (
             "Generate exactly one JSON object matching the supplied planning response schema.\n"
             "This is a proposal only: do not claim authority, budget, approval, privacy relaxation, "
             "Gate changes, or direct Task creation. The host will validate the proposal.\n"
             f"parent_task_id: {parent_task_id}\n"
             f"sensitivity: {sensitivity}\n"
+            f"required_intelligence_tier: {tier_text}\n"
             f"objective:\n{objective}\n"
             f"reference_context:\n{reference_text}"
         )
