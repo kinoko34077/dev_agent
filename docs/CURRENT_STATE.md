@@ -29,10 +29,11 @@ MCP実接続・G6O1-SIM・Compression接続の証拠にはしない。
 
 | Field | Value |
 | --- | --- |
-| **Implementation commits** | `d061182` (explicit Backend discovery authority); `1b5bb10` (proposal-only Free L2 shadow command); `b01dee5` (Plan-derived delegation summary); `92cbc95` (schema-only MCP operation contract) |
-| **Focused regression** | `17 passed` (MCP contract); preceding AgentBackend／Planner／Bridge／Commander／Supervisor cluster `105 passed` |
+| **Implementation commits** | `d061182` (explicit Backend discovery authority); `1b5bb10` (proposal-only Free L2 shadow command); `b01dee5` (Plan-derived delegation summary); `92cbc95`／`11c1025` (schema-only MCP operation contract and bounded artifact references) |
+| **Focused regression** | `6 passed` (MCP contract); preceding AgentBackend／Planner／Bridge／Commander／Supervisor cluster `105 passed` |
+| **Local full regression** | `940 passed, 1 skipped` (`python -m pytest tests/v2 -q`; skip is deployment-owned Windows ACL) |
 | **Local static checks** | `ARCHITECTURE_PASS`; `python -m compileall -q src recovery scripts` clean; `git diff --check` clean |
-| **Exact-head CI** | `v2-core` PASS [run 34744138098](https://github.com/kinoko34077/dev_agent/actions/runs/34744138098); `v2-provider-smoke` PASS [run 34744138277](https://github.com/kinoko34077/dev_agent/actions/runs/34744138277) |
+| **Exact-head CI** | `v2-core` PASS [run 34745596359](https://github.com/kinoko34077/dev_agent/actions/runs/34745596359); `v2 tests` PASS [run 34745596365](https://github.com/kinoko34077/dev_agent/actions/runs/34745596365) |
 | **Live Planner evidence** | NOT VERIFIED. Bounded attempts are recorded in [`planner-shadow-20260913.json`](../spec/v2/evidence/planner-shadow-20260913.json); one diagnostic returned valid JSON, while other attempts hit strict-response rejection or HTTP 503. No retry storm or success claim |
 | **Unchanged scope** | Compression Service, MCP runtime adapter/transport, OpenAI/Claude API, G6O1-SIM/LIVE, automatic external-session discovery, paid-provider operation, OS-level sandbox |
 | **Current next target** | Use the existing Planner shadow/Bridge only after external availability permits a bounded live observation; then Worker-first Group D/Planner dogfood. Keep automatic discovery fail-closed, keep the MCP contract schema-only, and do not promote proposal-only Planning to autonomous authority |
