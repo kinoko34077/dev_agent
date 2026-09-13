@@ -50,13 +50,21 @@ from src.dev_agent.handoff import ExternalTextReference, HandoffEnvelope, rework
 
 
 def _git_process(cwd: Path, *arguments: str, input_text: str | None = None) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", "-c", f"safe.directory={cwd.as_posix()}", *arguments],
+    command = ["git", "-c", f"safe.directory={cwd.as_posix()}", *arguments]
+    raw_input = input_text.encode("utf-8") if input_text is not None else None
+    result = subprocess.run(
+        command,
         cwd=cwd,
-        input=input_text,
+        input=raw_input,
         capture_output=True,
-        text=True,
+        text=False,
         check=False,
+    )
+    return subprocess.CompletedProcess(
+        result.args,
+        result.returncode,
+        stdout=result.stdout.decode("utf-8", errors="replace"),
+        stderr=result.stderr.decode("utf-8", errors="replace"),
     )
 
 
