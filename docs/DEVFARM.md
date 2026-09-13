@@ -313,7 +313,8 @@ ProviderFactory境界を再利用する開発専用の有限Probeである。`P0
 名前で選択でき、`SENT 'A' ONLY`、算術、Python `print(`、具体的なNumPy転置、
 有限な逆順作業、予算／品質のbounded判断を順に観測する。現在のcatalog/checkerは
 `fixed-v3`であり、P3はNumPy配列の表示差（カンマ有無）を許容しながら転置結果を
-確認する。最大6段階で、任意prompt、任意system prompt、tool、temperature、Provider
+確認する。補正後P3のlive観測は`spec/v2/evidence/capability-probe-20260913-fixed-v3.json`
+に保存する。最大6段階で、任意prompt、任意system prompt、tool、temperature、Provider
 optionは受け付けない。
 
 Probeはrouting、qualification、activation、budget、authorityを変更しない。

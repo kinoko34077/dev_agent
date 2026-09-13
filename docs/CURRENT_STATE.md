@@ -26,10 +26,12 @@ Free Workerへ委譲して通常のSupervisor経路で統合した。Workerは
 配列表示を許容しつつ、期待結果・選択形式・権限変更拒否を確認する`fixed-v3`へ更新した。
 これはWorkerのrouting／qualification authorityを変更しないdevelopment-only計測である。
 
-実Gemini（`gemini:worker`／`gemini-3.5-flash-lite`）へ行った直近の`fixed-v2`観測では、
-P4/P5は通過し、P3はProvider／transportエラーではなく旧checkerの出力形式不一致として
-失敗した。P3の`fixed-v3` live再観測はまだ行っていないため、P3成功や一般的なモデル能力の
-証拠へ昇格させない。旧観測のdigestは[`capability-probe-20260913-fixed-v2.json`](../spec/v2/evidence/capability-probe-20260913-fixed-v2.json)に保存する。
+実Gemini（`gemini:worker`／`gemini-3.5-flash-lite`）へ行った`fixed-v2`観測ではP4/P5が通過し、
+P3はProvider／transportエラーではなく旧checkerの出力形式不一致として失敗した。その後、
+checkerを補正した`fixed-v3` P3を一度だけ再観測して通過した。P3〜P5の結果は段階別の
+bounded evidenceであり、一般的なモデル能力やProduction資格化へ昇格させない。digestは
+[`capability-probe-20260913-fixed-v2.json`](../spec/v2/evidence/capability-probe-20260913-fixed-v2.json)
+と[`capability-probe-20260913-fixed-v3.json`](../spec/v2/evidence/capability-probe-20260913-fixed-v3.json)に保存する。
 
 | Field | Value |
 | --- | --- |
@@ -38,7 +40,7 @@ P4/P5は通過し、P3はProvider／transportエラーではなく旧checkerの�
 | **Local full regression** | `941 passed, 1 skipped` (`python -m pytest tests/v2 -q`; Windows ACL skip is deployment-owned) |
 | **Architecture / compileall** | `ARCHITECTURE_PASS`; `python -m compileall -q src recovery scripts` clean |
 | **Exact-head CI** | `v2-core` PASS [run 34746317504](https://github.com/kinoko34077/dev_agent/actions/runs/34746317504); provider-smoke / `v2 tests` PASS [run 34746317515](https://github.com/kinoko34077/dev_agent/actions/runs/34746317515) |
-| **Live observation** | fixed-v2: P4/P5 passed; P3 `model_output_invalid` under superseded checker |
+| **Live observation** | fixed-v2: P4/P5 passed; fixed-v3: corrected P3 passed; no provider/transport failure |
 | **Authority effect** | none; no qualification, routing, budget, or activation mutation |
 | **Next target** | Keep the fixed-v3 probe bounded; then continue Worker-first Group D / Planner shadow work without retry storms |
 

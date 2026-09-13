@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "probe_version": "fixed-v3",
+  "recorded_at": "2026-09-13T08:17:04.935791+00:00",
+  "scope": "one bounded live observation of corrected P3; no routing or qualification mutation",
+  "provider": {
+    "provider_id": "gemini",
+    "binding_id": "gemini:worker",
+    "model_id": "gemini-3.5-flash-lite",
+    "intelligence_tier": "L1"
+  },
+  "result": {
+    "level": "P3",
+    "name": "numpy_matrix",
+    "status": "passed",
+    "failure_category": null,
+    "output_chars": 114,
+    "request_sha256": "4d9ddd2fb4987adce894b15b915a34a0b22c96748433e5bce0b7b61254e06ce",
+    "response_sha256": "aaf81480a205b630aa25868a61c651e2179140bbdffcd7a312cdf5ec96f1159d"
+  },
+  "interpretation": {
+    "provider_contract": "passed",
+    "transport": "passed",
+    "checker_correction": "NumPy output with comma-free array formatting is accepted",
+    "general_model_competence": "not established",
+    "authority_changed": false,
+    "raw_response_retained": false,
+    "related_observation": "P4/P5 passed in capability-probe-20260913-fixed-v2.json; P0-P2 remain in supervisor-dogfood-20260913.json"
+  }
+}
