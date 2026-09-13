@@ -108,6 +108,7 @@ def test_dispatcher_confirmed_unavailable_fails_over_and_does_not_retry_same_bin
         assert response.provider == "secondary"
         assert primary.calls == 1
         assert secondary.calls == 1
+        assert ledger.get_resource("primary:binding")["consecutive_failures"] == 1
     finally:
         ledger.close()
 

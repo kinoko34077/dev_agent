@@ -282,7 +282,7 @@ class ResourceControlPlane:
         decision = classify_provider_error(provider_id, error)
         if decision is not None:
             self.governor.ledger.record_quota_block(reservation.budget.resource_id, decision)
-        if category in {"transport", "rate_limit", "quota"} or requires_reconciliation:
+        if category in {"transport", "rate_limit", "quota", "provider_unavailable"} or requires_reconciliation:
             self.record_provider_failure(
                 provider_id,
                 resource_id=reservation.budget.resource_id,

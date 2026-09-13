@@ -320,7 +320,15 @@ class ProviderDispatcher(ModelProvider):
         saturated_binding_ids: set[str] = set()
         while True:
             try:
-                selection = self._selection(request, excluded, excluded_bindings)
+                selection_request = request
+                if excluded_bindings:
+                    metadata = dict(request.metadata)
+                    current = metadata.get("excluded_provider_binding_ids", ())
+                    if isinstance(current, str):
+                        current = (current,)
+                    metadata["excluded_provider_binding_ids"] = tuple(sorted(set(current) | set(excluded_bindings)))
+                    selection_request = replace(request, metadata=metadata)
+                selection = self._selection(selection_request, excluded)
             except NoRoute as exc:
                 if saturated_binding_ids:
                     raise ProviderPoolSaturated(tuple(saturated_binding_ids)) from exc
@@ -578,7 +586,7 @@ class ProviderDispatcher(ModelProvider):
                 ) from exc
             return response
 
-    def _selection(self, request: ModelRequest, excluded: set[str], excluded_bindings: set[str] | frozenset[str] = frozenset()) -> RouteSelection:
+    def _selection(self, request: ModelRequest, excluded: set[str]) -> RouteSelection:
         snapshot = self.control.routing_snapshot()
         max_cost_minor = None
         if self.survival is not None:
@@ -589,13 +597,6 @@ class ProviderDispatcher(ModelProvider):
                 # Paid normal dispatch is prohibited in constrained modes.
                 # Recovery-only paid work requires a distinct future request type.
                 max_cost_minor = 0
-        if excluded_bindings:
-            metadata = dict(request.metadata)
-            current = metadata.get("excluded_provider_binding_ids", ())
-            if isinstance(current, str):
-                current = (current,)
-            metadata["excluded_provider_binding_ids"] = tuple(sorted(set(current) | set(excluded_bindings)))
-            request = replace(request, metadata=metadata)
         return self.control.select_route(
             request,
             excluded_resource_ids=excluded,
