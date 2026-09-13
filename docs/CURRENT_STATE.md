@@ -19,8 +19,11 @@ high-riskのWorker提案はCodex側へ補正し、現在のCommanderが保証で
 
 | Field | Value |
 | --- | --- |
-| **Implementation commits** | `bff8087` (exact qualified-tier planner routing); `0e6c831` (Host-validated development planning bridge) |
+| **Implementation commits** | `bff8087` (exact qualified-tier planner routing); `0e6c831` (Host-validated development planning bridge); documentation/evidence snapshot `759da95` |
 | **Focused regression** | `27 passed` (`test_planner_adapter.py`, `test_development_planning_bridge.py`, planner privacy/idempotency cluster) |
+| **Full regression** | `927 passed, 1 skipped` (`python -m pytest tests/v2 -q` at `759da95`; Windows ACL skip is deployment-owned) |
+| **Architecture / compileall** | `ARCHITECTURE_PASS`; `python -m compileall -q src recovery scripts` clean |
+| **Exact-head CI** | `v2-core` PASS [run 34742127116](https://github.com/kinoko34077/dev_agent/actions/runs/34742127116); `v2-provider-smoke` PASS [run 34742127022](https://github.com/kinoko34077/dev_agent/actions/runs/34742127022) |
 | **Live Planner evidence** | No external Free L2 Planner dogfood claim; current tests use injected provider doubles and an existing Dispatcher route with explicit qualification/billing fixtures |
 | **Authority boundary** | Proposal-only model output; Host validation remains required; Bridge does not write `.devfarm` or dispatch |
 | **Unchanged scope** | Compression Service, MCP, G6O1-SIM/LIVE, live Reviewer, finite multi-cycle, automatic external-session discovery |
