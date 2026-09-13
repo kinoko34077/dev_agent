@@ -21,7 +21,7 @@ from scripts.devfarm_commander import (
     verify_plan,
 )
 from scripts.devfarm_orchestrator import DevFarmOrchestrator, HostConcurrencyGovernor, RemoteConcurrencyGovernor
-from scripts.devfarm_supervisor import CodexSupervisedCommanderRun
+from scripts.devfarm_supervisor import CodexSupervisedCommanderRun, main as supervisor_main
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.providers.fake.provider import FakeProvider
 
@@ -453,6 +453,229 @@ def test_supervisor_rework_decision_creates_next_attempt_manifest(tmp_path):
     assert new_manifest["rework_handoff"]["kind"] == "repair_request"
     dispatch_plan(root, "supervisor-rework-run", providers={"worker-a": provider}, orchestrator=orchestrator)
     assert runner.plan()["tasks"][0]["status"] == "PROPOSED"
+
+
+def test_supervisor_cli_review_and_integrate_commands_use_existing_authority(tmp_path, capsys):
+    root, targets, revision = _repo(tmp_path)
+    _manifest(root, revision, "worker-a", targets[0])
+    create_plan(
+        root,
+        {
+            "run_id": "supervisor-cli-integration-run",
+            "objective": "exercise the daily review and integration CLI",
+            "tasks": [
+                {
+                    "task_id": "worker-a",
+                    "owner": "worker",
+                    "manifest_path": ".devfarm/tasks/worker-a.json",
+                    "ownership": [targets[0]],
+                    "max_attempts": 1,
+                    "assignment": {"provider_id": "cloudflare", "model_id": "worker-model"},
+                }
+            ],
+            "base_revision": revision,
+        },
+    )
+    provider = _WorkerProvider(
+        {
+            "status": "completed",
+            "changed_files": [targets[0]],
+            "tests_run": [],
+            "tests_passed": True,
+            "known_issues": [],
+            "assumptions": [],
+            "patch": _patch(targets[0]),
+            "notes": "ready",
+        }
+    )
+    orchestrator = DevFarmOrchestrator(
+        verification_trust_level="TRUSTED_HOST_EXEC",
+        operator_approved=True,
+    )
+    runner = CodexSupervisedCommanderRun(root, "supervisor-cli-integration-run")
+    runner.create()
+    runner.run_until_intervention(
+        providers={"worker-a": provider},
+        orchestrator=orchestrator,
+        verification_trust_level="TRUSTED_HOST_EXEC",
+        operator_approved=True,
+        max_wait_seconds=30,
+        sleep_fn=lambda _seconds: (_ for _ in ()).throw(AssertionError("verified worker must not sleep")),
+    )
+    task = runner.plan()["tasks"][0]
+    assert supervisor_main(
+        [
+            "review",
+            "supervisor-cli-integration-run",
+            "worker-a",
+            "--root",
+            str(root),
+            "--attempt-id",
+            task["last_attempt_id"],
+            "--decision",
+            "APPROVE_INTEGRATION",
+            "--evidence-ref",
+            task["result_ref"],
+        ]
+    ) == 0
+    decision_id = runner.plan()["review_decisions"][0]["decision_id"]
+    assert supervisor_main(
+        [
+            "integrate",
+            "supervisor-cli-integration-run",
+            "worker-a",
+            "--root",
+            str(root),
+            "--decision-id",
+            decision_id,
+            "--target-checkout",
+            str(root),
+            "--target-ref",
+            "HEAD",
+            "--commit-message",
+            "integrate CLI worker patch",
+        ]
+    ) == 0
+    assert runner.plan()["tasks"][0]["status"] == "INTEGRATED"
+    capsys.readouterr()
+
+
+def test_supervisor_cli_rework_requires_review_and_creates_new_manifest(tmp_path, capsys):
+    root, targets, revision = _repo(tmp_path)
+    _manifest(root, revision, "worker-a", targets[0])
+    create_plan(
+        root,
+        {
+            "run_id": "supervisor-cli-rework-run",
+            "objective": "exercise the daily rework CLI",
+            "tasks": [
+                {
+                    "task_id": "worker-a",
+                    "owner": "worker",
+                    "manifest_path": ".devfarm/tasks/worker-a.json",
+                    "ownership": [targets[0]],
+                    "max_attempts": 2,
+                    "assignment": {"provider_id": "cloudflare", "model_id": "worker-model"},
+                }
+            ],
+            "base_revision": revision,
+        },
+    )
+    provider = _WorkerProvider(
+        {
+            "status": "completed",
+            "changed_files": [targets[0]],
+            "tests_run": [],
+            "tests_passed": True,
+            "known_issues": [],
+            "assumptions": [],
+            "patch": _patch(targets[0]),
+        }
+    )
+    orchestrator = DevFarmOrchestrator(
+        verification_trust_level="TRUSTED_HOST_EXEC",
+        operator_approved=True,
+    )
+    runner = CodexSupervisedCommanderRun(root, "supervisor-cli-rework-run")
+    runner.create()
+    runner.run_until_intervention(
+        providers={"worker-a": provider},
+        orchestrator=orchestrator,
+        verification_trust_level="TRUSTED_HOST_EXEC",
+        operator_approved=True,
+        max_wait_seconds=30,
+        sleep_fn=lambda _seconds: (_ for _ in ()).throw(AssertionError("verified worker must not sleep")),
+    )
+    task = runner.plan()["tasks"][0]
+    correction = "Address the focused review finding before another attempt."
+    assert supervisor_main(
+        [
+            "review",
+            "supervisor-cli-rework-run",
+            "worker-a",
+            "--root",
+            str(root),
+            "--attempt-id",
+            task["last_attempt_id"],
+            "--decision",
+            "REWORK",
+            "--required-correction",
+            correction,
+            "--evidence-ref",
+            task["result_ref"],
+        ]
+    ) == 0
+    old_manifest = task["manifest_path"]
+    assert supervisor_main(
+        [
+            "rework",
+            "supervisor-cli-rework-run",
+            "worker-a",
+            "--root",
+            str(root),
+            "--failure-evidence-ref",
+            task["result_ref"],
+        ]
+    ) == 0
+    updated = runner.plan()["tasks"][0]
+    assert updated["status"] == "READY"
+    assert updated["manifest_path"] != old_manifest
+    capsys.readouterr()
+
+
+def test_supervisor_cli_rejects_wrong_attempt_and_invalid_decision(tmp_path, capsys):
+    root, targets, revision = _repo(tmp_path)
+    _manifest(root, revision, "worker-a", targets[0])
+    create_plan(
+        root,
+        {
+            "run_id": "supervisor-cli-validation-run",
+            "objective": "exercise supervisor CLI validation",
+            "tasks": [
+                {
+                    "task_id": "worker-a",
+                    "owner": "worker",
+                    "manifest_path": ".devfarm/tasks/worker-a.json",
+                    "ownership": [targets[0]],
+                    "max_attempts": 1,
+                    "assignment": {"provider_id": "cloudflare", "model_id": "worker-model"},
+                }
+            ],
+            "base_revision": revision,
+        },
+    )
+    runner = CodexSupervisedCommanderRun(root, "supervisor-cli-validation-run")
+    runner.create()
+    with pytest.raises(SystemExit):
+        supervisor_main(
+            [
+                "review",
+                "supervisor-cli-validation-run",
+                "worker-a",
+                "--root",
+                str(root),
+                "--attempt-id",
+                "attempt-not-valid",
+                "--decision",
+                "NOT_A_DECISION",
+            ]
+        )
+    with pytest.raises(DevFarmError, match="attempt"):
+        supervisor_main(
+            [
+                "review",
+                "supervisor-cli-validation-run",
+                "worker-a",
+                "--root",
+                str(root),
+                "--attempt-id",
+                "attempt-not-valid",
+                "--decision",
+                "APPROVE_INTEGRATION",
+            ]
+        )
+    assert runner.plan().get("review_decisions", []) == []
+    capsys.readouterr()
 
 
 def test_supervisor_reject_decision_is_terminal_across_resume(tmp_path):

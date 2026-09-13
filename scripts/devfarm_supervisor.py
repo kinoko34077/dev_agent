@@ -868,10 +868,29 @@ def _providers_for_resume(root: Path, run_id: str, timeout_seconds: float) -> di
     return providers
 
 
+def _cli_artifact_reference(value: str, *, kind: str = "artifact") -> dict[str, str]:
+    if not isinstance(value, str) or not value.strip():
+        raise DevFarmError("artifact reference must be non-empty")
+    return {"kind": kind, "path": value.strip()}
+
+
+def _latest_rework_decision(plan: Mapping[str, Any], task_id: str, attempt_id: str) -> Mapping[str, Any]:
+    decisions = [
+        item
+        for item in plan.get("review_decisions", [])
+        if item.get("task_id") == task_id
+        and item.get("attempt_id") == attempt_id
+        and item.get("decision") == "REWORK"
+    ]
+    if not decisions:
+        raise DevFarmError("rework requires a durable REWORK decision for the current attempt")
+    return decisions[-1]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="bounded Codex supervisor view over a Commander plan")
     sub = parser.add_subparsers(dest="command", required=True)
-    for command in ("status", "resume", "run"):
+    for command in ("status", "resume", "run", "review", "rework", "integrate"):
         item = sub.add_parser(command)
         item.add_argument("run_id")
         item.add_argument("--root", type=Path, default=Path.cwd())
@@ -887,10 +906,99 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--max-wait-seconds", type=float, default=900.0)
     run.add_argument("--trust-level", choices=("STATIC_ONLY", "TRUSTED_HOST_EXEC", "OS_SANDBOXED"), default="STATIC_ONLY")
     run.add_argument("--operator-approved", action="store_true")
+    review = sub.choices["review"]
+    review.add_argument("task_id")
+    review.add_argument("--attempt-id", required=True)
+    review.add_argument(
+        "--decision",
+        choices=("APPROVE_INTEGRATION", "REWORK", "REJECT", "ESCALATE"),
+        required=True,
+    )
+    review.add_argument("--finding", action="append", default=[])
+    review.add_argument("--evidence-ref", action="append", default=[])
+    review.add_argument("--required-correction")
+    review.add_argument("--reviewer-role", default="codex_supervisor")
+    rework = sub.choices["rework"]
+    rework.add_argument("task_id")
+    rework.add_argument("--failure-evidence-ref", required=True)
+    rework.add_argument("--review-findings-ref")
+    rework.add_argument("--required-correction")
+    rework.add_argument("--provider")
+    rework.add_argument("--provider-binding-id")
+    rework.add_argument("--model")
+    integrate = sub.choices["integrate"]
+    integrate.add_argument("task_id")
+    integrate.add_argument("--decision-id", required=True)
+    integrate.add_argument("--target-checkout", type=Path, required=True)
+    integrate.add_argument("--target-ref", required=True)
+    integrate.add_argument("--commit-message", required=True)
     args = parser.parse_args(argv)
     runner = CodexSupervisedCommanderRun(args.root, args.run_id)
     if args.command == "status":
         print(json.dumps(runner.status().to_dict(), ensure_ascii=False, indent=2))
+        return 0
+    if args.command == "review":
+        step = runner.record_review_decision(
+            args.task_id,
+            attempt_id=args.attempt_id,
+            decision=args.decision,
+            findings=args.finding,
+            evidence_refs=[_cli_artifact_reference(item) for item in args.evidence_ref],
+            required_correction=args.required_correction,
+            reviewer_role=args.reviewer_role,
+        )
+        print(json.dumps(step.to_dict(), ensure_ascii=False, indent=2))
+        return 0
+    if args.command == "rework":
+        plan = runner.plan()
+        task = next((item for item in plan["tasks"] if item["task_id"] == args.task_id), None)
+        if task is None:
+            raise DevFarmError(f"Commander task does not exist: {args.task_id}")
+        attempt_id = task.get("last_attempt_id")
+        if not isinstance(attempt_id, str) or not attempt_id.strip():
+            raise DevFarmError("rework requires the current worker attempt")
+        decision = _latest_rework_decision(plan, args.task_id, attempt_id)
+        correction = decision.get("required_correction")
+        if not isinstance(correction, str) or not correction.strip():
+            raise DevFarmError("durable REWORK decision has no required correction")
+        if args.required_correction is not None and args.required_correction != correction:
+            raise DevFarmError("required correction does not match the durable REWORK decision")
+        assignment = task.get("assignment")
+        if not isinstance(assignment, Mapping):
+            raise DevFarmError("worker task has no assignment")
+        provider_id = args.provider or assignment.get("provider_id")
+        model_id = args.model or assignment.get("model_id")
+        if not isinstance(provider_id, str) or not provider_id.strip() or not isinstance(model_id, str) or not model_id.strip():
+            raise DevFarmError("rework requires a provider and model assignment")
+        binding_id = args.provider_binding_id or assignment.get("provider_binding_id")
+        handoff = runner.rework_handoff(
+            args.task_id,
+            failure_evidence_reference=_cli_artifact_reference(args.failure_evidence_ref, kind="failure_evidence"),
+            review_findings_reference=(
+                _cli_artifact_reference(args.review_findings_ref, kind="review_findings")
+                if args.review_findings_ref
+                else None
+            ),
+            required_correction=correction,
+        )
+        step = runner.reassign(
+            args.task_id,
+            provider_id=provider_id,
+            model_id=model_id,
+            provider_binding_id=binding_id,
+            rework_handoff=handoff,
+        )
+        print(json.dumps(step.to_dict(), ensure_ascii=False, indent=2))
+        return 0
+    if args.command == "integrate":
+        step = runner.integrate_approved_worker(
+            args.task_id,
+            decision_id=args.decision_id,
+            commit_message=args.commit_message,
+            target_checkout=args.target_checkout,
+            target_ref=args.target_ref,
+        )
+        print(json.dumps(step.to_dict(), ensure_ascii=False, indent=2))
         return 0
     providers = _providers_for_resume(args.root, args.run_id, args.timeout_seconds)
     step = runner.advance(
