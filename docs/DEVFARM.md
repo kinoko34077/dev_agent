@@ -310,9 +310,11 @@ qualificationを昇格させない。
 
 `scripts/devfarm_capability_probe.py`は、既存のWorker activation／qualification／
 ProviderFactory境界を再利用する開発専用の有限Probeである。`P0`〜`P5`を
-名前で選択でき、`SENT 'A' ONLY`、算術、Python `print(`、NumPy行列操作、
-単純作業、複数のbounded判断を順に観測する。最大6段階で、任意prompt、任意
-system prompt、tool、temperature、Provider optionは受け付けない。
+名前で選択でき、`SENT 'A' ONLY`、算術、Python `print(`、具体的なNumPy転置、
+有限な逆順作業、予算／品質のbounded判断を順に観測する。現在のcatalog/checkerは
+`fixed-v3`であり、P3はNumPy配列の表示差（カンマ有無）を許容しながら転置結果を
+確認する。最大6段階で、任意prompt、任意system prompt、tool、temperature、Provider
+optionは受け付けない。
 
 Probeはrouting、qualification、activation、budget、authorityを変更しない。
 結果にはProvider/model identity、request/response digest、文字数、status、

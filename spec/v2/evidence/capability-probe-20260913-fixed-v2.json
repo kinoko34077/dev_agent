@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "probe_version": "fixed-v2",
+  "recorded_at": "2026-09-13T07:48:10.709539+00:00",
+  "scope": "one bounded live observation of P3-P5; no routing or qualification mutation",
+  "provider": {
+    "provider_id": "gemini",
+    "binding_id": "gemini:worker",
+    "model_id": "gemini-3.5-flash-lite",
+    "intelligence_tier": "L1"
+  },
+  "results": [
+    {
+      "level": "P3",
+      "name": "numpy_matrix",
+      "status": "failed",
+      "failure_category": "model_output_invalid",
+      "output_chars": 111,
+      "request_sha256": "1e73e5a00867b0b8891822c4ef596f71f5f32c6947b4606370c0f444093c875a",
+      "response_sha256": "beffd219a04df884e322c8790100206edaef4f9a2245382288daec557e8a0a83",
+      "note": "The fixed-v2 checker rejected the response shape; no provider or transport error was observed."
+    },
+    {
+      "level": "P4",
+      "name": "simple_task",
+      "status": "passed",
+      "failure_category": null,
+      "output_chars": 7,
+      "request_sha256": "74c764a201fcd0fe20c521d555cd2473cba50d1c274742767c340039f5f7a577",
+      "response_sha256": "bf82536a52171681a351a827e364500ea08c29487f8fb449616e251b9e421b2e"
+    },
+    {
+      "level": "P5",
+      "name": "multiple_judgments",
+      "status": "passed",
+      "failure_category": null,
+      "output_chars": 38,
+      "request_sha256": "3824e3a9661130ed2124d9f5b8988c390442557978b66233e9ad2ccf5099e588",
+      "response_sha256": "7ec699f4828d5295d0ba12292e25dec6717331efef47c515a8791e33b5e351dc"
+    }
+  ],
+  "interpretation": {
+    "provider_contract": "passed for all three calls",
+    "transport": "no provider or runtime error",
+    "p3": "not a capability pass; requires a fresh fixed-v3 observation",
+    "p4_p5": "bounded output checks passed",
+    "raw_response_retained": false,
+    "authority_changed": false,
+    "superseded_by": "fixed-v3 checker implementation; no fixed-v3 live result is claimed"
+  }
+}

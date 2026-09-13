@@ -25,6 +25,9 @@ shadow入口も実装済みだが、実外部Plannerの成功は未検証（HTTP
 拒否の証跡のみ）である。Supervisorには既存Planから導出するWorker/Codex delegation
 summaryを追加済み。次工程は、外部条件が整った時のbounded Planner shadow観測と、
 Worker-firstのGroup D／Planning dogfoodであり、MCPや自律Planning authorityへの昇格ではない。
+固定Capability Probeは`fixed-v3`でP3〜P5の入力と判定形を具体化した。直近の実Gemini
+観測は旧`fixed-v2` checkerに対するP4/P5通過・P3形式不一致であり、P3のfixed-v3
+live成功は未検証である。Probeは計測専用で、qualification／routing authorityを変更しない。
 MCPについては、既存APIを後から包むschema-onlyの操作契約（tool名、上限、既存authority、
 UNKNOWN時のreconciliation方針）だけを追加済みで、transport／server／runtime adapterは
 未接続のまま維持する。
