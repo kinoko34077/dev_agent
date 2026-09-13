@@ -9,7 +9,7 @@ candidate snapshot through the separate model-admission path.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 import json
 import os
@@ -160,7 +160,7 @@ class DiscoveredModel:
     source: str
     observed_at: str
     expires_at: str
-    metadata: Mapping[str, Any] = MappingProxyType({})
+    metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not isinstance(self.metadata, Mapping):

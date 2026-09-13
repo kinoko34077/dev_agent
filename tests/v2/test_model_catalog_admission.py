@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from src.dev_agent.providers.model_discovery import ModelDiscoveryBinding, ProviderModelDiscovery
+from src.dev_agent.providers.model_discovery import DiscoveredModel, ModelDiscoveryBinding, ProviderModelDiscovery
 from src.dev_agent.resources.model_admission import ModelAdmissionResolver
 from src.dev_agent.resources.model_benchmarks import BenchmarkCatalog
 from src.dev_agent.resources.model_capabilities import ModelCapabilityCatalog
@@ -30,6 +30,20 @@ def test_model_catalog_entry_default_metadata_is_constructible_on_python_311() -
 
     assert dict(entry.metadata) == {}
     assert entry.is_current(now=NOW)
+
+
+def test_discovered_model_default_metadata_is_constructible_on_python_311() -> None:
+    entry = DiscoveredModel(
+        provider_id="gemini",
+        provider_binding_id="gemini:slot-a",
+        model_id="gemini-3.8-flash",
+        source="gemini.models.list",
+        observed_at="2026-09-14T00:00:00+00:00",
+        expires_at="2026-09-15T00:00:00+00:00",
+    )
+
+    assert entry.to_dict()["model_id"] == "gemini-3.8-flash"
+    assert "metadata" not in entry.to_dict()
 
 
 def _model_catalog(*, expires_at: str = "2026-09-15T00:00:00+00:00") -> ModelCatalog:
