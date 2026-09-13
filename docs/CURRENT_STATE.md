@@ -26,6 +26,7 @@ credentialsは保存していない。
 | **Implementation commits** | `3555e31` (UUID input boundary); `cbb1a4d` (strict JSON prompt contract); `1de0c7c` (dependency type preservation) |
 | **Focused validation** | `14 passed` (Planner adapter + Bridge cluster); `5 passed` Bridge; `24 passed` Commander; compileall PASS |
 | **Full regression** | `945 passed, 1 skipped` (`python -m pytest tests/v2 -q`; Windows ACL skip is deployment-owned) |
+| **Exact-head CI** | `v2-core` PASS [run 34749108327](https://github.com/kinoko34077/dev_agent/actions/runs/34749108327); `v2-provider-smoke` PASS [run 34749108309](https://github.com/kinoko34077/dev_agent/actions/runs/34749108309) |
 | **Live Planner observation** | corrected UUID reached `gemini:core` / `gemini-3.8-flash`, then strict JSON rejection; NOT VERIFIED |
 | **Evidence** | [`planner-shadow-20260913.json`](../spec/v2/evidence/planner-shadow-20260913.json) |
 | **Authority effect** | none; proposal-only boundary, no Task/Plan/Worker dispatch |
