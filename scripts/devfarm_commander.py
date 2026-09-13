@@ -47,6 +47,7 @@ _PLAN_STATUSES = frozenset(
 _OWNERS = frozenset({"codex", "worker"})
 _DEPENDENCY_COMPLETE = frozenset({"INTEGRATED"})
 _DEPENDENCY_FAILURE = frozenset({"REJECTED", "BLOCKED", "SUPERSEDED"})
+_SUPPORTED_DEPENDENCY_TYPES = frozenset({"CODE_INTEGRATED"})
 _PROTECTED_PATHS = PROTECTED_AUTHORITY_PATHS
 
 
@@ -98,6 +99,38 @@ def _revision(value: Any) -> str:
     if result.startswith("-") or any(char.isspace() or char in "\r\n" for char in result):
         raise DevFarmError("base_revision must be a safe Git revision")
     return result
+
+
+def _dependency_types(value: Any, dependencies: Sequence[str]) -> dict[str, str]:
+    """Normalize dependency evidence without dropping its semantic type.
+
+    Commander currently releases development dependencies only after the
+    dependency's verified change is integrated into Git.  Older plans did not
+    carry an explicit type, so their default is the same CODE_INTEGRATED
+    contract.  Unsupported types fail closed rather than being silently
+    treated as integration dependencies.
+    """
+
+    if value is None:
+        raw: Mapping[str, Any] = {}
+    elif isinstance(value, Mapping):
+        raw = value
+    else:
+        raise DevFarmError("dependency_types must be an object")
+    dependency_set = set(dependencies)
+    unknown = set(raw) - dependency_set
+    if unknown:
+        raise DevFarmError(f"dependency_types references unknown dependency: {sorted(unknown)[0]}")
+    normalized: dict[str, str] = {}
+    for dependency in dependencies:
+        dependency_type = raw.get(dependency, "CODE_INTEGRATED")
+        if not isinstance(dependency_type, str) or dependency_type.strip().upper() not in _SUPPORTED_DEPENDENCY_TYPES:
+            raise DevFarmError(
+                f"unsupported Commander dependency type for {dependency}: {dependency_type!r}; "
+                "only CODE_INTEGRATED is currently supported"
+            )
+        normalized[dependency] = dependency_type.strip().upper()
+    return normalized
 
 
 def _timestamp(value: Any, name: str) -> str:
@@ -343,6 +376,7 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
                 normalized_dependencies.append(dependency_id)
         if task_id in normalized_dependencies:
             raise DevFarmError("a task cannot depend on itself")
+        dependency_types = _dependency_types(raw.get("dependency_types"), normalized_dependencies)
         ownership = _paths(raw.get("ownership", []), "task ownership")
         manifest_path = raw.get("manifest_path")
         normalized_manifest_path = None if manifest_path is None else _path(manifest_path, "manifest_path")
@@ -371,6 +405,7 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
             "owner": owner,
             "status": status,
             "dependencies": normalized_dependencies,
+            "dependency_types": dependency_types,
             "ownership": ownership,
             "manifest_path": normalized_manifest_path,
             "max_attempts": max_attempts,
@@ -456,7 +491,14 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
         if any(dependency not in task_id_set for dependency in normalized):
             raise DevFarmError(f"dependency references an unknown task: {task['task_id']}")
         task["dependencies"] = normalized
-    dependencies = [{"task_id": task["task_id"], "depends_on": list(task["dependencies"])} for task in tasks]
+    dependencies = [
+        {
+            "task_id": task["task_id"],
+            "depends_on": list(task["dependencies"]),
+            "dependency_types": dict(task["dependency_types"]),
+        }
+        for task in tasks
+    ]
     _check_dependency_cycles(tasks)
 
     ownership = _ownership_records(value.get("ownership"), tasks)

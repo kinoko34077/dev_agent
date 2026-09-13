@@ -24,16 +24,16 @@ def _parent(*, task_type=TaskType.REASONING):
     )
 
 
-def _manifest_spec():
+def _manifest_spec(path="src/example.py"):
     return {
         "manifest": {
             "task_type": "worker",
-            "allowed_files": ["src/example.py"],
-            "read_files": ["src/example.py"],
+            "allowed_files": [path],
+            "read_files": [path],
             "forbidden_files": [],
             "external_provider_allowed": True,
             "approved_provider_ids": ["gemini"],
-            "outbound_files": ["src/example.py"],
+            "outbound_files": [path],
             "requirements": ["keep the change narrow"],
             "acceptance": ["the focused test passes"],
             "test_commands": ["python -m pytest tests/v2/test_example.py -q"],
@@ -144,6 +144,47 @@ def test_bridge_does_not_silently_convert_unsupported_dependency_type(tmp_path):
             base_revision="abc123",
             task_specs={"a": _manifest_spec(), "b": _manifest_spec()},
         )
+
+
+def test_bridge_preserves_supported_dependency_type_in_commander_candidate(tmp_path):
+    parent = _parent()
+    proposal = RootPlanningProposal(
+        parent_task_id=parent.task_id,
+        rationale="preserve the code integration dependency contract",
+        children=(
+            ChildTaskProposal(
+                child_key="producer",
+                objective="produce the integrated change",
+                task_type=TaskType.WORKER,
+            ),
+            ChildTaskProposal(
+                child_key="consumer",
+                objective="consume the integrated change",
+                task_type=TaskType.WORKER,
+                dependencies=("producer",),
+                dependency_types={"producer": PlannerDependencyType.CODE_INTEGRATED},
+            ),
+        ),
+    )
+
+    candidate = DevelopmentPlanningBridge(tmp_path).build_candidate(
+        parent,
+        proposal,
+        run_id="planner-dependency-type-preservation",
+        base_revision="abc123",
+        task_specs={
+            "producer": _manifest_spec("src/producer.py"),
+            "consumer": _manifest_spec("src/consumer.py"),
+        },
+    )
+
+    producer_id = candidate.plan["tasks"][0]["task_id"]
+    consumer = candidate.plan["tasks"][1]
+    assert consumer["dependencies"] == [producer_id]
+    assert consumer["dependency_types"] == {producer_id: PlannerDependencyType.CODE_INTEGRATED.value}
+    assert candidate.plan["dependencies"][1]["dependency_types"] == {
+        producer_id: PlannerDependencyType.CODE_INTEGRATED.value
+    }
 
 
 def test_bridge_host_overrides_protected_worker_suggestion_and_records_reason(tmp_path):

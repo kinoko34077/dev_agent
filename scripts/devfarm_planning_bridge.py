@@ -113,6 +113,10 @@ class DevelopmentPlanningBridge:
                 "task_id": task_id,
                 "owner": owner,
                 "dependencies": dependencies,
+                "dependency_types": {
+                    task_ids[dependency]: child.dependency_types[dependency].value
+                    for dependency in child.dependencies
+                },
                 "ownership": self._paths(raw_spec.get("ownership", []), "ownership"),
                 "max_attempts": self._max_attempts(raw_spec.get("max_attempts", 2)),
                 "worker_candidate": owner == "worker",
