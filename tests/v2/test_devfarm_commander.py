@@ -323,6 +323,9 @@ def test_supervisor_approved_integration_applies_patch_and_records_git_proof(tmp
     assert review_step.metrics["codex_review_count"] == 0
     assert len(review_step.review_packets) == 1
     assert "patch" not in review_step.review_packets[0]
+    assert review_step.review_packets[0]["verification_summary"]["host_verified"] is True
+    assert review_step.review_packets[0]["verification_summary"]["host_tests_passed"] is True
+    assert review_step.review_packets[0]["verification_summary"]["independent_verification"] is True
     assert review_step.review_packets[0]["patch_sha256"] == hashlib.sha256(
         _patch(targets[0]).encode("utf-8")
     ).hexdigest()

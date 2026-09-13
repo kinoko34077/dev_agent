@@ -195,11 +195,24 @@ class CodexSupervisedCommanderRun:
         assignment = task.get("assignment", {})
         if not isinstance(assignment, Mapping):
             assignment = {}
-        worker_metrics = result.get("worker_metrics", {})
-        if not isinstance(worker_metrics, Mapping):
-            worker_metrics = {}
-        verification_id = result.get("verification_id")
         attempt_root = result_path.parent
+        verification_id = result.get("verification_id")
+        verification_record: Mapping[str, Any] | None = None
+        verification_dir = attempt_root / "verification"
+        if verification_dir.is_dir():
+            records: list[Mapping[str, Any]] = []
+            for candidate in sorted(verification_dir.glob("*.json")):
+                try:
+                    loaded = json.loads(candidate.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    continue
+                if isinstance(loaded, Mapping):
+                    records.append(loaded)
+            if records:
+                records.sort(key=lambda item: (str(item.get("verified_at", "")), str(item.get("verification_id", ""))))
+                verification_record = records[-1]
+                if isinstance(verification_record.get("verification_id"), str):
+                    verification_id = verification_record["verification_id"]
         verification_ref = None
         if isinstance(verification_id, str) and verification_id.strip():
             verification_ref = (attempt_root / "verification" / f"{verification_id}.json").relative_to(self.root).as_posix()
@@ -222,19 +235,24 @@ class CodexSupervisedCommanderRun:
                         manifest = loaded_manifest
             except (ValueError, OSError, json.JSONDecodeError):
                 manifest = {}
-        summary = {
-            key: worker_metrics[key]
-            for key in (
-                "host_verified",
-                "host_verified_test_count",
-                "host_tests_passed",
-                "independent_verification",
-                "result_accepted",
-                "verification_trust_level",
-                "operator_approved",
+        summary: dict[str, Any] = {}
+        if verification_record is not None:
+            verified_tests = verification_record.get("verified_tests", [])
+            if not isinstance(verified_tests, list):
+                verified_tests = []
+            tests_passed = bool(verified_tests) and all(
+                isinstance(item, Mapping) and item.get("passed") is True
+                for item in verified_tests
             )
-            if key in worker_metrics and isinstance(worker_metrics[key], (str, int, bool, float))
-        }
+            summary = {
+                "host_verified": bool(verified_tests),
+                "host_verified_test_count": len(verified_tests),
+                "host_tests_passed": tests_passed,
+                "independent_verification": verification_record.get("independent_verification") is True,
+                "result_accepted": task.get("status") == "HOST_VERIFIED",
+                "verification_trust_level": verification_record.get("containment_level"),
+                "operator_approved": verification_record.get("operator_approved") is True,
+            }
         return normalize_review_packet(
             {
                 "task_id": task_id,
