@@ -535,9 +535,15 @@ def refresh_plan(value: Mapping[str, Any]) -> dict[str, Any]:
     while changed:
         changed = False
         for task in plan["tasks"]:
+            dependency_statuses = [by_id[item]["status"] for item in task["dependencies"]]
+            if task["status"] == "BLOCKED" and task.get("block_reason") == "dependency_failed":
+                if all(status in _DEPENDENCY_COMPLETE for status in dependency_statuses):
+                    task["status"] = "READY"
+                    task.pop("block_reason", None)
+                    changed = True
+                continue
             if task["status"] != "PLANNED":
                 continue
-            dependency_statuses = [by_id[item]["status"] for item in task["dependencies"]]
             if any(status in _DEPENDENCY_FAILURE for status in dependency_statuses):
                 task["status"] = "BLOCKED"
                 task["block_reason"] = "dependency_failed"
@@ -1379,7 +1385,9 @@ def _advance_dependent_manifest_baselines(root: Path, plan: dict[str, Any], inte
     for dependent in plan["tasks"]:
         if integrated_task_id not in dependent.get("dependencies", []):
             continue
-        if dependent.get("owner") != "worker" or dependent.get("status") not in {"PLANNED", "READY"}:
+        if dependent.get("owner") != "worker" or dependent.get("status") not in {"PLANNED", "READY", "BLOCKED"}:
+            continue
+        if dependent.get("status") == "BLOCKED" and dependent.get("block_reason") != "dependency_failed":
             continue
         if any(_task(plan, dependency).get("status") != "INTEGRATED" for dependency in dependent.get("dependencies", [])):
             continue

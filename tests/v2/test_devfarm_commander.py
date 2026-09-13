@@ -16,6 +16,7 @@ from scripts.devfarm_commander import (
     mark_integrated,
     recover_orphaned_dispatches,
     reassign_task,
+    refresh_plan,
     resume_plan,
     verify_plan,
 )
@@ -1057,3 +1058,35 @@ def test_commander_reissues_dependent_manifest_from_integration_revision(tmp_pat
     new_manifest = json.loads((root / dependent["manifest_path"]).read_text(encoding="utf-8"))
     assert new_manifest["base_revision"] == integration_revision
     assert original_manifest in dependent["manifest_history"]
+
+
+def test_dependency_blocked_task_releases_after_dependency_recovery():
+    plan = {
+        "run_id": "dependency-recovery-run",
+        "objective": "release a dependent task after a reworked dependency integrates",
+        "base_revision": "a" * 40,
+        "tasks": [
+            {
+                "task_id": "worker-a",
+                "owner": "worker",
+                "status": "INTEGRATED",
+                "manifest_path": ".devfarm/tasks/worker-a.json",
+                "integration_revision": "b" * 40,
+                "assignment": {"provider_id": "cloudflare", "model_id": "worker-model"},
+            },
+            {
+                "task_id": "worker-b",
+                "owner": "worker",
+                "status": "BLOCKED",
+                "block_reason": "dependency_failed",
+                "dependencies": ["worker-a"],
+                "manifest_path": ".devfarm/tasks/worker-b.json",
+                "assignment": {"provider_id": "cloudflare", "model_id": "worker-model"},
+            },
+        ],
+    }
+
+    refreshed = refresh_plan(plan)
+
+    assert refreshed["tasks"][1]["status"] == "READY"
+    assert "block_reason" not in refreshed["tasks"][1]
