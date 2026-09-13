@@ -230,7 +230,12 @@ class AgentBackendDispatcher:
             if request.client_session_key != identity.client_session_key:
                 start_request = replace(request, client_session_key=identity.client_session_key)
             session = backend.start(start_request)
-            self._validate_session(session, request, backend)
+            session = self._validate_session(
+                session,
+                request,
+                backend,
+                client_session_key=identity.client_session_key,
+            )
         except BaseException as exc:
             self._mark_unknown(key, task, "agent_backend.start_unknown", {"error_type": type(exc).__name__})
             raise BackendDispatchUncertain(f"backend start outcome is unknown: {dispatch_id}") from exc
@@ -286,7 +291,12 @@ class AgentBackendDispatcher:
         task = self._task_for_intent(intent)
         try:
             session = discover(client_session_key.strip())
-            self._validate_session_for_task(session, task, backend)
+            session = self._validate_session_for_task(
+                session,
+                task,
+                backend,
+                client_session_key=client_session_key.strip(),
+            )
         except BaseException as exc:
             self._mark_unknown(
                 key,
@@ -378,6 +388,14 @@ class AgentBackendDispatcher:
         try:
             result = backend.result(session.session_id)
             self._validate_result(result, session)
+            if result.external_session_id is not None and session.external_session_id is None:
+                session = replace(session, external_session_id=result.external_session_id)
+            elif (
+                result.external_session_id is not None
+                and session.external_session_id is not None
+                and result.external_session_id != session.external_session_id
+            ):
+                raise AgentBackendDispatchError("backend returned a conflicting external session identity")
         except BaseException as exc:
             self._mark_unknown(key, task, "agent_backend.result_unknown", {"error_type": type(exc).__name__})
             return AgentBackendResult(session_id=session.session_id, status=AgentBackendStatus.UNKNOWN, reconciliation_metadata={"error_type": type(exc).__name__})
@@ -430,6 +448,14 @@ class AgentBackendDispatcher:
         try:
             result = backend.result(session.session_id)
             self._validate_result(result, session)
+            if result.external_session_id is not None and session.external_session_id is None:
+                session = replace(session, external_session_id=result.external_session_id)
+            elif (
+                result.external_session_id is not None
+                and session.external_session_id is not None
+                and result.external_session_id != session.external_session_id
+            ):
+                raise AgentBackendDispatchError("backend returned a conflicting external session identity")
         except BaseException as exc:
             result = AgentBackendResult(session_id=session.session_id, status=AgentBackendStatus.UNKNOWN, reconciliation_metadata={"error_type": type(exc).__name__})
         status = "succeeded" if result.status is AgentBackendStatus.COMPLETED else "confirmed_failed" if result.status in {AgentBackendStatus.FAILED, AgentBackendStatus.CANCELLED} else "unknown"
@@ -620,14 +646,32 @@ class AgentBackendDispatcher:
             return None
 
     @staticmethod
-    def _validate_session(session: AgentBackendSession, request: AgentBackendRequest, backend: AgentBackend) -> None:
+    def _validate_session(
+        session: AgentBackendSession,
+        request: AgentBackendRequest,
+        backend: AgentBackend,
+        *,
+        client_session_key: str,
+    ) -> AgentBackendSession:
         if not isinstance(session, AgentBackendSession) or session.task_id != request.task_id or session.backend_id != backend.identity.backend_id:
             raise AgentBackendDispatchError("backend returned an invalid session identity")
+        if session.client_session_key not in {None, client_session_key}:
+            raise AgentBackendDispatchError("backend returned a conflicting client session identity")
+        return replace(session, client_session_key=client_session_key)
 
     @staticmethod
-    def _validate_session_for_task(session: AgentBackendSession | None, task: Task, backend: AgentBackend) -> None:
+    def _validate_session_for_task(
+        session: AgentBackendSession | None,
+        task: Task,
+        backend: AgentBackend,
+        *,
+        client_session_key: str,
+    ) -> AgentBackendSession:
         if not isinstance(session, AgentBackendSession) or session.task_id != task.task_id or session.backend_id != backend.identity.backend_id:
             raise AgentBackendDispatchError("backend discovery returned an invalid session identity")
+        if session.client_session_key not in {None, client_session_key}:
+            raise AgentBackendDispatchError("backend discovery returned a conflicting client session identity")
+        return replace(session, client_session_key=client_session_key)
 
     @staticmethod
     def _validate_result(result: AgentBackendResult, session: AgentBackendSession) -> None:

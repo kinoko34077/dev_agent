@@ -5,6 +5,7 @@ from importlib import import_module
 
 _LAZY_EXPORTS = {
     "AgentBackend": (".protocol", "AgentBackend"),
+    "AgentBackendDiscovery": (".protocol", "AgentBackendDiscovery"),
     "AgentBackendEvent": (".protocol", "AgentBackendEvent"),
     "AgentBackendIdentity": (".protocol", "AgentBackendIdentity"),
     "AgentBackendRequest": (".protocol", "AgentBackendRequest"),

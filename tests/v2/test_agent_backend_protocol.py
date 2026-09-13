@@ -4,6 +4,7 @@ import pytest
 
 from src.dev_agent.backends import (
     AgentBackend,
+    AgentBackendDiscovery,
     AgentBackendEvent,
     AgentBackendIdentity,
     AgentBackendRequest,
@@ -31,13 +32,37 @@ def test_agent_backend_contract_carries_session_events_and_terminal_result():
         status=AgentBackendStatus.COMPLETED,
         output_artifacts=("result.json",),
         reconciliation_metadata={"unknown": False},
+        external_session_id="provider-session-001",
     )
 
     assert request.scope.allowed_paths == ("src/example.py",)
     assert session.backend_id == identity.backend_id
     assert event.status is AgentBackendStatus.WAITING_APPROVAL
     assert result.status is AgentBackendStatus.COMPLETED
+    assert result.external_session_id == "provider-session-001"
     assert result.reconciliation_metadata["unknown"] is False
+
+
+def test_session_reference_keeps_local_and_external_identity_separate():
+    session = AgentBackendSession(
+        session_id="local-session-001",
+        task_id="task-001",
+        backend_id="fixture",
+        client_session_key="dev-agent:task-001:attempt-001",
+        external_session_id="provider-session-001",
+    )
+
+    assert session.client_session_key == "dev-agent:task-001:attempt-001"
+    assert session.external_session_id == "provider-session-001"
+    assert session.session_id != session.external_session_id
+
+
+def test_optional_backend_discovery_protocol_is_structural():
+    class Discoverable:
+        def discover(self, client_session_key):
+            return None
+
+    assert isinstance(Discoverable(), AgentBackendDiscovery)
 
 
 @pytest.mark.parametrize(

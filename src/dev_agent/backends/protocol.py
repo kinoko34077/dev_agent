@@ -33,6 +33,15 @@ def _strings(values: Any, name: str) -> tuple[str, ...]:
     return normalized
 
 
+def _optional_text(value: Any, name: str, *, max_length: int = 512) -> str | None:
+    if value is None:
+        return None
+    normalized = _text(value, name)
+    if len(normalized) > max_length:
+        raise ValueError(f"{name} is too long")
+    return normalized
+
+
 class AgentBackendStatus(str, Enum):
     PREPARED = "prepared"
     RUNNING = "running"
@@ -119,12 +128,16 @@ class AgentBackendSession:
     task_id: str
     backend_id: str
     status: AgentBackendStatus = AgentBackendStatus.PREPARED
+    client_session_key: str | None = None
+    external_session_id: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "session_id", _text(self.session_id, "session_id"))
         object.__setattr__(self, "task_id", _text(self.task_id, "task_id"))
         object.__setattr__(self, "backend_id", _text(self.backend_id, "backend_id"))
         object.__setattr__(self, "status", _status(self.status, "status"))
+        object.__setattr__(self, "client_session_key", _optional_text(self.client_session_key, "client_session_key"))
+        object.__setattr__(self, "external_session_id", _optional_text(self.external_session_id, "external_session_id"))
 
 
 @dataclass(frozen=True)
@@ -152,6 +165,7 @@ class AgentBackendResult:
     status: AgentBackendStatus
     output_artifacts: tuple[str, ...] = ()
     reconciliation_metadata: Mapping[str, Any] = field(default_factory=dict)
+    external_session_id: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "session_id", _text(self.session_id, "session_id"))
@@ -182,6 +196,21 @@ class AgentBackendResult:
         if not isinstance(self.reconciliation_metadata, Mapping):
             raise TypeError("reconciliation_metadata must be a mapping")
         object.__setattr__(self, "reconciliation_metadata", dict(self.reconciliation_metadata))
+        object.__setattr__(self, "external_session_id", _optional_text(self.external_session_id, "external_session_id"))
+
+
+@runtime_checkable
+class AgentBackendDiscovery(Protocol):
+    """Optional recovery capability for an already-started backend session.
+
+    Discovery is deliberately separate from :class:`AgentBackend`: adapters
+    must not claim restart recovery unless they can locate the exact external
+    session by the durable client key.  The dispatcher treats an adapter
+    without this capability as an explicit reconciliation boundary.
+    """
+
+    def discover(self, client_session_key: str) -> AgentBackendSession | None:
+        ...
 
 
 @runtime_checkable
@@ -207,6 +236,7 @@ class AgentBackend(Protocol):
 
 __all__ = [
     "AgentBackend",
+    "AgentBackendDiscovery",
     "AgentBackendEvent",
     "AgentBackendIdentity",
     "AgentBackendRequest",

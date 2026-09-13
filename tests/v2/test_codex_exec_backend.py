@@ -335,6 +335,7 @@ def test_codex_jsonl_is_normalized_into_structured_events_and_usage(tmp_path):
     result = backend.result(session.session_id, wait_seconds=5.0)
 
     assert result.status == AgentBackendStatus.COMPLETED
+    assert result.external_session_id == "thread-42"
     assert result.reconciliation_metadata["provider_thread_id"] == "thread-42"
     assert result.reconciliation_metadata["usage"] == {"input_tokens": 11, "output_tokens": 7}
     assert result.reconciliation_metadata["structured_event_count"] == 3

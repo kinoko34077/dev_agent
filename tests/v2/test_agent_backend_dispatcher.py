@@ -92,15 +92,25 @@ def test_dispatch_persists_identity_and_does_not_restart_existing_session(store,
     dispatcher = _dispatcher(store)
 
     session = dispatcher.dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
+    assert session.client_session_key == f"dev-agent:{dispatch_id}"
+    backend.result_value = AgentBackendResult(
+        session_id=session.session_id,
+        status=AgentBackendStatus.COMPLETED,
+        external_session_id="provider-session-001",
+    )
     dispatcher.result(dispatch_id, backend)
     same_session = _dispatcher(store).dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
 
     assert session.session_id == same_session.session_id
+    assert same_session.external_session_id == "provider-session-001"
     assert backend.start_calls == 1
     intent = store.get_effect_intent(dispatcher.effect_key(dispatch_id))
     assert intent["arguments"]["task_id"] == task.task_id
     assert intent["arguments"]["backend_id"] == "fake"
     assert intent["result"]["session"]["session_id"] == session.session_id
+    assert intent["result"]["session"]["client_session_key"] == f"dev-agent:{dispatch_id}"
+    assert intent["result"]["session"]["external_session_id"] == "provider-session-001"
+    assert intent["result"]["backend_result"]["external_session_id"] == "provider-session-001"
     assert intent["arguments"]["attempt"] == 1
     assert intent["arguments"]["request_fingerprint"]
 

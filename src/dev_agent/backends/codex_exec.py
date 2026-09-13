@@ -781,6 +781,7 @@ class _CodexExecBackendImpl:
                     session_id=session_id,
                     status=AgentBackendStatus.COMPLETED,
                     reconciliation_metadata=metadata,
+                    external_session_id=state.codex_thread_id,
                 )
             metadata = {
                 "returncode": state.returncode,
@@ -800,6 +801,7 @@ class _CodexExecBackendImpl:
                 session_id=session_id,
                 status=AgentBackendStatus.FAILED,
                 reconciliation_metadata=metadata,
+                external_session_id=state.codex_thread_id,
             )
 
 
