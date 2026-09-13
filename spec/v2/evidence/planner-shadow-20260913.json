@@ -54,6 +54,15 @@
     "parent_task_id": "existing UUID task identity is validated before ProviderDispatcher composition",
     "invalid_input_is_external_call_free": true
   },
+  "prompt_contract": {
+    "raw_json_object_only": true,
+    "markdown_fences_forbidden": true,
+    "explanatory_prose_forbidden": true,
+    "comments_forbidden": true,
+    "trailing_text_forbidden": true,
+    "implementation_commit": "cbb1a4d",
+    "live_retest_after_prompt_change": false
+  },
   "worker_follow_up": {
     "run_ids": [
       "planner-shadow-input-validation-20260913",

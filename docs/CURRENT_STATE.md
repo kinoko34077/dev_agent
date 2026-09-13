@@ -5,8 +5,10 @@
 Planner shadowの入口で、既存Task identityのUUID契約をProvider構成より先に検証する
 `validate_parent_task_id()`を追加した。不正なIDは`invalid_input`として返り、外部呼出しを
 発生させない。正しいUUIDでqualified L2 Geminiへ一度だけboundedに到達したが、応答は
-strict JSONではなく、`ModelPlanningAdapter`のfail-closed拒否となった。Planner成功、
-Host validation、Task作成、Commander dispatchの証拠には昇格しない。
+strict JSONではなく、`ModelPlanningAdapter`のfail-closed拒否となった。これを受け、Planner
+promptにもraw JSON object only、Markdown/prose/comment/trailing text禁止を明記した。ただし
+prompt修正後のlive再試行は行っていないため、Planner成功、Host validation、Task作成、
+Commander dispatchの証拠には昇格しない。
 
 Worker-firstで同じ入力境界修正を2回試したが、1回目はbase revisionに存在しない新規test
 pathのためWorker境界で拒否、2回目は返却patch hunkが既存testへ適用できずHost Verification
@@ -16,8 +18,9 @@ credentialsは保存していない。
 
 | Field | Value |
 | --- | --- |
-| **Implementation status** | local change pending commit; `run_shadow` UUID input validation and focused regression |
-| **Focused validation** | `10 passed` (`tests/v2/test_planner_adapter.py`); compileall PASS |
+| **Implementation commits** | `3555e31` (UUID input boundary); `cbb1a4d` (strict JSON prompt contract) |
+| **Focused validation** | `14 passed` (Planner adapter + DevelopmentPlanningBridge); compileall PASS |
+| **Full regression** | `944 passed, 1 skipped` (`python -m pytest tests/v2 -q`; Windows ACL skip is deployment-owned) |
 | **Live Planner observation** | corrected UUID reached `gemini:core` / `gemini-3.8-flash`, then strict JSON rejection; NOT VERIFIED |
 | **Evidence** | [`planner-shadow-20260913.json`](../spec/v2/evidence/planner-shadow-20260913.json) |
 | **Authority effect** | none; proposal-only boundary, no Task/Plan/Worker dispatch |

@@ -39,6 +39,8 @@ Planner shadowの`parent_task_id`は既存UUID identityをProvider構成前に�
 で行った最新のbounded live観測もstrict JSON拒否であり、Planner successや自律Planning
 authorityへ昇格させない。外部再試行は自動化せず、Host-only BridgeとWorker-firstの狭い
 dogfoodを優先する。
+strict JSON応答の形式負荷に対しては、promptへraw JSON object onlyとMarkdown／prose／
+comment／trailing text禁止を明示したが、修正後のlive再試行はまだ行っていない。
 
 ### 2026-09-07 時点の観測
 
