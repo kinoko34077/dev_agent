@@ -103,7 +103,7 @@
 - [x] Run one bounded pool-routed D1 observation. It exhausted two confirmed-unavailable exact L2 bindings without a proposal; preserve the sanitized result in evidence.
 - [x] Continue immediately through existing Bridge → Commander → L1 Worker → Host Verification → ReviewDecision → deterministic integration, with target-child Codex implementation count zero. Verified by `planner-to-worker-e2e-20260914.json`.
 - [x] Run focused tests (`24 passed` after the compatibility fix), full `tests/v2` (`993 passed, 1 skipped`), architecture check, and compileall.
-- [x] Push the synchronized evidence/documentation commit and confirm exact-head CI. `v2-core` run `34790435399` and `v2-provider-smoke` run `34790435394` passed for branch commit `8c25513`.
+- [x] Push the synchronized evidence/documentation commit and confirm exact-head CI. `v2-core` run `34790579565` and `v2-provider-smoke` run `34790579558` passed for branch commit `92a1a3e`.
 
 ## Current facts after the model-evidence slice
 
