@@ -225,10 +225,30 @@ class GeminiHttpProvider(ModelProvider):
                     retryable=False,
                     http_status=exc.code,
                 ) from exc
-            category = "rate_limit" if exc.code == 429 else "authentication" if exc.code == 401 else "authorization" if exc.code == 403 else "provider_http"
             detail = self._safe_error_detail(exc)
+            detail_lower = detail.lower() if detail is not None else ""
+            confirmed_unavailable = exc.code == 503 and (
+                "unavailable" in detail_lower or "high demand" in detail_lower
+            )
+            category = (
+                "rate_limit"
+                if exc.code == 429
+                else "authentication"
+                if exc.code == 401
+                else "authorization"
+                if exc.code == 403
+                else "provider_unavailable"
+                if confirmed_unavailable
+                else "provider_http"
+            )
             suffix = f": {detail}" if detail else ""
-            raise ProviderError(f"gemini {category}: HTTP {exc.code}{suffix}", category=category, retryable=category in {"rate_limit"}, http_status=exc.code) from exc
+            raise ProviderError(
+                f"gemini {category}: HTTP {exc.code}{suffix}",
+                category=category,
+                retryable=category in {"rate_limit"},
+                failover_safe=category in {"rate_limit", "authentication", "authorization", "provider_unavailable"},
+                http_status=exc.code,
+            ) from exc
         except (URLError, OSError, json.JSONDecodeError) as exc:
             raise ProviderError(f"gemini transport failed: {exc}", category="transport", retryable=True) from exc
         response = decode_generate_content(raw, model=self.model, request_id=request.request_id)

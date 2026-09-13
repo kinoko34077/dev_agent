@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from contextvars import ContextVar
 from typing import Any, Callable, TYPE_CHECKING
 
@@ -40,9 +40,39 @@ class ProviderPoolSaturated(ProviderError):
             "all eligible provider execution lanes are saturated",
             category="provider_execution_saturated",
             retryable=True,
+            failover_safe=True,
         )
         self.saturated_binding_ids = normalized
         self.binding_id = None
+
+
+class ProviderPoolExhausted(ProviderError):
+    """All distinct failover-safe bindings failed with confirmed outcomes."""
+
+    def __init__(self, attempts: tuple[dict[str, Any], ...]) -> None:
+        if len(attempts) < 2:
+            raise ValueError("provider pool exhaustion requires at least two attempts")
+        normalized: list[dict[str, Any]] = []
+        for attempt in attempts:
+            if not isinstance(attempt, dict):
+                raise TypeError("provider pool attempts must be objects")
+            normalized.append(
+                {
+                    "provider_id": attempt.get("provider_id"),
+                    "binding_id": attempt.get("binding_id"),
+                    "model_id": attempt.get("model_id"),
+                    "category": attempt.get("category"),
+                    "failover_safe": attempt.get("failover_safe") is True,
+                    "reconciliation_required": attempt.get("reconciliation_required") is True,
+                }
+            )
+        super().__init__(
+            "all eligible provider bindings were exhausted",
+            category="provider_pool_exhausted",
+            retryable=False,
+            failover_safe=False,
+        )
+        self.attempts = tuple(normalized)
 
 
 class ProviderDispatcher(ModelProvider):
@@ -284,15 +314,22 @@ class ProviderDispatcher(ModelProvider):
                 raise ValueError("explicit task_id does not match request.task_id")
             request = explicit_request
         excluded: set[str] = set()
+        excluded_bindings: set[str] = set()
         last_error: ProviderError | None = None
+        attempts: list[dict[str, Any]] = []
         saturated_binding_ids: set[str] = set()
         while True:
             try:
-                selection = self._selection(request, excluded)
+                selection = self._selection(request, excluded, excluded_bindings)
             except NoRoute as exc:
                 if saturated_binding_ids:
                     raise ProviderPoolSaturated(tuple(saturated_binding_ids)) from exc
                 if last_error is not None:
+                    if len(attempts) > 1 and all(
+                        attempt["failover_safe"] is True and attempt["reconciliation_required"] is False
+                        for attempt in attempts
+                    ):
+                        raise ProviderPoolExhausted(tuple(attempts)) from exc
                     raise last_error
                 raise DispatchDenied("no_route", str(exc)) from exc
             provider = self.registry.get_binding(selection.provider_binding_id or selection.provider_id)
@@ -378,7 +415,23 @@ class ProviderDispatcher(ModelProvider):
                 self.control.record_provider_error(selection.provider_id, reservation, exc)
                 outcome = "unknown" if exc.requires_reconciliation else "confirmed_failed"
                 self._intent(intent_key, status=outcome, result={"provider_id": selection.provider_id, "resource_id": selection.resource_id, "error_category": exc.category, "message": str(exc)})
-                self._record_audit(request, selection, exc.category, intent_key, details={"category": exc.category, "retryable": exc.retryable})
+                attempts.append(
+                    {
+                        "provider_id": selection.provider_id,
+                        "binding_id": selection.provider_binding_id or selection.provider_id,
+                        "model_id": selection.model_id,
+                        "category": exc.category,
+                        "failover_safe": exc.failover_safe,
+                        "reconciliation_required": exc.requires_reconciliation,
+                    }
+                )
+                self._record_audit(
+                    request,
+                    selection,
+                    exc.category,
+                    intent_key,
+                    details={"category": exc.category, "retryable": exc.retryable, "failover_safe": exc.failover_safe},
+                )
                 # A transport failure occurs after the concrete provider was
                 # invoked.  Its external outcome is therefore ambiguous even
                 # when the provider labels the error retryable; fail closed
@@ -388,7 +441,10 @@ class ProviderDispatcher(ModelProvider):
                     raise
                 last_error = exc
                 excluded.add(selection.resource_id)
-                if not exc.retryable:
+                binding_id = selection.provider_binding_id or selection.provider_id
+                if isinstance(binding_id, str) and binding_id.strip():
+                    excluded_bindings.add(binding_id.strip())
+                if not exc.failover_safe:
                     raise
                 continue
             except Exception as exc:
@@ -522,7 +578,7 @@ class ProviderDispatcher(ModelProvider):
                 ) from exc
             return response
 
-    def _selection(self, request: ModelRequest, excluded: set[str]) -> RouteSelection:
+    def _selection(self, request: ModelRequest, excluded: set[str], excluded_bindings: set[str] | frozenset[str] = frozenset()) -> RouteSelection:
         snapshot = self.control.routing_snapshot()
         max_cost_minor = None
         if self.survival is not None:
@@ -533,6 +589,13 @@ class ProviderDispatcher(ModelProvider):
                 # Paid normal dispatch is prohibited in constrained modes.
                 # Recovery-only paid work requires a distinct future request type.
                 max_cost_minor = 0
+        if excluded_bindings:
+            metadata = dict(request.metadata)
+            current = metadata.get("excluded_provider_binding_ids", ())
+            if isinstance(current, str):
+                current = (current,)
+            metadata["excluded_provider_binding_ids"] = tuple(sorted(set(current) | set(excluded_bindings)))
+            request = replace(request, metadata=metadata)
         return self.control.select_route(
             request,
             excluded_resource_ids=excluded,
