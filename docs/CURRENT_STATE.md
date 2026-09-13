@@ -1,5 +1,38 @@
 # Current State — v2/bootstrap
 
+## Current — 2026-09-13 (explicit discovery authority, Planner shadow boundary, delegation visibility)
+
+Group DのAgentBackend復旧境界を一段進め、外部session discoveryをBackendの実装や
+artifactから暗黙に推測しない形へ固定した。`AgentBackendDispatcher`は、Host/Control
+側から明示注入された`BackendDiscoveryAuthority`のtyped receiptだけを受け付け、
+dispatch identity・request fingerprint・session identityが一致しない場合は復旧せず
+`UNKNOWN`へ閉じる。authority未提供時にBackendの`discover()`を直接呼ぶ経路はない。
+
+また、qualifiedなFree L2候補を既存のQualification／Billing／Budget／Router／
+ProviderDispatcher経路へ通すdevelopment-only `devfarm_planner_shadow.py`を追加した。
+厳格JSONのproposalをHost validatorで検証するだけで、Task作成・Commander Plan保存・
+Worker dispatchは行わない。実外部shadowはGeminiの一時的な非JSON応答とHTTP 503
+（high demand）で完走しておらず、live Plannerの成功・自律Planningの証拠にはしない。
+
+Supervisorの`status`／`run`出力には、Planの`owner`と`worker_candidate`から導出する
+delegation summaryを追加した。Worker適格だったがCodexが担当したTaskだけを明示的な
+`delegation_reason`付きで直接実装候補として数え、レビュー・統合・architecture Taskを
+実装実績へ推測変換しない。これは新しい永続状態ではなく、既存Planから再起動後も再計算
+できるcompact projectionである。
+
+| Field | Value |
+| --- | --- |
+| **Implementation commits** | `d061182` (explicit Backend discovery authority); `1b5bb10` (proposal-only Free L2 shadow command); `b01dee5` (Plan-derived delegation summary) |
+| **Focused regression** | `105 passed` (AgentBackend／Planner／Bridge／Commander／Supervisor cluster) |
+| **Local static checks** | `ARCHITECTURE_PASS`; `python -m compileall -q src recovery scripts` clean; `git diff --check` clean |
+| **Exact-head CI** | `v2-core` PASS [run 34744138098](https://github.com/kinoko34077/dev_agent/actions/runs/34744138098); `v2-provider-smoke` PASS [run 34744138277](https://github.com/kinoko34077/dev_agent/actions/runs/34744138277) |
+| **Live Planner evidence** | NOT VERIFIED. One bounded request reached Gemini but returned HTTP 503 after a separate diagnostic confirmed valid JSON/auth; no retry storm or success claim |
+| **Unchanged scope** | Compression Service, MCP adapter, OpenAI/Claude API, G6O1-SIM/LIVE, automatic external-session discovery, paid-provider operation, OS-level sandbox |
+| **Current next target** | Use the existing Planner shadow/Bridge only after external availability permits a bounded live observation; then Worker-first Group D/Planner dogfood. Keep automatic discovery fail-closed and do not promote proposal-only Planning to autonomous authority |
+
+This slice is verified code and local/CI regression evidence, not live Free L2 Planner
+success. G6O1 remains `DEFERRED_FROZEN`／`NOT VERIFIED`／current roadmap non-blocking.
+
 ## Current — 2026-09-13 (proposal-only Free L2 Planner boundary)
 
 Planner移管の初期境界として、注入済み`ModelProvider`から厳格なJSON形式の

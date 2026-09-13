@@ -11,6 +11,21 @@
 - 開発原則: `Mechanism-heavy / Intelligence-on-demand`。既知の反復仕事は Workflow、探索的な判断だけを Agent に任せる。
 - 現在の範囲: Phase 7 integration hardening（Phase 6 foundation／operationalはG6O1を除き確定）。Codex App Server実adapter、MCP、マルチエージェント、自己修復、AI会社運営、Virtual Office UI は後続Gate。
 
+### 2026-09-13 現行フロンティア追記
+
+Group Dの現行境界は、local `client_session_key`／Provider `external_session_id`、
+bounded artifact reference、per-attempt failure evidenceに加え、Host/Controlが明示的に
+注入する`BackendDiscoveryAuthority`と、identity／request fingerprint一致を要求する
+reconciliation receiptまで実装済みである。Backendの`discover()`を自動で呼ぶsession
+再取得は未実装・未実証で、authorityが無い場合は`UNKNOWN`へ閉じる。
+
+proposal-only `ModelPlanningAdapter`、Host-only `DevelopmentPlanningBridge`、および
+資格・Billing・Budget・Router・ProviderDispatcherを合成する一回限りのFree L2 Planner
+shadow入口も実装済みだが、実外部Plannerの成功は未検証（HTTP 503／一時的な厳格JSON
+拒否の証跡のみ）である。Supervisorには既存Planから導出するWorker/Codex delegation
+summaryを追加済み。次工程は、外部条件が整った時のbounded Planner shadow観測と、
+Worker-firstのGroup D／Planning dogfoodであり、MCPや自律Planning authorityへの昇格ではない。
+
 ### 2026-09-07 時点の観測
 
 | 項目 | 結果 | 計画への影響 |

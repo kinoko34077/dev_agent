@@ -37,6 +37,11 @@ Task state、Scheduler、Budget、Provider routing、AgentBackend authorityを
   routing metadataへ渡せる。`DevelopmentPlanningBridge`は既存Host validatorを
   compositionしてCommander Plan候補を返すが、Task作成・`.devfarm`書込み・dispatchを
   モデルへ許可しない。
+- 実装済みslice: Group Dの復旧境界は、Host/Controlが明示注入したtyped discovery
+  authority receiptだけを`AgentBackendDispatcher`が受け付ける。identity／request
+  fingerprint不一致やauthority未提供は`UNKNOWN`へ閉じ、Backendの`discover()`を暗黙に
+  呼ばない。Proposal-only Free L2 shadow commandも追加済みだが、実外部Plannerの成功は
+  未検証である。Supervisor出力には既存Planから導出するdelegation summaryを追加した。
 - 実装済みslice: `src/dev_agent/compression/` の固定HTTP client、payload-only compression、
   provenance/digest、機械的情報保持検査。独立Compression Service本体は別deploy境界。
 - **NOT CONNECTED**: Compression Service endpoint、代替Provider、仮Provider、

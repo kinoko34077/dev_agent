@@ -123,6 +123,7 @@ slice終了時は、次だけをcompactに報告する。
 ```text
 完了: <Task / slice>
 Worker: <件数> / REWORK: <有無>
+Delegation: Worker tasks <件数> / Codex tasks <件数> / Codex direct <件数> (<理由>)
 Integration: <主要commit>
 検証: <focused / full / architecture / compileall>
 CI: <exact-headの有無>

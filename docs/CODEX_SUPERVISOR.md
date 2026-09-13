@@ -35,6 +35,14 @@ review、Human判断、完了、または安全に継続できない境界であ
 - `review_packets[]`、`review_decisions[]`（attempt、evidence、decisionをdurableに記録）
 - Codex wake/review、Worker dispatch/success/retry、payload/artifact参照のcompact metrics
 
+`status`／`run`の出力には、PlanのTask責務から導出した`delegation` summaryも含まれる。
+`worker_owned_task_count`、`codex_owned_task_count`、`worker_integrated_task_count`を
+集計し、`worker_candidate=true`を明示したCodex Taskだけを
+`codex_direct_implementation_count`へ数える。そのTaskには具体的な
+`delegation_reason`が必須で、`codex_direct_reasons`へ出る。レビュー・統合・
+architecture担当をCodexの実装実績へ推測変換しない。summaryは新しいauthorityやDB列
+ではなく、既存PlanからHost側で再計算するcompact projectionである。
+
 同じwakeはkind/task/attempt/digestでdedupeする。raw conversation、patch、stdout、
 stderr、巨大PayloadをSupervisor metadataへ保存しない。planの既存revision CASを
 通して保存するため、会話再開後もPlanから再構築できる。

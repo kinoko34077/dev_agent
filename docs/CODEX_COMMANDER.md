@@ -56,6 +56,12 @@ Codexが担当する場合も、`protected`、`cross_cutting`、`architecture`�
 委譲しなかった判断を後から再構築できるようにする。これは利用率KPIではなく、
 安全なTask分解の監査情報である。
 
+Supervisorのcompact出力には、このTask情報から導出した`delegation` summaryが含まれる。
+`worker_candidate=true`のCodex Taskだけを直接実装候補として数えるため、Codexが
+reviewやintegrationを担当しただけでは実装実績にならない。Planの`owner`、
+`worker_candidate`、`delegation_reason`がこの集計の正本であり、未記録の変更量やtoken量は
+推測しない。
+
 Worker Taskは既存manifestを参照し、manifestの`allowed_files`がPlanのownershipを
 越えないことを検査する。Codex Taskに外部Provider manifestは不要である。
 
