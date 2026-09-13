@@ -1,5 +1,39 @@
 # Current State — v2/bootstrap
 
+## Current — 2026-09-13 (Daily Supervisor operation / Group D Worker slice)
+
+日常運用の最初の実案件を、今回整備したCLI導線で実証した。対象はGroup Dの
+残差から選んだ狭い回帰テストTaskで、Codexが実装を直接行わず、既知成功済みの
+Gemini L1 Workerへ委譲した。
+
+| Field | Value |
+| --- | --- |
+| **Implementation baseline** | `eca1af81729692096e8c314da56d4a45b259e7a1` (`test: add Codex JSONL usage regression`) |
+| **Daily plan** | `daily-group-d-usage-20260913b` |
+| **Worker** | `gemini` / `gemini:worker` / `gemini-3.5-flash-lite` |
+| **Attempt** | `d0426698f3af498da500acdc3c61f6ae` |
+| **Changed path** | `tests/v2/test_codex_jsonl_usage.py` only |
+| **Host Verification** | `TRUSTED_HOST_EXEC` + attempt-scoped operator approval; 2 independent pytest commands PASS |
+| **Patch digest** | `a2e2ba2b46fe8292cc521c30597a211de86d80254818010f9a0a8e14f85985b9` |
+| **Review** | durable `APPROVE_INTEGRATION`, decision `review-df3ec331356a43738966821e118b0e76` |
+| **Integration** | Host deterministic helper created `eca1af81729692096e8c314da56d4a45b259e7a1` |
+| **Focused regression** | `45 passed` (`test_devfarm_commander.py`, `test_devfarm_supervisor.py`, new Group D test) |
+| **Full/CI status** | This entry records the local slice; full `tests/v2`, architecture, compileall, and post-push exact-head CI remain to be run for this commit |
+
+The first attempt (`daily-group-d-usage-20260913`) was rejected before Host
+Verification because its outbound input included an existing test fixture containing
+secret-like `Bearer` text. The outbound guard worked as designed; no verification or
+integration evidence was claimed from that attempt. The successful retry sent only the
+production JSONL parser as input and asked the Worker to create a new test file, keeping
+the secret guard strict.
+
+The daily operation entrypoint is documented in `docs/CODEX_DAILY_DOGFOOD.md` and
+the thin operator commands are `review`, `rework`, and `integrate` on
+`scripts/devfarm_supervisor.py`. Compression remains disconnected; G6O1 remains
+`DEFERRED_FROZEN` / `NOT VERIFIED` / non-blocking. The next Group D candidates are
+session identity/discovery, artifact extraction, and restart/reconciliation; existing
+JSONL usage normalization is now covered by the Worker-produced regression.
+
 ## Current — 2026-09-13 (Supervisor Free Worker dogfood)
 
 この記録は、Codexが大量実装者ではなくSupervisorとして既存Free Workerを
@@ -35,8 +69,6 @@ G6O1は`spec/v2/G6O1_DEFERRED.md`により`DEFERRED_FROZEN`、`NOT VERIFIED`、
 `G/G6O1=BLOCKED`は維持し、実paid課金証拠・G6O1-SIM runtime E2Eを完了扱いにしない。
 Compression Service、OpenAI/Claude API、auto push/merge、OS-level sandbox、
 MCP、Codex App Server実adapterも今回の完了範囲外である。
-
-## Current — 2026-09-13 (Supervisor action boundary / fixed Worker probes)
 
 ## Current — 2026-09-13 (Supervisor run-until-intervention hardening)
 

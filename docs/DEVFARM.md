@@ -284,10 +284,14 @@ automatically applies a patch to `v2/bootstrap`.
 ## Codex Supervisor
 
 `scripts/devfarm_supervisor.py`はCommanderの既存dispatch／collect／verify／reassign／
-integrationを一回ずつ呼ぶdevelopment-only facadeである。Planのoptional `supervisor`
-projectionへbounded wait、wake、metricsを保存するが、常駐Scheduler、automatic integration、
-Worker raw outputの保存は行わない。既定のHost Verification trust levelは`STATIC_ONLY`で、
-再開は`python scripts/devfarm_supervisor.py resume <run-id>`から明示的に行う。
+integrationをboundedにcompositionするdevelopment-only facadeである。Planのoptional
+`supervisor` projectionへbounded wait、wake、metricsを保存するが、常駐Scheduler、
+automatic integration、Worker raw outputの保存は行わない。既定のHost Verification trust
+levelは`STATIC_ONLY`で、日常のWorker待機には
+`python scripts/devfarm_supervisor.py run <run-id> --trust-level TRUSTED_HOST_EXEC --operator-approved`
+をattempt単位で明示する。Codex action境界から戻った後の操作は、薄いCLIの
+`review`／`rework`／`integrate`で既存Python APIへ委譲できる。日常手順は
+`docs/CODEX_DAILY_DOGFOOD.md`を参照する。
 
 `run_until_intervention()`はWorker待機時だけ、1 / 5 / 10 / 15分のbounded
 cadenceでsleepする。`REVIEWING`、`INTEGRATING`、REWORK、Codex所有Task、

@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "scope": "daily_supervisor_group_d_worker_slice",
+  "status": "verified",
+  "plan_id": "daily-group-d-usage-20260913b",
+  "base_revision": "529e263449c8a146bfe1c241040c5d15aa099cd5",
+  "integration_revision": "eca1af81729692096e8c314da56d4a45b259e7a1",
+  "task_id": "group-d-usage-regression-v2-20260913",
+  "provider": "gemini",
+  "provider_binding_id": "gemini:worker",
+  "model": "gemini-3.5-flash-lite",
+  "attempt_id": "d0426698f3af498da500acdc3c61f6ae",
+  "changed_files": ["tests/v2/test_codex_jsonl_usage.py"],
+  "patch_sha256": "a2e2ba2b46fe8292cc521c30597a211de86d80254818010f9a0a8e14f85985b9",
+  "verification": {
+    "trust_level": "TRUSTED_HOST_EXEC",
+    "operator_approved": true,
+    "independent": true,
+    "verified_test_count": 2,
+    "result_accepted": true,
+    "verification_ref": ".devfarm/results/group-d-usage-regression-v2-20260913/attempts/d0426698f3af498da500acdc3c61f6ae/verification/43d6a4623d8a47bb8f2a2db85165fc4b.json"
+  },
+  "review": {
+    "decision": "APPROVE_INTEGRATION",
+    "decision_id": "review-df3ec331356a43738966821e118b0e76",
+    "review_packet_used": true
+  },
+  "failure_classification": {
+    "plan_id": "daily-group-d-usage-20260913",
+    "outcome": "rejected_before_provider_request_artifact",
+    "reason": "outbound_secret_candidate_guard_rejected_existing_test_fixture",
+    "host_verification": false,
+    "integration": false
+  },
+  "unverified_external_gates": [
+    "full_tests_v2_for_integration_revision",
+    "architecture_check_for_integration_revision",
+    "compileall_for_integration_revision",
+    "post_push_exact_head_ci"
+  ],
+  "compression_connected": false,
+  "g6o1_status": "DEFERRED_FROZEN_NOT_VERIFIED_NON_BLOCKING"
+}
