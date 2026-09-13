@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "checked_at": "2026-09-13",
+  "implementation_commit": "c9789b2fe7b93586f422d59e17826fb246f64cc0",
+  "scope": "planner provider pool and failover semantics",
+  "live_planner_status": "NOT_VERIFIED",
+  "catalog_inventory": {
+    "current_high_confidence_l2_count": 1,
+    "current_high_confidence_l2": [
+      {
+        "provider": "gemini",
+        "binding": "gemini:core",
+        "model": "gemini-3.8-flash",
+        "billing_no_charge": true
+      }
+    ],
+    "l1_or_unassigned_candidates_not_admitted_as_planner": [
+      "gemini:worker/gemini-3.5-flash-lite",
+      "cloudflare/@cf/meta/llama-3.1-8b-instruct",
+      "openrouter:free/openrouter/free",
+      "gemini:compat/gemini-2.5-flash",
+      "ollama/qwen3:8b"
+    ]
+  },
+  "local_failover_evidence": {
+    "confirmed_unavailable_primary_to_secondary": "PASS",
+    "authentication_failure_to_secondary": "PASS",
+    "unknown_transport_does_not_failover": "PASS",
+    "unclassified_503_requires_reconciliation": "PASS",
+    "multi_binding_pool_exhaustion_is_bounded": "PASS",
+    "planner_fake_pool_valid_proposal_and_host_validation": "PASS",
+    "automatic_l1_downgrade": "PROHIBITED"
+  },
+  "live_observation": {
+    "prior_gemini_core_503_evidence": [
+      "planner-live-observation-20260913.json",
+      "planner-live-observation-20260913-02.json"
+    ],
+    "new_request": "NOT_SENT",
+    "reason": "This execution environment rejected transmission of the internal planning objective and repository/branch context to the external Gemini destination; no workaround or alternate external send was attempted."
+  },
+  "verification": {
+    "focused_provider_planner_tests": "PASS",
+    "tests_v2": "953 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head_ci": {
+      "v2-core": {
+        "run": 34762643559,
+        "conclusion": "success"
+      },
+      "v2-provider-smoke": {
+        "run": 34762643554,
+        "conclusion": "success"
+      }
+    }
+  }
+}
