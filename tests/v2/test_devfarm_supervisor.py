@@ -6,6 +6,7 @@ from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 import pytest
 
+from scripts.devfarm import write_manifest
 from scripts.devfarm_commander import validate_plan
 from scripts.devfarm_supervisor_protocol import (
     advance_heartbeat,
@@ -252,6 +253,68 @@ def test_supervisor_exposes_codex_owned_ready_task_action_without_sleep(tmp_path
 
     assert step.status == "ACTIVE"
     assert step.next_action == "execute_codex_task"
+
+
+def test_supervisor_step_exposes_plan_delegation_summary(tmp_path):
+    write_manifest(
+        tmp_path,
+        {
+            "task_id": "worker-task",
+            "objective": "keep a worker-owned task in the plan summary",
+            "base_revision": "abc123",
+            "allowed_files": ["tests/v2/worker.py"],
+            "read_files": ["tests/v2/worker.py"],
+            "forbidden_files": [],
+            "external_provider_allowed": True,
+            "approved_provider_ids": ["cloudflare"],
+            "outbound_files": ["tests/v2/worker.py"],
+            "requirements": [],
+            "acceptance": [],
+            "test_commands": ["python -m pytest tests/v2/worker.py -q"],
+            "max_attempts": 1,
+            "output_contract": {},
+        },
+    )
+    plan_input = _plan(
+        tasks=[
+            {
+                "task_id": "worker-task",
+                "owner": "worker",
+                "status": "INTEGRATED",
+                "manifest_path": ".devfarm/tasks/worker-task.json",
+                "assignment": {"provider_id": "cloudflare", "model_id": "worker-model"},
+            },
+            {
+                "task_id": "codex-direct",
+                "owner": "codex",
+                "status": "READY",
+                "worker_candidate": True,
+                "delegation_reason": "cross_cutting",
+                "assignment": {"owner": "codex"},
+            },
+        ],
+        ownership=[
+            {"task_id": "worker-task", "paths": []},
+            {"task_id": "codex-direct", "paths": []},
+        ],
+        assignments=[
+            {"task_id": "worker-task", "owner": "worker", "provider_id": "cloudflare", "model_id": "worker-model"},
+            {"task_id": "codex-direct", "owner": "codex"},
+        ],
+        dependencies=[
+            {"task_id": "worker-task", "depends_on": []},
+            {"task_id": "codex-direct", "depends_on": []},
+        ],
+    )
+    create_plan(tmp_path, plan_input)
+    step = CodexSupervisedCommanderRun(tmp_path, "supervisor-test-001").status()
+
+    assert step.delegation["worker_owned_task_count"] == 1
+    assert step.delegation["worker_integrated_task_count"] == 1
+    assert step.delegation["codex_owned_task_count"] == 1
+    assert step.delegation["codex_direct_implementation_count"] == 1
+    assert step.delegation["codex_direct_reasons"] == ["cross_cutting"]
+    assert step.to_dict()["delegation"] == dict(step.delegation)
 
 
 def test_supervised_run_wait_budget_is_not_human_decision_and_wake_is_deduplicated(tmp_path):

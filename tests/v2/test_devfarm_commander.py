@@ -18,6 +18,7 @@ from scripts.devfarm_commander import (
     reassign_task,
     refresh_plan,
     resume_plan,
+    summarize_delegation,
     verify_plan,
 )
 from scripts.devfarm_orchestrator import DevFarmOrchestrator, HostConcurrencyGovernor, RemoteConcurrencyGovernor
@@ -1093,6 +1094,48 @@ def test_commander_recovers_expired_dispatched_task_without_blind_retry(tmp_path
             "worker-a",
             provider_id="cloudflare",
             model_id="worker-model",
+        )
+
+
+def test_delegation_summary_counts_explicit_worker_eligibility_only():
+    summary = summarize_delegation(
+        {
+            "tasks": [
+                {"task_id": "worker", "owner": "worker", "status": "INTEGRATED"},
+                {"task_id": "codex-review", "owner": "codex", "status": "READY"},
+                {
+                    "task_id": "codex-direct",
+                    "owner": "codex",
+                    "status": "INTEGRATED",
+                    "worker_candidate": True,
+                    "delegation_reason": "cross_cutting",
+                },
+            ]
+        }
+    )
+
+    assert summary == {
+        "worker_owned_task_count": 1,
+        "codex_owned_task_count": 2,
+        "worker_integrated_task_count": 1,
+        "codex_direct_implementation_count": 1,
+        "codex_direct_reasons": ["cross_cutting"],
+    }
+
+
+def test_delegation_summary_requires_a_reason_for_explicit_codex_direct_task():
+    with pytest.raises(DevFarmError, match="delegation_reason"):
+        summarize_delegation(
+            {
+                "tasks": [
+                    {
+                        "task_id": "codex-direct",
+                        "owner": "codex",
+                        "status": "READY",
+                        "worker_candidate": True,
+                    }
+                ]
+            }
         )
 
 

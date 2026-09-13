@@ -36,6 +36,7 @@ from scripts.devfarm_commander import (
     reassign_task,
     refresh_plan,
     verify_plan,
+    summarize_delegation,
 )
 from scripts.devfarm_supervisor_protocol import (
     advance_heartbeat,
@@ -134,6 +135,7 @@ class SupervisorStep:
     wake_events: tuple[Mapping[str, Any], ...]
     review_packets: tuple[Mapping[str, Any], ...]
     metrics: Mapping[str, int]
+    delegation: Mapping[str, Any]
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -147,6 +149,7 @@ class SupervisorStep:
             "wake_events": [dict(item) for item in self.wake_events],
             "review_packets": [dict(item) for item in self.review_packets],
             "metrics": dict(self.metrics),
+            "delegation": dict(self.delegation),
         }
 
 
@@ -174,6 +177,7 @@ class CodexSupervisedCommanderRun:
             wake_events=tuple(metadata["wake_events"]),
             review_packets=tuple(metadata["review_packets"]),
             metrics=metadata["metrics"],
+            delegation=summarize_delegation(plan),
         )
 
     def _review_packet(self, task: Mapping[str, Any]) -> dict[str, Any]:

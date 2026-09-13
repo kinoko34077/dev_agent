@@ -526,6 +526,55 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
     return normalized
 
 
+def summarize_delegation(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Summarize plan ownership without inferring unrecorded implementation.
+
+    ``owner`` is the durable task responsibility.  A Codex task is counted as
+    direct implementation only when the plan explicitly marks it
+    ``worker_candidate=true``; review, integration, and architecture tasks do
+    not become implementation evidence merely because Codex owns them.
+    """
+
+    if not isinstance(value, Mapping):
+        raise DevFarmError("plan must be an object")
+    tasks = value.get("tasks")
+    if not isinstance(tasks, list):
+        raise DevFarmError("plan tasks must be a list")
+    worker_owned = 0
+    codex_owned = 0
+    worker_integrated = 0
+    codex_direct = 0
+    direct_reasons: set[str] = set()
+    for task in tasks:
+        if not isinstance(task, Mapping):
+            raise DevFarmError("plan tasks must be objects")
+        owner = task.get("owner")
+        if owner not in _OWNERS:
+            raise DevFarmError("plan task owner must be codex or worker")
+        status = task.get("status")
+        if not isinstance(status, str) or not status.strip():
+            raise DevFarmError("plan task status must be a non-empty string")
+        if owner == "worker":
+            worker_owned += 1
+            if status.upper() == "INTEGRATED":
+                worker_integrated += 1
+            continue
+        codex_owned += 1
+        if task.get("worker_candidate") is True:
+            codex_direct += 1
+            reason = task.get("delegation_reason")
+            if not isinstance(reason, str) or not reason.strip():
+                raise DevFarmError("Codex direct task requires delegation_reason")
+            direct_reasons.add(reason.strip())
+    return {
+        "worker_owned_task_count": worker_owned,
+        "codex_owned_task_count": codex_owned,
+        "worker_integrated_task_count": worker_integrated,
+        "codex_direct_implementation_count": codex_direct,
+        "codex_direct_reasons": sorted(direct_reasons),
+    }
+
+
 def refresh_plan(value: Mapping[str, Any]) -> dict[str, Any]:
     """Release dependency-ready tasks without dispatching or mutating code."""
 
@@ -1529,6 +1578,7 @@ __all__ = [
     "reassign_task",
     "refresh_plan",
     "resume_plan",
+    "summarize_delegation",
     "validate_plan",
     "verify_plan",
 ]
