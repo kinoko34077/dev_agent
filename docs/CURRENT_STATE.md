@@ -5,12 +5,12 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| HEAD | `9f31665fb274a8f390f7bb77fa8aebf0a501e02c` (documentation consolidation) |
-| Worktree | clean before the bounded live observation evidence update |
+| Implementation/evidence baseline | `66f4559599921b416f73ff4728aa2f2383b504f8` |
+| Worktree | clean at the evidence commit; later documentation-only synchronization may advance HEAD |
 | Local regression | `945 passed, 1 skipped` (`python -m pytest tests/v2 -q`) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | `v2-core` PASS [run 34749219686](https://github.com/kinoko34077/dev_agent/actions/runs/34749219686); `v2-provider-smoke` PASS [run 34749219669](https://github.com/kinoko34077/dev_agent/actions/runs/34749219669) |
+| Exact-head CI | `v2-core` PASS [run 34752465574](https://github.com/kinoko34077/dev_agent/actions/runs/34752465574); `v2-provider-smoke` PASS [run 34752465571](https://github.com/kinoko34077/dev_agent/actions/runs/34752465571) |
 | Gate source | `spec/v2/GATE_STATUS.json` and exact-head external CI; this document does not promote a Gate |
 
 The detailed pre-consolidation snapshot is preserved at [`docs/archive/current-state/2026-09-13-pre-consolidation.md`](archive/current-state/2026-09-13-pre-consolidation.md).
