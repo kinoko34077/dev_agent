@@ -690,3 +690,37 @@ def test_cancel_is_forwarded_and_backend_failure_becomes_unknown(store, task):
 
     assert backend.cancel_calls == [backend.session_id]
     assert store.has_event(task.task_id, "agent_backend.cancel_requested")
+
+
+def test_reconcile_start_rejects_mismatched_client_session_key_receipt_and_does_not_resume(store, task, monkeypatch):
+    sessions = {}
+    backend = _DiscoverableBackend(sessions)
+    request = _request(task.task_id)
+    dispatch_id = str(uuid4())
+    dispatcher = _dispatcher(store, discovery=lambda discovery_request, discovered_backend: AgentBackendDiscoveryReceipt(
+        identity=discovery_request.identity,
+        session=AgentBackendSession(
+            session_id="mismatched-session",
+            task_id=task.task_id,
+            backend_id=discovered_backend.identity.backend_id,
+            client_session_key="dev-agent:mismatched-key",
+        ),
+        evidence_ref="fixture:mismatched-session-key",
+    ))
+    original_transition = store.transition_effect_intent
+    crashed = False
+
+    def fail_session_persistence(key, *, to_status, result, lease_proof=None):
+        nonlocal crashed
+        if not crashed and isinstance(result, dict) and "session" in result:
+            crashed = True
+            raise RuntimeError("simulated process death")
+        return original_transition(key, to_status=to_status, result=result, lease_proof=lease_proof)
+
+    monkeypatch.setattr(store, "transition_effect_intent", fail_session_persistence)
+    with pytest.raises(RuntimeError, match="process death"):
+        dispatcher.dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
+    monkeypatch.setattr(store, "transition_effect_intent", original_transition)
+    with pytest.raises(BackendDispatchUncertain, match="discovery|session|identity"):
+        dispatcher.reconcile_start(dispatch_id, backend, actor="operator", source="restart-reconcile")
+    assert store.get_effect_intent(dispatcher.effect_key(dispatch_id))["status"] == "unknown"
