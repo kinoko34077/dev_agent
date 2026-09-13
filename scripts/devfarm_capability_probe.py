@@ -15,11 +15,14 @@ import json
 import os
 from pathlib import Path
 import re
+import sys
 import tempfile
 from typing import Any, Sequence
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 MAX_PROBE_LEVELS = 6
 MAX_TIMEOUT_SECONDS = 600.0
 MAX_OUTPUT_CHARS = 8_192

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 
 import pytest
 
@@ -90,3 +92,15 @@ def test_probe_evidence_never_contains_raw_response_text():
 
     assert "private raw output" not in json.dumps(result, ensure_ascii=False)
     assert result["output_chars"] == len("response contains private raw output")
+
+
+def test_probe_cli_help_is_importable_as_a_script():
+    result = subprocess.run(
+        [sys.executable, "scripts/devfarm_capability_probe.py", "--help"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "fixed bounded DevFarm capability probes" in result.stdout
