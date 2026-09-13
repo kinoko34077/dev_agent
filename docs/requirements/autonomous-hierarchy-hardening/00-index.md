@@ -1,5 +1,9 @@
 # Autonomous Hierarchy / Cross-cutting Hardening Audit
 
+> Documentation role: stable requirements and acceptance only. HEAD, test
+> counts, CI, current blockers, and next tasks are maintained in
+> `docs/CURRENT_STATE.md`, `docs/V2_EXECUTION_PLAN.md`, and the evidence index.
+
 Status: ACTIVE IMPLEMENTATION INPUT
 
 対象Repository: `kinoko34077/dev_agent`  

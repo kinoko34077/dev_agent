@@ -1,5 +1,9 @@
 # Multi-Free Provider Requirements Index
 
+> Documentation role: stable requirements and acceptance only. Implementation
+> progress and current Provider evidence belong to `docs/CURRENT_STATE.md` and
+> `spec/v2/evidence/**`; this index is not a current-state authority.
+
 Status: DRAFT -> ACCEPTED候補
 
 対象は dev_agent v2。既存Phase 0〜6の仕様・Invariantを維持し、本要件と衝突する旧計画だけを本要件で更新する。

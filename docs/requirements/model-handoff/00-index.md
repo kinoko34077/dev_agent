@@ -1,5 +1,9 @@
 # Model Handoff / Compression Requirements
 
+> Documentation role: stable Handoff/authority requirements only. Current
+> implementation status and live evidence belong to `docs/CURRENT_STATE.md`
+> and `spec/v2/evidence/**`; this index is not a progress log.
+
 この章は、Human Specification Authority から Planner、Executor、Reviewer
 へ渡す development/analysis handoff の共通形式を定義する。Production の
 Task state、Scheduler、Budget、Provider routing、AgentBackend authorityを
