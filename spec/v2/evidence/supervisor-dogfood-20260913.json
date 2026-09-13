@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "evidence_type": "codex_supervisor_free_worker_dogfood",
+  "observed_date": "2026-09-13",
+  "scope": "Development-only Codex Supervisor to Gemini L1 Worker, Host Verification, review, and deterministic Git integration.",
+  "single_task_e2e": {
+    "run_id": "supervisor-dogfood-20260913c2",
+    "task_id": "supervisor-dogfood-new-evidence-002",
+    "provider_id": "gemini",
+    "binding_id": "gemini:worker",
+    "model_id": "gemini-3.5-flash-lite",
+    "attempt_id": "ff5379cb11ac45169e95acfbb6db1349",
+    "patch_sha256": "9c1d387dcfef818d227d1e09c9bc298b6342eeff61486c2927db7da1499ea000",
+    "host_verification": {
+      "status": "passed",
+      "test": "python -m pytest tests/v2/test_gate_checker.py -q",
+      "trust_level": "TRUSTED_HOST_EXEC",
+      "operator_approved": true
+    },
+    "review_decision": "APPROVE_INTEGRATION",
+    "review_decision_id": "review-f8457925472e4a56ae490cafc5541335",
+    "integration_revision": "50827fb4b35fd7d214dd28849ff63b9b66325cc2"
+  },
+  "dependency_chain_e2e": {
+    "run_id": "supervisor-dogfood-dependency-20260913",
+    "dependency_type": "CODE_INTEGRATED",
+    "task_a": {
+      "task_id": "supervisor-dependency-a-20260913",
+      "provider_id": "gemini",
+      "binding_id": "gemini:worker",
+      "model_id": "gemini-3.5-flash-lite",
+      "attempt_id": "2ef578a9317c4fcb98bb0f6606761099",
+      "patch_sha256": "2de60fe1a831d0d61321965a57a7052f9831df82126c0a3ab10d4120987bfd8c",
+      "review_decision_id": "review-289ad76cfa9e489bbe169bcb3b09d893",
+      "integration_revision": "2a34d5625176100b494c158cb29b4980bb3540f4"
+    },
+    "task_b": {
+      "task_id": "supervisor-dependency-b-20260913",
+      "provider_id": "gemini",
+      "binding_id": "gemini:worker",
+      "model_id": "gemini-3.5-flash-lite",
+      "base_revision": "2a34d5625176100b494c158cb29b4980bb3540f4",
+      "attempt_id": "0f1e9e4fd3494d85b42682e6efb58ff3",
+      "patch_sha256": "8f59ecb85f9c327a4e64e5ebf1fff868fff575b5eb736491d42083224c554d27",
+      "review_decision_id": "review-4e85e122ea124f60a356b4245afa2542",
+      "integration_revision": "d8738db856854d383074754a02e694e311bda6dd"
+    },
+    "result": "A integrated before B was released; B received an immutable manifest with A's integration baseline and then integrated."
+  },
+  "rework_e2e": {
+    "task_id": "supervisor-dependency-a-20260913",
+    "initial_attempt_id": "1655a8f418384fb4ab7c7b5081b7fb93",
+    "initial_outcome": "HOST_VERIFICATION_REJECTED",
+    "initial_reason": "new-file patch contained a trailing empty line",
+    "rework_manifest_authority": "review_decision",
+    "rework_attempt_id": "2ef578a9317c4fcb98bb0f6606761099",
+    "rework_outcome": "HOST_VERIFIED",
+    "bounded_attempts": 2
+  },
+  "capability_probes": {
+    "provider_id": "gemini",
+    "binding_id": "gemini:worker",
+    "model_id": "gemini-3.5-flash-lite",
+    "passed": [
+      "P0_SENT_A_ONLY",
+      "P1_ARITHMETIC",
+      "P2_PYTHON_PRINTF"
+    ],
+    "model_output_invalid": [
+      "P3_NUMPY_MATRIX_TRANSFORM",
+      "P4_SIMPLE_TASK",
+      "P5_MULTIPLE_JUDGMENTS"
+    ],
+    "provider_contract_mismatch": [],
+    "provider_runtime_error": [],
+    "artifacts": [
+      ".devfarm/probes/probe-20260913T003621Z-81938ac561444228846c7678aa40f2a6.json",
+      ".devfarm/probes/probe-20260913T003636Z-c6ce1f2049444f868e608fe576f6be03.json",
+      ".devfarm/probes/probe-20260913T003652Z-368b59a22bd24b15a5756f1db1ef17ca.json"
+    ],
+    "interpretation": "The API contract and transport succeeded for all probes; the failing cases were checker/output-shape mismatches, not provider type or transport mismatches."
+  },
+  "operational_boundaries": {
+    "default_verification_trust_level": "STATIC_ONLY",
+    "dogfood_approval": "attempt-scoped TRUSTED_HOST_EXEC only",
+    "external_payload_files_sent": false,
+    "compression_service": "NOT_CONNECTED",
+    "automatic_push_or_merge": false,
+    "g6o1_status": "DEFERRED_FROZEN_NON_BLOCKING",
+    "secrets_recorded": false
+  },
+  "limitations": [
+    "Capability probes are bounded evidence for one qualified Gemini worker and do not establish general model competence.",
+    "The host verification environment is contained but is not an OS filesystem or network sandbox.",
+    "The real paid-provider G6O1 evidence remains unverified and frozen."
+  ]
+}

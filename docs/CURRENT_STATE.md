@@ -1,34 +1,40 @@
 # Current State — v2/bootstrap
 
-## Current — 2026-09-13 (Supervisor action boundary / fixed Worker probes)
+## Current — 2026-09-13 (Supervisor Free Worker dogfood)
 
-この記録の実装基準は`67109ae`である。SupervisorはWorker待機とCodex介入を
-区別し、レビュー・統合・REWORK・Codex所有Task・再割当が必要な状態を
-`run_until_intervention()`から直ちに返す。最大待機時間の到達は
-`WAITING_FOR_WORKER`／`wait_budget_exhausted`として記録し、Human判断へ自動
-昇格させない。
+この記録は、Codexが大量実装者ではなくSupervisorとして既存Free Workerを
+管理する経路を、実Gemini Workerで検証した時点のもの。実装・検証の詳細は
+`spec/v2/evidence/supervisor-dogfood-20260913.json`を参照する。
 
-固定Probe `scripts/devfarm_capability_probe.py` は、既存のWorker activation・
-qualification・ProviderFactory境界を使う開発専用のP0〜P5有限梯子である。
-Provider障害、Provider契約不一致、モデル出力不一致を別カテゴリで記録し、
-raw responseやcredentialを保存せず、qualification・routing authorityを変更しない。
+実証済みの経路は、Commander Plan → Gemini L1 Worker → immutable attempt artifact
+→ 明示承認付き `TRUSTED_HOST_EXEC` Host Verification → compact ReviewPacket →
+durable `APPROVE_INTEGRATION` → Host側deterministic Git commit → `INTEGRATED`。
+1件ではなく、Aの初回patch形式失敗からREWORK manifestで再試行した後、A統合を
+baselineとしてBをrelease・実行する依存Task chainまで完了した。
 
 | Field | Value |
 | --- | --- |
 | **Branch** | `v2/bootstrap` |
-| **Focused regression** | Supervisor/Commander `40 passed`; Probe/DevFarm cluster `77 passed` |
-| **Full regression** | この記録時点では未再実行 |
-| **Architecture / compileall** | この記録時点では最終確認前 |
-| **External CI** | `67109ae`向けは未確認 |
+| **Supervisor E2E** | single task `INTEGRATED`; dependency A → B `INTEGRATED` |
+| **REWORK** | A: attempt 1 Host Verification reject → attempt 2 Host Verified |
+| **Worker** | `gemini` / `gemini:worker` / `gemini-3.5-flash-lite` |
+| **Default verification** | `STATIC_ONLY`（Dogfoodのみ attempt-scoped approval） |
+| **Capability probes** | P0/P1/P2 pass; P3/P4/P5は`model_output_invalid`として記録 |
+| **Local regression** | `903 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 308.67s) |
+| **Architecture / compileall** | `ARCHITECTURE_PASS`; `python -m compileall -q src recovery scripts` clean |
+| **External CI** | このCurrent State更新commit push後にexact-head確認 |
 
-G6O1は`spec/v2/G6O1_DEFERRED.md`により`DEFERRED_FROZEN`、
-`NOT VERIFIED`、`roadmap_blocking: false`として記録する。正本Gateの
-`spec/v2/GATE_STATUS.json`における`G/G6O1=BLOCKED`は維持し、G6O1-SIM/LIVEの
-要件を完了扱いにしない。
+固定Capability Probeは、API transport/契約不一致とモデル出力形式不一致を
+分離して記録している。今回の失敗ProbeはProvider type/transport failureではなく、
+固定checkerが期待する出力形との不一致であり、モデル全般の能力判定へ拡張しない。
 
-実Free WorkerによるSupervisor E2E、REWORK実運用、依存Taskの実Dogfood、
-current HEAD向けfull regression・exact-head CIはこの記録の次工程であり、
-成功証拠がない段階で完了扱いにしない。
+G6O1は`spec/v2/G6O1_DEFERRED.md`により`DEFERRED_FROZEN`、`NOT VERIFIED`、
+`roadmap_blocking: false`。正本Gateの`spec/v2/GATE_STATUS.json`における
+`G/G6O1=BLOCKED`は維持し、実paid課金証拠・G6O1-SIM runtime E2Eを完了扱いにしない。
+Compression Service、OpenAI/Claude API、auto push/merge、OS-level sandbox、
+MCP、Codex App Server実adapterも今回の完了範囲外である。
+
+## Current — 2026-09-13 (Supervisor action boundary / fixed Worker probes)
 
 ## Current — 2026-09-13 (Supervisor run-until-intervention hardening)
 

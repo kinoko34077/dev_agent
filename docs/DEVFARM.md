@@ -295,6 +295,13 @@ cadenceでsleepする。`REVIEWING`、`INTEGRATING`、REWORK、Codex所有Task�
 呼出元へ返す。最大待機時間の到達は`WAITING_FOR_WORKER`/
 `wait_budget_exhausted`として記録し、Human判断へ自動昇格させない。
 
+2026-09-13には、実Gemini L1 Workerで単一TaskのHost Verification・Codex
+review decision・Host側Git integrationを完了し、さらにAのREWORK後の統合revisionを
+baselineとして依存Task Bをreleaseして同じ経路を完了した。詳細なattempt、patch digest、
+verification、review、integration revisionは`spec/v2/evidence/supervisor-dogfood-20260913.json`
+に保存する。これは開発用dogfoodの証拠であり、G6O1やProduction paid Providerの
+qualificationを昇格させない。
+
 ## Fixed capability probes
 
 `scripts/devfarm_capability_probe.py`は、既存のWorker activation／qualification／
