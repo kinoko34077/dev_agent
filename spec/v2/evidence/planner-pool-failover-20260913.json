@@ -43,17 +43,17 @@
     "reason": "A sanitized generic planning-shape request reached the sole admitted L2 identity and received a confirmed provider_unavailable result; no alternate qualified L2 identity was available."
   },
   "verification": {
-    "focused_provider_planner_tests": "PASS",
+    "focused_provider_planner_tests": "18 passed",
     "tests_v2": "953 passed, 1 skipped",
     "architecture": "ARCHITECTURE_PASS",
     "compileall": "PASS",
     "exact_head_ci": {
       "v2-core": {
-        "run": 34762643559,
+        "run": 34763993712,
         "conclusion": "success"
       },
       "v2-provider-smoke": {
-        "run": 34762643554,
+        "run": 34763993759,
         "conclusion": "success"
       }
     }

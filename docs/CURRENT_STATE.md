@@ -10,7 +10,7 @@
 | Local regression | `953 passed, 1 skipped` (`python -m pytest tests/v2 -q`) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | `v2-core` PASS [run 34762643559](https://github.com/kinoko34077/dev_agent/actions/runs/34762643559); `v2-provider-smoke` PASS [run 34762643554](https://github.com/kinoko34077/dev_agent/actions/runs/34762643554) |
+| Exact-head CI | `v2-core` PASS [run 34763993712](https://github.com/kinoko34077/dev_agent/actions/runs/34763993712); `v2-provider-smoke` PASS [run 34763993759](https://github.com/kinoko34077/dev_agent/actions/runs/34763993759) |
 | Gate source | `spec/v2/GATE_STATUS.json` and exact-head external CI; this document does not promote a Gate |
 
 The detailed pre-consolidation snapshot is preserved at [`docs/archive/current-state/2026-09-13-pre-consolidation.md`](archive/current-state/2026-09-13-pre-consolidation.md).
