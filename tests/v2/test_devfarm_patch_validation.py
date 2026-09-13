@@ -6,7 +6,7 @@ import pytest
 
 from scripts import devfarm_worker
 from scripts.devfarm import DevFarmError, normalize_patch_hunk_counts, validate_patch
-from scripts.devfarm_worker import HostVerificationRunner, apply_and_verify, run_worker
+from scripts.devfarm_worker import HostVerificationRunner, _git_process, apply_and_verify, run_worker
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.providers.fake.provider import FakeProvider
 from tests.v2.devfarm_test_support import _RawWorkerProvider, _WorkerProvider, _workspace, _patch
@@ -66,6 +66,42 @@ def test_host_verification_runner_sanitizes_environment_and_records_boundary(tmp
         "network": "not_isolated",
         "sandbox": "not_provided",
     }
+
+
+def test_git_patch_stdin_preserves_lf_bytes_for_verification_worktree(tmp_path):
+    root, _manifest_path = _workspace(tmp_path)
+    workspace = root / ".devfarm" / "worktrees" / "worker-test-001"
+
+    checked = _git_process(
+        workspace,
+        "apply",
+        "--check",
+        "--ignore-whitespace",
+        "--whitespace=error",
+        "-",
+        input_text=_patch(),
+    )
+
+    assert checked.returncode == 0, checked.stderr
+
+
+def test_git_patch_stdin_handles_crlf_checked_out_worktree(tmp_path):
+    root, _manifest_path = _workspace(tmp_path)
+    workspace = root / ".devfarm" / "worktrees" / "worker-test-001"
+    target = workspace / "tests" / "v2" / "test_target.py"
+    target.write_bytes(target.read_bytes().replace(b"\n", b"\r\n"))
+
+    checked = _git_process(
+        workspace,
+        "apply",
+        "--check",
+        "--ignore-whitespace",
+        "--whitespace=error",
+        "-",
+        input_text=_patch(),
+    )
+
+    assert checked.returncode == 0, checked.stderr
 
 
 def test_external_worker_defaults_to_static_only_and_does_not_execute_patch(tmp_path):

@@ -353,9 +353,9 @@ def _is_within(root: Path, candidate: Path) -> bool:
 
 
 def _git_process(workspace: Path, *arguments: str, input_text: str | None = None) -> subprocess.CompletedProcess[str]:
-    # Python's text-mode pipe on Windows may present a valid LF patch to Git as
-    # CRLF.  Treat only CR at the physical line ending as an EOL marker; other
-    # trailing whitespace remains rejected by --whitespace=error.
+    # Send patch input as bytes.  Python's text-mode pipe on Windows converts
+    # LF to CRLF, which makes an LF unified diff fail against a CRLF checkout.
+    # Git still receives text output as decoded strings for the callers below.
     command = [
         "git",
         "-c",
@@ -366,7 +366,14 @@ def _git_process(workspace: Path, *arguments: str, input_text: str | None = None
         workspace.as_posix(),
         *arguments,
     ]
-    return subprocess.run(command, input=input_text, capture_output=True, text=True, check=False)
+    raw_input = input_text.encode("utf-8") if input_text is not None else None
+    result = subprocess.run(command, input=raw_input, capture_output=True, text=False, check=False)
+    return subprocess.CompletedProcess(
+        result.args,
+        result.returncode,
+        stdout=result.stdout.decode("utf-8", errors="replace"),
+        stderr=result.stderr.decode("utf-8", errors="replace"),
+    )
 
 
 def _git(workspace: Path, *arguments: str) -> str:
@@ -396,7 +403,15 @@ def _git_bytes(workspace: Path, *arguments: str) -> bytes:
 def _validate_patch_application(workspace: Path, patch: str) -> None:
     if not patch:
         return
-    checked = _git_process(workspace, "apply", "--check", "--whitespace=error", "-", input_text=patch)
+    checked = _git_process(
+        workspace,
+        "apply",
+        "--check",
+        "--ignore-whitespace",
+        "--whitespace=error",
+        "-",
+        input_text=patch,
+    )
     if checked.returncode != 0:
         detail = checked.stderr.strip() or checked.stdout.strip() or "unknown patch check error"
         raise DevFarmError(f"worker patch apply check failed: {detail}")
@@ -1089,7 +1104,14 @@ def apply_and_verify(
     workspace = _verification_workspace(root, manifest)
     if patch:
         _validate_patch_application(workspace, patch)
-        applied = _git_process(workspace, "apply", "--whitespace=error", "-", input_text=patch)
+        applied = _git_process(
+            workspace,
+            "apply",
+            "--ignore-whitespace",
+            "--whitespace=error",
+            "-",
+            input_text=patch,
+        )
         if applied.returncode != 0:
             detail = applied.stderr.strip() or applied.stdout.strip() or "unknown patch apply error"
             raise DevFarmError(f"worker patch apply failed: {detail}")
