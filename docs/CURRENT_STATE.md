@@ -17,7 +17,7 @@ unknown outcomeをblind retryしない不変条件は維持する。
 | **Focused regression** | `39 passed` (`test_agent_backend_dispatcher.py` + `test_effect_reconciliation.py`) |
 | **Full regression** | `916 passed, 1 skipped` (`python -m pytest tests/v2 -q` at `06d9511`; Windows ACL skip is deployment-owned) |
 | **Architecture / compileall** | `ARCHITECTURE_PASS`; `python -m compileall -q src recovery scripts` clean |
-| **Exact-head CI** | `v2-core` / `v2-provider-smoke` pending for `06d9511`; update with the exact run after push |
+| **Exact-head CI (implementation commit)** | `v2-core` PASS [run 34740113394](https://github.com/kinoko34077/dev_agent/actions/runs/34740113394); `v2-provider-smoke` PASS [run 34740113424](https://github.com/kinoko34077/dev_agent/actions/runs/34740113424) for `06d9511`; docs successor `df77607` also passed [v2-core](https://github.com/kinoko34077/dev_agent/actions/runs/34740434213) / [v2-provider-smoke](https://github.com/kinoko34077/dev_agent/actions/runs/34740434198) |
 | **Real Worker evidence** | Gemini L1 Group D candidate remains failed twice at the Worker boundary; no HOST_VERIFIED or integration claim |
 | **Current next target** | Group D restart/reconciliation remains explicit: only adapters with exact `client_session_key` discovery may recover a start receipt; CodexExecBackend has no automatic discovery |
 
