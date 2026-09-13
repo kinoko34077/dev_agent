@@ -35,6 +35,10 @@ live成功は未検証である。Probeは計測専用で、qualification／rout
 MCPについては、既存APIを後から包むschema-onlyの操作契約（tool名、上限、既存authority、
 UNKNOWN時のreconciliation方針）だけを追加済みで、transport／server／runtime adapterは
 未接続のまま維持する。
+Planner shadowの`parent_task_id`は既存UUID identityをProvider構成前に検証する。正しいUUID
+で行った最新のbounded live観測もstrict JSON拒否であり、Planner successや自律Planning
+authorityへ昇格させない。外部再試行は自動化せず、Host-only BridgeとWorker-firstの狭い
+dogfoodを優先する。
 
 ### 2026-09-07 時点の観測
 

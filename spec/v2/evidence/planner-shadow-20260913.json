@@ -27,6 +27,18 @@
       "status": "observed_but_unvalidated",
       "category": "provider_availability",
       "reason": "Gemini returned HTTP 503 indicating temporary high demand"
+    },
+    {
+      "ordinal": 4,
+      "status": "invalid_input",
+      "category": "local_identity_validation",
+      "reason": "A non-UUID parent_task_id was rejected before ProviderDispatcher composition; no external request was sent"
+    },
+    {
+      "ordinal": 5,
+      "status": "failed",
+      "category": "strict_response_validation",
+      "reason": "A corrected UUID request reached the qualified L2 route, but the response was not valid strict JSON"
     }
   ],
   "positive_observation": "a separate bounded diagnostic returned a STOP response containing valid proposal-shaped JSON; no secret or repository content was retained",
@@ -38,6 +50,22 @@
     "worker_dispatch": false,
     "compression_connected": false
   },
-  "next_action": "retry one bounded live shadow only when external availability permits; retain fail-closed routing and do not promote Planner authority",
+  "input_boundary": {
+    "parent_task_id": "existing UUID task identity is validated before ProviderDispatcher composition",
+    "invalid_input_is_external_call_free": true
+  },
+  "worker_follow_up": {
+    "run_ids": [
+      "planner-shadow-input-validation-20260913",
+      "planner-shadow-input-validation-20260913b"
+    ],
+    "outcome": "blocked_before_integration",
+    "reasons": [
+      "new test path was absent at the Worker base revision",
+      "returned patch hunk did not apply to the existing test file"
+    ],
+    "codex_correction_reason": "delegation_overhead plus patch_format_failure"
+  },
+  "next_action": "do not retry automatically; retain fail-closed routing and revisit one bounded live shadow only after explicit external availability evidence",
   "recorded_without_credentials": true
 }

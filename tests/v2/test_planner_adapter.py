@@ -15,6 +15,7 @@ from src.dev_agent.resources.control import ResourceControlPlane
 from src.dev_agent.resources.ledger import ResourceLedger
 from src.dev_agent.resources.qualification import QualificationResolver
 from src.dev_agent.resources.router import ResourceRouter
+from scripts.devfarm_planner_shadow import PlannerShadowInputError, validate_parent_task_id
 
 
 class _Provider:
@@ -309,3 +310,10 @@ def test_model_planner_rejects_oversized_response():
             parent_task_id=parent_task_id,
             objective="bounded objective",
         )
+
+
+def test_planner_shadow_validates_parent_task_id_before_provider_composition():
+    valid = str(uuid4())
+    assert validate_parent_task_id(valid) == valid
+    with pytest.raises(PlannerShadowInputError, match="parent_task_id must be a UUID string"):
+        validate_parent_task_id("not-a-uuid")

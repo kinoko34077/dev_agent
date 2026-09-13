@@ -20,7 +20,7 @@ import json
 from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -42,6 +42,23 @@ from src.dev_agent.resources.router import ResourceRouter
 
 class PlannerShadowBlocked(RuntimeError):
     """The exact L2 shadow route is not currently admitted."""
+
+
+class PlannerShadowInputError(ValueError):
+    """The shadow command received an invalid local identity input."""
+
+
+def validate_parent_task_id(value: object) -> str:
+    """Validate the existing UUID task identity before provider composition."""
+
+    if not isinstance(value, str) or not value.strip():
+        raise PlannerShadowInputError("parent_task_id must be a UUID string")
+    normalized = value.strip()
+    try:
+        UUID(normalized)
+    except (ValueError, AttributeError, TypeError) as exc:
+        raise PlannerShadowInputError("parent_task_id must be a UUID string") from exc
+    return normalized
 
 
 def _build_provider(*, provider_id: str, binding_id: str, model_id: str, api_key_env: str, timeout_seconds: float):
@@ -79,6 +96,7 @@ def run_shadow(
     repository: str,
     branch: str,
 ) -> dict[str, object]:
+    parent_task_id = validate_parent_task_id(parent_task_id)
     resolver = QualificationResolver()
     qualification = resolver.resolve(provider_id, binding_id, model_id, min_confidence="high")
     if qualification is None or qualification.intelligence_tier != "L2":
@@ -212,6 +230,9 @@ def main(argv: list[str] | None = None) -> int:
             branch=args.branch,
         )
         code = 0
+    except PlannerShadowInputError as exc:
+        output = {"status": "invalid_input", "category": type(exc).__name__, "message": str(exc)}
+        code = 2
     except (PlannerShadowBlocked, DispatchDenied, ProviderError) as exc:
         output = {"status": "blocked_external", "category": type(exc).__name__, "message": str(exc)}
         code = 2
