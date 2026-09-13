@@ -1,5 +1,24 @@
 # Current State — v2/bootstrap
 
+## Current — 2026-09-13 (Worker-first Planner adapter dogfood)
+
+Planner移管を自律化したものではなく、既存proposal-only adapterの回帰テストを、
+Free Workerへ委譲して通常のSupervisor経路で統合した。Workerは
+`tests/v2/test_planner_adapter.py`だけを変更し、fenced JSON受理とresponse-size上限拒否を
+追加した。production code、authority、PlannerのTask作成・dispatch権限は変更していない。
+
+| Field | Value |
+| --- | --- |
+| **Implementation commit** | `0d357e3` (`test: cover planner response boundaries`) |
+| **Worker** | `gemini` / `gemini:worker` / `gemini-3.5-flash-lite` |
+| **Supervisor run** | `planner-adapter-regression-20260913` / 1 attempt / no REWORK |
+| **Host Verification** | `TRUSTED_HOST_EXEC` + attempt-scoped approval; planner adapter 9 tests and independent handoff 7 tests PASS |
+| **Review / integration** | durable `APPROVE_INTEGRATION` `review-586903c7816743ec8ed1c281d5ffe076`; Host deterministic integration `0d357e3` |
+| **Full validation** | `943 passed, 1 skipped`; `ARCHITECTURE_PASS`; compileall PASS |
+| **Exact-head CI** | `v2-core` PASS [run 34747071128](https://github.com/kinoko34077/dev_agent/actions/runs/34747071128); provider-smoke PASS [run 34747071126](https://github.com/kinoko34077/dev_agent/actions/runs/34747071126) |
+| **Evidence** | [`planner-adapter-regression-20260913.json`](../spec/v2/evidence/planner-adapter-regression-20260913.json) |
+| **Interpretation** | Worker-first Planner adapter hardening is verified; live Free L2 Planner success remains NOT VERIFIED |
+
 ## Current — 2026-09-13 (capability probe v3 boundary)
 
 固定Capability ProbeのP3〜P5を、曖昧な依頼文ではなく、転置結果・有限な逆順・

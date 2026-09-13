@@ -25,6 +25,10 @@ shadow入口も実装済みだが、実外部Plannerの成功は未検証（HTTP
 拒否の証跡のみ）である。Supervisorには既存Planから導出するWorker/Codex delegation
 summaryを追加済み。次工程は、外部条件が整った時のbounded Planner shadow観測と、
 Worker-firstのGroup D／Planning dogfoodであり、MCPや自律Planning authorityへの昇格ではない。
+2026-09-13にはPlanner adapterのfenced JSON／response bound回帰を、Gemini L1 Workerから
+Host Verification・Codex review・deterministic integrationまで通した（証跡は
+`spec/v2/evidence/planner-adapter-regression-20260913.json`）。これはPlanner adapter
+hardeningの証拠であり、Free L2 Plannerのlive成功・自律Planning authorityの証拠ではない。
 固定Capability Probeは`fixed-v3`でP3〜P5の入力と判定形を具体化した。直近の実Gemini
 観測は旧`fixed-v2` checkerに対するP4/P5通過・P3形式不一致であり、P3のfixed-v3
 live成功は未検証である。Probeは計測専用で、qualification／routing authorityを変更しない。

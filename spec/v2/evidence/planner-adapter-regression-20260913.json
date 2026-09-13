@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-09-13T08:05:00Z",
+  "run_id": "planner-adapter-regression-20260913",
+  "base_revision": "10c94f743c95fa548cdad7bae0a8496a55b877ac",
+  "task_id": "planner-adapter-regression-20260913",
+  "worker": {
+    "provider_id": "gemini",
+    "provider_binding_id": "gemini:worker",
+    "model_id": "gemini-3.5-flash-lite",
+    "attempt_id": "6e2477c1c95c48df91adc2e8700cf50c",
+    "attempt_count": 1,
+    "retry_count": 0
+  },
+  "scope": {
+    "changed_files": ["tests/v2/test_planner_adapter.py"],
+    "production_code_changed": false,
+    "protected_paths_changed": false
+  },
+  "host_verification": {
+    "status": "HOST_VERIFIED",
+    "trust_level": "TRUSTED_HOST_EXEC",
+    "operator_approved": true,
+    "independent_verification": true,
+    "tests": [
+      "python -m pytest tests/v2/test_planner_adapter.py -q",
+      "python -m pytest tests/v2/test_handoff.py -q"
+    ],
+    "verification_artifact": ".devfarm/results/planner-adapter-regression-20260913/attempts/6e2477c1c95c48df91adc2e8700cf50c/verification/565d67fd84c44a62a6d609b9bbad5790.json"
+  },
+  "review": {
+    "decision": "APPROVE_INTEGRATION",
+    "decision_id": "review-586903c7816743ec8ed1c281d5ffe076",
+    "reviewer_role": "codex_supervisor",
+    "findings": [
+      "Patch is limited to the declared planner adapter regression test file.",
+      "Independent Host Verification passed the planner adapter and existing handoff suites under attempt-scoped approval."
+    ]
+  },
+  "integration": {
+    "status": "INTEGRATED",
+    "integration_revision": "0d357e3c994720eeed86fb643afaf50a1b47310a",
+    "target_ref": "v2/bootstrap",
+    "source_attempt_id": "6e2477c1c95c48df91adc2e8700cf50c",
+    "verified_patch_sha256": "b2631d7a7c74cc279386e3c4e1ea433c7168a96534d3cd1c19c04f251be85e06"
+  },
+  "validation": {
+    "focused_tests": "16 passed",
+    "full_tests": "943 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head_ci": {
+      "v2_core": "https://github.com/kinoko34077/dev_agent/actions/runs/34747071128",
+      "provider_smoke": "https://github.com/kinoko34077/dev_agent/actions/runs/34747071126"
+    }
+  },
+  "interpretation": {
+    "what_is_verified": "A Free Worker can add bounded Planner adapter regression tests through the normal Commander/Supervisor/Host Verification/review/integration path.",
+    "what_is_not_verified": "This does not verify live Free L2 Planner success, autonomous planning authority, MCP runtime, or general model competence.",
+    "compression": "NOT_CONNECTED",
+    "g6o1": "DEFERRED_FROZEN_NON_BLOCKING",
+    "secrets_recorded": false
+  }
+}
