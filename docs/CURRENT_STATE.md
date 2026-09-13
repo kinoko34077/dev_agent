@@ -1,5 +1,29 @@
 # Current State — v2/bootstrap
 
+## Current — 2026-09-13 (Group D reconciliation replay boundary)
+
+UNKNOWN後のAgentBackend reconciliationが、audit evidenceの内側だけへ
+session/resultを保存していたため、terminal outcome確定後に再起動相当の
+dispatcherがsessionを再構築できない穴を修正した。既存の
+`reconcile_effect_result`を利用し、normalized session、optionalな外部session
+identity、backend result、artifact referencesをtop-levelのdurable replay projection
+として保存する。これにより後続dispatchは同じsessionを返し、backend.startを
+再実行しない。外部session discoveryが無い場合のUNKNOWN/fail-closed境界や、
+unknown outcomeをblind retryしない不変条件は維持する。
+
+| Field | Value |
+| --- | --- |
+| **Implementation commit** | `06d9511` (`fix: preserve agent session on reconciliation`) |
+| **Focused regression** | `39 passed` (`test_agent_backend_dispatcher.py` + `test_effect_reconciliation.py`) |
+| **Full regression** | `916 passed, 1 skipped` (`python -m pytest tests/v2 -q` at `06d9511`; Windows ACL skip is deployment-owned) |
+| **Architecture / compileall** | `ARCHITECTURE_PASS`; `python -m compileall -q src recovery scripts` clean |
+| **Exact-head CI** | `v2-core` / `v2-provider-smoke` pending for `06d9511`; update with the exact run after push |
+| **Real Worker evidence** | Gemini L1 Group D candidate remains failed twice at the Worker boundary; no HOST_VERIFIED or integration claim |
+| **Current next target** | Group D restart/reconciliation remains explicit: only adapters with exact `client_session_key` discovery may recover a start receipt; CodexExecBackend has no automatic discovery |
+
+This is a narrow recovery projection fix, not a new scheduler, backend adapter, or
+automatic Codex resume implementation.
+
 ## Current — 2026-09-13 (Group D session identity boundary / worker failure evidence)
 
 Group Dの次段として、AgentBackendのlocal session identityと外部Provider
