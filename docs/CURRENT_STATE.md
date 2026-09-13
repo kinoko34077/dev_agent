@@ -19,12 +19,12 @@ known issueを保存する。これは実Worker成功の証拠ではなく、次
 
 | Field | Value |
 | --- | --- |
-| **Implementation commits** | `f60f926` (session identity contract); `5a52720` (per-attempt Worker boundary failure evidence) |
-| **Focused regression** | `121 passed` for backend / Codex / DevFarm focused suites |
-| **Full regression** | `910 passed, 1 skipped` (`python -m pytest tests/v2 -q`; Windows ACL skip is deployment-owned) |
+| **Implementation commits** | `f60f926` (session identity contract); `5a52720` (per-attempt Worker boundary failure evidence); `fdf2434` (bounded artifact references) |
+| **Focused regression** | `48 passed` for the AgentBackend / DevFarm artifact-reference cluster; earlier backend / Codex / DevFarm focused suites were `121 passed` |
+| **Full regression** | `915 passed, 1 skipped` (`python -m pytest tests/v2 -q` at `fdf2434`; Windows ACL skip is deployment-owned) |
 | **Architecture / compileall** | `ARCHITECTURE_PASS`; `python -m compileall -q src recovery scripts` clean |
 | **Real Worker evidence** | Gemini L1 candidate qualified and admitted, but Group D candidate attempt failed twice at the Worker boundary; no HOST_VERIFIED or integration claim |
-| **Current next target** | artifact identity/reference extraction, then restart/reconciliation design with explicit external-session discovery authority |
+| **Current next target** | restart/reconciliation design with explicit external-session discovery authority; no automatic Codex resume is inferred from an artifact or provider thread ID |
 
 The corresponding code changes are intentionally narrow. `AgentBackendDiscovery` is a
 contract seam, not an automatic Codex resume implementation; `CodexExecBackend` still has
