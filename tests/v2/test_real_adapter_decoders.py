@@ -72,6 +72,32 @@ def test_gemini_http_payload_preserves_bound_and_tool_result_identity():
     assert function_response["id"] == "provider-1"
 
 
+def test_gemini_http_payload_requests_json_mode_when_schema_is_host_owned():
+    provider = GeminiHttpProvider(model="gemini-test", api_key="test-key")
+    schema = {
+        "type": "object",
+        "properties": {"answer": {"type": "string"}},
+        "required": ["answer"],
+        "additionalProperties": False,
+    }
+    request = ModelRequest(
+        task_id=_id(),
+        messages=[{"role": "user", "content": "return JSON"}],
+        response_schema=schema,
+    )
+
+    generation_config = provider._payload(request)["generationConfig"]
+
+    assert generation_config["responseMimeType"] == "application/json"
+    # The host decoder and RootPlanningProposal validator own the schema.  The
+    # live v1beta endpoint used by this adapter only gets the portable JSON
+    # mode request; provider-specific structured-schema fields are not sent
+    # until a model/binding has explicit evidence for that contract.
+    assert "responseJsonSchema" not in generation_config
+    assert "responseSchema" not in generation_config
+    assert "responseFormat" not in generation_config
+
+
 def test_gemini_http_payload_includes_function_declarations():
     provider = GeminiHttpProvider(model="gemini-test", api_key="test-key")
     request = ModelRequest(task_id=_id(), messages=[{"role": "user", "content": "x"}], tool_definitions=[{"name": "echo", "description": "Echo", "parameters": {"type": "object", "properties": {"value": {"type": "string"}}}}])

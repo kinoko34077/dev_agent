@@ -138,6 +138,22 @@
       "known_quirks": ["bounded text-only contract qualification; provider returned no numeric quota telemetry; quota remains unknown_not_reported; tool-call roundtrip was not used for this admission"],
       "errors": [],
       "qualification_scope": "text_only_unknown_quota"
+    },
+    {
+      "provider": "gemini",
+      "model": "gemini-3.6-flash",
+      "provider_binding_id": "gemini:worker:free-3",
+      "intelligence_tier": null,
+      "role": "bounded planner candidate; benchmark tier supplied by model evidence catalog",
+      "api_version": "v1beta generateContent",
+      "adapter_version": "dev_agent GeminiHttpProvider + GeminiTranscriptStore",
+      "tested_at": "2026-09-13T22:04:20.717922+00:00",
+      "expires_at": "2026-10-13T22:04:20.717922+00:00",
+      "confidence": "high",
+      "capabilities": ["text"],
+      "known_quirks": ["bounded text-only contract qualification; provider returned no numeric quota telemetry; quota remains unknown_not_reported; tool-call roundtrip was not used for this admission"],
+      "errors": [],
+      "qualification_scope": "text_only_unknown_quota"
     }
   ],
   "entry_contract": ["provider", "model", "provider_binding_id", "intelligence_tier", "role", "api_version", "adapter_version", "tested_at", "expires_at", "confidence", "capabilities", "known_quirks", "errors"]

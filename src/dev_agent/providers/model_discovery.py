@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 import json
 import os
 import re
+from types import MappingProxyType
 from typing import Any
 from urllib.request import Request
 
@@ -23,6 +24,8 @@ from .openai_compatible.http import _read_bounded, urlopen_no_redirect
 _ENV_NAME = re.compile(r"^[A-Z][A-Z0-9_]{0,127}$")
 _DEFAULT_TTL = timedelta(days=7)
 _MAX_RESPONSE_BYTES = 1_048_576
+_MAX_METADATA_STRING = 256
+_MAX_METADATA_ITEMS = 32
 
 
 def _text(value: Any, name: str) -> str:
@@ -45,6 +48,86 @@ def _utc_now(value: datetime | None) -> datetime:
     if current.tzinfo is None:
         raise ValueError("now must include a timezone")
     return current.astimezone(timezone.utc)
+
+
+def _bounded_string(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    if not value or len(value) > _MAX_METADATA_STRING:
+        return None
+    return value
+
+
+def _bounded_string_list(value: Any) -> list[str] | None:
+    if not isinstance(value, list) or len(value) > _MAX_METADATA_ITEMS:
+        return None
+    values = [_bounded_string(item) for item in value]
+    if any(item is None for item in values):
+        return None
+    return list(dict.fromkeys(values))  # type: ignore[arg-type]
+
+
+def _bounded_positive_int(value: Any) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0 or value > 10_000_000_000:
+        return None
+    return value
+
+
+def _metadata_for(provider_id: str, raw_model: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Keep only bounded, stable model-list facts useful to later admission.
+
+    Discovery is deliberately not a routing authority.  The allowlist here
+    prevents descriptions, pricing, arbitrary provider payload, and secrets
+    from becoming part of a durable snapshot while retaining enough metadata
+    to distinguish ordinary text models from specialized endpoints.
+    """
+
+    metadata: dict[str, Any] = {}
+    if provider_id == "gemini":
+        string_fields = {
+            "display_name": "displayName",
+            "version": "version",
+            "base_model_id": "baseModelId",
+        }
+        for output_name, input_name in string_fields.items():
+            value = _bounded_string(raw_model.get(input_name))
+            if value is not None:
+                metadata[output_name] = value
+        methods = _bounded_string_list(raw_model.get("supportedGenerationMethods"))
+        if methods is not None:
+            metadata["supported_generation_methods"] = methods
+        for output_name, input_name in (
+            ("input_token_limit", "inputTokenLimit"),
+            ("output_token_limit", "outputTokenLimit"),
+        ):
+            value = _bounded_positive_int(raw_model.get(input_name))
+            if value is not None:
+                metadata[output_name] = value
+        if isinstance(raw_model.get("thinking"), bool):
+            metadata["thinking_supported"] = raw_model["thinking"]
+        if isinstance(raw_model.get("deprecated"), bool):
+            metadata["deprecated"] = raw_model["deprecated"]
+    elif provider_id == "openrouter":
+        context_length = _bounded_positive_int(raw_model.get("context_length"))
+        if context_length is not None:
+            metadata["context_length"] = context_length
+        architecture = raw_model.get("architecture")
+        architecture = architecture if isinstance(architecture, Mapping) else {}
+        modality = _bounded_string(architecture.get("modality"))
+        if modality is not None:
+            metadata["modality"] = modality
+        for output_name, input_name in (
+            ("input_modalities", "input_modalities"),
+            ("output_modalities", "output_modalities"),
+            ("supported_parameters", "supported_parameters"),
+        ):
+            values = _bounded_string_list(raw_model.get(input_name))
+            if values is None and input_name in {"input_modalities", "output_modalities"}:
+                values = _bounded_string_list(architecture.get(input_name))
+            if values is not None:
+                metadata[output_name] = values
+    return MappingProxyType(metadata)
 
 
 @dataclass(frozen=True)
@@ -77,9 +160,15 @@ class DiscoveredModel:
     source: str
     observed_at: str
     expires_at: str
+    metadata: Mapping[str, Any] = MappingProxyType({})
 
-    def to_dict(self) -> dict[str, str]:
-        return {
+    def __post_init__(self) -> None:
+        if not isinstance(self.metadata, Mapping):
+            raise ValueError("metadata must be an object")
+        object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
+
+    def to_dict(self) -> dict[str, Any]:
+        document: dict[str, Any] = {
             "provider_id": self.provider_id,
             "provider_binding_id": self.provider_binding_id,
             "model_id": self.model_id,
@@ -87,6 +176,9 @@ class DiscoveredModel:
             "observed_at": self.observed_at,
             "expires_at": self.expires_at,
         }
+        if self.metadata:
+            document["metadata"] = dict(self.metadata)
+        return document
 
 
 @dataclass(frozen=True)
@@ -142,7 +234,7 @@ class ProviderModelDiscovery:
         current = _utc_now(now)
         url, headers = self._request_for(binding)
         document = (http_get or self._get_json)(url, headers, binding.timeout_seconds)
-        model_ids = self._model_ids(binding.provider_id, document)
+        model_records = self._model_records(binding.provider_id, document)
         observed_at = current.isoformat()
         expires_at = (current + self._ttl).isoformat()
         return ModelDiscoveryResult(
@@ -154,8 +246,9 @@ class ProviderModelDiscovery:
                     source=f"{binding.provider_id}.models.list",
                     observed_at=observed_at,
                     expires_at=expires_at,
+                    metadata=metadata,
                 )
-                for model_id in model_ids
+                for model_id, metadata in model_records
             )
         )
 
@@ -213,6 +306,10 @@ class ProviderModelDiscovery:
 
     @classmethod
     def _model_ids(cls, provider_id: str, document: Mapping[str, Any]) -> tuple[str, ...]:
+        return tuple(model_id for model_id, _metadata in cls._model_records(provider_id, document))
+
+    @classmethod
+    def _model_records(cls, provider_id: str, document: Mapping[str, Any]) -> tuple[tuple[str, Mapping[str, Any]], ...]:
         if not isinstance(document, Mapping):
             raise ValueError("model list response must be an object")
         if provider_id in {"gemini", "ollama", "ollama_cloud"}:
@@ -223,7 +320,7 @@ class ProviderModelDiscovery:
             raw_models = document.get("data")
         if not isinstance(raw_models, list) or not raw_models:
             raise ValueError("model list response must contain a non-empty model list")
-        identifiers: list[str] = []
+        records: list[tuple[str, Mapping[str, Any]]] = []
         for raw_model in raw_models:
             if not isinstance(raw_model, Mapping):
                 raise ValueError("model list contains an invalid model entry")
@@ -237,10 +334,12 @@ class ProviderModelDiscovery:
                 identifier = raw_model.get("id", raw_model.get("name"))
             if not isinstance(identifier, str) or not identifier.strip():
                 raise ValueError("model list contains an invalid model identifier")
-            identifiers.append(identifier.strip())
+            normalized_identifier = identifier.strip()
+            records.append((normalized_identifier, _metadata_for(provider_id, raw_model)))
+        identifiers = [identifier for identifier, _metadata in records]
         if len(set(identifiers)) != len(identifiers):
             raise ValueError("model list contains duplicate model identifiers")
-        return tuple(identifiers)
+        return tuple(records)
 
 
 __all__ = [

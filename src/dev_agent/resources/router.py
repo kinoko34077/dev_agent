@@ -42,10 +42,13 @@ class RouteRequest:
     minimum_task_fit_score: float | None = None
     allowed_provider_binding_ids: set[str] | frozenset[str] | tuple[str, ...] | None = None
     excluded_provider_binding_ids: set[str] | frozenset[str] | tuple[str, ...] = field(default_factory=set)
+    prefer_diversity: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.allow_unknown_quota, bool):
             raise ValueError("allow_unknown_quota must be a boolean")
+        if not isinstance(self.prefer_diversity, bool):
+            raise ValueError("prefer_diversity must be a boolean")
         for name, value in (("max_cost_minor", self.max_cost_minor), ("max_latency_ms", self.max_latency_ms)):
             if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 0):
                 raise ValueError(f"{name} must be a non-negative integer or None")
@@ -238,6 +241,7 @@ class ResourceRouter:
         if request.sensitivity not in _SENSITIVITY:
             raise ValueError("invalid sensitivity")
         candidates = []
+        candidate_identities: dict[str, tuple[str, str]] = {}
         unknown_quota_resource_ids: set[str] = set()
         for resource in snapshot.resources:
             if resource["resource_id"] in request.excluded_resource_ids:
@@ -247,6 +251,12 @@ class ResourceRouter:
             metadata = resource.get("metadata") if isinstance(resource.get("metadata"), dict) else {}
             provider_binding_id = resource.get("provider_binding_id") or metadata.get("provider_binding_id") or resource["provider_id"]
             model_id = resource.get("model_id") or metadata.get("model_id")
+            qualification_binding_id = metadata.get("qualification_binding_id") or provider_binding_id
+            evidence_binding_id = (
+                qualification_binding_id.strip()
+                if isinstance(qualification_binding_id, str) and qualification_binding_id.strip()
+                else provider_binding_id
+            )
             if request.allowed_provider_binding_ids is not None and provider_binding_id not in request.allowed_provider_binding_ids:
                 continue
             if provider_binding_id in request.excluded_provider_binding_ids:
@@ -266,7 +276,7 @@ class ResourceRouter:
                 try:
                     qualification = self._qualification_resolver.resolve(
                         resource["provider_id"],
-                        _eff_binding,
+                        evidence_binding_id,
                         (model_id or "").strip(),
                     )
                 except (ValueError, TypeError):
@@ -293,7 +303,7 @@ class ResourceRouter:
                 try:
                     model_admission = self._model_admission_resolver.resolve(
                         resource["provider_id"],
-                        provider_binding_id.strip(),
+                        evidence_binding_id,
                         model_id.strip(),
                     )
                 except (TypeError, ValueError):
@@ -342,7 +352,7 @@ class ResourceRouter:
                         continue
                 except (TypeError, ValueError):
                     continue
-                _catalog_profile = profile_for(resource["provider_id"], provider_binding_id, model_id or "")
+                _catalog_profile = profile_for(resource["provider_id"], evidence_binding_id, model_id or "")
                 if _catalog_profile is None:
                     continue
                 if resource.get("cost_minor") != _catalog_profile.cost_minor:
@@ -452,8 +462,27 @@ class ResourceRouter:
                 resource["resource_id"],
                 resource,
             ))
+            candidate_identities[resource["resource_id"]] = (
+                str(resource["provider_id"]),
+                str(model_id) if isinstance(model_id, str) and model_id.strip() else resource["resource_id"],
+            )
         if not candidates:
             raise NoRoute("no eligible resource")
+        if request.prefer_diversity:
+            provider_counts: dict[str, int] = {}
+            model_counts: dict[str, int] = {}
+            for resource_id in candidate_identities:
+                provider, model = candidate_identities[resource_id]
+                provider_counts[provider] = provider_counts.get(provider, 0) + 1
+                model_counts[model] = model_counts.get(model, 0) + 1
+            candidates = [
+                (
+                    provider_counts[candidate_identities[candidate[-1]["resource_id"]][0]],
+                    model_counts[candidate_identities[candidate[-1]["resource_id"]][1]],
+                    *candidate,
+                )
+                for candidate in candidates
+            ]
         *_, chosen = min(candidates)
         metadata = chosen.get("metadata") if isinstance(chosen.get("metadata"), dict) else {}
         provider_binding_id = chosen.get("provider_binding_id") or metadata.get("provider_binding_id") or chosen["provider_id"]

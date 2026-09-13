@@ -40,6 +40,7 @@ from src.dev_agent.resources.control import DispatchDenied, ResourceControlPlane
 from src.dev_agent.resources.ledger import ResourceLedger
 from src.dev_agent.resources.model_admission import ModelAdmissionResolver
 from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
+from src.dev_agent.resources.model_candidates import materialize_provider_bindings
 from src.dev_agent.resources.qualification import QualificationResolver
 from src.dev_agent.resources.router import ResourceRouter
 
@@ -105,6 +106,9 @@ def admit_planner_pool(
     *,
     resolver: QualificationResolver,
     model_admission_resolver: ModelAdmissionResolver | None = None,
+    model_catalog=None,
+    expand_discovered_models: bool = False,
+    now: datetime | None = None,
 ) -> tuple[tuple[OperationProviderBinding, object, object], ...]:
     """Return only exact, current, high-confidence L2 planner candidates.
 
@@ -114,8 +118,28 @@ def admit_planner_pool(
     """
 
     admitted: list[tuple[OperationProviderBinding, object, object]] = []
+    candidate_bindings: list[OperationProviderBinding] = []
     for binding in bindings:
-        qualification = resolver.resolve(binding.provider_id, binding.binding_id, binding.model, min_confidence="high")
+        evidence_catalog = model_catalog
+        if evidence_catalog is None and model_admission_resolver is not None:
+            evidence_catalog = getattr(model_admission_resolver, "catalog", None)
+        try:
+            candidate_bindings.extend(
+                materialize_provider_bindings(
+                    binding,
+                    evidence_catalog,
+                    expand_discovered_models=expand_discovered_models,
+                    now=now,
+                )
+            )
+        except (TypeError, ValueError) as exc:
+            raise PlannerShadowBlocked(f"unable to materialize planner model candidates: {exc}") from exc
+    for binding in candidate_bindings:
+        evidence_binding_id = binding.credential_binding_id
+        qualification_kwargs = {"min_confidence": "high"}
+        if now is not None:
+            qualification_kwargs["now"] = now
+        qualification = resolver.resolve(binding.provider_id, evidence_binding_id, binding.model, **qualification_kwargs)
         if qualification is None:
             continue
         if model_admission_resolver is None:
@@ -124,14 +148,18 @@ def admit_planner_pool(
             if qualification.intelligence_tier != "L2":
                 continue
         else:
+            admission_kwargs = {}
+            if now is not None:
+                admission_kwargs["now"] = now
             admission = model_admission_resolver.resolve(
                 binding.provider_id,
-                binding.binding_id,
+                evidence_binding_id,
                 binding.model,
+                **admission_kwargs,
             )
             if admission is None or admission.intelligence_tier != "L2":
                 continue
-        profile = profile_for(binding.provider_id, binding.binding_id, binding.model)
+        profile = profile_for(binding.provider_id, evidence_binding_id, binding.model)
         if profile is None or not profile.no_charge_guaranteed:
             continue
         if not binding.quota_domain:
@@ -164,6 +192,8 @@ def run_shadow(
     branch: str,
     provider_pool: tuple[OperationProviderBinding, ...] | list[OperationProviderBinding] | None = None,
     model_admission_resolver: ModelAdmissionResolver | None = None,
+    model_catalog=None,
+    expand_discovered_models: bool = False,
 ) -> dict[str, object]:
     parent_task_id = validate_parent_task_id(parent_task_id)
     resolver = QualificationResolver()
@@ -181,13 +211,15 @@ def run_shadow(
         bindings,
         resolver=resolver,
         model_admission_resolver=model_admission_resolver,
+        model_catalog=model_catalog,
+        expand_discovered_models=expand_discovered_models,
     )
     if not admitted:
         raise PlannerShadowBlocked("no exact current high-confidence L2 planner resource is admitted")
 
     def _effective_tier(binding: OperationProviderBinding, qualification: object) -> str | None:
         if model_admission_resolver is not None:
-            admission = model_admission_resolver.resolve(binding.provider_id, binding.binding_id, binding.model)
+            admission = model_admission_resolver.resolve(binding.provider_id, binding.credential_binding_id, binding.model)
             return None if admission is None else admission.intelligence_tier
         return getattr(qualification, "intelligence_tier", None)
 
@@ -197,7 +229,11 @@ def run_shadow(
             concrete = []
             for binding, qualification, profile in admitted:
                 admission = (
-                    model_admission_resolver.resolve(binding.provider_id, binding.binding_id, binding.model)
+                    model_admission_resolver.resolve(
+                        binding.provider_id,
+                        binding.credential_binding_id,
+                        binding.model,
+                    )
                     if model_admission_resolver is not None
                     else None
                 )
@@ -222,6 +258,7 @@ def run_shadow(
                     intelligence_tier=admission.intelligence_tier if admission is not None else qualification.intelligence_tier,
                     metadata={
                         "provider_binding_id": binding.binding_id,
+                        "qualification_binding_id": binding.credential_binding_id,
                         "model_id": binding.model,
                         "intelligence_tier": admission.intelligence_tier if admission is not None else qualification.intelligence_tier,
                         "privacy_profile": "remote_cloud",
@@ -407,12 +444,18 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="explicitly use the bounded local admission path when provider quota telemetry is absent",
     )
+    parser.add_argument(
+        "--expand-discovered-models",
+        action="store_true",
+        help="explicitly materialize current ordinary text models from each credential binding",
+    )
     args = parser.parse_args(argv)
     try:
         # Normal live invocation always uses the reviewed static evidence
         # snapshot.  It is loaded here, never at module import time, and does
         # not call a discovery/benchmark service during planner dispatch.
-        model_admission_resolver = ModelEvidenceCatalog.load_default().resolver
+        model_evidence = ModelEvidenceCatalog.load_default()
+        model_admission_resolver = model_evidence.resolver
         provider_pool = None
         if args.pool_json is not None:
             try:
@@ -439,6 +482,8 @@ def main(argv: list[str] | None = None) -> int:
             branch=args.branch,
             provider_pool=provider_pool,
             model_admission_resolver=model_admission_resolver,
+            model_catalog=model_evidence.catalog,
+            expand_discovered_models=args.expand_discovered_models,
         )
         code = 0 if output.get("status") == "live_shadow_validated" else 2
     except PlannerShadowInputError as exc:

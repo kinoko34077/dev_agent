@@ -144,6 +144,7 @@ class ModelPlanningAdapter:
             "authority": "host_validation_required",
             "planner_response_encoding": "strict_json_text",
             "task_fit": "planning",
+            "prefer_diversity": True,
         }
         if required_intelligence_tier is not None:
             metadata.update(

@@ -60,6 +60,7 @@ def refresh(bindings: tuple[ModelDiscoveryBinding, ...], *, discovery: ProviderM
     client = discovery or ProviderModelDiscovery()
     entries = []
     failures = []
+    refreshed_bindings: list[dict[str, str]] = []
     seen: set[tuple[str, str, str]] = set()
     for binding in bindings:
         try:
@@ -77,6 +78,12 @@ def refresh(bindings: tuple[ModelDiscoveryBinding, ...], *, discovery: ProviderM
                 }
             )
             continue
+        refreshed_bindings.append(
+            {
+                "provider_id": binding.provider_id,
+                "provider_binding_id": binding.provider_binding_id,
+            }
+        )
         for entry in result.entries:
             identity = (entry.provider_id, entry.provider_binding_id, entry.model_id)
             if identity in seen:
@@ -86,7 +93,59 @@ def refresh(bindings: tuple[ModelDiscoveryBinding, ...], *, discovery: ProviderM
     return {
         "schema_version": 1,
         "entries": sorted(entries, key=lambda entry: (entry["provider_id"], entry["provider_binding_id"], entry["model_id"])),
+        "refreshed_bindings": sorted(refreshed_bindings, key=lambda item: (item["provider_id"], item["provider_binding_id"])),
         "discovery_failures": failures,
+    }
+
+
+def merge_catalog_documents(base: Mapping[str, Any], refreshed: Mapping[str, Any]) -> dict[str, Any]:
+    """Merge successful binding refreshes without dropping unrelated snapshots."""
+
+    if base.get("schema_version") != 1 or refreshed.get("schema_version") != 1:
+        raise ValueError("model catalog documents must use schema_version 1")
+    base_entries = base.get("entries")
+    refreshed_entries = refreshed.get("entries")
+    if not isinstance(base_entries, list) or not isinstance(refreshed_entries, list):
+        raise ValueError("model catalog documents must contain entries arrays")
+    raw_bindings = refreshed.get("refreshed_bindings")
+    if isinstance(raw_bindings, list):
+        refreshed_bindings = {
+            (item.get("provider_id"), item.get("provider_binding_id"))
+            for item in raw_bindings
+            if isinstance(item, Mapping)
+        }
+    else:
+        refreshed_bindings = {
+            (item.get("provider_id"), item.get("provider_binding_id"))
+            for item in refreshed_entries
+            if isinstance(item, Mapping)
+        }
+    merged: dict[tuple[Any, Any, Any], Mapping[str, Any]] = {}
+    for entry in base_entries:
+        if not isinstance(entry, Mapping):
+            raise ValueError("base catalog entries must be objects")
+        identity = (entry.get("provider_id"), entry.get("provider_binding_id"), entry.get("model_id"))
+        if identity[:2] not in refreshed_bindings:
+            merged[identity] = dict(entry)
+    for entry in refreshed_entries:
+        if not isinstance(entry, Mapping):
+            raise ValueError("refreshed catalog entries must be objects")
+        identity = (entry.get("provider_id"), entry.get("provider_binding_id"), entry.get("model_id"))
+        if identity in merged:
+            raise ValueError(f"duplicate merged model identity: {identity!r}")
+        merged[identity] = dict(entry)
+    return {
+        "schema_version": 1,
+        "entries": [merged[key] for key in sorted(merged, key=lambda item: tuple(str(value) for value in item))],
+        "refreshed_bindings": sorted(
+            [
+                {"provider_id": provider, "provider_binding_id": binding}
+                for provider, binding in refreshed_bindings
+                if isinstance(provider, str) and isinstance(binding, str)
+            ],
+            key=lambda item: (item["provider_id"], item["provider_binding_id"]),
+        ),
+        "discovery_failures": list(refreshed.get("discovery_failures", [])) if isinstance(refreshed.get("discovery_failures", []), list) else [],
     }
 
 
@@ -132,9 +191,19 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="explicitly replace an existing candidate path; omitted paths are create-only",
     )
+    parser.add_argument(
+        "--merge-into",
+        type=Path,
+        help="merge successful refreshed bindings into an existing catalog before writing the candidate",
+    )
     args = parser.parse_args(argv)
     try:
         document = refresh(load_bindings(args.bindings))
+        if args.merge_into is not None:
+            base = json.loads(args.merge_into.read_text(encoding="utf-8"))
+            if not isinstance(base, Mapping):
+                raise ValueError("merge target must be a model catalog object")
+            document = merge_catalog_documents(base, document)
         write_candidate(args.output, document, replace_existing=args.replace_existing)
     except Exception as exc:
         # Do not echo endpoint payloads or exception internals that might have

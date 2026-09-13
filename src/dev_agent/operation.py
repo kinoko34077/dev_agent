@@ -118,6 +118,11 @@ class OperationProviderBinding:
     project_id: str | None = None
     base_url: str | None = None
     timeout_seconds: float = 30.0
+    # A credential/project binding may explicitly describe more than one
+    # model.  The default remains the historical singleton shape; candidate
+    # materialization is opt-in and keeps the qualification identity separate.
+    model_candidates: tuple[str, ...] | list[str] | None = None
+    qualification_binding_id: str | None = None
 
     def __post_init__(self) -> None:
         provider_id = self.provider_id.strip().lower() if isinstance(self.provider_id, str) else ""
@@ -129,6 +134,7 @@ class OperationProviderBinding:
         api_key_env = self.api_key_env.strip() if isinstance(self.api_key_env, str) and self.api_key_env.strip() else None
         project_id = self.project_id.strip() if isinstance(self.project_id, str) and self.project_id.strip() else None
         base_url = self.base_url.strip() if isinstance(self.base_url, str) and self.base_url.strip() else None
+        qualification_binding = self.qualification_binding_id.strip() if isinstance(self.qualification_binding_id, str) and self.qualification_binding_id.strip() else None
         if not provider_id:
             raise ValueError("provider_id must be a non-empty string")
         if not model:
@@ -137,6 +143,20 @@ class OperationProviderBinding:
             raise ValueError("intelligence_tier must be one of L0, L1, L2, or L3")
         if isinstance(self.timeout_seconds, bool) or not isinstance(self.timeout_seconds, (int, float)) or not math.isfinite(float(self.timeout_seconds)) or self.timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
+        candidates = self.model_candidates
+        if candidates is not None:
+            if isinstance(candidates, str) or not isinstance(candidates, (list, tuple)) or not candidates:
+                raise ValueError("model_candidates must be a non-empty string collection or None")
+            normalized_candidates: list[str] = []
+            for candidate in (model, *candidates):
+                if not isinstance(candidate, str) or not candidate.strip():
+                    raise ValueError("model_candidates must contain non-empty strings")
+                normalized = candidate.strip()
+                if normalized not in normalized_candidates:
+                    normalized_candidates.append(normalized)
+            if len(normalized_candidates) > 128:
+                raise ValueError("model_candidates must contain at most 128 models")
+            candidates = tuple(normalized_candidates)
         object.__setattr__(self, "provider_id", provider_id)
         object.__setattr__(self, "model", model)
         object.__setattr__(self, "provider_binding_id", binding)
@@ -145,11 +165,23 @@ class OperationProviderBinding:
         object.__setattr__(self, "credential_id", credential_id)
         object.__setattr__(self, "api_key_env", api_key_env)
         object.__setattr__(self, "project_id", project_id)
+        object.__setattr__(self, "model_candidates", candidates)
+        object.__setattr__(self, "qualification_binding_id", qualification_binding)
         object.__setattr__(self, "base_url", base_url)
 
     @property
     def binding_id(self) -> str:
         return self.provider_binding_id or _default_binding_id(self.provider_id, self.model)
+
+    @property
+    def credential_binding_id(self) -> str:
+        """Return the credential/project lane used for exact evidence lookup."""
+
+        return self.qualification_binding_id or self.binding_id
+
+    @property
+    def candidate_model_ids(self) -> tuple[str, ...]:
+        return self.model_candidates or (self.model,)
 
 
 def _configured_provider_pool_from_environment(env: Callable[[str], str | None]) -> tuple[OperationProviderBinding, ...]:

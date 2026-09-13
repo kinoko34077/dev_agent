@@ -199,7 +199,16 @@ class GeminiHttpProvider(ModelProvider):
         return {"thinkingConfig": {"thinkingBudget": budget}}
 
     def _payload(self, request: ModelRequest) -> dict[str, Any]:
-        payload = {"contents": self._contents(request), "generationConfig": {"maxOutputTokens": request.max_output_tokens}}
+        generation_config: dict[str, Any] = {"maxOutputTokens": request.max_output_tokens}
+        if request.response_schema is not None:
+            # The host decoder and typed proposal validator remain the schema
+            # authority.  Ask Gemini only for its portable JSON mode here:
+            # provider-specific responseSchema/responseJsonSchema support is
+            # model/version dependent and has not been qualified for this
+            # binding.  Sending the full host JSON Schema caused the live
+            # v1beta endpoint to reject the request with INVALID_ARGUMENT.
+            generation_config["responseMimeType"] = "application/json"
+        payload = {"contents": self._contents(request), "generationConfig": generation_config}
         thinking_config = self._thinking_config(request)
         if thinking_config is not None:
             payload["generationConfig"].update(thinking_config)

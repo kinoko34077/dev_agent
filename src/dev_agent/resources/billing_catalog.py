@@ -178,6 +178,26 @@ for _slot in ("2", "3", "4", "5"):
         overage_policy="hard_stop",
     )
 
+# These are explicit operator-reviewed free-project/model pairs for the
+# bounded L2 qualification probe.  Model discovery never creates these rows:
+# a discovered model remains BILLING_UNKNOWN until its exact project lane and
+# model are deliberately admitted here.  Keep this list narrow so a future
+# paid-only model cannot inherit a provider-wide free assumption.
+for _slot, _model in (("2", "gemini-3.7-flash"), ("3", "gemini-3.6-flash")):
+    _TRUSTED_RESOURCE_CATALOG[("gemini", f"gemini:worker:free-{_slot}", _model)] = TrustedResourceProfile(
+        "gemini",
+        f"gemini:worker:free-{_slot}",
+        _model,
+        0,
+        "JPY",
+        True,
+        None,
+        source="operator_reviewed_free_project_model_probe",
+        billing_mode="recurring_allowance",
+        allowance_period="daily",
+        overage_policy="hard_stop",
+    )
+
 # Runtime callers receive an immutable view.  Adding or changing a billing
 # fact is a reviewed code/configuration change, not a mutation available to a
 # running Agent.  Tests can replace the lookup function in their own process
@@ -189,19 +209,24 @@ class BillingResolver:
     """Resolve billing facts for an exact provider/binding/model identity."""
 
     def __init__(self, catalog: Mapping[tuple[str, str, str], TrustedResourceProfile] | None = None) -> None:
-        self._catalog = catalog or TRUSTED_RESOURCE_CATALOG
+        self._catalog = TRUSTED_RESOURCE_CATALOG if catalog is None else catalog
 
     def profile_for(self, provider_id: str, provider_binding_id: str, model_id: str) -> TrustedResourceProfile | None:
         """Return current facts only for an exact provider/binding/model identity."""
 
         profile = self._catalog.get((provider_id, provider_binding_id, model_id))
+        if profile is None:
+            # A wildcard is an explicit binding-level billing policy, never a
+            # provider-wide or model-name inference.  Qualification and model
+            # evidence remain exact downstream gates.
+            profile = self._catalog.get((provider_id, provider_binding_id, "*"))
         return profile if profile is not None and profile.is_current() else None
 
     def default_binding_id(self, provider_id: str, model_id: str) -> str:
         """Return a catalog binding for an exact model, or a non-free fallback."""
 
         for provider, binding, model in self._catalog:
-            if provider == provider_id and model == model_id and ":qualification" not in binding:
+            if provider == provider_id and model == model_id and model != "*" and ":qualification" not in binding:
                 return binding
         return "fake:default" if provider_id == "fake" else provider_id
 

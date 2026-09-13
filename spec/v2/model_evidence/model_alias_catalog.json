@@ -2,9 +2,4804 @@
   "schema_version": 1,
   "entries": [
     {
+      "provider_id": "cloudflare",
+      "model_id": "01564c52-8717-47dc-8efd-907a2ca18301",
+      "canonical_model_id": "cloudflare/01564c52-8717-47dc-8efd-907a2ca18301"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "01bc2fb0-4bca-4598-b985-d2584a3f46c0",
+      "canonical_model_id": "cloudflare/01bc2fb0-4bca-4598-b985-d2584a3f46c0"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "02c16efa-29f5-4304-8e6c-3d188889f875",
+      "canonical_model_id": "cloudflare/02c16efa-29f5-4304-8e6c-3d188889f875"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "06455e78-19f7-487b-93cd-c05a3dd07813",
+      "canonical_model_id": "cloudflare/06455e78-19f7-487b-93cd-c05a3dd07813"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "0e372c11-8720-46c9-a02d-666188a22dae",
+      "canonical_model_id": "cloudflare/0e372c11-8720-46c9-a02d-666188a22dae"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "1161560b-87f9-4795-afb3-a905cf21bcf8",
+      "canonical_model_id": "cloudflare/1161560b-87f9-4795-afb3-a905cf21bcf8"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "145337e7-cec3-4ebb-8e78-16ddfc75e580",
+      "canonical_model_id": "cloudflare/145337e7-cec3-4ebb-8e78-16ddfc75e580"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "15631501-2742-4346-a469-22fe202188a2",
+      "canonical_model_id": "cloudflare/15631501-2742-4346-a469-22fe202188a2"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "188a4e1e-253e-46d0-9616-0bf8c149763f",
+      "canonical_model_id": "cloudflare/188a4e1e-253e-46d0-9616-0bf8c149763f"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "1f55679f-009e-4456-aa4f-049a62b4b6a0",
+      "canonical_model_id": "cloudflare/1f55679f-009e-4456-aa4f-049a62b4b6a0"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "200f0812-148c-48c1-915d-fb3277a94a08",
+      "canonical_model_id": "cloudflare/200f0812-148c-48c1-915d-fb3277a94a08"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "2169496d-9c0e-4e49-8399-c44ee66bff7d",
+      "canonical_model_id": "cloudflare/2169496d-9c0e-4e49-8399-c44ee66bff7d"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "22338608-b54d-4f04-884e-ab06f3dbbf3e",
+      "canonical_model_id": "cloudflare/22338608-b54d-4f04-884e-ab06f3dbbf3e"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "2cbc033b-ded8-4e02-bbb2-47cf05d5cfe5",
+      "canonical_model_id": "cloudflare/2cbc033b-ded8-4e02-bbb2-47cf05d5cfe5"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "2d50837b-2dc7-4994-a690-a38e25c16d74",
+      "canonical_model_id": "cloudflare/2d50837b-2dc7-4994-a690-a38e25c16d74"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "31690291-ebdc-4f98-bcfc-a44844e215b7",
+      "canonical_model_id": "cloudflare/31690291-ebdc-4f98-bcfc-a44844e215b7"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "328adb49-4a7d-43e3-a2d5-802ae8100fe7",
+      "canonical_model_id": "cloudflare/328adb49-4a7d-43e3-a2d5-802ae8100fe7"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "337170b7-bd2f-4631-9a57-688b579cf6d3",
+      "canonical_model_id": "cloudflare/337170b7-bd2f-4631-9a57-688b579cf6d3"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "3ae8936e-593e-4fb2-85ee-95dd8a057588",
+      "canonical_model_id": "cloudflare/3ae8936e-593e-4fb2-85ee-95dd8a057588"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "4090e54c-eee4-4221-b410-10c1c0f92f17",
+      "canonical_model_id": "cloudflare/4090e54c-eee4-4221-b410-10c1c0f92f17"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "41ca173f-72d5-4420-8915-49e835d2676e",
+      "canonical_model_id": "cloudflare/41ca173f-72d5-4420-8915-49e835d2676e"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "429b9e8b-d99e-44de-91ad-706cf8183658",
+      "canonical_model_id": "cloudflare/429b9e8b-d99e-44de-91ad-706cf8183658"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "43dbadb4-2b0a-47e9-8479-34a49b971f1e",
+      "canonical_model_id": "cloudflare/43dbadb4-2b0a-47e9-8479-34a49b971f1e"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "4edc7dfe-de78-4156-890c-85b79227694e",
+      "canonical_model_id": "cloudflare/4edc7dfe-de78-4156-890c-85b79227694e"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "51b71d5b-8bc0-4489-a107-95e542b69914",
+      "canonical_model_id": "cloudflare/51b71d5b-8bc0-4489-a107-95e542b69914"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "57fbd08a-a4c4-411c-910d-b9459ff36c20",
+      "canonical_model_id": "cloudflare/57fbd08a-a4c4-411c-910d-b9459ff36c20"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "5cdffa8e-1b1e-48e8-85f1-ab9b943cdd32",
+      "canonical_model_id": "cloudflare/5cdffa8e-1b1e-48e8-85f1-ab9b943cdd32"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "60920ed4-cf72-449a-a0f3-a38456b78262",
+      "canonical_model_id": "cloudflare/60920ed4-cf72-449a-a0f3-a38456b78262"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "617e7ec3-bf8d-4088-a863-4f89582d91b5",
+      "canonical_model_id": "cloudflare/617e7ec3-bf8d-4088-a863-4f89582d91b5"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "6d52253a-b731-4a03-b203-cde2d4fae871",
+      "canonical_model_id": "cloudflare/6d52253a-b731-4a03-b203-cde2d4fae871"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "724608fa-983e-495d-b95c-340d6b7e78be",
+      "canonical_model_id": "cloudflare/724608fa-983e-495d-b95c-340d6b7e78be"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "7276b330-b4ae-4662-81d1-3a8bea8368f8",
+      "canonical_model_id": "cloudflare/7276b330-b4ae-4662-81d1-3a8bea8368f8"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "7912c0ab-542e-44b9-b9ee-3113d226a8b5",
+      "canonical_model_id": "cloudflare/7912c0ab-542e-44b9-b9ee-3113d226a8b5"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "7952d0cc-cb00-4e10-be02-667565c2ee0f",
+      "canonical_model_id": "cloudflare/7952d0cc-cb00-4e10-be02-667565c2ee0f"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "7a143886-c9bb-4a1c-be95-377b1973bc3b",
+      "canonical_model_id": "cloudflare/7a143886-c9bb-4a1c-be95-377b1973bc3b"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "7ed8d8e8-6040-4680-843a-aef402d6b013",
+      "canonical_model_id": "cloudflare/7ed8d8e8-6040-4680-843a-aef402d6b013"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "7f797b20-3eb0-44fd-b571-6cbbaa3c423b",
+      "canonical_model_id": "cloudflare/7f797b20-3eb0-44fd-b571-6cbbaa3c423b"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "7f9a76e1-d120-48dd-a565-101d328bbb02",
+      "canonical_model_id": "cloudflare/7f9a76e1-d120-48dd-a565-101d328bbb02"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "86b3e51a-4b05-43fa-a403-0f27821919d2",
+      "canonical_model_id": "cloudflare/86b3e51a-4b05-43fa-a403-0f27821919d2"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "8a5d00bd-de28-4a28-b37a-ce46d01ebaeb",
+      "canonical_model_id": "cloudflare/8a5d00bd-de28-4a28-b37a-ce46d01ebaeb"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "906a57fd-b018-4d6c-a43e-a296d4cc5839",
+      "canonical_model_id": "cloudflare/906a57fd-b018-4d6c-a43e-a296d4cc5839"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "95666467-f984-4211-b48a-7c246dd4adb7",
+      "canonical_model_id": "cloudflare/95666467-f984-4211-b48a-7c246dd4adb7"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "9b9c87c6-d4b7-494c-b177-87feab5904db",
+      "canonical_model_id": "cloudflare/9b9c87c6-d4b7-494c-b177-87feab5904db"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "9e087485-23dc-47fa-997d-f5bfafc0c7cc",
+      "canonical_model_id": "cloudflare/9e087485-23dc-47fa-997d-f5bfafc0c7cc"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "a226909f-eef8-4265-a3a0-90db0422762e",
+      "canonical_model_id": "cloudflare/a226909f-eef8-4265-a3a0-90db0422762e"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "a2a2afba-b609-4325-8c41-5791ce962239",
+      "canonical_model_id": "cloudflare/a2a2afba-b609-4325-8c41-5791ce962239"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "a9abaef0-3031-47ad-8790-d311d8684c6c",
+      "canonical_model_id": "cloudflare/a9abaef0-3031-47ad-8790-d311d8684c6c"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "ad01ab83-baf8-4e7b-8fed-a0a219d4eb45",
+      "canonical_model_id": "cloudflare/ad01ab83-baf8-4e7b-8fed-a0a219d4eb45"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "af274959-cb47-4ba8-9d8e-5a0a58b6b402",
+      "canonical_model_id": "cloudflare/af274959-cb47-4ba8-9d8e-5a0a58b6b402"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "bc2b61f6-7eb3-4cdf-94f5-ffc128bd6aa4",
+      "canonical_model_id": "cloudflare/bc2b61f6-7eb3-4cdf-94f5-ffc128bd6aa4"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "c05fea67-c5a9-49ca-a7ab-446a0d62cb7a",
+      "canonical_model_id": "cloudflare/c05fea67-c5a9-49ca-a7ab-446a0d62cb7a"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "c1c12ce4-c36a-4aa6-8da4-f63ba4b8984d",
+      "canonical_model_id": "cloudflare/c1c12ce4-c36a-4aa6-8da4-f63ba4b8984d"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "c29c7295-ff20-4b9b-bdcc-25136c19b21d",
+      "canonical_model_id": "cloudflare/c29c7295-ff20-4b9b-bdcc-25136c19b21d"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "c5255b94-2161-4779-bd25-54f061829a2a",
+      "canonical_model_id": "cloudflare/c5255b94-2161-4779-bd25-54f061829a2a"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "c58c317b-0c15-4bda-abb6-93e275f282d9",
+      "canonical_model_id": "cloudflare/c58c317b-0c15-4bda-abb6-93e275f282d9"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "c837b2ac-4d9b-4d37-8811-34de60f0c44f",
+      "canonical_model_id": "cloudflare/c837b2ac-4d9b-4d37-8811-34de60f0c44f"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "cb254e3b-372b-4d4e-8526-ada79940427a",
+      "canonical_model_id": "cloudflare/cb254e3b-372b-4d4e-8526-ada79940427a"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "cc80437b-9a8d-4f1a-9c77-9aaf0d226922",
+      "canonical_model_id": "cloudflare/cc80437b-9a8d-4f1a-9c77-9aaf0d226922"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "d9dc8363-66f4-4bb0-8641-464ee7bfc131",
+      "canonical_model_id": "cloudflare/d9dc8363-66f4-4bb0-8641-464ee7bfc131"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "e580c765-810c-4da3-936c-a2808892f14c",
+      "canonical_model_id": "cloudflare/e580c765-810c-4da3-936c-a2808892f14c"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "e8e8abe4-a372-4c13-815f-4688ba655c8e",
+      "canonical_model_id": "cloudflare/e8e8abe4-a372-4c13-815f-4688ba655c8e"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "eaf31752-a074-441f-8b70-d593255d2811",
+      "canonical_model_id": "cloudflare/eaf31752-a074-441f-8b70-d593255d2811"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "eed32bc1-8775-4985-89ce-dd1405508ad8",
+      "canonical_model_id": "cloudflare/eed32bc1-8775-4985-89ce-dd1405508ad8"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "f9f2250b-1048-4a52-9910-d0bf976616a1",
+      "canonical_model_id": "cloudflare/f9f2250b-1048-4a52-9910-d0bf976616a1"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "fe8904cf-e20e-4884-b829-ed7cec0a01cb",
+      "canonical_model_id": "cloudflare/fe8904cf-e20e-4884-b829-ed7cec0a01cb"
+    },
+    {
+      "provider_id": "gemini",
+      "model_id": "gemini-2.5-flash",
+      "canonical_model_id": "google/gemini-2.5-flash"
+    },
+    {
+      "provider_id": "gemini",
+      "model_id": "gemini-2.5-flash-lite",
+      "canonical_model_id": "google/gemini-2.5-flash-lite"
+    },
+    {
+      "provider_id": "gemini",
+      "model_id": "gemini-2.5-pro",
+      "canonical_model_id": "google/gemini-2.5-pro"
+    },
+    {
+      "provider_id": "gemini",
+      "model_id": "gemini-3-flash-preview",
+      "canonical_model_id": "google/gemini-3-flash-preview"
+    },
+    {
+      "provider_id": "gemini",
+      "model_id": "gemini-3.1-flash-lite",
+      "canonical_model_id": "google/gemini-3.1-flash-lite"
+    },
+    {
+      "provider_id": "gemini",
+      "model_id": "gemini-3.1-flash-lite-preview",
+      "canonical_model_id": "google/gemini-3.1-flash-lite-preview"
+    },
+    {
+      "provider_id": "gemini",
+      "model_id": "gemini-3.1-pro-preview",
+      "canonical_model_id": "google/gemini-3.1-pro-preview"
+    },
+    {
+      "provider_id": "gemini",
+      "model_id": "gemini-3.5-flash",
+      "canonical_model_id": "google/gemini-3.5-flash"
+    },
+    {
+      "provider_id": "gemini",
+      "model_id": "gemini-3.5-flash-lite",
+      "canonical_model_id": "google/gemini-3.5-flash-lite"
+    },
+    {
+      "provider_id": "gemini",
+      "model_id": "gemini-3.6-flash",
+      "canonical_model_id": "google/gemini-3.6-flash"
+    },
+    {
+      "provider_id": "gemini",
+      "model_id": "gemini-3.7-flash",
+      "canonical_model_id": "google/gemini-3.7-flash"
+    },
+    {
       "provider_id": "gemini",
       "model_id": "gemini-3.8-flash",
       "canonical_model_id": "google/gemini-3.8-flash"
+    },
+    {
+      "provider_id": "gemini",
+      "model_id": "gemini-flash-latest",
+      "canonical_model_id": "google/gemini-flash-latest"
+    },
+    {
+      "provider_id": "gemini",
+      "model_id": "gemini-flash-lite-latest",
+      "canonical_model_id": "google/gemini-flash-lite-latest"
+    },
+    {
+      "provider_id": "gemini",
+      "model_id": "gemini-pro-latest",
+      "canonical_model_id": "google/gemini-pro-latest"
+    },
+    {
+      "provider_id": "gemini",
+      "model_id": "gemma-4-26b-a4b-it",
+      "canonical_model_id": "google/gemma-4-26b-a4b-it"
+    },
+    {
+      "provider_id": "gemini",
+      "model_id": "gemma-4-31b-it",
+      "canonical_model_id": "google/gemma-4-31b-it"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "codestral-2508",
+      "canonical_model_id": "mistral/codestral-2508"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "codestral-embed",
+      "canonical_model_id": "mistral/codestral-embed"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "codestral-embed-2505",
+      "canonical_model_id": "mistral/codestral-embed-2505"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "codestral-latest",
+      "canonical_model_id": "mistral/codestral-latest"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "labs-leanstral-1-5",
+      "canonical_model_id": "mistral/labs-leanstral-1-5"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "labs-leanstral-1-5-1",
+      "canonical_model_id": "mistral/labs-leanstral-1-5-1"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "magistral-medium-latest",
+      "canonical_model_id": "mistral/magistral-medium-latest"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "magistral-small-latest",
+      "canonical_model_id": "mistral/magistral-small-latest"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "ministral-14b-2512",
+      "canonical_model_id": "mistral/ministral-14b-2512"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "ministral-14b-latest",
+      "canonical_model_id": "mistral/ministral-14b-latest"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "ministral-3b-2512",
+      "canonical_model_id": "mistral/ministral-3b-2512"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "ministral-3b-latest",
+      "canonical_model_id": "mistral/ministral-3b-latest"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "ministral-8b-2512",
+      "canonical_model_id": "mistral/ministral-8b-2512"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "ministral-8b-latest",
+      "canonical_model_id": "mistral/ministral-8b-latest"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-code-fim-latest",
+      "canonical_model_id": "mistral/mistral-code-fim-latest"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-code-latest",
+      "canonical_model_id": "mistral/mistral-code-latest"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-embed",
+      "canonical_model_id": "mistral/mistral-embed"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-embed-2312",
+      "canonical_model_id": "mistral/mistral-embed-2312"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-medium",
+      "canonical_model_id": "mistral/mistral-medium"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-medium-2604",
+      "canonical_model_id": "mistral/mistral-medium-2604"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-medium-3",
+      "canonical_model_id": "mistral/mistral-medium-3"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-medium-3-5",
+      "canonical_model_id": "mistral/mistral-medium-3-5"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-medium-3.5",
+      "canonical_model_id": "mistral/mistral-medium-3.5"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-medium-latest",
+      "canonical_model_id": "mistral/mistral-medium-latest"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-moderation-2603",
+      "canonical_model_id": "mistral/mistral-moderation-2603"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-ocr-2512",
+      "canonical_model_id": "mistral/mistral-ocr-2512"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-ocr-3",
+      "canonical_model_id": "mistral/mistral-ocr-3"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-ocr-3-0",
+      "canonical_model_id": "mistral/mistral-ocr-3-0"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-ocr-4",
+      "canonical_model_id": "mistral/mistral-ocr-4"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-ocr-4-0",
+      "canonical_model_id": "mistral/mistral-ocr-4-0"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-ocr-4-1",
+      "canonical_model_id": "mistral/mistral-ocr-4-1"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-ocr-latest",
+      "canonical_model_id": "mistral/mistral-ocr-latest"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-small-2603",
+      "canonical_model_id": "mistral/mistral-small-2603"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-small-latest",
+      "canonical_model_id": "mistral/mistral-small-latest"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-vibe-cli-fast",
+      "canonical_model_id": "mistral/mistral-vibe-cli-fast"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-vibe-cli-latest",
+      "canonical_model_id": "mistral/mistral-vibe-cli-latest"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-vibe-cli-with-tools",
+      "canonical_model_id": "mistral/mistral-vibe-cli-with-tools"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "voxtral-mini-2602",
+      "canonical_model_id": "mistral/voxtral-mini-2602"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "voxtral-mini-latest",
+      "canonical_model_id": "mistral/voxtral-mini-latest"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "voxtral-mini-realtime-2602",
+      "canonical_model_id": "mistral/voxtral-mini-realtime-2602"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "voxtral-mini-realtime-latest",
+      "canonical_model_id": "mistral/voxtral-mini-realtime-latest"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "voxtral-mini-transcribe-realtime-2602",
+      "canonical_model_id": "mistral/voxtral-mini-transcribe-realtime-2602"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "voxtral-mini-tts-2603",
+      "canonical_model_id": "mistral/voxtral-mini-tts-2603"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "voxtral-mini-tts-latest",
+      "canonical_model_id": "mistral/voxtral-mini-tts-latest"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "voxtral-small-2507",
+      "canonical_model_id": "mistral/voxtral-small-2507"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "voxtral-small-latest",
+      "canonical_model_id": "mistral/voxtral-small-latest"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "model_id": "deepseek-v4-flash:0731",
+      "canonical_model_id": "ollama_cloud/deepseek-v4-flash:0731"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "model_id": "deepseek-v4-pro:0813",
+      "canonical_model_id": "ollama_cloud/deepseek-v4-pro:0813"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "model_id": "deepseek-v4.1-flash",
+      "canonical_model_id": "ollama_cloud/deepseek-v4.1-flash"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "model_id": "gemma4:31b",
+      "canonical_model_id": "ollama_cloud/gemma4:31b"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "model_id": "glm-5.1",
+      "canonical_model_id": "ollama_cloud/glm-5.1"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "model_id": "glm-5.2",
+      "canonical_model_id": "ollama_cloud/glm-5.2"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "model_id": "glm-5.3",
+      "canonical_model_id": "ollama_cloud/glm-5.3"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "model_id": "glm-5.3-flash",
+      "canonical_model_id": "ollama_cloud/glm-5.3-flash"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "model_id": "gpt-oss:120b",
+      "canonical_model_id": "ollama_cloud/gpt-oss:120b"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "model_id": "gpt-oss:20b",
+      "canonical_model_id": "ollama_cloud/gpt-oss:20b"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "model_id": "kimi-k2.6",
+      "canonical_model_id": "ollama_cloud/kimi-k2.6"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "model_id": "kimi-k2.7-code",
+      "canonical_model_id": "ollama_cloud/kimi-k2.7-code"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "model_id": "kimi-k3",
+      "canonical_model_id": "ollama_cloud/kimi-k3"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "model_id": "minimax-m2.7",
+      "canonical_model_id": "ollama_cloud/minimax-m2.7"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "model_id": "minimax-m3",
+      "canonical_model_id": "ollama_cloud/minimax-m3"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "model_id": "mistral-large-3:675b",
+      "canonical_model_id": "ollama_cloud/mistral-large-3:675b"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "model_id": "nemotron-3-nano:30b",
+      "canonical_model_id": "ollama_cloud/nemotron-3-nano:30b"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "model_id": "nemotron-3-super",
+      "canonical_model_id": "ollama_cloud/nemotron-3-super"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "model_id": "nemotron-3-ultra",
+      "canonical_model_id": "ollama_cloud/nemotron-3-ultra"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "model_id": "qwen3.5:397b",
+      "canonical_model_id": "ollama_cloud/qwen3.5:397b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "aion-labs/aion-2.0",
+      "canonical_model_id": "aion-labs/aion-2.0"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "aion-labs/aion-3.0",
+      "canonical_model_id": "aion-labs/aion-3.0"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "aion-labs/aion-3.0-mini",
+      "canonical_model_id": "aion-labs/aion-3.0-mini"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "aion-labs/aion-rp-llama-3.1-8b",
+      "canonical_model_id": "aion-labs/aion-rp-llama-3.1-8b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "amazon/nova-2-lite-v1",
+      "canonical_model_id": "amazon/nova-2-lite-v1"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "amazon/nova-lite-v1",
+      "canonical_model_id": "amazon/nova-lite-v1"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "amazon/nova-micro-v1",
+      "canonical_model_id": "amazon/nova-micro-v1"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "amazon/nova-premier-v1",
+      "canonical_model_id": "amazon/nova-premier-v1"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "amazon/nova-pro-v1",
+      "canonical_model_id": "amazon/nova-pro-v1"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthracite-org/magnum-v4-72b",
+      "canonical_model_id": "anthracite-org/magnum-v4-72b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-3-haiku",
+      "canonical_model_id": "anthropic/claude-3-haiku"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-fable-5",
+      "canonical_model_id": "anthropic/claude-fable-5"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-fable-5.1",
+      "canonical_model_id": "anthropic/claude-fable-5.1"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-fable-5.1:batch",
+      "canonical_model_id": "anthropic/claude-fable-5.1:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-fable-5:batch",
+      "canonical_model_id": "anthropic/claude-fable-5:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-haiku-4.5",
+      "canonical_model_id": "anthropic/claude-haiku-4.5"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-haiku-4.5:batch",
+      "canonical_model_id": "anthropic/claude-haiku-4.5:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-opus-4",
+      "canonical_model_id": "anthropic/claude-opus-4"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-opus-4.1",
+      "canonical_model_id": "anthropic/claude-opus-4.1"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-opus-4.1:batch",
+      "canonical_model_id": "anthropic/claude-opus-4.1:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-opus-4.5",
+      "canonical_model_id": "anthropic/claude-opus-4.5"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-opus-4.5:batch",
+      "canonical_model_id": "anthropic/claude-opus-4.5:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-opus-4.6",
+      "canonical_model_id": "anthropic/claude-opus-4.6"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-opus-4.6:batch",
+      "canonical_model_id": "anthropic/claude-opus-4.6:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-opus-4.7",
+      "canonical_model_id": "anthropic/claude-opus-4.7"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-opus-4.7:batch",
+      "canonical_model_id": "anthropic/claude-opus-4.7:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-opus-4.8",
+      "canonical_model_id": "anthropic/claude-opus-4.8"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-opus-4.8:batch",
+      "canonical_model_id": "anthropic/claude-opus-4.8:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-opus-5",
+      "canonical_model_id": "anthropic/claude-opus-5"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-opus-5:batch",
+      "canonical_model_id": "anthropic/claude-opus-5:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-sonnet-4",
+      "canonical_model_id": "anthropic/claude-sonnet-4"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-sonnet-4.5",
+      "canonical_model_id": "anthropic/claude-sonnet-4.5"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-sonnet-4.5:batch",
+      "canonical_model_id": "anthropic/claude-sonnet-4.5:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-sonnet-4.6",
+      "canonical_model_id": "anthropic/claude-sonnet-4.6"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-sonnet-4.6:batch",
+      "canonical_model_id": "anthropic/claude-sonnet-4.6:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-sonnet-5",
+      "canonical_model_id": "anthropic/claude-sonnet-5"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-sonnet-5:batch",
+      "canonical_model_id": "anthropic/claude-sonnet-5:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "arcee-ai/trinity-large-thinking",
+      "canonical_model_id": "arcee-ai/trinity-large-thinking"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "baidu/ernie-4.5-vl-424b-a47b",
+      "canonical_model_id": "baidu/ernie-4.5-vl-424b-a47b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "bytedance-seed/seed-1.6",
+      "canonical_model_id": "bytedance-seed/seed-1.6"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "bytedance-seed/seed-1.6-flash",
+      "canonical_model_id": "bytedance-seed/seed-1.6-flash"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "bytedance-seed/seed-2-1-turbo",
+      "canonical_model_id": "bytedance-seed/seed-2-1-turbo"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "bytedance-seed/seed-2.0-code",
+      "canonical_model_id": "bytedance-seed/seed-2.0-code"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "bytedance-seed/seed-2.0-lite",
+      "canonical_model_id": "bytedance-seed/seed-2.0-lite"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "bytedance-seed/seed-2.0-mini",
+      "canonical_model_id": "bytedance-seed/seed-2.0-mini"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "bytedance/ui-tars-1.5-7b",
+      "canonical_model_id": "bytedance/ui-tars-1.5-7b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "cognitivecomputations/dolphin-mistral-24b-venice-edition",
+      "canonical_model_id": "cognitivecomputations/dolphin-mistral-24b-venice-edition"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "cohere/command-a",
+      "canonical_model_id": "cohere/command-a"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "cohere/command-r-08-2024",
+      "canonical_model_id": "cohere/command-r-08-2024"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "cohere/command-r-plus-08-2024",
+      "canonical_model_id": "cohere/command-r-plus-08-2024"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "cohere/command-r7b-12-2024",
+      "canonical_model_id": "cohere/command-r7b-12-2024"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "cohere/north-mini-code:free",
+      "canonical_model_id": "cohere/north-mini-code:free"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "deepseek/deepseek-chat",
+      "canonical_model_id": "deepseek/deepseek-chat"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "deepseek/deepseek-chat-v3-0324",
+      "canonical_model_id": "deepseek/deepseek-chat-v3-0324"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "deepseek/deepseek-chat-v3.1",
+      "canonical_model_id": "deepseek/deepseek-chat-v3.1"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "deepseek/deepseek-r1",
+      "canonical_model_id": "deepseek/deepseek-r1"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "deepseek/deepseek-r1-0528",
+      "canonical_model_id": "deepseek/deepseek-r1-0528"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "deepseek/deepseek-r1-distill-llama-70b",
+      "canonical_model_id": "deepseek/deepseek-r1-distill-llama-70b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "deepseek/deepseek-v3.1-terminus",
+      "canonical_model_id": "deepseek/deepseek-v3.1-terminus"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "deepseek/deepseek-v3.2",
+      "canonical_model_id": "deepseek/deepseek-v3.2"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "deepseek/deepseek-v3.2-exp",
+      "canonical_model_id": "deepseek/deepseek-v3.2-exp"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "deepseek/deepseek-v4-flash",
+      "canonical_model_id": "deepseek/deepseek-v4-flash"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "deepseek/deepseek-v4-flash-0731",
+      "canonical_model_id": "deepseek/deepseek-v4-flash-0731"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "deepseek/deepseek-v4-flash-0731:batch",
+      "canonical_model_id": "deepseek/deepseek-v4-flash-0731:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "deepseek/deepseek-v4-flash-vision-exp",
+      "canonical_model_id": "deepseek/deepseek-v4-flash-vision-exp"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "deepseek/deepseek-v4-flash-vision-exp:batch",
+      "canonical_model_id": "deepseek/deepseek-v4-flash-vision-exp:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "deepseek/deepseek-v4-pro",
+      "canonical_model_id": "deepseek/deepseek-v4-pro"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "deepseek/deepseek-v4-pro-0813",
+      "canonical_model_id": "deepseek/deepseek-v4-pro-0813"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "deepseek/deepseek-v4-pro-0813:batch",
+      "canonical_model_id": "deepseek/deepseek-v4-pro-0813:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "deepseek/deepseek-v4.1-flash",
+      "canonical_model_id": "deepseek/deepseek-v4.1-flash"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "dots-studio/dots-3-note-preview:free",
+      "canonical_model_id": "dots-studio/dots-3-note-preview:free"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-2.5-flash",
+      "canonical_model_id": "google/gemini-2.5-flash"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-2.5-flash-lite",
+      "canonical_model_id": "google/gemini-2.5-flash-lite"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-2.5-flash-lite:batch",
+      "canonical_model_id": "google/gemini-2.5-flash-lite:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-2.5-flash:batch",
+      "canonical_model_id": "google/gemini-2.5-flash:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-2.5-pro",
+      "canonical_model_id": "google/gemini-2.5-pro"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-2.5-pro-preview",
+      "canonical_model_id": "google/gemini-2.5-pro-preview"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-2.5-pro-preview-05-06",
+      "canonical_model_id": "google/gemini-2.5-pro-preview-05-06"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-2.5-pro:batch",
+      "canonical_model_id": "google/gemini-2.5-pro:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-3-flash-preview",
+      "canonical_model_id": "google/gemini-3-flash-preview"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-3-flash-preview:batch",
+      "canonical_model_id": "google/gemini-3-flash-preview:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-3.1-flash-lite",
+      "canonical_model_id": "google/gemini-3.1-flash-lite"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-3.1-flash-lite-preview",
+      "canonical_model_id": "google/gemini-3.1-flash-lite-preview"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-3.1-flash-lite:batch",
+      "canonical_model_id": "google/gemini-3.1-flash-lite:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-3.1-pro-preview",
+      "canonical_model_id": "google/gemini-3.1-pro-preview"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-3.1-pro-preview:batch",
+      "canonical_model_id": "google/gemini-3.1-pro-preview:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-3.5-flash",
+      "canonical_model_id": "google/gemini-3.5-flash"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-3.5-flash-lite",
+      "canonical_model_id": "google/gemini-3.5-flash-lite"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-3.5-flash-lite:batch",
+      "canonical_model_id": "google/gemini-3.5-flash-lite:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-3.5-flash:batch",
+      "canonical_model_id": "google/gemini-3.5-flash:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-3.6-flash",
+      "canonical_model_id": "google/gemini-3.6-flash"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-3.6-flash:batch",
+      "canonical_model_id": "google/gemini-3.6-flash:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-3.7-flash",
+      "canonical_model_id": "google/gemini-3.7-flash"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-3.7-flash:batch",
+      "canonical_model_id": "google/gemini-3.7-flash:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-3.8-flash",
+      "canonical_model_id": "google/gemini-3.8-flash"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-3.8-flash:batch",
+      "canonical_model_id": "google/gemini-3.8-flash:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemma-2-27b-it",
+      "canonical_model_id": "google/gemma-2-27b-it"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemma-3-12b-it",
+      "canonical_model_id": "google/gemma-3-12b-it"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemma-3-27b-it",
+      "canonical_model_id": "google/gemma-3-27b-it"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemma-3-4b-it",
+      "canonical_model_id": "google/gemma-3-4b-it"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemma-4-26b-a4b-it",
+      "canonical_model_id": "google/gemma-4-26b-a4b-it"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemma-4-26b-a4b-it:free",
+      "canonical_model_id": "google/gemma-4-26b-a4b-it:free"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemma-4-31b-it",
+      "canonical_model_id": "google/gemma-4-31b-it"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemma-4-31b-it:batch",
+      "canonical_model_id": "google/gemma-4-31b-it:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemma-4-31b-it:free",
+      "canonical_model_id": "google/gemma-4-31b-it:free"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "gryphe/mythomax-l2-13b",
+      "canonical_model_id": "gryphe/mythomax-l2-13b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "ibm-granite/granite-4.0-h-micro",
+      "canonical_model_id": "ibm-granite/granite-4.0-h-micro"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "ibm-granite/granite-4.2-8b",
+      "canonical_model_id": "ibm-granite/granite-4.2-8b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "inception/mercury-2",
+      "canonical_model_id": "inception/mercury-2"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "inception/mercury-2.5",
+      "canonical_model_id": "inception/mercury-2.5"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "inclusionai/ling-3.0-flash",
+      "canonical_model_id": "inclusionai/ling-3.0-flash"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "inclusionai/ling-3.0-flash-fin",
+      "canonical_model_id": "inclusionai/ling-3.0-flash-fin"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "inclusionai/ling-3.0-flash-fin:free",
+      "canonical_model_id": "inclusionai/ling-3.0-flash-fin:free"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "inclusionai/ling-3.0-flash-sante:free",
+      "canonical_model_id": "inclusionai/ling-3.0-flash-sante:free"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "inclusionai/ling-3.0-flash-vl",
+      "canonical_model_id": "inclusionai/ling-3.0-flash-vl"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "inclusionai/ling-3.0-flash-vl:free",
+      "canonical_model_id": "inclusionai/ling-3.0-flash-vl:free"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "inference-net/schematron-v2-small",
+      "canonical_model_id": "inference-net/schematron-v2-small"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "inference-net/schematron-v2-turbo",
+      "canonical_model_id": "inference-net/schematron-v2-turbo"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "kwaipilot/kat-coder-pro-v2",
+      "canonical_model_id": "kwaipilot/kat-coder-pro-v2"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "kwaipilot/kat-coder-pro-v2.5",
+      "canonical_model_id": "kwaipilot/kat-coder-pro-v2.5"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "liquid/lfm-2.5-2.6b:free",
+      "canonical_model_id": "liquid/lfm-2.5-2.6b:free"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mancer/weaver",
+      "canonical_model_id": "mancer/weaver"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "meituan/longcat-2.0",
+      "canonical_model_id": "meituan/longcat-2.0"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "meta-llama/llama-3.1-70b-instruct",
+      "canonical_model_id": "meta-llama/llama-3.1-70b-instruct"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "meta-llama/llama-3.1-8b-instruct",
+      "canonical_model_id": "meta-llama/llama-3.1-8b-instruct"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "meta-llama/llama-3.2-1b-instruct",
+      "canonical_model_id": "meta-llama/llama-3.2-1b-instruct"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "meta-llama/llama-3.2-3b-instruct",
+      "canonical_model_id": "meta-llama/llama-3.2-3b-instruct"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "meta-llama/llama-3.3-70b-instruct",
+      "canonical_model_id": "meta-llama/llama-3.3-70b-instruct"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "meta-llama/llama-4-maverick",
+      "canonical_model_id": "meta-llama/llama-4-maverick"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "meta-llama/llama-4-scout",
+      "canonical_model_id": "meta-llama/llama-4-scout"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "meta-llama/llama-guard-4-12b",
+      "canonical_model_id": "meta-llama/llama-guard-4-12b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "meta/muse-glimmer-30b",
+      "canonical_model_id": "meta/muse-glimmer-30b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "meta/muse-glimmer-30b:batch",
+      "canonical_model_id": "meta/muse-glimmer-30b:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "meta/muse-spark-1.1",
+      "canonical_model_id": "meta/muse-spark-1.1"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "meta/muse-spark-1.2",
+      "canonical_model_id": "meta/muse-spark-1.2"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "meta/muse-spark-1.2-contributor",
+      "canonical_model_id": "meta/muse-spark-1.2-contributor"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "meta/muse-spark-1.3",
+      "canonical_model_id": "meta/muse-spark-1.3"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "meta/muse-spark-1.3-contributor",
+      "canonical_model_id": "meta/muse-spark-1.3-contributor"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "microsoft/phi-4",
+      "canonical_model_id": "microsoft/phi-4"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "microsoft/wizardlm-2-8x22b",
+      "canonical_model_id": "microsoft/wizardlm-2-8x22b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "minimax/minimax-01",
+      "canonical_model_id": "minimax/minimax-01"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "minimax/minimax-m1",
+      "canonical_model_id": "minimax/minimax-m1"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "minimax/minimax-m2",
+      "canonical_model_id": "minimax/minimax-m2"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "minimax/minimax-m2-her",
+      "canonical_model_id": "minimax/minimax-m2-her"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "minimax/minimax-m2.1",
+      "canonical_model_id": "minimax/minimax-m2.1"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "minimax/minimax-m2.5",
+      "canonical_model_id": "minimax/minimax-m2.5"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "minimax/minimax-m2.7",
+      "canonical_model_id": "minimax/minimax-m2.7"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "minimax/minimax-m3",
+      "canonical_model_id": "minimax/minimax-m3"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "minimax/minimax-m3:batch",
+      "canonical_model_id": "minimax/minimax-m3:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/codestral-2508",
+      "canonical_model_id": "mistralai/codestral-2508"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/codestral-2508:batch",
+      "canonical_model_id": "mistralai/codestral-2508:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/devstral-2512",
+      "canonical_model_id": "mistralai/devstral-2512"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/ministral-14b-2512",
+      "canonical_model_id": "mistralai/ministral-14b-2512"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/ministral-3b-2512",
+      "canonical_model_id": "mistralai/ministral-3b-2512"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/ministral-8b-2512",
+      "canonical_model_id": "mistralai/ministral-8b-2512"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/ministral-8b-2512:batch",
+      "canonical_model_id": "mistralai/ministral-8b-2512:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/mistral-large",
+      "canonical_model_id": "mistralai/mistral-large"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/mistral-large-2407",
+      "canonical_model_id": "mistralai/mistral-large-2407"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/mistral-large-2512",
+      "canonical_model_id": "mistralai/mistral-large-2512"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/mistral-large-2512:batch",
+      "canonical_model_id": "mistralai/mistral-large-2512:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/mistral-medium-3",
+      "canonical_model_id": "mistralai/mistral-medium-3"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/mistral-medium-3-5",
+      "canonical_model_id": "mistralai/mistral-medium-3-5"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/mistral-medium-3-5:batch",
+      "canonical_model_id": "mistralai/mistral-medium-3-5:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/mistral-medium-3.1",
+      "canonical_model_id": "mistralai/mistral-medium-3.1"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/mistral-medium-3.1:batch",
+      "canonical_model_id": "mistralai/mistral-medium-3.1:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/mistral-nemo",
+      "canonical_model_id": "mistralai/mistral-nemo"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/mistral-saba",
+      "canonical_model_id": "mistralai/mistral-saba"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/mistral-small-24b-instruct-2501",
+      "canonical_model_id": "mistralai/mistral-small-24b-instruct-2501"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/mistral-small-2603",
+      "canonical_model_id": "mistralai/mistral-small-2603"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/mistral-small-2603:batch",
+      "canonical_model_id": "mistralai/mistral-small-2603:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/mistral-small-3.1-24b-instruct",
+      "canonical_model_id": "mistralai/mistral-small-3.1-24b-instruct"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/mistral-small-3.2-24b-instruct",
+      "canonical_model_id": "mistralai/mistral-small-3.2-24b-instruct"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/mixtral-8x22b-instruct",
+      "canonical_model_id": "mistralai/mixtral-8x22b-instruct"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/voxtral-small-24b-2507",
+      "canonical_model_id": "mistralai/voxtral-small-24b-2507"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "moonshotai/kimi-k2",
+      "canonical_model_id": "moonshotai/kimi-k2"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "moonshotai/kimi-k2-0905",
+      "canonical_model_id": "moonshotai/kimi-k2-0905"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "moonshotai/kimi-k2-thinking",
+      "canonical_model_id": "moonshotai/kimi-k2-thinking"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "moonshotai/kimi-k2.5",
+      "canonical_model_id": "moonshotai/kimi-k2.5"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "moonshotai/kimi-k2.6",
+      "canonical_model_id": "moonshotai/kimi-k2.6"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "moonshotai/kimi-k2.7-code",
+      "canonical_model_id": "moonshotai/kimi-k2.7-code"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "moonshotai/kimi-k3",
+      "canonical_model_id": "moonshotai/kimi-k3"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "moonshotai/kimi-k3:batch",
+      "canonical_model_id": "moonshotai/kimi-k3:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "morph/morph-v3-fast",
+      "canonical_model_id": "morph/morph-v3-fast"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "morph/morph-v3-large",
+      "canonical_model_id": "morph/morph-v3-large"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "nex-agi/nex-n2.5-mini:free",
+      "canonical_model_id": "nex-agi/nex-n2.5-mini:free"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "nex-agi/nex-n2.5-pro:free",
+      "canonical_model_id": "nex-agi/nex-n2.5-pro:free"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "nousresearch/hermes-3-llama-3.1-405b",
+      "canonical_model_id": "nousresearch/hermes-3-llama-3.1-405b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "nousresearch/hermes-3-llama-3.1-70b",
+      "canonical_model_id": "nousresearch/hermes-3-llama-3.1-70b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "nousresearch/hermes-4-405b",
+      "canonical_model_id": "nousresearch/hermes-4-405b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "nvidia/nemotron-3-nano-30b-a3b",
+      "canonical_model_id": "nvidia/nemotron-3-nano-30b-a3b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "nvidia/nemotron-3-super-120b-a12b",
+      "canonical_model_id": "nvidia/nemotron-3-super-120b-a12b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "nvidia/nemotron-3-super-120b-a12b:free",
+      "canonical_model_id": "nvidia/nemotron-3-super-120b-a12b:free"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "nvidia/nemotron-3-ultra-550b-a55b",
+      "canonical_model_id": "nvidia/nemotron-3-ultra-550b-a55b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "canonical_model_id": "nvidia/nemotron-3-ultra-550b-a55b:free"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "nvidia/nemotron-3.5-content-safety",
+      "canonical_model_id": "nvidia/nemotron-3.5-content-safety"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "nvidia/nemotron-3.5-content-safety:free",
+      "canonical_model_id": "nvidia/nemotron-3.5-content-safety:free"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "nvidia/nemotron-3.5-lightning",
+      "canonical_model_id": "nvidia/nemotron-3.5-lightning"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "nvidia/nemotron-3.5-lightning:free",
+      "canonical_model_id": "nvidia/nemotron-3.5-lightning:free"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-3.5-turbo",
+      "canonical_model_id": "openai/gpt-3.5-turbo"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-3.5-turbo-0613",
+      "canonical_model_id": "openai/gpt-3.5-turbo-0613"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-3.5-turbo-16k",
+      "canonical_model_id": "openai/gpt-3.5-turbo-16k"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-3.5-turbo-instruct",
+      "canonical_model_id": "openai/gpt-3.5-turbo-instruct"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-3.5-turbo:batch",
+      "canonical_model_id": "openai/gpt-3.5-turbo:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-4",
+      "canonical_model_id": "openai/gpt-4"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-4-turbo",
+      "canonical_model_id": "openai/gpt-4-turbo"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-4-turbo-preview",
+      "canonical_model_id": "openai/gpt-4-turbo-preview"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-4-turbo:batch",
+      "canonical_model_id": "openai/gpt-4-turbo:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-4.1",
+      "canonical_model_id": "openai/gpt-4.1"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-4.1-mini",
+      "canonical_model_id": "openai/gpt-4.1-mini"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-4.1-mini:batch",
+      "canonical_model_id": "openai/gpt-4.1-mini:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-4.1-nano",
+      "canonical_model_id": "openai/gpt-4.1-nano"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-4.1-nano:batch",
+      "canonical_model_id": "openai/gpt-4.1-nano:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-4.1:batch",
+      "canonical_model_id": "openai/gpt-4.1:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-4o",
+      "canonical_model_id": "openai/gpt-4o"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-4o-2024-05-13",
+      "canonical_model_id": "openai/gpt-4o-2024-05-13"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-4o-2024-08-06",
+      "canonical_model_id": "openai/gpt-4o-2024-08-06"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-4o-2024-11-20",
+      "canonical_model_id": "openai/gpt-4o-2024-11-20"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-4o-mini",
+      "canonical_model_id": "openai/gpt-4o-mini"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-4o-mini-2024-07-18",
+      "canonical_model_id": "openai/gpt-4o-mini-2024-07-18"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-4o-mini:batch",
+      "canonical_model_id": "openai/gpt-4o-mini:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-4o:batch",
+      "canonical_model_id": "openai/gpt-4o:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5",
+      "canonical_model_id": "openai/gpt-5"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5-mini",
+      "canonical_model_id": "openai/gpt-5-mini"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5-mini:batch",
+      "canonical_model_id": "openai/gpt-5-mini:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5-nano",
+      "canonical_model_id": "openai/gpt-5-nano"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5-nano:batch",
+      "canonical_model_id": "openai/gpt-5-nano:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5-pro",
+      "canonical_model_id": "openai/gpt-5-pro"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5-pro:batch",
+      "canonical_model_id": "openai/gpt-5-pro:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.1",
+      "canonical_model_id": "openai/gpt-5.1"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.1-codex",
+      "canonical_model_id": "openai/gpt-5.1-codex"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.1-codex-max",
+      "canonical_model_id": "openai/gpt-5.1-codex-max"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.1-codex-mini",
+      "canonical_model_id": "openai/gpt-5.1-codex-mini"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.1:batch",
+      "canonical_model_id": "openai/gpt-5.1:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.2",
+      "canonical_model_id": "openai/gpt-5.2"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.2-chat",
+      "canonical_model_id": "openai/gpt-5.2-chat"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.2-codex",
+      "canonical_model_id": "openai/gpt-5.2-codex"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.2-pro",
+      "canonical_model_id": "openai/gpt-5.2-pro"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.2-pro:batch",
+      "canonical_model_id": "openai/gpt-5.2-pro:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.2:batch",
+      "canonical_model_id": "openai/gpt-5.2:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.3-codex",
+      "canonical_model_id": "openai/gpt-5.3-codex"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.4",
+      "canonical_model_id": "openai/gpt-5.4"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.4-mini",
+      "canonical_model_id": "openai/gpt-5.4-mini"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.4-mini:batch",
+      "canonical_model_id": "openai/gpt-5.4-mini:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.4-nano",
+      "canonical_model_id": "openai/gpt-5.4-nano"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.4-nano:batch",
+      "canonical_model_id": "openai/gpt-5.4-nano:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.4-pro",
+      "canonical_model_id": "openai/gpt-5.4-pro"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.4-pro:batch",
+      "canonical_model_id": "openai/gpt-5.4-pro:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.4:batch",
+      "canonical_model_id": "openai/gpt-5.4:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.5",
+      "canonical_model_id": "openai/gpt-5.5"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.5-pro",
+      "canonical_model_id": "openai/gpt-5.5-pro"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.5-pro:batch",
+      "canonical_model_id": "openai/gpt-5.5-pro:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.5:batch",
+      "canonical_model_id": "openai/gpt-5.5:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.6-luna",
+      "canonical_model_id": "openai/gpt-5.6-luna"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.6-luna-pro",
+      "canonical_model_id": "openai/gpt-5.6-luna-pro"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.6-luna-pro:batch",
+      "canonical_model_id": "openai/gpt-5.6-luna-pro:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.6-luna:batch",
+      "canonical_model_id": "openai/gpt-5.6-luna:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.6-sol",
+      "canonical_model_id": "openai/gpt-5.6-sol"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.6-sol-pro",
+      "canonical_model_id": "openai/gpt-5.6-sol-pro"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.6-sol-pro:batch",
+      "canonical_model_id": "openai/gpt-5.6-sol-pro:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.6-sol:batch",
+      "canonical_model_id": "openai/gpt-5.6-sol:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.6-terra",
+      "canonical_model_id": "openai/gpt-5.6-terra"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.6-terra-pro",
+      "canonical_model_id": "openai/gpt-5.6-terra-pro"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.6-terra-pro:batch",
+      "canonical_model_id": "openai/gpt-5.6-terra-pro:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5.6-terra:batch",
+      "canonical_model_id": "openai/gpt-5.6-terra:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-5:batch",
+      "canonical_model_id": "openai/gpt-5:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-6-astra",
+      "canonical_model_id": "openai/gpt-6-astra"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-6-astra-pro",
+      "canonical_model_id": "openai/gpt-6-astra-pro"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-6-astra-pro:batch",
+      "canonical_model_id": "openai/gpt-6-astra-pro:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-6-astra:batch",
+      "canonical_model_id": "openai/gpt-6-astra:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-chat-latest",
+      "canonical_model_id": "openai/gpt-chat-latest"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-oss-120b",
+      "canonical_model_id": "openai/gpt-oss-120b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-oss-120b:batch",
+      "canonical_model_id": "openai/gpt-oss-120b:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-oss-20b",
+      "canonical_model_id": "openai/gpt-oss-20b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-oss-20b:batch",
+      "canonical_model_id": "openai/gpt-oss-20b:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-oss-safeguard-20b",
+      "canonical_model_id": "openai/gpt-oss-safeguard-20b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/o1",
+      "canonical_model_id": "openai/o1"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/o1-pro",
+      "canonical_model_id": "openai/o1-pro"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/o3",
+      "canonical_model_id": "openai/o3"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/o3-mini",
+      "canonical_model_id": "openai/o3-mini"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/o3-mini-high",
+      "canonical_model_id": "openai/o3-mini-high"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/o3-mini:batch",
+      "canonical_model_id": "openai/o3-mini:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/o3-pro",
+      "canonical_model_id": "openai/o3-pro"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/o3:batch",
+      "canonical_model_id": "openai/o3:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/o4-mini",
+      "canonical_model_id": "openai/o4-mini"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/o4-mini-high",
+      "canonical_model_id": "openai/o4-mini-high"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/o4-mini:batch",
+      "canonical_model_id": "openai/o4-mini:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openrouter/auto",
+      "canonical_model_id": "openrouter/auto"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openrouter/auto-beta",
+      "canonical_model_id": "openrouter/auto-beta"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openrouter/bodybuilder",
+      "canonical_model_id": "openrouter/bodybuilder"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openrouter/free",
+      "canonical_model_id": "openrouter/free"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openrouter/fusion",
+      "canonical_model_id": "openrouter/fusion"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openrouter/pareto-code",
+      "canonical_model_id": "openrouter/pareto-code"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "perceptron/perceptron-mk1",
+      "canonical_model_id": "perceptron/perceptron-mk1"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "perplexity/sonar",
+      "canonical_model_id": "perplexity/sonar"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "perplexity/sonar-pro",
+      "canonical_model_id": "perplexity/sonar-pro"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "perplexity/sonar-pro-search",
+      "canonical_model_id": "perplexity/sonar-pro-search"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "perplexity/sonar-reasoning-pro",
+      "canonical_model_id": "perplexity/sonar-reasoning-pro"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "poolside/laguna-s-2.1",
+      "canonical_model_id": "poolside/laguna-s-2.1"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "poolside/laguna-s-2.1:free",
+      "canonical_model_id": "poolside/laguna-s-2.1:free"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "poolside/laguna-xs-2.1",
+      "canonical_model_id": "poolside/laguna-xs-2.1"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "poolside/laguna-xs-2.1:free",
+      "canonical_model_id": "poolside/laguna-xs-2.1:free"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen-2.5-72b-instruct",
+      "canonical_model_id": "qwen/qwen-2.5-72b-instruct"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen-2.5-7b-instruct",
+      "canonical_model_id": "qwen/qwen-2.5-7b-instruct"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen-2.5-coder-32b-instruct",
+      "canonical_model_id": "qwen/qwen-2.5-coder-32b-instruct"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen-plus",
+      "canonical_model_id": "qwen/qwen-plus"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen-plus-2025-07-28",
+      "canonical_model_id": "qwen/qwen-plus-2025-07-28"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen2.5-vl-72b-instruct",
+      "canonical_model_id": "qwen/qwen2.5-vl-72b-instruct"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3-14b",
+      "canonical_model_id": "qwen/qwen3-14b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3-235b-a22b",
+      "canonical_model_id": "qwen/qwen3-235b-a22b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3-235b-a22b-2507",
+      "canonical_model_id": "qwen/qwen3-235b-a22b-2507"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3-235b-a22b-thinking-2507",
+      "canonical_model_id": "qwen/qwen3-235b-a22b-thinking-2507"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3-30b-a3b",
+      "canonical_model_id": "qwen/qwen3-30b-a3b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3-30b-a3b-instruct-2507",
+      "canonical_model_id": "qwen/qwen3-30b-a3b-instruct-2507"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3-30b-a3b-thinking-2507",
+      "canonical_model_id": "qwen/qwen3-30b-a3b-thinking-2507"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3-32b",
+      "canonical_model_id": "qwen/qwen3-32b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3-8b",
+      "canonical_model_id": "qwen/qwen3-8b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3-coder",
+      "canonical_model_id": "qwen/qwen3-coder"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3-coder-30b-a3b-instruct",
+      "canonical_model_id": "qwen/qwen3-coder-30b-a3b-instruct"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3-coder-flash",
+      "canonical_model_id": "qwen/qwen3-coder-flash"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3-coder-next",
+      "canonical_model_id": "qwen/qwen3-coder-next"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3-coder-plus",
+      "canonical_model_id": "qwen/qwen3-coder-plus"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3-max",
+      "canonical_model_id": "qwen/qwen3-max"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3-max-thinking",
+      "canonical_model_id": "qwen/qwen3-max-thinking"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3-next-80b-a3b-instruct",
+      "canonical_model_id": "qwen/qwen3-next-80b-a3b-instruct"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3-next-80b-a3b-thinking",
+      "canonical_model_id": "qwen/qwen3-next-80b-a3b-thinking"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3-vl-235b-a22b-instruct",
+      "canonical_model_id": "qwen/qwen3-vl-235b-a22b-instruct"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3-vl-235b-a22b-thinking",
+      "canonical_model_id": "qwen/qwen3-vl-235b-a22b-thinking"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3-vl-30b-a3b-instruct",
+      "canonical_model_id": "qwen/qwen3-vl-30b-a3b-instruct"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3-vl-30b-a3b-thinking",
+      "canonical_model_id": "qwen/qwen3-vl-30b-a3b-thinking"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3-vl-32b-instruct",
+      "canonical_model_id": "qwen/qwen3-vl-32b-instruct"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3-vl-8b-instruct",
+      "canonical_model_id": "qwen/qwen3-vl-8b-instruct"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3-vl-8b-thinking",
+      "canonical_model_id": "qwen/qwen3-vl-8b-thinking"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3.5-122b-a10b",
+      "canonical_model_id": "qwen/qwen3.5-122b-a10b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3.5-27b",
+      "canonical_model_id": "qwen/qwen3.5-27b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3.5-35b-a3b",
+      "canonical_model_id": "qwen/qwen3.5-35b-a3b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3.5-397b-a17b",
+      "canonical_model_id": "qwen/qwen3.5-397b-a17b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3.5-9b",
+      "canonical_model_id": "qwen/qwen3.5-9b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3.5-9b:batch",
+      "canonical_model_id": "qwen/qwen3.5-9b:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3.5-flash-02-23",
+      "canonical_model_id": "qwen/qwen3.5-flash-02-23"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3.5-plus-02-15",
+      "canonical_model_id": "qwen/qwen3.5-plus-02-15"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3.5-plus-20260420",
+      "canonical_model_id": "qwen/qwen3.5-plus-20260420"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3.6-27b",
+      "canonical_model_id": "qwen/qwen3.6-27b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3.6-35b-a3b",
+      "canonical_model_id": "qwen/qwen3.6-35b-a3b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3.6-flash",
+      "canonical_model_id": "qwen/qwen3.6-flash"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3.6-max-preview",
+      "canonical_model_id": "qwen/qwen3.6-max-preview"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3.6-plus",
+      "canonical_model_id": "qwen/qwen3.6-plus"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3.7-flash",
+      "canonical_model_id": "qwen/qwen3.7-flash"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3.7-max",
+      "canonical_model_id": "qwen/qwen3.7-max"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3.7-plus",
+      "canonical_model_id": "qwen/qwen3.7-plus"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3.8-2.4t-a95b",
+      "canonical_model_id": "qwen/qwen3.8-2.4t-a95b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3.8-2.4t-a95b:batch",
+      "canonical_model_id": "qwen/qwen3.8-2.4t-a95b:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3.8-27b",
+      "canonical_model_id": "qwen/qwen3.8-27b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3.8-flash",
+      "canonical_model_id": "qwen/qwen3.8-flash"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3.8-max-0902",
+      "canonical_model_id": "qwen/qwen3.8-max-0902"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "rekaai/reka-edge",
+      "canonical_model_id": "rekaai/reka-edge"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "rekaai/reka-flash-3",
+      "canonical_model_id": "rekaai/reka-flash-3"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "relace/relace-apply-3",
+      "canonical_model_id": "relace/relace-apply-3"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "relace/relace-search",
+      "canonical_model_id": "relace/relace-search"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "sakana/fugu-max",
+      "canonical_model_id": "sakana/fugu-max"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "sakana/fugu-ultra",
+      "canonical_model_id": "sakana/fugu-ultra"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "sakana/fugu-ultra-v2",
+      "canonical_model_id": "sakana/fugu-ultra-v2"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "sakana/sakana-namazu",
+      "canonical_model_id": "sakana/sakana-namazu"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "sao10k/l3-lunaris-8b",
+      "canonical_model_id": "sao10k/l3-lunaris-8b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "sao10k/l3.1-euryale-70b",
+      "canonical_model_id": "sao10k/l3.1-euryale-70b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "sao10k/l3.3-euryale-70b",
+      "canonical_model_id": "sao10k/l3.3-euryale-70b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "stepfun/step-3.5-flash",
+      "canonical_model_id": "stepfun/step-3.5-flash"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "stepfun/step-3.7-flash",
+      "canonical_model_id": "stepfun/step-3.7-flash"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "tencent/hunyuan-a13b-instruct",
+      "canonical_model_id": "tencent/hunyuan-a13b-instruct"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "tencent/hy-mt2-1.8b",
+      "canonical_model_id": "tencent/hy-mt2-1.8b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "tencent/hy-mt2-30b-a3b",
+      "canonical_model_id": "tencent/hy-mt2-30b-a3b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "tencent/hy-mt2-7b",
+      "canonical_model_id": "tencent/hy-mt2-7b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "tencent/hy3",
+      "canonical_model_id": "tencent/hy3"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "tencent/hy3-preview",
+      "canonical_model_id": "tencent/hy3-preview"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "tencent/hy4-preview",
+      "canonical_model_id": "tencent/hy4-preview"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "thedrummer/cydonia-24b-v4.1",
+      "canonical_model_id": "thedrummer/cydonia-24b-v4.1"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "thedrummer/skyfall-36b-v2",
+      "canonical_model_id": "thedrummer/skyfall-36b-v2"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "thedrummer/unslopnemo-12b",
+      "canonical_model_id": "thedrummer/unslopnemo-12b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "thinkingmachines/inkling",
+      "canonical_model_id": "thinkingmachines/inkling"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "thinkingmachines/inkling-small",
+      "canonical_model_id": "thinkingmachines/inkling-small"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "thinkingmachines/inkling-small:batch",
+      "canonical_model_id": "thinkingmachines/inkling-small:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "thinkingmachines/inkling-small:free",
+      "canonical_model_id": "thinkingmachines/inkling-small:free"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "thinkingmachines/inkling:batch",
+      "canonical_model_id": "thinkingmachines/inkling:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "thinkingmachines/inkling:free",
+      "canonical_model_id": "thinkingmachines/inkling:free"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "undi95/remm-slerp-l2-13b",
+      "canonical_model_id": "undi95/remm-slerp-l2-13b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "upstage/solar-pro-3",
+      "canonical_model_id": "upstage/solar-pro-3"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "upstage/solar-pro4",
+      "canonical_model_id": "upstage/solar-pro4"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "writer/palmyra-x5",
+      "canonical_model_id": "writer/palmyra-x5"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "x-ai/grok-4.20",
+      "canonical_model_id": "x-ai/grok-4.20"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "x-ai/grok-4.20-multi-agent",
+      "canonical_model_id": "x-ai/grok-4.20-multi-agent"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "x-ai/grok-4.3",
+      "canonical_model_id": "x-ai/grok-4.3"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "x-ai/grok-4.3:batch",
+      "canonical_model_id": "x-ai/grok-4.3:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "x-ai/grok-4.5",
+      "canonical_model_id": "x-ai/grok-4.5"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "x-ai/grok-4.6",
+      "canonical_model_id": "x-ai/grok-4.6"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "x-ai/grok-build-0.1",
+      "canonical_model_id": "x-ai/grok-build-0.1"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "xiaomi/mimo-v2.5",
+      "canonical_model_id": "xiaomi/mimo-v2.5"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "xiaomi/mimo-v2.5-pro",
+      "canonical_model_id": "xiaomi/mimo-v2.5-pro"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "z-ai/glm-4.5",
+      "canonical_model_id": "z-ai/glm-4.5"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "z-ai/glm-4.5-air",
+      "canonical_model_id": "z-ai/glm-4.5-air"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "z-ai/glm-4.5v",
+      "canonical_model_id": "z-ai/glm-4.5v"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "z-ai/glm-4.6",
+      "canonical_model_id": "z-ai/glm-4.6"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "z-ai/glm-4.6v",
+      "canonical_model_id": "z-ai/glm-4.6v"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "z-ai/glm-4.7",
+      "canonical_model_id": "z-ai/glm-4.7"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "z-ai/glm-4.7-flash",
+      "canonical_model_id": "z-ai/glm-4.7-flash"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "z-ai/glm-5",
+      "canonical_model_id": "z-ai/glm-5"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "z-ai/glm-5-turbo",
+      "canonical_model_id": "z-ai/glm-5-turbo"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "z-ai/glm-5.1",
+      "canonical_model_id": "z-ai/glm-5.1"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "z-ai/glm-5.2",
+      "canonical_model_id": "z-ai/glm-5.2"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "z-ai/glm-5.2:batch",
+      "canonical_model_id": "z-ai/glm-5.2:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "z-ai/glm-5.3",
+      "canonical_model_id": "z-ai/glm-5.3"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "z-ai/glm-5.3-flash",
+      "canonical_model_id": "z-ai/glm-5.3-flash"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "z-ai/glm-5.3-flash:batch",
+      "canonical_model_id": "z-ai/glm-5.3-flash:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "z-ai/glm-5.3:batch",
+      "canonical_model_id": "z-ai/glm-5.3:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "z-ai/glm-5v-turbo",
+      "canonical_model_id": "z-ai/glm-5v-turbo"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "~anthropic/claude-fable-latest",
+      "canonical_model_id": "~anthropic/claude-fable-latest"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "~anthropic/claude-haiku-latest",
+      "canonical_model_id": "~anthropic/claude-haiku-latest"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "~anthropic/claude-opus-latest",
+      "canonical_model_id": "~anthropic/claude-opus-latest"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "~anthropic/claude-sonnet-latest",
+      "canonical_model_id": "~anthropic/claude-sonnet-latest"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "~deepseek/deepseek-v4-flash-latest",
+      "canonical_model_id": "~deepseek/deepseek-v4-flash-latest"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "~google/gemini-flash-latest",
+      "canonical_model_id": "~google/gemini-flash-latest"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "~google/gemini-pro-latest",
+      "canonical_model_id": "~google/gemini-pro-latest"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "~moonshotai/kimi-latest",
+      "canonical_model_id": "~moonshotai/kimi-latest"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "~openai/gpt-astra-latest",
+      "canonical_model_id": "~openai/gpt-astra-latest"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "~openai/gpt-luna-latest",
+      "canonical_model_id": "~openai/gpt-luna-latest"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "~openai/gpt-mini-latest",
+      "canonical_model_id": "~openai/gpt-mini-latest"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "~openai/gpt-sol-latest",
+      "canonical_model_id": "~openai/gpt-sol-latest"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "~openai/gpt-terra-latest",
+      "canonical_model_id": "~openai/gpt-terra-latest"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "~x-ai/grok-latest",
+      "canonical_model_id": "~x-ai/grok-latest"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "~z-ai/glm-flash-latest",
+      "canonical_model_id": "~z-ai/glm-flash-latest"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "~z-ai/glm-latest",
+      "canonical_model_id": "~z-ai/glm-latest"
+    },
+    {
+      "provider_id": "sambanova",
+      "model_id": "DeepSeek-V3.1",
+      "canonical_model_id": "sambanova/DeepSeek-V3.1"
+    },
+    {
+      "provider_id": "sambanova",
+      "model_id": "DeepSeek-V3.2",
+      "canonical_model_id": "sambanova/DeepSeek-V3.2"
+    },
+    {
+      "provider_id": "sambanova",
+      "model_id": "Meta-Llama-3.3-70B-Instruct",
+      "canonical_model_id": "sambanova/Meta-Llama-3.3-70B-Instruct"
+    },
+    {
+      "provider_id": "sambanova",
+      "model_id": "MiniMax-M2.7",
+      "canonical_model_id": "sambanova/MiniMax-M2.7"
+    },
+    {
+      "provider_id": "sambanova",
+      "model_id": "MiniMax-M3",
+      "canonical_model_id": "sambanova/MiniMax-M3"
+    },
+    {
+      "provider_id": "sambanova",
+      "model_id": "gemma-4-31B-it",
+      "canonical_model_id": "sambanova/gemma-4-31B-it"
+    },
+    {
+      "provider_id": "sambanova",
+      "model_id": "gpt-oss-120b",
+      "canonical_model_id": "sambanova/gpt-oss-120b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen-3-14b",
+      "canonical_model_id": "alibaba/qwen-3-14b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen-3-235b",
+      "canonical_model_id": "alibaba/qwen-3-235b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen-3-30b",
+      "canonical_model_id": "alibaba/qwen-3-30b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen-3-32b",
+      "canonical_model_id": "alibaba/qwen-3-32b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen-3.6-max-preview",
+      "canonical_model_id": "alibaba/qwen-3.6-max-preview"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3-235b-a22b-thinking",
+      "canonical_model_id": "alibaba/qwen3-235b-a22b-thinking"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3-coder",
+      "canonical_model_id": "alibaba/qwen3-coder"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3-coder-30b-a3b",
+      "canonical_model_id": "alibaba/qwen3-coder-30b-a3b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3-coder-next",
+      "canonical_model_id": "alibaba/qwen3-coder-next"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3-coder-plus",
+      "canonical_model_id": "alibaba/qwen3-coder-plus"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3-embedding-0.6b",
+      "canonical_model_id": "alibaba/qwen3-embedding-0.6b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3-embedding-4b",
+      "canonical_model_id": "alibaba/qwen3-embedding-4b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3-embedding-8b",
+      "canonical_model_id": "alibaba/qwen3-embedding-8b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3-max",
+      "canonical_model_id": "alibaba/qwen3-max"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3-max-preview",
+      "canonical_model_id": "alibaba/qwen3-max-preview"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3-max-thinking",
+      "canonical_model_id": "alibaba/qwen3-max-thinking"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3-next-80b-a3b-instruct",
+      "canonical_model_id": "alibaba/qwen3-next-80b-a3b-instruct"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3-next-80b-a3b-thinking",
+      "canonical_model_id": "alibaba/qwen3-next-80b-a3b-thinking"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3-vl-235b-a22b-instruct",
+      "canonical_model_id": "alibaba/qwen3-vl-235b-a22b-instruct"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3-vl-instruct",
+      "canonical_model_id": "alibaba/qwen3-vl-instruct"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3-vl-thinking",
+      "canonical_model_id": "alibaba/qwen3-vl-thinking"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3.5-flash",
+      "canonical_model_id": "alibaba/qwen3.5-flash"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3.5-plus",
+      "canonical_model_id": "alibaba/qwen3.5-plus"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3.6-27b",
+      "canonical_model_id": "alibaba/qwen3.6-27b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3.6-plus",
+      "canonical_model_id": "alibaba/qwen3.6-plus"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3.7-flash",
+      "canonical_model_id": "alibaba/qwen3.7-flash"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3.7-max",
+      "canonical_model_id": "alibaba/qwen3.7-max"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3.7-plus",
+      "canonical_model_id": "alibaba/qwen3.7-plus"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3.8-2.4t-a95b",
+      "canonical_model_id": "alibaba/qwen3.8-2.4t-a95b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3.8-27b",
+      "canonical_model_id": "alibaba/qwen3.8-27b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3.8-flash",
+      "canonical_model_id": "alibaba/qwen3.8-flash"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3.8-max",
+      "canonical_model_id": "alibaba/qwen3.8-max"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/qwen3.8-max-0902",
+      "canonical_model_id": "alibaba/qwen3.8-max-0902"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/wan-v2.5-t2v-preview",
+      "canonical_model_id": "alibaba/wan-v2.5-t2v-preview"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/wan-v2.6-i2v",
+      "canonical_model_id": "alibaba/wan-v2.6-i2v"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/wan-v2.6-i2v-flash",
+      "canonical_model_id": "alibaba/wan-v2.6-i2v-flash"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/wan-v2.6-r2v",
+      "canonical_model_id": "alibaba/wan-v2.6-r2v"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/wan-v2.6-r2v-flash",
+      "canonical_model_id": "alibaba/wan-v2.6-r2v-flash"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/wan-v2.6-t2v",
+      "canonical_model_id": "alibaba/wan-v2.6-t2v"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/wan-v2.7-r2v",
+      "canonical_model_id": "alibaba/wan-v2.7-r2v"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/wan-v2.7-t2v",
+      "canonical_model_id": "alibaba/wan-v2.7-t2v"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/wan-v3.0-video",
+      "canonical_model_id": "alibaba/wan-v3.0-video"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "alibaba/wan-v3.0-video-prime",
+      "canonical_model_id": "alibaba/wan-v3.0-video-prime"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "amazon/nova-2-lite",
+      "canonical_model_id": "amazon/nova-2-lite"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "amazon/nova-lite",
+      "canonical_model_id": "amazon/nova-lite"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "amazon/nova-micro",
+      "canonical_model_id": "amazon/nova-micro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "amazon/nova-pro",
+      "canonical_model_id": "amazon/nova-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "amazon/titan-embed-text-v2",
+      "canonical_model_id": "amazon/titan-embed-text-v2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "anthropic/claude-3-haiku",
+      "canonical_model_id": "anthropic/claude-3-haiku"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "anthropic/claude-fable-5",
+      "canonical_model_id": "anthropic/claude-fable-5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "anthropic/claude-fable-5.1",
+      "canonical_model_id": "anthropic/claude-fable-5.1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "anthropic/claude-haiku-4.5",
+      "canonical_model_id": "anthropic/claude-haiku-4.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "anthropic/claude-opus-4",
+      "canonical_model_id": "anthropic/claude-opus-4"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "anthropic/claude-opus-4.5",
+      "canonical_model_id": "anthropic/claude-opus-4.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "anthropic/claude-opus-4.6",
+      "canonical_model_id": "anthropic/claude-opus-4.6"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "anthropic/claude-opus-4.7",
+      "canonical_model_id": "anthropic/claude-opus-4.7"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "anthropic/claude-opus-4.8",
+      "canonical_model_id": "anthropic/claude-opus-4.8"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "anthropic/claude-opus-4.8-fast",
+      "canonical_model_id": "anthropic/claude-opus-4.8-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "anthropic/claude-opus-5",
+      "canonical_model_id": "anthropic/claude-opus-5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "anthropic/claude-opus-5-fast",
+      "canonical_model_id": "anthropic/claude-opus-5-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "anthropic/claude-sonnet-4",
+      "canonical_model_id": "anthropic/claude-sonnet-4"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "anthropic/claude-sonnet-4.5",
+      "canonical_model_id": "anthropic/claude-sonnet-4.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "anthropic/claude-sonnet-4.6",
+      "canonical_model_id": "anthropic/claude-sonnet-4.6"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "anthropic/claude-sonnet-5",
+      "canonical_model_id": "anthropic/claude-sonnet-5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "arcee-ai/trinity-large-thinking",
+      "canonical_model_id": "arcee-ai/trinity-large-thinking"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bfl/flux-2-flex",
+      "canonical_model_id": "bfl/flux-2-flex"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bfl/flux-2-klein-4b",
+      "canonical_model_id": "bfl/flux-2-klein-4b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bfl/flux-2-klein-9b",
+      "canonical_model_id": "bfl/flux-2-klein-9b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bfl/flux-2-max",
+      "canonical_model_id": "bfl/flux-2-max"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bfl/flux-2-pro",
+      "canonical_model_id": "bfl/flux-2-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bfl/flux-3-video",
+      "canonical_model_id": "bfl/flux-3-video"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bfl/flux-kontext-max",
+      "canonical_model_id": "bfl/flux-kontext-max"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bfl/flux-kontext-pro",
+      "canonical_model_id": "bfl/flux-kontext-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bfl/flux-pro-1.0-fill",
+      "canonical_model_id": "bfl/flux-pro-1.0-fill"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bfl/flux-pro-1.1",
+      "canonical_model_id": "bfl/flux-pro-1.1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bfl/flux-pro-1.1-ultra",
+      "canonical_model_id": "bfl/flux-pro-1.1-ultra"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bytedance/seed-1.6",
+      "canonical_model_id": "bytedance/seed-1.6"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bytedance/seed-1.8",
+      "canonical_model_id": "bytedance/seed-1.8"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bytedance/seed-2.1-turbo",
+      "canonical_model_id": "bytedance/seed-2.1-turbo"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bytedance/seedance-2.0",
+      "canonical_model_id": "bytedance/seedance-2.0"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bytedance/seedance-2.0-fast",
+      "canonical_model_id": "bytedance/seedance-2.0-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bytedance/seedance-2.0-mini",
+      "canonical_model_id": "bytedance/seedance-2.0-mini"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bytedance/seedance-2.5",
+      "canonical_model_id": "bytedance/seedance-2.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bytedance/seedance-v1.0-pro",
+      "canonical_model_id": "bytedance/seedance-v1.0-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bytedance/seedance-v1.0-pro-fast",
+      "canonical_model_id": "bytedance/seedance-v1.0-pro-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bytedance/seedance-v1.5-pro",
+      "canonical_model_id": "bytedance/seedance-v1.5-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bytedance/seedream-4.0",
+      "canonical_model_id": "bytedance/seedream-4.0"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bytedance/seedream-4.5",
+      "canonical_model_id": "bytedance/seedream-4.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bytedance/seedream-5.0-lite",
+      "canonical_model_id": "bytedance/seedream-5.0-lite"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bytedance/seedream-5.0-pro",
+      "canonical_model_id": "bytedance/seedream-5.0-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "cohere/command-a",
+      "canonical_model_id": "cohere/command-a"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "cohere/embed-v4.0",
+      "canonical_model_id": "cohere/embed-v4.0"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "cohere/rerank-v3.5",
+      "canonical_model_id": "cohere/rerank-v3.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "cohere/rerank-v4-fast",
+      "canonical_model_id": "cohere/rerank-v4-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "cohere/rerank-v4-pro",
+      "canonical_model_id": "cohere/rerank-v4-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "deepseek/deepseek-r1",
+      "canonical_model_id": "deepseek/deepseek-r1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "deepseek/deepseek-v3.1",
+      "canonical_model_id": "deepseek/deepseek-v3.1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "deepseek/deepseek-v3.1-terminus",
+      "canonical_model_id": "deepseek/deepseek-v3.1-terminus"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "deepseek/deepseek-v3.2",
+      "canonical_model_id": "deepseek/deepseek-v3.2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "deepseek/deepseek-v3.2-thinking",
+      "canonical_model_id": "deepseek/deepseek-v3.2-thinking"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "deepseek/deepseek-v4-flash",
+      "canonical_model_id": "deepseek/deepseek-v4-flash"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "deepseek/deepseek-v4-flash-0731",
+      "canonical_model_id": "deepseek/deepseek-v4-flash-0731"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "deepseek/deepseek-v4-flash-vision-exp",
+      "canonical_model_id": "deepseek/deepseek-v4-flash-vision-exp"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "deepseek/deepseek-v4-pro",
+      "canonical_model_id": "deepseek/deepseek-v4-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "deepseek/deepseek-v4-pro-0813",
+      "canonical_model_id": "deepseek/deepseek-v4-pro-0813"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "deepseek/deepseek-v4.1-flash",
+      "canonical_model_id": "deepseek/deepseek-v4.1-flash"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "fish-audio/s1",
+      "canonical_model_id": "fish-audio/s1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "fish-audio/s1-free",
+      "canonical_model_id": "fish-audio/s1-free"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "fish-audio/s2-pro",
+      "canonical_model_id": "fish-audio/s2-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "fish-audio/s2-pro-free",
+      "canonical_model_id": "fish-audio/s2-pro-free"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "fish-audio/s2.1-pro",
+      "canonical_model_id": "fish-audio/s2.1-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "fish-audio/s2.1-pro-free",
+      "canonical_model_id": "fish-audio/s2.1-pro-free"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "fish-audio/transcribe-1",
+      "canonical_model_id": "fish-audio/transcribe-1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "fish-audio/transcribe-1-free",
+      "canonical_model_id": "fish-audio/transcribe-1-free"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemini-2.5-flash",
+      "canonical_model_id": "google/gemini-2.5-flash"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemini-2.5-flash-image",
+      "canonical_model_id": "google/gemini-2.5-flash-image"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemini-2.5-flash-lite",
+      "canonical_model_id": "google/gemini-2.5-flash-lite"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemini-2.5-pro",
+      "canonical_model_id": "google/gemini-2.5-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemini-3-flash",
+      "canonical_model_id": "google/gemini-3-flash"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemini-3-pro-image",
+      "canonical_model_id": "google/gemini-3-pro-image"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemini-3.1-flash-image",
+      "canonical_model_id": "google/gemini-3.1-flash-image"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemini-3.1-flash-image-preview",
+      "canonical_model_id": "google/gemini-3.1-flash-image-preview"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemini-3.1-flash-lite",
+      "canonical_model_id": "google/gemini-3.1-flash-lite"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemini-3.1-flash-lite-image",
+      "canonical_model_id": "google/gemini-3.1-flash-lite-image"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemini-3.1-pro-preview",
+      "canonical_model_id": "google/gemini-3.1-pro-preview"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemini-3.5-flash",
+      "canonical_model_id": "google/gemini-3.5-flash"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemini-3.5-flash-lite",
+      "canonical_model_id": "google/gemini-3.5-flash-lite"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemini-3.5-transcribe",
+      "canonical_model_id": "google/gemini-3.5-transcribe"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemini-3.5-transcribe-live",
+      "canonical_model_id": "google/gemini-3.5-transcribe-live"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemini-3.6-flash",
+      "canonical_model_id": "google/gemini-3.6-flash"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemini-3.7-flash",
+      "canonical_model_id": "google/gemini-3.7-flash"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemini-3.8-flash",
+      "canonical_model_id": "google/gemini-3.8-flash"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemini-embedding-001",
+      "canonical_model_id": "google/gemini-embedding-001"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemini-embedding-2",
+      "canonical_model_id": "google/gemini-embedding-2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemini-omni-flash-preview",
+      "canonical_model_id": "google/gemini-omni-flash-preview"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemma-4-26b-a4b-it",
+      "canonical_model_id": "google/gemma-4-26b-a4b-it"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemma-4-31b-it",
+      "canonical_model_id": "google/gemma-4-31b-it"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/text-embedding-005",
+      "canonical_model_id": "google/text-embedding-005"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/text-multilingual-embedding-002",
+      "canonical_model_id": "google/text-multilingual-embedding-002"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/veo-3.0-fast-generate-001",
+      "canonical_model_id": "google/veo-3.0-fast-generate-001"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/veo-3.0-generate-001",
+      "canonical_model_id": "google/veo-3.0-generate-001"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/veo-3.1-fast-generate-001",
+      "canonical_model_id": "google/veo-3.1-fast-generate-001"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/veo-3.1-generate-001",
+      "canonical_model_id": "google/veo-3.1-generate-001"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/veo-3.1-lite-generate-001",
+      "canonical_model_id": "google/veo-3.1-lite-generate-001"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "inception/mercury-2",
+      "canonical_model_id": "inception/mercury-2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "inception/mercury-2.5",
+      "canonical_model_id": "inception/mercury-2.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "inception/mercury-coder-small",
+      "canonical_model_id": "inception/mercury-coder-small"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "inclusionai/ling-3.0-flash",
+      "canonical_model_id": "inclusionai/ling-3.0-flash"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "inclusionai/ling-3.0-flash-fin",
+      "canonical_model_id": "inclusionai/ling-3.0-flash-fin"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "inclusionai/ling-3.0-flash-fin-free",
+      "canonical_model_id": "inclusionai/ling-3.0-flash-fin-free"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "inclusionai/ling-3.0-flash-sante",
+      "canonical_model_id": "inclusionai/ling-3.0-flash-sante"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "inclusionai/ling-3.0-flash-sante-free",
+      "canonical_model_id": "inclusionai/ling-3.0-flash-sante-free"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "inclusionai/ling-3.0-flash-vl",
+      "canonical_model_id": "inclusionai/ling-3.0-flash-vl"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "inclusionai/ling-3.0-flash-vl-free",
+      "canonical_model_id": "inclusionai/ling-3.0-flash-vl-free"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "interfaze/interfaze-beta",
+      "canonical_model_id": "interfaze/interfaze-beta"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "klingai/kling-v2.5-turbo-i2v",
+      "canonical_model_id": "klingai/kling-v2.5-turbo-i2v"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "klingai/kling-v2.5-turbo-t2v",
+      "canonical_model_id": "klingai/kling-v2.5-turbo-t2v"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "klingai/kling-v2.6-i2v",
+      "canonical_model_id": "klingai/kling-v2.6-i2v"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "klingai/kling-v2.6-motion-control",
+      "canonical_model_id": "klingai/kling-v2.6-motion-control"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "klingai/kling-v2.6-t2v",
+      "canonical_model_id": "klingai/kling-v2.6-t2v"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "klingai/kling-v3.0-i2v",
+      "canonical_model_id": "klingai/kling-v3.0-i2v"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "klingai/kling-v3.0-motion-control",
+      "canonical_model_id": "klingai/kling-v3.0-motion-control"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "klingai/kling-v3.0-t2v",
+      "canonical_model_id": "klingai/kling-v3.0-t2v"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "kwaipilot/kat-coder-air-v2.5",
+      "canonical_model_id": "kwaipilot/kat-coder-air-v2.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "kwaipilot/kat-coder-pro-v1",
+      "canonical_model_id": "kwaipilot/kat-coder-pro-v1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "kwaipilot/kat-coder-pro-v2",
+      "canonical_model_id": "kwaipilot/kat-coder-pro-v2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "kwaipilot/kat-coder-pro-v2.5",
+      "canonical_model_id": "kwaipilot/kat-coder-pro-v2.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "meta/llama-3.1-70b",
+      "canonical_model_id": "meta/llama-3.1-70b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "meta/llama-3.1-8b",
+      "canonical_model_id": "meta/llama-3.1-8b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "meta/llama-3.3-70b",
+      "canonical_model_id": "meta/llama-3.3-70b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "meta/llama-4-maverick",
+      "canonical_model_id": "meta/llama-4-maverick"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "meta/llama-4-scout",
+      "canonical_model_id": "meta/llama-4-scout"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "meta/muse-glimmer-30b",
+      "canonical_model_id": "meta/muse-glimmer-30b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "meta/muse-image-1.0",
+      "canonical_model_id": "meta/muse-image-1.0"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "meta/muse-spark-1.1",
+      "canonical_model_id": "meta/muse-spark-1.1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "meta/muse-spark-1.2",
+      "canonical_model_id": "meta/muse-spark-1.2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "meta/muse-spark-1.2-contributor",
+      "canonical_model_id": "meta/muse-spark-1.2-contributor"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "meta/muse-spark-1.3",
+      "canonical_model_id": "meta/muse-spark-1.3"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "meta/muse-spark-1.3-contributor",
+      "canonical_model_id": "meta/muse-spark-1.3-contributor"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "minimax/minimax-h3",
+      "canonical_model_id": "minimax/minimax-h3"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "minimax/minimax-h3-max",
+      "canonical_model_id": "minimax/minimax-h3-max"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "minimax/minimax-m2",
+      "canonical_model_id": "minimax/minimax-m2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "minimax/minimax-m2.1",
+      "canonical_model_id": "minimax/minimax-m2.1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "minimax/minimax-m2.1-lightning",
+      "canonical_model_id": "minimax/minimax-m2.1-lightning"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "minimax/minimax-m2.5",
+      "canonical_model_id": "minimax/minimax-m2.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "minimax/minimax-m2.5-highspeed",
+      "canonical_model_id": "minimax/minimax-m2.5-highspeed"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "minimax/minimax-m2.7",
+      "canonical_model_id": "minimax/minimax-m2.7"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "minimax/minimax-m2.7-highspeed",
+      "canonical_model_id": "minimax/minimax-m2.7-highspeed"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "minimax/minimax-m3",
+      "canonical_model_id": "minimax/minimax-m3"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "mistral/codestral",
+      "canonical_model_id": "mistral/codestral"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "mistral/codestral-embed",
+      "canonical_model_id": "mistral/codestral-embed"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "mistral/devstral-2",
+      "canonical_model_id": "mistral/devstral-2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "mistral/devstral-small-2",
+      "canonical_model_id": "mistral/devstral-small-2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "mistral/ministral-14b",
+      "canonical_model_id": "mistral/ministral-14b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "mistral/ministral-3b",
+      "canonical_model_id": "mistral/ministral-3b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "mistral/ministral-8b",
+      "canonical_model_id": "mistral/ministral-8b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "mistral/mistral-embed",
+      "canonical_model_id": "mistral/mistral-embed"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "mistral/mistral-large-3",
+      "canonical_model_id": "mistral/mistral-large-3"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "mistral/mistral-medium",
+      "canonical_model_id": "mistral/mistral-medium"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "mistral/mistral-medium-3.5",
+      "canonical_model_id": "mistral/mistral-medium-3.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "mistral/mistral-nemo",
+      "canonical_model_id": "mistral/mistral-nemo"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "mistral/mistral-small",
+      "canonical_model_id": "mistral/mistral-small"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "mistral/pixtral-12b",
+      "canonical_model_id": "mistral/pixtral-12b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "moonshotai/kimi-k2",
+      "canonical_model_id": "moonshotai/kimi-k2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "moonshotai/kimi-k2-thinking",
+      "canonical_model_id": "moonshotai/kimi-k2-thinking"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "moonshotai/kimi-k2.5",
+      "canonical_model_id": "moonshotai/kimi-k2.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "moonshotai/kimi-k2.6",
+      "canonical_model_id": "moonshotai/kimi-k2.6"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "moonshotai/kimi-k2.7-code",
+      "canonical_model_id": "moonshotai/kimi-k2.7-code"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "moonshotai/kimi-k2.7-code-highspeed",
+      "canonical_model_id": "moonshotai/kimi-k2.7-code-highspeed"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "moonshotai/kimi-k3",
+      "canonical_model_id": "moonshotai/kimi-k3"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "moonshotai/kimi-k3-fast",
+      "canonical_model_id": "moonshotai/kimi-k3-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "morph/morph-v3-fast",
+      "canonical_model_id": "morph/morph-v3-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "morph/morph-v3-large",
+      "canonical_model_id": "morph/morph-v3-large"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "nvidia/nemotron-3-nano-30b-a3b",
+      "canonical_model_id": "nvidia/nemotron-3-nano-30b-a3b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "nvidia/nemotron-3-super-120b-a12b",
+      "canonical_model_id": "nvidia/nemotron-3-super-120b-a12b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "nvidia/nemotron-3-ultra-550b-a55b",
+      "canonical_model_id": "nvidia/nemotron-3-ultra-550b-a55b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "nvidia/nemotron-3.5-lightning",
+      "canonical_model_id": "nvidia/nemotron-3.5-lightning"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "nvidia/nemotron-nano-12b-v2-vl",
+      "canonical_model_id": "nvidia/nemotron-nano-12b-v2-vl"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "nvidia/nemotron-nano-9b-v2",
+      "canonical_model_id": "nvidia/nemotron-nano-9b-v2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-3.5-turbo",
+      "canonical_model_id": "openai/gpt-3.5-turbo"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-4-turbo",
+      "canonical_model_id": "openai/gpt-4-turbo"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-4.1",
+      "canonical_model_id": "openai/gpt-4.1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-4.1-fast",
+      "canonical_model_id": "openai/gpt-4.1-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-4.1-mini",
+      "canonical_model_id": "openai/gpt-4.1-mini"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-4.1-mini-fast",
+      "canonical_model_id": "openai/gpt-4.1-mini-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-4.1-nano",
+      "canonical_model_id": "openai/gpt-4.1-nano"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-4.1-nano-fast",
+      "canonical_model_id": "openai/gpt-4.1-nano-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-4o",
+      "canonical_model_id": "openai/gpt-4o"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-4o-fast",
+      "canonical_model_id": "openai/gpt-4o-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-4o-mini",
+      "canonical_model_id": "openai/gpt-4o-mini"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-4o-mini-fast",
+      "canonical_model_id": "openai/gpt-4o-mini-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-4o-mini-transcribe",
+      "canonical_model_id": "openai/gpt-4o-mini-transcribe"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-4o-transcribe",
+      "canonical_model_id": "openai/gpt-4o-transcribe"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5",
+      "canonical_model_id": "openai/gpt-5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5-codex",
+      "canonical_model_id": "openai/gpt-5-codex"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5-fast",
+      "canonical_model_id": "openai/gpt-5-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5-mini",
+      "canonical_model_id": "openai/gpt-5-mini"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5-mini-fast",
+      "canonical_model_id": "openai/gpt-5-mini-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5-nano",
+      "canonical_model_id": "openai/gpt-5-nano"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5-pro",
+      "canonical_model_id": "openai/gpt-5-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.1-codex",
+      "canonical_model_id": "openai/gpt-5.1-codex"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.1-codex-max",
+      "canonical_model_id": "openai/gpt-5.1-codex-max"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.1-codex-mini",
+      "canonical_model_id": "openai/gpt-5.1-codex-mini"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.1-thinking",
+      "canonical_model_id": "openai/gpt-5.1-thinking"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.1-thinking-fast",
+      "canonical_model_id": "openai/gpt-5.1-thinking-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.2",
+      "canonical_model_id": "openai/gpt-5.2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.2-codex",
+      "canonical_model_id": "openai/gpt-5.2-codex"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.2-fast",
+      "canonical_model_id": "openai/gpt-5.2-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.2-pro",
+      "canonical_model_id": "openai/gpt-5.2-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.3-codex",
+      "canonical_model_id": "openai/gpt-5.3-codex"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.3-codex-fast",
+      "canonical_model_id": "openai/gpt-5.3-codex-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.4",
+      "canonical_model_id": "openai/gpt-5.4"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.4-fast",
+      "canonical_model_id": "openai/gpt-5.4-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.4-mini",
+      "canonical_model_id": "openai/gpt-5.4-mini"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.4-mini-fast",
+      "canonical_model_id": "openai/gpt-5.4-mini-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.4-nano",
+      "canonical_model_id": "openai/gpt-5.4-nano"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.4-pro",
+      "canonical_model_id": "openai/gpt-5.4-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.5",
+      "canonical_model_id": "openai/gpt-5.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.5-fast",
+      "canonical_model_id": "openai/gpt-5.5-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.5-pro",
+      "canonical_model_id": "openai/gpt-5.5-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.6-luna",
+      "canonical_model_id": "openai/gpt-5.6-luna"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.6-luna-fast",
+      "canonical_model_id": "openai/gpt-5.6-luna-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.6-sol",
+      "canonical_model_id": "openai/gpt-5.6-sol"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.6-sol-fast",
+      "canonical_model_id": "openai/gpt-5.6-sol-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.6-terra",
+      "canonical_model_id": "openai/gpt-5.6-terra"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.6-terra-fast",
+      "canonical_model_id": "openai/gpt-5.6-terra-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-6-astra",
+      "canonical_model_id": "openai/gpt-6-astra"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-6-astra-fast",
+      "canonical_model_id": "openai/gpt-6-astra-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-image-1",
+      "canonical_model_id": "openai/gpt-image-1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-image-1-mini",
+      "canonical_model_id": "openai/gpt-image-1-mini"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-image-1.5",
+      "canonical_model_id": "openai/gpt-image-1.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-image-2",
+      "canonical_model_id": "openai/gpt-image-2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-image-2.5-flare",
+      "canonical_model_id": "openai/gpt-image-2.5-flare"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-image-2.5-sunburst",
+      "canonical_model_id": "openai/gpt-image-2.5-sunburst"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-oss-120b",
+      "canonical_model_id": "openai/gpt-oss-120b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-oss-20b",
+      "canonical_model_id": "openai/gpt-oss-20b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-oss-safeguard-120b",
+      "canonical_model_id": "openai/gpt-oss-safeguard-120b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-oss-safeguard-20b",
+      "canonical_model_id": "openai/gpt-oss-safeguard-20b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-realtime-1.5",
+      "canonical_model_id": "openai/gpt-realtime-1.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-realtime-2",
+      "canonical_model_id": "openai/gpt-realtime-2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-realtime-2.1",
+      "canonical_model_id": "openai/gpt-realtime-2.1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-realtime-mini",
+      "canonical_model_id": "openai/gpt-realtime-mini"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-realtime-whisper",
+      "canonical_model_id": "openai/gpt-realtime-whisper"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/o1",
+      "canonical_model_id": "openai/o1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/o3",
+      "canonical_model_id": "openai/o3"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/o3-fast",
+      "canonical_model_id": "openai/o3-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/o3-mini",
+      "canonical_model_id": "openai/o3-mini"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/o3-pro",
+      "canonical_model_id": "openai/o3-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/o4-mini",
+      "canonical_model_id": "openai/o4-mini"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/o4-mini-fast",
+      "canonical_model_id": "openai/o4-mini-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/text-embedding-3-large",
+      "canonical_model_id": "openai/text-embedding-3-large"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/text-embedding-3-small",
+      "canonical_model_id": "openai/text-embedding-3-small"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/text-embedding-ada-002",
+      "canonical_model_id": "openai/text-embedding-ada-002"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/tts-1",
+      "canonical_model_id": "openai/tts-1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/tts-1-hd",
+      "canonical_model_id": "openai/tts-1-hd"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/whisper-1",
+      "canonical_model_id": "openai/whisper-1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "perplexity/pplx-embed-v1-0.6b",
+      "canonical_model_id": "perplexity/pplx-embed-v1-0.6b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "perplexity/pplx-embed-v1-4b",
+      "canonical_model_id": "perplexity/pplx-embed-v1-4b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "perplexity/sonar",
+      "canonical_model_id": "perplexity/sonar"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "perplexity/sonar-pro",
+      "canonical_model_id": "perplexity/sonar-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "perplexity/sonar-reasoning-pro",
+      "canonical_model_id": "perplexity/sonar-reasoning-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "poolside/laguna-s-2.1",
+      "canonical_model_id": "poolside/laguna-s-2.1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "poolside/laguna-s-2.1-free",
+      "canonical_model_id": "poolside/laguna-s-2.1-free"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "prodia/flux-fast-schnell",
+      "canonical_model_id": "prodia/flux-fast-schnell"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "quiverai/arrow-1.1",
+      "canonical_model_id": "quiverai/arrow-1.1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "recraft/recraft-v2",
+      "canonical_model_id": "recraft/recraft-v2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "recraft/recraft-v3",
+      "canonical_model_id": "recraft/recraft-v3"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "recraft/recraft-v4",
+      "canonical_model_id": "recraft/recraft-v4"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "recraft/recraft-v4-pro",
+      "canonical_model_id": "recraft/recraft-v4-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "recraft/recraft-v4.1",
+      "canonical_model_id": "recraft/recraft-v4.1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "recraft/recraft-v4.1-pro",
+      "canonical_model_id": "recraft/recraft-v4.1-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "recraft/recraft-v4.1-utility",
+      "canonical_model_id": "recraft/recraft-v4.1-utility"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "recraft/recraft-v4.1-utility-pro",
+      "canonical_model_id": "recraft/recraft-v4.1-utility-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "sakana/fugu-max",
+      "canonical_model_id": "sakana/fugu-max"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "sakana/fugu-ultra",
+      "canonical_model_id": "sakana/fugu-ultra"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "sakana/fugu-ultra-v2",
+      "canonical_model_id": "sakana/fugu-ultra-v2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "sakana/namazu",
+      "canonical_model_id": "sakana/namazu"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "spacexai/grok-4.1-fast-non-reasoning",
+      "canonical_model_id": "spacexai/grok-4.1-fast-non-reasoning"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "spacexai/grok-4.1-fast-reasoning",
+      "canonical_model_id": "spacexai/grok-4.1-fast-reasoning"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "spacexai/grok-4.20-multi-agent",
+      "canonical_model_id": "spacexai/grok-4.20-multi-agent"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "spacexai/grok-4.20-multi-agent-beta",
+      "canonical_model_id": "spacexai/grok-4.20-multi-agent-beta"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "spacexai/grok-4.20-non-reasoning",
+      "canonical_model_id": "spacexai/grok-4.20-non-reasoning"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "spacexai/grok-4.20-non-reasoning-beta",
+      "canonical_model_id": "spacexai/grok-4.20-non-reasoning-beta"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "spacexai/grok-4.20-reasoning",
+      "canonical_model_id": "spacexai/grok-4.20-reasoning"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "spacexai/grok-4.20-reasoning-beta",
+      "canonical_model_id": "spacexai/grok-4.20-reasoning-beta"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "spacexai/grok-4.3",
+      "canonical_model_id": "spacexai/grok-4.3"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "spacexai/grok-4.5",
+      "canonical_model_id": "spacexai/grok-4.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "spacexai/grok-4.6",
+      "canonical_model_id": "spacexai/grok-4.6"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "spacexai/grok-build-0.1",
+      "canonical_model_id": "spacexai/grok-build-0.1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "spacexai/grok-imagine-image",
+      "canonical_model_id": "spacexai/grok-imagine-image"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "spacexai/grok-imagine-image-2.0",
+      "canonical_model_id": "spacexai/grok-imagine-image-2.0"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "spacexai/grok-imagine-video",
+      "canonical_model_id": "spacexai/grok-imagine-video"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "spacexai/grok-imagine-video-1.5",
+      "canonical_model_id": "spacexai/grok-imagine-video-1.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "spacexai/grok-stt",
+      "canonical_model_id": "spacexai/grok-stt"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "spacexai/grok-tts",
+      "canonical_model_id": "spacexai/grok-tts"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "spacexai/grok-voice-think-fast-1.0",
+      "canonical_model_id": "spacexai/grok-voice-think-fast-1.0"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "spacexai/grok-voice-think-fast-2.0",
+      "canonical_model_id": "spacexai/grok-voice-think-fast-2.0"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "stepfun/step-3.5-flash",
+      "canonical_model_id": "stepfun/step-3.5-flash"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "stepfun/step-3.7-flash",
+      "canonical_model_id": "stepfun/step-3.7-flash"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "tencent/hy-mt2-lite",
+      "canonical_model_id": "tencent/hy-mt2-lite"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "tencent/hy-mt2-plus",
+      "canonical_model_id": "tencent/hy-mt2-plus"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "tencent/hy-mt2-pro",
+      "canonical_model_id": "tencent/hy-mt2-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "tencent/hy3",
+      "canonical_model_id": "tencent/hy3"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "tencent/hy4-preview",
+      "canonical_model_id": "tencent/hy4-preview"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "thinkingmachines/inkling",
+      "canonical_model_id": "thinkingmachines/inkling"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "thinkingmachines/inkling-small",
+      "canonical_model_id": "thinkingmachines/inkling-small"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "voyage/rerank-2.5",
+      "canonical_model_id": "voyage/rerank-2.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "voyage/rerank-2.5-lite",
+      "canonical_model_id": "voyage/rerank-2.5-lite"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "voyage/voyage-3-large",
+      "canonical_model_id": "voyage/voyage-3-large"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "voyage/voyage-3.5",
+      "canonical_model_id": "voyage/voyage-3.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "voyage/voyage-3.5-lite",
+      "canonical_model_id": "voyage/voyage-3.5-lite"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "voyage/voyage-4",
+      "canonical_model_id": "voyage/voyage-4"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "voyage/voyage-4-large",
+      "canonical_model_id": "voyage/voyage-4-large"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "voyage/voyage-4-lite",
+      "canonical_model_id": "voyage/voyage-4-lite"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "voyage/voyage-code-2",
+      "canonical_model_id": "voyage/voyage-code-2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "voyage/voyage-code-3",
+      "canonical_model_id": "voyage/voyage-code-3"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "voyage/voyage-finance-2",
+      "canonical_model_id": "voyage/voyage-finance-2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "voyage/voyage-law-2",
+      "canonical_model_id": "voyage/voyage-law-2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "xiaomi/mimo-v2.5",
+      "canonical_model_id": "xiaomi/mimo-v2.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "xiaomi/mimo-v2.5-pro",
+      "canonical_model_id": "xiaomi/mimo-v2.5-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "zai/glm-4.5",
+      "canonical_model_id": "zai/glm-4.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "zai/glm-4.5-air",
+      "canonical_model_id": "zai/glm-4.5-air"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "zai/glm-4.5v",
+      "canonical_model_id": "zai/glm-4.5v"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "zai/glm-4.6",
+      "canonical_model_id": "zai/glm-4.6"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "zai/glm-4.7",
+      "canonical_model_id": "zai/glm-4.7"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "zai/glm-4.7-flash",
+      "canonical_model_id": "zai/glm-4.7-flash"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "zai/glm-4.7-flashx",
+      "canonical_model_id": "zai/glm-4.7-flashx"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "zai/glm-5",
+      "canonical_model_id": "zai/glm-5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "zai/glm-5-turbo",
+      "canonical_model_id": "zai/glm-5-turbo"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "zai/glm-5.1",
+      "canonical_model_id": "zai/glm-5.1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "zai/glm-5.2",
+      "canonical_model_id": "zai/glm-5.2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "zai/glm-5.2-fast",
+      "canonical_model_id": "zai/glm-5.2-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "zai/glm-5.3",
+      "canonical_model_id": "zai/glm-5.3"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "zai/glm-5.3-fast",
+      "canonical_model_id": "zai/glm-5.3-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "zai/glm-5.3-flash",
+      "canonical_model_id": "zai/glm-5.3-flash"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "zai/glm-5v-turbo",
+      "canonical_model_id": "zai/glm-5v-turbo"
     }
   ]
 }

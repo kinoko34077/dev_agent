@@ -111,6 +111,7 @@ class ResourceControlPlane:
             minimum_task_fit_score=metadata.get("minimum_task_fit_score"),
             allowed_provider_binding_ids=metadata.get("allowed_provider_binding_ids"),
             excluded_provider_binding_ids=metadata.get("excluded_provider_binding_ids", ()),
+            prefer_diversity=metadata.get("prefer_diversity") is True,
         )
 
     def select_route(

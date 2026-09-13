@@ -12,7 +12,7 @@ from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
 from src.dev_agent.resources.ledger import ResourceLedger
 from src.dev_agent.resources.billing_catalog import profile_for
 from src.dev_agent.resources.router import NoRoute, ResourceRouter, RouteRequest
-from scripts.refresh_model_catalog import refresh, write_candidate
+from scripts.refresh_model_catalog import merge_catalog_documents, refresh, write_candidate
 
 
 NOW = datetime(2026, 9, 14, 12, tzinfo=timezone.utc)
@@ -321,6 +321,31 @@ def test_catalog_candidate_writer_is_create_only_until_operator_explicitly_repla
     assert json.loads(output.read_text(encoding="utf-8"))["entries"][0]["model_id"] == "new"
 
 
+def test_catalog_refresh_merge_replaces_successful_binding_and_preserves_failed_or_unrequested_bindings():
+    base = {
+        "schema_version": 1,
+        "entries": [
+            {"provider_id": "gemini", "provider_binding_id": "gemini:a", "model_id": "old-a"},
+            {"provider_id": "other", "provider_binding_id": "other:a", "model_id": "other-a"},
+        ],
+    }
+    refreshed = {
+        "schema_version": 1,
+        "refreshed_bindings": [{"provider_id": "gemini", "provider_binding_id": "gemini:a"}],
+        "entries": [
+            {"provider_id": "gemini", "provider_binding_id": "gemini:a", "model_id": "new-a"},
+        ],
+        "discovery_failures": [],
+    }
+
+    merged = merge_catalog_documents(base, refreshed)
+
+    assert [(entry["provider_id"], entry["model_id"]) for entry in merged["entries"]] == [
+        ("gemini", "new-a"),
+        ("other", "other-a"),
+    ]
+
+
 def test_operator_configured_gemini_free_slots_have_exact_billing_profiles_for_discovered_core_model():
     profile = profile_for("gemini", "gemini:worker:free-2", "gemini-3.8-flash")
 
@@ -329,6 +354,16 @@ def test_operator_configured_gemini_free_slots_have_exact_billing_profiles_for_d
     assert profile.overage_policy == "hard_stop"
     assert profile.no_charge_guaranteed is True
     assert profile.intelligence_tier is None
+
+
+def test_billing_catalog_keeps_new_gemini_l2_pairs_exact():
+    admitted = profile_for("gemini", "gemini:worker:free-2", "gemini-3.7-flash")
+
+    assert admitted is not None
+    assert admitted.billing_mode == "recurring_allowance"
+    assert admitted.overage_policy == "hard_stop"
+    assert admitted.no_charge_guaranteed is True
+    assert profile_for("gemini", "gemini:worker:free-2", "gemini-3.6-flash") is None
 
 
 def test_router_uses_exact_model_admission_for_tier_capability_and_task_fit(tmp_path):

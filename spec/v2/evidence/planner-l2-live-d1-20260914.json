@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "status": "VALIDATED",
+  "observed_at": "2026-09-13T22:27:13.929431+00:00",
+  "purpose": "Bounded live D1 Free L2 Planner observation through the expanded qualified pool.",
+  "planner": {
+    "provider": "gemini",
+    "binding": "gemini:worker:free-3::model::gemini-3.6-flash::cf27b68ecf38",
+    "model": "gemini-3.6-flash",
+    "intelligence_tier": "L2",
+    "qualification_confidence": "high",
+    "qualification_scope": "text_only_unknown_quota",
+    "quota_status": "unknown_not_reported",
+    "json_mode": "responseMimeType_application_json"
+  },
+  "pool": {
+    "required_tier": "L2",
+    "automatic_l1_downgrade": false,
+    "eligible": [
+      {
+        "provider": "gemini",
+        "binding": "gemini:core::model::gemini-3.8-flash::319034f3e25d",
+        "model": "gemini-3.8-flash",
+        "quota_domain": "gemini:project:core",
+        "intelligence_tier": "L2"
+      },
+      {
+        "provider": "gemini",
+        "binding": "gemini:worker:free-3::model::gemini-3.6-flash::cf27b68ecf38",
+        "model": "gemini-3.6-flash",
+        "quota_domain": "gemini:project:982142111392",
+        "intelligence_tier": "L2"
+      },
+      {
+        "provider": "gemini",
+        "binding": "gemini:worker:free-3::model::gemini-3.8-flash::319034f3e25d",
+        "model": "gemini-3.8-flash",
+        "quota_domain": "gemini:project:982142111392",
+        "intelligence_tier": "L2"
+      }
+    ],
+    "selection": "gemini:worker:free-3 / gemini-3.6-flash"
+  },
+  "proposal": {
+    "proposal_id": "a67c3f46-271a-47ae-a9ab-08b006652baa",
+    "proposal_sha256": "b7f09ec8a5a9c327b9a3673a385ab10ed3b91310f5049b66472ab697ad5af5",
+    "parent_task_id": "2b7ce3c5-96a1-4c4e-8d5d-1f0a0d6361d2",
+    "child_count": 1,
+    "child_keys": ["session_discovery_test_and_impl"],
+    "suggested_owners": ["codex"],
+    "host_validation": "passed"
+  },
+  "dispatch_audits": [
+    {
+      "provider": "gemini",
+      "binding": "gemini:worker:free-3::model::gemini-3.6-flash::cf27b68ecf38",
+      "model": "gemini-3.6-flash",
+      "outcome": "succeeded"
+    }
+  ],
+  "safety": {
+    "proposal_only": true,
+    "commander_plan_created": false,
+    "implementation_dispatched": false,
+    "l1_fallback": false,
+    "raw_provider_response_recorded": false
+  }
+}
