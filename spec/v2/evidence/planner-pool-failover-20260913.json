@@ -3,6 +3,7 @@
   "checked_at": "2026-09-13",
   "implementation_commit": "c9789b2fe7b93586f422d59e17826fb246f64cc0",
   "scope": "planner provider pool and failover semantics",
+  "planner_prompt_shape_fix_commit": "24f4eb3",
   "live_planner_status": "NOT_VERIFIED",
   "catalog_inventory": {
     "current_high_confidence_l2_count": 1,
@@ -36,8 +37,10 @@
       "planner-live-observation-20260913.json",
       "planner-live-observation-20260913-02.json"
     ],
-    "new_request": "NOT_SENT",
-    "reason": "This execution environment rejected transmission of the internal planning objective and repository/branch context to the external Gemini destination; no workaround or alternate external send was attempted."
+    "new_request": "SENT_BOUNDED",
+    "latest_evidence": "planner-live-observation-20260913-03.json",
+    "result": "pool_exhausted",
+    "reason": "A sanitized generic planning-shape request reached the sole admitted L2 identity and received a confirmed provider_unavailable result; no alternate qualified L2 identity was available."
   },
   "verification": {
     "focused_provider_planner_tests": "PASS",

@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "status": "pool_exhausted",
+  "result": "NOT_VERIFIED",
+  "checked_at": "2026-09-13T14:45:24.711178+00:00",
+  "implementation_commits": {
+    "planner_pool_failover": "c9789b2fe7b93586f422d59e17826fb246f64cc0",
+    "planner_prompt_shape_fix": "24f4eb3"
+  },
+  "request_boundary": {
+    "attempt_count": 1,
+    "timeout_seconds": 30,
+    "objective_class": "generic_schema_observation",
+    "internal_repository_context_sent": false,
+    "raw_prompt_persisted": false
+  },
+  "routing": {
+    "required_intelligence_tier": "L2",
+    "eligible_pool": [
+      {
+        "provider": "gemini",
+        "binding": "gemini:core",
+        "model": "gemini-3.8-flash",
+        "quota_domain": "gemini-core-account"
+      }
+    ],
+    "attempts": [
+      {
+        "provider": "gemini",
+        "binding": "gemini:core",
+        "model": "gemini-3.8-flash",
+        "category": "provider_unavailable",
+        "failover_safe": true,
+        "reconciliation_required": false
+      }
+    ]
+  },
+  "host_validation": "not_run",
+  "proposal_digest": null,
+  "notes": [
+    "The bounded request reached the exact qualified L2 route and was classified as confirmed provider unavailability.",
+    "Only one exact current high-confidence L2 identity is presently admitted, so no alternate L2 call was possible.",
+    "No proposal was produced; D1 remains unverified. No automatic L1 downgrade or retry storm was used."
+  ]
+}
