@@ -53,6 +53,19 @@ def test_probe_catalog_is_fixed_and_bounded():
         probe_specs(["P9"])
 
 
+def test_higher_probe_levels_have_concrete_tasks_and_bounded_expected_shapes():
+    specs = {item.level: item for item in probe_specs()}
+
+    assert "[[1, 2], [3, 4]]" in specs["P3"].prompt
+    assert "[A, B, C]" in specs["P4"].prompt
+    assert "budget=" in specs["P5"].prompt and "quality=" in specs["P5"].prompt
+
+    assert run_probe(_ProbeProvider("numpy: [[1, 2], [3, 4]].T -> [[1, 3], [2, 4]]"), specs["P3"])["status"] == "passed"
+    assert run_probe(_ProbeProvider("import numpy as np; matrix.T -> [[1 3] [2 4]]"), specs["P3"])["status"] == "passed"
+    assert run_probe(_ProbeProvider("C, B, A"), specs["P4"])["status"] == "passed"
+    assert run_probe(_ProbeProvider("budget=A; quality=B"), specs["P5"])["status"] == "passed"
+
+
 def test_probe_exact_response_passes_p0_and_request_is_bounded():
     provider = _ProbeProvider(" A ")
 

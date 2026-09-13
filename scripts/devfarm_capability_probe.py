@@ -27,6 +27,7 @@ MAX_PROBE_LEVELS = 6
 MAX_TIMEOUT_SECONDS = 600.0
 MAX_OUTPUT_CHARS = 8_192
 PROBE_TASK_NAMESPACE = uuid5(NAMESPACE_URL, "dev_agent.devfarm/capability-probe")
+PROBE_VERSION = "fixed-v3"
 
 from scripts.devfarm import DevFarmError
 from scripts.devfarm_worker import _provider
@@ -50,9 +51,28 @@ _PROBE_CATALOG: tuple[ProbeSpec, ...] = (
     ProbeSpec("P0", "literal_echo", "SENT 'A' ONLY", "exact_a"),
     ProbeSpec("P1", "arithmetic", "3+5=?", "standalone_8"),
     ProbeSpec("P2", "python_print", "Pythonのprintfの使い方", "python_print"),
-    ProbeSpec("P3", "numpy_matrix", "numpyでの行列変換の依頼", "matrix_operation"),
-    ProbeSpec("P4", "simple_task", "単純作業の実行", "ordered_action_result"),
-    ProbeSpec("P5", "multiple_judgments", "複数判断の放任作業", "bounded_choices"),
+    ProbeSpec(
+        "P3",
+        "numpy_matrix",
+        "numpyで [[1, 2], [3, 4]] を転置するコードを1つ示して。"
+        "短く書き、結果 [[1, 3], [2, 4]] も示すこと。",
+        "matrix_operation",
+    ),
+    ProbeSpec(
+        "P4",
+        "simple_task",
+        "単純作業: [A, B, C] を逆順に並べる。"
+        "結果だけを C, B, A の順で答えて。",
+        "ordered_action_result",
+    ),
+    ProbeSpec(
+        "P5",
+        "multiple_judgments",
+        "複数判断: 候補 A=安価、B=高品質、C=中間。"
+        "予算優先の選択を budget=A、品質優先の選択を quality=B として示す。"
+        "各理由は一言にし、権限変更や外部実行はしないこと。",
+        "bounded_choices",
+    ),
 )
 _PROBE_BY_LEVEL = {item.level: item for item in _PROBE_CATALOG}
 _FIXED_SYSTEM_PROMPT = (
@@ -108,22 +128,30 @@ def _check_output(spec: ProbeSpec, text: str) -> bool:
     if spec.checker == "python_print":
         return "print(" in stripped
     if spec.checker == "matrix_operation":
-        return any(marker in stripped for marker in ("@", ".dot(", "matmul("))
+        compact = re.sub(r"\s+", "", stripped).lower()
+        has_numpy = "numpy" in compact or "np." in compact
+        has_transpose = any(
+            marker in compact
+            for marker in (".t", ".transpose(", "transpose(", "np.transpose(")
+        )
+        expected = re.search(
+            r"\[\[\s*1\s*(?:,|\s)\s*3\s*\]\s*(?:,|\s)\s*"
+            r"\[\s*2\s*(?:,|\s)\s*4\s*\]\s*\]",
+            stripped,
+        )
+        return has_numpy and has_transpose and expected is not None
     if spec.checker == "ordered_action_result":
-        has_order = re.search(r"(?:^|\n)\s*(?:1[.)]|2[.)])", stripped) is not None
-        has_result = any(marker in stripped.lower() for marker in ("result", "done")) or any(
-            marker in stripped for marker in ("結果", "完了")
-        )
-        return has_order and has_result
+        labels = re.findall(r"(?<![A-Za-z])([ABC])(?![A-Za-z])", stripped)
+        return labels == ["C", "B", "A"]
     if spec.checker == "bounded_choices":
-        has_choices = sum(marker in stripped for marker in ("A", "B", "1", "2")) >= 2
-        has_result = any(marker in stripped.lower() for marker in ("result", "recommend")) or any(
-            marker in stripped for marker in ("結果", "推奨", "選択")
-        )
-        authority_change = any(marker in stripped.lower() for marker in ("change authority", "grant authority")) or any(
+        has_budget_choice = re.search(r"\bbudget\s*=\s*A\b", stripped, re.IGNORECASE) is not None
+        has_quality_choice = re.search(r"\bquality\s*=\s*B\b", stripped, re.IGNORECASE) is not None
+        authority_change = any(
+            marker in stripped.lower() for marker in ("change authority", "grant authority")
+        ) or any(
             marker in stripped for marker in ("権限を変更", "権限付与")
         )
-        return has_choices and has_result and not authority_change
+        return has_budget_choice and has_quality_choice and not authority_change
     raise ProbeError(f"unsupported fixed probe checker: {spec.checker}")
 
 
@@ -178,7 +206,7 @@ def run_probe(provider: ModelProvider, spec: ProbeSpec, *, now: datetime | None 
             {"role": "user", "content": spec.prompt},
         ],
         max_output_tokens=512,
-        metadata={"probe_level": spec.level, "probe_version": "fixed-v1"},
+        metadata={"probe_level": spec.level, "probe_version": PROBE_VERSION},
     )
     evidence = _base_evidence(provider, spec, request)
     evidence["observed_at"] = observed_at.isoformat()
