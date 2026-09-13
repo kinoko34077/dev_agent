@@ -52,6 +52,11 @@ class _ConcurrentProvider(FakeProvider):
         )
 
 
+class _BoundaryFailureProvider(_ConcurrentProvider):
+    def request(self, request: ModelRequest) -> ModelResponse:
+        raise RuntimeError("simulated adapter boundary failure")
+
+
 def _git(cwd, *args):
     return subprocess.run(
         ["git", "-c", f"safe.directory={cwd.as_posix()}", *args],
@@ -155,6 +160,25 @@ def test_remote_proposals_are_bounded_without_creating_worktrees(tmp_path):
     assert orchestrator.remote_governor.snapshot()["peak"] == 2
     assert not (root / ".devfarm/worktrees/orchestrator-1").exists()
     assert not (root / ".devfarm/worktrees/orchestrator-2").exists()
+
+
+def test_unexpected_worker_boundary_failure_is_persisted_per_attempt(tmp_path):
+    target = "tests/v2/worker.py"
+    root, manifests = _repo(tmp_path, [target])
+    orchestrator = DevFarmOrchestrator(
+        remote_governor=RemoteConcurrencyGovernor(max_inflight=1),
+    )
+
+    proposals = orchestrator.propose(root, [(manifests[0], _BoundaryFailureProvider(_output(target)))])
+
+    assert proposals[0]["status"] == "failed"
+    attempt_id = proposals[0]["attempt_id"]
+    result_path = root / ".devfarm" / "results" / "orchestrator-1" / "attempts" / attempt_id / "result.json"
+    assert result_path.is_file()
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert result["base_revision"] == proposals[0]["base_revision"]
+    assert result["worker_metrics"]["boundary_exception"] is True
+    assert "simulated adapter boundary failure" in result["known_issues"][0]
 
 
 def test_run_creates_worktree_only_for_host_verification(tmp_path):

@@ -15,8 +15,9 @@ import json
 from pathlib import Path
 import threading
 from typing import Any, Iterator, Mapping, Sequence
+from uuid import uuid4
 
-from scripts.devfarm import DevFarmError, validate_manifest
+from scripts.devfarm import DevFarmError, validate_manifest, write_result
 from scripts.devfarm_worker import apply_and_verify, run_worker
 from src.dev_agent.providers.base import ModelProvider
 
@@ -229,13 +230,26 @@ class DevFarmOrchestrator:
     def _propose(self, root: Path, assignment: WorkerAssignment) -> dict[str, Any]:
         binding_id = getattr(assignment.provider, "provider_binding_id", None) or getattr(assignment.provider, "provider_id", None)
         with self.remote_governor.slot(binding_id):
-            return run_worker(root, assignment.manifest_path, provider=assignment.provider)
+            try:
+                return run_worker(root, assignment.manifest_path, provider=assignment.provider)
+            except Exception as exc:
+                # run_worker normally records its own bounded result artifact.
+                # An unexpected boundary exception can occur before that
+                # helper has an attempt id (for example a provider adapter
+                # raising a non-ProviderError). Preserve the exception as a
+                # task-scoped failed result so Commander status, retry and
+                # review tooling have durable evidence instead of a silent
+                # proposal_dispatch_error with no artifact.
+                manifest = validate_manifest(json.loads(assignment.manifest_path.read_text(encoding="utf-8")))
+                result = self._failed_boundary_result(exc, manifest=manifest)
+                write_result(root, result, manifest=manifest)
+                return result
 
     @staticmethod
-    def _failed_boundary_result(exc: Exception) -> dict[str, Any]:
+    def _failed_boundary_result(exc: Exception, *, manifest: Mapping[str, Any] | None = None) -> dict[str, Any]:
         """Represent one unexpected worker boundary failure independently."""
 
-        return {
+        result: dict[str, Any] = {
             "status": "failed",
             "changed_files": [],
             "tests_run": [],
@@ -244,6 +258,14 @@ class DevFarmOrchestrator:
             "assumptions": ["The sibling assignments were collected independently."],
             "worker_metrics": {"boundary_exception": True},
         }
+        if manifest is not None:
+            result.update(
+                {
+                    "attempt_id": uuid4().hex,
+                    "base_revision": manifest["base_revision"],
+                }
+            )
+        return result
 
     def propose(
         self,
