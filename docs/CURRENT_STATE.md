@@ -10,7 +10,7 @@
 | Local regression | `994 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 178.86s) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | The post-D2 `c036ff4` run had `v2-provider-smoke` PASS and `v2-core` failed during Python 3.11 collection; `cd2a39f` fixed the first model-catalog default and exposed the matching discovery default, fixed in `4e96630`; exact-head CI for `4e96630` is pending |
+| Exact-head CI | PASS for synchronized branch commit `8c25513`: `v2-core` [run 34790435399](https://github.com/kinoko34077/dev_agent/actions/runs/34790435399) (Python 3.10/3.11 and architecture/compile steps) and `v2-provider-smoke` [run 34790435394](https://github.com/kinoko34077/dev_agent/actions/runs/34790435394). Earlier `c036ff4`/`cd2a39f` failures were Python 3.11 collection defects fixed in `4e96630`. |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The detailed pre-consolidation snapshot is preserved at [`docs/archive/current-state/2026-09-13-pre-consolidation.md`](archive/current-state/2026-09-13-pre-consolidation.md).
