@@ -917,10 +917,19 @@ def _prompt(manifest: Mapping[str, Any], inputs: str) -> str:
     )
 
 
-def _provider(name: str, model: str, timeout_seconds: float) -> ModelProvider:
+def _provider(
+    name: str,
+    model: str,
+    timeout_seconds: float,
+    provider_binding_id: str | None = None,
+) -> ModelProvider:
     policy = DevFarmActivationPolicy()
-    policy.ensure_active(name, model)
-    binding_id, intelligence_tier = policy.binding_for(name, model)
+    policy.ensure_active(name, model, provider_binding_id=provider_binding_id)
+    binding_id, intelligence_tier = policy.binding_for(
+        name,
+        model,
+        provider_binding_id=provider_binding_id,
+    )
     try:
         return ProviderFactory().create(
             ProviderDefinition(

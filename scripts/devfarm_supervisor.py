@@ -868,6 +868,7 @@ def _providers_for_resume(root: Path, run_id: str, timeout_seconds: float) -> di
             assignment["provider_id"],
             assignment["model_id"],
             timeout_seconds,
+            assignment.get("provider_binding_id"),
         )
     return providers
 

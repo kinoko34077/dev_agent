@@ -17,6 +17,7 @@ from scripts.devfarm_supervisor_protocol import (
     select_heartbeat_cadence,
 )
 from scripts.devfarm_supervisor import CodexSupervisedCommanderRun
+from scripts.devfarm_supervisor import _providers_for_resume
 from scripts.devfarm_commander import create_plan
 
 
@@ -253,6 +254,71 @@ def test_supervisor_exposes_codex_owned_ready_task_action_without_sleep(tmp_path
 
     assert step.status == "ACTIVE"
     assert step.next_action == "execute_codex_task"
+
+
+def test_supervisor_resume_preserves_assigned_worker_binding(tmp_path, monkeypatch):
+    write_manifest(
+        tmp_path,
+        {
+            "task_id": "worker-task",
+            "objective": "preserve the assigned binding",
+            "base_revision": "abc123",
+            "allowed_files": ["tests/v2/worker.py"],
+            "read_files": ["tests/v2/worker.py"],
+            "forbidden_files": [],
+            "external_provider_allowed": True,
+            "approved_provider_ids": ["gemini"],
+            "outbound_files": ["tests/v2/worker.py"],
+            "requirements": [],
+            "acceptance": [],
+            "test_commands": ["python -m pytest tests/v2/worker.py -q"],
+            "max_attempts": 1,
+            "output_contract": {},
+        },
+    )
+    create_plan(
+        tmp_path,
+        _plan(
+            tasks=[
+                {
+                    "task_id": "worker-task",
+                    "owner": "worker",
+                    "status": "READY",
+                    "ownership": [],
+                    "dependencies": [],
+                    "manifest_path": ".devfarm/tasks/worker-task.json",
+                    "assignment": {
+                        "provider_id": "gemini",
+                        "provider_binding_id": "gemini:worker:free-3",
+                        "model_id": "gemini-3.6-flash",
+                    },
+                }
+            ],
+            ownership=[{"task_id": "worker-task", "paths": []}],
+            assignments=[
+                {
+                    "task_id": "worker-task",
+                    "owner": "worker",
+                    "provider_id": "gemini",
+                    "provider_binding_id": "gemini:worker:free-3",
+                    "model_id": "gemini-3.6-flash",
+                }
+            ],
+            dependencies=[{"task_id": "worker-task", "depends_on": []}],
+        ),
+    )
+    calls = []
+
+    def fake_provider(name, model, timeout_seconds, provider_binding_id=None):
+        calls.append((name, model, timeout_seconds, provider_binding_id))
+        return object()
+
+    monkeypatch.setattr("scripts.devfarm_worker._provider", fake_provider)
+
+    providers = _providers_for_resume(tmp_path, "supervisor-test-001", 30)
+
+    assert set(providers) == {"worker-task"}
+    assert calls == [("gemini", "gemini-3.6-flash", 30, "gemini:worker:free-3")]
 
 
 def test_supervisor_step_exposes_plan_delegation_summary(tmp_path):
