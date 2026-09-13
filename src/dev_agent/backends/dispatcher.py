@@ -49,6 +49,101 @@ class AgentBackendDispatchIdentity:
     request_fingerprint: str
     client_session_key: str
 
+    def __post_init__(self) -> None:
+        for name in ("task_id", "backend_id", "dispatch_id", "workspace_id", "request_fingerprint", "client_session_key"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{name} must be a non-empty string")
+            object.__setattr__(self, name, value.strip())
+        if isinstance(self.attempt, bool) or not isinstance(self.attempt, int) or self.attempt <= 0:
+            raise ValueError("attempt must be a positive integer")
+        paths = tuple(path.strip() for path in self.allowed_paths if isinstance(path, str) and path.strip())
+        if len(paths) != len(self.allowed_paths):
+            raise ValueError("allowed_paths must contain non-empty strings")
+        object.__setattr__(self, "allowed_paths", paths)
+        fingerprint = self.request_fingerprint
+        if len(fingerprint) != 64 or any(character not in "0123456789abcdefABCDEF" for character in fingerprint):
+            raise ValueError("request_fingerprint must be a 64-character hexadecimal digest")
+        object.__setattr__(self, "request_fingerprint", fingerprint.lower())
+
+
+@dataclass(frozen=True)
+class AgentBackendDiscoveryRequest:
+    """Exact durable identity presented to an explicit discovery authority."""
+
+    identity: AgentBackendDispatchIdentity
+    actor: str
+    source: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.identity, AgentBackendDispatchIdentity):
+            raise TypeError("identity must be an AgentBackendDispatchIdentity")
+        for name in ("actor", "source"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{name} must be a non-empty string")
+            object.__setattr__(self, name, value.strip())
+
+
+@dataclass(frozen=True)
+class AgentBackendDiscoveryReceipt:
+    """Authority-bound proof that one exact external session was located.
+
+    A backend adapter may expose a structural ``discover`` capability, but
+    the dispatcher never calls that capability implicitly.  The caller-owned
+    discovery authority must bind its result to the complete dispatch
+    identity and retain an evidence reference before reconciliation can
+    persist the session.
+    """
+
+    identity: AgentBackendDispatchIdentity
+    session: AgentBackendSession
+    evidence_ref: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.identity, AgentBackendDispatchIdentity):
+            raise TypeError("identity must be an AgentBackendDispatchIdentity")
+        if not isinstance(self.session, AgentBackendSession):
+            raise TypeError("session must be an AgentBackendSession")
+        if not isinstance(self.evidence_ref, str) or not self.evidence_ref.strip():
+            raise ValueError("evidence_ref must be a non-empty string")
+        evidence_ref = self.evidence_ref.strip()
+        if len(evidence_ref) > 512 or any(ord(character) < 32 or ord(character) == 127 for character in evidence_ref):
+            raise ValueError("evidence_ref contains unsafe or oversized data")
+        object.__setattr__(self, "evidence_ref", evidence_ref)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "identity": {
+                "task_id": self.identity.task_id,
+                "backend_id": self.identity.backend_id,
+                "dispatch_id": self.identity.dispatch_id,
+                "attempt": self.identity.attempt,
+                "workspace_id": self.identity.workspace_id,
+                "allowed_paths": list(self.identity.allowed_paths),
+                "request_fingerprint": self.identity.request_fingerprint,
+                "client_session_key": self.identity.client_session_key,
+            },
+            "session": self.session.to_dict(),
+            "evidence_ref": self.evidence_ref,
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "AgentBackendDiscoveryReceipt":
+        if not isinstance(value, Mapping):
+            raise TypeError("discovery receipt must be an object")
+        identity = value.get("identity")
+        session = value.get("session")
+        if not isinstance(identity, Mapping) or not isinstance(session, Mapping):
+            raise TypeError("discovery receipt identity and session must be objects")
+        return cls(
+            identity=AgentBackendDispatchIdentity(
+                **{**dict(identity), "allowed_paths": tuple(identity.get("allowed_paths") or ())}
+            ),
+            session=AgentBackendSession(**dict(session)),
+            evidence_ref=value.get("evidence_ref"),
+        )
+
 
 AuthorizeBackend = Callable[[Task, AgentBackendRequest], bool]
 
@@ -126,6 +221,7 @@ class BackendAdmission:
 
 
 BackendAdmissionCallback = Callable[[Task, AgentBackendRequest, AgentBackendDispatchIdentity], BackendAdmission | None]
+BackendDiscoveryAuthority = Callable[[AgentBackendDiscoveryRequest, AgentBackend], AgentBackendDiscoveryReceipt | None]
 
 
 class AgentBackendDispatcher:
@@ -150,10 +246,12 @@ class AgentBackendDispatcher:
         *,
         authorize: AuthorizeBackend | None = None,
         admission: BackendAdmissionCallback | None = None,
+        discovery: BackendDiscoveryAuthority | None = None,
     ) -> None:
         self._store = store
         self._authorize = authorize or (lambda task, request: False)
         self._admission = admission or (lambda task, request, identity: None)
+        self._discovery = discovery
 
     @staticmethod
     def effect_key(dispatch_id: str) -> str:
@@ -255,10 +353,12 @@ class AgentBackendDispatcher:
     ) -> AgentBackendSession:
         """Recover a session created before its local receipt was persisted.
 
-        This is an explicit reconciliation operation, not a retry.  A backend
-        is eligible only when it exposes ``discover(client_session_key)``;
-        otherwise the dispatch is made UNKNOWN and must be handled by the
-        existing operator/reconciliation path.
+        This is an explicit reconciliation operation, not a retry.  Discovery
+        is eligible only when the caller injects an authority which returns a
+        receipt bound to the exact durable dispatch identity.  A backend's
+        structural ``discover(client_session_key)`` method is not called by
+        this dispatcher on its own; without the authority the dispatch is
+        made UNKNOWN and must be handled by the existing operator path.
         """
 
         if not isinstance(actor, str) or not actor.strip() or not isinstance(source, str) or not source.strip():
@@ -279,18 +379,50 @@ class AgentBackendDispatcher:
                 {"reason": "missing_client_session_key", "actor": actor.strip(), "source": source.strip()},
             )
             raise BackendDispatchUncertain(f"backend start cannot be reconciled without discovery identity: {dispatch_id}")
-        discover = getattr(backend, "discover", None)
-        if not callable(discover):
+        if self._discovery is None:
             self._mark_unknown(
                 key,
                 self._task_for_intent(intent),
                 "agent_backend.start_reconcile_unknown",
-                {"reason": "backend_discovery_unavailable", "actor": actor.strip(), "source": source.strip()},
+                {"reason": "discovery_authority_unavailable", "actor": actor.strip(), "source": source.strip()},
             )
-            raise BackendDispatchUncertain(f"backend start discovery is unavailable: {dispatch_id}")
+            raise BackendDispatchUncertain(f"backend start discovery authority is unavailable: {dispatch_id}")
         task = self._task_for_intent(intent)
         try:
-            session = discover(client_session_key.strip())
+            identity = AgentBackendDispatchIdentity(
+                task_id=arguments.get("task_id"),
+                backend_id=arguments.get("backend_id"),
+                dispatch_id=arguments.get("dispatch_id"),
+                attempt=arguments.get("attempt"),
+                workspace_id=arguments.get("workspace_id"),
+                allowed_paths=tuple(arguments.get("allowed_paths") or ()),
+                request_fingerprint=arguments.get("request_fingerprint"),
+                client_session_key=client_session_key.strip(),
+            )
+        except (TypeError, ValueError) as exc:
+            self._mark_unknown(
+                key,
+                task,
+                "agent_backend.start_reconcile_unknown",
+                {"reason": "invalid_discovery_identity", "actor": actor.strip(), "source": source.strip()},
+            )
+            raise BackendDispatchUncertain(f"backend start discovery identity is invalid: {dispatch_id}") from exc
+        if identity.task_id != task.task_id or identity.dispatch_id != dispatch_id or identity.backend_id != backend.identity.backend_id:
+            self._mark_unknown(
+                key,
+                task,
+                "agent_backend.start_reconcile_unknown",
+                {"reason": "discovery_identity_mismatch", "actor": actor.strip(), "source": source.strip()},
+            )
+            raise BackendDispatchUncertain(f"backend start discovery identity mismatched: {dispatch_id}")
+        discovery_request = AgentBackendDiscoveryRequest(identity=identity, actor=actor, source=source)
+        try:
+            receipt = self._discovery(discovery_request, backend)
+            if not isinstance(receipt, AgentBackendDiscoveryReceipt):
+                raise AgentBackendDispatchError("discovery authority returned no typed receipt")
+            if receipt.identity != identity:
+                raise AgentBackendDispatchError("discovery authority returned a mismatched dispatch identity")
+            session = receipt.session
             session = self._validate_session_for_task(
                 session,
                 task,
@@ -308,6 +440,8 @@ class AgentBackendDispatcher:
         payload = {
             "session": session.to_dict(),
             "start_reconciled": True,
+            "request_fingerprint": identity.request_fingerprint,
+            "discovery_evidence_ref": receipt.evidence_ref,
             "actor": actor.strip(),
             "source": source.strip(),
         }
@@ -319,6 +453,8 @@ class AgentBackendDispatcher:
                 "dispatch_id": dispatch_id,
                 "backend_session_id": session.session_id,
                 "client_session_key": client_session_key.strip(),
+                "request_fingerprint": identity.request_fingerprint,
+                "discovery_evidence_ref": receipt.evidence_ref,
                 "actor": actor.strip(),
                 "source": source.strip(),
             },
@@ -777,6 +913,9 @@ __all__ = [
     "AgentBackendDispatchError",
     "AgentBackendDispatchIdentity",
     "AgentBackendDispatcher",
+    "AgentBackendDiscoveryReceipt",
+    "AgentBackendDiscoveryRequest",
     "BackendAdmission",
     "BackendDispatchUncertain",
+    "BackendDiscoveryAuthority",
 ]

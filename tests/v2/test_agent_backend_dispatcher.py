@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import threading
 import time
 from uuid import uuid4
@@ -9,6 +10,7 @@ import pytest
 from src.dev_agent.backends import (
     BackendAdmission,
     AgentBackendArtifactReference,
+    AgentBackendDiscoveryReceipt,
     AgentBackendDispatcher,
     AgentBackendDispatchError,
     AgentBackendEvent,
@@ -16,6 +18,7 @@ from src.dev_agent.backends import (
     AgentBackendRequest,
     AgentBackendResult,
     AgentBackendScope,
+    AgentBackendSession,
     AgentBackendStatus,
     BackendDispatchUncertain,
 )
@@ -28,6 +31,7 @@ class _DiscoverableBackend(FakeAgentBackend):
     def __init__(self, sessions, **kwargs):
         super().__init__(**kwargs)
         self._sessions = sessions
+        self.discover_calls = 0
 
     def start(self, request):
         session = super().start(request)
@@ -35,6 +39,7 @@ class _DiscoverableBackend(FakeAgentBackend):
         return session
 
     def discover(self, client_session_key):
+        self.discover_calls += 1
         return self._sessions.get(client_session_key)
 
 
@@ -61,7 +66,7 @@ def task(store):
     return value
 
 
-def _dispatcher(store, *, authorize=None):
+def _dispatcher(store, *, authorize=None, discovery=None):
     def admission(task, request, identity):
         return BackendAdmission(
             task_id=identity.task_id,
@@ -83,6 +88,21 @@ def _dispatcher(store, *, authorize=None):
         store,
         authorize=authorize or (lambda task, request: True),
         admission=admission,
+        discovery=discovery,
+    )
+
+
+def _explicit_discovery(request, backend):
+    discover = getattr(backend, "discover", None)
+    if not callable(discover):
+        return None
+    session = discover(request.identity.client_session_key)
+    if session is None:
+        return None
+    return AgentBackendDiscoveryReceipt(
+        identity=request.identity,
+        session=session,
+        evidence_ref=f"fixture:discovery:{request.identity.dispatch_id}",
     )
 
 
@@ -151,9 +171,10 @@ def test_start_persistence_crash_is_recovered_by_client_session_discovery(store,
     assert intent["result"] == {"request_fingerprint": intent["result"]["request_fingerprint"]}
 
     monkeypatch.setattr(store, "transition_effect_intent", original_transition)
-    recovered = _dispatcher(store).reconcile_start(
+    recovery_backend = _DiscoverableBackend(sessions)
+    recovered = _dispatcher(store, discovery=_explicit_discovery).reconcile_start(
         dispatch_id,
-        _DiscoverableBackend(sessions),
+        recovery_backend,
         actor="operator",
         source="restart-reconcile",
     )
@@ -162,6 +183,97 @@ def test_start_persistence_crash_is_recovered_by_client_session_discovery(store,
     assert recovered.task_id == task.task_id
     assert store.get_effect_intent(dispatcher.effect_key(dispatch_id))["result"]["session"]["session_id"] == recovered.session_id
     assert store.has_event(task.task_id, "agent_backend.session_discovered")
+    assert recovery_backend.discover_calls == 1
+
+
+def test_reconcile_start_without_explicit_discovery_authority_does_not_call_backend_discover(store, task):
+    sessions = {}
+    backend = _DiscoverableBackend(sessions)
+    request = _request(task.task_id)
+    dispatch_id = str(uuid4())
+    dispatcher = _dispatcher(store, discovery=None)
+    original_transition = store.transition_effect_intent
+    crashed = False
+
+    def fail_session_persistence(key, *, to_status, result, lease_proof=None):
+        nonlocal crashed
+        if not crashed and isinstance(result, dict) and "session" in result:
+            crashed = True
+            raise RuntimeError("simulated process death")
+        return original_transition(key, to_status=to_status, result=result, lease_proof=lease_proof)
+
+    monkeypatch = pytest.MonkeyPatch()
+    try:
+        monkeypatch.setattr(store, "transition_effect_intent", fail_session_persistence)
+        with pytest.raises(RuntimeError, match="process death"):
+            dispatcher.dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
+        monkeypatch.setattr(store, "transition_effect_intent", original_transition)
+
+        with pytest.raises(BackendDispatchUncertain, match="authority"):
+            dispatcher.reconcile_start(dispatch_id, backend, actor="operator", source="restart-reconcile")
+        assert sessions
+        assert backend.discover_calls == 0
+        assert store.get_effect_intent(dispatcher.effect_key(dispatch_id))["status"] == "unknown"
+    finally:
+        monkeypatch.undo()
+
+
+def test_discovery_receipt_round_trips_its_exact_identity(store, task):
+    backend = FakeAgentBackend()
+    request = _request(task.task_id)
+    dispatcher = _dispatcher(store)
+    dispatch_id = str(uuid4())
+    dispatcher.dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
+    intent = store.get_effect_intent(dispatcher.effect_key(dispatch_id))
+    identity = dispatcher._validate(request, backend, dispatch_id=dispatch_id, attempt=1)[1]
+    receipt = AgentBackendDiscoveryReceipt(
+        identity=identity,
+        session=AgentBackendSession(
+            session_id="discovered-session",
+            task_id=task.task_id,
+            backend_id=backend.identity.backend_id,
+            client_session_key=identity.client_session_key,
+        ),
+        evidence_ref="artifact://discovery-receipt",
+    )
+
+    restored = AgentBackendDiscoveryReceipt.from_dict(receipt.to_dict())
+
+    assert restored == receipt
+    assert intent["arguments"]["request_fingerprint"] == identity.request_fingerprint
+
+
+def test_reconcile_start_rejects_discovery_receipt_for_a_different_request(store, task):
+    sessions = {}
+    backend = _DiscoverableBackend(sessions)
+    request = _request(task.task_id)
+    dispatch_id = str(uuid4())
+    dispatcher = _dispatcher(store, discovery=lambda discovery_request, discovered_backend: AgentBackendDiscoveryReceipt(
+        identity=replace(discovery_request.identity, request_fingerprint="00" * 32),
+        session=sessions[discovery_request.identity.client_session_key],
+        evidence_ref="fixture:wrong-fingerprint",
+    ))
+    original_transition = store.transition_effect_intent
+    crashed = False
+
+    def fail_session_persistence(key, *, to_status, result, lease_proof=None):
+        nonlocal crashed
+        if not crashed and isinstance(result, dict) and "session" in result:
+            crashed = True
+            raise RuntimeError("simulated process death")
+        return original_transition(key, to_status=to_status, result=result, lease_proof=lease_proof)
+
+    monkeypatch = pytest.MonkeyPatch()
+    try:
+        monkeypatch.setattr(store, "transition_effect_intent", fail_session_persistence)
+        with pytest.raises(RuntimeError, match="process death"):
+            dispatcher.dispatch(request, backend, dispatch_id=dispatch_id, attempt=1)
+        monkeypatch.setattr(store, "transition_effect_intent", original_transition)
+        with pytest.raises(BackendDispatchUncertain, match="discovery"):
+            dispatcher.reconcile_start(dispatch_id, backend, actor="operator", source="restart-reconcile")
+        assert store.get_effect_intent(dispatcher.effect_key(dispatch_id))["status"] == "unknown"
+    finally:
+        monkeypatch.undo()
 
 
 def test_start_persistence_crash_without_discovery_becomes_unknown_without_restart(store, task, monkeypatch):

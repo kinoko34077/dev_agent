@@ -316,8 +316,10 @@ class AgentBackendDiscovery(Protocol):
 
     Discovery is deliberately separate from :class:`AgentBackend`: adapters
     must not claim restart recovery unless they can locate the exact external
-    session by the durable client key.  The dispatcher treats an adapter
-    without this capability as an explicit reconciliation boundary.
+    session by the durable client key.  The dispatcher does not call this
+    method implicitly; a caller-owned discovery authority may wrap it and
+    return an identity-bound receipt.  Without that authority, reconciliation
+    remains an explicit UNKNOWN boundary.
     """
 
     def discover(self, client_session_key: str) -> AgentBackendSession | None:
