@@ -4,6 +4,7 @@ from uuid import uuid4
 import pytest
 
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
+from src.dev_agent.intelligence.planner import PlanningValidationError, RootPlanningProposal
 from src.dev_agent.intelligence.planner_adapter import ModelPlanningAdapter, PlanningAdapterError
 
 
@@ -110,3 +111,14 @@ def test_model_planner_rejects_narrative_or_wrong_parent_as_non_authoritative_ou
     )
     with pytest.raises(PlanningAdapterError, match="parent_task_id"):
         ModelPlanningAdapter(provider).propose(parent_task_id=parent_task_id, objective="bounded objective")
+
+
+def test_typed_proposal_round_trip_rejects_untracked_fields():
+    parent_task_id = str(uuid4())
+    payload = _payload(parent_task_id)
+    proposal = RootPlanningProposal.from_dict(payload)
+
+    assert RootPlanningProposal.from_dict(proposal.to_dict()).to_dict() == proposal.to_dict()
+    payload["untracked_authority"] = "must not be accepted"
+    with pytest.raises(PlanningValidationError, match="unknown planning proposal field"):
+        RootPlanningProposal.from_dict(payload)
