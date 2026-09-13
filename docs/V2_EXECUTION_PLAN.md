@@ -41,6 +41,9 @@ authorityへ昇格させない。外部再試行は自動化せず、Host-only B
 dogfoodを優先する。
 strict JSON応答の形式負荷に対しては、promptへraw JSON object onlyとMarkdown／prose／
 comment／trailing text禁止を明示したが、修正後のlive再試行はまだ行っていない。
+DevelopmentPlanningBridgeからCommander Planへ渡す`CODE_INTEGRATED` dependency typeは、
+task-localとtop-level projectionの双方へ保持する。現在のdevelopment Commanderが意味を
+実装していない`ARTIFACT_READY`／`TASK_COMPLETED`は、暗黙変換せずfail-closedとする。
 
 ### 2026-09-07 時点の観測
 

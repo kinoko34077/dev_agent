@@ -10,6 +10,11 @@ promptにもraw JSON object only、Markdown/prose/comment/trailing text禁止を
 prompt修正後のlive再試行は行っていないため、Planner成功、Host validation、Task作成、
 Commander dispatchの証拠には昇格しない。
 
+Planner proposalからDevelopmentPlanningBridgeを経てCommander Planへ変換する際、現在の
+development実行境界がサポートする`CODE_INTEGRATED` dependency typeをtask-localおよび
+top-level projectionへ保持するよう補強した。`ARTIFACT_READY`／`TASK_COMPLETED`はこの
+Commander経路で実行意味を持たせず、従来どおりBridgeでfail-closedにする。
+
 Worker-firstで同じ入力境界修正を2回試したが、1回目はbase revisionに存在しない新規test
 pathのためWorker境界で拒否、2回目は返却patch hunkが既存testへ適用できずHost Verification
 前に拒否された。これらを無理に再送せず、`delegation_overhead`と`patch_format_failure`
@@ -18,9 +23,9 @@ credentialsは保存していない。
 
 | Field | Value |
 | --- | --- |
-| **Implementation commits** | `3555e31` (UUID input boundary); `cbb1a4d` (strict JSON prompt contract) |
-| **Focused validation** | `14 passed` (Planner adapter + DevelopmentPlanningBridge); compileall PASS |
-| **Full regression** | `944 passed, 1 skipped` (`python -m pytest tests/v2 -q`; Windows ACL skip is deployment-owned) |
+| **Implementation commits** | `3555e31` (UUID input boundary); `cbb1a4d` (strict JSON prompt contract); `1de0c7c` (dependency type preservation) |
+| **Focused validation** | `14 passed` (Planner adapter + Bridge cluster); `5 passed` Bridge; `24 passed` Commander; compileall PASS |
+| **Full regression** | `945 passed, 1 skipped` (`python -m pytest tests/v2 -q`; Windows ACL skip is deployment-owned) |
 | **Live Planner observation** | corrected UUID reached `gemini:core` / `gemini-3.8-flash`, then strict JSON rejection; NOT VERIFIED |
 | **Evidence** | [`planner-shadow-20260913.json`](../spec/v2/evidence/planner-shadow-20260913.json) |
 | **Authority effect** | none; proposal-only boundary, no Task/Plan/Worker dispatch |
