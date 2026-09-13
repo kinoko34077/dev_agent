@@ -205,6 +205,11 @@ class ModelPlanningAdapter:
         return (
             "Generate exactly one raw JSON object matching the supplied planning response schema. "
             "Do not emit Markdown fences, explanatory prose, comments, or trailing text.\n"
+            "The top-level object must contain `parent_task_id`, `rationale`, and a `children` array. "
+            "Every child field, including `child_key`, `objective`, `task_type`, `risk`, `sensitivity`, "
+            "`required_capabilities`, `dependencies`, `dependency_types`, and `suggested_owner`, "
+            "must be nested inside one object in `children`; do not place child fields at the top level. "
+            "Use this shape: {\"parent_task_id\":\"...\",\"rationale\":\"...\",\"children\":[{\"child_key\":\"...\",\"objective\":\"...\",\"task_type\":\"worker\"}]}.\n"
             "This is a proposal only: do not claim authority, budget, approval, privacy relaxation, "
             "Gate changes, or direct Task creation. The host will validate the proposal.\n"
             f"parent_task_id: {parent_task_id}\n"
