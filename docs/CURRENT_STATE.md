@@ -6,11 +6,11 @@
 | --- | --- |
 | Branch | `v2/bootstrap` |
 | Implementation/evidence baseline | `b52b36a` (bounded D9 proposal-only Controlled Self-Repair candidate policy) |
-| Worktree | clean after D8 implementation and Evidence/documentation synchronization |
+| Worktree | clean after D9 implementation and Evidence/documentation synchronization |
 | Local regression | `1050 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 177.71s) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for implementation/evidence baseline `5d3b315b1d00e2443552cd1048a8ac8f8142b120`: `v2-core` [run 34812092328](https://github.com/kinoko34077/dev_agent/actions/runs/34812092328) and `v2-provider-smoke` [run 34812092329](https://github.com/kinoko34077/dev_agent/actions/runs/34812092329). |
+| Exact-head CI | PASS for current implementation/evidence HEAD `b9f29201383807ffc72e466389e581417c257ea7`: `v2-core` [run 34813195445](https://github.com/kinoko34077/dev_agent/actions/runs/34813195445) and `v2-provider-smoke` [run 34813195462](https://github.com/kinoko34077/dev_agent/actions/runs/34813195462). |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
