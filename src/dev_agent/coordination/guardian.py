@@ -1,0 +1,155 @@
+"""Deterministic validation boundary for future Guardian control handling.
+
+This module evaluates durable ``ControlRequest`` intent against the latest
+peer generations.  It deliberately performs no process creation, signalling,
+termination, restart, update, or rollback.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from dataclasses import dataclass
+from enum import Enum
+from typing import Any
+
+from .protocol import ControlAction, ControlRequest, PeerRecord, PeerStatus
+from .protocol_helpers import CoordinationValidationError, validate_identifier, validate_timestamp
+
+
+class GuardianDecision(str, Enum):
+    ACCEPTED = "ACCEPTED"
+    EXPIRED = "EXPIRED"
+    SENDER_NOT_CURRENT = "SENDER_NOT_CURRENT"
+    STALE_REQUEST = "STALE_REQUEST"
+    TARGET_NOT_FOUND = "TARGET_NOT_FOUND"
+    TARGET_AMBIGUOUS = "TARGET_AMBIGUOUS"
+    ACTION_NOT_ALLOWED = "ACTION_NOT_ALLOWED"
+
+
+@dataclass(frozen=True)
+class GuardianEvaluation:
+    """Bounded result of Guardian policy validation, not an OS command."""
+
+    request_id: str
+    decision: GuardianDecision
+    reason: str
+    target_role: str
+    target_generation: int
+    process_action: None = None
+
+    @property
+    def accepted(self) -> bool:
+        return self.decision is GuardianDecision.ACCEPTED
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "request_id": self.request_id,
+            "decision": self.decision.value,
+            "reason": self.reason,
+            "target_role": self.target_role,
+            "target_generation": self.target_generation,
+            "process_action": None,
+        }
+
+
+_ACTIVE_SENDER_STATUSES = frozenset(
+    {
+        PeerStatus.STARTING,
+        PeerStatus.READY,
+        PeerStatus.DRAINING,
+        PeerStatus.RESTARTING,
+        PeerStatus.STOPPING,
+    }
+)
+
+
+class GuardianPolicy:
+    """Check sender/target generation fencing without executing requests."""
+
+    def __init__(
+        self,
+        *,
+        allowed_sender_roles: Sequence[str] = ("agent", "codex"),
+        allowed_actions: Sequence[ControlAction | str] = tuple(ControlAction),
+    ) -> None:
+        if isinstance(allowed_sender_roles, (str, bytes)) or not isinstance(allowed_sender_roles, Sequence):
+            raise CoordinationValidationError("allowed_sender_roles must be a sequence")
+        normalized_roles = tuple(validate_identifier(role, "allowed sender role") for role in allowed_sender_roles)
+        if not normalized_roles:
+            raise CoordinationValidationError("allowed_sender_roles must not be empty")
+        normalized_actions: set[ControlAction] = set()
+        for action in allowed_actions:
+            try:
+                normalized_actions.add(action if isinstance(action, ControlAction) else ControlAction(action))
+            except (TypeError, ValueError) as exc:
+                raise CoordinationValidationError("allowed action is unsupported") from exc
+        if not normalized_actions:
+            raise CoordinationValidationError("allowed_actions must not be empty")
+        self.allowed_sender_roles = frozenset(normalized_roles)
+        self.allowed_actions = frozenset(normalized_actions)
+
+    def evaluate(
+        self,
+        request: ControlRequest,
+        *,
+        peers: Sequence[PeerRecord],
+        now: str,
+    ) -> GuardianEvaluation:
+        if not isinstance(request, ControlRequest):
+            raise CoordinationValidationError("request must be a ControlRequest")
+        if isinstance(peers, (str, bytes)) or not isinstance(peers, Sequence):
+            raise CoordinationValidationError("peers must be a sequence")
+        for peer in peers:
+            if not isinstance(peer, PeerRecord):
+                raise CoordinationValidationError("peers must contain PeerRecord values")
+        validate_timestamp(now, "now")
+        if request.expires_at is not None and request.expires_at <= now:
+            return self._result(request, GuardianDecision.EXPIRED, "control request has expired")
+        if request.sender_role not in self.allowed_sender_roles:
+            return self._result(request, GuardianDecision.SENDER_NOT_CURRENT, "sender role is not admitted")
+        latest = self._latest_peers(peers)
+        sender = latest.get((request.sender_role, request.sender_instance_id))
+        if sender is None or sender.generation != request.sender_generation or sender.status not in _ACTIVE_SENDER_STATUSES:
+            return self._result(request, GuardianDecision.SENDER_NOT_CURRENT, "sender generation is not current")
+        if request.action not in self.allowed_actions:
+            return self._result(request, GuardianDecision.ACTION_NOT_ALLOWED, "control action is not admitted")
+
+        targets = [
+            peer
+            for (role, _instance_id), peer in latest.items()
+            if role == request.target_role
+        ]
+        if not targets:
+            return self._result(request, GuardianDecision.TARGET_NOT_FOUND, "target role is not present")
+        newer = [peer for peer in targets if peer.generation > request.target_generation]
+        if newer:
+            return self._result(request, GuardianDecision.STALE_REQUEST, "target generation is stale")
+        matching = [peer for peer in targets if peer.generation == request.target_generation]
+        if not matching:
+            return self._result(request, GuardianDecision.TARGET_NOT_FOUND, "target generation is not present")
+        if len(matching) != 1:
+            return self._result(request, GuardianDecision.TARGET_AMBIGUOUS, "target generation is ambiguous")
+        return self._result(request, GuardianDecision.ACCEPTED, "request is valid for Guardian handling")
+
+    @staticmethod
+    def _latest_peers(peers: Sequence[PeerRecord]) -> dict[tuple[str, str], PeerRecord]:
+        latest: dict[tuple[str, str], PeerRecord] = {}
+        for peer in peers:
+            key = (peer.role, peer.instance_id)
+            current = latest.get(key)
+            if current is None or peer.generation > current.generation:
+                latest[key] = peer
+        return latest
+
+    @staticmethod
+    def _result(request: ControlRequest, decision: GuardianDecision, reason: str) -> GuardianEvaluation:
+        return GuardianEvaluation(
+            request_id=request.request_id,
+            decision=decision,
+            reason=reason,
+            target_role=request.target_role,
+            target_generation=request.target_generation,
+        )
+
+
+__all__ = ["GuardianDecision", "GuardianEvaluation", "GuardianPolicy"]

@@ -177,3 +177,38 @@ def test_service_persists_generation_fenced_control_request_in_mailbox(tmp_path)
         assert loaded.action is ControlAction.RESTART
         assert loaded.sender_generation == codex.generation
         assert loaded.target_generation == 12
+
+
+def test_service_evaluates_control_request_against_latest_peer_generations(tmp_path) -> None:
+    with ProcessCoordinationService(data_dir=tmp_path) as service:
+        codex = service.attach_peer(
+            "codex",
+            revision="rev-a",
+            instance_id="codex-1",
+            now="2026-09-14T12:00:00+00:00",
+            lease_seconds=60,
+        )
+        agent = service.attach_peer(
+            "agent",
+            revision="rev-a",
+            instance_id="agent-1",
+            now="2026-09-14T12:00:00+00:00",
+            lease_seconds=60,
+        )
+        service.set_peer_status(codex, PeerStatus.READY)
+        service.set_peer_status(agent, PeerStatus.READY)
+        reference, _message = service.send_control_request(
+            codex,
+            target_role="agent",
+            target_generation=agent.generation,
+            action=ControlAction.RESTART,
+            reason="restart the current generation",
+            idempotency_key="restart-current-agent",
+        )
+        evaluation = service.evaluate_control_request(
+            service.read_control_request(reference),
+            now="2026-09-14T12:01:00+00:00",
+        )
+
+        assert evaluation.decision.value == "ACCEPTED"
+        assert evaluation.process_action is None

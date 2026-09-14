@@ -11,6 +11,7 @@ from typing import Any
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from .artifacts import CoordinationArtifactStore
+from .guardian import GuardianEvaluation, GuardianPolicy
 from .protocol import (
     ArtifactReference,
     ControlAction,
@@ -322,6 +323,30 @@ class ProcessCoordinationService:
 
     def read_control_request(self, reference: ArtifactReference | Mapping[str, Any]) -> ControlRequest:
         return ControlRequest.from_dict(self.artifacts.read_json(reference))
+
+    def evaluate_control_request(
+        self,
+        request: ControlRequest | Mapping[str, Any],
+        *,
+        now: str | None = None,
+        policy: GuardianPolicy | None = None,
+    ) -> GuardianEvaluation:
+        """Evaluate a durable control intent against current peer records.
+
+        This is a read-only policy operation.  It does not acknowledge the
+        mailbox message or perform the requested process action.
+        """
+
+        if not isinstance(request, ControlRequest):
+            request = ControlRequest.from_dict(request)
+        if policy is not None and not isinstance(policy, GuardianPolicy):
+            raise CoordinationValidationError("policy must be a GuardianPolicy")
+        selected_policy = policy or GuardianPolicy()
+        return selected_policy.evaluate(
+            request,
+            peers=self.store.list_peers(),
+            now=now or _now(),
+        )
 
     def close(self) -> None:
         self.store.close()

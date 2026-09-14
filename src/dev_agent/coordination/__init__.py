@@ -12,6 +12,7 @@ from .protocol import (
     PeerRecord,
     PeerStatus,
 )
+from .guardian import GuardianDecision, GuardianEvaluation, GuardianPolicy
 from .work import (
     InterruptFrame,
     InterruptStack,
@@ -32,6 +33,9 @@ __all__ = [
     "MessageKind",
     "PeerRecord",
     "PeerStatus",
+    "GuardianDecision",
+    "GuardianEvaluation",
+    "GuardianPolicy",
     "InterruptFrame",
     "InterruptStack",
     "InterruptionMode",
