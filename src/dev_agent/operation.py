@@ -249,6 +249,23 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
     return tuple(bindings)
 
 
+def configured_provider_pool_from_environment(
+    env: Callable[[str], str | None] = os.getenv,
+) -> tuple[OperationProviderBinding, ...]:
+    """Return explicitly configured, non-secret Provider binding metadata.
+
+    Reading this pool is intentionally separate from activation.  Callers
+    must still opt into the pool and pass each binding through the existing
+    qualification, billing, privacy, quota, and health gates before any
+    request is dispatched.  The injected getter keeps this boundary easy to
+    inspect without importing or returning credential values.
+    """
+
+    if not callable(env):
+        raise TypeError("env must be callable")
+    return _configured_provider_pool_from_environment(env)
+
+
 @dataclass(frozen=True)
 class OperationConfig:
     """Non-secret settings for the local Operation Layer.
@@ -385,7 +402,7 @@ class OperationConfig:
 
         provider_pool_value = provider_pool or env("DEV_AGENT_PROVIDER_POOL")
         if provider_pool_value is None and env("DEV_AGENT_ENABLE_CONFIGURED_POOL") in {"1", "true", "yes"}:
-            configured_pool = _configured_provider_pool_from_environment(env)
+            configured_pool = configured_provider_pool_from_environment(env)
             provider_pool_value = configured_pool or None
 
         return cls(
@@ -1318,4 +1335,13 @@ def main(argv: list[str] | None = None) -> int:
     return _main(argv)
 
 
-__all__ = ["OperationConfig", "OperationControl", "OperationError", "OperationProviderBinding", "OperationService", "build_parser", "main"]
+__all__ = [
+    "OperationConfig",
+    "OperationControl",
+    "OperationError",
+    "OperationProviderBinding",
+    "OperationService",
+    "build_parser",
+    "configured_provider_pool_from_environment",
+    "main",
+]

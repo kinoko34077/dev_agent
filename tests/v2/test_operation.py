@@ -4,7 +4,12 @@ from datetime import datetime, timezone
 import pytest
 
 from src.dev_agent.domain.protocol import ModelResponse, TaskStatus, TaskType
-from src.dev_agent.operation import OperationConfig, OperationProviderBinding, OperationService
+from src.dev_agent.operation import (
+    OperationConfig,
+    OperationProviderBinding,
+    OperationService,
+    configured_provider_pool_from_environment,
+)
 from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.fake.provider import FakeProvider
 
@@ -813,6 +818,23 @@ def test_operation_config_can_explicitly_build_configured_cloud_provider_pool(mo
     assert bindings["ollama_cloud:free"].api_key_env == "OLLAMA_API_KEY"
     assert bindings["vercel:free"].api_key_env == "AI_GATEWAY_API_KEY"
     assert all("secret-not-read" not in repr(binding) for binding in bindings.values())
+
+
+def test_configured_provider_pool_public_boundary_reads_only_non_secret_binding_metadata():
+    values = {
+        "GEMINI_API_KEY_3": "secret-value",
+        "GEMINI_MODEL_3": "gemini-3.6-flash",
+        "OLLAMA_API_KEY": "ollama-secret",
+        "OLLAMA_CLOUD_MODEL": "qwen3:8b",
+    }
+
+    bindings = configured_provider_pool_from_environment(values.get)
+
+    by_id = {binding.binding_id: binding for binding in bindings}
+    assert by_id["gemini:worker:free-3"].model == "gemini-3.6-flash"
+    assert by_id["gemini:worker:free-3"].api_key_env == "GEMINI_API_KEY_3"
+    assert by_id["ollama_cloud:free"].model == "qwen3:8b"
+    assert all("secret-value" not in repr(binding) and "ollama-secret" not in repr(binding) for binding in bindings)
 
 
 def test_operation_composes_model_evidence_only_when_explicitly_configured(tmp_path):

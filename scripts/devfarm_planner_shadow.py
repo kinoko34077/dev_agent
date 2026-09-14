@@ -15,9 +15,11 @@ headroom or turn a paid/unknown billing profile into a free route.
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
 import sys
 from uuid import UUID, uuid4
@@ -29,7 +31,7 @@ if str(ROOT) not in sys.path:
 from src.dev_agent.domain.protocol import RiskLevel, Task, TaskStatus, TaskType
 from src.dev_agent.intelligence.planner import RootPlanningValidator
 from src.dev_agent.intelligence.planner_adapter import ModelPlanningAdapter
-from src.dev_agent.operation import OperationProviderBinding
+from src.dev_agent.operation import OperationProviderBinding, configured_provider_pool_from_environment
 from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.dispatch import ProviderPoolExhausted
 from src.dev_agent.resources.billing_catalog import profile_for
@@ -127,6 +129,46 @@ def _shadow_context(*, repository: str, branch: str) -> dict[str, str]:
         "source": "live_planner_shadow",
         "authority": "host_validation_required",
     }
+
+
+def resolve_provider_pool(
+    *,
+    pool_json: str | None,
+    use_configured_pool: bool,
+    env: Callable[[str], str | None] = os.getenv,
+) -> tuple[OperationProviderBinding, ...] | None:
+    """Resolve one explicit Planner pool source without activating resources.
+
+    The normal singleton invocation remains unchanged.  A configured pool is
+    available only through an explicit flag, while qualification, billing,
+    privacy, quota, and health admission still happen in ``run_shadow``.
+    """
+
+    if not isinstance(use_configured_pool, bool):
+        raise PlannerShadowInputError("use_configured_pool must be a boolean")
+    if not callable(env):
+        raise PlannerShadowInputError("env must be callable")
+    if pool_json is not None and use_configured_pool:
+        raise PlannerShadowInputError("pool-json and configured-pool cannot be combined")
+    if pool_json is not None:
+        try:
+            raw_pool = json.loads(pool_json)
+        except json.JSONDecodeError as exc:
+            raise PlannerShadowInputError("pool-json must be valid JSON") from exc
+        if not isinstance(raw_pool, list) or not raw_pool:
+            raise PlannerShadowInputError("pool-json must be a non-empty JSON array")
+        if any(not isinstance(entry, Mapping) for entry in raw_pool):
+            raise PlannerShadowInputError("pool-json contains an invalid binding object")
+        try:
+            return tuple(OperationProviderBinding(**dict(entry)) for entry in raw_pool)
+        except (TypeError, ValueError) as exc:
+            raise PlannerShadowInputError(f"pool-json contains an invalid binding: {exc}") from exc
+    if use_configured_pool:
+        configured = configured_provider_pool_from_environment(env)
+        if not configured:
+            raise PlannerShadowInputError("configured provider pool is empty")
+        return configured
+    return None
 
 
 def run_shadow(
@@ -330,6 +372,11 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--configured-pool",
+        action="store_true",
+        help="explicitly use configured non-secret Provider bindings as the Planner pool",
+    )
+    parser.add_argument(
         "--allow-unknown-quota",
         action="store_true",
         help="explicitly use the bounded local admission path when provider quota telemetry is absent",
@@ -346,18 +393,10 @@ def main(argv: list[str] | None = None) -> int:
         # not call a discovery/benchmark service during planner dispatch.
         model_evidence = ModelEvidenceCatalog.load_default()
         model_admission_resolver = model_evidence.resolver
-        provider_pool = None
-        if args.pool_json is not None:
-            try:
-                raw_pool = json.loads(args.pool_json)
-            except json.JSONDecodeError as exc:
-                raise PlannerShadowInputError("pool-json must be valid JSON") from exc
-            if not isinstance(raw_pool, list) or not raw_pool:
-                raise PlannerShadowInputError("pool-json must be a non-empty JSON array")
-            try:
-                provider_pool = tuple(OperationProviderBinding(**dict(entry)) for entry in raw_pool)
-            except (TypeError, ValueError) as exc:
-                raise PlannerShadowInputError(f"pool-json contains an invalid binding: {exc}") from exc
+        provider_pool = resolve_provider_pool(
+            pool_json=args.pool_json,
+            use_configured_pool=args.configured_pool,
+        )
         output = run_shadow(
             objective=args.objective,
             parent_task_id=args.parent_task_id or str(uuid4()),

@@ -15,7 +15,11 @@ from src.dev_agent.resources.control import ResourceControlPlane
 from src.dev_agent.resources.ledger import ResourceLedger
 from src.dev_agent.resources.qualification import QualificationResolver
 from src.dev_agent.resources.router import ResourceRouter
-from scripts.devfarm_planner_shadow import PlannerShadowInputError, validate_parent_task_id
+from scripts.devfarm_planner_shadow import (
+    PlannerShadowInputError,
+    resolve_provider_pool,
+    validate_parent_task_id,
+)
 
 
 class _Provider:
@@ -325,3 +329,34 @@ def test_planner_shadow_validates_parent_task_id_before_provider_composition():
     assert validate_parent_task_id(valid) == valid
     with pytest.raises(PlannerShadowInputError, match="parent_task_id must be a UUID string"):
         validate_parent_task_id("not-a-uuid")
+
+
+def test_planner_pool_selector_keeps_configured_pool_explicit_and_non_secret():
+    values = {
+        "GEMINI_API_KEY_3": "secret-value",
+        "GEMINI_MODEL_3": "gemini-3.6-flash",
+    }
+
+    assert resolve_provider_pool(pool_json=None, use_configured_pool=False) is None
+    bindings = resolve_provider_pool(
+        pool_json=None,
+        use_configured_pool=True,
+        env=values.get,
+    )
+
+    assert bindings is not None
+    assert [binding.model for binding in bindings if binding.binding_id == "gemini:worker:free-3"] == ["gemini-3.6-flash"]
+    assert all("secret-value" not in repr(binding) for binding in bindings)
+
+
+def test_planner_pool_selector_rejects_two_pool_sources():
+    with pytest.raises(PlannerShadowInputError, match="cannot be combined"):
+        resolve_provider_pool(
+            pool_json='[{"provider_id":"fake","model":"deterministic"}]',
+            use_configured_pool=True,
+        )
+
+
+def test_planner_pool_selector_rejects_non_object_pool_entries():
+    with pytest.raises(PlannerShadowInputError, match="invalid binding"):
+        resolve_provider_pool(pool_json="[1]", use_configured_pool=False)
