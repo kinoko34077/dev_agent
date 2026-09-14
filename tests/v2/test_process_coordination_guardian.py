@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from src.dev_agent.coordination.guardian import GuardianActionService, GuardianDecision, GuardianPolicy
@@ -179,6 +181,34 @@ def test_guardian_action_executor_failure_closes_to_unknown_without_retry(tmp_pa
         assert record.result_code == "external_outcome_unknown"
         assert record.reconciliation_required is True
         assert duplicate == record
+        assert executor.calls == 1
+    finally:
+        store.close()
+
+
+def test_guardian_rollback_intent_is_idempotent_when_requested_twice(tmp_path):
+    class _Executor:
+        def __init__(self):
+            self.calls = 0
+
+        def execute(self, request):
+            self.calls += 1
+
+    store = _store_with_current_peers(tmp_path)
+    executor = _Executor()
+    request = replace(
+        _request(),
+        request_id="rollback-request-1",
+        action=ControlAction.ROLLBACK,
+        idempotency_key="rollback-intent-1",
+    )
+    try:
+        service = GuardianActionService(store, executor=executor)
+        first = service.submit(request, now="2026-09-14T12:01:00+00:00")
+        duplicate = service.submit(request, now="2026-09-14T12:02:00+00:00")
+
+        assert first.status is GuardianActionStatus.COMPLETED
+        assert duplicate == first
         assert executor.calls == 1
     finally:
         store.close()
