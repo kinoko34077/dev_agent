@@ -5,13 +5,13 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Latest implementation commit before documentation sync | `dbdc1e5` (`fix: close untracked guardian processes`) |
-| Implementation/evidence baseline | `dbdc1e5` (Guardian static execution with invalid-PID cleanup, real local subprocess coverage, graceful drain, revision-pinned runtime, rolling restart, bounded rollback composition, refinement Critic composition, Host failure classification/composition, and bounded refinement usage observations) |
+| Latest implementation commit before documentation sync | `5a3dbb8` (`feat: expose configured planner provider pools`) |
+| Implementation/evidence baseline | `5a3dbb8` (explicit configured Planner pool composition, bounded discovered-model expansion, and existing Guardian/refinement boundaries) |
 | Worktree | clean at the current verification checkpoint; this documentation sync records the same checkpoint |
-| Local regression | `1196 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 200.31s) |
+| Local regression | `1200 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 226.02s) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for implementation baseline `dbdc1e53c6de095d6d681384c54a5c732bacdb6d6`: `v2-core` [run 34883870891](https://github.com/kinoko34077/dev_agent/actions/runs/34883870891) and `v2-provider-smoke` [run 34883870922](https://github.com/kinoko34077/dev_agent/actions/runs/34883870922), covering kernel (3.10), kernel (3.11), and provider-smoke. |
+| Exact-head CI | PASS for implementation baseline `5a3dbb8`: `v2-core` [run 34886729318](https://github.com/kinoko34077/dev_agent/actions/runs/34886729318) and `v2-provider-smoke` [run 34886729340](https://github.com/kinoko34077/dev_agent/actions/runs/34886729340), covering kernel (3.10), kernel (3.11), and provider-smoke. |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
