@@ -4,11 +4,11 @@
 
 ## 現在位置
 
-`D0 Documentation SSOT consolidation`、`D1 Valid live Free L2 proposal`、`D2 Planner → Bridge → Commander → L1 Worker E2E` は、2026-09-14のbounded live evidenceで完了した。D1は実Free L2のstrict JSON proposalとHost validation、D2は同proposalからBridge、Commander Plan、Free L1 Worker、独立Host Verification、Codex review、Host deterministic integrationまでを証明している。D4はCodexExecBackendに正式な外部discoveryがないため、明示DiscoveryAuthority以外の復元を行わずUNKNOWNへ閉じる境界を確認した。D5のtransport-neutral thin runtime adapterまで進め、wire transportは未接続である。
+`D0 Documentation SSOT consolidation`、`D1 Valid live Free L2 proposal`、`D2 Planner → Bridge → Commander → L1 Worker E2E` は、2026-09-14のbounded live evidenceで完了した。D1は実Free L2のstrict JSON proposalとHost validation、D2は同proposalからBridge、Commander Plan、Free L1 Worker、独立Host Verification、Codex review、Host deterministic integrationまでを証明している。D4はCodexExecBackendに正式な外部discoveryがないため、明示DiscoveryAuthority以外の復元を行わずUNKNOWNへ閉じる境界を確認した。D5のtransport-neutral thin runtime adapterまで進め、wire transportは未接続である。D6は異なる2件のproposal-only Reviewer Shadow比較を取得し、D7の決定的candidate policy/CLIと、D8 F0–F2のproposal-onlyデータ契約を実装した。ただしD7の実live Codex-less cycleと、運用接続されたD8 Self-Improvementは未検証である。
 
 ## 順序とGate
 
-補足: D2には別内容の bounded documentation Worker sliceも追加で成功し、D6は初回のproposal-only Reviewer Shadow比較まで進んだ。ただしD7の自動昇格条件である十分なshadow Evidenceは未充足である。
+補足: D2には別内容の bounded documentation Worker sliceも追加で成功した。D6は異なるTask/attemptによる2件のproposal-only Reviewer Shadow比較を取得し、最小比較条件を満たした。D7/D8の実運用昇格条件は別に判定し、コードの存在や単体テストだけでは昇格しない。
 
 ### D0 — Documentation SSOT consolidation
 
@@ -60,17 +60,19 @@
 - 依存: 複数のD2成功Evidence。
 - 目的: Reviewer proposalとCodex final decisionを比較する。初期はdecision authorityを付与しない。
 - 完了条件: agreement、false approve、false reject、missed issue、unnecessary rework、evidence qualityを記録できる。
-- 現在: `gemini:worker:free-3` / `gemini-3.6-flash`によるproposal-only live sampleを1件取得し、Codex durable decisionとの比較でagreement=true、false approve/reject=false、missed issue=false、unnecessary rework=false、evidence quality=groundedを記録した。Reviewerにdecision/integration authorityはない。複数の十分なshadow Evidenceが揃うまでD7へ進まない。証拠は[`reviewer-shadow-20260914.json`](../spec/v2/evidence/reviewer-shadow-20260914.json)。
+- 現在: `gemini:worker:free-3` / `gemini-3.6-flash`によるproposal-only live comparisonを、異なるD2 Task/attemptについて2件取得した。いずれもCodex durable decisionとのagreement=true、false approve/reject=false、missed issue=false、unnecessary rework=false、evidence quality=groundedであり、Reviewerにdecision/integration authorityはない。証拠は[`reviewer-shadow-20260914.json`](../spec/v2/evidence/reviewer-shadow-20260914.json)と[`reviewer-shadow-20260914-02.json`](../spec/v2/evidence/reviewer-shadow-20260914-02.json)。D7の実live cycleはこのEvidenceだけで完了扱いにしない。
 
 ### D7 — LOW/NORMAL Codex-less cycle
 
 - 依存: D6の十分なshadow Evidence。
 - 範囲: LOW/NORMAL、非protected、既知task classのみ。official branchへの無人mergeは別Gate。
+- 現在: `CodexLessPolicy` とSupervisorのread-only `codexless` CLIを実装した。Shadow gate、Worker ownership、Task分類、scope/protected path、Host Verification、trust/approval、ReviewPacket groundingをHost側でboundedに評価し、適合時は`CANDIDATE`を返す。Reviewerのdecision authority、公式branchの自動merge/push、Gate昇格、無条件integrationは付与しない。実Free Workerからこの候補経路を通したlive Codex-less cycleは未検証である。
 
 ### D8 — F0–F2 Self-Improvement
 
 - 依存: D7。
 - 順序: Observation → Diagnosis → Improvement Planning。既存のCandidate Generation / Validation / Controlled Repairを置換しない。
+- 現在: `ObservationRecord`、Observationにgroundedな`ImprovementDiagnosis`、human approval必須の`ImprovementPlanProposal`を追加した。各recordはbounded JSON-safeで、raw output/secretを受け付けず、proposal-onlyのままDevFarm/Scheduler/Task mutation/Repairへ接続しない。D7の実運用Evidence後に、既存Authorityを通る運用compositionを別途判定する。
 
 ### D9 — Controlled Self-Repair
 

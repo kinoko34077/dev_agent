@@ -115,6 +115,19 @@ durableな承認とHost側Git証拠を再検証する。
 attemptに限る。既定値を変更したり、承認を全Planへ永続化したりしない。通常の短い
 運用手順と再開規則は[`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_DAILY_DOGFOOD.md)にまとめる。
 
+## D7 / D8 bounded boundaries
+
+複数のcleanなReviewer Shadow比較が揃った後も、Codex-less判定は低risk・非protected・
+既知Task classだけを対象とする。`python scripts/devfarm_supervisor.py codexless ...`は
+既存PlanのReviewPacket、Host Verification、manifest、Shadow evidenceを読み、
+`CANDIDATE`または`REJECTED`を返すread-only境界である。ReviewerやCLIにintegration、
+push、merge、Gate昇格の権限は与えず、公式branchへの自動変更は行わない。
+
+Self-ImprovementのF0〜F2は、`ObservationRecord` → `ImprovementDiagnosis` →
+`ImprovementPlanProposal`のbounded proposal契約から始める。raw output/secretは受け付けず、
+DiagnosisはObservationのevidenceへgroundedで、Planは常にHuman approvalを要求する。
+これらは既存DevFarm、Task、Scheduler、Repair、Host authorityへ自動接続しない。
+
 ## Handoff / payload
 
 再作業は初回指示全文を複製せず、既存Task reference、failure evidence、review finding、

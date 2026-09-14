@@ -100,6 +100,10 @@ python scripts/devfarm_supervisor.py review <run-id> <task-id> --root . \
 python scripts/devfarm_supervisor.py integrate <run-id> <task-id> --root . \
   --decision-id <decision-id> --target-checkout . \
   --target-ref HEAD --commit-message "<message>"
+python scripts/devfarm_supervisor.py codexless <run-id> <task-id> --root . \
+  --proposal-file <review-proposal.json> \
+  --shadow-evidence-file <shadow-a.json> \
+  --shadow-evidence-file <shadow-b.json>
 ```
 
 REWORK時は`review --decision REWORK --required-correction ...`を先にdurably記録し、
@@ -139,6 +143,12 @@ verification、自動integrationは禁止する。`resume`はartifactを再読�
 解放するだけで、Providerを勝手に再実行しない。Supervisorのreview decisionは
 attempt/evidenceと結合してPlanへ保存し、REWORKは差分Handoffを付けた新manifestへ、
 APPROVE_INTEGRATIONは明示承認後のHost側Git integration helperへ接続する。
+
+`codexless`は既存のcleanなReviewer Shadow evidenceとHost Verificationを使って、
+低risk・非protected・既知Task classのroutine candidateをread-only評価するだけである。
+`CANDIDATE`はReviewerのdecision authority、公式branchへのmerge/push、Gate昇格、
+無条件integrationを意味しない。F0〜F2 Self-ImprovementのObservation、Diagnosis、
+Improvement Planもproposal-onlyであり、Commander PlanやRepairへ自動接続しない。
 
 ## Codexの統合チェックリスト
 

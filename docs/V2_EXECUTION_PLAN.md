@@ -11,6 +11,7 @@ Phase 7後半の安全な拡張と開発運用移管。既存のKernel、Resourc
 - Group Dのsession identity、bounded artifact reference、reconciliation replay、明示的Backend discovery authority。
 - Free L1 WorkerのSupervisor/Host Verification/ReviewDecision/REWORK/依存integration経路。
 - Free L2 Plannerのproposal-only adapter、strict JSON boundary、RootPlanningProposal、Host-only DevelopmentPlanningBridge、および明示的なModel Catalog / Benchmark Catalog / Capability Catalog / Runtime admission境界。
+- D6の異なる2件のproposal-only Reviewer Shadow比較、D7のbounded Codex-less candidate policy/CLI、D8 F0–F2のproposal-only data contracts。
 - Group DのCodex session restart/discovery境界は、正式な外部discoveryが無い場合にUNKNOWNへ閉じることをEvidence化した。MCPは既存Supervisorへ委譲するtransport-neutralなin-process thin adapterまで接続し、wire transportは未接続。Compressionは固定HTTP clientを明示compositionできるが、live smokeはcredential未設定で未検証。
 
 ## Current Gate
@@ -23,11 +24,11 @@ Current State、Main/Detailed Roadmap、Requirements、ADR、Evidence、作業Pl
 
 D1/D2のbounded live development sliceは、`gemini:worker:free-3` / `gemini-3.6-flash`によるstrict JSON Planner proposal、Host validation、DevelopmentPlanningBridge、Commander Plan、Free L1 Worker、独立Host Verification、Codex durable review、Host deterministic integrationまで完了した。詳細Evidenceは[`planner-l2-live-d1-20260914.json`](../spec/v2/evidence/planner-l2-live-d1-20260914.json)と[`planner-to-worker-e2e-20260914.json`](../spec/v2/evidence/planner-to-worker-e2e-20260914.json)を参照する。Model discovery / benchmark / capability evidenceは候補化の入力に留まり、qualification・billing・privacy・quota・healthを代替しない。confirmed failover-safe failureは同一tierの別bindingへ切替え、UNKNOWNはreconciliationへ閉じる。
 
-D4のdiscovery境界確認とD5のtransport-neutral in-process thin adapterは完了した。D4は正式なdiscovery authorityが無い限りUNKNOWN/reconciliationを維持し、D5のwire transportとPlanner mutation authorityは未接続の別sliceである。D2の別内容の補助Worker sliceと、D6の初回proposal-only Reviewer Shadow比較もEvidence化したが、D7へ進む十分なshadow Evidenceはまだない。次のGateは、D3を条件付きで監視しつつ、Reviewer Shadowの追加bounded比較をCodex final reviewとHost authorityの下で行うこととする。
+D4のdiscovery境界確認とD5のtransport-neutral in-process thin adapterは完了した。D4は正式なdiscovery authorityが無い限りUNKNOWN/reconciliationを維持し、D5のwire transportとPlanner mutation authorityは未接続の別sliceである。D2の別内容の補助Worker sliceと、D6の異なる2件のproposal-only Reviewer Shadow比較もEvidence化した。D7のbounded candidate policy/CLIとD8のF0–F2 proposal-only契約は実装済みだが、実live Codex-less cycle、D7の統合候補運用、D8の運用接続は未検証である。次のGateは、D7を実Free Workerの低リスクbounded cycleで検証し、公式branch自動mergeなしのHost境界を確認することとする。
 
 ## Operational acceptance
 
-Code、local regression、Host Verification、Git integration、remote push、exact-head CIは別Evidenceとして扱う。Provider request到達、adapter存在、MCP boundary、モデル自己申告だけではGateを閉じない。詳細順序はD3 Worker reliability、D4 concrete session restart/discovery、D5 MCP thin runtime、D6 Reviewer Shadow、D7 LOW/NORMAL Codex-less cycle、D8–D9 Self-Improvementへ続く。
+Code、local regression、Host Verification、Git integration、remote push、exact-head CIは別Evidenceとして扱う。Provider request到達、adapter存在、MCP boundary、モデル自己申告だけではGateを閉じない。詳細順序はD3 Worker reliability、D4 concrete session restart/discovery、D5 MCP thin runtime、D6 Reviewer Shadow、D7 LOW/NORMAL Codex-less cycle、D8–D9 Self-Improvementへ続く。D7のcandidate policy単体とD8のrecord契約単体は、それぞれlive cycle/運用接続の完了証拠ではない。
 
 ## External / frozen
 

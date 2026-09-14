@@ -25,6 +25,7 @@ Task state、Scheduler、Budget、Provider routing、AgentBackend authorityを
 | 内容 | 参照 |
 | --- | --- |
 | Codex Supervisor、bounded wait、reference-first dogfood | [04-codex-supervised-dogfood.md](04-codex-supervised-dogfood.md) |
+| Codex-less routine candidate、F0–F2 proposal-only records | [05-codexless-and-self-improvement.md](05-codexless-and-self-improvement.md) |
 
 ## 実装段階
 
@@ -60,9 +61,17 @@ Task state、Scheduler、Budget、Provider routing、AgentBackend authorityを
   `scripts/devfarm_reviewer_shadow.py` がcompact ReviewPacketに対するFree L2の
   proposal-only Reviewer Shadowを提供する。Codexのdurable final decisionとHost
   integrationを正本として比較Evidenceを残し、Reviewer自身にはdecision authorityを与えない。
+- 実装済みslice: `src/dev_agent/intelligence/codexless.py` が、複数のcleanなShadow
+  Evidence、boundedなTask分類、独立Host Verification、scope、trust、ReviewPacketを
+  合成して、Codex-less routine candidateをdeterministically評価する。結果は候補に
+  留まり、公式branchの自動merge・push・Gate昇格・integration authorityは持たない。
+- 実装済みslice: `src/dev_agent/intelligence/self_improvement.py` が、Host observation、
+  observationにgroundedなdiagnosis、human approval必須のimprovement plan proposalを
+  bounded JSON契約として提供する。自動dispatch、Task mutation、repair、integrationは
+  このsliceへ接続しない。
 - **NOT VERIFIED / NOT CONNECTED**: Compression live availability、wire MCP transport、
   MCP planner proposal/apply authority、simulated-paid runtime E2E、Reviewer decision
-  authority、
+  authority、live Codex-less cycle、運用接続されたF0–F2 Self-Improvement、
   有限multi-cycleは未検証または未接続である。CompressionはG6O1-SIM/LIVEのbilling/evidence
   へ接続しない。
 - 後続slice: wire transport、simulated-paid接続、Reviewer shadow、Control Planeが所有する
