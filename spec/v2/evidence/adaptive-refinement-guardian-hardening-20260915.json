@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "adaptive_refinement_guardian_hardening",
+  "observed_at": "2026-09-15",
+  "implementation_baseline": "dbdc1e53c6de095d6d681384c54a5c732bacdb6d6",
+  "changes": [
+    {
+      "area": "guardian_process",
+      "result": "VERIFIED_LOCAL",
+      "detail": "A Popen result with an invalid PID is terminated and waited on within the bounded stop timeout before the start operation fails; an untracked process is not placed in the runtime handle map."
+    },
+    {
+      "area": "adaptive_refinement",
+      "result": "VERIFIED_LOCAL",
+      "detail": "Host failure categories are classified and passed to the existing BoundedRefinementPolicy through a public composition function; dispatch, reassignment, approval, persistence, integration, and reconciliation remain outside this adapter."
+    }
+  ],
+  "focused_verification": {
+    "tests": "57 passed",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS"
+  },
+  "full_verification": {
+    "tests_v2": "1196 passed, 1 skipped",
+    "skip_reason": "Windows ACLs are deployment-owned"
+  },
+  "exact_head_ci": {
+    "head": "dbdc1e53c6de095d6d681384c54a5c732bacdb6d6",
+    "v2_core_run": "34883870891",
+    "provider_smoke_run": "34883870922",
+    "kernel_3_10": "PASS",
+    "kernel_3_11": "PASS",
+    "provider_smoke": "PASS"
+  },
+  "worker": {
+    "new_attempts": 0,
+    "reason": "The prior bounded Windows outbound transport failure remains unchanged; no duplicate live dispatch was issued."
+  },
+  "scope_boundary": "This evidence covers local deterministic Guardian/refinement behavior only. It does not establish OS Service or deployed Guardian recovery, Compression authentication, D9 official-runtime mutation, or a new Free Worker integration.",
+  "raw_output_or_secret_recorded": false
+}

@@ -5,13 +5,13 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Latest implementation commit before documentation sync | `968dc25` (`fix: retain bounded refinement observations`) |
-| Implementation/evidence baseline | `968dc25` (Guardian static execution, real local subprocess coverage, graceful drain, revision-pinned runtime, rolling restart, bounded rollback composition, refinement Critic composition, closed worker-failure classification, and bounded refinement usage observations) |
+| Latest implementation commit before documentation sync | `dbdc1e5` (`fix: close untracked guardian processes`) |
+| Implementation/evidence baseline | `dbdc1e5` (Guardian static execution with invalid-PID cleanup, real local subprocess coverage, graceful drain, revision-pinned runtime, rolling restart, bounded rollback composition, refinement Critic composition, Host failure classification/composition, and bounded refinement usage observations) |
 | Worktree | clean at the current verification checkpoint; this documentation sync records the same checkpoint |
-| Local regression | `1192 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 241.74s) |
+| Local regression | `1196 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 200.31s) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for implementation baseline `968dc25318fccc8c6498277aa3c43d4700df5918`: `v2-core` [run 34881117880](https://github.com/kinoko34077/dev_agent/actions/runs/34881117880) and `v2-provider-smoke` [run 34881117740](https://github.com/kinoko34077/dev_agent/actions/runs/34881117740), covering kernel (3.10), kernel (3.11), and provider-smoke. |
+| Exact-head CI | PASS for implementation baseline `dbdc1e53c6de095d6d681384c54a5c732bacdb6d6`: `v2-core` [run 34883870891](https://github.com/kinoko34077/dev_agent/actions/runs/34883870891) and `v2-provider-smoke` [run 34883870922](https://github.com/kinoko34077/dev_agent/actions/runs/34883870922), covering kernel (3.10), kernel (3.11), and provider-smoke. |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
@@ -38,6 +38,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 - Process Coordination / Guardian execution: `ControlRequest` is durably stored and delivered through the existing mailbox; `GuardianPolicy` performs deterministic generation/lease/policy evaluation; and `GuardianActionService` records generation-fenced action intent with bounded idempotent transitions (`PENDING`, `EXECUTING`, `COMPLETED`, `REJECTED`, `UNKNOWN`). The existing static-profile Guardian executor now has local evidence for process START/STOP/RESTART, graceful drain/checkpoint, revision-pinned release materialization, rolling replacement, and bounded last-known-good rollback composition. UNKNOWN process outcomes remain reconciliation-required and are never blindly replayed. See [`guardian-fault-drill-20260915.json`](../spec/v2/evidence/guardian-fault-drill-20260915.json).
 - Guardian real local execution: the existing static-profile executor has also started and stopped a real bounded local subprocess through `GuardianProcessService`, with both durable action records completing and no process output retained. This strengthens G1 local evidence only; it does not establish OS/deployed Guardian operation. See [`guardian-real-local-process-20260915.json`](../spec/v2/evidence/guardian-real-local-process-20260915.json).
 - Adaptive refinement boundary: Host-side worker-failure classification is closed and maps format, semantic, provider, capability, security, and UNKNOWN outcomes to the existing bounded `FailureClass` policy without substring guessing or failover of ambiguous effects. The proposal-only L1 Critic receives an allowlisted ReviewPacket through a public Host composition and cannot decide, reassign, integrate, or mutate source. Verified Worker usage now preserves bounded `refinement_round` and `reasoning_effort` observations; no new live Worker dispatch was claimed in this slice.
+- Adaptive refinement / Guardian hardening: `scripts/devfarm_refinement.py::plan_refinement()` now exposes the category-to-policy composition without creating a retry loop, and `SubprocessProcessRuntime` bounds cleanup when a Popen result cannot be represented by a valid process handle. Focused and full evidence is recorded in [`adaptive-refinement-guardian-hardening-20260915.json`](../spec/v2/evidence/adaptive-refinement-guardian-hardening-20260915.json).
 
 ## Partially implemented / not verified
 
@@ -88,6 +89,7 @@ and the compact operational procedure is [`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_D
 - Guardian G1 real local subprocess: [`guardian-real-local-process-20260915.json`](../spec/v2/evidence/guardian-real-local-process-20260915.json)
 - Model catalog refresh and admission boundary: [`model-catalog-refresh-20260915.json`](../spec/v2/evidence/model-catalog-refresh-20260915.json)
 - Worker delegation transport observation: [`worker-delegation-observation-20260915.json`](../spec/v2/evidence/worker-delegation-observation-20260915.json)
+- Adaptive refinement / Guardian hardening: [`adaptive-refinement-guardian-hardening-20260915.json`](../spec/v2/evidence/adaptive-refinement-guardian-hardening-20260915.json)
 - Planner live D1 / D2 development evidence: [`planner-l2-live-d1-20260914.json`](../spec/v2/evidence/planner-l2-live-d1-20260914.json), [`planner-to-worker-e2e-20260914.json`](../spec/v2/evidence/planner-to-worker-e2e-20260914.json)
 - Supplemental D2, D3, D6, and D7 observations: [`d2-dogfood-doc-note-20260914.json`](../spec/v2/evidence/d2-dogfood-doc-note-20260914.json), [`d3-worker-reliability-observation-20260914.json`](../spec/v2/evidence/d3-worker-reliability-observation-20260914.json), [`reviewer-shadow-20260914.json`](../spec/v2/evidence/reviewer-shadow-20260914.json), [`reviewer-shadow-20260914-02.json`](../spec/v2/evidence/reviewer-shadow-20260914-02.json), [`d7-codexless-candidate-20260914.json`](../spec/v2/evidence/d7-codexless-candidate-20260914.json)
 - Model catalog and pool observations: [`spec/v2/evidence/`](../spec/v2/evidence/)
