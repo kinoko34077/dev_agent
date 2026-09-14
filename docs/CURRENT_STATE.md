@@ -5,12 +5,12 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Implementation/evidence baseline | `35cbd98` (bounded D9 approval-bound Host adapter) |
+| Implementation/evidence baseline | `8e10ade` (bounded D9 approval-bound Host adapter with rollback binding) |
 | Worktree | clean after D9 Host adapter and Evidence/documentation synchronization |
 | Local regression | `1057 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 182.08s) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for current implementation/evidence HEAD `35cbd984fa981a8674905717f9949bfc232f1967`: `v2-core` [run 34815098259](https://github.com/kinoko34077/dev_agent/actions/runs/34815098259) and `v2-provider-smoke` [run 34815098226](https://github.com/kinoko34077/dev_agent/actions/runs/34815098226). |
+| Exact-head CI | PASS for current implementation/evidence HEAD `8e10adeb3026961a4bdee784e18b6889718550ab`: `v2-core` [run 34815728783](https://github.com/kinoko34077/dev_agent/actions/runs/34815728783) and `v2-provider-smoke` [run 34815728763](https://github.com/kinoko34077/dev_agent/actions/runs/34815728763). |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in

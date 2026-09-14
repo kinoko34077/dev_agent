@@ -14,6 +14,21 @@
     "approval_consumed": false,
     "approval_consumption_path": "existing ApprovalPolicy",
     "host_integration_path": "existing Supervisor integrate_approved_worker",
+    "approval_bound_fields": [
+      "candidate_id",
+      "run_id",
+      "task_id",
+      "attempt_id",
+      "base_revision",
+      "patch_sha256",
+      "manifest_ref",
+      "verification_ref",
+      "rollback_ref",
+      "review_decision_id",
+      "target_checkout_ref",
+      "target_ref",
+      "commit_message"
+    ],
     "rollback_performed": false,
     "task_mutated": false,
     "git_mutated": false
