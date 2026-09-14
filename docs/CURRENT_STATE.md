@@ -8,7 +8,7 @@
 | Latest implementation commit before documentation sync | `616c9d9` (`fix: hash UTF-8 integration diffs`) |
 | Implementation/evidence baseline | `616c9d9` (Guardian static execution, graceful drain, revision-pinned runtime, rolling restart, bounded rollback composition, rollback-intent idempotency, and UTF-8 integration-digest coverage) |
 | Worktree | clean at the current verification checkpoint; this documentation sync records the same checkpoint |
-| Local regression | `1170 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 257.94s) |
+| Local regression | `1172 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 225.61s) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
 | Exact-head CI | PASS for implementation baseline `616c9d9928b644c2d804e148de9fdc65539113b5`: `v2-core` [run 34872908064](https://github.com/kinoko34077/dev_agent/actions/runs/34872908064) and `v2-provider-smoke` [run 34872908037](https://github.com/kinoko34077/dev_agent/actions/runs/34872908037), covering kernel (3.10), kernel (3.11), and provider-smoke. |
