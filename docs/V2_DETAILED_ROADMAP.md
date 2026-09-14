@@ -85,7 +85,7 @@
 ### D10A/B — Process Coordination foundation
 
 - 目的: D9 real mutationや常駐運用へ進む前に、Task Planeとは別のProcess Coordination Planeへ、作業位置・復帰点・外部送信manifest・generation-fenced requestを記録できるようにする。
-- 実装済み: `WorkAddress`、`ResumeCapsule`、bounded LIFO `InterruptStack`、NOTE/PARALLEL/INTERRUPT/CANCEL分類、Host `EgressManifest`、durable `ControlRequest`、およびprocess side effectを持たない`GuardianPolicy`評価。
+- 実装済み: `WorkAddress`、`ResumeCapsule`、bounded LIFO `InterruptStack`、NOTE/PARALLEL/INTERRUPT/CANCEL分類、Host `EgressManifest`、durable `ControlRequest`、process side effectを持たない`GuardianPolicy`評価、およびgeneration-fenced `GuardianActionService`のbounded action journal。
 - 検証: Work Address/Resume/egress/ControlRequest/Guardianのfocused testと全`tests/v2`回帰、Architecture、compileallを通過。詳細は[`coordination-work-egress-foundation-20260914.json`](../spec/v2/evidence/coordination-work-egress-foundation-20260914.json)。
 - 未実装: Guardianのprocess起動/停止/再起動、OS service、graceful drain、checkpoint transaction、revision-pinned runtime、rolling restart、rollback、fault drill。これらを実装するまでD9 real mutationを解放しない。
 

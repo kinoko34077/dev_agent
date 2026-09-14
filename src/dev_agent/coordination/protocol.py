@@ -65,6 +65,14 @@ class MailboxStatus(str, Enum):
     EXPIRED = "EXPIRED"
 
 
+class GuardianActionStatus(str, Enum):
+    PENDING = "PENDING"
+    EXECUTING = "EXECUTING"
+    COMPLETED = "COMPLETED"
+    REJECTED = "REJECTED"
+    UNKNOWN = "UNKNOWN"
+
+
 _SHA256 = re.compile(r"^[0-9a-fA-F]{64}$")
 _MAX_PROTOCOL_BYTES = 256 * 1024
 _MAX_ARTIFACT_REFS = 64
@@ -398,6 +406,103 @@ class ControlRequest:
 
 
 @dataclass(frozen=True)
+class GuardianActionRecord:
+    """Durable journal entry for one generation-fenced control intent."""
+
+    request_id: str
+    idempotency_key: str
+    request_digest: str
+    sender_role: str
+    sender_instance_id: str
+    sender_generation: int
+    target_role: str
+    target_generation: int
+    action: ControlAction
+    status: GuardianActionStatus
+    decision: str
+    decision_reason: str
+    created_at: str
+    updated_at: str
+    desired_revision: str | None = None
+    result_code: str | None = None
+    reconciliation_required: bool = False
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "request_id", validate_identifier(self.request_id, "request_id"))
+        object.__setattr__(self, "idempotency_key", validate_identifier(self.idempotency_key, "idempotency_key"))
+        if not isinstance(self.request_digest, str) or _SHA256.fullmatch(self.request_digest) is None:
+            raise CoordinationValidationError("request_digest must be a 64-character hexadecimal digest")
+        object.__setattr__(self, "request_digest", self.request_digest.lower())
+        object.__setattr__(self, "sender_role", validate_identifier(self.sender_role, "sender_role"))
+        object.__setattr__(self, "sender_instance_id", validate_identifier(self.sender_instance_id, "sender_instance_id"))
+        object.__setattr__(self, "sender_generation", _positive_int(self.sender_generation, "sender_generation"))
+        object.__setattr__(self, "target_role", validate_identifier(self.target_role, "target_role"))
+        object.__setattr__(self, "target_generation", _positive_int(self.target_generation, "target_generation"))
+        object.__setattr__(self, "action", _enum(self.action, ControlAction, "action"))
+        object.__setattr__(self, "status", _enum(self.status, GuardianActionStatus, "status"))
+        object.__setattr__(self, "decision", validate_identifier(self.decision, "decision"))
+        object.__setattr__(self, "decision_reason", validate_text(self.decision_reason, "decision_reason", max_chars=4_096))
+        object.__setattr__(self, "created_at", validate_timestamp(self.created_at, "created_at"))
+        object.__setattr__(self, "updated_at", validate_timestamp(self.updated_at, "updated_at"))
+        object.__setattr__(self, "desired_revision", _optional_text(self.desired_revision, "desired_revision", max_chars=512))
+        result_code = _optional_text(self.result_code, "result_code", max_chars=256)
+        if result_code is not None:
+            result_code = validate_identifier(result_code, "result_code")
+        object.__setattr__(self, "result_code", result_code)
+        if not isinstance(self.reconciliation_required, bool):
+            raise CoordinationValidationError("reconciliation_required must be a boolean")
+        ensure_secret_free(self.to_dict(), "guardian action")
+        encoded = ensure_json_safe(self.to_dict(), "guardian action")
+        if len(str(encoded).encode("utf-8")) > _MAX_PROTOCOL_BYTES:
+            raise CoordinationValidationError("guardian action exceeds its size bound")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "request_id": self.request_id,
+            "idempotency_key": self.idempotency_key,
+            "request_digest": self.request_digest,
+            "sender_role": self.sender_role,
+            "sender_instance_id": self.sender_instance_id,
+            "sender_generation": self.sender_generation,
+            "target_role": self.target_role,
+            "target_generation": self.target_generation,
+            "action": self.action.value,
+            "status": self.status.value,
+            "decision": self.decision,
+            "decision_reason": self.decision_reason,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "desired_revision": self.desired_revision,
+            "result_code": self.result_code,
+            "reconciliation_required": self.reconciliation_required,
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "GuardianActionRecord":
+        if not isinstance(value, Mapping):
+            raise CoordinationValidationError("guardian action must be an object")
+        return cls(
+            request_id=value.get("request_id"),
+            idempotency_key=value.get("idempotency_key"),
+            request_digest=value.get("request_digest"),
+            sender_role=value.get("sender_role"),
+            sender_instance_id=value.get("sender_instance_id"),
+            sender_generation=value.get("sender_generation"),
+            target_role=value.get("target_role"),
+            target_generation=value.get("target_generation"),
+            action=value.get("action"),
+            status=value.get("status"),
+            decision=value.get("decision"),
+            decision_reason=value.get("decision_reason"),
+            created_at=value.get("created_at"),
+            updated_at=value.get("updated_at"),
+            desired_revision=value.get("desired_revision"),
+            result_code=value.get("result_code"),
+            reconciliation_required=value.get("reconciliation_required", False),
+        )
+
+
+@dataclass(frozen=True)
 class HandoffNote:
     from_role: str
     to_role: str
@@ -472,6 +577,8 @@ __all__ = [
     "CoordinationValidationError",
     "ControlAction",
     "ControlRequest",
+    "GuardianActionRecord",
+    "GuardianActionStatus",
     "HandoffNote",
     "MailboxMessage",
     "MailboxStatus",

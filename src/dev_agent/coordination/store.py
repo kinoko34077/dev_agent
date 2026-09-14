@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from dataclasses import replace
 from datetime import datetime
 import json
 from pathlib import Path
@@ -14,6 +15,8 @@ from .._sqlite import connect
 from .protocol import (
     CoordinationConflict,
     CoordinationValidationError,
+    GuardianActionRecord,
+    GuardianActionStatus,
     MailboxMessage,
     MailboxStatus,
     PeerRecord,
@@ -23,6 +26,14 @@ from .protocol_helpers import validate_identifier, validate_timestamp
 
 
 _MAX_CLAIM_LIMIT = 64
+
+_GUARDIAN_ACTION_TRANSITIONS = {
+    GuardianActionStatus.PENDING: frozenset({GuardianActionStatus.EXECUTING, GuardianActionStatus.UNKNOWN}),
+    GuardianActionStatus.EXECUTING: frozenset({GuardianActionStatus.COMPLETED, GuardianActionStatus.UNKNOWN}),
+    GuardianActionStatus.COMPLETED: frozenset(),
+    GuardianActionStatus.REJECTED: frozenset(),
+    GuardianActionStatus.UNKNOWN: frozenset(),
+}
 
 
 def _parse_timestamp(value: str, name: str = "timestamp") -> datetime:
@@ -79,6 +90,46 @@ def _message_from_row(row: sqlite3.Row) -> MailboxMessage:
     )
 
 
+def _guardian_action_from_row(row: sqlite3.Row) -> GuardianActionRecord:
+    return GuardianActionRecord(
+        request_id=row["request_id"],
+        idempotency_key=row["idempotency_key"],
+        request_digest=row["request_digest"],
+        sender_role=row["sender_role"],
+        sender_instance_id=row["sender_instance_id"],
+        sender_generation=row["sender_generation"],
+        target_role=row["target_role"],
+        target_generation=row["target_generation"],
+        action=row["action"],
+        status=row["status"],
+        decision=row["decision"],
+        decision_reason=row["decision_reason"],
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+        desired_revision=row["desired_revision"],
+        result_code=row["result_code"],
+        reconciliation_required=bool(row["reconciliation_required"]),
+    )
+
+
+def _guardian_action_identity(record: GuardianActionRecord) -> tuple[Any, ...]:
+    return (
+        record.request_id,
+        record.idempotency_key,
+        record.request_digest,
+        record.sender_role,
+        record.sender_instance_id,
+        record.sender_generation,
+        record.target_role,
+        record.target_generation,
+        record.action.value,
+        record.decision,
+        record.decision_reason,
+        record.created_at,
+        record.desired_revision,
+    )
+
+
 def _message_identity(message: MailboxMessage) -> tuple[Any, ...]:
     """Return immutable delivery intent, excluding mutable claim state."""
 
@@ -100,6 +151,8 @@ def _message_identity(message: MailboxMessage) -> tuple[Any, ...]:
 
 class CoordinationStore:
     """A separate, small SQLite authority for peer and mailbox state."""
+
+    SCHEMA_VERSION = 2
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
@@ -154,15 +207,49 @@ class CoordinationStore:
                     claim_lease_until TEXT,
                     attempt_count INTEGER NOT NULL DEFAULT 0
                 );
+                CREATE TABLE IF NOT EXISTS guardian_actions (
+                    request_id TEXT PRIMARY KEY,
+                    idempotency_key TEXT NOT NULL UNIQUE,
+                    request_digest TEXT NOT NULL,
+                    sender_role TEXT NOT NULL,
+                    sender_instance_id TEXT NOT NULL,
+                    sender_generation INTEGER NOT NULL,
+                    target_role TEXT NOT NULL,
+                    target_generation INTEGER NOT NULL,
+                    action TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    decision TEXT NOT NULL,
+                    decision_reason TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    desired_revision TEXT,
+                    result_code TEXT,
+                    reconciliation_required INTEGER NOT NULL DEFAULT 0
+                );
                 CREATE INDEX IF NOT EXISTS mailbox_recipient_status_idx
                     ON mailbox(recipient_role, status, created_at, message_id);
                 CREATE INDEX IF NOT EXISTS mailbox_claim_lease_idx
                     ON mailbox(status, claim_lease_until);
+                CREATE INDEX IF NOT EXISTS guardian_actions_status_idx
+                    ON guardian_actions(status, updated_at, request_id);
                 """
             )
             self.connection.execute(
-                "INSERT OR IGNORE INTO coordination_meta(key, value) VALUES('schema_version', '1')"
+                "INSERT OR IGNORE INTO coordination_meta(key, value) VALUES('schema_version', ?)",
+                (str(self.SCHEMA_VERSION),),
             )
+            current_version = int(
+                self.connection.execute(
+                    "SELECT value FROM coordination_meta WHERE key='schema_version'"
+                ).fetchone()["value"]
+            )
+            if current_version > self.SCHEMA_VERSION:
+                raise CoordinationValidationError("coordination schema version is newer than this runtime")
+            if current_version < self.SCHEMA_VERSION:
+                self.connection.execute(
+                    "UPDATE coordination_meta SET value=? WHERE key='schema_version'",
+                    (str(self.SCHEMA_VERSION),),
+                )
             self.connection.commit()
 
     @contextmanager
@@ -358,6 +445,179 @@ class CoordinationStore:
                     ).fetchone()
                     changed.append(_peer_from_row(updated))
         return tuple(changed)
+
+    def create_guardian_action(self, record: GuardianActionRecord) -> GuardianActionRecord:
+        """Persist one new Guardian journal entry idempotently."""
+
+        if not isinstance(record, GuardianActionRecord):
+            raise CoordinationValidationError("record must be a GuardianActionRecord")
+        if record.status not in {GuardianActionStatus.PENDING, GuardianActionStatus.REJECTED}:
+            raise CoordinationValidationError("new Guardian actions must be pending or rejected")
+        with self._transaction() as connection:
+            existing = connection.execute(
+                "SELECT * FROM guardian_actions WHERE idempotency_key=?",
+                (record.idempotency_key,),
+            ).fetchone()
+            if existing is not None:
+                restored = _guardian_action_from_row(existing)
+                if _guardian_action_identity(restored) != _guardian_action_identity(record):
+                    raise CoordinationConflict("Guardian idempotency key was reused for different intent")
+                return restored
+            existing_id = connection.execute(
+                "SELECT * FROM guardian_actions WHERE request_id=?",
+                (record.request_id,),
+            ).fetchone()
+            if existing_id is not None:
+                raise CoordinationConflict("Guardian request id was reused for different intent")
+            connection.execute(
+                """INSERT INTO guardian_actions(
+                    request_id, idempotency_key, request_digest,
+                    sender_role, sender_instance_id, sender_generation,
+                    target_role, target_generation, action,
+                    status, decision, decision_reason,
+                    created_at, updated_at, desired_revision,
+                    result_code, reconciliation_required
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    record.request_id,
+                    record.idempotency_key,
+                    record.request_digest,
+                    record.sender_role,
+                    record.sender_instance_id,
+                    record.sender_generation,
+                    record.target_role,
+                    record.target_generation,
+                    record.action.value,
+                    record.status.value,
+                    record.decision,
+                    record.decision_reason,
+                    record.created_at,
+                    record.updated_at,
+                    record.desired_revision,
+                    record.result_code,
+                    int(record.reconciliation_required),
+                ),
+            )
+            return record
+
+    def get_guardian_action(
+        self,
+        *,
+        request_id: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> GuardianActionRecord | None:
+        if (request_id is None) == (idempotency_key is None):
+            raise CoordinationValidationError("provide exactly one Guardian action lookup key")
+        if request_id is not None:
+            request_id = validate_identifier(request_id, "request_id")
+            query = "SELECT * FROM guardian_actions WHERE request_id=?"
+            params = (request_id,)
+        else:
+            idempotency_key = validate_identifier(idempotency_key, "idempotency_key")
+            query = "SELECT * FROM guardian_actions WHERE idempotency_key=?"
+            params = (idempotency_key,)
+        with self._lock:
+            if self._closed:
+                raise RuntimeError("coordination store is closed")
+            row = self.connection.execute(query, params).fetchone()
+            return _guardian_action_from_row(row) if row is not None else None
+
+    def list_guardian_actions(
+        self,
+        *,
+        status: GuardianActionStatus | str | None = None,
+        limit: int = _MAX_CLAIM_LIMIT,
+    ) -> tuple[GuardianActionRecord, ...]:
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 0 < limit <= _MAX_CLAIM_LIMIT:
+            raise CoordinationValidationError(f"limit must be between 1 and {_MAX_CLAIM_LIMIT}")
+        normalized_status = None
+        if status is not None:
+            try:
+                normalized_status = status if isinstance(status, GuardianActionStatus) else GuardianActionStatus(status)
+            except (TypeError, ValueError) as exc:
+                raise CoordinationValidationError("Guardian action status is unsupported") from exc
+        with self._lock:
+            if self._closed:
+                raise RuntimeError("coordination store is closed")
+            if normalized_status is None:
+                rows = self.connection.execute(
+                    "SELECT * FROM guardian_actions ORDER BY updated_at, request_id LIMIT ?",
+                    (limit,),
+                ).fetchall()
+            else:
+                rows = self.connection.execute(
+                    "SELECT * FROM guardian_actions WHERE status=? ORDER BY updated_at, request_id LIMIT ?",
+                    (normalized_status.value, limit),
+                ).fetchall()
+            return tuple(_guardian_action_from_row(row) for row in rows)
+
+    def transition_guardian_action(
+        self,
+        request_id: str,
+        *,
+        to_status: GuardianActionStatus | str,
+        updated_at: str,
+        expected_from: set[GuardianActionStatus | str] | None = None,
+        result_code: str | None = None,
+        reconciliation_required: bool | None = None,
+    ) -> GuardianActionRecord:
+        request_id = validate_identifier(request_id, "request_id")
+        validate_timestamp(updated_at, "updated_at")
+        try:
+            normalized = to_status if isinstance(to_status, GuardianActionStatus) else GuardianActionStatus(to_status)
+        except (TypeError, ValueError) as exc:
+            raise CoordinationValidationError("Guardian action status is unsupported") from exc
+        expected = None
+        if expected_from is not None:
+            if isinstance(expected_from, (str, bytes)) or not expected_from:
+                raise CoordinationValidationError("expected_from must be a non-empty set")
+            try:
+                expected = {
+                    item if isinstance(item, GuardianActionStatus) else GuardianActionStatus(item)
+                    for item in expected_from
+                }
+            except (TypeError, ValueError) as exc:
+                raise CoordinationValidationError("expected_from contains an unsupported status") from exc
+        if result_code is not None:
+            result_code = validate_identifier(result_code, "result_code")
+        if reconciliation_required is not None and not isinstance(reconciliation_required, bool):
+            raise CoordinationValidationError("reconciliation_required must be a boolean")
+        with self._transaction() as connection:
+            row = connection.execute(
+                "SELECT * FROM guardian_actions WHERE request_id=?",
+                (request_id,),
+            ).fetchone()
+            if row is None:
+                raise CoordinationConflict("Guardian action does not exist")
+            current = _guardian_action_from_row(row)
+            if expected is not None and current.status not in expected:
+                raise CoordinationConflict("Guardian action status is not the expected state")
+            if normalized not in _GUARDIAN_ACTION_TRANSITIONS[current.status]:
+                raise CoordinationConflict("Guardian action transition is not allowed")
+            updated = replace(
+                current,
+                status=normalized,
+                updated_at=updated_at,
+                result_code=result_code if result_code is not None else current.result_code,
+                reconciliation_required=(
+                    reconciliation_required
+                    if reconciliation_required is not None
+                    else current.reconciliation_required
+                ),
+            )
+            connection.execute(
+                """UPDATE guardian_actions
+                   SET status=?, updated_at=?, result_code=?, reconciliation_required=?
+                   WHERE request_id=?""",
+                (
+                    updated.status.value,
+                    updated.updated_at,
+                    updated.result_code,
+                    int(updated.reconciliation_required),
+                    updated.request_id,
+                ),
+            )
+            return updated
 
     def enqueue(self, message: MailboxMessage) -> MailboxMessage:
         if not isinstance(message, MailboxMessage):

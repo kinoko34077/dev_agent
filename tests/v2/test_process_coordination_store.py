@@ -61,6 +61,23 @@ def test_peer_presence_survives_reopen_and_expiry_is_degraded(tmp_path) -> None:
         assert reopened.get_peer("agent", "agent-1", 1).status is PeerStatus.DEGRADED
 
 
+def test_coordination_schema_includes_guardian_action_journal_and_reopens(tmp_path) -> None:
+    path = tmp_path / "coordination.sqlite3"
+    with CoordinationStore(path) as store:
+        version = store.connection.execute(
+            "SELECT value FROM coordination_meta WHERE key='schema_version'"
+        ).fetchone()["value"]
+        table = store.connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='guardian_actions'"
+        ).fetchone()
+
+        assert version == str(CoordinationStore.SCHEMA_VERSION)
+        assert table is not None
+
+    with CoordinationStore(path) as reopened:
+        assert reopened.list_guardian_actions() == ()
+
+
 def test_generation_fences_old_peer_after_new_generation(tmp_path) -> None:
     with CoordinationStore(tmp_path / "coordination.sqlite3") as store:
         old = _peer()

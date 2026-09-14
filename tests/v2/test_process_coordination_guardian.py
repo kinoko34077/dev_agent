@@ -2,8 +2,15 @@ from __future__ import annotations
 
 import pytest
 
-from src.dev_agent.coordination.guardian import GuardianDecision, GuardianPolicy
-from src.dev_agent.coordination.protocol import ControlAction, ControlRequest, PeerRecord, PeerStatus
+from src.dev_agent.coordination.guardian import GuardianActionService, GuardianDecision, GuardianPolicy
+from src.dev_agent.coordination.protocol import (
+    ControlAction,
+    ControlRequest,
+    GuardianActionStatus,
+    PeerRecord,
+    PeerStatus,
+)
+from src.dev_agent.coordination.store import CoordinationStore
 
 
 def _peer(*, role: str, instance_id: str, generation: int, status: PeerStatus = PeerStatus.READY) -> PeerRecord:
@@ -98,3 +105,118 @@ def test_guardian_rejects_sender_that_is_not_active(status):
     )
 
     assert evaluation.decision is GuardianDecision.SENDER_NOT_CURRENT
+
+
+def _store_with_current_peers(tmp_path):
+    store = CoordinationStore(tmp_path / "coordination.sqlite3")
+    store.register_peer(_peer(role="codex", instance_id="codex-1", generation=1))
+    store.register_peer(_peer(role="agent", instance_id="agent-1", generation=12))
+    return store
+
+
+def test_guardian_action_journal_executes_an_accepted_intent_once(tmp_path):
+    class _Executor:
+        def __init__(self):
+            self.calls = []
+
+        def execute(self, request):
+            self.calls.append(request.request_id)
+
+    store = _store_with_current_peers(tmp_path)
+    executor = _Executor()
+    try:
+        service = GuardianActionService(store, executor=executor)
+        record = service.submit(_request(), now="2026-09-14T12:01:00+00:00")
+        duplicate = service.submit(_request(), now="2026-09-14T12:02:00+00:00")
+
+        assert record.status is GuardianActionStatus.COMPLETED
+        assert record.result_code == "executor_completed"
+        assert duplicate == record
+        assert executor.calls == ["request-1"]
+        assert store.get_guardian_action(request_id="request-1") == record
+    finally:
+        store.close()
+
+
+def test_guardian_action_journal_persists_policy_rejection_without_execution(tmp_path):
+    class _Executor:
+        def execute(self, request):
+            raise AssertionError("rejected intent must not execute")
+
+    store = CoordinationStore(tmp_path / "coordination.sqlite3")
+    store.register_peer(_peer(role="codex", instance_id="codex-1", generation=1))
+    store.register_peer(_peer(role="agent", instance_id="agent-1", generation=13))
+    try:
+        record = GuardianActionService(store, executor=_Executor()).submit(
+            _request(target_generation=12),
+            now="2026-09-14T12:01:00+00:00",
+        )
+
+        assert record.status is GuardianActionStatus.REJECTED
+        assert record.decision == "STALE_REQUEST"
+        assert record.reconciliation_required is False
+    finally:
+        store.close()
+
+
+def test_guardian_action_executor_failure_closes_to_unknown_without_retry(tmp_path):
+    class _Executor:
+        def __init__(self):
+            self.calls = 0
+
+        def execute(self, request):
+            self.calls += 1
+            raise RuntimeError("external result is ambiguous")
+
+    store = _store_with_current_peers(tmp_path)
+    executor = _Executor()
+    try:
+        service = GuardianActionService(store, executor=executor)
+        record = service.submit(_request(), now="2026-09-14T12:01:00+00:00")
+        duplicate = service.submit(_request(), now="2026-09-14T12:02:00+00:00")
+
+        assert record.status is GuardianActionStatus.UNKNOWN
+        assert record.result_code == "external_outcome_unknown"
+        assert record.reconciliation_required is True
+        assert duplicate == record
+        assert executor.calls == 1
+    finally:
+        store.close()
+
+
+def test_guardian_action_recovery_fences_interrupted_execution(tmp_path):
+    class _Executor:
+        def __init__(self):
+            self.calls = 0
+
+        def execute(self, request):
+            self.calls += 1
+
+    store = _store_with_current_peers(tmp_path)
+    executor = _Executor()
+    try:
+        request = _request()
+        journal = GuardianActionService(store)
+        pending = journal.submit(request, now="2026-09-14T12:01:00+00:00")
+        store.transition_guardian_action(
+            pending.request_id,
+            to_status=GuardianActionStatus.EXECUTING,
+            updated_at="2026-09-14T12:01:01+00:00",
+            expected_from={GuardianActionStatus.PENDING},
+        )
+
+        resumed = GuardianActionService(store, executor=executor).submit(
+            request,
+            now="2026-09-14T12:02:00+00:00",
+        )
+        reconciled = journal.reconcile_interrupted(
+            request.request_id,
+            now="2026-09-14T12:03:00+00:00",
+        )
+
+        assert resumed.status is GuardianActionStatus.EXECUTING
+        assert executor.calls == 0
+        assert reconciled.status is GuardianActionStatus.UNKNOWN
+        assert reconciled.reconciliation_required is True
+    finally:
+        store.close()

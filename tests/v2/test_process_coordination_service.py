@@ -5,7 +5,7 @@ import json
 import pytest
 
 from src.dev_agent.coordination import ResumeCapsule, WorkAddress
-from src.dev_agent.coordination.protocol import ControlAction, HandoffNote, MessageKind, PeerStatus
+from src.dev_agent.coordination.protocol import ControlAction, GuardianActionStatus, HandoffNote, MessageKind, PeerStatus
 from src.dev_agent.coordination.service import ProcessCoordinationService
 
 
@@ -212,3 +212,51 @@ def test_service_evaluates_control_request_against_latest_peer_generations(tmp_p
 
         assert evaluation.decision.value == "ACCEPTED"
         assert evaluation.process_action is None
+
+
+def test_service_guardian_action_wrapper_persists_without_process_authority(tmp_path) -> None:
+    with ProcessCoordinationService(data_dir=tmp_path) as service:
+        codex = service.attach_peer(
+            "codex",
+            revision="rev-a",
+            capabilities=("control-request",),
+            instance_id="codex-1",
+            now="2026-09-14T12:00:00+00:00",
+            lease_seconds=60,
+        )
+        agent = service.attach_peer(
+            "agent",
+            revision="rev-a",
+            capabilities=("guardian-target",),
+            instance_id="agent-1",
+            now="2026-09-14T12:00:00+00:00",
+            lease_seconds=60,
+        )
+        service.set_peer_status(codex, PeerStatus.READY)
+        service.set_peer_status(agent, PeerStatus.READY)
+        reference, _message = service.send_control_request(
+            codex,
+            target_role="agent",
+            target_generation=agent.generation,
+            action=ControlAction.RESTART,
+            reason="record a bounded Guardian intent",
+            idempotency_key="guardian-wrapper-1",
+        )
+
+        record = service.submit_guardian_action(
+            service.read_control_request(reference),
+            now="2026-09-14T12:00:01+00:00",
+        )
+
+        assert record.status is GuardianActionStatus.PENDING
+        assert record.decision == "ACCEPTED"
+        service.store.transition_guardian_action(
+            record.request_id,
+            to_status=GuardianActionStatus.EXECUTING,
+            updated_at="2026-09-14T12:00:02+00:00",
+            expected_from={GuardianActionStatus.PENDING},
+        )
+        assert service.reconcile_guardian_action(
+            record.request_id,
+            now="2026-09-14T12:00:03+00:00",
+        ).status is GuardianActionStatus.UNKNOWN

@@ -11,13 +11,14 @@ from typing import Any
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from .artifacts import CoordinationArtifactStore
-from .guardian import GuardianEvaluation, GuardianPolicy
+from .guardian import GuardianActionService, GuardianEvaluation, GuardianExecutor, GuardianPolicy
 from .protocol import (
     ArtifactReference,
     ControlAction,
     ControlRequest,
     CoordinationConflict,
     CoordinationValidationError,
+    GuardianActionRecord,
     HandoffNote,
     MailboxMessage,
     MailboxStatus,
@@ -347,6 +348,42 @@ class ProcessCoordinationService:
             peers=self.store.list_peers(),
             now=now or _now(),
         )
+
+    def submit_guardian_action(
+        self,
+        request: ControlRequest,
+        *,
+        policy: GuardianPolicy | None = None,
+        executor: GuardianExecutor | None = None,
+        now: str | None = None,
+    ) -> GuardianActionRecord:
+        """Journal a fenced control request and optionally use an injected adapter.
+
+        The default path only records the intent.  Process creation,
+        signalling, restart, and rollback remain outside this service.
+        """
+
+        return GuardianActionService(
+            self.store,
+            policy=policy,
+            executor=executor,
+        ).submit(request, now=now)
+
+    def reconcile_guardian_action(
+        self,
+        request_id: str,
+        *,
+        now: str | None = None,
+    ) -> GuardianActionRecord:
+        return GuardianActionService(self.store).reconcile_interrupted(request_id, now=now)
+
+    def reconcile_guardian_actions(
+        self,
+        *,
+        now: str | None = None,
+        limit: int = 64,
+    ) -> tuple[GuardianActionRecord, ...]:
+        return GuardianActionService(self.store).reconcile_all_interrupted(now=now, limit=limit)
 
     def close(self) -> None:
         self.store.close()

@@ -38,11 +38,13 @@ Human Authority、security条件を上書きしない。
 ## Restart / future Guardian boundary
 
 現行のCoordination foundationはpeer/store/mailbox/handoffに加えて、generation-fenced
-`ControlRequest`のdurable projectionと、process side effectを持たない`GuardianPolicy`
-評価を提供する。ただしGuardianのOS/process操作、OS service、drain/restart、
-revision-pinned runtime、rollback、D9 real self-repairは完了扱いにしない。これらは
-Coordinationのdurable stateを利用する後続Gateであり、実装・fault test・evidenceが
-揃うまでproposal-onlyのD9境界を越えない。
+`ControlRequest`のdurable projection、process side effectを持たない`GuardianPolicy`
+評価、および`GuardianActionService`のbounded journalを提供する。journalは
+`PENDING`→`EXECUTING`→`COMPLETED`、policy拒否の`REJECTED`、外部結果不明の
+`UNKNOWN`を冪等に記録し、`EXECUTING`を再実行しない。ただしGuardianのOS/process
+操作、OS service、drain/restart、revision-pinned runtime、rollback、D9 real
+self-repairは完了扱いにしない。これらはCoordinationのdurable stateを利用する後続
+Gateであり、実装・fault test・evidenceが揃うまでproposal-onlyのD9境界を越えない。
 
 ## Size / privacy
 

@@ -10,6 +10,8 @@ from src.dev_agent.coordination.protocol import (
     ControlAction,
     ControlRequest,
     CoordinationValidationError,
+    GuardianActionRecord,
+    GuardianActionStatus,
     HandoffNote,
     MailboxMessage,
     MailboxStatus,
@@ -110,6 +112,32 @@ def test_control_request_round_trip_binds_sender_and_target_generation():
     assert ControlRequest.from_dict(request.to_dict()) == request
     assert request.to_dict()["action"] == "RESTART"
     assert request.to_dict()["target_generation"] == 12
+
+
+def test_guardian_action_round_trip_preserves_journal_identity_and_status():
+    record = GuardianActionRecord(
+        request_id="request-1",
+        idempotency_key="restart-agent-12",
+        request_digest="a" * 64,
+        sender_role="codex",
+        sender_instance_id="codex-1",
+        sender_generation=3,
+        target_role="agent",
+        target_generation=12,
+        action=ControlAction.RESTART,
+        status=GuardianActionStatus.UNKNOWN,
+        decision="ACCEPTED",
+        decision_reason="request is valid for Guardian handling",
+        created_at="2026-09-14T12:00:00+00:00",
+        updated_at="2026-09-14T12:01:00+00:00",
+        desired_revision="abc123",
+        result_code="external_outcome_unknown",
+        reconciliation_required=True,
+    )
+
+    restored = GuardianActionRecord.from_dict(record.to_dict())
+    assert restored == record
+    json.dumps(restored.to_dict(), ensure_ascii=False, allow_nan=False)
 
 
 @pytest.mark.parametrize("action", ("KILL", "", None))

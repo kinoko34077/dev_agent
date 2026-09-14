@@ -5,6 +5,8 @@ from .protocol import (
     ControlAction,
     ControlRequest,
     CoordinationValidationError,
+    GuardianActionRecord,
+    GuardianActionStatus,
     HandoffNote,
     MailboxMessage,
     MailboxStatus,
@@ -12,7 +14,13 @@ from .protocol import (
     PeerRecord,
     PeerStatus,
 )
-from .guardian import GuardianDecision, GuardianEvaluation, GuardianPolicy
+from .guardian import (
+    GuardianActionService,
+    GuardianDecision,
+    GuardianEvaluation,
+    GuardianExecutor,
+    GuardianPolicy,
+)
 from .work import (
     InterruptFrame,
     InterruptStack,
@@ -28,6 +36,8 @@ __all__ = [
     "ControlAction",
     "ControlRequest",
     "CoordinationValidationError",
+    "GuardianActionRecord",
+    "GuardianActionStatus",
     "HandoffNote",
     "MailboxMessage",
     "MailboxStatus",
@@ -36,6 +46,8 @@ __all__ = [
     "PeerStatus",
     "GuardianDecision",
     "GuardianEvaluation",
+    "GuardianActionService",
+    "GuardianExecutor",
     "GuardianPolicy",
     "InterruptFrame",
     "InterruptStack",

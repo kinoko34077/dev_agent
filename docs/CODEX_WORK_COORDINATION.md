@@ -22,13 +22,15 @@ artifactを正本として利用する。
    Host側で発行し、read/write/external-send/approvalを分離する。
 5. **Process Coordination** — peer identity、generation、presence、durable mailbox、
    immutable handoffを検証する。これはTask Planeを置換しない。
-6. **Guardian準備** — ControlRequest、generation fencing、drain、checkpoint、
-   restart、revision-pinned runtime、rollbackを、前項の証拠を使って段階実装する。
+6. **Guardian準備** — ControlRequest、generation fencing、bounded action journal、
+   drain、checkpoint、restart、revision-pinned runtime、rollbackを、前項の証拠を使って
+   段階実装する。
 7. **D9 real controlled repair** — 1〜6が実証された後だけ、Human approval付きの
    bounded・non-protected・rollback可能なruntime更新を一件検証する。
 
-現在は3と4、および5のdurable foundationが実装済みである。ControlRequestと
-generation-fenced Guardian policyは6のread-only準備までで、process操作は持たない。
+現在は3と4、および5のdurable foundationが実装済みである。ControlRequest、
+generation-fenced Guardian policy、ならびにprocess side effectを持たないbounded action
+journalは6の準備として実装済みである。process操作は持たない。
 full Guardian、drain、restart、revision-pinned runtime、rollbackは未実装・未検証であり、
 7のD9 real controlled repairはproposal-only境界を越えない。
 
