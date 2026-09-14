@@ -72,3 +72,67 @@ def test_worker_metrics_upsert_is_idempotent_and_does_not_use_model_claims(tmp_p
         unverified["worker_metrics"] = {**verified["worker_metrics"], "host_verified": False}
         with pytest.raises(WorkerMetricsError, match="host-verified"):
             store.record(manifest=manifest, result=unverified)
+
+
+def test_worker_metrics_summarize_usage_preserves_observation_gaps(tmp_path):
+    def verified(task_id, request_id, usage):
+        return (
+            {"task_id": task_id, "task_type": "production"},
+            {
+                "worker_metrics": {
+                    "request_id": request_id,
+                    "provider_id": "gemini",
+                    "provider_binding_id": "gemini:worker",
+                    "model_id": "gemini-3.5-flash-lite",
+                    "intelligence_tier": "L1",
+                    "elapsed_ms": 10,
+                    "attempt_count": 1,
+                    "usage": usage,
+                    "host_verified": True,
+                    "host_tests_passed": True,
+                    "result_accepted": True,
+                },
+                "host_verified_tests": [],
+            },
+        )
+
+    with WorkerMetricsStore(tmp_path / "metrics.sqlite3") as store:
+        manifest, result = verified(
+            "usage-task-1",
+            "usage-request-1",
+            {"input_tokens": 10, "output_tokens": 4, "refinement_round": 0, "reasoning_effort": "minimal"},
+        )
+        store.record(manifest=manifest, result=result)
+        manifest, result = verified(
+            "usage-task-2",
+            "usage-request-2",
+            {"input_tokens": 5, "output_tokens": 7, "refinement_round": 1, "reasoning_effort": "low"},
+        )
+        store.record(manifest=manifest, result=result)
+        manifest, result = verified(
+            "usage-task-3",
+            "usage-request-3",
+            {"cost_minor": 0},
+        )
+        store.record(manifest=manifest, result=result)
+
+        summary = store.summarize_usage()
+
+    assert summary["record_count"] == 3
+    assert summary["verified_model_calls"] == 3
+    assert summary["input_tokens"] is None
+    assert summary["output_tokens"] is None
+    assert summary["input_token_observation_count"] == 2
+    assert summary["output_token_observation_count"] == 2
+    assert summary["token_counts_complete"] is False
+    assert summary["refinement_rounds"] is None
+    assert summary["refinement_round_observation_count"] == 2
+    assert summary["model_identities"] == [
+        {
+            "provider_id": "gemini",
+            "provider_binding_id": "gemini:worker",
+            "model_id": "gemini-3.5-flash-lite",
+            "intelligence_tier": "L1",
+        }
+    ]
+    assert summary["reasoning_efforts"] == ["low", "minimal"]

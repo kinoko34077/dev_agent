@@ -109,6 +109,19 @@ def _recorded_at(value: str | None) -> str:
     return parsed.astimezone(timezone.utc).isoformat()
 
 
+_INPUT_TOKEN_KEYS = ("input_tokens", "prompt_tokens", "promptTokenCount")
+_OUTPUT_TOKEN_KEYS = ("output_tokens", "completion_tokens", "candidatesTokenCount")
+_MAX_USAGE_SUMMARY_RECORDS = 10_000
+
+
+def _observed_nonnegative_integer(usage: Mapping[str, Any], keys: Sequence[str]) -> int | None:
+    for key in keys:
+        value = usage.get(key)
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            return value
+    return None
+
+
 class WorkerMetricsStore:
     """Small SQLite store for host-verified Worker observations."""
 
@@ -291,6 +304,79 @@ class WorkerMetricsStore:
                 (limit,),
             ).fetchall()
         return [self._from_row(row) for row in rows]
+
+    def summarize_usage(self, *, limit: int = 1_000) -> dict[str, Any]:
+        """Aggregate only durable, host-verified Worker observations.
+
+        Provider token counters are optional and use provider-specific names.
+        A total is returned only when every selected record exposes that
+        counter; otherwise the total is ``None`` and the observation count
+        remains available.  This prevents missing usage from being reported as
+        zero.  One stored metric record represents one completed Worker model
+        request, so ``verified_model_calls`` is directly observed rather than
+        inferred from token data.
+        """
+
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 0 < limit <= _MAX_USAGE_SUMMARY_RECORDS:
+            raise WorkerMetricsError(
+                f"limit must be between 1 and {_MAX_USAGE_SUMMARY_RECORDS}"
+            )
+        records = self.list(limit=limit)
+        input_values: list[int] = []
+        output_values: list[int] = []
+        refinement_values: list[int] = []
+        reasoning_efforts: set[str] = set()
+        identities: set[tuple[str, str, str, str | None]] = set()
+        for record in records:
+            usage = record.get("usage")
+            if not isinstance(usage, Mapping):
+                usage = {}
+            input_value = _observed_nonnegative_integer(usage, _INPUT_TOKEN_KEYS)
+            output_value = _observed_nonnegative_integer(usage, _OUTPUT_TOKEN_KEYS)
+            if input_value is not None:
+                input_values.append(input_value)
+            if output_value is not None:
+                output_values.append(output_value)
+            refinement_round = usage.get("refinement_round")
+            if isinstance(refinement_round, int) and not isinstance(refinement_round, bool) and refinement_round >= 0:
+                refinement_values.append(refinement_round)
+            effort = usage.get("reasoning_effort")
+            if isinstance(effort, str) and effort.strip():
+                reasoning_efforts.add(effort.strip())
+            identities.add(
+                (
+                    record["provider_id"],
+                    record["provider_binding_id"],
+                    record["model_id"],
+                    record["intelligence_tier"],
+                )
+            )
+
+        record_count = len(records)
+        return {
+            "record_count": record_count,
+            "verified_model_calls": record_count,
+            "input_tokens": sum(input_values) if record_count and len(input_values) == record_count else None,
+            "output_tokens": sum(output_values) if record_count and len(output_values) == record_count else None,
+            "input_token_observation_count": len(input_values),
+            "output_token_observation_count": len(output_values),
+            "token_counts_complete": bool(record_count) and len(input_values) == record_count and len(output_values) == record_count,
+            "refinement_rounds": sum(refinement_values) if record_count and len(refinement_values) == record_count else None,
+            "refinement_round_observation_count": len(refinement_values),
+            "reasoning_efforts": sorted(reasoning_efforts),
+            "model_identities": [
+                {
+                    "provider_id": provider_id,
+                    "provider_binding_id": binding_id,
+                    "model_id": model_id,
+                    "intelligence_tier": tier,
+                }
+                for provider_id, binding_id, model_id, tier in sorted(
+                    identities,
+                    key=lambda item: (item[0], item[1], item[2], item[3] or ""),
+                )
+            ],
+        }
 
     def summarize(
         self,
