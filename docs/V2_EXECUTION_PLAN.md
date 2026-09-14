@@ -24,11 +24,11 @@ Current State、Main/Detailed Roadmap、Requirements、ADR、Evidence、作業Pl
 
 D1/D2のbounded live development sliceは、`gemini:worker:free-3` / `gemini-3.6-flash`によるstrict JSON Planner proposal、Host validation、DevelopmentPlanningBridge、Commander Plan、Free L1 Worker、独立Host Verification、Codex durable review、Host deterministic integrationまで完了した。詳細Evidenceは[`planner-l2-live-d1-20260914.json`](../spec/v2/evidence/planner-l2-live-d1-20260914.json)と[`planner-to-worker-e2e-20260914.json`](../spec/v2/evidence/planner-to-worker-e2e-20260914.json)を参照する。Model discovery / benchmark / capability evidenceは候補化の入力に留まり、qualification・billing・privacy・quota・healthを代替しない。confirmed failover-safe failureは同一tierの別bindingへ切替え、UNKNOWNはreconciliationへ閉じる。
 
-D4のdiscovery境界確認とD5のtransport-neutral in-process thin adapterは完了した。D4は正式なdiscovery authorityが無い限りUNKNOWN/reconciliationを維持し、D5のwire transportとPlanner mutation authorityは未接続の別sliceである。D2の別内容の補助Worker sliceと、D6の異なる2件のproposal-only Reviewer Shadow比較もEvidence化した。D7のbounded candidate policy/CLIとD8のF0–F2 proposal-only契約は実装済みだが、実live Codex-less cycle、D7の統合候補運用、D8の運用接続は未検証である。次のGateは、D7を実Free Workerの低リスクbounded cycleで検証し、公式branch自動mergeなしのHost境界を確認することとする。
+D4のdiscovery境界確認とD5のtransport-neutral in-process thin adapterは完了した。D4は正式なdiscovery authorityが無い限りUNKNOWN/reconciliationを維持し、D5のwire transportとPlanner mutation authorityは未接続の別sliceである。D2の別内容の補助Worker sliceと、D6の異なる2件のproposal-only Reviewer Shadow比較もEvidence化した。D7のbounded candidate policy/CLIは、実Free L1 Worker、独立Host Verification、Free L2 proposal-only review、Host candidate評価まで一続きのlive evidenceを取得した。D8のF0–F2 proposal-only契約は実装済みだが運用接続は未検証であり、公式branchへのCodex-less自動統合も未接続である。次のGateは、D8のHost observation/diagnosis compositionを既存Authority上でboundedに接続することとする。
 
 ## Operational acceptance
 
-Code、local regression、Host Verification、Git integration、remote push、exact-head CIは別Evidenceとして扱う。Provider request到達、adapter存在、MCP boundary、モデル自己申告だけではGateを閉じない。詳細順序はD3 Worker reliability、D4 concrete session restart/discovery、D5 MCP thin runtime、D6 Reviewer Shadow、D7 LOW/NORMAL Codex-less cycle、D8–D9 Self-Improvementへ続く。D7のcandidate policy単体とD8のrecord契約単体は、それぞれlive cycle/運用接続の完了証拠ではない。
+Code、local regression、Host Verification、Git integration、remote push、exact-head CIは別Evidenceとして扱う。Provider request到達、adapter存在、MCP boundary、モデル自己申告だけではGateを閉じない。詳細順序はD3 Worker reliability、D4 concrete session restart/discovery、D5 MCP thin runtime、D6 Reviewer Shadow、D7 LOW/NORMAL Codex-less cycle、D8–D9 Self-Improvementへ続く。D7はcandidate cycleのlive evidenceを取得済みだが公式branch統合は未接続、D8のrecord契約は運用接続の完了証拠ではない。
 
 ## External / frozen
 

@@ -5,9 +5,9 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Implementation/evidence baseline | `928cf93` (D3 prompt-contract hardening, proposal-only Free L2 Reviewer Shadow, and shadow disagreement regression coverage) |
+| Implementation/evidence baseline | `b196201` (bounded D7 proposal-only live cycle and DevFarm Reviewer UUID boundary) |
 | Worktree | clean after D3/D6 implementation and Evidence/documentation synchronization |
-| Local regression | `1017 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 177.68s) |
+| Local regression | `1035 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 177.34s) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
 | Exact-head CI | PASS for implementation/evidence baseline `928cf939c5feb8e4d3b504b742be26643b8782c0`: `v2-core` [run 34803783540](https://github.com/kinoko34077/dev_agent/actions/runs/34803783540) and `v2-provider-smoke` [run 34803783526](https://github.com/kinoko34077/dev_agent/actions/runs/34803783526). |
@@ -28,6 +28,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 - Compression boundary: normal `OneCycleDevelopmentLoop` composition lazily builds `HttpCompressionService` only when `COMPRESSION_API_TOKEN` is present; import-time secret/network I/O remains absent. `compress_handoff_payload()` keeps Control out of the request, applies the 3,000 Unicode code-point threshold to Payload after reference-first handling, preserves provenance/digests, separates the 1,000,000 structural limit from the 200,000 provider-safe limit, and has bounded fallback or fail-closed behavior.
 - MCP boundary: `McpRuntimeAdapter` and development-only `SupervisorMcpBinding` delegate bounded operations to existing Supervisor authority. Connected operations are `status`, `artifact_summary`, `run`, `resume`, `review`, `rework`, and `integrate`. Wire transport and Planner proposal/apply authority remain unconnected. See [`mcp-runtime-adapter-20260914.json`](../spec/v2/evidence/mcp-runtime-adapter-20260914.json).
 - D7 bounded candidate boundary: `CodexLessPolicy` and the Supervisor read-only `codexless` CLI evaluate distinct clean Shadow evidence, Worker ownership, low/normal Task classification, scope/protected paths, independent Host Verification, trust/approval, and ReviewPacket grounding. A passing result is only a `CANDIDATE`; it does not grant Reviewer, official-branch, push, merge, Gate, or unconditional integration authority.
+- D7 live candidate evidence: a real Free L1 Worker changed one bounded public documentation file, independent Host Verification passed, and a real Free L2 Reviewer produced a proposal-only `APPROVE_INTEGRATION` without a Codex decision. The Supervisor `codexless` policy returned `CANDIDATE`; no official-branch integration or auto-merge was performed. See [`d7-codexless-candidate-20260914.json`](../spec/v2/evidence/d7-codexless-candidate-20260914.json).
 - D8 initial F0–F2 contract: `ObservationRecord`, `ImprovementDiagnosis`, and `ImprovementPlanProposal` provide bounded JSON-safe, evidence-referenced proposal records. Raw output/secret fields are rejected, diagnosis references must be grounded in observations, and improvement plans always require Human approval. No automatic dispatch, Task mutation, repair, or integration is connected.
 
 ## Partially implemented / not verified
@@ -36,7 +37,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 - D4 same-operation resume is `NOT_AVAILABLE` for the concrete Codex backend without a formal external discovery API. The safe result is `UNKNOWN`/reconciliation, not inferred resume or blind restart.
 - D5 is a transport-neutral in-process/development adapter. A network MCP server/wire transport and Planner mutation authority are not implemented.
 - D3 Worker reliability remains conditional. A bounded recurrence of malformed Python patches was classified as `patch_format_failure` / `host_verification_failure` / `model_output_invalid`; the Worker prompt now states syntax-completeness and delimiter-balance requirements, while the validator remains fail-closed. A separate outbound secret-candidate observation was rejected before sending. See [`d3-worker-reliability-observation-20260914.json`](../spec/v2/evidence/d3-worker-reliability-observation-20260914.json).
-- Free L2 Reviewer shadow has two live proposal-only comparison samples and remains non-authoritative. The D6 evidence prerequisite is satisfied, but a real live Codex-less cycle is not yet verified. D8 has only its initial data contract; operational Self-Improvement F0–F2 remains unconnected.
+- Free L2 Reviewer shadow has two live proposal-only comparison samples and remains non-authoritative. The bounded D7 candidate cycle is live-evidence verified, but official-branch Codex-less integration is not enabled. D8 has only its initial data contract; operational Self-Improvement F0–F2 remains unconnected.
 
 ## External and frozen
 
@@ -56,7 +57,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 1. Keep D3 conditional and bounded; compare the recorded prompt-contract remediation against any future recurrence without weakening validation.
 2. Preserve D4's explicit-discovery/UNKNOWN boundary; do not invent Codex session discovery.
 3. Treat the D5 in-process adapter as the current boundary; wire transport and Planner mutation tools are separate future slices over the same authority.
-4. Verify one bounded D7 LOW/NORMAL Codex-less candidate cycle using existing Host policy without official-branch auto-merge; keep D8 proposal-only until that evidence exists.
+4. Use the D7 candidate evidence as the bounded baseline; keep official-branch Codex-less integration disabled and begin D8 F0–F2 Host observation/diagnosis composition only through existing Authority.
 
 The ordered roadmap is [`docs/V2_DETAILED_ROADMAP.md`](V2_DETAILED_ROADMAP.md),
 and the compact operational procedure is [`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_DAILY_DOGFOOD.md).
@@ -67,6 +68,6 @@ and the compact operational procedure is [`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_D
 - D5 MCP runtime adapter boundary: [`mcp-runtime-adapter-20260914.json`](../spec/v2/evidence/mcp-runtime-adapter-20260914.json)
 - Compression client/live smoke boundary: [`compression-service-connection-20260914.json`](../spec/v2/evidence/compression-service-connection-20260914.json)
 - Planner live D1 / D2 development evidence: [`planner-l2-live-d1-20260914.json`](../spec/v2/evidence/planner-l2-live-d1-20260914.json), [`planner-to-worker-e2e-20260914.json`](../spec/v2/evidence/planner-to-worker-e2e-20260914.json)
-- Supplemental D2 and D3/D6 observations: [`d2-dogfood-doc-note-20260914.json`](../spec/v2/evidence/d2-dogfood-doc-note-20260914.json), [`d3-worker-reliability-observation-20260914.json`](../spec/v2/evidence/d3-worker-reliability-observation-20260914.json), [`reviewer-shadow-20260914.json`](../spec/v2/evidence/reviewer-shadow-20260914.json), [`reviewer-shadow-20260914-02.json`](../spec/v2/evidence/reviewer-shadow-20260914-02.json)
+- Supplemental D2, D3, D6, and D7 observations: [`d2-dogfood-doc-note-20260914.json`](../spec/v2/evidence/d2-dogfood-doc-note-20260914.json), [`d3-worker-reliability-observation-20260914.json`](../spec/v2/evidence/d3-worker-reliability-observation-20260914.json), [`reviewer-shadow-20260914.json`](../spec/v2/evidence/reviewer-shadow-20260914.json), [`reviewer-shadow-20260914-02.json`](../spec/v2/evidence/reviewer-shadow-20260914-02.json), [`d7-codexless-candidate-20260914.json`](../spec/v2/evidence/d7-codexless-candidate-20260914.json)
 - Model catalog and pool observations: [`spec/v2/evidence/`](../spec/v2/evidence/)
 - Requirement traceability: [`spec/v2/TRACEABILITY.md`](../spec/v2/TRACEABILITY.md)
