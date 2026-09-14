@@ -109,6 +109,70 @@ def test_resume_capsule_defaults_to_an_empty_interrupt_stack_for_old_records() -
     assert capsule.interrupt_stack == InterruptStack()
 
 
+def test_resume_capsule_can_push_and_pop_a_parent_resume_frame() -> None:
+    parent = ResumeCapsule(
+        task_id="task-parent",
+        work_address=WorkAddress.parse("5-B-8"),
+        status="RUNNING",
+        objective="continue the parent task",
+        current_action="saving the interruption point",
+        completed=("generation fencing",),
+        next_action="resume mailbox validation",
+        resume_from="after the generation-fencing test",
+        blocked_by=(),
+        owned_paths=("src/dev_agent/coordination/work.py",),
+        checkpoint_revision="rev-a",
+    )
+
+    frame = parent.to_interrupt_frame()
+    suspended = parent.push_interrupt(frame)
+
+    assert suspended.status == "SUSPENDED_BY_INTERRUPT"
+    assert suspended.interrupt_stack.frames == (frame,)
+
+    child = ResumeCapsule(
+        task_id="task-child",
+        work_address=WorkAddress.parse("5-B-8-1"),
+        status="RUNNING",
+        objective="handle the interruption",
+        current_action="checking the new requirement",
+        completed=(),
+        next_action="finish the interruption",
+        resume_from="the interruption start",
+        blocked_by=(),
+        owned_paths=("tests/v2/test_process_coordination_work.py",),
+        checkpoint_revision="rev-b",
+        interrupt_stack=suspended.interrupt_stack,
+    )
+
+    restored_frame, resumed = child.pop_interrupt()
+    assert restored_frame == frame
+    assert resumed.task_id == "task-parent"
+    assert resumed.work_address == parent.work_address
+    assert resumed.status == "RUNNING"
+    assert resumed.next_action == parent.next_action
+    assert resumed.resume_from == parent.resume_from
+    assert resumed.checkpoint_revision == parent.checkpoint_revision
+    assert resumed.interrupt_stack == InterruptStack()
+
+
+def test_resume_capsule_keeps_legacy_serialization_without_optional_task_id() -> None:
+    capsule = ResumeCapsule(
+        work_address=WorkAddress.parse("5"),
+        status="RUNNING",
+        objective="legacy checkpoint",
+        current_action="work",
+        completed=(),
+        next_action="next",
+        resume_from="checkpoint",
+        blocked_by=(),
+        owned_paths=(),
+        checkpoint_revision="rev-a",
+    )
+
+    assert "task_id" not in capsule.to_dict()
+
+
 def test_interrupt_stack_returns_latest_frame_first_and_is_bounded() -> None:
     first = InterruptFrame(
         task_id="task-1",

@@ -8,7 +8,7 @@ Coordination store/artifact boundaries.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 import re
 from collections.abc import Mapping, Sequence
@@ -162,6 +162,7 @@ class ResumeCapsule:
     artifact_refs: tuple[ArtifactReference, ...] = ()
     node_type: str = "task"
     interrupt_stack: "InterruptStack | None" = None
+    task_id: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.work_address, WorkAddress):
@@ -174,6 +175,7 @@ class ResumeCapsule:
         checkpoint_revision = validate_text(
             self.checkpoint_revision, "resume checkpoint_revision", max_chars=256
         )
+        task_id = None if self.task_id is None else validate_identifier(self.task_id, "resume task_id")
         completed = validate_string_sequence(self.completed, "resume completed")
         blocked_by = validate_string_sequence(self.blocked_by, "resume blocked_by")
         if isinstance(self.owned_paths, (str, bytes)) or not isinstance(self.owned_paths, Sequence):
@@ -223,6 +225,8 @@ class ResumeCapsule:
             "node_type": node_type,
             "interrupt_stack": interrupt_stack.to_dict(),
         }
+        if task_id is not None:
+            normalized["task_id"] = task_id
         ensure_json_safe(normalized, "resume capsule")
         ensure_secret_free(normalized, "resume capsule")
         object.__setattr__(self, "status", status)
@@ -237,6 +241,57 @@ class ResumeCapsule:
         object.__setattr__(self, "artifact_refs", tuple(artifact_refs))
         object.__setattr__(self, "node_type", node_type)
         object.__setattr__(self, "interrupt_stack", interrupt_stack)
+        object.__setattr__(self, "task_id", task_id)
+
+    def to_interrupt_frame(self, *, task_id: str | None = None) -> "InterruptFrame":
+        """Project this checkpoint into the bounded parent return frame."""
+
+        resolved_task_id = task_id if task_id is not None else self.task_id
+        if resolved_task_id is None:
+            raise CoordinationValidationError(
+                "resume task_id is required to create an interrupt frame"
+            )
+        return InterruptFrame(
+            task_id=resolved_task_id,
+            work_address=self.work_address,
+            resume_from=self.resume_from,
+            next_action=self.next_action,
+            checkpoint_revision=self.checkpoint_revision,
+        )
+
+    def push_interrupt(self, frame: "InterruptFrame") -> "ResumeCapsule":
+        """Return a suspended projection with one bounded parent frame pushed."""
+
+        if not isinstance(frame, InterruptFrame):
+            raise CoordinationValidationError("interrupt frame must be an InterruptFrame")
+        return replace(
+            self,
+            status="SUSPENDED_BY_INTERRUPT",
+            interrupt_stack=self.interrupt_stack.push(frame),
+        )
+
+    def pop_interrupt(self) -> tuple["InterruptFrame", "ResumeCapsule"]:
+        """Pop the latest parent frame and restore its position fields.
+
+        The existing Task/checkpoint identified by the returned frame remains
+        authoritative for the parent's full state.  This value-layer helper
+        only restores the bounded position/next-action projection; it performs
+        no lookup, scheduling, or process operation.
+        """
+
+        frame, stack = self.interrupt_stack.pop()
+        resumed = replace(
+            self,
+            task_id=frame.task_id,
+            work_address=frame.work_address,
+            status="RUNNING",
+            current_action=frame.next_action,
+            next_action=frame.next_action,
+            resume_from=frame.resume_from,
+            checkpoint_revision=frame.checkpoint_revision,
+            interrupt_stack=stack,
+        )
+        return frame, resumed
 
     def to_dict(self) -> dict[str, Any]:
         value = {
@@ -254,6 +309,8 @@ class ResumeCapsule:
             "node_type": self.node_type,
             "interrupt_stack": self.interrupt_stack.to_dict(),
         }
+        if self.task_id is not None:
+            value["task_id"] = self.task_id
         ensure_json_safe(value, "resume capsule")
         ensure_secret_free(value, "resume capsule")
         return value
@@ -294,6 +351,7 @@ class ResumeCapsule:
             artifact_refs=value.get("artifact_refs", ()),
             node_type=value.get("node_type", "task"),
             interrupt_stack=value.get("interrupt_stack"),
+            task_id=value.get("task_id"),
         )
 
 
