@@ -155,3 +155,20 @@ def test_shadow_comparison_records_agreement_and_grounded_evidence_without_autho
     assert comparison.unnecessary_rework is False
     assert comparison.evidence_quality == "grounded"
     assert comparison.to_dict()["codex_decision"] == "APPROVE_INTEGRATION"
+
+
+def test_shadow_comparison_classifies_disagreement_without_granting_authority():
+    packet = _packet()
+    value = _proposal(packet, decision="REWORK")
+    value["findings"] = ["The bounded change needs correction."]
+    value["required_correction"] = "Keep the change within the accepted file scope."
+    proposal = ReviewProposal.from_dict(value)
+
+    comparison = compare_review_proposal(proposal, "APPROVE_INTEGRATION", packet)
+
+    assert comparison.agreement is False
+    assert comparison.false_approve is False
+    assert comparison.false_reject is False
+    assert comparison.missed_issue is False
+    assert comparison.unnecessary_rework is True
+    assert comparison.evidence_quality == "grounded"
