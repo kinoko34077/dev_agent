@@ -9,12 +9,16 @@ source; those authorities remain with the existing Host/Commander boundaries.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import replace
 from typing import Any, Protocol
 
 from src.dev_agent.intelligence.critic_adapter import ModelCriticAdapter
 from src.dev_agent.intelligence.refinement import (
+    BoundedRefinementPolicy,
     FailureClass,
+    RefinementContext,
     RefinementProposal,
+    RefinementPlan,
 )
 
 
@@ -129,6 +133,27 @@ def classify_worker_failure(
     raise RefinementCompositionError(f"unsupported failure category: {category}")
 
 
+def plan_refinement(
+    context: RefinementContext,
+    failure_category: str,
+) -> RefinementPlan:
+    """Plan one bounded next action from a Host failure category.
+
+    Failure classification is the only adaptation performed here.  The
+    existing ``BoundedRefinementPolicy`` remains the single owner of the next
+    action, while dispatch, reassignment, persistence, approval, and
+    reconciliation stay with their existing Host boundaries.
+    """
+
+    if not isinstance(context, RefinementContext):
+        raise RefinementCompositionError("context must be RefinementContext")
+    failure = classify_worker_failure(
+        failure_category,
+        external_outcome_known=context.external_outcome_known,
+    )
+    return BoundedRefinementPolicy().plan(replace(context, failure_class=failure))
+
+
 def _failure_class(value: FailureClass | str) -> str:
     try:
         return FailureClass(value).value
@@ -221,5 +246,6 @@ __all__ = [
     "ReviewPacketSource",
     "build_refinement_packet",
     "classify_worker_failure",
+    "plan_refinement",
     "propose_critic",
 ]

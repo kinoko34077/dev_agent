@@ -8,10 +8,17 @@ from scripts.devfarm_refinement import (
     RefinementCompositionError,
     build_refinement_packet,
     classify_worker_failure,
+    plan_refinement,
     propose_critic,
 )
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
-from src.dev_agent.intelligence.refinement import FailureClass, RefinementProposal
+from src.dev_agent.domain.protocol import IntelligenceTier
+from src.dev_agent.intelligence.refinement import (
+    FailureClass,
+    RefinementAction,
+    RefinementContext,
+    RefinementProposal,
+)
 
 
 class _Runner:
@@ -76,6 +83,35 @@ def _response() -> ModelResponse:
             "evidence_refs": [".devfarm/verification/attempt-1.json"],
         },
     )
+
+
+def _refinement_context(**overrides: Any) -> RefinementContext:
+    values: dict[str, Any] = {
+        "task_id": "production-task-1",
+        "failure_class": None,
+        "current_tier": IntelligenceTier.L1,
+        "allowed_tiers": (IntelligenceTier.L1, IntelligenceTier.L2),
+        "attempt": 1,
+        "max_attempts": 5,
+        "refinement_round": 0,
+        "max_refinement_rounds": 2,
+        "escalation_count": 0,
+        "max_escalations": 2,
+        "now_epoch": 10.0,
+        "deadline_epoch": 100.0,
+        "budget_remaining": 1.0,
+        "estimated_cost": 0.1,
+        "external_outcome_known": True,
+        "correction_available": True,
+        "critic_available": True,
+        "alternate_binding_id": "gemini:worker:free-2",
+        "current_reasoning_effort": "minimal",
+        "allowed_reasoning_efforts": ("minimal", "low", "medium"),
+        "model_change_used": False,
+        "reasoning_escalated": False,
+    }
+    values.update(overrides)
+    return RefinementContext(**values)
 
 
 def test_build_refinement_packet_uses_public_review_packet_and_allowlists_evidence():
@@ -156,3 +192,30 @@ def test_classify_worker_failure_closes_ambiguous_external_effect_to_reconciliat
 def test_classify_worker_failure_rejects_unknown_categories_instead_of_guessing():
     with pytest.raises(RefinementCompositionError, match="unsupported failure category"):
         classify_worker_failure("some_future_failure")
+
+
+def test_plan_refinement_connects_host_category_to_existing_bounded_policy():
+    plan = plan_refinement(
+        _refinement_context(),
+        "patch_format_failure",
+    )
+
+    assert plan.action is RefinementAction.CORRECT
+    assert plan.failure_class is FailureClass.FORMAT_PATCH
+    assert plan.refinement_round == 1
+
+
+def test_plan_refinement_preserves_unknown_external_effect_boundary():
+    plan = plan_refinement(
+        _refinement_context(external_outcome_known=False),
+        "provider_unavailable",
+    )
+
+    assert plan.action is RefinementAction.RECONCILE
+    assert plan.requires_reconciliation is True
+    assert plan.next_binding_id is None
+
+
+def test_plan_refinement_rejects_unknown_category_before_policy_execution():
+    with pytest.raises(RefinementCompositionError, match="unsupported failure category"):
+        plan_refinement(_refinement_context(), "future_failure")

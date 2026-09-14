@@ -348,6 +348,7 @@ class SubprocessProcessRuntime:
             raise GuardianProcessExecutionError("process start failed") from exc
         pid = getattr(process, "pid", None)
         if isinstance(pid, bool) or not isinstance(pid, int) or pid <= 0:
+            self._cleanup_unbound_process(process)
             raise GuardianProcessExecutionError("process start returned an invalid pid")
         self._processes[key] = process
         return ProcessHandle(
@@ -357,6 +358,26 @@ class SubprocessProcessRuntime:
             revision=profile.revision,
             pid=pid,
         )
+
+    def _cleanup_unbound_process(self, process: object) -> None:
+        """Close a Popen result that cannot become a tracked process handle.
+
+        Popen succeeding is an external process effect.  If its returned PID
+        is unusable, the process cannot safely enter the local handle map, so
+        leave no untracked child behind.  Cleanup is bounded by the same stop
+        deadline used for an ordinary STOP; a failed cleanup remains an
+        execution error and is closed by the Guardian journal as UNKNOWN.
+        """
+
+        try:
+            process.terminate()  # type: ignore[attr-defined]
+            process.wait(timeout=self.stop_timeout_seconds)  # type: ignore[attr-defined]
+        except subprocess.TimeoutExpired as exc:
+            raise GuardianProcessExecutionError(
+                "process start returned an invalid pid and cleanup was not confirmed before deadline"
+            ) from exc
+        except Exception as exc:
+            raise GuardianProcessExecutionError("process start returned an invalid pid and cleanup failed") from exc
 
     def stop(self, profile: LaunchProfile) -> None:
         process = self._processes.get((profile.role, profile.generation))

@@ -186,6 +186,33 @@ def test_subprocess_runtime_uses_static_profile_without_shell(tmp_path):
     assert seen["timeout"] == 2.0
 
 
+def test_subprocess_runtime_cleans_up_process_when_popen_returns_invalid_pid(tmp_path):
+    seen = {}
+
+    class _Process:
+        pid = 0
+
+        def poll(self):
+            return None
+
+        def terminate(self):
+            seen["terminated"] = True
+
+        def wait(self, timeout):
+            seen["timeout"] = timeout
+            return 0
+
+    def popen(*args, **kwargs):
+        return _Process()
+
+    runtime = SubprocessProcessRuntime(popen=popen, stop_timeout_seconds=2.0)
+
+    with pytest.raises(RuntimeError, match="invalid pid"):
+        runtime.start(_profile(tmp_path))
+
+    assert seen == {"terminated": True, "timeout": 2.0}
+
+
 def test_guardian_process_service_starts_and_stops_real_local_subprocess(tmp_path):
     store = _store(tmp_path)
     profile = LaunchProfile(
