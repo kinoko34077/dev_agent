@@ -33,6 +33,7 @@ from .guardian_process import (
     SubprocessProcessRuntime,
 )
 from .drain import DrainDecision, DrainResult, ExternalEffectState, GracefulDrainService
+from .runtime_release import RevisionPinnedRuntimeStore, RuntimeRelease, RuntimeReleaseError
 from .work import (
     InterruptFrame,
     InterruptStack,
@@ -74,6 +75,9 @@ __all__ = [
     "DrainResult",
     "ExternalEffectState",
     "GracefulDrainService",
+    "RevisionPinnedRuntimeStore",
+    "RuntimeRelease",
+    "RuntimeReleaseError",
     "InterruptFrame",
     "InterruptStack",
     "InterruptionMode",
