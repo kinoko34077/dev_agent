@@ -13,8 +13,15 @@ import argparse
 import json
 import os
 from pathlib import Path
+import re
+import subprocess
 import sys
-from typing import Any
+import time
+from typing import Any, Callable
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from src.dev_agent.coordination.guardian import GuardianActionService
 from src.dev_agent.coordination.guardian_process import LaunchProfile
@@ -37,6 +44,7 @@ _PROFILE_FIELDS = frozenset(
         "environment_profile",
     }
 )
+_TASK_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -109,6 +117,120 @@ def guardian_run_once(config_path: str | Path, data_dir: str | Path) -> dict[str
     }
 
 
+def guardian_serve(
+    config_path: str | Path,
+    data_dir: str | Path,
+    *,
+    poll_seconds: float = 6.0,
+    max_cycles: int | None = None,
+    sleep_fn: Callable[[float], None] = time.sleep,
+) -> dict[str, Any]:
+    """Run the existing Guardian reconciliation service at a bounded cadence.
+
+    This is a liveness loop, not a Task Scheduler: each cycle delegates to
+    ``guardian_run_once`` and owns no Task claim, retry, or planning state.
+    ``max_cycles`` exists for deterministic drills and tests; an OS wrapper
+    may omit it and stop the process externally.
+    """
+
+    if isinstance(poll_seconds, bool) or not isinstance(poll_seconds, (int, float)):
+        raise GuardianOperatorError("poll_seconds must be numeric")
+    if poll_seconds < 1.0 or poll_seconds > 3600.0:
+        raise GuardianOperatorError("poll_seconds must be between 1 and 3600 seconds")
+    if max_cycles is not None and (
+        isinstance(max_cycles, bool) or not isinstance(max_cycles, int) or max_cycles <= 0
+    ):
+        raise GuardianOperatorError("max_cycles must be a positive integer")
+    if not callable(sleep_fn):
+        raise GuardianOperatorError("sleep_fn must be callable")
+
+    result: dict[str, Any] = {}
+    cycles = 0
+    while max_cycles is None or cycles < max_cycles:
+        result = guardian_run_once(config_path, data_dir)
+        cycles += 1
+        if max_cycles is not None and cycles >= max_cycles:
+            break
+        sleep_fn(float(poll_seconds))
+    return {
+        **result,
+        "mode": "serve",
+        "cycles": cycles,
+        "poll_seconds": float(poll_seconds),
+        "bounded": max_cycles is not None,
+    }
+
+
+def guardian_registration(
+    config_path: str | Path,
+    data_dir: str | Path,
+    *,
+    task_name: str = "DevAgentGuardian",
+    apply: bool = False,
+) -> dict[str, Any]:
+    """Build or explicitly apply one static Windows liveness registration.
+
+    The default is a read-only specification.  ``apply=True`` is the only
+    path that invokes ``schtasks.exe`` and is deliberately unavailable on
+    non-Windows hosts.  The command is assembled from this checked-in module;
+    no mailbox or caller-supplied arbitrary command is accepted.
+    """
+
+    if not isinstance(task_name, str) or _TASK_NAME.fullmatch(task_name.strip()) is None:
+        raise GuardianOperatorError("task_name is outside the static registration policy")
+    config = Path(config_path).resolve()
+    data = Path(data_dir).resolve()
+    profiles = load_launch_profiles(config)
+    command = [
+        sys.executable,
+        "-m",
+        "scripts.devfarm_guardian",
+        "serve",
+        "--config",
+        str(config),
+        "--data-dir",
+        str(data),
+        "--poll-seconds",
+        "6",
+    ]
+    result: dict[str, Any] = {
+        "status": "DRY_RUN",
+        "registration": "NOT_APPLIED",
+        "task_name": task_name.strip(),
+        "profile_count": len(profiles),
+        "command": command,
+        "arbitrary_command": False,
+        "os": os.name,
+    }
+    if not apply:
+        return result
+    if os.name != "nt":
+        raise GuardianOperatorError("Windows Task Scheduler registration requires Windows")
+    completed = subprocess.run(
+        [
+            "schtasks.exe",
+            "/Create",
+            "/TN",
+            task_name.strip(),
+            "/SC",
+            "ONSTART",
+            "/TR",
+            subprocess.list2cmdline(command),
+            "/F",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise GuardianOperatorError("Windows Task Scheduler registration failed")
+    return {
+        **result,
+        "status": "APPLIED",
+        "registration": "CONFIGURED",
+    }
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Host-owned bounded Guardian operator")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -117,6 +239,16 @@ def _parser() -> argparse.ArgumentParser:
     run = subparsers.add_parser("run")
     run.add_argument("--config", required=True, type=Path)
     run.add_argument("--data-dir", type=Path, default=Path(os.environ.get("DEV_AGENT_DATA_DIR", ".dev_agent")))
+    serve = subparsers.add_parser("serve")
+    serve.add_argument("--config", required=True, type=Path)
+    serve.add_argument("--data-dir", type=Path, default=Path(os.environ.get("DEV_AGENT_DATA_DIR", ".dev_agent")))
+    serve.add_argument("--poll-seconds", type=float, default=6.0)
+    serve.add_argument("--max-cycles", type=int)
+    install = subparsers.add_parser("install", help="show or explicitly apply static OS liveness registration")
+    install.add_argument("--config", required=True, type=Path)
+    install.add_argument("--data-dir", type=Path, default=Path(os.environ.get("DEV_AGENT_DATA_DIR", ".dev_agent")))
+    install.add_argument("--task-name", default="DevAgentGuardian")
+    install.add_argument("--apply", action="store_true")
     return parser
 
 
@@ -125,8 +257,22 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "health":
             result = guardian_health(args.config)
-        else:
+        elif args.command == "run":
             result = guardian_run_once(args.config, args.data_dir)
+        elif args.command == "serve":
+            result = guardian_serve(
+                args.config,
+                args.data_dir,
+                poll_seconds=args.poll_seconds,
+                max_cycles=args.max_cycles,
+            )
+        else:
+            result = guardian_registration(
+                args.config,
+                args.data_dir,
+                task_name=args.task_name,
+                apply=args.apply,
+            )
     except GuardianOperatorError as exc:
         print(json.dumps({"status": "REJECTED", "error": str(exc)}, ensure_ascii=False, sort_keys=True))
         return 2
@@ -138,4 +284,12 @@ if __name__ == "__main__":
     raise SystemExit(main())
 
 
-__all__ = ["GuardianOperatorError", "guardian_health", "guardian_run_once", "load_launch_profiles", "main"]
+__all__ = [
+    "GuardianOperatorError",
+    "guardian_health",
+    "guardian_registration",
+    "guardian_run_once",
+    "guardian_serve",
+    "load_launch_profiles",
+    "main",
+]

@@ -5,7 +5,13 @@ import sys
 
 import pytest
 
-from scripts.devfarm_guardian import GuardianOperatorError, guardian_health, guardian_run_once
+from scripts.devfarm_guardian import (
+    GuardianOperatorError,
+    guardian_health,
+    guardian_registration,
+    guardian_run_once,
+    guardian_serve,
+)
 
 
 def _config(tmp_path):
@@ -48,6 +54,35 @@ def test_guardian_run_once_reconciles_without_starting_a_process(tmp_path):
     assert result["mode"] == "run_once"
     assert result["reconciled_action_count"] == 0
     assert result["bounded"] is True
+
+
+def test_guardian_serve_uses_bounded_polling_without_creating_a_scheduler(tmp_path):
+    sleeps = []
+
+    result = guardian_serve(
+        _config(tmp_path),
+        tmp_path / "runtime",
+        poll_seconds=6.0,
+        max_cycles=3,
+        sleep_fn=sleeps.append,
+    )
+
+    assert result["mode"] == "serve"
+    assert result["cycles"] == 3
+    assert result["poll_seconds"] == 6.0
+    assert sleeps == [6.0, 6.0]
+    assert result["task_scheduler"] == "not_owned_by_guardian"
+
+
+def test_guardian_registration_is_static_dry_run_by_default(tmp_path):
+    result = guardian_registration(_config(tmp_path), tmp_path / "runtime")
+
+    assert result["status"] == "DRY_RUN"
+    assert result["registration"] == "NOT_APPLIED"
+    assert result["task_name"] == "DevAgentGuardian"
+    assert result["command"][1:4] == ["-m", "scripts.devfarm_guardian", "serve"]
+    assert "--poll-seconds" in result["command"]
+    assert result["arbitrary_command"] is False
 
 
 def test_guardian_config_rejects_arbitrary_command_field(tmp_path):
