@@ -25,6 +25,7 @@ import uuid
 from scripts.devfarm import DevFarmError, canonical_digest, init_farm, sha256_text, validate_manifest, validate_patch, validate_result
 from scripts.devfarm_orchestrator import DevFarmOrchestrator, WorkerAssignment
 from scripts.devfarm_supervisor_protocol import normalize_review_decision, normalize_supervisor_metadata
+from src.dev_agent.coordination import WorkAddress
 from src.dev_agent.providers.base import ModelProvider
 from src.dev_agent.security.protected_paths import PROTECTED_AUTHORITY_PATHS, is_protected_path
 
@@ -104,6 +105,15 @@ def _revision(value: Any) -> str:
     if result.startswith("-") or any(char.isspace() or char in "\r\n" for char in result):
         raise DevFarmError("base_revision must be a safe Git revision")
     return result
+
+
+def _work_address(value: Any, name: str = "work_address") -> str:
+    """Validate the optional human-readable address without replacing task UUIDs."""
+
+    try:
+        return str(WorkAddress.parse(value))
+    except (TypeError, ValueError) as exc:
+        raise DevFarmError(f"{name} is invalid") from exc
 
 
 def _dependency_types(value: Any, dependencies: Sequence[str]) -> dict[str, str]:
@@ -455,6 +465,13 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
             "delegation_reason",
             max_length=1000,
         )
+        if raw.get("work_address") is not None:
+            task["work_address"] = _work_address(raw["work_address"])
+        if raw.get("node_type") is not None:
+            node_type = _text(raw["node_type"], "node_type", max_length=16).lower()
+            if node_type not in {"task", "step"}:
+                raise DevFarmError("node_type must be task or step")
+            task["node_type"] = node_type
         assignment = raw.get("assignment", {})
         if assignment is not None:
             if not isinstance(assignment, Mapping):
@@ -502,6 +519,9 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
             task["dispatch_recovery"] = _text(raw["dispatch_recovery"], "dispatch_recovery", max_length=128)
         tasks.append(task)
     _check_unique_ids(task_ids, "plan tasks")
+    work_addresses = [task["work_address"] for task in tasks if task.get("work_address") is not None]
+    if len(work_addresses) != len(set(work_addresses)):
+        raise DevFarmError("work_address values must be unique within a plan")
     task_id_set = set(task_ids)
 
     dependencies = _dependency_records(value.get("dependencies"), tasks)

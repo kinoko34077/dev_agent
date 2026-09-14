@@ -4,7 +4,8 @@ import json
 
 import pytest
 
-from src.dev_agent.coordination.protocol import HandoffNote, PeerStatus
+from src.dev_agent.coordination import ResumeCapsule, WorkAddress
+from src.dev_agent.coordination.protocol import HandoffNote, MessageKind, PeerStatus
 from src.dev_agent.coordination.service import ProcessCoordinationService
 
 
@@ -112,3 +113,37 @@ def test_service_does_not_allow_stale_peer_to_send(tmp_path) -> None:
                 subject="stale",
                 idempotency_key="stale-1",
             )
+
+
+def test_service_persists_resume_capsule_as_checkpoint_artifact(tmp_path) -> None:
+    capsule = ResumeCapsule(
+        work_address=WorkAddress.parse("5-B-8"),
+        status="SUSPENDED_BY_INTERRUPT",
+        objective="continue the coordination task",
+        current_action="saving the checkpoint",
+        completed=("protocol",),
+        next_action="resume mailbox validation",
+        resume_from="after protocol validation",
+        blocked_by=(),
+        owned_paths=("src/dev_agent/coordination/work.py",),
+        checkpoint_revision="rev-a",
+    )
+    with ProcessCoordinationService(data_dir=tmp_path) as service:
+        agent = service.attach_peer(
+            "agent",
+            revision="rev-a",
+            capabilities=("checkpoint",),
+            instance_id="agent-1",
+            now="2026-09-14T12:00:00+00:00",
+            lease_seconds=60,
+        )
+        service.set_peer_status(agent, PeerStatus.READY)
+        reference, message = service.send_checkpoint(
+            agent,
+            recipient_role="codex",
+            capsule=capsule,
+            idempotency_key="checkpoint-1",
+        )
+        assert message.kind is MessageKind.CHECKPOINT
+        assert reference.kind == "resume_capsule"
+        assert service.read_resume_capsule(reference) == capsule

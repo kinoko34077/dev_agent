@@ -24,6 +24,7 @@ from .protocol import (
 )
 from .protocol_helpers import validate_identifier, validate_timestamp, validate_text
 from .store import CoordinationStore
+from .work import ResumeCapsule
 
 
 @dataclass(frozen=True)
@@ -200,6 +201,36 @@ class ProcessCoordinationService:
         )
         return reference, message
 
+    def send_checkpoint(
+        self,
+        sender: PeerRecord,
+        *,
+        recipient_role: str,
+        capsule: ResumeCapsule,
+        idempotency_key: str,
+        expires_at: str | None = None,
+    ) -> tuple[ArtifactReference, MailboxMessage]:
+        """Persist a bounded resume capsule and announce it through the mailbox."""
+
+        current = self._assert_current(sender)
+        if not isinstance(capsule, ResumeCapsule):
+            raise CoordinationValidationError("capsule must be a ResumeCapsule")
+        reference = self.artifacts.put_json(
+            capsule.to_dict(),
+            kind="resume_capsule",
+            revision=capsule.checkpoint_revision,
+        )
+        message = self.send_message(
+            current,
+            recipient_role=recipient_role,
+            kind=MessageKind.CHECKPOINT,
+            subject=f"checkpoint:{capsule.work_address}",
+            artifact_refs=(reference,),
+            idempotency_key=idempotency_key,
+            expires_at=expires_at,
+        )
+        return reference, message
+
     def claim_messages(
         self,
         consumer: PeerRecord,
@@ -231,6 +262,9 @@ class ProcessCoordinationService:
 
     def read_handoff(self, reference: ArtifactReference | Mapping[str, Any]) -> HandoffNote:
         return HandoffNote.from_dict(self.artifacts.read_json(reference))
+
+    def read_resume_capsule(self, reference: ArtifactReference | Mapping[str, Any]) -> ResumeCapsule:
+        return ResumeCapsule.from_dict(self.artifacts.read_json(reference))
 
     def close(self) -> None:
         self.store.close()

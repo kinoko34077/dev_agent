@@ -10,6 +10,14 @@ from .protocol import (
     PeerRecord,
     PeerStatus,
 )
+from .work import (
+    InterruptFrame,
+    InterruptStack,
+    InterruptionMode,
+    ResumeCapsule,
+    WorkAddress,
+    classify_intervention,
+)
 
 __all__ = [
     "ArtifactReference",
@@ -20,4 +28,10 @@ __all__ = [
     "MessageKind",
     "PeerRecord",
     "PeerStatus",
+    "InterruptFrame",
+    "InterruptStack",
+    "InterruptionMode",
+    "ResumeCapsule",
+    "WorkAddress",
+    "classify_intervention",
 ]

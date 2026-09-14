@@ -23,6 +23,7 @@ from scripts.devfarm_commander import (
 )
 from scripts.devfarm_orchestrator import DevFarmOrchestrator, HostConcurrencyGovernor, RemoteConcurrencyGovernor
 from scripts.devfarm_supervisor import CodexSupervisedCommanderRun, main as supervisor_main
+from src.dev_agent.coordination import WorkAddress
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.providers.fake.provider import FakeProvider
 
@@ -271,6 +272,61 @@ def test_commander_plan_dispatch_verify_resume_and_integrate(tmp_path):
     final = CommanderPlanStore(root).load("commander-run-001")
     assert final["tasks"][0]["status"] == "INTEGRATED"
     assert final["tasks"][2]["status"] == "INTEGRATED"
+
+
+def test_commander_preserves_work_address_and_rejects_duplicate_addresses(tmp_path):
+    root, targets, revision = _repo(tmp_path)
+    _manifest(root, revision, "worker-a", targets[0])
+    valid = create_plan(
+        root,
+        {
+            "run_id": "work-address-valid",
+            "objective": "preserve task identity and display position",
+            "base_revision": revision,
+            "tasks": [
+                {
+                    "task_id": "worker-a",
+                    "owner": "worker",
+                    "work_address": "5-B",
+                    "manifest_path": ".devfarm/tasks/worker-a.json",
+                    "ownership": [targets[0]],
+                    "assignment": {"provider_id": "cloudflare", "model_id": "@cf/meta/llama-3.1-8b-instruct"},
+                },
+                {
+                    "task_id": "codex-review",
+                    "owner": "codex",
+                    "work_address": "5-B-1",
+                    "ownership": ["docs/review.md"],
+                },
+            ],
+        },
+    )
+    assert valid["tasks"][0]["work_address"] == "5-B"
+    assert valid["tasks"][1]["work_address"] == "5-B-1"
+
+    with pytest.raises(DevFarmError, match="work_address"):
+        create_plan(
+            root,
+            {
+                "run_id": "work-address-duplicate",
+                "objective": "reject duplicate display positions",
+                "base_revision": revision,
+                "tasks": [
+                    {
+                        "task_id": "worker-a-duplicate",
+                        "owner": "codex",
+                        "work_address": "5-B",
+                        "ownership": ["docs/duplicate-a.md"],
+                    },
+                    {
+                        "task_id": "codex-duplicate",
+                        "owner": "codex",
+                        "work_address": "5-B",
+                        "ownership": ["docs/duplicate-b.md"],
+                    },
+                ],
+            },
+        )
 
 
 def test_supervisor_approved_integration_applies_patch_and_records_git_proof(tmp_path):

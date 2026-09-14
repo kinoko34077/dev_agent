@@ -5,7 +5,16 @@ from datetime import datetime, timezone
 import pytest
 
 from scripts.devfarm import DevFarmError, validate_manifest
-from scripts.devfarm_worker import DevFarmActivationPolicy, _input_context, _prompt, _provider, apply_and_verify, run_worker
+from scripts.devfarm_worker import (
+    DevFarmActivationPolicy,
+    _input_context,
+    _input_context_with_manifest,
+    _prompt,
+    _provider,
+    apply_and_verify,
+    run_worker,
+)
+from src.dev_agent.security.egress import EgressDecision
 from src.dev_agent.domain.protocol import ModelResponse
 from src.dev_agent.providers.cloudflare import CloudflareWorkersAIHttpProvider
 from src.dev_agent.providers.gemini import GeminiHttpProvider
@@ -312,6 +321,21 @@ def test_worker_rejects_secret_in_outbound_source(tmp_path):
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     with pytest.raises(DevFarmError, match="secret"):
         _input_context(workspace, manifest)
+
+
+def test_worker_input_context_exposes_host_egress_authorization_without_source_metadata(tmp_path):
+    workspace, manifest_path = _workspace(tmp_path, prepare=False)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    context, egress = _input_context_with_manifest(workspace, manifest, destination="cloudflare")
+
+    assert egress.decision is EgressDecision.ALLOW
+    assert egress.files[0].sha256
+    assert "test_target" in context
+    authorization = json.dumps(egress.to_dict(), ensure_ascii=False)
+    assert "def test_target" not in authorization
+    prompt = _prompt(manifest, context, egress_manifest=egress)
+    assert '"decision": "ALLOW"' in prompt
+    assert egress.manifest_sha256 in prompt
 
 
 def test_manifest_allows_only_bounded_host_test_command_shapes():
