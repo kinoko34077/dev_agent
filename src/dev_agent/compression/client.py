@@ -18,6 +18,8 @@ from .protocol import (
     COMPRESSION_API_TOKEN_ENV,
     COMPRESSION_PROFILE,
     DEFAULT_COMPRESSION_ENDPOINT,
+    DEFAULT_COMPRESSION_PROVIDER_CONTEXT_LIMIT_CHARS,
+    DEFAULT_COMPRESSION_PUBLIC_MAX_INPUT_CHARS,
     DEFAULT_COMPRESSION_THRESHOLD_CHARS,
     CompressionResult,
     CompressionService,
@@ -147,7 +149,8 @@ class HttpCompressionService(CompressionService):
         *,
         api_token: str | None = None,
         timeout_seconds: float = 30.0,
-        max_input_chars: int = 1_000_000,
+        max_input_chars: int = DEFAULT_COMPRESSION_PUBLIC_MAX_INPUT_CHARS,
+        provider_context_limit_chars: int = DEFAULT_COMPRESSION_PROVIDER_CONTEXT_LIMIT_CHARS,
         max_response_bytes: int = 2_000_000,
         opener: Callable[..., Any] = _open_no_redirect,
     ) -> None:
@@ -158,6 +161,12 @@ class HttpCompressionService(CompressionService):
             raise ValueError("timeout_seconds must be positive")
         if isinstance(max_input_chars, bool) or not isinstance(max_input_chars, int) or max_input_chars <= 0:
             raise ValueError("max_input_chars must be positive")
+        if (
+            isinstance(provider_context_limit_chars, bool)
+            or not isinstance(provider_context_limit_chars, int)
+            or provider_context_limit_chars <= 0
+        ):
+            raise ValueError("provider_context_limit_chars must be positive")
         if isinstance(max_response_bytes, bool) or not isinstance(max_response_bytes, int) or max_response_bytes <= 0:
             raise ValueError("max_response_bytes must be positive")
         if api_token is not None:
@@ -170,6 +179,7 @@ class HttpCompressionService(CompressionService):
         self._api_token = api_token
         self._timeout_seconds = float(timeout_seconds)
         self._max_input_chars = max_input_chars
+        self._provider_context_limit_chars = provider_context_limit_chars
         self._max_response_bytes = max_response_bytes
         self._opener = opener
 
@@ -179,7 +189,8 @@ class HttpCompressionService(CompressionService):
         *,
         endpoint: str = DEFAULT_COMPRESSION_ENDPOINT,
         timeout_seconds: float = 30.0,
-        max_input_chars: int = 1_000_000,
+        max_input_chars: int = DEFAULT_COMPRESSION_PUBLIC_MAX_INPUT_CHARS,
+        provider_context_limit_chars: int = DEFAULT_COMPRESSION_PROVIDER_CONTEXT_LIMIT_CHARS,
         max_response_bytes: int = 2_000_000,
         opener: Callable[..., Any] = _open_no_redirect,
     ) -> "HttpCompressionService":
@@ -200,6 +211,7 @@ class HttpCompressionService(CompressionService):
             api_token=token,
             timeout_seconds=timeout_seconds,
             max_input_chars=max_input_chars,
+            provider_context_limit_chars=provider_context_limit_chars,
             max_response_bytes=max_response_bytes,
             opener=opener,
         )
@@ -212,6 +224,11 @@ class HttpCompressionService(CompressionService):
         if len(text) > self._max_input_chars:
             raise CompressionHttpError(
                 "compression payload exceeds max_input_chars",
+                category=CompressionFailureCategory.CONFIGURATION.value,
+            )
+        if len(text) > self._provider_context_limit_chars:
+            raise CompressionHttpError(
+                "compression payload exceeds provider_context_limit_chars",
                 category=CompressionFailureCategory.CONFIGURATION.value,
             )
         if profile != COMPRESSION_PROFILE:
@@ -274,7 +291,7 @@ class CompressionIntegrityError(CompressionHttpError):
 
 def compress_handoff_payload(
     envelope,
-    service: CompressionService,
+    service: CompressionService | None,
     *,
     max_uncompressed_chars: int = DEFAULT_COMPRESSION_THRESHOLD_CHARS,
     strict_integrity: bool = False,
@@ -293,6 +310,13 @@ def compress_handoff_payload(
         return validated
     original = _payload_text(validated.payload)
     if len(original) <= max_uncompressed_chars:
+        return validated
+    if service is None:
+        if not fallback_to_original:
+            raise CompressionHttpError(
+                "compression service unavailable",
+                category=CompressionFailureCategory.CONFIGURATION.value,
+            )
         return validated
     try:
         result = service.compress(original, profile=COMPRESSION_PROFILE)

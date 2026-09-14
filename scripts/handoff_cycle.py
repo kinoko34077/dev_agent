@@ -9,6 +9,7 @@ call this composition again only after the Control Plane authorizes it.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
@@ -16,8 +17,11 @@ from scripts.devfarm import DevFarmError
 from scripts.devfarm_codex import run_codex_attempt
 from src.dev_agent.backends.protocol import AgentBackend
 from src.dev_agent.compression import (
+    COMPRESSION_API_TOKEN_ENV,
     DEFAULT_COMPRESSION_THRESHOLD_CHARS,
+    CompressionHttpError,
     CompressionService,
+    HttpCompressionService,
     compress_handoff_payload,
 )
 from src.dev_agent.handoff import (
@@ -78,6 +82,14 @@ class OneCycleDevelopmentLoop:
         strict_compression: bool = False,
         fallback_to_original: bool = True,
     ) -> None:
+        if compression_service is None and os.environ.get(COMPRESSION_API_TOKEN_ENV, "").strip():
+            try:
+                compression_service = HttpCompressionService.from_environment()
+            except (CompressionHttpError, ValueError):
+                # Compression is an optional optimization in the normal path.
+                # An unavailable or invalid configuration must not stop safe
+                # original-payload development when fallback is allowed.
+                compression_service = None
         if compression_service is not None:
             threshold = DEFAULT_COMPRESSION_THRESHOLD_CHARS if max_uncompressed_chars is None else max_uncompressed_chars
             if isinstance(threshold, bool) or not isinstance(threshold, int) or threshold <= 0:
@@ -135,11 +147,11 @@ class OneCycleDevelopmentLoop:
             target=HandoffRole.EXECUTOR.value,
             kinds={HandoffKind.IMPLEMENTATION_INSTRUCTION.value},
         )
-        if self._compression_service is not None:
+        if self._compression_service is not None or not self._fallback_to_original:
             planned = compress_handoff_payload(
                 planned,
                 self._compression_service,
-                max_uncompressed_chars=self._max_uncompressed_chars or 1,
+                max_uncompressed_chars=self._max_uncompressed_chars or DEFAULT_COMPRESSION_THRESHOLD_CHARS,
                 strict_integrity=self._strict_compression,
                 fallback_to_original=self._fallback_to_original,
             )

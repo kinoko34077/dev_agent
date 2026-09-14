@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import hashlib
 import subprocess
 
 import pytest
@@ -11,6 +12,7 @@ from scripts.handoff_cycle import (
     HandoffCycleError,
     OneCycleDevelopmentLoop,
 )
+from src.dev_agent.compression import CompressionHttpError, CompressionResult, HttpCompressionService
 from src.dev_agent.backends.protocol import (
     AgentBackendEvent,
     AgentBackendIdentity,
@@ -209,3 +211,101 @@ def test_one_cycle_preserves_human_control_directive_and_stops():
 
     assert result.stopped is True
     assert captured[0].directive == directive
+
+
+class _LongPlanner:
+    def plan(self, request: HandoffEnvelope) -> HandoffEnvelope:
+        return HandoffEnvelope(
+            kind=HandoffKind.IMPLEMENTATION_INSTRUCTION.value,
+            subject=request.subject,
+            instruction="execute",
+            source_role=HandoffRole.PLANNER.value,
+            target_role=HandoffRole.EXECUTOR.value,
+            payload="long planner payload " * 200,
+        )
+
+
+class _PayloadCapturingExecutor:
+    def __init__(self) -> None:
+        self.request: HandoffEnvelope | None = None
+
+    def execute(self, request: HandoffEnvelope) -> HandoffEnvelope:
+        self.request = request
+        return HandoffEnvelope(
+            kind=HandoffKind.EXECUTION_RESULT.value,
+            subject=request.subject,
+            instruction="review",
+            source_role=HandoffRole.EXECUTOR.value,
+            target_role=HandoffRole.REVIEWER.value,
+            payload={"payload_mode": request.payload_mode},
+        )
+
+
+class _FakeAutoCompressionService:
+    def __init__(self) -> None:
+        self.received: list[tuple[str, str]] = []
+
+    def compress(self, text: str, *, profile: str = "semantic-dense-v1") -> CompressionResult:
+        self.received.append((text, profile))
+        compressed = "dense planner payload"
+        return CompressionResult.from_values(
+            compressed_text=compressed,
+            profile=profile,
+            prompt_version=profile,
+            model="test-compressor",
+            original_text=text,
+        )
+
+
+def test_one_cycle_auto_composes_compression_from_environment(monkeypatch):
+    service = _FakeAutoCompressionService()
+    calls = []
+
+    def _from_environment(cls, **kwargs):
+        calls.append(kwargs)
+        return service
+
+    monkeypatch.setenv("COMPRESSION_API_TOKEN", "configured-for-test")
+    monkeypatch.setattr(HttpCompressionService, "from_environment", classmethod(_from_environment))
+    executor = _PayloadCapturingExecutor()
+
+    result = OneCycleDevelopmentLoop(_LongPlanner(), executor, _Reviewer()).run(
+        objective="automatic compression",
+        instruction="execute one cycle",
+    )
+
+    assert result.stopped is True
+    assert calls == [{}]
+    assert len(service.received) == 1
+    assert executor.request is not None
+    assert executor.request.payload == "dense planner payload"
+    assert executor.request.payload_mode == "compressed"
+
+
+def test_one_cycle_without_compression_token_keeps_original_payload(monkeypatch):
+    monkeypatch.delenv("COMPRESSION_API_TOKEN", raising=False)
+    executor = _PayloadCapturingExecutor()
+
+    OneCycleDevelopmentLoop(_LongPlanner(), executor, _Reviewer()).run(
+        objective="compression fallback",
+        instruction="execute one cycle",
+    )
+
+    assert executor.request is not None
+    assert executor.request.payload_mode == "original"
+    assert executor.request.payload == "long planner payload " * 200
+
+
+def test_one_cycle_fails_closed_when_compression_is_required_but_unavailable(monkeypatch):
+    monkeypatch.delenv("COMPRESSION_API_TOKEN", raising=False)
+
+    with pytest.raises(CompressionHttpError, match="compression service unavailable"):
+        OneCycleDevelopmentLoop(
+            _LongPlanner(),
+            _PayloadCapturingExecutor(),
+            _Reviewer(),
+            fallback_to_original=False,
+        ).run(
+            objective="required compression",
+            instruction="execute one cycle",
+        )

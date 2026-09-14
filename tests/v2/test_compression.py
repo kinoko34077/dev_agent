@@ -7,6 +7,7 @@ import pytest
 
 from src.dev_agent.compression import (
     DEFAULT_COMPRESSION_ENDPOINT,
+    DEFAULT_COMPRESSION_PROVIDER_CONTEXT_LIMIT_CHARS,
     DEFAULT_COMPRESSION_THRESHOLD_CHARS,
     CompressionIntegrityError,
     CompressionResult,
@@ -314,3 +315,21 @@ def test_http_status_errors_are_typed_without_retaining_response_body():
     assert caught.value.category == "provider_error"
     assert caught.value.http_status == 503
     assert "secret provider detail" not in str(caught.value)
+
+
+def test_http_client_fails_fast_before_sending_above_provider_context_limit():
+    from src.dev_agent.compression.client import CompressionFailureCategory, CompressionHttpError, HttpCompressionService
+
+    requests = []
+
+    def _opener(request, *, timeout):
+        requests.append((request, timeout))
+        raise AssertionError("provider-safe limit must reject before opening HTTP")
+
+    service = HttpCompressionService("https://compress.example/v1/compress", opener=_opener)
+
+    with pytest.raises(CompressionHttpError) as caught:
+        service.compress("x" * (DEFAULT_COMPRESSION_PROVIDER_CONTEXT_LIMIT_CHARS + 1))
+
+    assert caught.value.category == CompressionFailureCategory.CONFIGURATION.value
+    assert requests == []
