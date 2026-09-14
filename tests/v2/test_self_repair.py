@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from src.dev_agent.intelligence.self_improvement import (
@@ -12,8 +14,11 @@ from src.dev_agent.intelligence.self_improvement import (
 from src.dev_agent.intelligence.self_repair import (
     RepairCandidate,
     RepairEvidence,
+    RepairExecutionPolicy,
+    RepairExecutionRequest,
     RepairPolicy,
 )
+from src.dev_agent.policy.approvals import canonical_arguments_hash
 
 
 def _plan() -> ImprovementPlanProposal:
@@ -126,3 +131,113 @@ def test_repair_evidence_rejects_raw_patch_or_secret_fields() -> None:
 
     with pytest.raises(ValueError, match="secret"):
         RepairEvidence.from_dict({**_evidence().to_dict(), "api_key": "secret"})
+
+
+class _ApprovalStore:
+    def __init__(self, *, approved: bool) -> None:
+        self.approved = approved
+        self.calls: list[dict[str, object]] = []
+        self.consumed = False
+
+    def has_approval(self, approval_id: str, **kwargs: object) -> bool:
+        self.calls.append({"approval_id": approval_id, **kwargs})
+        return self.approved
+
+    def consume_approval(self, *args: object, **kwargs: object) -> bool:
+        self.consumed = True
+        raise AssertionError("approval must not be consumed by the preflight gate")
+
+
+def _execution_request(candidate: RepairCandidate) -> RepairExecutionRequest:
+    return RepairExecutionRequest(
+        candidate_id=candidate.candidate_id,
+        run_id="repair-run-1",
+        task_id="repair-task-1",
+        attempt_id=candidate.evidence.attempt_id,
+        review_decision_id="review-repair-1",
+        target_checkout_ref="workspace",
+        target_ref="HEAD",
+        commit_message="apply bounded repair",
+        approval_id="approval-repair-1",
+        call_id="repair-call-1",
+    )
+
+
+def test_repair_execution_preflight_binds_existing_approval_without_consuming_it() -> None:
+    candidate_result = RepairPolicy().evaluate(_plan(), _evidence())
+    assert candidate_result.candidate is not None
+    request = _execution_request(candidate_result.candidate)
+    store = _ApprovalStore(approved=True)
+
+    evaluation = RepairExecutionPolicy().evaluate(candidate_result.candidate, request, store)
+
+    assert evaluation.eligible is True
+    assert evaluation.status == "READY_FOR_HOST_EXECUTION"
+    assert evaluation.integration_authority == "existing_supervisor_host_helper"
+    assert evaluation.request == request
+    assert store.consumed is False
+    assert store.calls == [
+        {
+            "approval_id": "approval-repair-1",
+            "task_id": "repair-task-1",
+            "side_effect_level": "external_write",
+            "call_id": "repair-call-1",
+            "arguments_hash": canonical_arguments_hash(request.authorization_arguments()),
+        }
+    ]
+
+
+def test_repair_execution_request_round_trip_checks_authorization_digest() -> None:
+    candidate_result = RepairPolicy().evaluate(_plan(), _evidence())
+    assert candidate_result.candidate is not None
+    request = _execution_request(candidate_result.candidate)
+
+    restored = RepairExecutionRequest.from_dict(request.to_dict())
+
+    assert restored == request
+    payload = request.to_dict()
+    payload["target_ref"] = "other-ref"
+    with pytest.raises(ValueError, match="authorization hash"):
+        RepairExecutionRequest.from_dict(payload)
+
+
+@pytest.mark.parametrize(
+    ("change", "reason"),
+    [
+        ("candidate_id", "candidate_identity_mismatch"),
+        ("attempt_id", "attempt_identity_mismatch"),
+    ],
+)
+def test_repair_execution_preflight_fails_closed_on_identity_mismatch(
+    change: str, reason: str
+) -> None:
+    candidate_result = RepairPolicy().evaluate(_plan(), _evidence())
+    assert candidate_result.candidate is not None
+    request = _execution_request(candidate_result.candidate)
+    mismatched = replace(request, **{change: f"different-{change}"})
+
+    evaluation = RepairExecutionPolicy().evaluate(
+        candidate_result.candidate,
+        mismatched,
+        _ApprovalStore(approved=True),
+    )
+
+    assert evaluation.eligible is False
+    assert evaluation.status == "REJECTED"
+    assert reason in evaluation.reasons
+
+
+def test_repair_execution_preflight_requires_durable_approval() -> None:
+    candidate_result = RepairPolicy().evaluate(_plan(), _evidence())
+    assert candidate_result.candidate is not None
+    request = _execution_request(candidate_result.candidate)
+
+    evaluation = RepairExecutionPolicy().evaluate(
+        candidate_result.candidate,
+        request,
+        _ApprovalStore(approved=False),
+    )
+
+    assert evaluation.eligible is False
+    assert evaluation.status == "REJECTED"
+    assert "approval_missing_or_mismatched" in evaluation.reasons

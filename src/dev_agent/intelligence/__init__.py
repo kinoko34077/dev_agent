@@ -70,6 +70,9 @@ _LAZY_EXPORTS = {
     "RepairCandidate": (".self_repair", "RepairCandidate"),
     "RepairEvidence": (".self_repair", "RepairEvidence"),
     "RepairEvaluation": (".self_repair", "RepairEvaluation"),
+    "RepairExecutionEvaluation": (".self_repair", "RepairExecutionEvaluation"),
+    "RepairExecutionPolicy": (".self_repair", "RepairExecutionPolicy"),
+    "RepairExecutionRequest": (".self_repair", "RepairExecutionRequest"),
     "RepairPolicy": (".self_repair", "RepairPolicy"),
 }
 

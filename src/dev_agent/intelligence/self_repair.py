@@ -16,6 +16,7 @@ import re
 from typing import Any
 from uuid import uuid4
 
+from ..policy.approvals import canonical_arguments_hash
 from src.dev_agent.security.audit import AuditRecorder
 from src.dev_agent.security.protected_paths import is_protected_path
 
@@ -251,6 +252,197 @@ class RepairEvaluation:
         }
 
 
+@dataclass(frozen=True)
+class RepairExecutionRequest:
+    """Reference-only request for the existing Host integration boundary.
+
+    This request deliberately contains no patch bytes and grants no mutation
+    authority.  It binds the candidate, verified attempt, durable review
+    decision, target, and approval arguments so a later Host adapter cannot
+    silently apply a different repair than the one reviewed.
+    """
+
+    candidate_id: str
+    run_id: str
+    task_id: str
+    attempt_id: str
+    review_decision_id: str
+    target_checkout_ref: str
+    target_ref: str
+    commit_message: str
+    approval_id: str
+    call_id: str
+
+    def __post_init__(self) -> None:
+        for name, maximum in (
+            ("candidate_id", 128),
+            ("run_id", 128),
+            ("task_id", 128),
+            ("attempt_id", 128),
+            ("review_decision_id", 128),
+            ("target_checkout_ref", 512),
+            ("target_ref", 256),
+            ("approval_id", 128),
+            ("call_id", 128),
+        ):
+            object.__setattr__(self, name, _text(getattr(self, name), name, maximum=maximum))
+        object.__setattr__(
+            self,
+            "commit_message",
+            _text(self.commit_message, "commit_message", maximum=200),
+        )
+
+    def authorization_arguments(self) -> dict[str, str]:
+        """Return only effect-defining arguments for approval binding."""
+
+        return {
+            "candidate_id": self.candidate_id,
+            "run_id": self.run_id,
+            "task_id": self.task_id,
+            "attempt_id": self.attempt_id,
+            "review_decision_id": self.review_decision_id,
+            "target_checkout_ref": self.target_checkout_ref,
+            "target_ref": self.target_ref,
+            "commit_message": self.commit_message,
+        }
+
+    def authorization_hash(self) -> str:
+        return canonical_arguments_hash(self.authorization_arguments())
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "candidate_id": self.candidate_id,
+            "run_id": self.run_id,
+            "task_id": self.task_id,
+            "attempt_id": self.attempt_id,
+            "review_decision_id": self.review_decision_id,
+            "target_checkout_ref": self.target_checkout_ref,
+            "target_ref": self.target_ref,
+            "commit_message": self.commit_message,
+            "approval_id": self.approval_id,
+            "call_id": self.call_id,
+            "authorization_arguments_hash": self.authorization_hash(),
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "RepairExecutionRequest":
+        if not isinstance(value, Mapping):
+            raise ValueError("repair execution request must be an object")
+        allowed = {
+            "candidate_id",
+            "run_id",
+            "task_id",
+            "attempt_id",
+            "review_decision_id",
+            "target_checkout_ref",
+            "target_ref",
+            "commit_message",
+            "approval_id",
+            "call_id",
+            "authorization_arguments_hash",
+        }
+        unknown = set(value) - allowed
+        if unknown:
+            raise ValueError(f"unknown repair execution field: {sorted(unknown)[0]}")
+        payload = dict(value)
+        supplied_hash = payload.pop("authorization_arguments_hash", None)
+        try:
+            request = cls(**payload)
+        except TypeError as exc:
+            raise ValueError(f"invalid repair execution request: {exc}") from exc
+        if supplied_hash is not None and supplied_hash != request.authorization_hash():
+            raise ValueError("repair execution authorization hash mismatch")
+        return request
+
+
+@dataclass(frozen=True)
+class RepairExecutionEvaluation:
+    """Non-mutating result of checking an approval-bound repair request."""
+
+    eligible: bool
+    status: str
+    integration_authority: str
+    reasons: tuple[str, ...] = ()
+    request: RepairExecutionRequest | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "eligible": self.eligible,
+            "status": self.status,
+            "integration_authority": self.integration_authority,
+            "reasons": list(self.reasons),
+            "request": self.request.to_dict() if self.request is not None else None,
+        }
+
+
+class RepairExecutionPolicy:
+    """Preflight D9 execution without consuming approval or mutating state.
+
+    The actual side effect remains the existing Supervisor Host helper.  This
+    policy only checks that a durable external-write approval exists for the
+    exact candidate and target arguments.  A later adapter must still
+    re-read the candidate, review decision, verification digests, and clean
+    checkout before consuming approval and invoking that helper.
+    """
+
+    def evaluate(
+        self,
+        candidate: RepairCandidate,
+        request: RepairExecutionRequest,
+        approval_store: Any,
+    ) -> RepairExecutionEvaluation:
+        if not isinstance(candidate, RepairCandidate):
+            raise TypeError("candidate must be a RepairCandidate")
+        if not isinstance(request, RepairExecutionRequest):
+            raise TypeError("request must be a RepairExecutionRequest")
+
+        reasons: list[str] = []
+        if request.candidate_id != candidate.candidate_id:
+            reasons.append("candidate_identity_mismatch")
+        if request.attempt_id != candidate.evidence.attempt_id:
+            reasons.append("attempt_identity_mismatch")
+        if not request.review_decision_id:
+            reasons.append("review_decision_required")
+        if reasons:
+            return RepairExecutionEvaluation(
+                eligible=False,
+                status="REJECTED",
+                integration_authority="existing_supervisor_host_helper",
+                reasons=tuple(dict.fromkeys(reasons)),
+            )
+        if approval_store is None or not callable(getattr(approval_store, "has_approval", None)):
+            reasons.append("approval_store_required")
+        else:
+            try:
+                approved = approval_store.has_approval(
+                    request.approval_id,
+                    task_id=request.task_id,
+                    side_effect_level="external_write",
+                    call_id=request.call_id,
+                    arguments_hash=request.authorization_hash(),
+                )
+            except (AttributeError, TypeError, ValueError):
+                approved = False
+                reasons.append("approval_lookup_failed")
+            if approved is not True:
+                reasons.append("approval_missing_or_mismatched")
+
+        if reasons:
+            return RepairExecutionEvaluation(
+                eligible=False,
+                status="REJECTED",
+                integration_authority="existing_supervisor_host_helper",
+                reasons=tuple(dict.fromkeys(reasons)),
+            )
+        return RepairExecutionEvaluation(
+            eligible=True,
+            status="READY_FOR_HOST_EXECUTION",
+            integration_authority="existing_supervisor_host_helper",
+            reasons=("durable_approval_preflight_passed",),
+            request=request,
+        )
+
+
 class RepairPolicy:
     """Deterministically evaluate a bounded D9 repair candidate."""
 
@@ -299,4 +491,12 @@ class RepairPolicy:
         )
 
 
-__all__ = ["RepairCandidate", "RepairEvidence", "RepairEvaluation", "RepairPolicy"]
+__all__ = [
+    "RepairCandidate",
+    "RepairEvidence",
+    "RepairEvaluation",
+    "RepairExecutionEvaluation",
+    "RepairExecutionPolicy",
+    "RepairExecutionRequest",
+    "RepairPolicy",
+]
