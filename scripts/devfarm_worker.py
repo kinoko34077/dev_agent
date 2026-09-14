@@ -42,6 +42,7 @@ from scripts.devfarm import (
 from src.dev_agent.domain.protocol import ModelRequest
 from src.dev_agent.providers.base import ModelProvider, ProviderError
 from src.dev_agent.providers.factory import ProviderDefinition, ProviderFactory
+from src.dev_agent.providers.host_dispatch import HostProviderDispatch
 from src.dev_agent.resources.billing_catalog import TRUSTED_RESOURCE_CATALOG
 from src.dev_agent.resources.provider_policy import is_local_provider as _is_local_provider
 from src.dev_agent.resources.provider_policy import validate_provider_instance_authority
@@ -1493,7 +1494,13 @@ def _validate_worker_provider(provider: ModelProvider) -> tuple[str, str, str, s
     return provider_id, model_id, binding_id, tier, eligibility
 
 
-def run_worker(root: str | Path, manifest_path: str | Path, *, provider: ModelProvider) -> dict[str, Any]:
+def run_worker(
+    root: str | Path,
+    manifest_path: str | Path,
+    *,
+    provider: ModelProvider,
+    host_dispatch: HostProviderDispatch | None = None,
+) -> dict[str, Any]:
     root = Path(root).resolve()
     manifest = validate_manifest(_read_json(Path(manifest_path)))
     attempt_id = _attempt_id()
@@ -1521,11 +1528,18 @@ def run_worker(root: str | Path, manifest_path: str | Path, *, provider: ModelPr
         },
         max_output_tokens=4096,
     )
+    dispatch = host_dispatch or HostProviderDispatch(provider)
+    if dispatch.provider_identity["provider_id"] not in {provider_id, "resource-router"}:
+        raise DevFarmError("Host dispatch provider identity does not match the admitted Worker provider")
     started = time.perf_counter()
     try:
-        response = provider.request(request)
+        response = dispatch.request(request)
     except ProviderError as exc:
         metrics = _worker_metrics(provider, request, elapsed_ms=round((time.perf_counter() - started) * 1000), task_type=manifest["task_type"])
+        metrics["execution_boundary"] = dispatch.execution_boundary
+        metrics["transport_failure_category"] = (
+            dispatch.last_transport_category.value if dispatch.last_transport_category is not None else None
+        )
         status = "blocked_external" if exc.category == "authentication" else "failed"
         result = {
             "status": status,
@@ -1618,6 +1632,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--provider", choices=("cloudflare", "gemini", "openrouter"))
     parser.add_argument("--model")
     parser.add_argument("--timeout-seconds", type=float, default=30.0)
+    parser.add_argument(
+        "--execution-boundary",
+        choices=("unclassified", "codex_sandbox", "host_process", "provider_process"),
+        default="unclassified",
+        help="explicit runtime evidence used only to classify transport failures",
+    )
     parser.add_argument("--apply-and-verify", action="store_true")
     parser.add_argument(
         "--trust-level",
@@ -1635,7 +1655,13 @@ def main(argv: list[str] | None = None) -> int:
         else:
             if args.provider is None or not args.model:
                 parser.error("--provider and --model are required unless --apply-and-verify is used")
-            result = run_worker(args.root, args.manifest, provider=_provider(args.provider, args.model, args.timeout_seconds))
+            provider = _provider(args.provider, args.model, args.timeout_seconds)
+            result = run_worker(
+                args.root,
+                args.manifest,
+                provider=provider,
+                host_dispatch=HostProviderDispatch(provider, execution_boundary=args.execution_boundary),
+            )
     except (DevFarmError, ProviderError) as exc:
         parser.error(str(exc))
     print(json.dumps(result, ensure_ascii=False, indent=2))
