@@ -62,6 +62,11 @@ _LAZY_EXPORTS = {
     "CodexLessPolicy": (".codexless", "CodexLessPolicy"),
     "ShadowEvidenceGateResult": (".codexless", "ShadowEvidenceGateResult"),
     "evaluate_shadow_evidence": (".codexless", "evaluate_shadow_evidence"),
+    "ObservationRecord": (".self_improvement", "ObservationRecord"),
+    "ImprovementDiagnosis": (".self_improvement", "ImprovementDiagnosis"),
+    "ImprovementPlanProposal": (".self_improvement", "ImprovementPlanProposal"),
+    "diagnose_observation": (".self_improvement", "diagnose_observation"),
+    "propose_improvement": (".self_improvement", "propose_improvement"),
 }
 
 
