@@ -7,6 +7,8 @@ import pytest
 
 from src.dev_agent.coordination.guardian_process import (
     GuardianProcessService,
+    GuardianProcessExecutionError,
+    InMemoryProcessOwnership,
     LaunchProfile,
     ProcessHandle,
     SubprocessProcessRuntime,
@@ -54,8 +56,9 @@ def _request(
 
 def _store(tmp_path):
     store = CoordinationStore(tmp_path / "coordination.sqlite3")
-    store.register_peer(_peer(role="codex", instance_id="codex-1", generation=1))
-    store.register_peer(_peer(role="agent", instance_id="agent-1", generation=12))
+    lease_until = "2099-01-01T00:00:00+00:00"
+    store.register_peer(_peer(role="codex", instance_id="codex-1", generation=1, lease_until=lease_until))
+    store.register_peer(_peer(role="agent", instance_id="agent-1", generation=12, lease_until=lease_until))
     return store
 
 
@@ -211,6 +214,28 @@ def test_subprocess_runtime_cleans_up_process_when_popen_returns_invalid_pid(tmp
         runtime.start(_profile(tmp_path))
 
     assert seen == {"terminated": True, "timeout": 2.0}
+
+
+def test_shared_process_ownership_rejects_duplicate_after_guardian_restart(tmp_path):
+    class _Process:
+        pid = 9010
+
+        def poll(self):
+            return None
+
+        def terminate(self):
+            raise AssertionError("the first Guardian must not be stopped by the second")
+
+        def wait(self, timeout):
+            raise AssertionError("the first Guardian must not be stopped by the second")
+
+    ownership = InMemoryProcessOwnership()
+    runtime_one = SubprocessProcessRuntime(popen=lambda *args, **kwargs: _Process(), ownership=ownership)
+    runtime_one.start(_profile(tmp_path))
+
+    runtime_two = SubprocessProcessRuntime(popen=lambda *args, **kwargs: _Process(), ownership=ownership)
+    with pytest.raises(GuardianProcessExecutionError, match="ownership"):
+        runtime_two.start(_profile(tmp_path))
 
 
 def test_guardian_process_service_starts_and_stops_real_local_subprocess(tmp_path):

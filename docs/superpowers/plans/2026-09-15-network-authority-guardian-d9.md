@@ -90,10 +90,10 @@
 - Add an injectable process-ownership adapter; Windows Job Object support may be implemented behind that adapter, while non-Windows/fake tests remain deterministic.
 - `EXECUTING` interruption remains `UNKNOWN` and is never blindly replayed.
 
-- [ ] Write a failing fake-runtime test proving an unowned child cannot be treated as a current managed generation after Guardian restart.
-- [ ] Implement ownership metadata/adapter with a conservative Windows Job Object path when the platform API is available; otherwise return a bounded reconciliation-required result instead of guessing from PID.
-- [ ] Add tests for duplicate start, stale PID/creation identity, Guardian interruption, and unknown owner.
-- [ ] Run focused coordination/Guardian tests; do not claim deployed crash recovery or OS residency from these tests.
+- [x] Write a failing fake-runtime test proving an unowned child cannot be treated as a current managed generation after Guardian restart.
+- [x] Implement ownership metadata/adapter with a conservative Windows Job Object path when the platform API is available; otherwise return a bounded reconciliation-required result instead of guessing from PID.
+- [x] Add tests for duplicate start, stale PID/creation identity, Guardian interruption, and unknown owner.
+- [x] Run focused coordination/Guardian tests; do not claim deployed crash recovery or OS residency from these tests.
 
 ---
 

@@ -27,10 +27,13 @@ from .guardian_process import (
     GuardianProcessExecutor,
     GuardianProcessPolicy,
     GuardianProcessService,
+    InMemoryProcessOwnership,
     LaunchProfile,
     ProcessHandle,
+    ProcessOwnershipAdapter,
     ProcessRuntime,
     SubprocessProcessRuntime,
+    WindowsJobObjectOwnership,
 )
 from .drain import DrainDecision, DrainResult, ExternalEffectState, GracefulDrainService
 from .runtime_release import RevisionPinnedRuntimeStore, RuntimeRelease, RuntimeReleaseError
@@ -70,10 +73,13 @@ __all__ = [
     "GuardianProcessExecutor",
     "GuardianProcessPolicy",
     "GuardianProcessService",
+    "InMemoryProcessOwnership",
     "LaunchProfile",
     "ProcessHandle",
+    "ProcessOwnershipAdapter",
     "ProcessRuntime",
     "SubprocessProcessRuntime",
+    "WindowsJobObjectOwnership",
     "DrainDecision",
     "DrainResult",
     "ExternalEffectState",

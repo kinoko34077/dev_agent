@@ -17,6 +17,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+import ctypes
 import os
 from pathlib import Path
 import subprocess
@@ -148,6 +149,179 @@ class ProcessRuntime(Protocol):
 
     def restart(self, profile: LaunchProfile) -> ProcessHandle:
         ...
+
+
+class ProcessOwnershipAdapter(Protocol):
+    """Host-owned process lifetime boundary for one Guardian runtime."""
+
+    def before_start(self, profile: LaunchProfile) -> None:
+        """Reject a start while an owned process for the key is active."""
+
+    def claim(self, profile: LaunchProfile, process: object, handle: ProcessHandle) -> None:
+        """Attach the child to the Guardian-owned lifetime boundary."""
+
+    def release(self, profile: LaunchProfile, process: object) -> None:
+        """Release ownership after a confirmed stop."""
+
+
+def _ownership_key(profile: LaunchProfile) -> tuple[str, int]:
+    return profile.role, profile.generation
+
+
+class InMemoryProcessOwnership:
+    """Deterministic ownership adapter for fakes and foreground tests.
+
+    Sharing one instance across Guardian runtime instances models the durable
+    ownership boundary in tests: a restarted runtime cannot claim an active
+    role/generation it did not own.  Production Windows execution uses the
+    Job Object adapter below instead.
+    """
+
+    def __init__(self) -> None:
+        self._owned: dict[tuple[str, int], tuple[object, ProcessHandle]] = {}
+
+    def before_start(self, profile: LaunchProfile) -> None:
+        key = _ownership_key(profile)
+        current = self._owned.get(key)
+        if current is None:
+            return
+        process, _handle = current
+        poll = getattr(process, "poll", None)
+        if not callable(poll):
+            raise GuardianProcessExecutionError("owned process state cannot be inspected; reconcile before start")
+        if poll() is None:
+            raise GuardianProcessExecutionError("process ownership is already held; reconcile before start")
+        self._owned.pop(key, None)
+
+    def claim(self, profile: LaunchProfile, process: object, handle: ProcessHandle) -> None:
+        self.before_start(profile)
+        self._owned[_ownership_key(profile)] = (process, handle)
+
+    def release(self, profile: LaunchProfile, process: object) -> None:
+        current = self._owned.get(_ownership_key(profile))
+        if current is None:
+            return
+        if current[0] is not process:
+            raise GuardianProcessExecutionError("process ownership belongs to another process")
+        self._owned.pop(_ownership_key(profile), None)
+
+
+class _WinBasicLimitInformation(ctypes.Structure):
+    _fields_ = [
+        ("PerProcessUserTimeLimit", ctypes.c_longlong),
+        ("PerJobUserTimeLimit", ctypes.c_longlong),
+        ("LimitFlags", ctypes.c_uint32),
+        ("MinimumWorkingSetSize", ctypes.c_size_t),
+        ("MaximumWorkingSetSize", ctypes.c_size_t),
+        ("ActiveProcessLimit", ctypes.c_uint32),
+        ("Affinity", ctypes.c_size_t),
+        ("PriorityClass", ctypes.c_uint32),
+        ("SchedulingClass", ctypes.c_uint32),
+    ]
+
+
+class _WinIoCounters(ctypes.Structure):
+    _fields_ = [
+        ("ReadOperationCount", ctypes.c_ulonglong),
+        ("WriteOperationCount", ctypes.c_ulonglong),
+        ("OtherOperationCount", ctypes.c_ulonglong),
+        ("ReadTransferCount", ctypes.c_ulonglong),
+        ("WriteTransferCount", ctypes.c_ulonglong),
+        ("OtherTransferCount", ctypes.c_ulonglong),
+    ]
+
+
+class _WinExtendedLimitInformation(ctypes.Structure):
+    _fields_ = [
+        ("BasicLimitInformation", _WinBasicLimitInformation),
+        ("IoInfo", _WinIoCounters),
+        ("ProcessMemoryLimit", ctypes.c_size_t),
+        ("JobMemoryLimit", ctypes.c_size_t),
+        ("PeakProcessMemoryUsed", ctypes.c_size_t),
+        ("PeakJobMemoryUsed", ctypes.c_size_t),
+    ]
+
+
+class WindowsJobObjectOwnership:
+    """Bind each managed child to a Windows Job Object.
+
+    ``KILL_ON_JOB_CLOSE`` makes a Guardian crash close the ownership boundary
+    and terminate its managed child.  No PID-based rediscovery is attempted.
+    The adapter is intentionally Windows-only and requires the real
+    ``subprocess.Popen`` handle rather than an arbitrary command or PID.
+    """
+
+    _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
+    _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
+
+    def __init__(self) -> None:
+        if os.name != "nt":
+            raise CoordinationValidationError("WindowsJobObjectOwnership is only available on Windows")
+        self._kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        self._kernel32.CreateJobObjectW.restype = ctypes.c_void_p
+        self._kernel32.SetInformationJobObject.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_int,
+            ctypes.c_void_p,
+            ctypes.c_uint32,
+        ]
+        self._kernel32.SetInformationJobObject.restype = ctypes.c_bool
+        self._kernel32.AssignProcessToJobObject.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        self._kernel32.AssignProcessToJobObject.restype = ctypes.c_bool
+        self._kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+        self._kernel32.CloseHandle.restype = ctypes.c_bool
+        self._jobs: dict[tuple[str, int], tuple[int, object]] = {}
+
+    def before_start(self, profile: LaunchProfile) -> None:
+        current = self._jobs.get(_ownership_key(profile))
+        if current is None:
+            return
+        process = current[1]
+        poll = getattr(process, "poll", None)
+        if callable(poll) and poll() is not None:
+            self._close_job(_ownership_key(profile))
+            return
+        raise GuardianProcessExecutionError("process ownership is already held; reconcile before start")
+
+    def claim(self, profile: LaunchProfile, process: object, handle: ProcessHandle) -> None:
+        self.before_start(profile)
+        process_handle = getattr(process, "_handle", None)
+        if isinstance(process_handle, bool) or not isinstance(process_handle, int) or process_handle <= 0:
+            raise GuardianProcessExecutionError("Windows process handle is unavailable; ownership is unverified")
+        job = self._kernel32.CreateJobObjectW(None, None)
+        if not job:
+            raise GuardianProcessExecutionError("Windows Job Object creation failed")
+        limits = _WinExtendedLimitInformation()
+        limits.BasicLimitInformation.LimitFlags = self._JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        if not self._kernel32.SetInformationJobObject(
+            job,
+            self._JOB_OBJECT_EXTENDED_LIMIT_INFORMATION,
+            ctypes.byref(limits),
+            ctypes.sizeof(limits),
+        ):
+            self._close_handle(job)
+            raise GuardianProcessExecutionError("Windows Job Object policy setup failed")
+        if not self._kernel32.AssignProcessToJobObject(job, ctypes.c_void_p(process_handle)):
+            self._close_handle(job)
+            raise GuardianProcessExecutionError("Windows process could not be assigned to Job Object")
+        self._jobs[_ownership_key(profile)] = (int(job), process)
+
+    def release(self, profile: LaunchProfile, process: object) -> None:
+        current = self._jobs.get(_ownership_key(profile))
+        if current is None:
+            return
+        if current[1] is not process:
+            raise GuardianProcessExecutionError("process ownership belongs to another process")
+        self._close_job(_ownership_key(profile))
+
+    def _close_job(self, key: tuple[str, int]) -> None:
+        current = self._jobs.pop(key, None)
+        if current is not None:
+            self._close_handle(current[0])
+
+    def _close_handle(self, handle: int) -> None:
+        if not self._kernel32.CloseHandle(ctypes.c_void_p(handle)):
+            raise GuardianProcessExecutionError("Windows Job Object close was not confirmed")
 
 
 def _profile_map(profiles: Sequence[LaunchProfile]) -> dict[tuple[str, int], LaunchProfile]:
@@ -315,6 +489,7 @@ class SubprocessProcessRuntime:
         *,
         popen: Callable[..., subprocess.Popen[str]] | None = None,
         environment_factory: EnvironmentFactory | None = None,
+        ownership: ProcessOwnershipAdapter | None = None,
         stop_timeout_seconds: float = 10.0,
     ) -> None:
         if isinstance(stop_timeout_seconds, bool) or not isinstance(stop_timeout_seconds, (int, float)) or stop_timeout_seconds <= 0:
@@ -322,11 +497,20 @@ class SubprocessProcessRuntime:
         self._popen = popen or subprocess.Popen
         self._environment_factory = environment_factory or _minimal_environment
         self.stop_timeout_seconds = float(stop_timeout_seconds)
+        if ownership is None:
+            if self._popen is subprocess.Popen and os.name == "nt":
+                ownership = WindowsJobObjectOwnership()
+            else:
+                ownership = InMemoryProcessOwnership()
+        if not all(callable(getattr(ownership, name, None)) for name in ("before_start", "claim", "release")):
+            raise CoordinationValidationError("ownership must provide before_start, claim, and release")
+        self._ownership = ownership
         self._processes: dict[tuple[str, int], subprocess.Popen[str]] = {}
 
     def start(self, profile: LaunchProfile) -> ProcessHandle:
         self._validate_profile_root(profile)
         key = (profile.role, profile.generation)
+        self._ownership.before_start(profile)
         current = self._processes.get(key)
         if current is not None:
             if current.poll() is None:
@@ -350,14 +534,22 @@ class SubprocessProcessRuntime:
         if isinstance(pid, bool) or not isinstance(pid, int) or pid <= 0:
             self._cleanup_unbound_process(process)
             raise GuardianProcessExecutionError("process start returned an invalid pid")
-        self._processes[key] = process
-        return ProcessHandle(
+        handle = ProcessHandle(
             profile_id=profile.profile_id,
             role=profile.role,
             generation=profile.generation,
             revision=profile.revision,
             pid=pid,
         )
+        try:
+            self._ownership.claim(profile, process, handle)
+        except Exception as exc:
+            self._cleanup_unbound_process(process)
+            if isinstance(exc, GuardianProcessExecutionError):
+                raise
+            raise GuardianProcessExecutionError("process ownership could not be established") from exc
+        self._processes[key] = process
+        return handle
 
     def _cleanup_unbound_process(self, process: object) -> None:
         """Close a Popen result that cannot become a tracked process handle.
@@ -384,6 +576,7 @@ class SubprocessProcessRuntime:
         if process is None:
             raise GuardianProcessExecutionError("target process handle is unavailable; reconcile before retry")
         if process.poll() is not None:
+            self._ownership.release(profile, process)
             self._processes.pop((profile.role, profile.generation), None)
             return
         try:
@@ -393,6 +586,7 @@ class SubprocessProcessRuntime:
             raise GuardianProcessExecutionError("process stop was not confirmed before deadline") from exc
         except Exception as exc:
             raise GuardianProcessExecutionError("process stop failed") from exc
+        self._ownership.release(profile, process)
         self._processes.pop((profile.role, profile.generation), None)
 
     def restart(self, profile: LaunchProfile) -> ProcessHandle:
@@ -415,7 +609,10 @@ __all__ = [
     "GuardianProcessPolicy",
     "GuardianProcessService",
     "LaunchProfile",
+    "InMemoryProcessOwnership",
     "ProcessHandle",
+    "ProcessOwnershipAdapter",
     "ProcessRuntime",
     "SubprocessProcessRuntime",
+    "WindowsJobObjectOwnership",
 ]
