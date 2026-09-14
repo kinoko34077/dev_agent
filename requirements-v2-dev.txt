@@ -1,2 +1,5 @@
 # Provider-neutral v2 kernel test dependencies.
 pytest>=8,<9
+# Optional desktop credential-manager integration used by the operator smoke
+# and normal Compression composition when an OS keyring entry is configured.
+keyring>=25,<26

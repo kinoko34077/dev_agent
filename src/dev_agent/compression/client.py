@@ -16,6 +16,8 @@ from urllib.parse import urlparse
 from .integrity import inspect_information_retention
 from .protocol import (
     COMPRESSION_API_TOKEN_ENV,
+    COMPRESSION_KEYRING_SERVICE,
+    COMPRESSION_KEYRING_USERNAME,
     COMPRESSION_PROFILE,
     DEFAULT_COMPRESSION_ENDPOINT,
     DEFAULT_COMPRESSION_PROVIDER_CONTEXT_LIMIT_CHARS,
@@ -38,6 +40,15 @@ class CompressionFailureCategory(str, Enum):
     CONFIGURATION = "configuration_error"
 
 
+class CompressionDiagnosticCode(str, Enum):
+    """More precise, secret-free cause details for operator diagnostics."""
+
+    CREDENTIAL_MISSING = "credential_missing"
+    CREDENTIAL_BACKEND_UNAVAILABLE = "credential_backend_unavailable"
+    CREDENTIAL_REJECTED = "credential_rejected"
+    HTTP_FORBIDDEN = "http_forbidden"
+
+
 class CompressionHttpError(RuntimeError):
     """A bounded compression transport/contract failure.
 
@@ -51,10 +62,23 @@ class CompressionHttpError(RuntimeError):
         *,
         category: str = "compression_error",
         http_status: int | None = None,
+        diagnostic_code: str | None = None,
+        x_request_id_present: bool = False,
+        server_header: str | None = None,
+        cf_ray_present: bool = False,
     ) -> None:
         super().__init__(message)
         self.category = category
         self.http_status = http_status
+        allowed_diagnostics = {item.value for item in CompressionDiagnosticCode}
+        self.diagnostic_code = (
+            diagnostic_code
+            if isinstance(diagnostic_code, str) and diagnostic_code in allowed_diagnostics
+            else None
+        )
+        self.x_request_id_present = bool(x_request_id_present)
+        self.server_header = _safe_header_value(server_header)
+        self.cf_ray_present = bool(cf_ray_present)
 
 
 def _text(value: Any, name: str, *, max_length: int = 256) -> str:
@@ -136,6 +160,40 @@ def _http_failure_category(status: int) -> str:
     return CompressionFailureCategory.HTTP_ERROR.value
 
 
+def _http_diagnostic_code(status: int) -> str | None:
+    if status == 401:
+        return CompressionDiagnosticCode.CREDENTIAL_REJECTED.value
+    if status == 403:
+        return CompressionDiagnosticCode.HTTP_FORBIDDEN.value
+    return None
+
+
+def _safe_header_value(value: Any) -> str | None:
+    if not isinstance(value, str) or not value:
+        return None
+    safe = "".join(character for character in value if ord(character) >= 32 and ord(character) != 127)
+    return safe[:128] or None
+
+
+def _response_diagnostics(response: Any) -> dict[str, Any]:
+    headers = getattr(response, "headers", None)
+    getter = getattr(headers, "get", None)
+    if not callable(getter):
+        return {
+            "x_request_id_present": False,
+            "server_header": None,
+            "cf_ray_present": False,
+        }
+    x_request_id = getter("X-Request-ID")
+    server = getter("Server")
+    cf_ray = getter("CF-Ray")
+    return {
+        "x_request_id_present": bool(isinstance(x_request_id, str) and x_request_id.strip()),
+        "server_header": _safe_header_value(server),
+        "cf_ray_present": bool(isinstance(cf_ray, str) and cf_ray.strip()),
+    }
+
+
 class HttpCompressionService(CompressionService):
     """Client for the fixed `/v1/compress` service contract.
 
@@ -205,6 +263,7 @@ class HttpCompressionService(CompressionService):
             raise CompressionHttpError(
                 "compression API token is not configured",
                 category=CompressionFailureCategory.AUTHENTICATION.value,
+                diagnostic_code=CompressionDiagnosticCode.CREDENTIAL_MISSING.value,
             )
         return cls(
             endpoint,
@@ -215,6 +274,73 @@ class HttpCompressionService(CompressionService):
             max_response_bytes=max_response_bytes,
             opener=opener,
         )
+
+    @classmethod
+    def from_credential_manager(
+        cls,
+        *,
+        endpoint: str = DEFAULT_COMPRESSION_ENDPOINT,
+        timeout_seconds: float = 30.0,
+        max_input_chars: int = DEFAULT_COMPRESSION_PUBLIC_MAX_INPUT_CHARS,
+        provider_context_limit_chars: int = DEFAULT_COMPRESSION_PROVIDER_CONTEXT_LIMIT_CHARS,
+        max_response_bytes: int = 2_000_000,
+        opener: Callable[..., Any] = _open_no_redirect,
+    ) -> "HttpCompressionService":
+        """Build the client from the operator's OS credential manager.
+
+        ``keyring`` is imported only when this explicit factory is called.
+        Importing the compression package therefore performs no secret lookup
+        and no network I/O.  Credential-manager failures are intentionally
+        reduced to bounded, secret-free errors.
+        """
+
+        try:
+            import keyring
+        except ImportError as exc:
+            raise CompressionHttpError(
+                "compression credential manager is unavailable",
+                category=CompressionFailureCategory.CONFIGURATION.value,
+                diagnostic_code=CompressionDiagnosticCode.CREDENTIAL_BACKEND_UNAVAILABLE.value,
+            ) from exc
+        try:
+            token = keyring.get_password(COMPRESSION_KEYRING_SERVICE, COMPRESSION_KEYRING_USERNAME)
+        except Exception as exc:  # credential backends are external to this client
+            raise CompressionHttpError(
+                "compression credential manager lookup failed",
+                category=CompressionFailureCategory.CONFIGURATION.value,
+                diagnostic_code=CompressionDiagnosticCode.CREDENTIAL_BACKEND_UNAVAILABLE.value,
+            ) from exc
+        if token is None or not token.strip():
+            raise CompressionHttpError(
+                "compression API credential is not configured",
+                category=CompressionFailureCategory.AUTHENTICATION.value,
+                diagnostic_code=CompressionDiagnosticCode.CREDENTIAL_MISSING.value,
+            )
+        return cls(
+            endpoint,
+            api_token=token,
+            timeout_seconds=timeout_seconds,
+            max_input_chars=max_input_chars,
+            provider_context_limit_chars=provider_context_limit_chars,
+            max_response_bytes=max_response_bytes,
+            opener=opener,
+        )
+
+    @classmethod
+    def from_configured_credentials(
+        cls,
+        **kwargs: Any,
+    ) -> "HttpCompressionService":
+        """Resolve explicit environment credentials, then the OS keyring.
+
+        Environment credentials remain supported for CI and explicit
+        operators.  Normal desktop composition may use the fixed keyring
+        entry without placing the bearer token in the process environment.
+        """
+
+        if os.environ.get(COMPRESSION_API_TOKEN_ENV, "").strip():
+            return cls.from_environment(**kwargs)
+        return cls.from_credential_manager(**kwargs)
 
     def compress(self, text: str, *, profile: str = COMPRESSION_PROFILE) -> CompressionResult:
         if not isinstance(text, str):
@@ -245,17 +371,23 @@ class HttpCompressionService(CompressionService):
             with self._opener(request, timeout=self._timeout_seconds) as response:
                 status = response.getcode() if callable(getattr(response, "getcode", None)) else getattr(response, "status", None)
                 if isinstance(status, int) and not 200 <= status < 300:
+                    diagnostics = _response_diagnostics(response)
                     raise CompressionHttpError(
                         "compression service returned an HTTP error",
                         category=_http_failure_category(status),
                         http_status=status,
+                        diagnostic_code=_http_diagnostic_code(status),
+                        **diagnostics,
                     )
                 raw = response.read(self._max_response_bytes + 1)
         except HTTPError as exc:
+            diagnostics = _response_diagnostics(exc)
             raise CompressionHttpError(
                 "compression service returned an HTTP error",
                 category=_http_failure_category(exc.code),
                 http_status=exc.code,
+                diagnostic_code=_http_diagnostic_code(exc.code),
+                **diagnostics,
             ) from None
         except CompressionHttpError:
             raise

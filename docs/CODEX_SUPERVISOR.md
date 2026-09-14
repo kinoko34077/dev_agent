@@ -142,8 +142,8 @@ required correctionだけを`rework_request()`で渡し、`reassign()`が旧mani
 取得・upload・権限発行はこの層の責務にしない。外部本文はPayloadであり、Controlを上書きしない。
 
 Compressionは`HttpCompressionService`の固定endpoint・固定`semantic-dense-v1` profileを
-通常Handoff compositionから利用できる。import時I/Oは行わず、`COMPRESSION_API_TOKEN`がある
-場合だけfactoryを遅延compositionする。3,000 Unicode code points以下は送信せず、超過時も
+通常Handoff compositionから利用できる。import時I/Oは行わず、明示envまたは固定Credential
+Manager credentialがある場合だけfactoryを遅延compositionする。3,000 Unicode code points以下は送信せず、超過時も
 Controlを除いたPayloadだけを送る。構造上限1,000,000とprovider-safe limit 200,000を分離し、
 provider-safe limit超過は送信前にbounded configuration failureへ閉じる。tokenなし・設定不備は
 最適化用途では原文へfallbackできる。CompressionはG6O1、Provider pool、Budget authorityへ

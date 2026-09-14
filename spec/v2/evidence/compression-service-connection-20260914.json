@@ -13,18 +13,20 @@
   "live_smoke": {
     "status": "NOT_VERIFIED",
     "failure_category": "authentication_failure",
-    "http_status": null,
-    "credential_name": "COMPRESSION_API_TOKEN",
+    "http_status": 403,
+    "credential_source": "Windows Credential Manager",
+    "credential_target": "kinotch-api / compression",
+    "safe_edge_diagnostics_captured": false,
     "raw_response_recorded": false
   },
   "checks": [
     "payload-only compression",
     "control fields remain uncompressed",
-    "normal handoff composition uses the fixed environment factory only when a token is present",
+    "normal handoff composition lazily resolves explicit environment credentials or the fixed Credential Manager entry",
     "provider-safe input limit fails before HTTP request",
     "digest/character-count/prompt-version/model provenance validation",
     "bounded failure fallback without unbounded retry",
     "no redirect bearer forwarding"
   ],
-  "limitation": "The operator smoke could not call the service because COMPRESSION_API_TOKEN was not present in the current environment. No token or request/response body was recorded."
+  "limitation": "The operator smoke reached the fixed endpoint using the configured Credential Manager entry but received HTTP 403 authentication_failure. The pre-diagnostic smoke did not capture safe edge-header presence fields. No token, raw request, or response body was recorded; service authentication remains unverified."
 }

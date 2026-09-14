@@ -8,8 +8,9 @@ compositionから利用できる状態へ進めた。契約は`POST https://api.
 `COMPRESSION_API_TOKEN`、profileは`semantic-dense-v1`で、呼出側が渡せるのはPayload
 本文と固定profileだけとする。CompressionはG6O1-SIM/LIVEのruntime billingへ接続しない。
 
-Compressionの実live smokeは、2026-09-14時点で現在の実行環境にtokenが無いため
-`NOT_VERIFIED`である。local contract/test evidenceとlive service availabilityを混同しない。
+Compressionの実live smokeは、2026-09-14時点でCredential Managerからcredentialを取得して
+固定endpointへ到達したが、HTTP 403 `authentication_failure`となったため`NOT_VERIFIED`である。
+local contract/test evidenceとlive service availabilityを混同しない。
 
 Serviceへ渡さないもの:
 
@@ -19,16 +20,23 @@ Serviceへ渡さないもの:
 - arbitrary system prompt、任意tool、provider固有option
 
 現行実装の `src/dev_agent/compression/` はこの契約のclient境界であり、
-`HttpCompressionService.from_environment()`がtokenを明示的に読み、本文と固定profile
-だけをPOSTする。通常の`OneCycleDevelopmentLoop` compositionでは、import時I/Oを行わず、
-`COMPRESSION_API_TOKEN`が存在する場合だけこのfactoryを遅延呼出しする。tokenが無い、または
-設定が利用できない場合、最適化用途はCompressionなしで安全な原文Payloadへfallbackする。
+`HttpCompressionService.from_configured_credentials()`が明示的な環境変数を優先し、なければ
+lazyにWindows Credential Managerの固定エントリ`kinotch-api` / `compression`を読み、本文と
+固定profileだけをPOSTする。`keyring` importとcredential lookupはこのfactory呼出時だけに行い、
+import時I/Oは行わない。operator smokeは`from_credential_manager()`を直接使用する。
+通常の`OneCycleDevelopmentLoop` compositionではこのfactoryを遅延呼出しし、tokenが無い、
+Credential Managerが利用できない、または設定が不正な場合、最適化用途はCompressionなしで
+安全な原文Payloadへfallbackする。
 Service本体やProvider選択をdev_agentへ埋め込まない。
 `compress_handoff_payload` はControlを保持したままPayloadだけを圧縮し、3,000 Unicode
 code points以下は圧縮せず、超過時だけ`semantic-dense-v1`を使う。原文reference、
 input/output digest、文字数、Prompt version、model、警告をHandoffへ記録する。
 Compression HTTP失敗はboundedなcategoryへ正規化し、最適化用途では原文へ一度だけ
 fallbackできる。原文を安全に渡せない場合は呼出側がfail-closedを選べる。
+HTTP 401/403の広い互換categoryとは別に、clientはsecret-freeなdiagnostic code
+（`credential_missing`、`credential_backend_unavailable`、`credential_rejected`、
+`http_forbidden`）を保持できる。HTTP error時は`X-Request-ID`の有無、boundedな
+`Server`値、`CF-Ray`の有無だけを任意に記録し、本文とAuthorizationは保持しない。
 
 Compression clientの構造上限は1,000,000 Unicode code points、固定Serviceへ送る
 provider-safe context limitは200,000 Unicode code pointsで別管理する。後者を超えるPayloadは

@@ -43,7 +43,7 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--payload-chars must be between 3001 and 20000")
 
     try:
-        service = HttpCompressionService.from_environment()
+        service = HttpCompressionService.from_credential_manager()
         result = service.compress(_smoke_payload(args.payload_chars))
     except CompressionHttpError as exc:
         print(
@@ -51,7 +51,11 @@ def main(argv: list[str] | None = None) -> int:
                 {
                     "status": "not_verified",
                     "failure_category": exc.category,
+                    "failure_diagnostic": exc.diagnostic_code,
                     "http_status": exc.http_status,
+                    "x_request_id_present": exc.x_request_id_present,
+                    "server_header": exc.server_header,
+                    "cf_ray_present": exc.cf_ray_present,
                 },
                 ensure_ascii=False,
             )

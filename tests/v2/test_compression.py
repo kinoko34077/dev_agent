@@ -226,6 +226,76 @@ def test_http_client_can_use_the_fixed_environment_token_without_exposing_it(mon
     assert token not in repr(result)
 
 
+def test_http_client_can_use_the_fixed_credential_manager_entry(monkeypatch):
+    from src.dev_agent.compression.client import HttpCompressionService
+
+    token = "credential-manager-token-for-test"
+    original = "long payload"
+    compressed = "dense"
+    requests = []
+
+    class _Response:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self, _limit):
+            return json.dumps(
+                {
+                    "compressed_text": compressed,
+                    "profile": "semantic-dense-v1",
+                    "prompt_version": "semantic-dense-v1",
+                    "model": "fixed-compressor",
+                    "input_chars": len(original),
+                    "output_chars": len(compressed),
+                    "input_sha256": hashlib.sha256(original.encode()).hexdigest(),
+                    "output_sha256": hashlib.sha256(compressed.encode()).hexdigest(),
+                    "warnings": [],
+                }
+            ).encode()
+
+    def _opener(request, *, timeout):
+        requests.append((request, timeout))
+        return _Response()
+
+    import keyring
+
+    calls = []
+
+    def _get_password(service, username):
+        calls.append((service, username))
+        return token
+
+    monkeypatch.delenv("COMPRESSION_API_TOKEN", raising=False)
+    monkeypatch.setattr(keyring, "get_password", _get_password)
+    service = HttpCompressionService.from_credential_manager(opener=_opener)
+    result = service.compress(original)
+
+    assert calls == [("kinotch-api", "compression")]
+    request, _ = requests[0]
+    assert request.get_header("Authorization") == f"Bearer {token}"
+    assert token not in repr(result)
+
+
+def test_credential_manager_missing_entry_is_a_bounded_authentication_failure(monkeypatch):
+    from src.dev_agent.compression.client import CompressionHttpError, HttpCompressionService
+
+    import keyring
+
+    monkeypatch.setattr(keyring, "get_password", lambda *_args: None)
+
+    with pytest.raises(CompressionHttpError) as caught:
+        HttpCompressionService.from_credential_manager()
+
+    assert caught.value.category == "authentication_failure"
+    assert caught.value.diagnostic_code == "credential_missing"
+    assert "token" not in str(caught.value).lower()
+
+
 def test_http_client_rejects_control_characters_in_the_bearer_token():
     from src.dev_agent.compression.client import HttpCompressionService
 
@@ -315,6 +385,40 @@ def test_http_status_errors_are_typed_without_retaining_response_body():
     assert caught.value.category == "provider_error"
     assert caught.value.http_status == 503
     assert "secret provider detail" not in str(caught.value)
+
+
+def test_http_forbidden_keeps_safe_edge_diagnostics_without_retaining_body():
+    from src.dev_agent.compression.client import CompressionHttpError, HttpCompressionService
+
+    class _Response:
+        status = 403
+        headers = {
+            "X-Request-ID": "req-123",
+            "Server": "cloudflare",
+            "CF-Ray": "ray-456",
+        }
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self, _limit):
+            return b'{"message":"private edge detail"}'
+
+    def _opener(request, *, timeout):
+        return _Response()
+
+    with pytest.raises(CompressionHttpError) as caught:
+        HttpCompressionService("https://compress.example/v1/compress", opener=_opener).compress("payload")
+
+    assert caught.value.category == "authentication_failure"
+    assert caught.value.diagnostic_code == "http_forbidden"
+    assert caught.value.x_request_id_present is True
+    assert caught.value.server_header == "cloudflare"
+    assert caught.value.cf_ray_present is True
+    assert "private edge detail" not in str(caught.value)
 
 
 def test_http_client_fails_fast_before_sending_above_provider_context_limit():

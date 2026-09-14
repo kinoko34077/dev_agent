@@ -9,7 +9,6 @@ call this composition again only after the Control Plane authorizes it.
 from __future__ import annotations
 
 from dataclasses import dataclass
-import os
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
@@ -17,7 +16,6 @@ from scripts.devfarm import DevFarmError
 from scripts.devfarm_codex import run_codex_attempt
 from src.dev_agent.backends.protocol import AgentBackend
 from src.dev_agent.compression import (
-    COMPRESSION_API_TOKEN_ENV,
     DEFAULT_COMPRESSION_THRESHOLD_CHARS,
     CompressionHttpError,
     CompressionService,
@@ -82,9 +80,9 @@ class OneCycleDevelopmentLoop:
         strict_compression: bool = False,
         fallback_to_original: bool = True,
     ) -> None:
-        if compression_service is None and os.environ.get(COMPRESSION_API_TOKEN_ENV, "").strip():
+        if compression_service is None:
             try:
-                compression_service = HttpCompressionService.from_environment()
+                compression_service = HttpCompressionService.from_configured_credentials()
             except (CompressionHttpError, ValueError):
                 # Compression is an optional optimization in the normal path.
                 # An unavailable or invalid configuration must not stop safe

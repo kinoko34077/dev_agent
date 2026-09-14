@@ -282,6 +282,30 @@ def test_one_cycle_auto_composes_compression_from_environment(monkeypatch):
     assert executor.request.payload_mode == "compressed"
 
 
+def test_one_cycle_auto_composes_compression_from_credential_manager(monkeypatch):
+    service = _FakeAutoCompressionService()
+    calls = []
+
+    def _from_credential_manager(cls, **kwargs):
+        calls.append(kwargs)
+        return service
+
+    monkeypatch.delenv("COMPRESSION_API_TOKEN", raising=False)
+    monkeypatch.setattr(HttpCompressionService, "from_credential_manager", classmethod(_from_credential_manager))
+    executor = _PayloadCapturingExecutor()
+
+    result = OneCycleDevelopmentLoop(_LongPlanner(), executor, _Reviewer()).run(
+        objective="automatic keyring compression",
+        instruction="execute one cycle",
+    )
+
+    assert result.stopped is True
+    assert calls == [{}]
+    assert len(service.received) == 1
+    assert executor.request is not None
+    assert executor.request.payload_mode == "compressed"
+
+
 def test_one_cycle_without_compression_token_keeps_original_payload(monkeypatch):
     monkeypatch.delenv("COMPRESSION_API_TOKEN", raising=False)
     executor = _PayloadCapturingExecutor()
