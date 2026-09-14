@@ -11,7 +11,7 @@ Phase 7後半の安全な拡張と開発運用移管。既存のKernel、Resourc
 - Group Dのsession identity、bounded artifact reference、reconciliation replay、明示的Backend discovery authority。
 - Free L1 WorkerのSupervisor/Host Verification/ReviewDecision/REWORK/依存integration経路。
 - Free L2 Plannerのproposal-only adapter、strict JSON boundary、RootPlanningProposal、Host-only DevelopmentPlanningBridge、および明示的なModel Catalog / Benchmark Catalog / Capability Catalog / Runtime admission境界。
-- MCPはschema-only contractまで。runtime adapter、Compression、OpenAI/Claude APIは未接続。
+- Group DのCodex session restart/discovery境界は、正式な外部discoveryが無い場合にUNKNOWNへ閉じることをEvidence化した。MCPは既存Supervisorへ委譲するtransport-neutralなin-process thin adapterまで接続し、wire transportは未接続。Compressionは固定HTTP clientを明示compositionできるが、live smokeはcredential未設定で未検証。
 
 ## Current Gate
 
@@ -23,15 +23,15 @@ Current State、Main/Detailed Roadmap、Requirements、ADR、Evidence、作業Pl
 
 D1/D2のbounded live development sliceは、`gemini:worker:free-3` / `gemini-3.6-flash`によるstrict JSON Planner proposal、Host validation、DevelopmentPlanningBridge、Commander Plan、Free L1 Worker、独立Host Verification、Codex durable review、Host deterministic integrationまで完了した。詳細Evidenceは[`planner-l2-live-d1-20260914.json`](../spec/v2/evidence/planner-l2-live-d1-20260914.json)と[`planner-to-worker-e2e-20260914.json`](../spec/v2/evidence/planner-to-worker-e2e-20260914.json)を参照する。Model discovery / benchmark / capability evidenceは候補化の入力に留まり、qualification・billing・privacy・quota・healthを代替しない。confirmed failover-safe failureは同一tierの別bindingへ切替え、UNKNOWNはreconciliationへ閉じる。
 
-次のGateはD3の条件付きWorker reliability確認、D4のconcrete session restart/discoveryである。D3は記録済みfailure classが再発した場合だけ狭く修正し、D4では正式なdiscovery authorityが無い限りUNKNOWN/reconciliationを維持する。
+次のGateは、D3を条件付きで監視しつつ、D4のconcrete session restart/discovery境界確認とD5のMCP thin runtimeである。D4は正式なdiscovery authorityが無い限りUNKNOWN/reconciliationを維持し、MCPは既存authorityへ処理を委譲するだけとする。
 
 ## Operational acceptance
 
-Code、local regression、Host Verification、Git integration、remote push、exact-head CIは別Evidenceとして扱う。Provider request到達、adapter存在、schema-only MCP、モデル自己申告だけではGateを閉じない。詳細順序はD3 Worker reliability、D4 concrete session restart/discovery、D5 MCP thin runtime、D6 Reviewer Shadow、D7 LOW/NORMAL Codex-less cycle、D8–D9 Self-Improvementへ続く。
+Code、local regression、Host Verification、Git integration、remote push、exact-head CIは別Evidenceとして扱う。Provider request到達、adapter存在、MCP boundary、モデル自己申告だけではGateを閉じない。詳細順序はD3 Worker reliability、D4 concrete session restart/discovery、D5 MCP thin runtime、D6 Reviewer Shadow、D7 LOW/NORMAL Codex-less cycle、D8–D9 Self-Improvementへ続く。
 
 ## External / frozen
 
-G6O1-SIM/LIVE、real paid-provider qualification、Compression Service、OpenAI API、Claude API、OS-level sandbox evidence、Production auto-deploy、unbounded autonomous loop、Discord、Virtual Office UIはHumanの明示再開まで着手しない。G6O1は`DEFERRED_FROZEN` / `NOT VERIFIED` / `roadmap_blocking=false`として扱い、原要求を削除・昇格しない。
+G6O1-SIM/LIVE、real paid-provider qualification、OpenAI API、Claude API、OS-level sandbox evidence、Production auto-deploy、unbounded autonomous loop、Discord、Virtual Office UIはHumanの明示再開まで着手しない。G6O1は`DEFERRED_FROZEN` / `NOT VERIFIED` / `roadmap_blocking=false`として扱い、原要求を削除・昇格しない。Compression ServiceはHumanの明示指示で凍結解除されたが、固定profileのpayload最適化に限り、G6O1-SIM/LIVEの検証・billing authorityへ接続しない。
 
 ## Development rules
 

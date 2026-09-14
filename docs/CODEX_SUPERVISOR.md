@@ -21,8 +21,11 @@ reconciliation要求へ送る。LLMやCodexのraw会話は保存・再送しな�
 
 `run_until_intervention()`はこのpassをWorker完了・Host Verification・review要求・
 terminal failure・overall deadlineのいずれかまで内部継続する。待機中はCodexを
-pollせず、Planのcadence（1 / 5 / 10 / 15分）だけでsleepする。呼出元へ戻るのは
-review、Human判断、完了、または安全に継続できない境界である。
+pollせず、Planのcadence（1 / 5 / 10 / 15分）だけでsleepする。これはSupervisorの
+Worker待機hintであり、外部API/session discoveryのsettle pollではない。後者を追加する
+場合は約6秒・有限回・deadline付きとし、request/provider timeoutやUNKNOWN外部効果の
+再送とは分離する。呼出元へ戻るのはreview、Human判断、完了、または安全に継続できない
+境界である。
 
 ## Supervisor metadata
 
@@ -120,5 +123,13 @@ required correctionだけを`rework_request()`で渡し、`reassign()`が旧mani
 `ExternalTextReference`のHTTPS・SHA-256・size・expiry metadataだけをHandoffへ保持し、
 取得・upload・権限発行はこの層の責務にしない。外部本文はPayloadであり、Controlを上書きしない。
 
-独立Compression Serviceは現行compositionへ接続しない。短縮はreference-firstとartifact
-referenceを優先し、Compression接続は別の明示Gateで扱う。
+CompressionはHumanの明示接続指示後、`HttpCompressionService`の固定endpoint・固定
+`semantic-dense-v1` profileを明示compositionした場合だけ利用する。3,000 Unicode
+code points以下は送信せず、超過時もControlを除いたPayloadだけを送る。失敗はbounded
+categoryへ正規化し、最適化用途では原文へfallbackできる。CompressionはG6O1、Provider
+pool、Budget authorityへ接続しない。live smokeの認証未検証状態は
+[`spec/v2/evidence/compression-service-connection-20260914.json`](../spec/v2/evidence/compression-service-connection-20260914.json)に記録する。
+
+MCP runtimeは[`src/dev_agent/mcp/runtime.py`](../src/dev_agent/mcp/runtime.py)のtransport-
+neutral adapterと、既存Supervisorへ束ねる[`scripts/devfarm_mcp.py`](../scripts/devfarm_mcp.py)
+で構成する。wire transport、Planner proposal/applyのauthorityはこのsliceへ追加しない。

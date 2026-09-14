@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "compression_service_connection",
+  "observed_at": "2026-09-14",
+  "status": "NOT_VERIFIED",
+  "client_contract": "PASS",
+  "endpoint": "https://api.kinotch.workers.dev/v1/compress",
+  "profile": "semantic-dense-v1",
+  "threshold_unicode_code_points": 3000,
+  "live_smoke": {
+    "status": "NOT_VERIFIED",
+    "failure_category": "authentication_failure",
+    "http_status": null,
+    "credential_name": "COMPRESSION_API_TOKEN",
+    "raw_response_recorded": false
+  },
+  "checks": [
+    "payload-only compression",
+    "control fields remain uncompressed",
+    "digest/character-count/prompt-version/model provenance validation",
+    "bounded failure fallback without unbounded retry",
+    "no redirect bearer forwarding"
+  ],
+  "limitation": "The operator smoke could not call the service because COMPRESSION_API_TOKEN was not present in the current environment. No token or request/response body was recorded."
+}

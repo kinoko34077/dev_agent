@@ -44,18 +44,22 @@ Task state、Scheduler、Budget、Provider routing、AgentBackend authorityを
 - 実装済みslice: Group Dの復旧境界は、Host/Controlが明示注入したtyped discovery
   authority receiptだけを`AgentBackendDispatcher`が受け付ける。identity／request
   fingerprint不一致やauthority未提供は`UNKNOWN`へ閉じ、Backendの`discover()`を暗黙に
-  呼ばない。Proposal-only Free L2 shadow commandも追加済みだが、実外部Plannerの成功は
-  未検証であり、bounded attemptの分類は[`planner-shadow-20260913.json`](../../../spec/v2/evidence/planner-shadow-20260913.json)
+  呼ばない。Proposal-only Free L2 shadowは実Free L2のstrict JSON proposalとHost
+  validationまでboundedに実証済みであり、詳細は[`planner-l2-live-d1-20260914.json`](../../../spec/v2/evidence/planner-l2-live-d1-20260914.json)
   に記録する。Supervisor出力には既存Planから導出するdelegation summaryを追加した。
-- 実装済みslice: 将来のMCP adapter向けに、`src/dev_agent/mcp/contracts.py`へ
-  schema-onlyのtool／request／result契約を追加した。固定tool名、byte／timeout上限、
-  既存authority、UNKNOWN時のreconciliation、中央redaction、reference-firstを表現するが、
-  transport、server、runtime adapterは未接続である。
+- 実装済みslice: `src/dev_agent/mcp/contracts.py`のboundedなtool／request／result契約に加え、
+  `src/dev_agent/mcp/runtime.py`のtransport-neutral adapterと、既存Supervisorへ束ねる
+  `scripts/devfarm_mcp.py`のdevelopment compositionを追加した。`status`、
+  `artifact_summary`、`run`、`resume`、`review`、`rework`、`integrate`だけを既存authorityへ
+  委譲し、wire transportとplanner proposal/apply authorityは未接続のままにする。
 - 実装済みslice: `src/dev_agent/compression/` の固定HTTP client、payload-only compression、
-  provenance/digest、機械的情報保持検査。独立Compression Service本体は別deploy境界。
-- **NOT CONNECTED**: Compression Service endpoint、代替Provider、仮Provider、
-  simulated-paid runtime E2E、実Free L2 Plannerのlive shadow dogfood、Reviewer adapter、
-  有限multi-cycleは現行日常compositionへ接続していない。これらはHumanの明示指示なしに
-  開始しない。
-- 後続slice: 明示承認後に必要となるsimulated-paid接続と、Control Planeが所有する有限cycle拡張。
+  provenance/digest、機械的情報保持検査。Humanの明示接続指示により、固定endpointと
+  `semantic-dense-v1` profileを利用可能にしたが、独立Compression Service本体は別deploy
+  境界である。live smokeはtoken未設定のため`NOT_VERIFIED`である。
+- **NOT VERIFIED / NOT CONNECTED**: Compression live availability、wire MCP transport、
+  MCP planner proposal/apply authority、simulated-paid runtime E2E、Reviewer adapter、
+  有限multi-cycleは未検証または未接続である。CompressionはG6O1-SIM/LIVEのbilling/evidence
+  へ接続しない。
+- 後続slice: wire transport、simulated-paid接続、Reviewer shadow、Control Planeが所有する
+  有限cycle拡張。ただし各機構の既存authorityを二重化しない。
 - G6O1-SIMは仕様分離済みとして扱い、Gate全体やG6O1-LIVEを自動昇格しない。

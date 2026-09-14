@@ -31,7 +31,7 @@
 
 ## Active working plan
 
-現在、完了済みD1/D2の作業Planはありません。次の作業は`docs/V2_DETAILED_ROADMAP.md`のD3条件付き評価またはD4を、必要に応じて新しい狭いPlanとして開始する。
+完了済みD1/D2の作業Planはarchive済みで、D4の明示discovery/UNKNOWN境界とD5のtransport-neutral MCP adapterまで実装済みである。次の作業は`docs/V2_DETAILED_ROADMAP.md`のD3条件付き評価、D4/D5の残る外部境界、またはその後の非ブロッキングTaskを、必要に応じて新しい狭いPlanとして開始する。
 
 ## Historical archive
 

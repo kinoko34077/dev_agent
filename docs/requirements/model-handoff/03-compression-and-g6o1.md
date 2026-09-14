@@ -2,14 +2,14 @@
 
 ## Compression Service
 
-Compressionはdev_agent内部の自由なLLM promptではなく、将来の独立HTTP
-Serviceである。初期契約は`POST /v1/compress`で、呼出側が渡せるのは
-Payload本文と固定profile（初期値`semantic-dense-v1`）だけとする。
+Compressionはdev_agent内部の自由なLLM promptではなく、独立HTTP Serviceである。
+Humanの明示接続指示により、固定client境界をHandoff one-cycleから明示的に利用できる
+状態へ進めた。契約は`POST https://api.kinotch.workers.dev/v1/compress`、認証は
+`COMPRESSION_API_TOKEN`、profileは`semantic-dense-v1`で、呼出側が渡せるのはPayload
+本文と固定profileだけとする。CompressionはG6O1-SIM/LIVEのruntime billingへ接続しない。
 
-現行repositoryにはclient/protocol/integrityの接続境界だけがある。**Compression
-ServiceはNOT CONNECTED**であり、Operation、Handoff one-cycle、Provider poolへ
-endpointやAPI keyをcompositionしていない。Humanの明示接続指示までは、代替API、
-仮Provider、runtime G6O1-SIM通信を追加しない。
+Compressionの実live smokeは、2026-09-14時点で現在の実行環境にtokenが無いため
+`NOT_VERIFIED`である。local contract/test evidenceとlive service availabilityを混同しない。
 
 Serviceへ渡さないもの:
 
@@ -19,11 +19,13 @@ Serviceへ渡さないもの:
 - arbitrary system prompt、任意tool、provider固有option
 
 現行実装の `src/dev_agent/compression/` はこの契約のclient境界であり、
-`HttpCompressionService` は本文と固定profileだけをPOSTする。Service本体や
-Provider選択をdev_agentへ埋め込まず、endpointは明示的なcomposition設定とする。
-`compress_handoff_payload` はControlを保持したままPayloadだけを圧縮し、原文digest、
-Prompt version、model、警告をHandoffへ記録する。しきい値判定は呼出側Control Plane
-が行い、短いPayloadは圧縮しない。
+`HttpCompressionService.from_environment()`がtokenを明示的に読み、本文と固定profile
+だけをPOSTする。Service本体やProvider選択をdev_agentへ埋め込まない。
+`compress_handoff_payload` はControlを保持したままPayloadだけを圧縮し、3,000 Unicode
+code points以下は圧縮せず、超過時だけ`semantic-dense-v1`を使う。原文reference、
+input/output digest、文字数、Prompt version、model、警告をHandoffへ記録する。
+Compression HTTP失敗はboundedなcategoryへ正規化し、最適化用途では原文へ一度だけ
+fallbackできる。原文を安全に渡せない場合は呼出側がfail-closedを選べる。
 
 応答はcompressed text、profile/prompt version、model、文字数、input/output
 digest、warningsを返す。原文は呼出側のreferenceまたはdurable artifactで
@@ -55,5 +57,6 @@ reconciliation、restart後再利用、free/simulated identity分離とする。
 `spec/v2/GATE_STATUS.json` の `G/G6O1 = BLOCKED` を変更せず、Gateの昇格を
 意味しない。
 
-本章は仕様分割のみを記録し、Compression ServiceやG6O1-SIM runtimeを
-このsliceで自動activationしない。
+本章はCompressionの固定接続境界とG6O1仕様分割を記録する。Compression Serviceは
+明示composition時だけ利用し、環境変数の存在だけでProvider poolやG6O1-SIMを
+自動activationしない。

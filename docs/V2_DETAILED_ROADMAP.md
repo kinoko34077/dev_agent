@@ -4,7 +4,7 @@
 
 ## 現在位置
 
-`D0 Documentation SSOT consolidation`、`D1 Valid live Free L2 proposal`、`D2 Planner → Bridge → Commander → L1 Worker E2E` は、2026-09-14のbounded live evidenceで完了した。D1は実Free L2のstrict JSON proposalとHost validation、D2は同proposalからBridge、Commander Plan、Free L1 Worker、独立Host Verification、Codex review、Host deterministic integrationまでを証明している。次はD3を条件付きで評価し、D4 concrete session restart/discoveryへ進む。
+`D0 Documentation SSOT consolidation`、`D1 Valid live Free L2 proposal`、`D2 Planner → Bridge → Commander → L1 Worker E2E` は、2026-09-14のbounded live evidenceで完了した。D1は実Free L2のstrict JSON proposalとHost validation、D2は同proposalからBridge、Commander Plan、Free L1 Worker、独立Host Verification、Codex review、Host deterministic integrationまでを証明している。D4はCodexExecBackendに正式な外部discoveryがないため、明示DiscoveryAuthority以外の復元を行わずUNKNOWNへ閉じる境界を確認した。D5のtransport-neutral thin runtime adapterまで進め、wire transportは未接続である。
 
 ## 順序とGate
 
@@ -43,12 +43,14 @@
 - 目的: Codex backendで外部sessionを安全に再取得・再開する正式mechanismがある場合だけ接続する。
 - 完了条件: start → durable identity → process restart → explicit discovery/reconciliation → same operation recovery、duplicate external startなし。
 - 制約: artifactやthread IDからの推測discoveryは禁止。正式mechanismがなければ`UNKNOWN`へ閉じる。
+- 現在: `CodexExecBackend`自身のpost-restart discoveryは`NOT_AVAILABLE`。明示的なidentity-bound `BackendDiscoveryAuthority`を注入した場合だけ復旧でき、未提供時は再startせず`UNKNOWN`/reconciliationとする。証拠は[`codex-session-restart-discovery-20260914.json`](../spec/v2/evidence/codex-session-restart-discovery-20260914.json)。該当するsettle poll実装はなく、将来の外部discovery pollを追加する場合は約6秒・有限回・deadline付きとし、request timeoutやUNKNOWN再送とは分離する。
 
 ### D5 — MCP runtime thin adapter
 
 - 依存: D2、D4の境界確認。
 - 順序: read-only `status` / `artifact_summary` → proposal validation → `run` → mutation tools。
 - 完了条件: 既存Commander/Supervisor APIのschema-bound adapter、timeout、redaction、approval、UNKNOWN/reconciliationを確認する。独自Scheduler/Retry/Budget/Authorityは作らない。
+- 現在: `src/dev_agent/mcp/runtime.py`のtransport-neutral adapterと、`scripts/devfarm_mcp.py`の固定run/root Supervisor bindingを実装。status/artifact_summary/run/resume/review/rework/integrateを既存`CodexSupervisedCommanderRun`へ委譲し、plan proposal系は未接続のままbounded rejectionとする。wire transportは未接続。証拠は[`mcp-runtime-adapter-20260914.json`](../spec/v2/evidence/mcp-runtime-adapter-20260914.json)。
 
 ### D6 — Free L2 Reviewer Shadow
 
@@ -78,7 +80,7 @@
 
 ## 凍結・非ブロッキング
 
-G6O1-SIM / G6O1-LIVE、real paid-provider qualification、Compression Service、OpenAI/Claude API、OS-level sandbox、Production auto-deploy、unbounded autonomous loop、Discord/Virtual Office UIは、Humanが明示的に再開するまで次Task候補から除外する。G6O1は`DEFERRED_FROZEN`、`NOT VERIFIED`、`roadmap_blocking=false`を維持し、元の受入条件は`spec/v2/G6O1_DEFERRED.md`と`spec/v2/GATE_STATUS.json`に残す。
+G6O1-SIM / G6O1-LIVE、real paid-provider qualification、OpenAI/Claude API、OS-level sandbox、Production auto-deploy、unbounded autonomous loop、Discord/Virtual Office UIは、Humanが明示的に再開するまで次Task候補から除外する。G6O1は`DEFERRED_FROZEN`、`NOT VERIFIED`、`roadmap_blocking=false`を維持し、元の受入条件は`spec/v2/G6O1_DEFERRED.md`と`spec/v2/GATE_STATUS.json`に残す。Compression ServiceはHuman指示で凍結解除済みだが、固定`semantic-dense-v1`のpayload-only最適化に限り、G6O1のbilling/evidenceへ接続しない。live smoke未検証の証拠は[`compression-service-connection-20260914.json`](../spec/v2/evidence/compression-service-connection-20260914.json)に残す。
 
 ## 完了判定の原則
 

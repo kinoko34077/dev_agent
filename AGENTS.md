@@ -70,8 +70,10 @@ for filenames, tests, or Worker choice when existing authority can decide.
   goes through a durable decision and reference-first correction. Never bypass
   Host Verification, approval, budget, privacy, recovery, or Gate authority.
 - Resume a matching unfinished plan under `.devfarm/plans/` instead of making
-  a duplicate. Skip frozen/non-blocking G6O1, Compression, paid-provider,
-  OS-sandbox, and other explicitly deferred work unless the Human reopens it.
+  a duplicate. Skip frozen/non-blocking G6O1, paid-provider, OS-sandbox, and
+  other explicitly deferred work unless the Human reopens it. Compression is
+  an optional fixed-profile payload optimization: use it only through the
+  explicit client/env boundary, and never treat it as G6O1 evidence.
 
 The short operator procedure is in `docs/CODEX_DAILY_DOGFOOD.md`; the durable
 contracts remain in `docs/CODEX_SUPERVISOR.md` and

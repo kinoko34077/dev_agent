@@ -38,8 +38,9 @@ overall deadlineも自動的にHuman decisionへ昇格させず、期限到達�
 再取得できるrepository、commit、artifact、evidence、roadmapはPayload本文へ複製せず、
 referenceで渡す。外部本文は`ExternalTextReference`のcontent hash、size、created/expiry、
 HTTPS locationを持つ場合だけメタデータとして保持する。fetcher/uploaderや外部サービス固有の
-authorityはdev_agentへ追加しない。Compression Serviceは未接続であり、G6O1-SIM/LIVEの
-runtime証明もこの仕様では行わない。
+authorityはdev_agentへ追加しない。Compressionは固定profileのpayload-only clientを
+明示的に利用できるが、失敗時はbounded fallbackとし、G6O1-SIM/LIVEのruntime証明へ
+昇格させない。
 
 ## 安全境界
 

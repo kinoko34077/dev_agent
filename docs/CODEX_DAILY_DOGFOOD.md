@@ -2,7 +2,8 @@
 
 このRunbookは、既存のCommander・Supervisor・DevFarm・Free Workerを、通常の開発で
 繰り返し使うための短い操作手順である。新しいScheduler、daemon、Task state machine、
-retry framework、Compression Serviceは追加しない。詳細な契約は
+retry frameworkは追加しない。Compression Serviceは固定payload最適化として明示的に
+利用できるが、G6O1のbilling/evidenceへは接続しない。詳細な契約は
 [`CODEX_COMMANDER.md`](CODEX_COMMANDER.md)、[`CODEX_SUPERVISOR.md`](CODEX_SUPERVISOR.md)、
 [`DEVFARM.md`](DEVFARM.md)を正本とする。
 
@@ -17,8 +18,8 @@ dev_agentの日常運用で、現行ロードマップの次を進めて。
 対象や除外が必要な場合だけ追加する。
 
 ```text
-dev_agentの日常運用で、Group Dの次の狭いTaskを進めて。
-ただしG6O1とCompressionには触らない。
+    dev_agentの日常運用で、Group Dの次の狭いTaskを進めて。
+ただしG6O1には触らない。
 ```
 
 Codexは次の順でpreflightし、決定可能なファイル・テスト・WorkerをHumanへ聞き返さない。
@@ -114,9 +115,11 @@ Codex actionを先に処理し、unfinished Planを閉じるまで同じ目的�
 ## 対象外と終了報告
 
 Humanが明示的に再開しない限り、G6O1-SIM/LIVE、real paid-provider qualification、
-Compression Service、OpenAI/Claude API、OS-level sandbox、Discord/UI、Phase 9 UIは
+OpenAI/Claude API、OS-level sandbox、Discord/UI、Phase 9 UIは
 日常Task候補へ入れない。G6O1は`DEFERRED_FROZEN`・`NOT VERIFIED`・現行roadmap
-non-blockingのまま保持する。
+non-blockingのまま保持する。Compressionは明示的な固定client composition時だけ使い、
+3,000 Unicode code points超のPayloadを対象にする。Controlは圧縮せず、失敗時は
+bounded fallbackまたはfail-closedとし、G6O1を進めた証拠にはしない。
 
 slice終了時は、次だけをcompactに報告する。
 

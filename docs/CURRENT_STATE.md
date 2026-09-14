@@ -5,65 +5,63 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Implementation/evidence baseline | `4e96630` (D1 live Planner proposal, D2 Worker integration evidence, and Python 3.11 compatibility fixes) |
-| Worktree | clean after the synchronized D2 evidence/documentation commit |
-| Local regression | `994 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 178.86s) |
+| Implementation/evidence baseline | `63559bb` (D4 discovery boundary, fixed Compression client boundary, and thin MCP Supervisor adapter) |
+| Local regression | `1007 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 177.19s) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for current branch commit `92a1a3e`: `v2-core` [run 34790579565](https://github.com/kinoko34077/dev_agent/actions/runs/34790579565) (Python 3.10/3.11 and architecture/compile steps) and `v2-provider-smoke` [run 34790579558](https://github.com/kinoko34077/dev_agent/actions/runs/34790579558). Earlier `c036ff4`/`cd2a39f` failures were Python 3.11 collection defects fixed in `4e96630`. |
+| Exact-head CI | The current D4/D5/Compression documentation sync is pending push and exact-head verification; do not infer CI from local tests. |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
-The detailed pre-consolidation snapshot is preserved at [`docs/archive/current-state/2026-09-13-pre-consolidation.md`](archive/current-state/2026-09-13-pre-consolidation.md).
+The pre-consolidation and earlier milestone snapshots remain in
+[`docs/archive/`](archive/), while this document describes only the current
+state. Detailed requirements and decisions stay in their owning documents.
 
 ## Verified capabilities
 
-- Group D boundary: `client_session_key`, provider `external_session_id`, bounded artifact references, replay/reconciliation projection, and explicit `BackendDiscoveryAuthority` with identity/fingerprint checks. Automatic external session discovery is not claimed.
-- Daily Supervisor path: Free L1 Worker dispatch, Host Verification, compact ReviewPacket, durable ReviewDecision, REWORK manifest, dependency release, and deterministic Host integration have existing evidence.
-- Planner code boundary: exact routing composition, strict JSON parsing, proposal-only `ModelPlanningAdapter`, `RootPlanningProposal`, Host-only `DevelopmentPlanningBridge`, and `CODE_INTEGRATED` preservation. Unsupported development dependency types remain fail-closed.
-- Model evidence boundary: explicit read-only provider model discovery, exact Model Catalog and alias mapping, time-bounded external Benchmark Catalog with data-defined L1/L2/L3 thresholds and separate task-fit scores, canonical Capability Catalog, and Host-only `ModelAdmissionResolver`. Discovery, benchmark, capability, qualification, billing, privacy, quota, and health are not collapsed into one authority.
-- Operation integration: the four model-evidence layers are loaded only when `DEV_AGENT_MODEL_EVIDENCE_DIR` is explicitly configured; default Operation behavior remains unchanged. `spec/v2/model_evidence/**` is protected from Worker changes.
-- Planner resource boundary: exact current high-confidence qualification, benchmark-derived L2 admission, trusted no-charge billing, bounded `ProviderDispatcher` failover, structured `pool_exhausted` reporting, and no automatic L1 downgrade. The represented Gemini L2 identities are `gemini:core` and `gemini:worker:free-3/-4/-5`; free-3/-4/-5 have text-only unknown-quota qualification evidence and no tool-roundtrip claim.
+- Group D boundary: `client_session_key`, provider `external_session_id`, bounded artifact references, replay/reconciliation projection, and explicit `BackendDiscoveryAuthority` with identity/fingerprint checks. `CodexExecBackend` has no formal post-restart discovery mechanism; absent or mismatched explicit authority closes to `UNKNOWN` and does not guess from artifacts or thread IDs. See [`codex-session-restart-discovery-20260914.json`](../spec/v2/evidence/codex-session-restart-discovery-20260914.json).
+- Daily Supervisor path: Free L1 Worker dispatch, Host Verification, compact ReviewPacket, durable ReviewDecision, REWORK manifest, dependency release, and deterministic Host integration have existing D1/D2 evidence.
+- Planner/model evidence boundary: strict JSON proposal handling, Host-only planning validation/bridge, explicit Model Catalog, alias, Benchmark, Capability, qualification, billing, privacy, quota, and health separation, plus bounded same-tier failover. UNKNOWN outcomes remain reconciliation-only and L1 is not an automatic Planner downgrade.
 - D1 live Planner evidence: a real Free L2 request selected `gemini:worker:free-3` / `gemini-3.6-flash`, decoded strict JSON, built one `RootPlanningProposal`, and passed Host validation through the qualified pool. See [`planner-l2-live-d1-20260914.json`](../spec/v2/evidence/planner-l2-live-d1-20260914.json).
-- D2 live development evidence: that Planner proposal passed the Host-only DevelopmentPlanningBridge, created a Commander Plan, delegated a narrow child to `gemini:worker` / `gemini-3.5-flash-lite`, passed independent Host Verification, received a durable Codex `APPROVE_INTEGRATION`, and was integrated by the deterministic Host helper. The target child had zero Codex direct implementation. See [`planner-to-worker-e2e-20260914.json`](../spec/v2/evidence/planner-to-worker-e2e-20260914.json).
-- MCP: schema-only operation contracts exist; no runtime adapter or transport is connected.
+- D2 live development evidence: that proposal passed `DevelopmentPlanningBridge`, created a Commander Plan, delegated a narrow child to `gemini:worker` / `gemini-3.5-flash-lite`, passed independent Host Verification, received durable Codex `APPROVE_INTEGRATION`, and was integrated by the deterministic Host helper. The target child had zero Codex direct implementation. See [`planner-to-worker-e2e-20260914.json`](../spec/v2/evidence/planner-to-worker-e2e-20260914.json).
+- Compression boundary: `HttpCompressionService` uses the fixed endpoint/profile only when explicitly composed; `compress_handoff_payload()` keeps Control out of the request, applies the 3,000 Unicode code-point threshold to Payload after reference-first handling, validates provenance/digests, and has bounded fallback or fail-closed behavior.
+- MCP boundary: `McpRuntimeAdapter` and development-only `SupervisorMcpBinding` delegate bounded operations to existing Supervisor authority. Connected operations are `status`, `artifact_summary`, `run`, `resume`, `review`, `rework`, and `integrate`. Wire transport and Planner proposal/apply authority remain unconnected. See [`mcp-runtime-adapter-20260914.json`](../spec/v2/evidence/mcp-runtime-adapter-20260914.json).
 
 ## Partially implemented / not verified
 
-- The earlier bounded D1 pool observation remains a truthful failure record: `gemini:worker:free-4` and `gemini:worker:free-5` returned confirmed `provider_unavailable` and the pool ended `pool_exhausted` without a proposal. A later bounded run succeeded through `gemini:worker:free-3`; no retry storm, UNKNOWN failover, or L1 downgrade occurred. See [`planner-l2-pool-observation-20260914.json`](../spec/v2/evidence/planner-l2-pool-observation-20260914.json) and [`planner-l2-live-d1-20260914.json`](../spec/v2/evidence/planner-l2-live-d1-20260914.json).
-- The model catalog refresh observed `1289` model entries across `12/14` configured bindings. `groq` returned `HTTPError` and local `ollama` returned `URLError`; these are recorded as bounded discovery failures, not inferred availability. See [`model-catalog-refresh-20260914.json`](../spec/v2/evidence/model-catalog-refresh-20260914.json).
-- D1/D2 are verified locally for the bounded Planner-originated development slice. The evidence includes bounded prior failures (transport, patch format, and independent trusted-target policy) and the successful retry; this is not a claim of broad Worker reliability.
-- D3 Worker reliability hardening is conditional: investigate only if the observed patch/manifest failure classes recur. The validator remains fail-closed.
-- Concrete Codex external-session restart/discovery is not verified. Without an explicit discovery authority, recovery remains `UNKNOWN`/reconciliation rather than inferred resume.
-- MCP runtime, Free L2 Reviewer shadow, Codex-less cycle, and Self-Improvement F0–F2 are roadmap work, not current capability.
+- Compression live availability is `NOT_VERIFIED`: the operator smoke reached the fixed client boundary but `COMPRESSION_API_TOKEN` was not present in the current environment, so no authenticated service result was claimed. See [`compression-service-connection-20260914.json`](../spec/v2/evidence/compression-service-connection-20260914.json). No token or raw response is stored.
+- D4 same-operation resume is `NOT_AVAILABLE` for the concrete Codex backend without a formal external discovery API. The safe result is `UNKNOWN`/reconciliation, not inferred resume or blind restart.
+- D5 is a transport-neutral in-process/development adapter. A network MCP server/wire transport and Planner mutation authority are not implemented.
+- D3 Worker reliability remains conditional. Existing fail-closed patch/manifest/Host Verification boundaries are not broadened without recurrence evidence.
+- Free L2 Reviewer shadow, Codex-less cycle, and Self-Improvement F0–F2 remain roadmap work. D6 still requires the existing multiple D2 success evidence condition.
 
 ## External and frozen
 
 - G6O1 is `DEFERRED_FROZEN`, `NOT VERIFIED`, and `roadmap_blocking=false`. Original paid-provider, worst-case billing, and deployment-owned budget requirements remain in [`spec/v2/G6O1_DEFERRED.md`](../spec/v2/G6O1_DEFERRED.md) and [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json).
-- Compression Service, OpenAI API, Claude API, real paid-provider qualification, OS-level sandbox evidence, Production auto-deploy, Discord, and Virtual Office UI are not connected.
+- OpenAI API, Claude API, real paid-provider qualification, OS-level sandbox evidence, Production auto-deploy, Discord, and Virtual Office UI remain outside the active roadmap until explicitly reopened. Compression is no longer frozen, but it is only a fixed payload optimization and never G6O1 billing/evidence.
 - Static Host Verification remains contained host execution, not an OS filesystem/network sandbox.
 
 ## Current blockers and boundaries
 
-- D1/D2 live evidence is complete for the bounded slice above. Availability, transport, output syntax, schema, and Host validation failures remain separate categories; do not launch unbounded retries or silently downgrade to L1. The post-D2 CI retries exposed two Python 3.11-only dataclass default defects; both are fixed by `4e96630` and do not change runtime semantics.
-- Model discovery is observation only. An API-listed model is not routable without exact current benchmark, capability, qualification, billing, privacy, quota, health, and explicit binding evidence.
-- Free-3/-4/-5 qualification used a bounded text-only bootstrap because their trusted allowance quota telemetry was unavailable. This does not establish tool-call qualification or numeric headroom.
-- Existing `.devfarm` operational artifacts may contain stale READY or rejected runs. A matching unfinished run is resumed only when its objective is still active; an already integrated objective is marked superseded operationally, not duplicated.
-- GitHub branch protection and required checks remain external configuration/evidence; the repository ruleset and operator-authorized direct push do not turn local evidence into unattended promotion.
+- External Compression authentication and MCP wire transport are unverified/unconnected; neither is silently treated as complete.
+- External API/session settle polling has no applicable D4 implementation currently. If a future external readiness/discovery poll is added, use approximately 6 seconds with finite attempts and a deadline. Do not change request/provider timeouts or UNKNOWN-effect resend semantics.
+- Model discovery and benchmark evidence are observation inputs, not routing grants. Exact current qualification, capability, billing, privacy, quota, health, and binding admission remain required.
+- GitHub protection and required checks are external evidence separate from local integration, local regression, and remote push. No local artifact promotes a Gate.
 
 ## Immediate next target
 
-1. Keep D3 conditional and bounded: use the recorded failure categories to decide whether a narrow Worker transport/patch-contract correction is warranted; do not weaken validation.
-2. Proceed to D4 concrete Codex session restart/discovery using explicit discovery authority only; otherwise preserve UNKNOWN/reconciliation semantics.
-3. After D4 boundary evidence, implement the existing schema-only MCP contract as a thin runtime adapter. Do not connect Compression, paid providers, or frozen G6O1 work.
+1. Keep D3 conditional and bounded; fix only a recorded recurring failure class.
+2. Preserve D4's explicit-discovery/UNKNOWN boundary; do not invent Codex session discovery.
+3. Continue D5 only through a thin adapter over existing Supervisor/Commander authority. Wire transport and Planner mutation tools are separate future slices.
+4. After D4/D5 verification, select the next non-blocking roadmap task without relaxing G6O1 or D6 dependencies.
 
-The completed working checklist is archived at [`docs/archive/plans/2026-09/2026-09-13-planner-to-worker-e2e.md`](archive/plans/2026-09/2026-09-13-planner-to-worker-e2e.md). The ordered roadmap is [`docs/V2_DETAILED_ROADMAP.md`](V2_DETAILED_ROADMAP.md).
+The ordered roadmap is [`docs/V2_DETAILED_ROADMAP.md`](V2_DETAILED_ROADMAP.md),
+and the compact operational procedure is [`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_DAILY_DOGFOOD.md).
 
 ## Evidence index
 
-- Model catalog refresh: [`spec/v2/evidence/model-catalog-refresh-20260914.json`](../spec/v2/evidence/model-catalog-refresh-20260914.json)
-- Planner L2 pool observation: [`spec/v2/evidence/planner-l2-pool-observation-20260914.json`](../spec/v2/evidence/planner-l2-pool-observation-20260914.json)
-- Gemini free binding qualification: [`gemini-l2-qualification-free-3-20260914.json`](../spec/v2/evidence/gemini-l2-qualification-free-3-20260914.json), [`gemini-l2-qualification-free-4-20260914.json`](../spec/v2/evidence/gemini-l2-qualification-free-4-20260914.json), [`gemini-l2-qualification-free-5-20260914.json`](../spec/v2/evidence/gemini-l2-qualification-free-5-20260914.json)
-- Reviewed model evidence snapshots: [`spec/v2/model_evidence/`](../spec/v2/model_evidence/)
+- D4 Codex session discovery boundary: [`codex-session-restart-discovery-20260914.json`](../spec/v2/evidence/codex-session-restart-discovery-20260914.json)
+- D5 MCP runtime adapter boundary: [`mcp-runtime-adapter-20260914.json`](../spec/v2/evidence/mcp-runtime-adapter-20260914.json)
+- Compression client/live smoke boundary: [`compression-service-connection-20260914.json`](../spec/v2/evidence/compression-service-connection-20260914.json)
 - Planner live D1 / D2 development evidence: [`planner-l2-live-d1-20260914.json`](../spec/v2/evidence/planner-l2-live-d1-20260914.json), [`planner-to-worker-e2e-20260914.json`](../spec/v2/evidence/planner-to-worker-e2e-20260914.json)
-- Existing Supervisor and Planner evidence: [`spec/v2/evidence/`](../spec/v2/evidence/)
+- Model catalog and pool observations: [`spec/v2/evidence/`](../spec/v2/evidence/)
 - Requirement traceability: [`spec/v2/TRACEABILITY.md`](../spec/v2/TRACEABILITY.md)

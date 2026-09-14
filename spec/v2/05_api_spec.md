@@ -25,10 +25,19 @@ correctionの差分だけを参照形式で渡す。
 ### `CompressionService`
 
 - 責務: HandoffのPayloadだけを、固定profileで独立Compression Serviceへ送る薄いHTTP client境界。
-- 公開入口: `HttpCompressionService.compress(text, profile="semantic-dense-v1")`、`compress_handoff_payload(...)`。
-- 入力/出力: `/v1/compress`へ`text`と固定`profile`だけを送信し、compressed text、digest、文字数、Prompt version、model、warningsを検証して返す。呼出側は原文digestとCompression provenanceをHandoffへ保持する。
+- 公開入口: `HttpCompressionService.from_environment()`、`HttpCompressionService.compress(text, profile="semantic-dense-v1")`、`compress_handoff_payload(...)`。
+- 入力/出力: 明示された`https://api.kinotch.workers.dev/v1/compress`へ`text`と固定`profile`だけを送信し、compressed text、digest、文字数、Prompt version、model、warningsを検証して返す。認証は`COMPRESSION_API_TOKEN`だけをfactory呼出時に読み、import時I/Oやredirect bearer forwardingは行わない。呼出側は原文reference、原文digest、Compression provenanceをHandoffへ保持する。
+- 適用: Controlは常に非圧縮。reference-first後、Payloadが3,000 Unicode code pointsを超える場合だけ`semantic-dense-v1`を使う。HTTP/transport/invalid-response/auth failureはbounded categoryへ正規化し、最適化用途では原文へfallbackできる。live接続可否はコード/testとは別Evidenceである。
 - 権限: Compressionのtransportと機械的情報保持検査のみ。Provider routing、任意prompt、tool、budget、Task stateを所有しない。
 - 禁止: instruction、conditions、cautions、Directive内authority/source/comparison/output contractの圧縮、compressed payloadを原文SSOTとして扱うこと、未知profileや不一致digestの受理。Service endpointやProviderをHandoff runtimeへ暗黙に接続しない。
+
+### `McpRuntimeAdapter`
+
+- 責務: boundedなMCP request/resultを、呼出側が既存Commander/Supervisor等から提供するhandlerへ委譲するtransport-neutral adapter。`scripts/devfarm_mcp.py`は一つの固定run/rootへ既存`CodexSupervisedCommanderRun`を束ねるdevelopment compositionである。
+- 公開入口: `McpRuntimeAdapter.invoke(...)`、`SupervisorMcpBinding.invoke(...)`。
+- 権限: request/result size、redaction、approval gate、timeout結果、UNKNOWN変換を行う。ただしapproval、durable intent、budget、reconciliation、integrationの意味は既存handler/authorityへ委譲する。
+- 現在接続: `status`、`artifact_summary`、`run`、`resume`、`review`、`rework`、`integrate`。MCP wire transportと`plan_propose`/`plan_validate`/`plan_apply`のplanner authorityは未接続で、未接続toolはbounded rejectionとなる。
+- 禁止: MCP独自Scheduler、retry、Planner、Budget、Approval、Integration authority、未知外部効果の再送。
 
 ### `CodexSupervisedCommanderRun`
 
