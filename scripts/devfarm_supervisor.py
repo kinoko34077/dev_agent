@@ -25,10 +25,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.devfarm import DevFarmError
+from scripts.devfarm_artifacts import artifact_reference
 from scripts.devfarm_commander import (
     CommanderPlanStore,
-    _verified_worker_patch,
-    _record_result,
+    verified_worker_patch,
+    record_result,
     collect_plan,
     dispatch_plan,
     mark_integrated,
@@ -38,6 +39,7 @@ from scripts.devfarm_commander import (
     verify_plan,
     summarize_delegation,
 )
+from scripts.devfarm_worker import build_worker_provider
 from scripts.devfarm_supervisor_protocol import (
     advance_heartbeat,
     normalize_supervisor_metadata,
@@ -338,7 +340,7 @@ class CodexSupervisedCommanderRun:
             task["block_reason"] = "review_rework_required"
             correction = normalized.get("required_correction")
             task["last_error"] = correction
-            _record_result(
+            record_result(
                 plan,
                 task_id,
                 "review",
@@ -349,7 +351,7 @@ class CodexSupervisedCommanderRun:
         elif normalized["decision"] == "REJECT":
             task["status"] = "REJECTED"
             task["block_reason"] = "review_rejected"
-            _record_result(
+            record_result(
                 plan,
                 task_id,
                 "review",
@@ -761,7 +763,7 @@ class CodexSupervisedCommanderRun:
             raise DevFarmError("approval decision does not match the verified attempt")
         if decision.get("decision") != "APPROVE_INTEGRATION":
             raise DevFarmError("integration requires APPROVE_INTEGRATION decision")
-        patch, manifest, attempt_id = _verified_worker_patch(self.root, task)
+        patch, manifest, attempt_id = verified_worker_patch(self.root, task)
         changed_files = validate_patch(patch, manifest=manifest)
         patch_digest = hashlib.sha256(patch.encode("utf-8")).hexdigest()
         if task.get("verified_patch_digest") is not None and task["verified_patch_digest"] != patch_digest:
@@ -853,10 +855,8 @@ class CodexSupervisedCommanderRun:
         return self._step(self._save_supervisor(metadata))
 
 
-def _providers_for_resume(root: Path, run_id: str, timeout_seconds: float) -> dict[str, Any]:
+def providers_for_resume(root: Path, run_id: str, timeout_seconds: float) -> dict[str, Any]:
     """Construct only the already assigned providers needed for one pass."""
-
-    from scripts.devfarm_worker import _provider
 
     runner = CodexSupervisedCommanderRun(root, run_id)
     providers: dict[str, Any] = {}
@@ -864,7 +864,7 @@ def _providers_for_resume(root: Path, run_id: str, timeout_seconds: float) -> di
         if task["owner"] != "worker" or task["status"] not in {"PLANNED", "READY"}:
             continue
         assignment = task["assignment"]
-        providers[task["task_id"]] = _provider(
+        providers[task["task_id"]] = build_worker_provider(
             assignment["provider_id"],
             assignment["model_id"],
             timeout_seconds,
@@ -873,13 +873,25 @@ def _providers_for_resume(root: Path, run_id: str, timeout_seconds: float) -> di
     return providers
 
 
+def _providers_for_resume(root: Path, run_id: str, timeout_seconds: float) -> dict[str, Any]:
+    """Backward-compatible alias for older in-process callers."""
+
+    return providers_for_resume(root, run_id, timeout_seconds)
+
+
+def cli_artifact_reference(value: str, *, kind: str = "artifact") -> dict[str, str]:
+    """Public Supervisor CLI artifact-reference boundary."""
+
+    return artifact_reference(value, kind=kind)
+
+
 def _cli_artifact_reference(value: str, *, kind: str = "artifact") -> dict[str, str]:
-    if not isinstance(value, str) or not value.strip():
-        raise DevFarmError("artifact reference must be non-empty")
-    return {"kind": kind, "path": value.strip()}
+    """Backward-compatible alias for older CLI callers."""
+
+    return cli_artifact_reference(value, kind=kind)
 
 
-def _latest_rework_decision(plan: Mapping[str, Any], task_id: str, attempt_id: str) -> Mapping[str, Any]:
+def latest_rework_decision(plan: Mapping[str, Any], task_id: str, attempt_id: str) -> Mapping[str, Any]:
     decisions = [
         item
         for item in plan.get("review_decisions", [])
@@ -890,6 +902,12 @@ def _latest_rework_decision(plan: Mapping[str, Any], task_id: str, attempt_id: s
     if not decisions:
         raise DevFarmError("rework requires a durable REWORK decision for the current attempt")
     return decisions[-1]
+
+
+def _latest_rework_decision(plan: Mapping[str, Any], task_id: str, attempt_id: str) -> Mapping[str, Any]:
+    """Backward-compatible alias for older in-process callers."""
+
+    return latest_rework_decision(plan, task_id, attempt_id)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -948,7 +966,7 @@ def main(argv: list[str] | None = None) -> int:
             attempt_id=args.attempt_id,
             decision=args.decision,
             findings=args.finding,
-            evidence_refs=[_cli_artifact_reference(item) for item in args.evidence_ref],
+            evidence_refs=[cli_artifact_reference(item) for item in args.evidence_ref],
             required_correction=args.required_correction,
             reviewer_role=args.reviewer_role,
         )
@@ -962,7 +980,7 @@ def main(argv: list[str] | None = None) -> int:
         attempt_id = task.get("last_attempt_id")
         if not isinstance(attempt_id, str) or not attempt_id.strip():
             raise DevFarmError("rework requires the current worker attempt")
-        decision = _latest_rework_decision(plan, args.task_id, attempt_id)
+        decision = latest_rework_decision(plan, args.task_id, attempt_id)
         correction = decision.get("required_correction")
         if not isinstance(correction, str) or not correction.strip():
             raise DevFarmError("durable REWORK decision has no required correction")
@@ -978,9 +996,9 @@ def main(argv: list[str] | None = None) -> int:
         binding_id = args.provider_binding_id or assignment.get("provider_binding_id")
         handoff = runner.rework_handoff(
             args.task_id,
-            failure_evidence_reference=_cli_artifact_reference(args.failure_evidence_ref, kind="failure_evidence"),
+            failure_evidence_reference=cli_artifact_reference(args.failure_evidence_ref, kind="failure_evidence"),
             review_findings_reference=(
-                _cli_artifact_reference(args.review_findings_ref, kind="review_findings")
+                cli_artifact_reference(args.review_findings_ref, kind="review_findings")
                 if args.review_findings_ref
                 else None
             ),
@@ -1005,7 +1023,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(json.dumps(step.to_dict(), ensure_ascii=False, indent=2))
         return 0
-    providers = _providers_for_resume(args.root, args.run_id, args.timeout_seconds)
+    providers = providers_for_resume(args.root, args.run_id, args.timeout_seconds)
     step = runner.advance(
         providers=providers,
         expected_remaining_seconds=args.expected_remaining_seconds,
@@ -1023,7 +1041,14 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-__all__ = ["CodexSupervisedCommanderRun", "SupervisorStep", "main"]
+__all__ = [
+    "CodexSupervisedCommanderRun",
+    "SupervisorStep",
+    "cli_artifact_reference",
+    "latest_rework_decision",
+    "main",
+    "providers_for_resume",
+]
 
 
 if __name__ == "__main__":

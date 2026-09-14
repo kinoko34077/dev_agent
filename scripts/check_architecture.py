@@ -49,6 +49,33 @@ def _imports(path: Path) -> tuple[str, tuple[str, ...]]:
     return current, tuple(targets)
 
 
+def _private_devfarm_imports(current: str, tree: ast.AST) -> tuple[tuple[str, str], ...]:
+    """Return private symbols imported across development-script modules."""
+
+    if not current.startswith("scripts.devfarm"):
+        return ()
+    package = current.split(".")[:-1]
+    violations: list[tuple[str, str]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            prefix_length = max(0, len(package) - node.level + 1) if node.level else 0
+            base = package[:prefix_length]
+            if node.module:
+                base.extend(node.module.split("."))
+            target = _normalize(".".join(base))
+            if not target.startswith("scripts.devfarm"):
+                continue
+            for alias in node.names:
+                if alias.name.startswith("_"):
+                    violations.append((target, alias.name))
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                parts = alias.name.split(".")
+                if len(parts) > 1 and ".".join(parts[:-1]).startswith("scripts.devfarm") and parts[-1].startswith("_"):
+                    violations.append((".".join(parts[:-1]), parts[-1]))
+    return tuple(violations)
+
+
 def _violation(current: str, target: str) -> str | None:
     if current.startswith("dev_agent.domain") and target.startswith(("dev_agent.runtime", "dev_agent.providers", "dev_agent.resources", "dev_agent.state")):
         return "domain must not import runtime/providers/resources/state"
@@ -83,6 +110,7 @@ def check(paths: tuple[Path, ...] | None = None) -> list[str]:
     for path in sorted(paths):
         try:
             current, targets = _imports(path)
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         except (OSError, SyntaxError) as exc:
             violations.append(f"{path.relative_to(ROOT)}: unable to parse: {exc}")
             continue
@@ -90,6 +118,11 @@ def check(paths: tuple[Path, ...] | None = None) -> list[str]:
             reason = _violation(current, target)
             if reason:
                 violations.append(f"{path.relative_to(ROOT)} -> {target}: {reason}")
+        for target, symbol in _private_devfarm_imports(current, tree):
+            violations.append(
+                f"{path.relative_to(ROOT)} -> {target}.{symbol}: "
+                "DevFarm scripts must use public cross-module boundaries"
+            )
     return violations
 
 

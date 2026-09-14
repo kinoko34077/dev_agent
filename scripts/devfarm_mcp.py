@@ -13,11 +13,11 @@ from pathlib import Path
 from typing import Any
 
 from scripts.devfarm import DevFarmError
+from scripts.devfarm_artifacts import artifact_reference
 from scripts.devfarm_supervisor import (
     CodexSupervisedCommanderRun,
-    _cli_artifact_reference,
-    _latest_rework_decision,
-    _providers_for_resume,
+    latest_rework_decision,
+    providers_for_resume,
 )
 from src.dev_agent.mcp import (
     McpAuthorizer,
@@ -133,7 +133,7 @@ class SupervisorMcpBinding:
             raise McpRejected("INVALID_ARGUMENTS")
         providers = self._providers
         if providers is None:
-            providers = _providers_for_resume(self.root, self.run_id, float(timeout))
+            providers = providers_for_resume(self.root, self.run_id, float(timeout))
         return {
             "providers": providers,
             "orchestrator": self._orchestrator,
@@ -207,7 +207,7 @@ class SupervisorMcpBinding:
         if not isinstance(attempt_id, str) or not attempt_id.strip():
             raise McpRejected("ATTEMPT_NOT_FOUND")
         try:
-            decision = _latest_rework_decision(plan, task_id, attempt_id)
+            decision = latest_rework_decision(plan, task_id, attempt_id)
             correction = decision.get("required_correction")
             if not isinstance(correction, str) or not correction.strip():
                 raise McpRejected("CORRECTION_NOT_FOUND")
@@ -219,9 +219,9 @@ class SupervisorMcpBinding:
                 raise McpRejected("ASSIGNMENT_NOT_FOUND")
             handoff = self._runner.rework_handoff(
                 task_id,
-                failure_evidence_reference=_cli_artifact_reference(failure_ref, kind="failure_evidence"),
+                failure_evidence_reference=artifact_reference(failure_ref, kind="failure_evidence"),
                 review_findings_reference=(
-                    _cli_artifact_reference(findings_ref, kind="review_findings") if findings_ref else None
+                    artifact_reference(findings_ref, kind="review_findings") if findings_ref else None
                 ),
                 required_correction=correction,
             )

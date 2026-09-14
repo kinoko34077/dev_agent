@@ -30,7 +30,7 @@ PROBE_TASK_NAMESPACE = uuid5(NAMESPACE_URL, "dev_agent.devfarm/capability-probe"
 PROBE_VERSION = "fixed-v3"
 
 from scripts.devfarm import DevFarmError
-from scripts.devfarm_worker import _provider
+from scripts.devfarm_worker import build_worker_provider
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.providers.base import ModelProvider, ProviderError
 
@@ -289,7 +289,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error(f"--timeout-seconds must be in (0, {MAX_TIMEOUT_SECONDS}]" )
     try:
         specs = probe_specs(args.levels)
-        provider = _provider(args.provider, args.model, args.timeout_seconds)
+        provider = build_worker_provider(args.provider, args.model, args.timeout_seconds)
     except (DevFarmError, ProbeError) as exc:
         parser.error(f"probe admission failed: {type(exc).__name__}")
     results: list[dict[str, Any]] = []

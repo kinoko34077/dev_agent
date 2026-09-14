@@ -835,6 +835,20 @@ def _record_result(
     plan["results"].append(record)
 
 
+def record_result(
+    plan: dict[str, Any],
+    task_id: str,
+    stage: str,
+    status: str,
+    result_ref: str | None = None,
+    *,
+    attempt_id: str | None = None,
+) -> None:
+    """Public plan-result recording boundary for Supervisor composition."""
+
+    _record_result(plan, task_id, stage, status, result_ref, attempt_id=attempt_id)
+
+
 def _apply_proposal_result(plan: dict[str, Any], task: dict[str, Any], result: Mapping[str, Any]) -> None:
     status = str(result.get("status", "failed"))
     attempt_id = result.get("attempt_id")
@@ -1412,6 +1426,12 @@ def _verified_worker_patch(root: Path, task: Mapping[str, Any]) -> tuple[str, di
     return patch, manifest, attempt_id
 
 
+def verified_worker_patch(root: Path, task: Mapping[str, Any]) -> tuple[str, dict[str, Any], str]:
+    """Public read-only boundary for the exact verified worker patch."""
+
+    return _verified_worker_patch(root, task)
+
+
 def _prove_worker_patch_in_revision(root: Path, patch: str, revision: str, changed_files: Sequence[str]) -> None:
     """Compare the verified patch result with the target commit tree.
 
@@ -1588,9 +1608,15 @@ def _cli_provider(provider_id: str, model_id: str, timeout_seconds: float) -> Mo
     # ProviderFactory and the existing DevFarm activation policy remain the
     # only construction/activation boundary.  This import is intentionally
     # local so importing the plan store never constructs a provider.
-    from scripts.devfarm_worker import _provider
+    from scripts.devfarm_worker import build_worker_provider
 
-    return _provider(provider_id, model_id, timeout_seconds)
+    return build_worker_provider(provider_id, model_id, timeout_seconds)
+
+
+def build_cli_provider(provider_id: str, model_id: str, timeout_seconds: float) -> ModelProvider:
+    """Public CLI composition boundary for an assigned development provider."""
+
+    return _cli_provider(provider_id, model_id, timeout_seconds)
 
 
 def dispatch_cli(
@@ -1611,7 +1637,7 @@ def dispatch_cli(
         selected_model = model_id or assignment.get("model_id")
         if not selected_provider or not selected_model:
             raise DevFarmError(f"provider and model are required for worker task: {task['task_id']}")
-        providers[task["task_id"]] = _cli_provider(selected_provider, selected_model, timeout_seconds)
+        providers[task["task_id"]] = build_cli_provider(selected_provider, selected_model, timeout_seconds)
     return dispatch_plan(root, run_id, providers=providers)
 
 
@@ -1620,15 +1646,18 @@ __all__ = [
     "PLAN_SCHEMA_VERSION",
     "PlanConflictError",
     "collect_plan",
+    "build_cli_provider",
     "create_plan",
     "dispatch_cli",
     "dispatch_plan",
     "mark_integrated",
     "recover_orphaned_dispatches",
     "reassign_task",
+    "record_result",
     "refresh_plan",
     "resume_plan",
     "summarize_delegation",
     "validate_plan",
+    "verified_worker_patch",
     "verify_plan",
 ]
