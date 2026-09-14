@@ -247,7 +247,11 @@ def test_canonical_dispatcher_saturation_is_scoped_to_provider_binding(tmp_path)
         def request(self, request):
             calls.append("gemini")
             started.set()
-            release.wait(2)
+            # Keep the first binding occupied until the fallback request has
+            # been admitted.  A fixed sleep made this regression timing
+            # dependent on the CI runner: a slow runner could let the first
+            # call finish before the dispatcher exercised saturation.
+            release.wait()
             return ModelResponse(provider="gemini", model="gemini-test", text_segments=["late"], usage={"cost_minor": 0})
 
     class HealthyCloudflare(FakeProvider):
@@ -263,18 +267,23 @@ def test_canonical_dispatcher_saturation_is_scoped_to_provider_binding(tmp_path)
         ProviderRegistry([HangingGemini(), HealthyCloudflare()]),
         control,
     )
-    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
-        controller = Controller(dispatcher, ToolRuntime(ToolRegistry()), store)
-        first_request = ModelRequest(task_id="00000000-0000-0000-0000-000000000011", messages=[{"role": "user", "content": "hang"}])
-        with pytest.raises(ProviderError, match="provider transport failed"):
-            controller._provider_request(first_request, time.time() + 0.05, Event())
-        assert started.wait(1)
-        response = controller._provider_request(
-            ModelRequest(task_id="00000000-0000-0000-0000-000000000012", messages=[{"role": "user", "content": "use fallback"}]),
-            time.time() + 0.5,
-            Event(),
-        )
-    release.set()
+    response = None
+    try:
+        with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+            controller = Controller(dispatcher, ToolRuntime(ToolRegistry()), store)
+            first_request = ModelRequest(task_id="00000000-0000-0000-0000-000000000011", messages=[{"role": "user", "content": "hang"}])
+            with pytest.raises(ProviderError, match="provider transport failed"):
+                controller._provider_request(first_request, time.time() + 0.05, Event())
+            assert started.wait(1)
+            response = controller._provider_request(
+                ModelRequest(task_id="00000000-0000-0000-0000-000000000012", messages=[{"role": "user", "content": "use fallback"}]),
+                time.time() + 0.5,
+                Event(),
+            )
+    finally:
+        # Also release the provider if an assertion or setup step fails, so
+        # the deterministic fixture cannot strand a background thread.
+        release.set()
     assert response.provider == "cloudflare"
     assert calls == ["gemini", "cloudflare"]
 
