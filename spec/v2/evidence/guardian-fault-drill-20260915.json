@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "guardian_process_coordination_fault_drill",
+  "observed_at": "2026-09-15",
+  "implementation_baseline_before_documentation_sync": "f89ae573cf2319990396a22c9b50b8b383e3b962",
+  "stages": {
+    "G1_static_process_execution": "VERIFIED_LOCAL",
+    "G2_graceful_drain_checkpoint": "VERIFIED_LOCAL",
+    "G3_revision_pinned_runtime": "VERIFIED_LOCAL",
+    "G4_rolling_restart": "VERIFIED_LOCAL",
+    "G5_rollback_and_fault_boundaries": "VERIFIED_LOCAL"
+  },
+  "fault_cases": {
+    "process_start_failure": "UNKNOWN_NO_RETRY",
+    "process_dies_during_drain": "DRAIN_BLOCKED_UNTIL_RECONCILIATION",
+    "guardian_dies_during_executing": "UNKNOWN_NO_REPLAY",
+    "new_generation_health_failure": "OLD_GENERATION_RETAINED",
+    "old_generation_stop_failure": "UNKNOWN_RECONCILIATION_REQUIRED_NO_RETRY",
+    "duplicate_restart": "IDEMPOTENT_NO_SECOND_EXECUTION",
+    "stale_generation_request": "REJECTED_STALE_REQUEST",
+    "mailbox_replay": "IDEMPOTENT_ACK_BOUNDARY",
+    "checkpoint_after_crash": "RESUME_CAPSULE_RETAINED",
+    "rollback_twice": "IDEMPOTENT_GUARDIAN_INTENT_BOUNDARY"
+  },
+  "focused_tests": [
+    "tests/v2/test_process_coordination_execution.py",
+    "tests/v2/test_process_coordination_guardian.py",
+    "tests/v2/test_process_coordination_drain.py",
+    "tests/v2/test_process_coordination_store.py",
+    "tests/v2/test_process_coordination_work.py",
+    "tests/v2/test_runtime_release.py",
+    "tests/v2/test_guardian_rolling.py",
+    "tests/v2/test_runtime_rollback.py"
+  ],
+  "local_verification": {
+    "tests_v2": "1170 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "skip_reason": "Windows ACLs are deployment-owned"
+  },
+  "exact_head_ci": {
+    "head": "f89ae573cf2319990396a22c9b50b8b383e3b962",
+    "v2_core_run": "34869745483",
+    "provider_smoke_run": "34869745576",
+    "kernel_3_10": "PASS",
+    "kernel_3_11": "PASS",
+    "provider_smoke": "PASS"
+  },
+  "scope_boundary": "This is deterministic local/fake runtime evidence for Guardian execution composition. It is not evidence of OS Service/Task Scheduler installation, production deployment, or D9 official-branch self-repair.",
+  "raw_process_output_or_secret_recorded": false
+}

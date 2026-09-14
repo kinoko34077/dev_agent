@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "model_catalog_refresh",
+  "observed_at": "2026-09-15",
+  "status": "OBSERVED_NOT_ADMITTED",
+  "source": "explicit read-only provider model discovery refresh",
+  "entry_count": 1297,
+  "metadata_entry_count": 783,
+  "refreshed_binding_count": 12,
+  "configured_binding_count": 14,
+  "provider_counts": {
+    "cloudflare": 65,
+    "gemini": 336,
+    "mistral": 46,
+    "ollama_cloud": 20,
+    "openrouter": 447,
+    "sambanova": 7,
+    "vercel": 376
+  },
+  "failed_bindings": [
+    {
+      "provider_id": "groq",
+      "provider_binding_id": "groq:account",
+      "category": "http_error"
+    },
+    {
+      "provider_id": "ollama",
+      "provider_binding_id": "ollama:local",
+      "category": "url_error"
+    }
+  ],
+  "admission": {
+    "discovery_grants_routing": false,
+    "canonical_snapshot_replaced": false,
+    "qualification_required": true,
+    "benchmark_required": true,
+    "capability_required": true,
+    "billing_privacy_quota_health_required": true
+  },
+  "diagnostic_command": "python scripts/diagnose_model_candidates.py --all --summary --json",
+  "secret_or_raw_provider_payload_recorded": false
+}

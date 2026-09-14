@@ -28,6 +28,13 @@ rolling restart, and D9 real mutation are deferred until the corresponding
 durable control and fault evidence exists. No external session discovery is
 inferred from stale artifacts or thread identifiers.
 
+The first Host/local execution slice now verifies static Guardian process
+profiles, graceful drain/checkpoint, revision-pinned releases, rolling
+replacement, and bounded last-known-good rollback composition. This does not
+change the decision boundary: OS service installation, deployed crash
+recovery, production process operation, and D9 real mutation remain deferred
+until their own evidence exists.
+
 ## Consequences
 
 - A Codex or Agent restart can reconstruct presence and unread handoffs from a

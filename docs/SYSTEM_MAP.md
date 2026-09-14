@@ -24,7 +24,7 @@
 | DevFarm | `scripts/devfarm*.py`（`devfarm_codex.py`を含む） | manifest、proposal、Codex AgentBackend attempt、Host Verification、metrics | ProviderFactory + Git artifacts | outbound scope、worktree、patch、no auto-integration | `tests/v2/test_devfarm_*.py` |
 | Commander | `scripts/devfarm_commander.py` | development-only parent Plan、DAG、dispatch、collect、verify | existing DevFarm only | ownership、bounded reassign | `tests/v2/test_devfarm_commander.py` |
 | Supervisor | `scripts/devfarm_supervisor.py`, `scripts/devfarm_supervisor_protocol.py` | bounded `advance` snapshot、blocking `run_until_intervention`、cadence、compact wake/review evidence、rework handoff | existing Commander + Handoff | no auto-integration、no second scheduler | `tests/v2/test_devfarm_supervisor.py`, `docs/CODEX_SUPERVISOR.md` |
-| Process Coordination | `src/dev_agent/coordination/` | peer identity/generation、presence lease、durable mailbox、immutable handoff artifacts、Work Address/Resume projection、generation-fenced ControlRequest、bounded Guardian action journal/evaluation | SQLite primitive / security audit | no Task/Scheduler/process launcher authority; Guardian action journal has no process side effect | `tests/v2/test_process_coordination_*.py`, `docs/requirements/process-coordination/`, `docs/CODEX_WORK_COORDINATION.md` |
+| Process Coordination | `src/dev_agent/coordination/` | peer identity/generation、presence lease、durable mailbox、immutable handoff artifacts、Work Address/Resume projection、generation-fenced ControlRequest、bounded Guardian action journal/evaluation、静的Guardian process execution、drain、pinned release、rolling/rollback composition | SQLite primitive / security audit / Host runtime | no Task/Scheduler/LLM process authority; Guardian accepts only Host-bound profiles and closes uncertain effects to UNKNOWN/reconciliation | `tests/v2/test_process_coordination_*.py`, `tests/v2/test_guardian_rolling.py`, `tests/v2/test_runtime_rollback.py`, `docs/requirements/process-coordination/`, `docs/CODEX_WORK_COORDINATION.md` |
 | DevFarm data | `.devfarm/` | plans、tasks、results、worktrees、metrics | ignored local artifacts | never source/Gate authority | `docs/DEVFARM.md` |
 | Formal spec | `spec/v2/` | requirements、ADR、Gate、traceability、schemas | documentation | Gate promotion evidence | `spec/v2/GATE_STATUS.json` |
 | Current state | `docs/CURRENT_STATE.md` | implementation baseline、tests、live state | evidence references | no duplicated authority | this document / changelog |
@@ -38,12 +38,13 @@ tool boundaries. `scheduler` owns queue/lease mechanics; `recovery` remains
 independent of Controller and Scheduler. `DevFarm` and `Commander` are
 development tooling and do not become Production Runtime components.
 
-Process Coordination is orthogonal to the Task Plane. It stores peer/presence,
-mailbox delivery, immutable handoff references, and bounded work-position
-projections only; it must not become a
-parallel Scheduler, Task state machine, Provider router, Budget authority, or
-process launcher. Commander owns task-file ownership and rejects overlap across
-unfinished plans before a new plan is persisted.
+Process Coordination is orthogonal to the Task Plane. Its store/protocol layer
+holds peer/presence, mailbox delivery, immutable handoff references, and bounded
+work-position projections; its separate Guardian execution adapter may invoke
+only static Host-bound process profiles. The plane must not become a parallel
+Scheduler, Task state machine, Provider router, Budget authority, arbitrary
+command runner, or LLM process authority. Commander owns task-file ownership
+and rejects overlap across unfinished plans before a new plan is persisted.
 
 Host egress policy/manifest is a separate check at the existing DevFarm outbound
 boundary. It may inspect and hash explicitly scoped files, but it does not grant

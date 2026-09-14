@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "worker_delegation_observation",
+  "observed_at": "2026-09-15",
+  "run_id": "g5-provider-playbook-20260915",
+  "task_type": "documentation",
+  "owned_files": [
+    "docs/PROVIDER_FAILURE_PLAYBOOK.md"
+  ],
+  "worker": {
+    "provider_id": "gemini",
+    "provider_binding_id": "gemini:worker",
+    "model_id": "gemini-3.5-flash-lite",
+    "attempts": 1,
+    "result": "transport_failure",
+    "changed_files": [],
+    "host_verified": false,
+    "integrated": false
+  },
+  "failure_category": "transport_failure",
+  "diagnostic": "WinError 10013; no patch was produced and no Host Verification was attempted",
+  "codex_fallback": {
+    "used": true,
+    "reason": "transport_failure_no_active_qualified_worker",
+    "production_worker_success": false
+  },
+  "interpretation": "This documentation attempt is not counted as a production-code Worker success or D2 success. The failure is not classified as model capability or patch-format failure.",
+  "raw_worker_conversation_or_credential_recorded": false
+}

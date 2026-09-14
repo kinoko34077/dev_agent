@@ -4,7 +4,7 @@
 
 ## 現在位置
 
-`D0 Documentation SSOT consolidation`、`D1 Valid live Free L2 proposal`、`D2 Planner → Bridge → Commander → L1 Worker E2E` は、2026-09-14のbounded live evidenceで完了した。D1は実Free L2のstrict JSON proposalとHost validation、D2は同proposalからBridge、Commander Plan、Free L1 Worker、独立Host Verification、Codex review、Host deterministic integrationまでを証明している。D4はCodexExecBackendに正式な外部discoveryがないため、明示DiscoveryAuthority以外の復元を行わずUNKNOWNへ閉じる境界を確認した。D5のtransport-neutral thin runtime adapterまで進め、wire transportは未接続である。D6は異なる2件のproposal-only Reviewer Shadow比較を取得し、D7の決定的candidate policy/CLIと、D8 F0–F2のproposal-onlyデータ契約を実装した。さらにD7の実Free Worker → Host Verification → Free L2 proposal-only → Host candidate評価を証拠化した。ただし公式branchへのCodex-less統合と、運用接続されたD8 Self-Improvementは未接続である。
+`D0 Documentation SSOT consolidation`、`D1 Valid live Free L2 proposal`、`D2 Planner → Bridge → Commander → L1 Worker E2E` は、2026-09-14のbounded live evidenceで完了した。D1は実Free L2のstrict JSON proposalとHost validation、D2は同proposalからBridge、Commander Plan、Free L1 Worker、独立Host Verification、Codex review、Host deterministic integrationまでを証明している。D4はCodexExecBackendに正式な外部discoveryがないため、明示DiscoveryAuthority以外の復元を行わずUNKNOWNへ閉じる境界を確認した。D5のtransport-neutral thin runtime adapterまで進め、wire transportは未接続である。D6は異なる2件のproposal-only Reviewer Shadow比較を取得し、D7の決定的candidate policy/CLIと、D8 F0–F2のproposal-onlyデータ契約を実装した。さらにD7の実Free Worker → Host Verification → Free L2 proposal-only → Host candidate評価を証拠化した。D10のG1〜G5として、静的Guardian process実行、graceful drain/checkpoint、revision-pinned release、rolling restart、last-known-good rollback compositionとfault drillをHost/localで検証した。ただし公式branchへのCodex-less統合、OS常駐Guardian、配備後crash recovery、D9 real mutationは未接続である。
 
 ## 順序とGate
 
@@ -79,15 +79,40 @@
 
 - 依存: D8、既存Host Verification・approval・Gate。
 - 完了条件: bounded candidate、deterministic validation、Human/authority boundary、rollback/evidence。
-- 現在: `RepairEvidence` と `RepairPolicy` により、F2 `PROPOSAL_ONLY` plan、独立Host Verification、既知の外部結果、attempt単位のtrust/approval、安全な変更範囲、rollback referenceを決定的に検査し、proposal-only `CANDIDATE`を返す。`RepairExecutionRequest` / `RepairExecutionPolicy` と `scripts/devfarm_self_repair.py` の薄いadapterは候補・attempt・ReviewDecision・対象・approval引数を再照合し、既存ApprovalPolicyとSupervisor Host helperへ接続する。公開された `build_repair_candidate()` を通じ、実D7 Free WorkerのHost-verified artifactを一件、proposal-only candidateへmaterializeした。Fake Workerを使う一時Git repositoryでは、approval再照合・既存ApprovalPolicyの一回消費・Host integration commitまでの決定的compositionも検証済み。Evidenceは[`d9-repair-candidate-policy-20260914.json`](../spec/v2/evidence/d9-repair-candidate-policy-20260914.json)、[`d9-repair-approval-preflight-20260914.json`](../spec/v2/evidence/d9-repair-approval-preflight-20260914.json)、[`d9-repair-host-integration-20260914.json`](../spec/v2/evidence/d9-repair-host-integration-20260914.json)、[`d9-repair-live-worker-candidate-20260914.json`](../spec/v2/evidence/d9-repair-live-worker-candidate-20260914.json)。production approval store、real repair execution、rollback drill、official branch integrationは未実施。
-- 次: 実修復へ進む場合も、先にD10A–D10FのProcess Coordination/Guardian前提を満たす。既存DevFarmの新immutable attempt、Host Verification、明示Human approval、Git-backed integration/rollbackを一つずつ接続する。adapterの存在だけで実行・Gate昇格を行わず、approval消費後の結果は既存Recovery境界で扱う。
+- 現在: `RepairEvidence` と `RepairPolicy` により、F2 `PROPOSAL_ONLY` plan、独立Host Verification、既知の外部結果、attempt単位のtrust/approval、安全な変更範囲、rollback referenceを決定的に検査し、proposal-only `CANDIDATE`を返す。`RepairExecutionRequest` / `RepairExecutionPolicy` と `scripts/devfarm_self_repair.py` の薄いadapterは候補・attempt・ReviewDecision・対象・approval引数を再照合し、既存ApprovalPolicyとSupervisor Host helperへ接続する。公開された `build_repair_candidate()` を通じ、実D7 Free WorkerのHost-verified artifactを一件、proposal-only candidateへmaterializeした。Fake Workerを使う一時Git repositoryでは、approval再照合・既存ApprovalPolicyの一回消費・Host integration commitまでの決定的compositionも検証済み。D10 G5では、revision-pinned last-known-good releaseをrolling replacementへ接続するHost/local rollback compositionとfault drillを追加した。Evidenceは[`d9-repair-candidate-policy-20260914.json`](../spec/v2/evidence/d9-repair-candidate-policy-20260914.json)、[`d9-repair-approval-preflight-20260914.json`](../spec/v2/evidence/d9-repair-approval-preflight-20260914.json)、[`d9-repair-host-integration-20260914.json`](../spec/v2/evidence/d9-repair-host-integration-20260914.json)、[`d9-repair-live-worker-candidate-20260914.json`](../spec/v2/evidence/d9-repair-live-worker-candidate-20260914.json)。production approval store、real repair execution、OS/production rollback、official branch integrationは未実施。
+- 次: 実修復へ進む場合も、先にD10A/BおよびG1〜G5（D10C〜D10G）のProcess Coordination/Guardian前提を満たす。既存DevFarmの新immutable attempt、Host Verification、明示Human approval、Git-backed integration/rollbackを一つずつ接続する。adapterの存在だけで実行・Gate昇格を行わず、approval消費後の結果は既存Recovery境界で扱う。
 
 ### D10A/B — Process Coordination foundation
 
 - 目的: D9 real mutationや常駐運用へ進む前に、Task Planeとは別のProcess Coordination Planeへ、作業位置・復帰点・外部送信manifest・generation-fenced requestを記録できるようにする。
-- 実装済み: `WorkAddress`、`ResumeCapsule`、bounded LIFO `InterruptStack`、NOTE/PARALLEL/INTERRUPT/CANCEL分類、Host `EgressManifest`、durable `ControlRequest`、process side effectを持たない`GuardianPolicy`評価、およびgeneration-fenced `GuardianActionService`のbounded action journal。
+- 実装済み: `WorkAddress`、`ResumeCapsule`、bounded LIFO `InterruptStack`、NOTE/PARALLEL/INTERRUPT/CANCEL分類、Host `EgressManifest`、durable `ControlRequest`、`GuardianPolicy`評価、およびgeneration-fenced `GuardianActionService`のbounded action journal。
 - 検証: Work Address/Resume/egress/ControlRequest/Guardianのfocused testと全`tests/v2`回帰、Architecture、compileallを通過。Guardian action journalの詳細とexact-head CIは[`guardian-action-journal-20260914.json`](../spec/v2/evidence/guardian-action-journal-20260914.json)、基礎全体の証拠は[`coordination-work-egress-foundation-20260914.json`](../spec/v2/evidence/coordination-work-egress-foundation-20260914.json)。
-- 未実装: Guardianのprocess起動/停止/再起動、OS service、graceful drain、checkpoint transaction、revision-pinned runtime、rolling restart、rollback、fault drill。これらを実装するまでD9 real mutationを解放しない。
+- G1〜G5実装済み: Guardianの静的profileによるSTART/STOP/RESTART、graceful drain/checkpoint、revision-pinned runtime release、rolling restart、last-known-good rollback composition。deterministic fake/local runtimeのfault testとfull regressionで検証し、UNKNOWN結果はreconciliation-requiredとして再送しない。証拠は[`guardian-fault-drill-20260915.json`](../spec/v2/evidence/guardian-fault-drill-20260915.json)。
+- 未実装/未検証: OS Service/Task Schedulerへの常駐接続、配備後Guardian crash recovery、実processのrolling/rollback運用、D9 official runtime mutation。これらを実証するまでD9 real mutationを解放しない。
+
+### D10C/G1 — Guardian static process execution
+
+- 既存Guardian action journalへ、Host設定済み`LaunchProfile`だけを解決する`GuardianProcessExecutor`を接続した。任意commandはControlRequestから生成せず、START/STOP/RESTART以外は境界外とする。
+- local/fake runtimeで成功、profile/revision不一致、executor失敗→UNKNOWN/no replayを検証した。OS Service/Task Schedulerへの接続は未検証。
+
+### D10D/G2 — Graceful drain and checkpoint
+
+- `GracefulDrainService`がREADYからDRAININGへ遷移し、claimを止め、既存Resume Capsuleへcheckpointを保存してからRESTARTINGへ進める。外部effectがUNKNOWN/IN_PROGRESSならDRAININGに留め、reconciliation後だけ再開可能とする。
+- 6秒pollや不要なsleepは追加していない。外部effect UNKNOWNの再送は禁止。
+
+### D10E/G3 — Revision-pinned runtime
+
+- `RevisionPinnedRuntimeStore`がmutable checkout外のclean Git worktreeへfull commit revisionをmaterializeし、metadata/HEAD/statusを検証する。既存releaseの改変・部分生成・source内release rootは拒否し、実行中revisionの混在を避ける。
+
+### D10F/G4 — Rolling restart composition
+
+- `RollingRestartService`は既存Guardian executorだけを使い、新generationのSTART→health確認→旧generationのSTOPを順序化する。新generation不健康時は旧generationを維持し、停止結果UNKNOWN時は再試行せずreconciliationへ閉じる。
+
+### D10G/G5 — Rollback and fault drill
+
+- `RuntimeRollbackService`がlast-known-good revisionを既存pinned releaseへmaterializeし、G4 rolling compositionへ接続する。release未取得、新generation health失敗、旧generation停止UNKNOWNをbounded resultとして返す。
+- G1〜G5のfault cases（start failure、drain中UNKNOWN、Guardian EXECUTING再起動、health failure、old stop failure、duplicate/stale request、mailbox replay、checkpoint recovery、rollback intent duplicate）をlocal/fake testsで検証した。証拠は[`guardian-fault-drill-20260915.json`](../spec/v2/evidence/guardian-fault-drill-20260915.json)。
+- これはOS常駐・配備後crash recovery・D9 official runtime mutationの証拠ではない。D9 real mutationは引き続き未解放。
 
 ### Main Phase 8 / Main Phase 9
 
