@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "mcp_runtime_adapter",
+  "observed_at": "2026-09-14",
+  "status": "BOUNDARY_VERIFIED",
+  "transport": "NOT_CONNECTED",
+  "adapter": "src/dev_agent/mcp/runtime.py",
+  "authority_binding": "scripts/devfarm_mcp.py -> CodexSupervisedCommanderRun",
+  "connected_operations": [
+    "status",
+    "artifact_summary",
+    "run",
+    "resume",
+    "review",
+    "rework",
+    "integrate"
+  ],
+  "not_connected_operations": [
+    "plan_propose",
+    "plan_validate",
+    "plan_apply"
+  ],
+  "checks": [
+    "bounded JSON request/result",
+    "central audit redaction",
+    "existing authority approval gate",
+    "bounded timeout mapping",
+    "UNKNOWN outcome preservation",
+    "fixed run/root composition",
+    "no MCP-owned scheduler/retry/budget/approval/integration authority"
+  ],
+  "tests": [
+    "tests/v2/test_mcp_contract.py",
+    "tests/v2/test_mcp_runtime.py"
+  ],
+  "limitation": "No MCP wire transport/server is introduced in this slice. A future transport must invoke this same bounded adapter and existing authority handlers."
+}

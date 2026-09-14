@@ -1,8 +1,8 @@
-"""Unconnected, schema-only MCP operation contracts.
+"""Transport-neutral MCP contracts and a thin in-process adapter.
 
-The package intentionally contains no transport, server, scheduler, budget,
-or authority implementation.  Runtime wiring remains an explicit later gate
-over the existing Operation, Commander, and Supervisor APIs.
+The package contains no transport, server, scheduler, budget, or authority
+implementation.  ``McpRuntimeAdapter`` only delegates to handlers supplied by
+the existing Operation, Commander, and Supervisor authorities.
 """
 
 from .contracts import (
@@ -15,6 +15,14 @@ from .contracts import (
     McpToolSpec,
     UnknownOutcomePolicy,
 )
+from .runtime import (
+    McpAuthorizer,
+    McpFailed,
+    McpHandler,
+    McpRejected,
+    McpRuntimeAdapter,
+    McpUnknownOutcome,
+)
 
 __all__ = [
     "MCP_TOOL_SPECS",
@@ -25,4 +33,10 @@ __all__ = [
     "McpToolResult",
     "McpToolSpec",
     "UnknownOutcomePolicy",
+    "McpAuthorizer",
+    "McpFailed",
+    "McpHandler",
+    "McpRejected",
+    "McpRuntimeAdapter",
+    "McpUnknownOutcome",
 ]

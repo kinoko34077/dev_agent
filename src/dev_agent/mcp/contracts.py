@@ -1,8 +1,8 @@
-"""Small schema-only contracts for a future MCP adapter.
+"""Small, transport-neutral contracts for the MCP adapter.
 
-This module deliberately does not implement MCP transport or execution.  It
-only records the bounded operation names and the input/result envelopes that
-a later adapter must translate to existing Commander/Supervisor APIs.  The
+This module deliberately does not implement MCP transport or authority.  It
+records the bounded operation names and the input/result envelopes that the
+thin runtime adapter translates to existing Commander/Supervisor APIs.  The
 existing authorities remain responsible for approval, budget, privacy,
 recovery, reconciliation, and integration.
 """
