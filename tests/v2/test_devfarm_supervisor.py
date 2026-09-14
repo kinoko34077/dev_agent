@@ -391,13 +391,13 @@ def test_supervisor_ownership_command_exposes_current_file_holders(tmp_path, cap
                 {
                     "task_id": "codex-owned-file",
                     "owner": "codex",
-                    "ownership": ["src/dev_agent/coordination/work.py"],
+                    "ownership": ["src/dev_agent/cli.py"],
                 }
             ],
             ownership=[
                 {
                     "task_id": "codex-owned-file",
-                    "paths": ["src/dev_agent/coordination/work.py"],
+                    "paths": ["src/dev_agent/cli.py"],
                 }
             ],
             assignments=[{"task_id": "codex-owned-file", "owner": "codex"}],
@@ -407,7 +407,7 @@ def test_supervisor_ownership_command_exposes_current_file_holders(tmp_path, cap
 
     assert supervisor_main(["ownership", "supervisor-test-001", "--root", str(tmp_path)]) == 0
     output = capsys.readouterr().out
-    assert '"path": "src/dev_agent/coordination/work.py"' in output
+    assert '"path": "src/dev_agent/cli.py"' in output
     assert '"work_address": "1"' in output
 
 
