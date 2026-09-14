@@ -1045,6 +1045,52 @@ def build_worker_provider(
     return _provider(name, model, timeout_seconds, provider_binding_id)
 
 
+def inspect_worker_egress(
+    root: str | Path,
+    manifest_path: str | Path,
+    *,
+    provider_id: str,
+    model: str,
+    provider_binding_id: str | None = None,
+    timeout_seconds: float = 30.0,
+) -> dict[str, Any]:
+    """Return a bounded, read-only dispatch preflight without contacting a provider.
+
+    The exact Git-revision inputs are read and scanned so the operator can
+    verify destination, binding, and digests before a live Host dispatch.  No
+    prompt, source content, credential, endpoint, or ModelRequest is emitted,
+    and provider construction is used only for local activation/identity
+    checks.
+    """
+
+    root_path = Path(root).resolve()
+    manifest = validate_manifest(_read_json(Path(manifest_path)))
+    if not manifest["external_provider_allowed"]:
+        raise DevFarmError("external provider execution is not approved by manifest")
+    if provider_id not in manifest["approved_provider_ids"]:
+        raise DevFarmError(f"provider is not approved by manifest: {provider_id}")
+    provider = _provider(provider_id, model, timeout_seconds, provider_binding_id)
+    workspace = _proposal_workspace(root_path, manifest)
+    _context, egress_manifest = _input_context_with_manifest(
+        workspace,
+        manifest,
+        destination=provider_id,
+    )
+    return {
+        "status": "ready",
+        "execution_boundary": "host_process",
+        "network_requested": False,
+        "source_content_emitted": False,
+        "task_id": manifest["task_id"],
+        "base_revision": manifest["base_revision"],
+        "provider_id": getattr(provider, "provider_id", provider_id),
+        "provider_binding_id": getattr(provider, "provider_binding_id", None) or provider_id,
+        "model_id": getattr(provider, "model", model),
+        "intelligence_tier": getattr(provider, "intelligence_tier", None),
+        "egress_manifest": egress_manifest.to_dict(),
+    }
+
+
 def _write_auxiliary_artifacts(
     root: Path,
     task_id: str,
@@ -1681,7 +1727,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--provider", choices=("cloudflare", "gemini", "openrouter"))
     parser.add_argument("--model")
+    parser.add_argument("--provider-binding-id")
     parser.add_argument("--timeout-seconds", type=float, default=30.0)
+    parser.add_argument(
+        "--egress-dry-run",
+        action="store_true",
+        help="inspect exact Host egress admission without contacting a provider",
+    )
     parser.add_argument(
         "--execution-boundary",
         choices=("unclassified", "codex_sandbox", "host_process", "provider_process"),
@@ -1698,14 +1750,27 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--operator-approved", action="store_true", help="explicit operator approval for TRUSTED_HOST_EXEC")
     args = parser.parse_args(argv)
     try:
-        if args.apply_and_verify:
-            if args.provider is not None or args.model is not None:
-                parser.error("--apply-and-verify cannot be combined with --provider or --model")
+        if args.egress_dry_run:
+            if args.apply_and_verify:
+                parser.error("--egress-dry-run cannot be combined with --apply-and-verify")
+            if args.provider is None or not args.model:
+                parser.error("--provider and --model are required for --egress-dry-run")
+            result = inspect_worker_egress(
+                args.root,
+                args.manifest,
+                provider_id=args.provider,
+                model=args.model,
+                provider_binding_id=args.provider_binding_id,
+                timeout_seconds=args.timeout_seconds,
+            )
+        elif args.apply_and_verify:
+            if args.provider is not None or args.model is not None or args.provider_binding_id is not None:
+                parser.error("--apply-and-verify cannot be combined with provider selection")
             result = apply_and_verify(args.root, args.manifest, trust_level=args.trust_level, operator_approved=args.operator_approved)
         else:
             if args.provider is None or not args.model:
                 parser.error("--provider and --model are required unless --apply-and-verify is used")
-            provider = _provider(args.provider, args.model, args.timeout_seconds)
+            provider = _provider(args.provider, args.model, args.timeout_seconds, args.provider_binding_id)
             executor = None
             if args.execution_boundary == "host_process":
                 from scripts.devfarm_host_dispatch import create_host_process_executor

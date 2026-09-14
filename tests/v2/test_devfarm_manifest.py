@@ -11,8 +11,10 @@ from scripts.devfarm_worker import (
     _input_context_with_manifest,
     _prompt,
     _provider,
+    inspect_worker_egress,
     _write_auxiliary_artifacts,
     apply_and_verify,
+    main as worker_main,
     run_worker,
 )
 from src.dev_agent.security.egress import EgressDecision
@@ -358,6 +360,50 @@ def test_worker_persists_bounded_egress_manifest_without_source_content(tmp_path
     assert json.loads(artifact.read_text(encoding="utf-8"))["manifest_sha256"] == egress.manifest_sha256
     assert json.loads(projection.read_text(encoding="utf-8"))["files"][0]["sha256"] == egress.files[0].sha256
     assert "def test_target" not in artifact.read_text(encoding="utf-8")
+
+
+def test_worker_egress_dry_run_reports_destination_and_digests_without_source(tmp_path):
+    workspace, manifest_path = _workspace(tmp_path, prepare=False)
+
+    summary = inspect_worker_egress(
+        workspace,
+        manifest_path,
+        provider_id="cloudflare",
+        model="@cf/meta/llama-3.1-8b-instruct",
+    )
+
+    assert summary["status"] == "ready"
+    assert summary["network_requested"] is False
+    assert summary["source_content_emitted"] is False
+    assert summary["provider_id"] == "cloudflare"
+    assert summary["provider_binding_id"] == "cloudflare"
+    assert summary["egress_manifest"]["decision"] == "ALLOW"
+    assert summary["egress_manifest"]["files"][0]["sha256"]
+    serialized = json.dumps(summary, ensure_ascii=False)
+    assert "def test_target" not in serialized
+
+
+def test_worker_egress_dry_run_cli_is_read_only(tmp_path, capsys):
+    workspace, manifest_path = _workspace(tmp_path, prepare=False)
+
+    assert worker_main(
+        [
+            "--root",
+            str(workspace),
+            "--manifest",
+            str(manifest_path),
+            "--provider",
+            "cloudflare",
+            "--model",
+            "@cf/meta/llama-3.1-8b-instruct",
+            "--egress-dry-run",
+        ]
+    ) == 0
+
+    output = capsys.readouterr().out
+    assert '"network_requested": false' in output
+    assert '"source_content_emitted": false' in output
+    assert "def test_target" not in output
 
 
 def test_manifest_allows_only_bounded_host_test_command_shapes():
