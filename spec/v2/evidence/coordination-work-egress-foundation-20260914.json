@@ -2,6 +2,7 @@
   "kind": "coordination-work-egress-foundation",
   "status": "VERIFIED_LOCAL",
   "implementation_commit": "6c87525176636d7fa874741c26250a44e57e9cac",
+  "verification_followup_commit": "a26c33c96c4f50e757c8542b323d6e5d79e3ee4c",
   "capabilities": {
     "work_address": "implemented",
     "resume_capsule": "implemented",
@@ -47,8 +48,13 @@
     "D9 real self-repair mutation"
   ],
   "external_evidence": {
-    "remote_push": "pending",
-    "exact_head_ci": "not_claimed_for_this_checkpoint"
+    "remote_push": "passed",
+    "exact_head_ci": {
+      "head": "a26c33c96c4f50e757c8542b323d6e5d79e3ee4c",
+      "v2_core": "https://github.com/kinoko34077/dev_agent/actions/runs/34838604180",
+      "provider_smoke": "https://github.com/kinoko34077/dev_agent/actions/runs/34838604265",
+      "result": "kernel (3.10) PASS; kernel (3.11) PASS; provider-smoke PASS"
+    }
   },
   "retention": {
     "secrets": "none",
