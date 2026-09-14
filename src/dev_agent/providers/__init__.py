@@ -37,6 +37,8 @@ _LAZY_EXPORTS = {
     "ProviderDispatchJournal": (".journal", "ProviderDispatchJournal"),
     "ProviderRegistry": (".registry", "ProviderRegistry"),
     "HostProviderDispatch": (".host_dispatch", "HostProviderDispatch"),
+    "HostDispatchEnvelope": (".host_dispatch", "HostDispatchEnvelope"),
+    "HostProcessExecutor": (".host_dispatch", "HostProcessExecutor"),
 }
 
 
@@ -78,6 +80,8 @@ __all__ = [
     "ProviderError",
     "ProviderRegistry",
     "HostProviderDispatch",
+    "HostDispatchEnvelope",
+    "HostProcessExecutor",
     "TransportFailureCategory",
     "classify_transport_failure",
     "SambaNovaHttpProvider",

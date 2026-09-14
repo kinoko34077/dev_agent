@@ -42,7 +42,7 @@ from scripts.devfarm import (
 from src.dev_agent.domain.protocol import ModelRequest
 from src.dev_agent.providers.base import ModelProvider, ProviderError
 from src.dev_agent.providers.factory import ProviderDefinition, ProviderFactory
-from src.dev_agent.providers.host_dispatch import HostProviderDispatch
+from src.dev_agent.providers.host_dispatch import HostProcessExecutor, HostProviderDispatch
 from src.dev_agent.resources.billing_catalog import TRUSTED_RESOURCE_CATALOG
 from src.dev_agent.resources.provider_policy import is_local_provider as _is_local_provider
 from src.dev_agent.resources.provider_policy import validate_provider_instance_authority
@@ -1656,11 +1656,22 @@ def main(argv: list[str] | None = None) -> int:
             if args.provider is None or not args.model:
                 parser.error("--provider and --model are required unless --apply-and-verify is used")
             provider = _provider(args.provider, args.model, args.timeout_seconds)
+            executor = None
+            if args.execution_boundary == "host_process":
+                executor = HostProcessExecutor(
+                    (sys.executable, str(ROOT / "scripts" / "devfarm_host_dispatch.py")),
+                    request_dir=args.root / ".devfarm" / "host-dispatch",
+                    timeout_seconds=args.timeout_seconds,
+                )
             result = run_worker(
                 args.root,
                 args.manifest,
                 provider=provider,
-                host_dispatch=HostProviderDispatch(provider, execution_boundary=args.execution_boundary),
+                host_dispatch=HostProviderDispatch(
+                    provider,
+                    execution_boundary=args.execution_boundary,
+                    executor=executor,
+                ),
             )
     except (DevFarmError, ProviderError) as exc:
         parser.error(str(exc))
