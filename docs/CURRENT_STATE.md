@@ -5,13 +5,13 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Latest implementation commit before documentation sync | `8d1bd50` (`test: exercise guardian local process execution`) |
-| Implementation/evidence baseline | `8d1bd50` (Guardian static execution, real local subprocess coverage, graceful drain, revision-pinned runtime, rolling restart, bounded rollback composition, rollback-intent idempotency, and UTF-8 integration-digest coverage) |
+| Latest implementation commit before documentation sync | `968dc25` (`fix: retain bounded refinement observations`) |
+| Implementation/evidence baseline | `968dc25` (Guardian static execution, real local subprocess coverage, graceful drain, revision-pinned runtime, rolling restart, bounded rollback composition, refinement Critic composition, closed worker-failure classification, and bounded refinement usage observations) |
 | Worktree | clean at the current verification checkpoint; this documentation sync records the same checkpoint |
-| Local regression | `1173 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 199.39s) |
+| Local regression | `1192 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 241.74s) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for implementation baseline `8d1bd50ace89cb992a7496054ae585581b01b335`: `v2-core` [run 34874499552](https://github.com/kinoko34077/dev_agent/actions/runs/34874499552) and `v2-provider-smoke` [run 34874499682](https://github.com/kinoko34077/dev_agent/actions/runs/34874499682), covering kernel (3.10), kernel (3.11), and provider-smoke. |
+| Exact-head CI | PASS for implementation baseline `968dc25318fccc8c6498277aa3c43d4700df5918`: `v2-core` [run 34881117880](https://github.com/kinoko34077/dev_agent/actions/runs/34881117880) and `v2-provider-smoke` [run 34881117740](https://github.com/kinoko34077/dev_agent/actions/runs/34881117740), covering kernel (3.10), kernel (3.11), and provider-smoke. |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
@@ -37,6 +37,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 - Host egress boundary: a per-dispatch `EgressManifest` is built from an explicit standing low-risk grant, exact base-revision bytes, path/symlink/protected-path checks, bounded content scanning, sensitivity, size, UTF-8, and SHA-256. Only `ALLOW` reaches the existing Worker provider boundary; `REVIEW`/`DENY` remain Host outcomes and no secret/raw source content is recorded. The Worker prompt receives only a bounded transfer authorization projection.
 - Process Coordination / Guardian execution: `ControlRequest` is durably stored and delivered through the existing mailbox; `GuardianPolicy` performs deterministic generation/lease/policy evaluation; and `GuardianActionService` records generation-fenced action intent with bounded idempotent transitions (`PENDING`, `EXECUTING`, `COMPLETED`, `REJECTED`, `UNKNOWN`). The existing static-profile Guardian executor now has local evidence for process START/STOP/RESTART, graceful drain/checkpoint, revision-pinned release materialization, rolling replacement, and bounded last-known-good rollback composition. UNKNOWN process outcomes remain reconciliation-required and are never blindly replayed. See [`guardian-fault-drill-20260915.json`](../spec/v2/evidence/guardian-fault-drill-20260915.json).
 - Guardian real local execution: the existing static-profile executor has also started and stopped a real bounded local subprocess through `GuardianProcessService`, with both durable action records completing and no process output retained. This strengthens G1 local evidence only; it does not establish OS/deployed Guardian operation. See [`guardian-real-local-process-20260915.json`](../spec/v2/evidence/guardian-real-local-process-20260915.json).
+- Adaptive refinement boundary: Host-side worker-failure classification is closed and maps format, semantic, provider, capability, security, and UNKNOWN outcomes to the existing bounded `FailureClass` policy without substring guessing or failover of ambiguous effects. The proposal-only L1 Critic receives an allowlisted ReviewPacket through a public Host composition and cannot decide, reassign, integrate, or mutate source. Verified Worker usage now preserves bounded `refinement_round` and `reasoning_effort` observations; no new live Worker dispatch was claimed in this slice.
 
 ## Partially implemented / not verified
 
@@ -44,7 +45,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 - D4 same-operation resume is `NOT_AVAILABLE` for the concrete Codex backend without a formal external discovery API. The safe result is `UNKNOWN`/reconciliation, not inferred resume or blind restart.
 - Process Coordination remains Host/local foundation rather than a production daemon: peer/store/mailbox/immutable artifacts, work-position checkpoints, generation fencing, static Guardian process execution (including one bounded real local subprocess), drain, pinned release, rolling, and bounded rollback composition are locally verified. OS Service/Task Scheduler installation, Guardian crash recovery in a deployed environment, and D9 official-runtime mutation remain unverified.
 - D5 is a transport-neutral in-process/development adapter. A network MCP server/wire transport and Planner mutation authority are not implemented.
-- D3 Worker reliability remains conditional. A bounded recurrence of malformed Python patches was classified as `patch_format_failure` / `host_verification_failure` / `model_output_invalid`; the Worker prompt now states syntax-completeness and delimiter-balance requirements, while the validator remains fail-closed. A separate outbound secret-candidate observation was rejected before sending. See [`d3-worker-reliability-observation-20260914.json`](../spec/v2/evidence/d3-worker-reliability-observation-20260914.json).
+- D3 Worker reliability remains conditional. A bounded recurrence of malformed Python patches was classified as `patch_format_failure` / `host_verification_failure` / `model_output_invalid`; the Worker prompt now states syntax-completeness and delimiter-balance requirements, while the validator remains fail-closed. Host-side failure classification and proposal-only L1 Critic composition are implemented, but adaptive rework is only used when a bounded live failure recurs. A separate outbound secret-candidate observation was rejected before sending. See [`d3-worker-reliability-observation-20260914.json`](../spec/v2/evidence/d3-worker-reliability-observation-20260914.json).
 - Free L2 Reviewer shadow has two live proposal-only comparison samples and remains non-authoritative. The bounded D7 candidate cycle is live-evidence verified, but official-branch Codex-less integration is not enabled. D8 Host F0–F2 composition and the D9 deterministic candidate/approval-bound Host adapter are verified; D9 approval-bound integration is composition-tested in a temporary Git repository only, while live Worker-generated candidate materialization is now verified separately. Real repair execution, model-driven diagnosis, automatic improvement dispatch/repair, production approval storage, rollback execution, and official-branch promotion remain unconnected.
 
 ## External and frozen
@@ -63,7 +64,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 
 ## Immediate next target
 
-1. Keep D3 conditional and bounded; compare the recorded prompt-contract remediation against any future recurrence without weakening validation.
+1. Keep D3 conditional and bounded; use the closed Host failure classifier and proposal-only L1 Critic only when the recorded failure categories recur, without weakening validation.
 2. Preserve D4's explicit-discovery/UNKNOWN boundary; do not invent Codex session discovery.
 3. Treat the D5 in-process adapter as the current boundary; wire transport and Planner mutation tools are separate future slices over the same authority.
 4. Keep D7 official-branch Codex-less integration disabled. Treat D8/D9 as bounded Host boundaries; any real D9 execution must re-read all evidence and route an explicitly approved request through the existing Host integration/rollback authorities, with no automatic self-repair or blind retry.
