@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "status": "D9_TEMPORARY_GIT_HOST_INTEGRATION_VERIFIED",
+  "observed_at": "2026-09-14T16:16:31.7685611+09:00",
+  "purpose": "Deterministic composition test for the approval-bound Controlled Self-Repair Host adapter.",
+  "scope": {
+    "repository": "temporary Git repository created by tests/v2/test_devfarm_self_repair.py",
+    "official_checkout_mutated": false,
+    "remote_mutated": false,
+    "external_provider_called": false,
+    "worker_mode": "fake_provider_for_deterministic_regression"
+  },
+  "composition": [
+    "CommanderPlan",
+    "CodexSupervisedCommanderRun.run_until_intervention",
+    "Free Worker-shaped proposal through DevFarmOrchestrator",
+    "independent Host Verification with TRUSTED_HOST_EXEC and attempt approval",
+    "compact ReviewPacket",
+    "durable APPROVE_INTEGRATION ReviewDecision",
+    "F0 observation -> F1 diagnosis -> F2 improvement plan",
+    "RepairPolicy candidate evaluation",
+    "RepairExecutionRequest exact identity binding",
+    "existing ApprovalPolicy external-write consumption",
+    "existing integrate_approved_worker Host commit"
+  ],
+  "checks": {
+    "worker_changed_only_allowed_path": true,
+    "independent_trusted_target_present": true,
+    "host_verification_passed": true,
+    "review_packet_used": true,
+    "repair_candidate_proposal_only_before_approval": true,
+    "approval_rechecked_before_consumption": true,
+    "approval_consumed_once_by_existing_policy": true,
+    "exact_patch_digest_reused": true,
+    "host_helper_created_integration_commit": true,
+    "plan_status_after_integration": "INTEGRATED",
+    "rollback_performed": false,
+    "automatic_retry": false,
+    "raw_patch_or_output_recorded_in_evidence": false
+  },
+  "implementation": {
+    "commit": "a2734f89c2483c35eb82573339cb6ff93cde07e0",
+    "test": "tests/v2/test_devfarm_self_repair.py::test_approved_repair_adapter_uses_real_supervisor_host_integration",
+    "adapter": "scripts/devfarm_self_repair.py:integrate_approved_repair",
+    "approval_authority": "src/dev_agent/policy/approval.py:ApprovalPolicy",
+    "integration_authority": "scripts/devfarm_supervisor.py:integrate_approved_worker"
+  },
+  "verification": {
+    "focused_tests": "103 passed",
+    "full_v2": "1058 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head_ci": {
+      "head": "a2734f89c2483c35eb82573339cb6ff93cde07e0",
+      "v2-core": "https://github.com/kinoko34077/dev_agent/actions/runs/34816700314",
+      "v2-provider-smoke": "https://github.com/kinoko34077/dev_agent/actions/runs/34816700242",
+      "conclusion": "success"
+    }
+  },
+  "not_verified": [
+    "production approval-store consumption",
+    "real Worker-generated self-repair candidate",
+    "official-branch repair integration",
+    "rollback execution drill",
+    "automatic self-repair or retry"
+  ],
+  "raw_conversation_recorded": false,
+  "credentials_recorded": false
+}
