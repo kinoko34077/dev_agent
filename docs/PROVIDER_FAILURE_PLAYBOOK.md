@@ -55,6 +55,19 @@ The v2 `GeminiHttpProvider` now reads `GEMINI_API_KEY` from the process environm
 - Safe handling: retain the last reviewed evidence only within its expiry, record a bounded typed failure for an unavailable binding, and refresh through the operator-only candidate writer. Existing authoritative snapshots require explicit replacement intent.
 - Planner implication: the Router may choose only an exact model identity whose current discovery, benchmark, capability, qualification, billing, privacy, quota, health, and binding policy all admit it. A discovered L2 candidate is not a substitute for those gates.
 
+### Compression API edge authentication — 2026-09-15
+
+- Observation: the fixed compression endpoint returned HTTP 403 through a Cloudflare edge. The bounded response metadata included a Cloudflare server marker and Ray identifier, but no application `X-Request-ID`.
+- Classification: `authentication_failure` / `http_forbidden` at the edge. This observation does not establish that the compression Worker or its downstream Gemini credential was reached, so it is not evidence of a lower-model credential failure.
+- Safe handling: do not retry the same request without a meaningful external configuration change. Keep the compression client `NOT_VERIFIED`; when compression is only an optimization, use the bounded original-payload fallback or fail closed when the caller cannot safely send the original payload.
+- Secret boundary: retain only bounded status/header-presence diagnostics. Never record the bearer token, raw response body, or raw payload.
+
+### Model catalog refresh — 2026-09-15
+
+- Observation: the explicit read-only refresh recorded `1297` model identities from `12/14` configured bindings. The refreshed candidate was not promoted into the authoritative routing snapshot solely because discovery succeeded. Two bindings returned bounded discovery failures (`HTTPError` and `URLError`).
+- Classification: discovery remains observation-only. It does not grant benchmark tier, capability, qualification, billing, privacy, quota, health, or routing admission.
+- Safe handling: use only current, exact identities that pass every downstream admission gate; preserve the previous reviewed snapshot within its expiry and do not infer availability or free billing from a model listing.
+
 ## Failure classification
 
 - Connection refused / DNS / timeout: `transport`.
