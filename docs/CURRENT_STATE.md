@@ -5,12 +5,12 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Implementation/evidence baseline | `25c789e` (D3 prompt-contract hardening and proposal-only Free L2 Reviewer Shadow implementation) |
+| Implementation/evidence baseline | `928cf93` (D3 prompt-contract hardening, proposal-only Free L2 Reviewer Shadow, and shadow disagreement regression coverage) |
 | Worktree | clean after D3/D6 implementation and Evidence/documentation synchronization |
-| Local regression | `1016 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 213.48s) |
+| Local regression | `1017 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 177.68s) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for implementation/evidence baseline `25c789e262a55695a8616a43d8ae2a95fde46ed7`: `v2-core` [run 34803214195](https://github.com/kinoko34077/dev_agent/actions/runs/34803214195) and `v2-provider-smoke` [run 34803214184](https://github.com/kinoko34077/dev_agent/actions/runs/34803214184). |
+| Exact-head CI | PASS for implementation/evidence baseline `928cf939c5feb8e4d3b504b742be26643b8782c0`: `v2-core` [run 34803783540](https://github.com/kinoko34077/dev_agent/actions/runs/34803783540) and `v2-provider-smoke` [run 34803783526](https://github.com/kinoko34077/dev_agent/actions/runs/34803783526). |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
