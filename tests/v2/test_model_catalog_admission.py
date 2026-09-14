@@ -405,7 +405,7 @@ def test_router_uses_exact_model_admission_for_tier_capability_and_task_fit(tmp_
                     "model_id": "planner-model",
                     "source": "fake.models.list",
                     "observed_at": "2026-09-13T00:00:00+00:00",
-                    "expires_at": "2026-09-14T00:00:00+00:00",
+                    "expires_at": "2026-09-15T00:00:00+00:00",
                 }
             ],
         }
@@ -428,7 +428,7 @@ def test_router_uses_exact_model_admission_for_tier_capability_and_task_fit(tmp_
                     "model_version": "1",
                     "source": "fixture",
                     "observed_at": "2026-09-13T00:00:00+00:00",
-                    "expires_at": "2026-09-14T00:00:00+00:00",
+                    "expires_at": "2026-09-15T00:00:00+00:00",
                     "raw_score": 40,
                     "normalized_score": 40,
                     "confidence": "high",
@@ -447,7 +447,7 @@ def test_router_uses_exact_model_admission_for_tier_capability_and_task_fit(tmp_
                     "capabilities": ["text", "structured_output"],
                     "source": "fixture",
                     "observed_at": "2026-09-13T00:00:00+00:00",
-                    "expires_at": "2026-09-14T00:00:00+00:00",
+                    "expires_at": "2026-09-15T00:00:00+00:00",
                 }
             ],
         }
