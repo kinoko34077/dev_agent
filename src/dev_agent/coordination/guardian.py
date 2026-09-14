@@ -25,7 +25,7 @@ from .protocol import (
     PeerRecord,
     PeerStatus,
 )
-from .protocol_helpers import validate_identifier, validate_timestamp
+from .protocol_helpers import timestamp_is_after, validate_identifier, validate_timestamp
 from .store import CoordinationStore
 
 
@@ -35,6 +35,7 @@ class GuardianDecision(str, Enum):
     SENDER_NOT_CURRENT = "SENDER_NOT_CURRENT"
     STALE_REQUEST = "STALE_REQUEST"
     TARGET_NOT_FOUND = "TARGET_NOT_FOUND"
+    TARGET_NOT_CURRENT = "TARGET_NOT_CURRENT"
     TARGET_AMBIGUOUS = "TARGET_AMBIGUOUS"
     ACTION_NOT_ALLOWED = "ACTION_NOT_ALLOWED"
     PROFILE_NOT_FOUND = "PROFILE_NOT_FOUND"
@@ -124,7 +125,12 @@ class GuardianPolicy:
             return self._result(request, GuardianDecision.SENDER_NOT_CURRENT, "sender role is not admitted")
         latest = self._latest_peers(peers)
         sender = latest.get((request.sender_role, request.sender_instance_id))
-        if sender is None or sender.generation != request.sender_generation or sender.status not in _ACTIVE_SENDER_STATUSES:
+        if (
+            sender is None
+            or sender.generation != request.sender_generation
+            or sender.status not in _ACTIVE_SENDER_STATUSES
+            or not timestamp_is_after(sender.lease_until, now)
+        ):
             return self._result(request, GuardianDecision.SENDER_NOT_CURRENT, "sender generation is not current")
         if request.action not in self.allowed_actions:
             return self._result(request, GuardianDecision.ACTION_NOT_ALLOWED, "control action is not admitted")
@@ -144,6 +150,8 @@ class GuardianPolicy:
             return self._result(request, GuardianDecision.TARGET_NOT_FOUND, "target generation is not present")
         if len(matching) != 1:
             return self._result(request, GuardianDecision.TARGET_AMBIGUOUS, "target generation is ambiguous")
+        if not timestamp_is_after(matching[0].lease_until, now) or matching[0].status not in _ACTIVE_SENDER_STATUSES:
+            return self._result(request, GuardianDecision.TARGET_NOT_CURRENT, "target peer lease is not current")
         return self._result(request, GuardianDecision.ACCEPTED, "request is valid for Guardian handling")
 
     @staticmethod

@@ -15,7 +15,14 @@ from src.dev_agent.coordination.protocol import (
 from src.dev_agent.coordination.store import CoordinationStore
 
 
-def _peer(*, role: str, instance_id: str, generation: int, status: PeerStatus = PeerStatus.READY) -> PeerRecord:
+def _peer(
+    *,
+    role: str,
+    instance_id: str,
+    generation: int,
+    status: PeerStatus = PeerStatus.READY,
+    lease_until: str = "2026-09-14T12:05:00+00:00",
+) -> PeerRecord:
     return PeerRecord(
         role=role,
         instance_id=instance_id,
@@ -24,7 +31,7 @@ def _peer(*, role: str, instance_id: str, generation: int, status: PeerStatus = 
         revision="rev-a",
         started_at="2026-09-14T12:00:00+00:00",
         heartbeat_at="2026-09-14T12:00:00+00:00",
-        lease_until="2026-09-14T12:05:00+00:00",
+        lease_until=lease_until,
         status=status,
         capabilities=("coordination",),
     )
@@ -107,6 +114,41 @@ def test_guardian_rejects_sender_that_is_not_active(status):
     )
 
     assert evaluation.decision is GuardianDecision.SENDER_NOT_CURRENT
+
+
+def test_guardian_rejects_expired_sender_and_target_even_when_generation_matches():
+    expired_sender = GuardianPolicy().evaluate(
+        _request(),
+        peers=(
+            _peer(role="codex", instance_id="codex-1", generation=1, lease_until="2026-09-14T12:05:00+00:00"),
+            _peer(role="agent", instance_id="agent-1", generation=12, lease_until="2026-09-14T12:10:00+00:00"),
+        ),
+        now="2026-09-14T12:06:00+00:00",
+    )
+    expired_target = GuardianPolicy().evaluate(
+        _request(),
+        peers=(
+            _peer(role="codex", instance_id="codex-1", generation=1, lease_until="2026-09-14T12:10:00+00:00"),
+            _peer(role="agent", instance_id="agent-1", generation=12, lease_until="2026-09-14T12:05:00+00:00"),
+        ),
+        now="2026-09-14T12:06:00+00:00",
+    )
+
+    assert expired_sender.decision is GuardianDecision.SENDER_NOT_CURRENT
+    assert expired_target.decision is not GuardianDecision.ACCEPTED
+
+
+def test_guardian_treats_lease_boundary_as_expired():
+    evaluation = GuardianPolicy().evaluate(
+        _request(),
+        peers=(
+            _peer(role="codex", instance_id="codex-1", generation=1),
+            _peer(role="agent", instance_id="agent-1", generation=12, lease_until="2026-09-14T12:01:00+00:00"),
+        ),
+        now="2026-09-14T12:01:00+00:00",
+    )
+
+    assert evaluation.decision is not GuardianDecision.ACCEPTED
 
 
 def _store_with_current_peers(tmp_path):

@@ -5,7 +5,7 @@ import json
 import pytest
 
 from src.dev_agent.coordination import ResumeCapsule, WorkAddress
-from src.dev_agent.coordination.protocol import ControlAction, GuardianActionStatus, HandoffNote, MessageKind, PeerStatus
+from src.dev_agent.coordination.protocol import CoordinationConflict, ControlAction, GuardianActionStatus, HandoffNote, MessageKind, PeerStatus
 from src.dev_agent.coordination.service import CoordinationSnapshot, ProcessCoordinationService
 
 
@@ -33,7 +33,7 @@ def test_service_attach_handoff_claim_ack_survives_reopen(tmp_path) -> None:
             revision="rev-a",
             capabilities=("handoff",),
             instance_id="agent-1",
-            now="2026-09-14T12:00:00+00:00",
+            now="2026-09-16T12:00:00+00:00",
             lease_seconds=60,
         )
         codex = service.attach_peer(
@@ -41,7 +41,7 @@ def test_service_attach_handoff_claim_ack_survives_reopen(tmp_path) -> None:
             revision="rev-a",
             capabilities=("review",),
             instance_id="codex-1",
-            now="2026-09-14T12:00:00+00:00",
+            now="2026-09-16T12:00:00+00:00",
             lease_seconds=60,
         )
         assert agent.status is PeerStatus.STARTING
@@ -52,17 +52,17 @@ def test_service_attach_handoff_claim_ack_survives_reopen(tmp_path) -> None:
             agent,
             _note(),
             idempotency_key="handoff-1",
-            expires_at="2026-09-14T13:00:00+00:00",
+            expires_at="2026-09-16T13:00:00+00:00",
         )
         assert reference.sha256
         assert reference.size_bytes > 0
         assert message.artifact_refs == (reference,)
 
-        claimed = service.claim_messages(codex, now="2026-09-14T12:00:01+00:00")
+        claimed = service.claim_messages(codex, now="2026-09-16T12:00:01+00:00")
         assert len(claimed) == 1
         loaded = service.read_handoff(reference)
         assert loaded == _note()
-        service.ack_message(codex, claimed[0], now="2026-09-14T12:00:02+00:00")
+        service.ack_message(codex, claimed[0], now="2026-09-16T12:00:02+00:00")
 
     with ProcessCoordinationService(data_dir=tmp_path) as reopened:
         assert reopened.read_handoff(reference) == _note()
@@ -95,14 +95,14 @@ def test_service_does_not_allow_stale_peer_to_send(tmp_path) -> None:
             "agent",
             revision="rev-a",
             instance_id="agent-1",
-            now="2026-09-14T12:00:00+00:00",
+            now="2026-09-16T12:00:00+00:00",
             lease_seconds=60,
         )
         service.attach_peer(
             "agent",
             revision="rev-b",
             instance_id="agent-1",
-            now="2026-09-14T12:00:00+00:00",
+            now="2026-09-16T12:00:00+00:00",
             lease_seconds=60,
         )
         with pytest.raises(Exception):
@@ -112,6 +112,26 @@ def test_service_does_not_allow_stale_peer_to_send(tmp_path) -> None:
                 kind="NOTE",
                 subject="stale",
                 idempotency_key="stale-1",
+            )
+
+
+def test_service_does_not_allow_expired_peer_to_send_without_maintenance_expiry(tmp_path) -> None:
+    with ProcessCoordinationService(data_dir=tmp_path) as service:
+        expired = service.attach_peer(
+            "agent",
+            revision="rev-a",
+            instance_id="agent-1",
+            now="2026-09-14T12:00:00+00:00",
+            lease_seconds=60,
+        )
+        service.store.set_peer_status(expired.role, expired.instance_id, expired.generation, PeerStatus.READY)
+        with pytest.raises(CoordinationConflict, match="lease is expired"):
+            service.send_message(
+                expired,
+                recipient_role="codex",
+                kind="NOTE",
+                subject="expired",
+                idempotency_key="expired-1",
             )
 
 
@@ -134,7 +154,7 @@ def test_service_persists_resume_capsule_as_checkpoint_artifact(tmp_path) -> Non
             revision="rev-a",
             capabilities=("checkpoint",),
             instance_id="agent-1",
-            now="2026-09-14T12:00:00+00:00",
+            now="2026-09-16T12:00:00+00:00",
             lease_seconds=60,
         )
         service.set_peer_status(agent, PeerStatus.READY)
@@ -156,7 +176,7 @@ def test_service_persists_generation_fenced_control_request_in_mailbox(tmp_path)
             revision="rev-a",
             capabilities=("control-request",),
             instance_id="codex-1",
-            now="2026-09-14T12:00:00+00:00",
+            now="2026-09-16T12:00:00+00:00",
             lease_seconds=60,
         )
         service.set_peer_status(codex, PeerStatus.READY)
@@ -168,7 +188,7 @@ def test_service_persists_generation_fenced_control_request_in_mailbox(tmp_path)
             desired_revision="rev-b",
             reason="verified runtime update",
             idempotency_key="restart-agent-12",
-            expires_at="2026-09-14T12:05:00+00:00",
+            expires_at="2026-09-16T12:05:00+00:00",
         )
 
         assert reference.kind == "control_request"
@@ -185,14 +205,14 @@ def test_service_evaluates_control_request_against_latest_peer_generations(tmp_p
             "codex",
             revision="rev-a",
             instance_id="codex-1",
-            now="2026-09-14T12:00:00+00:00",
+            now="2026-09-16T12:00:00+00:00",
             lease_seconds=60,
         )
         agent = service.attach_peer(
             "agent",
             revision="rev-a",
             instance_id="agent-1",
-            now="2026-09-14T12:00:00+00:00",
+            now="2026-09-16T12:00:00+00:00",
             lease_seconds=60,
         )
         service.set_peer_status(codex, PeerStatus.READY)
@@ -207,7 +227,7 @@ def test_service_evaluates_control_request_against_latest_peer_generations(tmp_p
         )
         evaluation = service.evaluate_control_request(
             service.read_control_request(reference),
-            now="2026-09-14T12:01:00+00:00",
+            now="2026-09-16T12:00:30+00:00",
         )
 
         assert evaluation.decision.value == "ACCEPTED"
@@ -221,7 +241,7 @@ def test_service_snapshot_exposes_expired_peers_unacked_mailbox_and_guardian_jou
             revision="rev-a",
             capabilities=("checkpoint",),
             instance_id="agent-1",
-            now="2026-09-14T12:00:00+00:00",
+            now="2026-09-16T12:00:00+00:00",
             lease_seconds=30,
         )
         codex = service.attach_peer(
@@ -229,7 +249,7 @@ def test_service_snapshot_exposes_expired_peers_unacked_mailbox_and_guardian_jou
             revision="rev-a",
             capabilities=("review",),
             instance_id="codex-1",
-            now="2026-09-14T12:00:00+00:00",
+            now="2026-09-16T12:00:00+00:00",
             lease_seconds=300,
         )
         service.set_peer_status(agent, PeerStatus.READY)
@@ -252,10 +272,10 @@ def test_service_snapshot_exposes_expired_peers_unacked_mailbox_and_guardian_jou
             idempotency_key="snapshot-checkpoint-1",
         )
 
-        snapshot = service.snapshot(now="2026-09-14T12:01:00+00:00")
+        snapshot = service.snapshot(now="2026-09-16T12:01:00+00:00")
 
         assert isinstance(snapshot, CoordinationSnapshot)
-        assert snapshot.observed_at == "2026-09-14T12:01:00+00:00"
+        assert snapshot.observed_at == "2026-09-16T12:01:00+00:00"
         assert snapshot.expired_peer_ids == ("agent:agent-1:1",)
         assert snapshot.mailbox[0].message_id == message.message_id
         assert snapshot.mailbox[0].artifact_refs[0].sha256 == reference.sha256
@@ -270,7 +290,7 @@ def test_service_guardian_action_wrapper_persists_without_process_authority(tmp_
             revision="rev-a",
             capabilities=("control-request",),
             instance_id="codex-1",
-            now="2026-09-14T12:00:00+00:00",
+            now="2026-09-16T12:00:00+00:00",
             lease_seconds=60,
         )
         agent = service.attach_peer(
@@ -278,7 +298,7 @@ def test_service_guardian_action_wrapper_persists_without_process_authority(tmp_
             revision="rev-a",
             capabilities=("guardian-target",),
             instance_id="agent-1",
-            now="2026-09-14T12:00:00+00:00",
+            now="2026-09-16T12:00:00+00:00",
             lease_seconds=60,
         )
         service.set_peer_status(codex, PeerStatus.READY)
@@ -294,7 +314,7 @@ def test_service_guardian_action_wrapper_persists_without_process_authority(tmp_
 
         record = service.submit_guardian_action(
             service.read_control_request(reference),
-            now="2026-09-14T12:00:01+00:00",
+            now="2026-09-16T12:00:01+00:00",
         )
 
         assert record.status is GuardianActionStatus.PENDING
@@ -302,10 +322,10 @@ def test_service_guardian_action_wrapper_persists_without_process_authority(tmp_
         service.store.transition_guardian_action(
             record.request_id,
             to_status=GuardianActionStatus.EXECUTING,
-            updated_at="2026-09-14T12:00:02+00:00",
+            updated_at="2026-09-16T12:00:02+00:00",
             expected_from={GuardianActionStatus.PENDING},
         )
         assert service.reconcile_guardian_action(
             record.request_id,
-            now="2026-09-14T12:00:03+00:00",
+            now="2026-09-16T12:00:03+00:00",
         ).status is GuardianActionStatus.UNKNOWN

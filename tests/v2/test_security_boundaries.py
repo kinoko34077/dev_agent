@@ -70,6 +70,25 @@ def test_protected_authority_policy_covers_responsibility_paths():
     assert is_protected_path("config/service_api_key.json")
 
 
+def test_protected_authority_policy_covers_coordination_and_repair_responsibilities():
+    protected_files = (
+        "src/dev_agent/coordination/protocol.py",
+        "src/dev_agent/coordination/new_guardian_authority.py",
+        "src/dev_agent/intelligence/self_repair.py",
+        "src/dev_agent/intelligence/refinement.py",
+        "scripts/devfarm_self_repair.py",
+        "scripts/devfarm_supervisor.py",
+        "scripts/devfarm_verification.py",
+    )
+
+    assert all(is_protected_path(path) for path in protected_files)
+
+
+def test_protected_authority_policy_rejects_path_forms_used_for_shadowing():
+    assert is_protected_path("src/dev_agent/coordination/renamed_guardian.py")
+    assert is_protected_path("src/dev_agent/coordination/new_repair_policy.py")
+
+
 def test_tool_spec_rejects_unknown_side_effect_level():
     """Typos / unknown levels must be caught at ToolSpec construction."""
     with pytest.raises(ValueError, match="side_effect_level"):

@@ -66,6 +66,16 @@ def validate_timestamp(value: Any, name: str = "timestamp") -> str:
     return value
 
 
+def timestamp_is_after(candidate: str, reference: str) -> bool:
+    """Return whether an already validated timestamp is strictly later."""
+
+    validate_timestamp(candidate, "candidate")
+    validate_timestamp(reference, "reference")
+    left = datetime.fromisoformat(candidate.replace("Z", "+00:00"))
+    right = datetime.fromisoformat(reference.replace("Z", "+00:00"))
+    return left > right
+
+
 def validate_string_sequence(
     value: Any,
     name: str = "sequence",
@@ -138,4 +148,5 @@ __all__ = [
     "validate_string_sequence",
     "validate_text",
     "validate_timestamp",
+    "timestamp_is_after",
 ]

@@ -27,7 +27,7 @@ from .protocol import (
     PeerRecord,
     PeerStatus,
 )
-from .protocol_helpers import validate_identifier, validate_timestamp, validate_text
+from .protocol_helpers import timestamp_is_after, validate_identifier, validate_timestamp, validate_text
 from .store import CoordinationStore
 from .work import ResumeCapsule
 
@@ -111,7 +111,7 @@ class ProcessCoordinationService:
         self.store = CoordinationStore(self.paths.database)
         self.artifacts = CoordinationArtifactStore(self.paths.coordination_root)
 
-    def _assert_current(self, peer: PeerRecord) -> PeerRecord:
+    def _assert_current(self, peer: PeerRecord, *, now: str | None = None) -> PeerRecord:
         if not isinstance(peer, PeerRecord):
             raise CoordinationValidationError("peer must be a PeerRecord")
         current = self.store.get_peer(peer.role, peer.instance_id)
@@ -121,6 +121,8 @@ class ProcessCoordinationService:
             raise CoordinationConflict("peer generation is stale")
         if current.status in {PeerStatus.STOPPED, PeerStatus.DEGRADED}:
             raise CoordinationConflict("peer is not active")
+        if not timestamp_is_after(current.lease_until, now or _now()):
+            raise CoordinationConflict("peer lease is expired")
         return current
 
     def require_current_peer(self, peer: PeerRecord) -> PeerRecord:

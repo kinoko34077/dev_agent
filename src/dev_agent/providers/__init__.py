@@ -7,7 +7,7 @@ their API without importing every adapter just to use one Provider.
 
 from importlib import import_module
 
-from .base import ModelProvider, ProviderError
+from .base import ModelProvider, ProviderError, TransportFailureCategory, classify_transport_failure
 
 _LAZY_EXPORTS = {
     "CloudflareWorkersAIHttpProvider": (".cloudflare", "CloudflareWorkersAIHttpProvider"),
@@ -76,6 +76,8 @@ __all__ = [
     "ProviderDispatchJournal",
     "ProviderError",
     "ProviderRegistry",
+    "TransportFailureCategory",
+    "classify_transport_failure",
     "SambaNovaHttpProvider",
     "SambaNovaProvider",
     "VercelAIGatewayHttpProvider",

@@ -45,6 +45,12 @@ PROTECTED_AUTHORITY_PATHS = frozenset(
         "src/dev_agent/operation_bootstrap.py",
         # AgentBackend dispatch authority
         "src/dev_agent/backends/dispatcher.py",
+        # Process Coordination and Guardian authority
+        "src/dev_agent/intelligence/refinement.py",
+        "src/dev_agent/intelligence/self_repair.py",
+        "scripts/devfarm_self_repair.py",
+        "scripts/devfarm_supervisor.py",
+        "scripts/devfarm_verification.py",
         "config/v2.yaml",
         "scripts/devfarm.py",
         "scripts/devfarm_worker.py",
@@ -68,6 +74,7 @@ PROTECTED_DIRECTORY_PREFIXES = frozenset(
     {
         "recovery",
         "src/dev_agent/security",
+        "src/dev_agent/coordination",
         # Reviewed model availability, benchmark, and capability snapshots
         # can influence Router admission.  Workers may consume them but must
         # not rewrite the evidence that the Host composes.
