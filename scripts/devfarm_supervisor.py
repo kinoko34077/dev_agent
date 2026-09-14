@@ -488,6 +488,7 @@ class CodexSupervisedCommanderRun:
         verification_trust_level: str = "STATIC_ONLY",
         operator_approved: bool = False,
         dispatch_timeout_seconds: int | float = 300.0,
+        execution_boundary: str = "in_process",
     ) -> SupervisorStep:
         """Run exactly one bounded refresh/dispatch/collect/verify pass."""
 
@@ -508,10 +509,31 @@ class CodexSupervisedCommanderRun:
         ]
         if ready_worker_ids:
             try:
+                host_dispatches = None
+                if execution_boundary == "host_process":
+                    from scripts.devfarm_host_dispatch import create_host_process_executor
+                    from src.dev_agent.providers.host_dispatch import HostProviderDispatch
+
+                    executor = create_host_process_executor(
+                        self.root / ".devfarm" / "host-dispatch",
+                        timeout_seconds=dispatch_timeout_seconds,
+                    )
+                    host_dispatches = {
+                        task_id: HostProviderDispatch(
+                            providers[task_id],
+                            execution_boundary="host_process",
+                            executor=executor,
+                        )
+                        for task_id in ready_worker_ids
+                        if task_id in providers
+                    }
+                elif execution_boundary != "in_process":
+                    raise DevFarmError("execution_boundary must be in_process or host_process")
                 dispatch_plan(
                     self.root,
                     self.run_id,
                     providers=providers,
+                    host_dispatches=host_dispatches,
                     orchestrator=orchestrator,
                     dispatch_timeout_seconds=dispatch_timeout_seconds,
                 )
@@ -680,6 +702,7 @@ class CodexSupervisedCommanderRun:
         max_wait_seconds: int | float = 900.0,
         sleep_fn: Any = time.sleep,
         monotonic_fn: Any = time.monotonic,
+        execution_boundary: str = "in_process",
     ) -> SupervisorStep:
         """Keep the lightweight supervisor process alive until intervention.
 
@@ -720,6 +743,7 @@ class CodexSupervisedCommanderRun:
                 verification_trust_level=verification_trust_level,
                 operator_approved=operator_approved,
                 dispatch_timeout_seconds=dispatch_timeout_seconds,
+                execution_boundary=execution_boundary,
             )
             if step.status in {"HUMAN_DECISION_REQUIRED", "COMPLETED", "BLOCKED"}:
                 return step
@@ -987,6 +1011,12 @@ def main(argv: list[str] | None = None) -> int:
     resume.add_argument("--timeout-seconds", type=float, default=30.0)
     resume.add_argument("--trust-level", choices=("STATIC_ONLY", "TRUSTED_HOST_EXEC", "OS_SANDBOXED"), default="STATIC_ONLY")
     resume.add_argument("--operator-approved", action="store_true")
+    resume.add_argument(
+        "--execution-boundary",
+        choices=("host_process", "in_process"),
+        default="host_process",
+        help="where the concrete Worker Provider call runs; live operation defaults to the Host process",
+    )
     run = sub.choices["run"]
     run.add_argument("--expected-remaining-seconds", type=float)
     run.add_argument("--timeout-seconds", type=float, default=30.0)
@@ -994,6 +1024,12 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--max-wait-seconds", type=float, default=900.0)
     run.add_argument("--trust-level", choices=("STATIC_ONLY", "TRUSTED_HOST_EXEC", "OS_SANDBOXED"), default="STATIC_ONLY")
     run.add_argument("--operator-approved", action="store_true")
+    run.add_argument(
+        "--execution-boundary",
+        choices=("host_process", "in_process"),
+        default="host_process",
+        help="where the concrete Worker Provider call runs; live operation defaults to the Host process",
+    )
     review = sub.choices["review"]
     review.add_argument("task_id")
     review.add_argument("--attempt-id", required=True)
@@ -1123,6 +1159,7 @@ def main(argv: list[str] | None = None) -> int:
         expected_remaining_seconds=args.expected_remaining_seconds,
         verification_trust_level=args.trust_level,
         operator_approved=args.operator_approved,
+        execution_boundary=args.execution_boundary,
     ) if args.command == "resume" else runner.run_until_intervention(
         providers=providers,
         expected_remaining_seconds=args.expected_remaining_seconds,
@@ -1130,6 +1167,7 @@ def main(argv: list[str] | None = None) -> int:
         operator_approved=args.operator_approved,
         dispatch_timeout_seconds=args.dispatch_timeout_seconds,
         max_wait_seconds=args.max_wait_seconds,
+        execution_boundary=args.execution_boundary,
     )
     print(json.dumps(step.to_dict(), ensure_ascii=False, indent=2))
     return 0

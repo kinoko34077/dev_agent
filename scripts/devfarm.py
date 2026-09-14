@@ -632,6 +632,12 @@ def main(argv: list[str] | None = None) -> int:
     dispatch.add_argument("--provider")
     dispatch.add_argument("--model")
     dispatch.add_argument("--timeout-seconds", type=float, default=30.0)
+    dispatch.add_argument(
+        "--execution-boundary",
+        choices=("host_process", "in_process"),
+        default="host_process",
+        help="where the concrete Worker Provider call runs; live operation defaults to the Host process",
+    )
     dispatch.add_argument("--root", type=Path, default=Path.cwd())
     status = sub.add_parser("status", help="show a durable parent plan")
     status.add_argument("run_id")
@@ -691,6 +697,7 @@ def main(argv: list[str] | None = None) -> int:
                         provider_id=args.provider,
                         model_id=args.model,
                         timeout_seconds=args.timeout_seconds,
+                        execution_boundary=args.execution_boundary,
                     ),
                     ensure_ascii=False,
                     indent=2,

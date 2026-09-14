@@ -11,6 +11,7 @@ from scripts.devfarm_orchestrator import (
     DevFarmOrchestrator,
     HostConcurrencyGovernor,
     RemoteConcurrencyGovernor,
+    WorkerAssignment,
 )
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.providers.fake.provider import FakeProvider
@@ -55,6 +56,29 @@ class _ConcurrentProvider(FakeProvider):
 class _BoundaryFailureProvider(_ConcurrentProvider):
     def request(self, request: ModelRequest) -> ModelResponse:
         raise RuntimeError("simulated adapter boundary failure")
+
+
+class _HostDispatch:
+    execution_boundary = "host_process"
+    last_transport_category = None
+
+    def __init__(self, provider):
+        self.provider = provider
+        self.calls = 0
+        self.provider_identity = {
+            "provider_id": provider.provider_id,
+            "provider_binding_id": provider.provider_binding_id,
+            "model_id": provider.model_id,
+            "intelligence_tier": provider.intelligence_tier,
+        }
+
+    def request(self, _request):
+        self.calls += 1
+        return ModelResponse(
+            provider=self.provider.provider_id,
+            model=self.provider.model_id,
+            text_segments=[json.dumps(self.provider.output)],
+        )
 
 
 def _git(cwd, *args):
@@ -198,6 +222,23 @@ def test_run_creates_worktree_only_for_host_verification(tmp_path):
     assert report.host_governor["worktree_verification"]["peak"] == 1
     assert (root / ".devfarm/worktrees/orchestrator-1").is_dir()
     assert "return None" not in (root / target).read_text(encoding="utf-8")
+
+
+def test_orchestrator_preserves_host_dispatch_boundary_for_worker_assignment(tmp_path):
+    target = "tests/v2/worker.py"
+    root, manifests = _repo(tmp_path, [target])
+    provider = _ConcurrentProvider(_output(target))
+    host_dispatch = _HostDispatch(provider)
+    orchestrator = DevFarmOrchestrator(remote_governor=RemoteConcurrencyGovernor(max_inflight=1))
+
+    proposals = orchestrator.propose(
+        root,
+        [WorkerAssignment(manifests[0], provider, host_dispatch=host_dispatch)],
+    )
+
+    assert proposals[0]["status"] == "completed"
+    assert host_dispatch.calls == 1
+    assert provider.tracker is None
 
 
 def test_disabled_host_resource_is_fail_closed():

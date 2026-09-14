@@ -167,12 +167,15 @@ class WorkerAssignment:
 
     manifest_path: Path
     provider: ModelProvider
+    host_dispatch: Any | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.manifest_path, Path):
             object.__setattr__(self, "manifest_path", Path(self.manifest_path))
         if not isinstance(self.provider, ModelProvider):
             raise TypeError("provider must implement ModelProvider")
+        if self.host_dispatch is not None and not callable(getattr(self.host_dispatch, "request", None)):
+            raise TypeError("host_dispatch must expose request(ModelRequest)")
 
 
 @dataclass(frozen=True)
@@ -224,14 +227,19 @@ class DevFarmOrchestrator:
             if task_id in task_ids:
                 raise DevFarmError(f"duplicate worker task assignment: {task_id}")
             task_ids.add(task_id)
-            normalized.append(WorkerAssignment(assignment.manifest_path, assignment.provider))
+            normalized.append(assignment)
         return normalized
 
     def _propose(self, root: Path, assignment: WorkerAssignment) -> dict[str, Any]:
         binding_id = getattr(assignment.provider, "provider_binding_id", None) or getattr(assignment.provider, "provider_id", None)
         with self.remote_governor.slot(binding_id):
             try:
-                return run_worker(root, assignment.manifest_path, provider=assignment.provider)
+                return run_worker(
+                    root,
+                    assignment.manifest_path,
+                    provider=assignment.provider,
+                    host_dispatch=assignment.host_dispatch,
+                )
             except Exception as exc:
                 # run_worker normally records its own bounded result artifact.
                 # An unexpected boundary exception can occur before that

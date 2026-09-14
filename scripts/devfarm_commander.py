@@ -1119,6 +1119,7 @@ def dispatch_plan(
     run_id: str,
     *,
     providers: Mapping[str, ModelProvider],
+    host_dispatches: Mapping[str, Any] | None = None,
     orchestrator: DevFarmOrchestrator | None = None,
     dispatch_timeout_seconds: int | float = 300.0,
 ) -> dict[str, Any]:
@@ -1166,8 +1167,16 @@ def dispatch_plan(
     if not ready:
         return refresh_plan(plan)
     farm = orchestrator or DevFarmOrchestrator()
+    execution_assignments = [
+        WorkerAssignment(
+            manifest_path,
+            provider,
+            host_dispatch=(host_dispatches or {}).get(task["task_id"]),
+        )
+        for task, manifest_path, provider in ready
+    ]
     try:
-        proposals = farm.propose(root_path, [(manifest_path, provider) for _task_item, manifest_path, provider in ready])
+        proposals = farm.propose(root_path, execution_assignments)
     except Exception as exc:
         plan = store.load(run_id)
         for task, _manifest_path, _provider in ready:
@@ -1867,9 +1876,22 @@ def dispatch_cli(
     provider_id: str | None = None,
     model_id: str | None = None,
     timeout_seconds: float = 30.0,
+    execution_boundary: str = "in_process",
 ) -> dict[str, Any]:
-    plan = CommanderPlanStore(root).load(run_id)
+    if execution_boundary not in {"in_process", "host_process"}:
+        raise DevFarmError("execution_boundary must be in_process or host_process")
+    root_path = Path(root).resolve()
+    plan = CommanderPlanStore(root_path).load(run_id)
     providers: dict[str, ModelProvider] = {}
+    host_dispatches: dict[str, Any] = {}
+    host_executor = None
+    if execution_boundary == "host_process":
+        from scripts.devfarm_host_dispatch import create_host_process_executor
+
+        host_executor = create_host_process_executor(
+            root_path / ".devfarm" / "host-dispatch",
+            timeout_seconds=timeout_seconds,
+        )
     for task in plan["tasks"]:
         if task["owner"] != "worker" or task["status"] not in {"READY", "PLANNED"}:
             continue
@@ -1878,8 +1900,22 @@ def dispatch_cli(
         selected_model = model_id or assignment.get("model_id")
         if not selected_provider or not selected_model:
             raise DevFarmError(f"provider and model are required for worker task: {task['task_id']}")
-        providers[task["task_id"]] = build_cli_provider(selected_provider, selected_model, timeout_seconds)
-    return dispatch_plan(root, run_id, providers=providers)
+        provider = build_cli_provider(selected_provider, selected_model, timeout_seconds)
+        providers[task["task_id"]] = provider
+        if host_executor is not None:
+            from src.dev_agent.providers.host_dispatch import HostProviderDispatch
+
+            host_dispatches[task["task_id"]] = HostProviderDispatch(
+                provider,
+                execution_boundary="host_process",
+                executor=host_executor,
+            )
+    return dispatch_plan(
+        root_path,
+        run_id,
+        providers=providers,
+        host_dispatches=host_dispatches or None,
+    )
 
 
 __all__ = [
