@@ -15,16 +15,15 @@ import hashlib
 import json
 from pathlib import Path
 import sys
-from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.devfarm_planner_shadow import (  # noqa: E402 - explicit script boundary
-    _build_provider,
-    _single_binding,
-    admit_planner_pool,
+from scripts.devfarm_resource_pool import (  # noqa: E402 - explicit script boundary
+    admit_resource_pool,
+    compose_resource_pool,
+    make_binding,
 )
 from scripts.devfarm_supervisor import CodexSupervisedCommanderRun  # noqa: E402
 from src.dev_agent.intelligence.reviewer_adapter import (  # noqa: E402
@@ -33,15 +32,9 @@ from src.dev_agent.intelligence.reviewer_adapter import (  # noqa: E402
     compare_review_proposal,
 )
 from src.dev_agent.providers.base import ProviderError  # noqa: E402
-from src.dev_agent.providers.dispatch import ProviderDispatcher, ProviderPoolExhausted, ProviderRegistry  # noqa: E402
-from src.dev_agent.resources.budget import BudgetAuthority, BudgetGovernor, BudgetPolicy  # noqa: E402
-from src.dev_agent.resources.billing_catalog import profile_for  # noqa: E402
-from src.dev_agent.resources.control import DispatchDenied  # noqa: E402
-from src.dev_agent.resources.ledger import ResourceLedger  # noqa: E402
+from src.dev_agent.providers.dispatch import ProviderPoolExhausted  # noqa: E402
 from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog  # noqa: E402
 from src.dev_agent.resources.qualification import QualificationResolver  # noqa: E402
-from src.dev_agent.resources.router import ResourceRouter  # noqa: E402
-from src.dev_agent.resources.control import ResourceControlPlane  # noqa: E402
 
 
 def run_shadow(
@@ -85,7 +78,7 @@ def run_shadow(
     codex_decision = decisions[-1]
     resolver = QualificationResolver()
     evidence = ModelEvidenceCatalog.load_default()
-    binding = _single_binding(
+    binding = make_binding(
         provider_id=provider_id,
         binding_id=binding_id,
         model_id=model_id,
@@ -93,119 +86,69 @@ def run_shadow(
         quota_domain=quota_domain,
         timeout_seconds=timeout_seconds,
     )
-    admitted = admit_planner_pool(
+    admitted = admit_resource_pool(
         (binding,),
         resolver=resolver,
+        required_tier="L2",
+        no_charge_required=True,
         model_admission_resolver=evidence.resolver,
         model_catalog=evidence.catalog,
     )
     if not admitted:
         raise ReviewAdapterError("exact current high-confidence L2 reviewer resource is not admitted")
 
-    with TemporaryDirectory(prefix="dev-agent-reviewer-shadow-") as directory:
-        ledger = ResourceLedger(Path(directory) / "resources.sqlite3")
-        try:
-            concrete = []
-            for candidate, qualification, profile in admitted:
-                admission = evidence.resolver.resolve(
-                    candidate.provider_id,
-                    candidate.credential_binding_id,
-                    candidate.model,
-                )
-                if admission is None:
-                    raise ReviewAdapterError("reviewer model evidence expired after admission")
-                concrete.append(_build_provider(binding=candidate))
-                resource_id = f"reviewer-shadow:{candidate.binding_id}"
-                ledger.register_resource(
-                    resource_id,
-                    provider_id=candidate.provider_id,
-                    provider_binding_id=candidate.binding_id,
-                    native_unit="request",
-                    capacity=1,
-                    capabilities=sorted(set(qualification.routing_capabilities) & set(admission.capabilities)),
-                    sensitivity="normal",
-                    cost_minor=profile.cost_minor,
-                    price_currency=profile.price_currency,
-                    quota_domain=candidate.quota_domain,
-                    intelligence_tier=admission.intelligence_tier,
-                    metadata={
-                        "provider_binding_id": candidate.binding_id,
-                        "qualification_binding_id": candidate.credential_binding_id,
-                        "model_id": candidate.model,
-                        "intelligence_tier": admission.intelligence_tier,
-                        "privacy_profile": "remote_cloud",
-                        "qualification_required": True,
-                        "billing_authority": "trusted_catalog",
-                        "billing_mode": profile.billing_mode,
-                        "overage_policy": profile.overage_policy,
-                        "no_charge_guaranteed": profile.no_charge_guaranteed,
-                        "billing_expires_at": profile.expires_at,
-                        "allowance_amount": profile.allowance_amount,
-                        "allowance_currency": profile.allowance_currency,
-                        "allowance_period": profile.allowance_period,
-                    },
-                )
-                ledger.observe(resource_id, available=1, health="healthy", concurrency_limit=1)
-            policy = BudgetPolicy(hard_cap_minor=0, recovery_reserve_minor=0)
-            BudgetAuthority.configure(ledger, policy)
-            dispatcher = ProviderDispatcher(
-                ProviderRegistry(concrete),
-                ResourceControlPlane(
-                    ResourceRouter(
-                        ledger,
-                        qualification_resolver=resolver,
-                        model_admission_resolver=evidence.resolver,
-                    ),
-                    BudgetGovernor(ledger, policy),
-                ),
-            )
-            proposal = ModelReviewAdapter(
-                dispatcher,
-                allow_unknown_quota=allow_unknown_quota,
-            ).propose(packet)
-            comparison = compare_review_proposal(proposal, codex_decision["decision"], packet)
-            selected = next((entry for entry in reversed(dispatcher.audits) if entry.outcome == "succeeded"), None)
-            proposal_digest = hashlib.sha256(
-                json.dumps(proposal.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-            ).hexdigest()
-            packet_digest = hashlib.sha256(
-                json.dumps(packet, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-            ).hexdigest()
-            return {
-                "status": "live_shadow_validated",
-                "checked_at": datetime.now(timezone.utc).isoformat(),
-                "run_id": run_id,
-                "task_id": task_id,
-                "attempt_id": attempt_id,
-                "packet_sha256": packet_digest,
-                "reviewer": {
-                    "provider": selected.provider_id if selected is not None else None,
-                    "binding": selected.provider_binding_id if selected is not None else None,
-                    "model": selected.model_id if selected is not None else None,
-                    "intelligence_tier": "L2",
-                },
-                "proposal_sha256": proposal_digest,
-                "proposal": proposal.to_dict(),
-                "codex_decision": {
-                    "decision_id": codex_decision.get("decision_id"),
-                    "decision": codex_decision.get("decision"),
-                    "reviewer_role": codex_decision.get("reviewer_role"),
-                },
-                "comparison": comparison.to_dict(),
-                "host_verification": packet.get("verification_summary", {}),
-                "dispatch_audits": [
-                    {
-                        "provider": entry.provider_id,
-                        "binding": entry.provider_binding_id,
-                        "model": entry.model_id,
-                        "outcome": entry.outcome,
-                    }
-                    for entry in dispatcher.audits
-                ],
-                "allow_unknown_quota": allow_unknown_quota,
-            }
-        finally:
-            ledger.close()
+    with compose_resource_pool(
+        admitted,
+        resolver=resolver,
+        model_admission_resolver=evidence.resolver,
+        resource_id_prefix="reviewer-shadow",
+    ) as resource_pool:
+        dispatcher = resource_pool.dispatcher
+        proposal = ModelReviewAdapter(
+            dispatcher,
+            allow_unknown_quota=allow_unknown_quota,
+        ).propose(packet)
+        comparison = compare_review_proposal(proposal, codex_decision["decision"], packet)
+        selected = next((entry for entry in reversed(dispatcher.audits) if entry.outcome == "succeeded"), None)
+        proposal_digest = hashlib.sha256(
+            json.dumps(proposal.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        packet_digest = hashlib.sha256(
+            json.dumps(packet, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        return {
+            "status": "live_shadow_validated",
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "run_id": run_id,
+            "task_id": task_id,
+            "attempt_id": attempt_id,
+            "packet_sha256": packet_digest,
+            "reviewer": {
+                "provider": selected.provider_id if selected is not None else None,
+                "binding": selected.provider_binding_id if selected is not None else None,
+                "model": selected.model_id if selected is not None else None,
+                "intelligence_tier": "L2",
+            },
+            "proposal_sha256": proposal_digest,
+            "proposal": proposal.to_dict(),
+            "codex_decision": {
+                "decision_id": codex_decision.get("decision_id"),
+                "decision": codex_decision.get("decision"),
+                "reviewer_role": codex_decision.get("reviewer_role"),
+            },
+            "comparison": comparison.to_dict(),
+            "host_verification": packet.get("verification_summary", {}),
+            "dispatch_audits": [
+                {
+                    "provider": entry.provider_id,
+                    "binding": entry.provider_binding_id,
+                    "model": entry.model_id,
+                    "outcome": entry.outcome,
+                }
+                for entry in dispatcher.audits
+            ],
+            "allow_unknown_quota": allow_unknown_quota,
+        }
 
 
 def main(argv: list[str] | None = None) -> int:

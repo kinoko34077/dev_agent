@@ -20,7 +20,6 @@ import hashlib
 import json
 from pathlib import Path
 import sys
-from tempfile import TemporaryDirectory
 from uuid import UUID, uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,17 +31,20 @@ from src.dev_agent.intelligence.planner import RootPlanningValidator
 from src.dev_agent.intelligence.planner_adapter import ModelPlanningAdapter
 from src.dev_agent.operation import OperationProviderBinding
 from src.dev_agent.providers.base import ProviderError
-from src.dev_agent.providers.dispatch import ProviderDispatcher, ProviderPoolExhausted, ProviderRegistry
-from src.dev_agent.providers.factory import ProviderDefinition, ProviderFactory
-from src.dev_agent.resources.budget import BudgetAuthority, BudgetGovernor, BudgetPolicy
+from src.dev_agent.providers.dispatch import ProviderPoolExhausted
 from src.dev_agent.resources.billing_catalog import profile_for
-from src.dev_agent.resources.control import DispatchDenied, ResourceControlPlane
-from src.dev_agent.resources.ledger import ResourceLedger
+from src.dev_agent.resources.control import DispatchDenied
 from src.dev_agent.resources.model_admission import ModelAdmissionResolver
 from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
-from src.dev_agent.resources.model_candidates import materialize_provider_bindings
 from src.dev_agent.resources.qualification import QualificationResolver
 from src.dev_agent.resources.router import ResourceRouter
+from scripts.devfarm_resource_pool import (
+    ResourcePoolError,
+    admit_resource_pool,
+    build_provider,
+    compose_resource_pool,
+    make_binding,
+)
 
 
 class PlannerShadowBlocked(RuntimeError):
@@ -67,19 +69,9 @@ def validate_parent_task_id(value: object) -> str:
 
 
 def _build_provider(*, binding: OperationProviderBinding):
-    return ProviderFactory().create(
-        ProviderDefinition(
-            provider_id=binding.provider_id,
-            model=binding.model,
-            provider_binding_id=binding.binding_id,
-            credential_id=binding.credential_id,
-            api_key_env=binding.api_key_env,
-            project_id=binding.project_id,
-            base_url=binding.base_url,
-            timeout_seconds=binding.timeout_seconds,
-            intelligence_tier=binding.intelligence_tier,
-        )
-    )
+    """Compatibility seam for isolated tests; runtime composition is shared."""
+
+    return build_provider(binding=binding)
 
 
 def _single_binding(
@@ -91,10 +83,10 @@ def _single_binding(
     quota_domain: str,
     timeout_seconds: float,
 ) -> OperationProviderBinding:
-    return OperationProviderBinding(
+    return make_binding(
         provider_id=provider_id,
-        model=model_id,
-        provider_binding_id=binding_id,
+        binding_id=binding_id,
+        model_id=model_id,
         api_key_env=api_key_env,
         quota_domain=quota_domain,
         timeout_seconds=timeout_seconds,
@@ -110,62 +102,22 @@ def admit_planner_pool(
     expand_discovered_models: bool = False,
     now: datetime | None = None,
 ) -> tuple[tuple[OperationProviderBinding, object, object], ...]:
-    """Return only exact, current, high-confidence L2 planner candidates.
+    """Compatibility wrapper for the role-neutral development admission API."""
 
-    The model name never supplies a tier.  With model evidence composed, its
-    benchmark-derived tier supplies the role, while Qualification remains the
-    exact integration-compatibility evidence.
-    """
-
-    admitted: list[tuple[OperationProviderBinding, object, object]] = []
-    candidate_bindings: list[OperationProviderBinding] = []
-    for binding in bindings:
-        evidence_catalog = model_catalog
-        if evidence_catalog is None and model_admission_resolver is not None:
-            evidence_catalog = getattr(model_admission_resolver, "catalog", None)
-        try:
-            candidate_bindings.extend(
-                materialize_provider_bindings(
-                    binding,
-                    evidence_catalog,
-                    expand_discovered_models=expand_discovered_models,
-                    now=now,
-                )
-            )
-        except (TypeError, ValueError) as exc:
-            raise PlannerShadowBlocked(f"unable to materialize planner model candidates: {exc}") from exc
-    for binding in candidate_bindings:
-        evidence_binding_id = binding.credential_binding_id
-        qualification_kwargs = {"min_confidence": "high"}
-        if now is not None:
-            qualification_kwargs["now"] = now
-        qualification = resolver.resolve(binding.provider_id, evidence_binding_id, binding.model, **qualification_kwargs)
-        if qualification is None:
-            continue
-        if model_admission_resolver is None:
-            # Compatibility seam for isolated tests and legacy in-process
-            # callers. The CLI composes the reviewed model-evidence snapshot.
-            if qualification.intelligence_tier != "L2":
-                continue
-        else:
-            admission_kwargs = {}
-            if now is not None:
-                admission_kwargs["now"] = now
-            admission = model_admission_resolver.resolve(
-                binding.provider_id,
-                evidence_binding_id,
-                binding.model,
-                **admission_kwargs,
-            )
-            if admission is None or admission.intelligence_tier != "L2":
-                continue
-        profile = profile_for(binding.provider_id, evidence_binding_id, binding.model)
-        if profile is None or not profile.no_charge_guaranteed:
-            continue
-        if not binding.quota_domain:
-            continue
-        admitted.append((binding, qualification, profile))
-    return tuple(admitted)
+    try:
+        return admit_resource_pool(
+            bindings,
+            resolver=resolver,
+            required_tier="L2",
+            no_charge_required=True,
+            model_admission_resolver=model_admission_resolver,
+            model_catalog=model_catalog,
+            expand_discovered_models=expand_discovered_models,
+            now=now,
+            profile_resolver=profile_for,
+        )
+    except ResourcePoolError as exc:
+        raise PlannerShadowBlocked(str(exc)) from exc
 
 
 def _shadow_context(*, repository: str, branch: str) -> dict[str, str]:
@@ -223,177 +175,33 @@ def run_shadow(
             return None if admission is None else admission.intelligence_tier
         return getattr(qualification, "intelligence_tier", None)
 
-    with TemporaryDirectory(prefix="dev-agent-planner-shadow-") as directory:
-        ledger = ResourceLedger(Path(directory) / "resources.sqlite3")
+    with compose_resource_pool(
+        admitted,
+        resolver=resolver,
+        model_admission_resolver=model_admission_resolver,
+        resource_id_prefix="planner-shadow",
+        provider_builder=_build_provider,
+        router_factory=ResourceRouter,
+    ) as resource_pool:
+        ledger = resource_pool.ledger
+        dispatcher = resource_pool.dispatcher
         try:
-            concrete = []
-            for binding, qualification, profile in admitted:
-                admission = (
-                    model_admission_resolver.resolve(
-                        binding.provider_id,
-                        binding.credential_binding_id,
-                        binding.model,
-                    )
-                    if model_admission_resolver is not None
-                    else None
-                )
-                if admission is None and model_admission_resolver is not None:
-                    raise PlannerShadowBlocked("planner model evidence expired after admission")
-                concrete.append(_build_provider(binding=binding))
-                resource_id = f"planner-shadow:{binding.binding_id}"
-                ledger.register_resource(
-                    resource_id,
-                    provider_id=binding.provider_id,
-                    provider_binding_id=binding.binding_id,
-                    native_unit="request",
-                    capacity=1,
-                    capabilities=sorted(
-                        set(qualification.routing_capabilities)
-                        & (set(admission.capabilities) if admission is not None else set(qualification.routing_capabilities))
-                    ),
-                    sensitivity="normal",
-                    cost_minor=profile.cost_minor,
-                    price_currency=profile.price_currency,
-                    quota_domain=binding.quota_domain,
-                    intelligence_tier=admission.intelligence_tier if admission is not None else qualification.intelligence_tier,
-                    metadata={
-                        "provider_binding_id": binding.binding_id,
-                        "qualification_binding_id": binding.credential_binding_id,
-                        "model_id": binding.model,
-                        "intelligence_tier": admission.intelligence_tier if admission is not None else qualification.intelligence_tier,
-                        "privacy_profile": "remote_cloud",
-                        "qualification_required": True,
-                        "billing_authority": "trusted_catalog",
-                        "billing_mode": profile.billing_mode,
-                        "overage_policy": profile.overage_policy,
-                        "no_charge_guaranteed": profile.no_charge_guaranteed,
-                        "billing_expires_at": profile.expires_at,
-                        "allowance_amount": profile.allowance_amount,
-                        "allowance_currency": profile.allowance_currency,
-                        "allowance_period": profile.allowance_period,
-                    },
-                )
-                ledger.observe(resource_id, available=1, health="healthy", concurrency_limit=1)
-            policy = BudgetPolicy(hard_cap_minor=0, recovery_reserve_minor=0)
-            BudgetAuthority.configure(ledger, policy)
-            control = ResourceControlPlane(
-                ResourceRouter(
-                    ledger,
-                    qualification_resolver=resolver,
-                    model_admission_resolver=model_admission_resolver,
-                ),
-                BudgetGovernor(ledger, policy),
-            )
-            dispatcher = ProviderDispatcher(ProviderRegistry(concrete), control)
-            try:
-                proposal = ModelPlanningAdapter(
-                    dispatcher,
-                    max_output_tokens=1_024,
-                    cost_ceiling=0.0,
-                    allow_unknown_quota=allow_unknown_quota,
-                ).propose(
-                    parent_task_id=parent_task_id,
-                    objective=objective,
-                    sensitivity="normal",
-                    required_intelligence_tier="L2",
-                    context_references=_shadow_context(repository=repository, branch=branch),
-                )
-            except ProviderPoolExhausted as exc:
-                return {
-                    "status": "pool_exhausted",
-                    "checked_at": datetime.now(timezone.utc).isoformat(),
-                    "eligible_pool": [
-                        {
-                            "provider": binding.provider_id,
-                            "binding": binding.binding_id,
-                            "model": binding.model,
-                            "quota_domain": binding.quota_domain,
-                            "intelligence_tier": _effective_tier(binding, qualification),
-                        }
-                        for binding, qualification, _profile in admitted
-                    ],
-                    "attempts": list(exc.attempts),
-                    "host_validation": "not_run",
-                    "allow_unknown_quota": allow_unknown_quota,
-                }
-            except ProviderError as exc:
-                # A singleton or otherwise bounded pool can surface its last
-                # confirmed failover-safe error directly for compatibility.
-                # Convert that result into the same structured pool outcome;
-                # unknown/reconciliation errors still escape unchanged.
-                if not exc.failover_safe or exc.requires_reconciliation:
-                    raise
-                attempts = [
-                    {
-                        "provider_id": entry.provider_id,
-                        "binding_id": entry.provider_binding_id or entry.provider_id,
-                        "model_id": entry.model_id,
-                        "category": entry.outcome,
-                        "failover_safe": True,
-                        "reconciliation_required": False,
-                    }
-                    for entry in dispatcher.audits
-                    if entry.outcome != "succeeded"
-                ]
-                if not attempts:
-                    raise
-                return {
-                    "status": "pool_exhausted",
-                    "checked_at": datetime.now(timezone.utc).isoformat(),
-                    "eligible_pool": [
-                        {
-                            "provider": binding.provider_id,
-                            "binding": binding.binding_id,
-                            "model": binding.model,
-                            "quota_domain": binding.quota_domain,
-                            "intelligence_tier": _effective_tier(binding, qualification),
-                        }
-                        for binding, qualification, _profile in admitted
-                    ],
-                    "attempts": attempts,
-                    "host_validation": "not_run",
-                    "allow_unknown_quota": allow_unknown_quota,
-                }
-            # Validate the model result with the existing host-only planner
-            # validator, but do not persist or apply it.
-            parent = Task(
-                task_id=parent_task_id,
+            proposal = ModelPlanningAdapter(
+                dispatcher,
+                max_output_tokens=1_024,
+                cost_ceiling=0.0,
+                allow_unknown_quota=allow_unknown_quota,
+            ).propose(
+                parent_task_id=parent_task_id,
                 objective=objective,
-                status=TaskStatus.READY,
-                task_type=TaskType.REASONING,
-                risk=RiskLevel.NORMAL,
                 sensitivity="normal",
+                required_intelligence_tier="L2",
+                context_references=_shadow_context(repository=repository, branch=branch),
             )
-            accepted = RootPlanningValidator.validate(parent, proposal)
-            quota_observations = [
-                observation
-                for binding, _qualification, _profile in admitted
-                for observation in ledger.list_quota_observations(quota_domain=binding.quota_domain)
-            ]
-            successful = [entry for entry in dispatcher.audits if entry.outcome == "succeeded"]
-            selected = successful[-1] if successful else None
-            selected_provider = selected.provider_id if selected is not None else None
-            selected_binding = selected.provider_binding_id if selected is not None else None
-            selected_model = selected.model_id if selected is not None else None
-            proposal_digest = hashlib.sha256(
-                json.dumps(proposal.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-            ).hexdigest()
+        except ProviderPoolExhausted as exc:
             return {
-                "status": "live_shadow_validated",
+                "status": "pool_exhausted",
                 "checked_at": datetime.now(timezone.utc).isoformat(),
-                "provider": selected_provider,
-                "binding": selected_binding,
-                "model": selected_model,
-                "intelligence_tier": "L2",
-                "qualification_confidence": "high",
-                "parent_task_id": parent_task_id,
-                "proposal_id": proposal.proposal_id,
-                "child_count": len(accepted),
-                "child_keys": [child.child_key for child in accepted],
-                "child_owners": [child.suggested_owner for child in accepted],
-                "quota_status": "unknown_not_reported" if not quota_observations else "observed",
-                "allow_unknown_quota": allow_unknown_quota,
-                "host_validation": "passed",
                 "eligible_pool": [
                     {
                         "provider": binding.provider_id,
@@ -404,22 +212,104 @@ def run_shadow(
                     }
                     for binding, qualification, _profile in admitted
                 ],
-                "dispatch_audits": [
-                    {
-                        "provider": entry.provider_id,
-                        "binding": entry.provider_binding_id,
-                        "model": entry.model_id,
-                        "outcome": entry.outcome,
-                    }
-                    for entry in dispatcher.audits
-                ],
-                "proposal_sha256": proposal_digest,
-                "proposal": proposal.to_dict(),
+                "attempts": list(exc.attempts),
+                "host_validation": "not_run",
+                "allow_unknown_quota": allow_unknown_quota,
             }
-        finally:
-            ledger.close()
-
-
+        except ProviderError as exc:
+            if not exc.failover_safe or exc.requires_reconciliation:
+                raise
+            attempts = [
+                {
+                    "provider_id": entry.provider_id,
+                    "binding_id": entry.provider_binding_id or entry.provider_id,
+                    "model_id": entry.model_id,
+                    "category": entry.outcome,
+                    "failover_safe": True,
+                    "reconciliation_required": False,
+                }
+                for entry in dispatcher.audits
+                if entry.outcome != "succeeded"
+            ]
+            if not attempts:
+                raise
+            return {
+                "status": "pool_exhausted",
+                "checked_at": datetime.now(timezone.utc).isoformat(),
+                "eligible_pool": [
+                    {
+                        "provider": binding.provider_id,
+                        "binding": binding.binding_id,
+                        "model": binding.model,
+                        "quota_domain": binding.quota_domain,
+                        "intelligence_tier": _effective_tier(binding, qualification),
+                    }
+                    for binding, qualification, _profile in admitted
+                ],
+                "attempts": attempts,
+                "host_validation": "not_run",
+                "allow_unknown_quota": allow_unknown_quota,
+            }
+        parent = Task(
+            task_id=parent_task_id,
+            objective=objective,
+            status=TaskStatus.READY,
+            task_type=TaskType.REASONING,
+            risk=RiskLevel.NORMAL,
+            sensitivity="normal",
+        )
+        accepted = RootPlanningValidator.validate(parent, proposal)
+        quota_observations = [
+            observation
+            for binding, _qualification, _profile in admitted
+            for observation in ledger.list_quota_observations(quota_domain=binding.quota_domain)
+        ]
+        successful = [entry for entry in dispatcher.audits if entry.outcome == "succeeded"]
+        selected = successful[-1] if successful else None
+        selected_provider = selected.provider_id if selected is not None else None
+        selected_binding = selected.provider_binding_id if selected is not None else None
+        selected_model = selected.model_id if selected is not None else None
+        proposal_digest = hashlib.sha256(
+            json.dumps(proposal.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        return {
+            "status": "live_shadow_validated",
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "provider": selected_provider,
+            "binding": selected_binding,
+            "model": selected_model,
+            "intelligence_tier": "L2",
+            "qualification_confidence": "high",
+            "parent_task_id": parent_task_id,
+            "proposal_id": proposal.proposal_id,
+            "child_count": len(accepted),
+            "child_keys": [child.child_key for child in accepted],
+            "child_owners": [child.suggested_owner for child in accepted],
+            "quota_status": "unknown_not_reported" if not quota_observations else "observed",
+            "allow_unknown_quota": allow_unknown_quota,
+            "host_validation": "passed",
+            "eligible_pool": [
+                {
+                    "provider": binding.provider_id,
+                    "binding": binding.binding_id,
+                    "model": binding.model,
+                    "quota_domain": binding.quota_domain,
+                    "intelligence_tier": _effective_tier(binding, qualification),
+                }
+                for binding, qualification, _profile in admitted
+            ],
+            "dispatch_audits": [
+                {
+                    "provider": entry.provider_id,
+                    "binding": entry.provider_binding_id,
+                    "model": entry.model_id,
+                    "outcome": entry.outcome,
+                }
+                for entry in dispatcher.audits
+            ],
+            "proposal_sha256": proposal_digest,
+            "proposal": proposal.to_dict(),
+        }
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--objective", required=True)
