@@ -76,6 +76,9 @@ def test_bridge_returns_host_validated_candidate_without_writing_devfarm(tmp_pat
     manifest_path, manifest = candidate.manifests[0]
     task = candidate.plan["tasks"][0]
     assert task["owner"] == "worker"
+    assert task["task_type"] == "worker"
+    assert task["risk"] == "normal"
+    assert task["sensitivity"] == "normal"
     assert task["manifest_path"] == manifest_path
     assert manifest["task_id"] == task["task_id"]
     assert manifest["objective"] == "implement the narrow change"

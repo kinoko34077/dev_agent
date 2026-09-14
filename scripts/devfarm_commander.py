@@ -45,6 +45,8 @@ _PLAN_STATUSES = frozenset(
     }
 )
 _OWNERS = frozenset({"codex", "worker"})
+_TASK_RISKS = frozenset({"low", "normal", "high", "critical"})
+_TASK_SENSITIVITIES = frozenset({"public", "normal", "internal", "sensitive"})
 _DEPENDENCY_COMPLETE = frozenset({"INTEGRATED"})
 _DEPENDENCY_FAILURE = frozenset({"REJECTED", "BLOCKED", "SUPERSEDED"})
 _SUPPORTED_DEPENDENCY_TYPES = frozenset({"CODE_INTEGRATED"})
@@ -366,6 +368,13 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
         status = _text(raw.get("status", "PLANNED"), "task status", max_length=32).upper()
         if status not in _PLAN_STATUSES:
             raise DevFarmError(f"unsupported task status: {status}")
+        task_type = _text(raw.get("task_type", "worker"), "task_type", max_length=64).lower()
+        risk = _text(raw.get("risk", "normal"), "risk", max_length=16).lower()
+        if risk not in _TASK_RISKS:
+            raise DevFarmError(f"unsupported task risk: {risk}")
+        sensitivity = _text(raw.get("sensitivity", "normal"), "sensitivity", max_length=16).lower()
+        if sensitivity not in _TASK_SENSITIVITIES:
+            raise DevFarmError(f"unsupported task sensitivity: {sensitivity}")
         dependencies = raw.get("dependencies", [])
         if not isinstance(dependencies, list):
             raise DevFarmError("task dependencies must be a list")
@@ -404,6 +413,9 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
             "task_id": task_id,
             "owner": owner,
             "status": status,
+            "task_type": task_type,
+            "risk": risk,
+            "sensitivity": sensitivity,
             "dependencies": normalized_dependencies,
             "dependency_types": dependency_types,
             "ownership": ownership,
@@ -798,6 +810,12 @@ def _manifest_for(root: Path, task: Mapping[str, Any]) -> tuple[Path, dict[str, 
     if not set(manifest["allowed_files"]).issubset(set(task["ownership"])):
         raise DevFarmError(f"manifest allowed_files exceed plan ownership: {task['task_id']}")
     return path, manifest
+
+
+def load_worker_manifest(root: str | Path, task: Mapping[str, Any]) -> tuple[Path, dict[str, Any]]:
+    """Load one validated Worker manifest through the Commander boundary."""
+
+    return _manifest_for(Path(root).resolve(), task)
 
 
 def _result_ref(task_id: str, attempt_id: str | None = None) -> str:
@@ -1650,6 +1668,7 @@ __all__ = [
     "create_plan",
     "dispatch_cli",
     "dispatch_plan",
+    "load_worker_manifest",
     "mark_integrated",
     "recover_orphaned_dispatches",
     "reassign_task",

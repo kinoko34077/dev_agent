@@ -17,7 +17,7 @@ from pathlib import Path
 import subprocess
 import sys
 import time
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,6 +32,7 @@ from scripts.devfarm_commander import (
     record_result,
     collect_plan,
     dispatch_plan,
+    load_worker_manifest,
     mark_integrated,
     recover_orphaned_dispatches,
     reassign_task,
@@ -50,6 +51,7 @@ from scripts.devfarm_supervisor_protocol import (
 )
 from scripts.devfarm import validate_patch
 from src.dev_agent.handoff import ExternalTextReference, HandoffEnvelope, rework_request
+from src.dev_agent.intelligence.codexless import CodexLessEvaluation, CodexLessPolicy
 
 
 def _git_process(cwd: Path, *arguments: str, input_text: str | None = None) -> subprocess.CompletedProcess[str]:
@@ -91,6 +93,29 @@ def _git_status(cwd: Path) -> str:
         ".",
         ":(exclude).devfarm",
     )
+
+
+def _read_bounded_json(root: Path, path: Path) -> Any:
+    """Read a bounded local JSON input without allowing repository escape."""
+
+    root = root.resolve()
+    candidate = path.resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError as exc:
+        raise DevFarmError("JSON input path escapes repository") from exc
+    if not candidate.is_file():
+        raise DevFarmError(f"JSON input does not exist: {path}")
+    try:
+        text = candidate.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise DevFarmError("JSON input cannot be read") from exc
+    if len(text) > 250_000:
+        raise DevFarmError("JSON input exceeds the bounded size")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise DevFarmError("JSON input is invalid") from exc
 
 
 def _remaining_supervisor_deadline(metadata: Mapping[str, Any]) -> float | None:
@@ -288,6 +313,41 @@ class CodexSupervisedCommanderRun:
                 ],
                 "created_at": task.get("updated_at"),
             }
+        )
+
+    def review_packet(self, task_id: str, *, attempt_id: str | None = None) -> dict[str, Any]:
+        """Return one current compact packet through the Supervisor boundary."""
+
+        task = next((item for item in self.plan()["tasks"] if item["task_id"] == task_id), None)
+        if task is None:
+            raise DevFarmError(f"Commander task does not exist: {task_id}")
+        current_attempt = task.get("last_attempt_id")
+        if attempt_id is not None and attempt_id != current_attempt:
+            raise DevFarmError("review packet attempt does not match the current worker attempt")
+        return self._review_packet(task)
+
+    def evaluate_codexless_candidate(
+        self,
+        task_id: str,
+        *,
+        proposal: Any,
+        shadow_evidence: Sequence[Mapping[str, Any]],
+        packet: Mapping[str, Any] | None = None,
+    ) -> CodexLessEvaluation:
+        """Evaluate a routine D7 candidate without granting integration authority."""
+
+        plan = self.plan()
+        task = next((item for item in plan["tasks"] if item["task_id"] == task_id), None)
+        if task is None:
+            raise DevFarmError(f"Commander task does not exist: {task_id}")
+        _, manifest = load_worker_manifest(self.root, task)
+        current_packet = dict(packet) if packet is not None else self.review_packet(task_id)
+        return CodexLessPolicy().evaluate(
+            task=task,
+            manifest=manifest,
+            packet=current_packet,
+            proposal=proposal,
+            shadow_evidence=shadow_evidence,
         )
 
     def record_review_decision(
@@ -913,7 +973,7 @@ def _latest_rework_decision(plan: Mapping[str, Any], task_id: str, attempt_id: s
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="bounded Codex supervisor view over a Commander plan")
     sub = parser.add_subparsers(dest="command", required=True)
-    for command in ("status", "resume", "run", "review", "rework", "integrate"):
+    for command in ("status", "resume", "run", "review", "rework", "integrate", "codexless"):
         item = sub.add_parser(command)
         item.add_argument("run_id")
         item.add_argument("--root", type=Path, default=Path.cwd())
@@ -955,6 +1015,10 @@ def main(argv: list[str] | None = None) -> int:
     integrate.add_argument("--target-checkout", type=Path, required=True)
     integrate.add_argument("--target-ref", required=True)
     integrate.add_argument("--commit-message", required=True)
+    codexless = sub.choices["codexless"]
+    codexless.add_argument("task_id")
+    codexless.add_argument("--proposal-file", type=Path, required=True)
+    codexless.add_argument("--shadow-evidence-file", type=Path, action="append", required=True)
     args = parser.parse_args(argv)
     runner = CodexSupervisedCommanderRun(args.root, args.run_id)
     if args.command == "status":
@@ -1023,6 +1087,19 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(json.dumps(step.to_dict(), ensure_ascii=False, indent=2))
         return 0
+    if args.command == "codexless":
+        proposal = _read_bounded_json(args.root, args.proposal_file)
+        shadow_evidence = [
+            _read_bounded_json(args.root, path)
+            for path in args.shadow_evidence_file
+        ]
+        result = runner.evaluate_codexless_candidate(
+            args.task_id,
+            proposal=proposal,
+            shadow_evidence=shadow_evidence,
+        )
+        print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
+        return 0 if result.eligible else 2
     providers = providers_for_resume(args.root, args.run_id, args.timeout_seconds)
     step = runner.advance(
         providers=providers,
@@ -1043,6 +1120,7 @@ def main(argv: list[str] | None = None) -> int:
 
 __all__ = [
     "CodexSupervisedCommanderRun",
+    "CodexLessEvaluation",
     "SupervisorStep",
     "cli_artifact_reference",
     "latest_rework_decision",

@@ -112,6 +112,9 @@ class DevelopmentPlanningBridge:
             task: dict[str, Any] = {
                 "task_id": task_id,
                 "owner": owner,
+                "task_type": child.task_type.value,
+                "risk": child.risk.value,
+                "sensitivity": child.sensitivity or parent.sensitivity,
                 "dependencies": dependencies,
                 "dependency_types": {
                     task_ids[dependency]: child.dependency_types[dependency].value

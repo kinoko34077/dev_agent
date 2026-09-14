@@ -58,6 +58,10 @@ _LAZY_EXPORTS = {
     "CapabilityClassificationError": (".capabilities", "CapabilityClassificationError"),
     "classify_task_capabilities": (".capabilities", "classify_task_capabilities"),
     "execution_capabilities": (".capabilities", "execution_capabilities"),
+    "CodexLessEvaluation": (".codexless", "CodexLessEvaluation"),
+    "CodexLessPolicy": (".codexless", "CodexLessPolicy"),
+    "ShadowEvidenceGateResult": (".codexless", "ShadowEvidenceGateResult"),
+    "evaluate_shadow_evidence": (".codexless", "evaluate_shadow_evidence"),
 }
 
 
