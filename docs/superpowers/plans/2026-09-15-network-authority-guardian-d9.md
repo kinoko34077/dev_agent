@@ -162,8 +162,8 @@
 - OS Service/Task Scheduler owns Guardian liveness only; Guardian owns process execution; Commander remains Task authority.
 - Rolling restart uses pinned releases, drain/checkpoint, new-generation health before old stop, and RollbackProof.
 
-- [ ] Add a static launch-profile operator entrypoint for `guardian run`/health that does not accept arbitrary commands.
-- [ ] Add tests for startup configuration, generation fencing, health failure retaining the old generation, duplicate restart, stale request, mailbox replay, and rollback idempotency.
+- [x] Add a static launch-profile operator entrypoint for `guardian run`/health that does not accept arbitrary commands.
+- [x] Add tests for startup configuration, generation fencing, health failure retaining the old generation, duplicate restart, stale request, mailbox replay, and rollback idempotency.
 - [ ] Perform a real OS run only when the environment and explicit operator boundary permit it; otherwise leave status NOT VERIFIED with a concrete blocker.
 - [ ] Do not mark G7/G8 verified from local fakes or foreground-only tests.
 
