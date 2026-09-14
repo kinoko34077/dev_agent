@@ -34,6 +34,7 @@ from src.dev_agent.intelligence.reviewer_adapter import (  # noqa: E402
 from src.dev_agent.providers.base import ProviderError  # noqa: E402
 from src.dev_agent.providers.dispatch import ProviderPoolExhausted  # noqa: E402
 from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog  # noqa: E402
+from src.dev_agent.resources.control import DispatchDenied  # noqa: E402
 from src.dev_agent.resources.qualification import QualificationResolver  # noqa: E402
 
 
