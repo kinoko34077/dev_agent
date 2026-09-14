@@ -74,6 +74,13 @@ _LAZY_EXPORTS = {
     "RepairExecutionPolicy": (".self_repair", "RepairExecutionPolicy"),
     "RepairExecutionRequest": (".self_repair", "RepairExecutionRequest"),
     "RepairPolicy": (".self_repair", "RepairPolicy"),
+    "BoundedRefinementPolicy": (".refinement", "BoundedRefinementPolicy"),
+    "CriticFinding": (".refinement", "CriticFinding"),
+    "FailureClass": (".refinement", "FailureClass"),
+    "RefinementAction": (".refinement", "RefinementAction"),
+    "RefinementContext": (".refinement", "RefinementContext"),
+    "RefinementPlan": (".refinement", "RefinementPlan"),
+    "RefinementProposal": (".refinement", "RefinementProposal"),
 }
 
 

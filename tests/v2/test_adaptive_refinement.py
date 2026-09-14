@@ -7,6 +7,7 @@ from src.dev_agent.intelligence.refinement import (
     FailureClass,
     RefinementAction,
     RefinementContext,
+    RefinementPlan,
     RefinementProposal,
 )
 
@@ -189,6 +190,23 @@ def test_critic_proposal_is_bounded_and_has_no_integration_authority():
     with pytest.raises(ValueError, match="secret"):
         CriticFinding(
             location="src/example.py:1",
-            problem="api_key is present",
+            problem="api_key=AIzaSyA123456789",
             required_correction="remove it",
         )
+
+
+def test_refinement_plan_is_identity_bound_and_round_trippable():
+    plan = BoundedRefinementPolicy().plan(_context())
+    restored = RefinementPlan.from_dict(plan.to_dict())
+
+    assert restored == plan
+    assert restored.task_id == "task-refine-1"
+    assert restored.attempt == 1
+    assert restored.failure_class is FailureClass.FORMAT_PATCH
+
+
+def test_context_rejects_unordered_efforts_and_excess_rounds():
+    with pytest.raises(ValueError, match="ordered"):
+        _context(allowed_reasoning_efforts=("medium", "low"))
+    with pytest.raises(ValueError, match="refinement_round"):
+        _context(refinement_round=3, max_refinement_rounds=2)
