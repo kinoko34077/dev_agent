@@ -1,0 +1,58 @@
+{
+  "kind": "coordination-work-egress-foundation",
+  "status": "VERIFIED_LOCAL",
+  "implementation_commit": "6c87525176636d7fa874741c26250a44e57e9cac",
+  "capabilities": {
+    "work_address": "implemented",
+    "resume_capsule": "implemented",
+    "interrupt_stack": "implemented",
+    "host_egress_manifest": "implemented",
+    "control_request_persistence": "implemented",
+    "guardian_policy_evaluation": "read_only_preparation"
+  },
+  "authority_preserved": [
+    "task_uuid_dependency_ownership",
+    "existing_scheduler",
+    "host_verification",
+    "provider_dispatch",
+    "approval_privacy_budget_recovery",
+    "unknown_reconciliation"
+  ],
+  "verification": {
+    "focused": {
+      "command": "python -m pytest tests/v2/test_process_coordination_protocol.py tests/v2/test_process_coordination_work.py tests/v2/test_process_coordination_service.py tests/v2/test_process_coordination_guardian.py tests/v2/test_egress_policy.py tests/v2/test_devfarm_manifest.py tests/v2/test_devfarm_commander.py -q",
+      "result": "89 passed"
+    },
+    "full_v2": {
+      "command": "python -m pytest tests/v2 -q",
+      "result": "1113 passed, 1 skipped",
+      "skip_reason": "Windows ACLs are deployment-owned"
+    },
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS"
+  },
+  "worker_delegation": {
+    "task_scope": "src/dev_agent/coordination/work.py",
+    "attempts": 2,
+    "integrated": false,
+    "codex_takeover_reason": "repeated_worker_failure_at_patch_and_host_validation_boundary",
+    "counts_as_worker_productive_implementation": false
+  },
+  "unimplemented": [
+    "Guardian process launch/stop/restart",
+    "OS service integration",
+    "graceful drain and checkpoint transaction",
+    "revision-pinned runtime and rolling restart",
+    "rollback execution and fault drill",
+    "D9 real self-repair mutation"
+  ],
+  "external_evidence": {
+    "remote_push": "pending",
+    "exact_head_ci": "not_claimed_for_this_checkpoint"
+  },
+  "retention": {
+    "secrets": "none",
+    "raw_provider_response": "none",
+    "raw_worker_conversation": "none"
+  }
+}

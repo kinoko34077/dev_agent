@@ -27,8 +27,10 @@ artifactを正本として利用する。
 7. **D9 real controlled repair** — 1〜6が実証された後だけ、Human approval付きの
    bounded・non-protected・rollback可能なruntime更新を一件検証する。
 
-現在は2の一部と5のfoundationが実装済みで、3と4をこの文書に従って進める。
-6と7は未実装・未検証であり、D9 proposal-only境界を越えない。
+現在は3と4、および5のdurable foundationが実装済みである。ControlRequestと
+generation-fenced Guardian policyは6のread-only準備までで、process操作は持たない。
+full Guardian、drain、restart、revision-pinned runtime、rollbackは未実装・未検証であり、
+7のD9 real controlled repairはproposal-only境界を越えない。
 
 ## 2. Work Address
 
@@ -131,4 +133,3 @@ conditionを上書きしない。
 この契約だけではGuardian、OS Service、常駐daemon、正式なCodex external session
 discovery、MCP wire transport、Compression Service、paid Provider、G6O1実用側、
 D9 real self-repair、automatic push/mergeを実装済みとは扱わない。
-

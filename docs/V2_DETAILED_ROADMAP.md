@@ -80,7 +80,14 @@
 - 依存: D8、既存Host Verification・approval・Gate。
 - 完了条件: bounded candidate、deterministic validation、Human/authority boundary、rollback/evidence。
 - 現在: `RepairEvidence` と `RepairPolicy` により、F2 `PROPOSAL_ONLY` plan、独立Host Verification、既知の外部結果、attempt単位のtrust/approval、安全な変更範囲、rollback referenceを決定的に検査し、proposal-only `CANDIDATE`を返す。`RepairExecutionRequest` / `RepairExecutionPolicy` と `scripts/devfarm_self_repair.py` の薄いadapterは候補・attempt・ReviewDecision・対象・approval引数を再照合し、既存ApprovalPolicyとSupervisor Host helperへ接続する。公開された `build_repair_candidate()` を通じ、実D7 Free WorkerのHost-verified artifactを一件、proposal-only candidateへmaterializeした。Fake Workerを使う一時Git repositoryでは、approval再照合・既存ApprovalPolicyの一回消費・Host integration commitまでの決定的compositionも検証済み。Evidenceは[`d9-repair-candidate-policy-20260914.json`](../spec/v2/evidence/d9-repair-candidate-policy-20260914.json)、[`d9-repair-approval-preflight-20260914.json`](../spec/v2/evidence/d9-repair-approval-preflight-20260914.json)、[`d9-repair-host-integration-20260914.json`](../spec/v2/evidence/d9-repair-host-integration-20260914.json)、[`d9-repair-live-worker-candidate-20260914.json`](../spec/v2/evidence/d9-repair-live-worker-candidate-20260914.json)。production approval store、real repair execution、rollback drill、official branch integrationは未実施。
-- 次: 実修復へ進む場合も、既存DevFarmの新immutable attempt、Host Verification、明示Human approval、Git-backed integration/rollbackを一つずつ接続する。adapterの存在だけで実行・Gate昇格を行わず、approval消費後の結果は既存Recovery境界で扱う。
+- 次: 実修復へ進む場合も、先にD10A–D10FのProcess Coordination/Guardian前提を満たす。既存DevFarmの新immutable attempt、Host Verification、明示Human approval、Git-backed integration/rollbackを一つずつ接続する。adapterの存在だけで実行・Gate昇格を行わず、approval消費後の結果は既存Recovery境界で扱う。
+
+### D10A/B — Process Coordination foundation
+
+- 目的: D9 real mutationや常駐運用へ進む前に、Task Planeとは別のProcess Coordination Planeへ、作業位置・復帰点・外部送信manifest・generation-fenced requestを記録できるようにする。
+- 実装済み: `WorkAddress`、`ResumeCapsule`、bounded LIFO `InterruptStack`、NOTE/PARALLEL/INTERRUPT/CANCEL分類、Host `EgressManifest`、durable `ControlRequest`、およびprocess side effectを持たない`GuardianPolicy`評価。
+- 検証: Work Address/Resume/egress/ControlRequest/Guardianのfocused testと全`tests/v2`回帰、Architecture、compileallを通過。詳細は[`coordination-work-egress-foundation-20260914.json`](../spec/v2/evidence/coordination-work-egress-foundation-20260914.json)。
+- 未実装: Guardianのprocess起動/停止/再起動、OS service、graceful drain、checkpoint transaction、revision-pinned runtime、rolling restart、rollback、fault drill。これらを実装するまでD9 real mutationを解放しない。
 
 ### Main Phase 8 / Main Phase 9
 
