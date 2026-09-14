@@ -190,6 +190,9 @@ def test_worker_prompt_makes_patch_and_test_claim_boundaries_explicit(tmp_path):
     assert "Return one final newline after the patch" in prompt
     assert "Do not use Markdown fences, `*** Begin Patch`, prose" in prompt
     assert "`tests_run` is only a proposed command list" in prompt
+    assert "For Python edits, every changed expression and call must remain syntactically complete" in prompt
+    assert "Balance every (), [], and {} delimiter in the proposed patch" in prompt
+    assert "Do not emit partial expressions, placeholders, or invented tokens" in prompt
 
 
 def test_worker_proposal_does_not_require_a_worktree_but_binds_clean_inputs(tmp_path):
