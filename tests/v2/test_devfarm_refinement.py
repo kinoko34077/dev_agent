@@ -179,6 +179,32 @@ def test_propose_critic_composes_public_packet_with_host_selected_l1_provider():
     assert provider.requests[0].metadata["allowed_intelligence_tiers"] == ["L1"]
 
 
+def test_propose_critic_can_move_concrete_critic_call_to_host_executor():
+    runner = _Runner(_review_packet())
+    provider = _Provider(_response())
+    provider.provider_id = "fake"
+    calls: list[tuple[object, str]] = []
+
+    def host_execute(selected: object, request: ModelRequest) -> ModelResponse:
+        calls.append((selected, request.request_id))
+        return _response()
+
+    proposal = propose_critic(
+        runner,
+        provider,
+        "production-task-1",
+        failure_class="semantic_test",
+        failure_summary="Host verification rejected the expected behavior.",
+        execution_boundary="host_process",
+        host_executor=host_execute,
+    )
+
+    assert isinstance(proposal, RefinementProposal)
+    assert len(calls) == 1
+    assert calls[0][0] is provider
+    assert provider.requests == []
+
+
 def test_build_refinement_packet_rejects_runner_identity_mismatch_before_provider_use():
     runner = _Runner({**_review_packet(), "task_id": "another-task"})
 

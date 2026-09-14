@@ -25,6 +25,7 @@ from scripts.devfarm_resource_pool import (  # noqa: E402 - explicit script boun
     compose_resource_pool,
     make_binding,
 )
+from scripts.devfarm_host_dispatch import create_host_process_executor  # noqa: E402
 from scripts.devfarm_supervisor import CodexSupervisedCommanderRun  # noqa: E402
 from src.dev_agent.intelligence.reviewer_adapter import (  # noqa: E402
     ModelReviewAdapter,
@@ -33,6 +34,7 @@ from src.dev_agent.intelligence.reviewer_adapter import (  # noqa: E402
 )
 from src.dev_agent.providers.base import ProviderError  # noqa: E402
 from src.dev_agent.providers.dispatch import ProviderPoolExhausted  # noqa: E402
+from src.dev_agent.providers.host_dispatch import route_through_host  # noqa: E402
 from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog  # noqa: E402
 from src.dev_agent.resources.control import DispatchDenied  # noqa: E402
 from src.dev_agent.resources.qualification import QualificationResolver  # noqa: E402
@@ -50,6 +52,7 @@ def run_shadow(
     quota_domain: str,
     timeout_seconds: float,
     allow_unknown_quota: bool,
+    execution_boundary: str = "in_process",
 ) -> dict[str, object]:
     runner = CodexSupervisedCommanderRun(root, run_id)
     plan = runner.plan()
@@ -97,6 +100,8 @@ def run_shadow(
     )
     if not admitted:
         raise ReviewAdapterError("exact current high-confidence L2 reviewer resource is not admitted")
+    if execution_boundary not in {"in_process", "host_process"}:
+        raise ReviewAdapterError("execution_boundary must be in_process or host_process")
 
     with compose_resource_pool(
         admitted,
@@ -105,8 +110,17 @@ def run_shadow(
         resource_id_prefix="reviewer-shadow",
     ) as resource_pool:
         dispatcher = resource_pool.dispatcher
+        reviewer_provider = dispatcher
+        if execution_boundary == "host_process":
+            reviewer_provider = route_through_host(
+                dispatcher,
+                create_host_process_executor(
+                    Path(root).resolve() / ".devfarm" / "host-dispatch",
+                    timeout_seconds=timeout_seconds,
+                ),
+            )
         proposal = ModelReviewAdapter(
-            dispatcher,
+            reviewer_provider,
             allow_unknown_quota=allow_unknown_quota,
         ).propose(packet)
         comparison = compare_review_proposal(proposal, codex_decision["decision"], packet)
@@ -164,6 +178,7 @@ def run_proposal_only(
     quota_domain: str,
     timeout_seconds: float,
     allow_unknown_quota: bool,
+    execution_boundary: str = "in_process",
 ) -> dict[str, object]:
     """Request one Free L2 proposal without requiring a Codex decision.
 
@@ -198,6 +213,8 @@ def run_proposal_only(
     )
     if not admitted:
         raise ReviewAdapterError("exact current high-confidence L2 reviewer resource is not admitted")
+    if execution_boundary not in {"in_process", "host_process"}:
+        raise ReviewAdapterError("execution_boundary must be in_process or host_process")
 
     with compose_resource_pool(
         admitted,
@@ -206,8 +223,17 @@ def run_proposal_only(
         resource_id_prefix="reviewer-shadow",
     ) as resource_pool:
         dispatcher = resource_pool.dispatcher
+        reviewer_provider = dispatcher
+        if execution_boundary == "host_process":
+            reviewer_provider = route_through_host(
+                dispatcher,
+                create_host_process_executor(
+                    Path(root).resolve() / ".devfarm" / "host-dispatch",
+                    timeout_seconds=timeout_seconds,
+                ),
+            )
         proposal = ModelReviewAdapter(
-            dispatcher,
+            reviewer_provider,
             allow_unknown_quota=allow_unknown_quota,
         ).propose(packet)
         selected = next((entry for entry in reversed(dispatcher.audits) if entry.outcome == "succeeded"), None)
@@ -266,6 +292,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--timeout-seconds", type=float, default=45.0)
     parser.add_argument("--allow-unknown-quota", action="store_true")
     parser.add_argument(
+        "--execution-boundary",
+        choices=("host_process", "in_process"),
+        default="host_process",
+        help="where the selected concrete Provider call runs; live operation defaults to the Host process",
+    )
+    parser.add_argument(
         "--proposal-only",
         action="store_true",
         help="emit a D7 Free L2 proposal without requiring a durable Codex decision",
@@ -284,6 +316,7 @@ def main(argv: list[str] | None = None) -> int:
             quota_domain=args.quota_domain,
             timeout_seconds=args.timeout_seconds,
             allow_unknown_quota=args.allow_unknown_quota,
+            execution_boundary=args.execution_boundary,
         )
         code = 0
     except (ReviewAdapterError, DispatchDenied, ProviderPoolExhausted, ProviderError) as exc:

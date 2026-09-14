@@ -25,7 +25,11 @@ from scripts.devfarm_resource_pool import admit_resource_pool, compose_resource_
 from src.dev_agent.domain.protocol import ModelResponse
 from src.dev_agent.operation import OperationProviderBinding, configured_provider_pool_from_environment
 from src.dev_agent.providers.base import ModelProvider, ProviderError
-from src.dev_agent.providers.host_dispatch import HostDispatchEnvelope, HostProviderDispatch
+from src.dev_agent.providers.host_dispatch import (
+    HostDispatchEnvelope,
+    HostProcessExecutor,
+    HostProviderDispatch,
+)
 from src.dev_agent.resources.qualification import QualificationResolver
 
 
@@ -35,6 +39,25 @@ MAX_RESPONSE_BYTES = 512 * 1024
 
 class HostDispatchRuntimeError(ValueError):
     """The Host one-shot dispatch request cannot be safely processed."""
+
+
+def create_host_process_executor(
+    request_dir: str | Path,
+    *,
+    timeout_seconds: float = 120.0,
+) -> HostProcessExecutor:
+    """Build the repository's static one-shot Host runtime command.
+
+    Planner, Reviewer, Critic, and Worker callers share this exact command
+    composition.  It is intentionally derived from this checked-in adapter,
+    not from a caller-provided URL or arbitrary shell string.
+    """
+
+    return HostProcessExecutor(
+        (sys.executable, str(Path(__file__).resolve())),
+        request_dir=request_dir,
+        timeout_seconds=timeout_seconds,
+    )
 
 
 def _read_envelope(path: str | Path) -> HostDispatchEnvelope:
@@ -169,4 +192,9 @@ if __name__ == "__main__":
     raise SystemExit(main())
 
 
-__all__ = ["HostDispatchRuntimeError", "main", "process_once"]
+__all__ = [
+    "HostDispatchRuntimeError",
+    "create_host_process_executor",
+    "main",
+    "process_once",
+]

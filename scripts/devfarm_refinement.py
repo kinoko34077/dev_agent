@@ -13,6 +13,7 @@ from dataclasses import dataclass, replace
 from typing import Any, Protocol
 
 from src.dev_agent.intelligence.critic_adapter import ModelCriticAdapter
+from src.dev_agent.providers.host_dispatch import route_through_host
 from src.dev_agent.intelligence.refinement import (
     BoundedRefinementPolicy,
     RefinementAction,
@@ -261,6 +262,8 @@ def propose_critic(
     failure_class: FailureClass | str,
     failure_summary: str,
     max_output_tokens: int = 512,
+    execution_boundary: str = "in_process",
+    host_executor: Any | None = None,
 ) -> RefinementProposal:
     """Request one proposal-only L1 Critic result from a Host-selected provider."""
 
@@ -270,7 +273,14 @@ def propose_critic(
         failure_class=failure_class,
         failure_summary=failure_summary,
     )
-    return ModelCriticAdapter(provider, max_output_tokens=max_output_tokens).propose(packet)
+    if execution_boundary not in {"in_process", "host_process"}:
+        raise RefinementCompositionError("execution_boundary must be in_process or host_process")
+    critic_provider = provider
+    if execution_boundary == "host_process":
+        if not callable(host_executor):
+            raise RefinementCompositionError("host_process critic requires host_executor")
+        critic_provider = route_through_host(provider, host_executor)
+    return ModelCriticAdapter(critic_provider, max_output_tokens=max_output_tokens).propose(packet)
 
 
 def _assignment_values(

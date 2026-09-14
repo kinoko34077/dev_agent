@@ -34,6 +34,7 @@ from src.dev_agent.intelligence.planner_adapter import ModelPlanningAdapter
 from src.dev_agent.operation import OperationProviderBinding, configured_provider_pool_from_environment
 from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.dispatch import ProviderPoolExhausted
+from src.dev_agent.providers.host_dispatch import route_through_host
 from src.dev_agent.resources.billing_catalog import profile_for
 from src.dev_agent.resources.control import DispatchDenied
 from src.dev_agent.resources.model_admission import ModelAdmissionResolver
@@ -47,6 +48,7 @@ from scripts.devfarm_resource_pool import (
     compose_resource_pool,
     make_binding,
 )
+from scripts.devfarm_host_dispatch import create_host_process_executor
 
 
 class PlannerShadowBlocked(RuntimeError):
@@ -188,6 +190,7 @@ def run_shadow(
     model_admission_resolver: ModelAdmissionResolver | None = None,
     model_catalog=None,
     expand_discovered_models: bool = False,
+    execution_boundary: str = "in_process",
 ) -> dict[str, object]:
     parent_task_id = validate_parent_task_id(parent_task_id)
     resolver = QualificationResolver()
@@ -210,6 +213,8 @@ def run_shadow(
     )
     if not admitted:
         raise PlannerShadowBlocked("no exact current high-confidence L2 planner resource is admitted")
+    if execution_boundary not in {"in_process", "host_process"}:
+        raise PlannerShadowInputError("execution_boundary must be in_process or host_process")
 
     def _effective_tier(binding: OperationProviderBinding, qualification: object) -> str | None:
         if model_admission_resolver is not None:
@@ -227,9 +232,18 @@ def run_shadow(
     ) as resource_pool:
         ledger = resource_pool.ledger
         dispatcher = resource_pool.dispatcher
+        planner_provider = dispatcher
+        if execution_boundary == "host_process":
+            planner_provider = route_through_host(
+                dispatcher,
+                create_host_process_executor(
+                    ROOT / ".devfarm" / "host-dispatch",
+                    timeout_seconds=timeout_seconds,
+                ),
+            )
         try:
             proposal = ModelPlanningAdapter(
-                dispatcher,
+                planner_provider,
                 max_output_tokens=1_024,
                 cost_ceiling=0.0,
                 allow_unknown_quota=allow_unknown_quota,
@@ -386,6 +400,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="explicitly materialize current ordinary text models from each credential binding",
     )
+    parser.add_argument(
+        "--execution-boundary",
+        choices=("host_process", "in_process"),
+        default="host_process",
+        help="where the selected concrete Provider call runs; live operation defaults to the Host process",
+    )
     args = parser.parse_args(argv)
     try:
         # Normal live invocation always uses the reviewed static evidence
@@ -413,6 +433,7 @@ def main(argv: list[str] | None = None) -> int:
             model_admission_resolver=model_admission_resolver,
             model_catalog=model_evidence.catalog,
             expand_discovered_models=args.expand_discovered_models,
+            execution_boundary=args.execution_boundary,
         )
         code = 0 if output.get("status") == "live_shadow_validated" else 2
     except PlannerShadowInputError as exc:

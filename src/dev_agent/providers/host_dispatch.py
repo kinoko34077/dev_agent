@@ -191,6 +191,68 @@ class HostProviderDispatch:
         )
 
 
+class HostRoutedDispatcher:
+    """Keep canonical routing in-process while moving the concrete call out.
+
+    ``ProviderDispatcher`` remains responsible for selection, reservation,
+    durable intent, failover, and reconciliation.  This adapter only supplies
+    its binding-scoped execution callback, so Planner/Reviewer/Critic callers
+    can use the same Host process boundary as Workers without introducing a
+    second router or retry loop.
+    """
+
+    provider_id = "resource-router"
+    handles_resource_policy = True
+
+    def __init__(
+        self,
+        dispatcher: object,
+        executor: Callable[[ModelProvider, ModelRequest], ModelResponse],
+    ) -> None:
+        if not callable(getattr(dispatcher, "request_with_execution", None)):
+            raise TypeError("dispatcher must expose request_with_execution")
+        if not callable(executor):
+            raise TypeError("executor must be callable")
+        self._dispatcher = dispatcher
+        self._executor = executor
+
+    @property
+    def audits(self):
+        """Expose the canonical dispatch audit view without copying policy."""
+
+        return getattr(self._dispatcher, "audits", ())
+
+    def request(
+        self,
+        request_or_task_id: ModelRequest | str,
+        explicit_request: ModelRequest | None = None,
+    ) -> ModelResponse:
+        """Forward one request through Dispatcher-owned selection and accounting."""
+
+        if explicit_request is None:
+            if not isinstance(request_or_task_id, ModelRequest):
+                raise TypeError("request must be a ModelRequest")
+            request = request_or_task_id
+        else:
+            if not isinstance(request_or_task_id, str):
+                raise TypeError("explicit task_id must be a string")
+            if request_or_task_id != explicit_request.task_id:
+                raise ValueError("explicit task_id does not match request.task_id")
+            request = explicit_request
+        return self._dispatcher.request_with_execution(request, execute=self._execute)
+
+    def _execute(
+        self,
+        provider: ModelProvider,
+        request: ModelRequest,
+        _late_completion: Callable[[ModelResponse | BaseException], None],
+    ) -> ModelResponse:
+        # HostProcessExecutor uses a bounded subprocess and therefore has no
+        # unkillable late completion to reconcile.  The third callback is
+        # accepted because ProviderDispatcher supplies it for every lane.
+        return self._executor(provider, request)
+
+
 class HostProcessExecutor:
     """Invoke a static Host runtime command once, without shell expansion."""
 
@@ -273,4 +335,29 @@ class HostProcessExecutor:
                     pass
 
 
-__all__ = ["HostDispatchEnvelope", "HostProcessExecutor", "HostProviderDispatch"]
+def route_through_host(
+    provider: ModelProvider,
+    executor: Callable[[ModelProvider, ModelRequest], ModelResponse],
+) -> HostProviderDispatch | HostRoutedDispatcher:
+    """Return the smallest Host boundary for a concrete or routed provider.
+
+    A canonical ``ProviderDispatcher`` keeps ownership of selection,
+    reservation, failover, and reconciliation through its
+    ``request_with_execution`` hook.  A concrete provider only needs the
+    binding-scoped ``HostProviderDispatch`` wrapper.  Keeping this choice in
+    one public helper prevents Planner, Reviewer, Critic, and Worker callers
+    from growing subtly different outbound compositions.
+    """
+
+    if callable(getattr(provider, "request_with_execution", None)):
+        return HostRoutedDispatcher(provider, executor)
+    return HostProviderDispatch(provider, execution_boundary="host_process", executor=executor)
+
+
+__all__ = [
+    "HostDispatchEnvelope",
+    "HostProcessExecutor",
+    "HostProviderDispatch",
+    "HostRoutedDispatcher",
+    "route_through_host",
+]

@@ -5,7 +5,12 @@ import sys
 
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.providers.base import ProviderError, TransportFailureCategory
-from src.dev_agent.providers.host_dispatch import HostDispatchEnvelope, HostProcessExecutor, HostProviderDispatch
+from src.dev_agent.providers.host_dispatch import (
+    HostDispatchEnvelope,
+    HostProcessExecutor,
+    HostProviderDispatch,
+    HostRoutedDispatcher,
+)
 
 
 class _Provider:
@@ -25,6 +30,18 @@ class _Provider:
             raise self.error
         assert self.response is not None
         return self.response
+
+
+class _RoutedDispatcher:
+    provider_id = "resource-router"
+
+    def __init__(self, provider: _Provider) -> None:
+        self.provider = provider
+        self.calls = 0
+
+    def request_with_execution(self, request, *, execute):
+        self.calls += 1
+        return execute(self.provider, request, lambda _outcome: None)
 
 
 def _request() -> ModelRequest:
@@ -122,3 +139,29 @@ def test_host_process_executor_treats_missing_response_as_unknown_without_retry(
     assert caught.value.category == "reconciliation_required"
     assert provider.calls == 0
     assert list(tmp_path.iterdir()) == []
+
+
+def test_host_routed_dispatcher_keeps_selection_with_dispatcher_and_moves_call_to_host_executor():
+    provider = _Provider(ModelResponse(provider="fake", model="fake-model", text_segments=["selected"]))
+    dispatcher = _RoutedDispatcher(provider)
+    calls = []
+    request = _request()
+
+    def host_execute(selected, selected_request):
+        calls.append((selected, selected_request.request_id))
+        return ModelResponse(provider="fake", model="fake-model", text_segments=["host"])
+
+    routed = HostRoutedDispatcher(dispatcher, host_execute)
+    response = routed.request(request)
+
+    assert response.text_segments == ["host"]
+    assert dispatcher.calls == 1
+    assert calls == [(provider, request.request_id)]
+    assert provider.calls == 0
+
+
+def test_host_routed_dispatcher_rejects_dispatcher_without_execution_boundary():
+    provider = _Provider(ModelResponse(provider="fake", model="fake-model", text_segments=["ok"]))
+
+    with pytest.raises(TypeError, match="request_with_execution"):
+        HostRoutedDispatcher(provider, lambda _selected, _request: None)

@@ -39,6 +39,8 @@ _LAZY_EXPORTS = {
     "HostProviderDispatch": (".host_dispatch", "HostProviderDispatch"),
     "HostDispatchEnvelope": (".host_dispatch", "HostDispatchEnvelope"),
     "HostProcessExecutor": (".host_dispatch", "HostProcessExecutor"),
+    "HostRoutedDispatcher": (".host_dispatch", "HostRoutedDispatcher"),
+    "route_through_host": (".host_dispatch", "route_through_host"),
 }
 
 
@@ -82,6 +84,8 @@ __all__ = [
     "HostProviderDispatch",
     "HostDispatchEnvelope",
     "HostProcessExecutor",
+    "HostRoutedDispatcher",
+    "route_through_host",
     "TransportFailureCategory",
     "classify_transport_failure",
     "SambaNovaHttpProvider",
