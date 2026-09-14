@@ -160,6 +160,7 @@ def _execution_request(candidate: RepairCandidate) -> RepairExecutionRequest:
         patch_sha256=candidate.evidence.patch_sha256,
         manifest_ref=candidate.evidence.manifest_ref,
         verification_ref=candidate.evidence.verification_ref,
+        rollback_ref=candidate.evidence.rollback_ref or "",
         review_decision_id="review-repair-1",
         target_checkout_ref=str(Path("workspace").resolve()),
         target_ref="HEAD",

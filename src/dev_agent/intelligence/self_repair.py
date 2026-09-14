@@ -270,6 +270,7 @@ class RepairExecutionRequest:
     patch_sha256: str
     manifest_ref: str
     verification_ref: str
+    rollback_ref: str
     review_decision_id: str
     target_checkout_ref: str
     target_ref: str
@@ -285,6 +286,7 @@ class RepairExecutionRequest:
             ("attempt_id", 128),
             ("base_revision", 128),
             ("patch_sha256", 64),
+            ("rollback_ref", 512),
             ("review_decision_id", 128),
             ("target_checkout_ref", 512),
             ("target_ref", 256),
@@ -297,6 +299,7 @@ class RepairExecutionRequest:
         object.__setattr__(self, "patch_sha256", self.patch_sha256.lower())
         object.__setattr__(self, "manifest_ref", _safe_artifact_ref(self.manifest_ref, "manifest_ref"))
         object.__setattr__(self, "verification_ref", _safe_artifact_ref(self.verification_ref, "verification_ref"))
+        object.__setattr__(self, "rollback_ref", _text(self.rollback_ref, "rollback_ref", maximum=512))
         object.__setattr__(
             self,
             "commit_message",
@@ -315,6 +318,7 @@ class RepairExecutionRequest:
             "patch_sha256": self.patch_sha256,
             "manifest_ref": self.manifest_ref,
             "verification_ref": self.verification_ref,
+            "rollback_ref": self.rollback_ref,
             "review_decision_id": self.review_decision_id,
             "target_checkout_ref": self.target_checkout_ref,
             "target_ref": self.target_ref,
@@ -334,6 +338,7 @@ class RepairExecutionRequest:
             "patch_sha256": self.patch_sha256,
             "manifest_ref": self.manifest_ref,
             "verification_ref": self.verification_ref,
+            "rollback_ref": self.rollback_ref,
             "review_decision_id": self.review_decision_id,
             "target_checkout_ref": self.target_checkout_ref,
             "target_ref": self.target_ref,
@@ -356,6 +361,7 @@ class RepairExecutionRequest:
             "patch_sha256",
             "manifest_ref",
             "verification_ref",
+            "rollback_ref",
             "review_decision_id",
             "target_checkout_ref",
             "target_ref",
@@ -432,6 +438,8 @@ class RepairExecutionPolicy:
             reasons.append("manifest_reference_mismatch")
         if request.verification_ref != candidate.evidence.verification_ref:
             reasons.append("verification_reference_mismatch")
+        if request.rollback_ref != candidate.evidence.rollback_ref:
+            reasons.append("rollback_reference_mismatch")
         if not request.review_decision_id:
             reasons.append("review_decision_required")
         if reasons:
