@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "status": "PROPOSAL_ONLY_VERIFIED",
+  "observed_at": "2026-09-14T12:20:24+09:00",
+  "purpose": "Initial live Free L2 Reviewer Shadow proposal compared with a durable Codex final review decision.",
+  "source": {
+    "d2_run_id": "d2-dogfood-doc-note-20260914",
+    "task_id": "8dbfa1f4-3116-54f5-8054-05d0fd22d70e",
+    "attempt_id": "ac512021c06b45f08d158ab513e49c7d",
+    "packet_sha256": "424c454841e7c64f278cef8a8eeccb36b0d1e3203351f09178085fdefe0164a2"
+  },
+  "reviewer": {
+    "provider": "gemini",
+    "binding": "gemini:worker:free-3",
+    "model": "gemini-3.6-flash",
+    "intelligence_tier": "L2",
+    "allow_unknown_quota": true
+  },
+  "proposal": {
+    "decision": "APPROVE_INTEGRATION",
+    "proposal_sha256": "2d73ae29637c1c465fc416d12d579fdebab12c54967eb7d1ad2249cd96125a6d",
+    "findings": [],
+    "evidence_refs": ["a2d94321a096423eae7f633ffa58fb53"]
+  },
+  "codex_final_decision": {
+    "decision_id": "review-28e95092ee1a448baad60d48e0840e67",
+    "decision": "APPROVE_INTEGRATION",
+    "reviewer_role": "codex_supervisor"
+  },
+  "comparison": {
+    "agreement": true,
+    "false_approve": false,
+    "false_reject": false,
+    "missed_issue": false,
+    "unnecessary_rework": false,
+    "evidence_quality": "grounded"
+  },
+  "host_verification": {
+    "status": "passed",
+    "trust_level": "TRUSTED_HOST_EXEC",
+    "operator_approved": true,
+    "independent_verification": true
+  },
+  "authority": {
+    "reviewer_mode": "shadow",
+    "proposal_only": true,
+    "final_authority": ["codex_review", "host_integration"],
+    "integration_performed_by_shadow": false
+  },
+  "roadmap": {
+    "d6_status": "initial_live_shadow_evidence",
+    "d7_promoted": false,
+    "d7_reason": "One shadow sample is insufficient for the existing D6 evidence threshold."
+  },
+  "raw_worker_conversation_recorded": false
+}

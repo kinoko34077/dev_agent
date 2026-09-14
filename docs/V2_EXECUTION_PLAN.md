@@ -23,7 +23,7 @@ Current State、Main/Detailed Roadmap、Requirements、ADR、Evidence、作業Pl
 
 D1/D2のbounded live development sliceは、`gemini:worker:free-3` / `gemini-3.6-flash`によるstrict JSON Planner proposal、Host validation、DevelopmentPlanningBridge、Commander Plan、Free L1 Worker、独立Host Verification、Codex durable review、Host deterministic integrationまで完了した。詳細Evidenceは[`planner-l2-live-d1-20260914.json`](../spec/v2/evidence/planner-l2-live-d1-20260914.json)と[`planner-to-worker-e2e-20260914.json`](../spec/v2/evidence/planner-to-worker-e2e-20260914.json)を参照する。Model discovery / benchmark / capability evidenceは候補化の入力に留まり、qualification・billing・privacy・quota・healthを代替しない。confirmed failover-safe failureは同一tierの別bindingへ切替え、UNKNOWNはreconciliationへ閉じる。
 
-D4のdiscovery境界確認とD5のtransport-neutral in-process thin adapterは完了した。D4は正式なdiscovery authorityが無い限りUNKNOWN/reconciliationを維持し、D5のwire transportとPlanner mutation authorityは未接続の別sliceである。次のGateは、D3を条件付きで監視しつつ、既存の複数D2成功Evidence依存を満たす範囲でD6以降の非ブロッキングTaskへ進むこととする。
+D4のdiscovery境界確認とD5のtransport-neutral in-process thin adapterは完了した。D4は正式なdiscovery authorityが無い限りUNKNOWN/reconciliationを維持し、D5のwire transportとPlanner mutation authorityは未接続の別sliceである。D2の別内容の補助Worker sliceと、D6の初回proposal-only Reviewer Shadow比較もEvidence化したが、D7へ進む十分なshadow Evidenceはまだない。次のGateは、D3を条件付きで監視しつつ、Reviewer Shadowの追加bounded比較をCodex final reviewとHost authorityの下で行うこととする。
 
 ## Operational acceptance
 

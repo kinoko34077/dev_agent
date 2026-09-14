@@ -56,8 +56,13 @@ Task state、Scheduler、Budget、Provider routing、AgentBackend authorityを
   provenance/digest、機械的情報保持検査。Humanの明示接続指示により、固定endpointと
   `semantic-dense-v1` profileを利用可能にしたが、独立Compression Service本体は別deploy
   境界である。live smokeはtoken未設定のため`NOT_VERIFIED`である。
+- 実装済みslice: `src/dev_agent/intelligence/reviewer_adapter.py` と
+  `scripts/devfarm_reviewer_shadow.py` がcompact ReviewPacketに対するFree L2の
+  proposal-only Reviewer Shadowを提供する。Codexのdurable final decisionとHost
+  integrationを正本として比較Evidenceを残し、Reviewer自身にはdecision authorityを与えない。
 - **NOT VERIFIED / NOT CONNECTED**: Compression live availability、wire MCP transport、
-  MCP planner proposal/apply authority、simulated-paid runtime E2E、Reviewer adapter、
+  MCP planner proposal/apply authority、simulated-paid runtime E2E、Reviewer decision
+  authority、
   有限multi-cycleは未検証または未接続である。CompressionはG6O1-SIM/LIVEのbilling/evidence
   へ接続しない。
 - 後続slice: wire transport、simulated-paid接続、Reviewer shadow、Control Planeが所有する

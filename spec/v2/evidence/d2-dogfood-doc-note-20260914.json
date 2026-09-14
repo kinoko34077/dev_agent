@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "status": "VERIFIED",
+  "observed_at": "2026-09-14T12:25:56+09:00",
+  "purpose": "A second, different Planner-originated development slice using a Free L1 Worker for a bounded documentation change.",
+  "baseline": {
+    "base_revision": "76892c97529b2422b80776bab888f576c8381334",
+    "integration_revision": "954831fd11bb5cbf3d3962ae4e281c47c253c4b6"
+  },
+  "planner": {
+    "provider": "gemini",
+    "binding": "gemini:worker:free-3",
+    "model": "gemini-3.6-flash",
+    "intelligence_tier": "L2",
+    "parent_task_id": "0e6d3f4a-25b8-4f0d-a7c1-9b2e5d6f8a10",
+    "proposal_id": "4cdbb7ea-c2a7-460b-8b0b-cd03b5569126",
+    "proposal_sha256": "1d1a8bb7f21a9f6cedb8614c94feded579ce6c8904e888c9c639e8dc4bf91bcb",
+    "host_validation": "passed",
+    "child_count": 1
+  },
+  "bridge": {
+    "status": "passed",
+    "run_id": "d2-dogfood-doc-note-20260914",
+    "task_id": "8dbfa1f4-3116-54f5-8054-05d0fd22d70e",
+    "effective_owner": "worker",
+    "ownership": ["docs/CODEX_DAILY_DOGFOOD.md"],
+    "codex_direct_implementation_count": 0
+  },
+  "worker": {
+    "provider": "gemini",
+    "binding": "gemini:worker",
+    "model": "gemini-3.5-flash-lite",
+    "attempt_id": "ac512021c06b45f08d158ab513e49c7d",
+    "changed_files": ["docs/CODEX_DAILY_DOGFOOD.md"],
+    "patch_sha256": "bd4adefdbf954cf7d87a5ee9d4863880860f9f56ec8af61e0b09b1ba1920d6f9",
+    "manifest_sha256": "2551d9214be0b1aa1152c94efcd6b6e8bea155b0e9d2f59bfb48514a79470e4b",
+    "test_spec_sha256": "e549b9549ffb2be2fb894f15cd4c1b58b4d82b0f0d18f84b7187051ae1511dc1"
+  },
+  "host_verification": {
+    "status": "passed",
+    "verification_id": "a2d94321a096423eae7f633ffa58fb53",
+    "trust_level": "TRUSTED_HOST_EXEC",
+    "operator_approved": true,
+    "independent_verification": true,
+    "tests": [
+      "python -m pytest tests/v2/test_devfarm_supervisor.py tests/v2/test_handoff_cycle.py -q"
+    ],
+    "test_result": "31 passed"
+  },
+  "review": {
+    "decision": "APPROVE_INTEGRATION",
+    "decision_id": "review-28e95092ee1a448baad60d48e0840e67",
+    "reviewer_role": "codex_supervisor"
+  },
+  "delegation": {
+    "worker_owned_task_count": 1,
+    "worker_integrated_task_count": 1,
+    "codex_owned_task_count": 0,
+    "codex_direct_implementation_count": 0,
+    "codex_direct_reasons": []
+  },
+  "integration": {
+    "method": "integrate_approved_worker",
+    "target_ref": "HEAD",
+    "push": false,
+    "merge": false,
+    "gate_promotion": false
+  },
+  "raw_worker_conversation_recorded": false
+}

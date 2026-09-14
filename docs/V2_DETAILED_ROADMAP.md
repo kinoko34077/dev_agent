@@ -8,6 +8,8 @@
 
 ## 順序とGate
 
+補足: D2には別内容の bounded documentation Worker sliceも追加で成功し、D6は初回のproposal-only Reviewer Shadow比較まで進んだ。ただしD7の自動昇格条件である十分なshadow Evidenceは未充足である。
+
 ### D0 — Documentation SSOT consolidation
 
 - 目的: Current State、Main Roadmap、Detailed Roadmap、Requirements、ADR、Evidence、作業Planの役割を分離する。
@@ -36,6 +38,7 @@
 - 依存: D2の失敗分類。
 - 目的: `manifest_input_failure`、`new_file_contract_failure`、`patch_format_failure`、`scope_violation`、`provider_failure`、`model_output_invalid`、`host_verification_failure`を分離し、再現した形式障害だけを最小修正する。
 - 完了条件: bounded REWORKとimmutable attemptが機能し、検証を緩めず同種失敗の再発率をEvidenceで比較できる。
+- 現在: malformed Python patchの再発を観測し、Worker promptの構文完結性・区切り文字バランス契約だけを追加した。Validator緩和、無制限retry、成功Evidenceへの算入は行っていない。証拠は[`d3-worker-reliability-observation-20260914.json`](../spec/v2/evidence/d3-worker-reliability-observation-20260914.json)。
 
 ### D4 — Group D concrete session restart/discovery
 
@@ -57,6 +60,7 @@
 - 依存: 複数のD2成功Evidence。
 - 目的: Reviewer proposalとCodex final decisionを比較する。初期はdecision authorityを付与しない。
 - 完了条件: agreement、false approve、false reject、missed issue、unnecessary rework、evidence qualityを記録できる。
+- 現在: `gemini:worker:free-3` / `gemini-3.6-flash`によるproposal-only live sampleを1件取得し、Codex durable decisionとの比較でagreement=true、false approve/reject=false、missed issue=false、unnecessary rework=false、evidence quality=groundedを記録した。Reviewerにdecision/integration authorityはない。複数の十分なshadow Evidenceが揃うまでD7へ進まない。証拠は[`reviewer-shadow-20260914.json`](../spec/v2/evidence/reviewer-shadow-20260914.json)。
 
 ### D7 — LOW/NORMAL Codex-less cycle
 

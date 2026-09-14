@@ -53,3 +53,13 @@ authorityはdev_agentへ追加しない。Compressionは固定profileのpayload-
 - review decisionはCodex／Reviewerの判断証拠としてattemptとevidence referenceを保存するが、
   Human仕様Authorityへ自動昇格させない。REWORKは差分Handoff付きの新manifestへ接続し、
   APPROVE_INTEGRATION後のGit操作はHostの既存integration boundaryで行う。
+
+## Reviewer Shadow
+
+Free L2 Reviewerは当面proposal-onlyのshadow roleとする。入力はcompact
+ReviewPacketに限定し、raw Worker conversation、patch本文、stdout/stderrを渡さない。
+Reviewer proposalは`APPROVE_INTEGRATION`、`REWORK`、`REJECT`、`ESCALATE`の候補と
+bounded findings/evidence referencesだけを返し、ReviewDecisionの永続化、reassign、
+integration、Gate変更の権限を持たない。Host VerificationとCodexのdurable final decision
+を正本として、agreement、false approve/reject、missed issue、unnecessary rework、
+evidence qualityを比較記録する。十分なshadow evidenceなしにCodex-less cycleへ昇格しない。

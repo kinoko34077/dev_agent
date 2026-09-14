@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "status": "OBSERVED",
+  "observed_at": "2026-09-14T12:25:56+09:00",
+  "purpose": "Bounded classification of two Worker-side observations; no validation relaxation or successful-task inflation.",
+  "observations": [
+    {
+      "run_id": "d2-compression-boundary-20260914",
+      "task_id": "8d1c325a-83bf-5b7f-95cd-4eaf1db4360c",
+      "classification": "manifest_input_failure",
+      "detail": "Outbound secret-candidate detection rejected tests/v2/test_compression.py before any external source send.",
+      "action": "No source sent; validator retained fail-closed; task not counted as D2 success."
+    },
+    {
+      "run_id": "d2-bridge-assignment-20260914",
+      "task_id": "c2f58ece-54a6-573a-8979-76f275f47a5e",
+      "classification": [
+        "patch_format_failure",
+        "host_verification_failure",
+        "model_output_invalid"
+      ],
+      "detail": "Two bounded Worker attempts produced malformed Python hunks with incomplete delimiters/expressions; Host Verification rejected both.",
+      "action": "No source accepted; validator was not weakened; Worker prompt received an explicit Python syntax-completeness and delimiter-balance contract."
+    }
+  ],
+  "remediation": {
+    "scope": "prompt_contract_only",
+    "validator_relaxed": false,
+    "automatic_retry_added": false,
+    "same_failure_successfully_retested": false
+  }
+}
