@@ -1,0 +1,114 @@
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from src.dev_agent.coordination.protocol import HandoffNote, PeerStatus
+from src.dev_agent.coordination.service import ProcessCoordinationService
+
+
+def _note() -> HandoffNote:
+    return HandoffNote(
+        from_role="agent",
+        to_role="codex",
+        revision="rev-a",
+        run_id="run-1",
+        task_id="task-1",
+        correlation_id="corr-1",
+        completed=("stage-c",),
+        current_state="READY",
+        pending=("review",),
+        blockers=(),
+        read_these=(),
+        next_action="claim the handoff",
+    )
+
+
+def test_service_attach_handoff_claim_ack_survives_reopen(tmp_path) -> None:
+    with ProcessCoordinationService(data_dir=tmp_path) as service:
+        agent = service.attach_peer(
+            "agent",
+            revision="rev-a",
+            capabilities=("handoff",),
+            instance_id="agent-1",
+            now="2026-09-14T12:00:00+00:00",
+            lease_seconds=60,
+        )
+        codex = service.attach_peer(
+            "codex",
+            revision="rev-a",
+            capabilities=("review",),
+            instance_id="codex-1",
+            now="2026-09-14T12:00:00+00:00",
+            lease_seconds=60,
+        )
+        assert agent.status is PeerStatus.STARTING
+        service.set_peer_status(agent, PeerStatus.READY)
+        service.set_peer_status(codex, PeerStatus.READY)
+
+        reference, message = service.send_handoff(
+            agent,
+            _note(),
+            idempotency_key="handoff-1",
+            expires_at="2026-09-14T13:00:00+00:00",
+        )
+        assert reference.sha256
+        assert reference.size_bytes > 0
+        assert message.artifact_refs == (reference,)
+
+        claimed = service.claim_messages(codex, now="2026-09-14T12:00:01+00:00")
+        assert len(claimed) == 1
+        loaded = service.read_handoff(reference)
+        assert loaded == _note()
+        service.ack_message(codex, claimed[0], now="2026-09-14T12:00:02+00:00")
+
+    with ProcessCoordinationService(data_dir=tmp_path) as reopened:
+        assert reopened.read_handoff(reference) == _note()
+        assert reopened.store.get_message(message.message_id).status.value == "ACKED"
+
+
+def test_service_uses_data_dir_lazily_and_keeps_coordination_db_separate(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("DEV_AGENT_DATA_DIR", str(tmp_path / "runtime"))
+    with ProcessCoordinationService() as service:
+        assert service.paths.database == tmp_path / "runtime" / "coordination" / "coordination.sqlite3"
+        assert service.paths.artifacts == tmp_path / "runtime" / "coordination" / "artifacts"
+        assert service.paths.database.exists()
+        assert not (tmp_path / "runtime" / "state.sqlite3").exists()
+
+
+def test_artifact_read_rejects_path_escape_and_overwrite(tmp_path) -> None:
+    with ProcessCoordinationService(data_dir=tmp_path) as service:
+        reference = service.artifacts.put_json({"ok": True}, kind="checkpoint", revision="rev-a")
+        assert json.loads(service.artifacts.read(reference)) == {"ok": True}
+
+        with pytest.raises(ValueError):
+            service.artifacts.read({**reference.to_dict(), "path": "../secret.json"})
+        with pytest.raises(ValueError):
+            service.artifacts.put_json({"api_key": "never"}, kind="checkpoint", revision="rev-a")
+
+
+def test_service_does_not_allow_stale_peer_to_send(tmp_path) -> None:
+    with ProcessCoordinationService(data_dir=tmp_path) as service:
+        old = service.attach_peer(
+            "agent",
+            revision="rev-a",
+            instance_id="agent-1",
+            now="2026-09-14T12:00:00+00:00",
+            lease_seconds=60,
+        )
+        service.attach_peer(
+            "agent",
+            revision="rev-b",
+            instance_id="agent-1",
+            now="2026-09-14T12:00:00+00:00",
+            lease_seconds=60,
+        )
+        with pytest.raises(Exception):
+            service.send_message(
+                old,
+                recipient_role="codex",
+                kind="NOTE",
+                subject="stale",
+                idempotency_key="stale-1",
+            )
