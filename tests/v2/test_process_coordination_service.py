@@ -5,7 +5,7 @@ import json
 import pytest
 
 from src.dev_agent.coordination import ResumeCapsule, WorkAddress
-from src.dev_agent.coordination.protocol import HandoffNote, MessageKind, PeerStatus
+from src.dev_agent.coordination.protocol import ControlAction, HandoffNote, MessageKind, PeerStatus
 from src.dev_agent.coordination.service import ProcessCoordinationService
 
 
@@ -147,3 +147,33 @@ def test_service_persists_resume_capsule_as_checkpoint_artifact(tmp_path) -> Non
         assert message.kind is MessageKind.CHECKPOINT
         assert reference.kind == "resume_capsule"
         assert service.read_resume_capsule(reference) == capsule
+
+
+def test_service_persists_generation_fenced_control_request_in_mailbox(tmp_path) -> None:
+    with ProcessCoordinationService(data_dir=tmp_path) as service:
+        codex = service.attach_peer(
+            "codex",
+            revision="rev-a",
+            capabilities=("control-request",),
+            instance_id="codex-1",
+            now="2026-09-14T12:00:00+00:00",
+            lease_seconds=60,
+        )
+        service.set_peer_status(codex, PeerStatus.READY)
+        reference, message = service.send_control_request(
+            codex,
+            target_role="agent",
+            target_generation=12,
+            action=ControlAction.RESTART,
+            desired_revision="rev-b",
+            reason="verified runtime update",
+            idempotency_key="restart-agent-12",
+            expires_at="2026-09-14T12:05:00+00:00",
+        )
+
+        assert reference.kind == "control_request"
+        assert message.kind is MessageKind.CONTROL_REQUEST
+        loaded = service.read_control_request(reference)
+        assert loaded.action is ControlAction.RESTART
+        assert loaded.sender_generation == codex.generation
+        assert loaded.target_generation == 12

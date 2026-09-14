@@ -49,6 +49,15 @@ class MessageKind(str, Enum):
     CHECKPOINT = "CHECKPOINT"
 
 
+class ControlAction(str, Enum):
+    START = "START"
+    STOP = "STOP"
+    RESTART = "RESTART"
+    DRAIN = "DRAIN"
+    UPDATE = "UPDATE"
+    ROLLBACK = "ROLLBACK"
+
+
 class MailboxStatus(str, Enum):
     PENDING = "PENDING"
     CLAIMED = "CLAIMED"
@@ -310,6 +319,85 @@ class MailboxMessage:
 
 
 @dataclass(frozen=True)
+class ControlRequest:
+    """A generation-fenced request for a future deterministic Guardian.
+
+    This value is only an intent record.  The coordination plane can persist
+    and deliver it, but it never starts, stops, or restarts a process.
+    """
+
+    request_id: str
+    sender_role: str
+    sender_instance_id: str
+    sender_generation: int
+    target_role: str
+    target_generation: int
+    action: ControlAction
+    reason: str
+    created_at: str
+    idempotency_key: str
+    desired_revision: str | None = None
+    expires_at: str | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "request_id", validate_identifier(self.request_id, "request_id"))
+        object.__setattr__(self, "sender_role", validate_identifier(self.sender_role, "sender_role"))
+        object.__setattr__(self, "sender_instance_id", validate_identifier(self.sender_instance_id, "sender_instance_id"))
+        object.__setattr__(self, "sender_generation", _positive_int(self.sender_generation, "sender_generation"))
+        object.__setattr__(self, "target_role", validate_identifier(self.target_role, "target_role"))
+        object.__setattr__(self, "target_generation", _positive_int(self.target_generation, "target_generation"))
+        object.__setattr__(self, "action", _enum(self.action, ControlAction, "action"))
+        object.__setattr__(self, "reason", validate_text(self.reason, "reason", max_chars=4_096))
+        object.__setattr__(self, "created_at", validate_timestamp(self.created_at, "created_at"))
+        object.__setattr__(self, "idempotency_key", validate_identifier(self.idempotency_key, "idempotency_key"))
+        desired_revision = _optional_text(self.desired_revision, "desired_revision", max_chars=512)
+        expires_at = _optional_text(self.expires_at, "expires_at", max_chars=80)
+        if expires_at is not None:
+            validate_timestamp(expires_at, "expires_at")
+        object.__setattr__(self, "desired_revision", desired_revision)
+        object.__setattr__(self, "expires_at", expires_at)
+        ensure_secret_free(self.to_dict(), "control request")
+        encoded = ensure_json_safe(self.to_dict(), "control request")
+        if len(str(encoded).encode("utf-8")) > _MAX_PROTOCOL_BYTES:
+            raise CoordinationValidationError("control request exceeds its size bound")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "request_id": self.request_id,
+            "sender_role": self.sender_role,
+            "sender_instance_id": self.sender_instance_id,
+            "sender_generation": self.sender_generation,
+            "target_role": self.target_role,
+            "target_generation": self.target_generation,
+            "action": self.action.value,
+            "reason": self.reason,
+            "created_at": self.created_at,
+            "idempotency_key": self.idempotency_key,
+            "desired_revision": self.desired_revision,
+            "expires_at": self.expires_at,
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "ControlRequest":
+        if not isinstance(value, Mapping):
+            raise CoordinationValidationError("control request must be an object")
+        return cls(
+            request_id=value.get("request_id"),
+            sender_role=value.get("sender_role"),
+            sender_instance_id=value.get("sender_instance_id"),
+            sender_generation=value.get("sender_generation"),
+            target_role=value.get("target_role"),
+            target_generation=value.get("target_generation"),
+            action=value.get("action"),
+            reason=value.get("reason"),
+            created_at=value.get("created_at"),
+            idempotency_key=value.get("idempotency_key"),
+            desired_revision=value.get("desired_revision"),
+            expires_at=value.get("expires_at"),
+        )
+
+
+@dataclass(frozen=True)
 class HandoffNote:
     from_role: str
     to_role: str
@@ -382,6 +470,8 @@ __all__ = [
     "ArtifactReference",
     "CoordinationConflict",
     "CoordinationValidationError",
+    "ControlAction",
+    "ControlRequest",
     "HandoffNote",
     "MailboxMessage",
     "MailboxStatus",

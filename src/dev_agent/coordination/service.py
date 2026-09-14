@@ -8,11 +8,13 @@ from datetime import datetime, timedelta, timezone
 import os
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from .artifacts import CoordinationArtifactStore
 from .protocol import (
     ArtifactReference,
+    ControlAction,
+    ControlRequest,
     CoordinationConflict,
     CoordinationValidationError,
     HandoffNote,
@@ -231,6 +233,58 @@ class ProcessCoordinationService:
         )
         return reference, message
 
+    def send_control_request(
+        self,
+        sender: PeerRecord,
+        *,
+        target_role: str,
+        target_generation: int,
+        action: ControlAction | str,
+        reason: str,
+        idempotency_key: str,
+        desired_revision: str | None = None,
+        request_id: str | None = None,
+        expires_at: str | None = None,
+    ) -> tuple[ArtifactReference, MailboxMessage]:
+        """Persist and deliver a generation-fenced control intent.
+
+        The deterministic process owner (Guardian) is the only component that
+        may later interpret this intent as a process operation.
+        """
+
+        current = self._assert_current(sender)
+        stable_request_id = request_id or f"control-{uuid5(NAMESPACE_URL, f'dev-agent-control:{idempotency_key}').hex}"
+        request = ControlRequest(
+            request_id=stable_request_id,
+            sender_role=current.role,
+            sender_instance_id=current.instance_id,
+            sender_generation=current.generation,
+            target_role=target_role,
+            target_generation=target_generation,
+            action=action,
+            reason=reason,
+            created_at=_now(),
+            idempotency_key=idempotency_key,
+            desired_revision=desired_revision,
+            expires_at=expires_at,
+        )
+        reference = self.artifacts.put_json(
+            request.to_dict(),
+            kind="control_request",
+            revision=current.revision,
+        )
+        message = self.send_message(
+            current,
+            recipient_role=request.target_role,
+            kind=MessageKind.CONTROL_REQUEST,
+            subject=f"control:{request.action.value}:{request.target_role}:{request.target_generation}",
+            artifact_refs=(reference,),
+            correlation_id=request.request_id,
+            idempotency_key=request.idempotency_key,
+            expires_at=request.expires_at,
+        )
+        return reference, message
+
     def claim_messages(
         self,
         consumer: PeerRecord,
@@ -265,6 +319,9 @@ class ProcessCoordinationService:
 
     def read_resume_capsule(self, reference: ArtifactReference | Mapping[str, Any]) -> ResumeCapsule:
         return ResumeCapsule.from_dict(self.artifacts.read_json(reference))
+
+    def read_control_request(self, reference: ArtifactReference | Mapping[str, Any]) -> ControlRequest:
+        return ControlRequest.from_dict(self.artifacts.read_json(reference))
 
     def close(self) -> None:
         self.store.close()

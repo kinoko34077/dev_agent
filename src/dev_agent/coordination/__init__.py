@@ -2,6 +2,8 @@
 
 from .protocol import (
     ArtifactReference,
+    ControlAction,
+    ControlRequest,
     CoordinationValidationError,
     HandoffNote,
     MailboxMessage,
@@ -21,6 +23,8 @@ from .work import (
 
 __all__ = [
     "ArtifactReference",
+    "ControlAction",
+    "ControlRequest",
     "CoordinationValidationError",
     "HandoffNote",
     "MailboxMessage",

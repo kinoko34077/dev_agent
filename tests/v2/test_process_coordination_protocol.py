@@ -7,6 +7,8 @@ import pytest
 
 from src.dev_agent.coordination.protocol import (
     ArtifactReference,
+    ControlAction,
+    ControlRequest,
     CoordinationValidationError,
     HandoffNote,
     MailboxMessage,
@@ -87,6 +89,44 @@ def test_protocol_round_trip_preserves_peer_message_and_handoff() -> None:
         next_action="claim the handoff",
     )
     assert HandoffNote.from_dict(note.to_dict()) == note
+
+
+def test_control_request_round_trip_binds_sender_and_target_generation():
+    request = ControlRequest(
+        request_id="request-1",
+        sender_role="codex",
+        sender_instance_id="codex-1",
+        sender_generation=3,
+        target_role="agent",
+        target_generation=12,
+        action=ControlAction.RESTART,
+        desired_revision="abc123",
+        reason="roll the agent to the verified runtime",
+        created_at="2026-09-14T12:00:00+00:00",
+        expires_at="2026-09-14T12:05:00+00:00",
+        idempotency_key="restart-agent-12",
+    )
+
+    assert ControlRequest.from_dict(request.to_dict()) == request
+    assert request.to_dict()["action"] == "RESTART"
+    assert request.to_dict()["target_generation"] == 12
+
+
+@pytest.mark.parametrize("action", ("KILL", "", None))
+def test_control_request_rejects_unknown_action(action):
+    with pytest.raises((ValueError, TypeError, CoordinationValidationError)):
+        ControlRequest(
+            request_id="request-1",
+            sender_role="codex",
+            sender_instance_id="codex-1",
+            sender_generation=1,
+            target_role="agent",
+            target_generation=1,
+            action=action,
+            reason="bounded request",
+            created_at="2026-09-14T12:00:00+00:00",
+            idempotency_key="request-1",
+        )
 
 
 def test_protocol_rejects_unknown_status_and_unbounded_values() -> None:
