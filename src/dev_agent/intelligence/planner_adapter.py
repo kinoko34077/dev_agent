@@ -12,7 +12,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 import json
 import math
-import re
 from typing import Any
 
 from ..domain.capabilities import CANONICAL_EXECUTION_CAPABILITIES
@@ -20,6 +19,7 @@ from ..domain.protocol import ModelRequest, ModelResponse
 from ..providers.base import ModelProvider
 from .capabilities import TASK_COMPETENCIES, TASK_POLICY_TRAITS
 from .planner import PlanningValidationError, RootPlanningProposal
+from .structured_response import StructuredResponseError, decode_json_object
 
 
 class PlanningAdapterError(ValueError):
@@ -67,9 +67,6 @@ PLANNING_PROPOSAL_RESPONSE_SCHEMA: dict[str, Any] = {
 
 _SENSITIVITIES = {"public", "normal", "internal", "sensitive"}
 _INTELLIGENCE_TIERS = {"L0", "L1", "L2", "L3"}
-_FENCED_JSON = re.compile(r"^```(?:json)?\s*\r?\n(?P<body>.*?)\r?\n```$", re.IGNORECASE | re.DOTALL)
-
-
 class ModelPlanningAdapter:
     """Request and decode one finite proposal from an injected provider.
 
@@ -234,26 +231,10 @@ class ModelPlanningAdapter:
 
     @classmethod
     def _response_payload(cls, response: ModelResponse) -> Mapping[str, Any]:
-        if not isinstance(response, ModelResponse):
-            raise PlanningAdapterError("planner provider returned an invalid response type")
-        if response.structured_output is not None:
-            return response.structured_output
-        text = "".join(response.text_segments or response.parts)
-        if not isinstance(text, str) or not text.strip():
-            raise PlanningAdapterError("planner response has no structured JSON output")
-        if len(text) > cls._MAX_RESPONSE_CHARS:
-            raise PlanningAdapterError("planner response exceeds the response limit")
-        candidate = text.strip()
-        fenced = _FENCED_JSON.fullmatch(candidate)
-        if fenced is not None:
-            candidate = fenced.group("body").strip()
         try:
-            payload = json.loads(candidate)
-        except json.JSONDecodeError as exc:
-            raise PlanningAdapterError("planner response is not valid JSON") from exc
-        if not isinstance(payload, Mapping):
-            raise PlanningAdapterError("planner response JSON must be an object")
-        return payload
+            return decode_json_object(response, role="planner", max_chars=cls._MAX_RESPONSE_CHARS)
+        except StructuredResponseError as exc:
+            raise PlanningAdapterError(str(exc)) from exc
 
 
 __all__ = ["ModelPlanningAdapter", "PLANNING_PROPOSAL_RESPONSE_SCHEMA", "PlanningAdapterError"]

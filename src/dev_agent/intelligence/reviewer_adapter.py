@@ -11,12 +11,12 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 import json
-import re
 from typing import Any
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from ..domain.protocol import ModelRequest, ModelResponse
 from ..providers.base import ModelProvider
+from .structured_response import StructuredResponseError, decode_json_object
 
 
 class ReviewAdapterError(ValueError):
@@ -52,9 +52,6 @@ _MAX_FINDING_CHARS = 1_000
 _MAX_REFERENCES = 32
 _MAX_RATIONALE_CHARS = 2_000
 _MAX_CORRECTION_CHARS = 4_000
-_FENCED_JSON = re.compile(r"^```(?:json)?\s*\r?\n(?P<body>.*?)\r?\n```$", re.IGNORECASE | re.DOTALL)
-
-
 REVIEW_PROPOSAL_RESPONSE_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
@@ -395,26 +392,10 @@ class ModelReviewAdapter:
 
     @staticmethod
     def _response_payload(response: ModelResponse) -> Mapping[str, Any]:
-        if not isinstance(response, ModelResponse):
-            raise ReviewAdapterError("review provider returned an invalid response type")
-        if response.structured_output is not None:
-            return response.structured_output
-        text = "".join(response.text_segments or response.parts)
-        if not isinstance(text, str) or not text.strip():
-            raise ReviewAdapterError("review response has no structured JSON output")
-        if len(text) > _MAX_RESPONSE_CHARS:
-            raise ReviewAdapterError("review response exceeds the response limit")
-        candidate = text.strip()
-        fenced = _FENCED_JSON.fullmatch(candidate)
-        if fenced is not None:
-            candidate = fenced.group("body").strip()
         try:
-            payload = json.loads(candidate)
-        except json.JSONDecodeError as exc:
-            raise ReviewAdapterError("review response is not valid JSON") from exc
-        if not isinstance(payload, Mapping):
-            raise ReviewAdapterError("review response JSON must be an object")
-        return payload
+            return decode_json_object(response, role="review", max_chars=_MAX_RESPONSE_CHARS)
+        except StructuredResponseError as exc:
+            raise ReviewAdapterError(str(exc)) from exc
 
 
 __all__ = [

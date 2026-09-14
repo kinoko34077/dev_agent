@@ -195,6 +195,19 @@ def test_critic_proposal_is_bounded_and_has_no_integration_authority():
         )
 
 
+def test_refinement_proposal_rejects_untracked_authority_fields():
+    with pytest.raises(ValueError, match="unknown refinement proposal field"):
+        RefinementProposal.from_dict(
+            {
+                "task_id": "task-refine-1",
+                "attempt_id": "attempt-1",
+                "findings": [],
+                "evidence_refs": [],
+                "decision": "APPROVE_INTEGRATION",
+            }
+        )
+
+
 def test_refinement_plan_is_identity_bound_and_round_trippable():
     plan = BoundedRefinementPolicy().plan(_context())
     restored = RefinementPlan.from_dict(plan.to_dict())

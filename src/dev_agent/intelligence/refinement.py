@@ -292,6 +292,10 @@ class RefinementProposal:
     def from_dict(cls, value: Mapping[str, Any]) -> "RefinementProposal":
         if not isinstance(value, Mapping):
             raise ValueError("refinement proposal must be an object")
+        allowed = {"task_id", "attempt_id", "findings", "evidence_refs"}
+        unknown = set(value) - allowed
+        if unknown:
+            raise ValueError(f"unknown refinement proposal field: {sorted(unknown)[0]}")
         findings = value.get("findings", ())
         if isinstance(findings, (str, bytes)) or not isinstance(findings, Sequence):
             raise ValueError("findings must be a sequence")
