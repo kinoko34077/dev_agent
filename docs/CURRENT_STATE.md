@@ -5,12 +5,12 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Implementation/evidence baseline | `ee23bfa` (D4 discovery boundary, fixed Compression client boundary, thin MCP Supervisor adapter, and synchronized evidence/docs) |
+| Implementation/evidence baseline | `1f8c5d3` (D4 discovery boundary, fixed Compression client boundary, thin MCP Supervisor adapter, and synchronized evidence/docs) |
 | Worktree | clean after the D4/D5/Compression synchronization commits |
 | Local regression | `1007 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 177.19s) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for `ee23bfa`: `v2-core` [run 34795582218](https://github.com/kinoko34077/dev_agent/actions/runs/34795582218) and `v2-provider-smoke` [run 34795582184](https://github.com/kinoko34077/dev_agent/actions/runs/34795582184). |
+| Exact-head CI | PASS for `1f8c5d3`: `v2-core` [run 34795815245](https://github.com/kinoko34077/dev_agent/actions/runs/34795815245) and `v2-provider-smoke` [run 34795815227](https://github.com/kinoko34077/dev_agent/actions/runs/34795815227). |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
