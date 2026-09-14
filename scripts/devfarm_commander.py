@@ -741,7 +741,9 @@ def refresh_plan(value: Mapping[str, Any]) -> dict[str, Any]:
                 task["status"] = "READY"
                 changed = True
     statuses = [task["status"] for task in plan["tasks"]]
-    if statuses and all(status == "INTEGRATED" for status in statuses):
+    if statuses and all(status in {"INTEGRATED", "SUPERSEDED"} for status in statuses) and "SUPERSEDED" in statuses:
+        plan["status"] = "SUPERSEDED"
+    elif statuses and all(status == "INTEGRATED" for status in statuses):
         plan["status"] = "INTEGRATED"
     elif "DISPATCHED" in statuses:
         plan["status"] = "DISPATCHED"
@@ -1397,6 +1399,47 @@ def resume_plan(root: str | Path, run_id: str) -> dict[str, Any]:
     return collect_plan(root, run_id)
 
 
+def supersede_plan(root: str | Path, run_id: str, *, reason: str) -> dict[str, Any]:
+    """Explicitly close a terminal plan and release its remaining ownership.
+
+    Supersession is an operator action, not a retry or scheduler transition.
+    In-flight or host-verified work is rejected so a caller cannot erase an
+    unresolved external effect or bypass the review/integration boundary.
+    Integrated tasks remain intact as durable history; every other task is
+    marked ``SUPERSEDED`` and its ownership is consequently released.
+    """
+
+    root_path = Path(root).resolve()
+    store = CommanderPlanStore(root_path)
+    plan = store.load(run_id)
+    normalized_reason = _text(reason, "reason", max_length=1000)
+    if plan["status"] in {"INTEGRATED", "SUPERSEDED"}:
+        raise DevFarmError(f"Commander plan is already terminal: {run_id}")
+    in_flight = [
+        task["task_id"]
+        for task in plan["tasks"]
+        if task["status"] in {"DISPATCHED", "PROPOSED", "HOST_VERIFIED"}
+    ]
+    if in_flight:
+        raise DevFarmError(
+            "cannot supersede in-flight or host-verified tasks: "
+            + ", ".join(in_flight)
+        )
+    changed = False
+    for task in plan["tasks"]:
+        if task["status"] == "INTEGRATED":
+            continue
+        task["status"] = "SUPERSEDED"
+        task["block_reason"] = "superseded"
+        task["last_error"] = normalized_reason
+        _record_result(plan, task["task_id"], "supersession", "superseded")
+        changed = True
+    if not changed:
+        raise DevFarmError(f"Commander plan has no supersedable tasks: {run_id}")
+    plan = refresh_plan(plan)
+    return store.save(plan, expected_revision=plan["plan_revision"])
+
+
 def _write_rework_manifest(
     root: Path,
     old_path: Path,
@@ -1935,6 +1978,7 @@ __all__ = [
     "record_result",
     "refresh_plan",
     "resume_plan",
+    "supersede_plan",
     "summarize_delegation",
     "validate_plan",
     "verified_worker_patch",

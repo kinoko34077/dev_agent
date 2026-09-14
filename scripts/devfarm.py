@@ -654,6 +654,10 @@ def main(argv: list[str] | None = None) -> int:
     resume = sub.add_parser("resume", help="reconcile artifacts and release dependency-ready tasks")
     resume.add_argument("run_id")
     resume.add_argument("--root", type=Path, default=Path.cwd())
+    supersede = sub.add_parser("supersede", help="explicitly close a terminal plan and release ownership")
+    supersede.add_argument("run_id")
+    supersede.add_argument("--reason", required=True)
+    supersede.add_argument("--root", type=Path, default=Path.cwd())
     reassign = sub.add_parser("reassign", help="reassign a bounded failed Worker task")
     reassign.add_argument("run_id")
     reassign.add_argument("task_id")
@@ -731,6 +735,16 @@ def main(argv: list[str] | None = None) -> int:
             from scripts.devfarm_commander import resume_plan
 
             print(json.dumps(resume_plan(args.root, args.run_id), ensure_ascii=False, indent=2))
+        elif args.command == "supersede":
+            from scripts.devfarm_commander import supersede_plan
+
+            print(
+                json.dumps(
+                    supersede_plan(args.root, args.run_id, reason=args.reason),
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
         elif args.command == "reassign":
             from scripts.devfarm_commander import reassign_task
 

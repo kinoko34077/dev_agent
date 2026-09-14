@@ -20,6 +20,7 @@ from scripts.devfarm_commander import (
     refresh_plan,
     resume_plan,
     summarize_delegation,
+    supersede_plan,
     validate_plan,
     verify_plan,
 )
@@ -1023,6 +1024,38 @@ def test_commander_reassigns_a_failed_worker_within_attempt_limit(tmp_path):
     )
     assert reassigned["tasks"][0]["status"] == "READY"
     assert reassigned["tasks"][0]["assignment"]["provider_id"] == "openrouter"
+
+
+def test_commander_can_explicitly_supersede_a_terminal_plan_and_release_ownership(tmp_path):
+    root, _targets, revision = _repo(tmp_path)
+    create_plan(
+        root,
+        {
+            "run_id": "supersede-run",
+            "objective": "release a terminal invalid plan",
+            "base_revision": revision,
+            "tasks": [
+                {
+                    "task_id": "invalid-worker",
+                    "owner": "codex",
+                    "status": "REJECTED",
+                    "ownership": ["src/shared.py"],
+                    "max_attempts": 1,
+                }
+            ],
+        },
+    )
+
+    superseded = supersede_plan(
+        root,
+        "supersede-run",
+        reason="worker input manifest referenced a missing test file",
+    )
+
+    assert superseded["status"] == "SUPERSEDED"
+    assert superseded["tasks"][0]["status"] == "SUPERSEDED"
+    assert superseded["tasks"][0]["last_error"] == "worker input manifest referenced a missing test file"
+    assert list_active_ownership(root) == []
 
 
 def test_commander_reassign_with_rework_creates_immutable_manifest_revision(tmp_path):
