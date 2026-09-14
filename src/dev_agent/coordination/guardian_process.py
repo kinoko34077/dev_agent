@@ -217,6 +217,28 @@ class GuardianProcessExecutor:
             raise CoordinationValidationError("runtime must provide start, stop, and restart")
         self.runtime = runtime
 
+    def bound_profile(self, profile: LaunchProfile) -> LaunchProfile:
+        if not isinstance(profile, LaunchProfile):
+            raise CoordinationValidationError("profile must be a LaunchProfile")
+        bound = self.profiles.get((profile.role, profile.generation))
+        if bound is None or bound != profile:
+            raise GuardianProcessExecutionError("launch profile is not bound to this Guardian")
+        return bound
+
+    def start_profile(self, profile: LaunchProfile) -> ProcessHandle:
+        """Start one already-bound static profile and validate its handle."""
+
+        bound = self.bound_profile(profile)
+        handle = self.runtime.start(bound)
+        self._validate_handle(handle, bound)
+        return handle
+
+    def stop_profile(self, profile: LaunchProfile) -> None:
+        """Stop one already-bound static profile without retrying an uncertain result."""
+
+        bound = self.bound_profile(profile)
+        self.runtime.stop(bound)
+
     def execute(self, request: ControlRequest) -> None:
         if not isinstance(request, ControlRequest):
             raise CoordinationValidationError("request must be a ControlRequest")
@@ -228,9 +250,10 @@ class GuardianProcessExecutor:
         if request.desired_revision is not None and request.desired_revision != profile.revision:
             raise GuardianProcessExecutionError("request revision does not match static launch profile")
         if request.action is ControlAction.START:
-            handle = self.runtime.start(profile)
+            self.start_profile(profile)
+            return
         elif request.action is ControlAction.STOP:
-            self.runtime.stop(profile)
+            self.stop_profile(profile)
             return
         else:
             handle = self.runtime.restart(profile)

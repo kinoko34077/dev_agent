@@ -34,6 +34,7 @@ from .guardian_process import (
 )
 from .drain import DrainDecision, DrainResult, ExternalEffectState, GracefulDrainService
 from .runtime_release import RevisionPinnedRuntimeStore, RuntimeRelease, RuntimeReleaseError
+from .rolling import RollingDecision, RollingRestartResult, RollingRestartService
 from .work import (
     InterruptFrame,
     InterruptStack,
@@ -78,6 +79,9 @@ __all__ = [
     "RevisionPinnedRuntimeStore",
     "RuntimeRelease",
     "RuntimeReleaseError",
+    "RollingDecision",
+    "RollingRestartResult",
+    "RollingRestartService",
     "InterruptFrame",
     "InterruptStack",
     "InterruptionMode",
