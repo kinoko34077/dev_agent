@@ -125,6 +125,9 @@ def test_resume_capsule_can_push_and_pop_a_parent_resume_frame() -> None:
     )
 
     frame = parent.to_interrupt_frame()
+    restored_parent = ResumeCapsule.from_dict(parent.to_dict())
+    assert restored_parent.task_id == "task-parent"
+    assert restored_parent.to_interrupt_frame() == frame
     suspended = parent.push_interrupt(frame)
 
     assert suspended.status == "SUSPENDED_BY_INTERRUPT"
@@ -171,6 +174,25 @@ def test_resume_capsule_keeps_legacy_serialization_without_optional_task_id() ->
     )
 
     assert "task_id" not in capsule.to_dict()
+    assert capsule.to_interrupt_frame(task_id="legacy-task").task_id == "legacy-task"
+
+
+def test_resume_capsule_pop_rejects_an_empty_interrupt_stack() -> None:
+    capsule = ResumeCapsule(
+        work_address=WorkAddress.parse("5"),
+        status="RUNNING",
+        objective="empty stack",
+        current_action="work",
+        completed=(),
+        next_action="next",
+        resume_from="checkpoint",
+        blocked_by=(),
+        owned_paths=(),
+        checkpoint_revision="rev-a",
+    )
+
+    with pytest.raises(ValueError):
+        capsule.pop_interrupt()
 
 
 def test_interrupt_stack_returns_latest_frame_first_and_is_bounded() -> None:

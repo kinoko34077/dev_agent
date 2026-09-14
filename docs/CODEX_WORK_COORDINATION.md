@@ -65,6 +65,7 @@ immutable handoff artifactとして次のbounded projectionを保存する。
 
 ```json
 {
+  "task_id": "<existing Task UUID, optional for legacy capsules>",
   "work_address": "5-B-8",
   "status": "RUNNING",
   "objective": "coordination protocolを実装する",
@@ -81,6 +82,14 @@ immutable handoff artifactとして次のbounded projectionを保存する。
 
 実際のpayloadは既存のartifact size、secret、path、revision検証を通す。mutableな
 共有MarkdownをSSOTにせず、Mailboxはartifact referenceと配送状態だけを持つ。
+
+`ResumeCapsule.task_id`は既存Task UUIDへの任意のリンクであり、旧書置きに無い場合も
+読み取り可能なままにする。Task UUIDが得られる場合、`to_interrupt_frame()`で親の復帰点を
+bounded `InterruptFrame`へ射影できる。`push_interrupt()`は現在のカプセルを
+`SUSPENDED_BY_INTERRUPT`として親フレームをLIFO stackへ積み、子Task側のカプセルへ
+stackを引き継ぐ。子の完了時に`pop_interrupt()`を呼ぶと、最新フレームと親の
+address/next-action/resume-from/revisionの位置射影を返す。親Taskの全状態は既存の
+Task/checkpointを正本とし、この値層はlookup、queue操作、Scheduler、process制御を行わない。
 
 ## 4. User intervention
 

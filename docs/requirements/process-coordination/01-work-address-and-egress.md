@@ -11,6 +11,11 @@
   readiness and concurrency.
 - A bounded resume capsule records the active address, checkpoint, next action,
   owned paths, and artifact references without raw conversation.
+- The capsule may carry the existing Task UUID for durable correlation while
+  remaining readable when that optional field is absent. It can project the
+  parent return point into a bounded frame, push a suspended projection, and
+  pop the latest frame; full parent state remains owned by the existing
+  Task/checkpoint store.
 - NOTE, PARALLEL, INTERRUPT, and explicit CANCEL are distinct. Ambiguous input
   must not interrupt active work. Interrupts use a bounded LIFO return stack and
   safe checkpoints.
