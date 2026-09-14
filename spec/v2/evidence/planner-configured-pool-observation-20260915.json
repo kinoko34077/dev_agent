@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "planner_configured_pool_observation",
+  "observed_at": "2026-09-15",
+  "implementation_baseline": "5a3dbb8321dd5f185ead23f6742b9b15c6829781",
+  "operation": {
+    "entry": "scripts/devfarm_planner_shadow.py",
+    "configured_pool": true,
+    "expand_discovered_models": true,
+    "required_tier": "L2",
+    "no_charge_required": true,
+    "configured_binding_count": 4,
+    "expanded_eligible_l2_count": 4
+  },
+  "eligible_model_families": {
+    "gemini-3.6-flash": 1,
+    "gemini-3.8-flash": 3
+  },
+  "result": "transport_failure",
+  "failure_category": "provider_transport_failure",
+  "diagnostic": "Windows outbound socket access was denied with WinError 10013 before a valid Planner proposal was returned",
+  "failover": {
+    "attempted": false,
+    "reason": "external outcome was not safely classifiable; do not blind-failover or resend"
+  },
+  "safety": {
+    "discovery_only_grant": false,
+    "l1_downgrade": false,
+    "raw_provider_response_recorded": false,
+    "credential_recorded": false
+  },
+  "interpretation": "The configured multi-binding pool and discovered-model expansion composed successfully. The live request remains unverified because the local outbound transport is blocked; this is not Planner schema or model-capability evidence."
+}
