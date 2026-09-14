@@ -118,6 +118,16 @@ Codex actionを先に処理し、unfinished Planを閉じるまで同じ目的�
 割込みの扱いは[`CODEX_WORK_COORDINATION.md`](CODEX_WORK_COORDINATION.md)を正本とし、
 曖昧な横槍は現在作業を止めないNOTE/PARALLELへ倒す。checkpointはResume Capsuleと
 immutable artifact referenceで残し、アドレスだけから依存やownershipを推測しない。
+Commander Planでアドレスを省略したTaskはHostがroot位置から自動発番できる。
+親付きの割込み・枝は`work_address_parent`と`work_address_kind`で明示する。作業中
+ファイルの重複確認は次の読み取り専用照会を使う。
+
+```text
+python scripts/devfarm_supervisor.py ownership <run-id> --root .
+python scripts/devfarm_supervisor.py ownership <run-id> --root . --all
+```
+
+これは既存Commanderのownershipを表示するだけで、claim/releaseやTask状態変更は行わない。
 
 外部Workerへ送るファイルは、既存manifestの明示scopeに加え、Host側のstanding egress
 grantとdispatchごとのcontent scan/hashを通す。ALLOW以外は送信せず、secret・credential・

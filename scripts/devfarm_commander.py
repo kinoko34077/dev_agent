@@ -25,7 +25,7 @@ import uuid
 from scripts.devfarm import DevFarmError, canonical_digest, init_farm, sha256_text, validate_manifest, validate_patch, validate_result
 from scripts.devfarm_orchestrator import DevFarmOrchestrator, WorkerAssignment
 from scripts.devfarm_supervisor_protocol import normalize_review_decision, normalize_supervisor_metadata
-from src.dev_agent.coordination import WorkAddress
+from src.dev_agent.coordination import WorkAddress, allocate_work_address
 from src.dev_agent.providers.base import ModelProvider
 from src.dev_agent.security.protected_paths import PROTECTED_AUTHORITY_PATHS, is_protected_path
 
@@ -114,6 +114,20 @@ def _work_address(value: Any, name: str = "work_address") -> str:
         return str(WorkAddress.parse(value))
     except (TypeError, ValueError) as exc:
         raise DevFarmError(f"{name} is invalid") from exc
+
+
+def _work_address_kind(value: Any, *, default: str = "numeric") -> str:
+    """Validate Host-owned address allocation intent."""
+
+    if value is None:
+        value = default
+    if not isinstance(value, str) or value.strip().lower() not in {"numeric", "letter"}:
+        raise DevFarmError("work_address_kind must be numeric or letter")
+    return value.strip().lower()
+
+
+def _work_address_parent(value: Any) -> str:
+    return _work_address(value, "work_address_parent")
 
 
 def _dependency_types(value: Any, dependencies: Sequence[str]) -> dict[str, str]:
@@ -431,6 +445,23 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
         attempt_count = raw.get("attempt_count", 0)
         if isinstance(attempt_count, bool) or not isinstance(attempt_count, int) or attempt_count < 0 or attempt_count > max_attempts:
             raise DevFarmError("attempt_count must be between zero and max_attempts")
+        raw_address = raw.get("work_address")
+        parsed_address: WorkAddress | None = None
+        if raw_address is not None:
+            parsed_address = WorkAddress.parse(raw_address)
+        address_kind = _work_address_kind(
+            raw.get("work_address_kind"),
+            default=("letter" if parsed_address is not None and parsed_address.segments[-1].isalpha() else "numeric"),
+        )
+        if parsed_address is not None:
+            actual_kind = "letter" if parsed_address.segments[-1].isalpha() else "numeric"
+            if actual_kind != address_kind:
+                raise DevFarmError("work_address_kind does not match work_address")
+        address_parent = None
+        if raw.get("work_address_parent") is not None:
+            address_parent = _work_address_parent(raw["work_address_parent"])
+            if parsed_address is not None and str(parsed_address.parent) != address_parent:
+                raise DevFarmError("work_address_parent does not match work_address")
         task: dict[str, Any] = {
             "task_id": task_id,
             "owner": owner,
@@ -444,7 +475,13 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
             "manifest_path": normalized_manifest_path,
             "max_attempts": max_attempts,
             "attempt_count": attempt_count,
+            "work_address_kind": address_kind,
+            "node_type": "task",
         }
+        if parsed_address is not None:
+            task["work_address"] = str(parsed_address)
+        if address_parent is not None:
+            task["work_address_parent"] = address_parent
         worker_candidate = raw.get("worker_candidate", owner == "worker")
         if not isinstance(worker_candidate, bool):
             raise DevFarmError("worker_candidate must be a boolean")
@@ -465,8 +502,6 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
             "delegation_reason",
             max_length=1000,
         )
-        if raw.get("work_address") is not None:
-            task["work_address"] = _work_address(raw["work_address"])
         if raw.get("node_type") is not None:
             node_type = _text(raw["node_type"], "node_type", max_length=16).lower()
             if node_type not in {"task", "step"}:
@@ -519,6 +554,17 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
             task["dispatch_recovery"] = _text(raw["dispatch_recovery"], "dispatch_recovery", max_length=128)
         tasks.append(task)
     _check_unique_ids(task_ids, "plan tasks")
+    existing_addresses = [task["work_address"] for task in tasks if task.get("work_address") is not None]
+    for task in tasks:
+        if task.get("work_address") is not None:
+            continue
+        allocated = allocate_work_address(
+            task.get("work_address_parent"),
+            existing_addresses,
+            kind=task["work_address_kind"],
+        )
+        task["work_address"] = str(allocated)
+        existing_addresses.append(str(allocated))
     work_addresses = [task["work_address"] for task in tasks if task.get("work_address") is not None]
     if len(work_addresses) != len(set(work_addresses)):
         raise DevFarmError("work_address values must be unique within a plan")
@@ -870,6 +916,36 @@ class CommanderPlanStore:
                             )
         return conflicts
 
+    def active_ownership(self, *, run_id: str | None = None) -> list[dict[str, Any]]:
+        """Return the durable file ownership projection for active plan work.
+
+        Commander remains the sole owner of Task ownership.  This is a
+        read-only query for supervisors and operators: it does not claim a
+        path, create a lock, or change readiness.  Rejected/blocked tasks are
+        included because their ownership remains reserved until integration,
+        supersession, or an explicit recovery action is recorded.
+        """
+
+        selected = [self.load(run_id)] if run_id is not None else self.list()
+        records: list[dict[str, Any]] = []
+        for plan in selected:
+            for task in plan["tasks"]:
+                if task["status"] not in _ACTIVE_TASK_STATUSES:
+                    continue
+                for path in task["ownership"]:
+                    record: dict[str, Any] = {
+                        "run_id": plan["run_id"],
+                        "task_id": task["task_id"],
+                        "owner": task["owner"],
+                        "status": task["status"],
+                        "path": path,
+                    }
+                    if task.get("work_address") is not None:
+                        record["work_address"] = task["work_address"]
+                    records.append(record)
+        records.sort(key=lambda item: (item["path"], item["run_id"], item["task_id"]))
+        return records
+
     def _write(self, plan: Mapping[str, Any]) -> None:
         normalized = validate_plan(plan, root=self.root)
         target = self.path_for(normalized["run_id"])
@@ -975,6 +1051,12 @@ def _apply_proposal_result(plan: dict[str, Any], task: dict[str, Any], result: M
 
 def create_plan(root: str | Path, value: Mapping[str, Any]) -> dict[str, Any]:
     return CommanderPlanStore(root).create(value)
+
+
+def list_active_ownership(root: str | Path, *, run_id: str | None = None) -> list[dict[str, Any]]:
+    """Public read-only ownership query for Supervisor/operator boundaries."""
+
+    return CommanderPlanStore(root).active_ownership(run_id=run_id)
 
 
 def dispatch_plan(
@@ -1755,6 +1837,7 @@ __all__ = [
     "dispatch_cli",
     "dispatch_plan",
     "load_worker_manifest",
+    "list_active_ownership",
     "mark_integrated",
     "recover_orphaned_dispatches",
     "reassign_task",

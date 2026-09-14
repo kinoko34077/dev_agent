@@ -55,8 +55,15 @@ TaskとStepは区別できるよう必要時に`node_type`（`task` / `step`）�
 segmentとして親アドレスへ付加できる。
 
 新しい子の既定アドレスは、同じ親の既存segmentと衝突しない最小の次番号または
-次の大文字laneをHost側で発番する。明示アドレスを受け入れる場合も、構文・親子・
-重複・depth上限を決定論的に検証する。
+次の大文字laneをHost側で発番する。Commanderが外部の親TaskをPlanへ含めない場合は
+root位置から発番し、`work_address_parent`を指定した場合はその親の直接の子として
+発番する。`work_address_kind`はHost側の発番意図（`numeric` / `letter`）であり、
+明示アドレスを受け入れる場合も、構文・親子・重複・depth上限を決定論的に検証する。
+既存Commanderの`ownership`判定はそのまま排他的な正本とし、Supervisorの
+`ownership`照会または`python scripts/devfarm_supervisor.py ownership <run-id>`（全Planは
+`--all`）で、未完了Taskが保持するpath、owner、status、work addressを読み取り専用で
+確認できる。照会はclaim/releaseを行わず、統合または明示的supersedeまで保持される
+Rejected/Blockedの予約も隠さない。
 
 ## 3. 書置き・Resume Capsule
 

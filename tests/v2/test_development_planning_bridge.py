@@ -118,6 +118,70 @@ def test_bridge_candidate_can_use_existing_manifest_and_plan_boundaries(tmp_path
     assert created["tasks"][0]["manifest_path"] == candidate.manifests[0][0]
 
 
+def test_bridge_allocates_child_work_address_from_resume_parent(tmp_path):
+    parent = _parent()
+    proposal = RootPlanningProposal(
+        parent_task_id=parent.task_id,
+        rationale="keep the child position in the existing work tree",
+        children=(
+            ChildTaskProposal(
+                child_key="implementation",
+                objective="implement the narrow change",
+                task_type=TaskType.WORKER,
+            ),
+        ),
+    )
+
+    candidate = DevelopmentPlanningBridge(tmp_path).build_candidate(
+        parent,
+        proposal,
+        run_id="planner-address-parent",
+        base_revision="abc123",
+        parent_work_address="5-B-8",
+        task_specs={
+            "implementation": {
+                **_manifest_spec("src/addressed.py"),
+                "work_address_kind": "letter",
+            }
+        },
+    )
+
+    task = candidate.plan["tasks"][0]
+    assert task["work_address_parent"] == "5-B-8"
+    assert task["work_address_kind"] == "letter"
+    assert task["work_address"] == "5-B-8-A"
+
+
+def test_bridge_rejects_invalid_work_address_kind(tmp_path):
+    parent = _parent()
+    proposal = RootPlanningProposal(
+        parent_task_id=parent.task_id,
+        rationale="reject ambiguous position allocation",
+        children=(
+            ChildTaskProposal(
+                child_key="implementation",
+                objective="implement the narrow change",
+                task_type=TaskType.WORKER,
+            ),
+        ),
+    )
+
+    with pytest.raises(PlanningBridgeError, match="work_address_kind"):
+        DevelopmentPlanningBridge(tmp_path).build_candidate(
+            parent,
+            proposal,
+            run_id="planner-address-invalid-kind",
+            base_revision="abc123",
+            parent_work_address="5-B-8",
+            task_specs={
+                "implementation": {
+                    **_manifest_spec("src/addressed.py"),
+                    "work_address_kind": "sideways",
+                }
+            },
+        )
+
+
 def test_bridge_does_not_silently_convert_unsupported_dependency_type(tmp_path):
     parent = _parent()
     proposal = RootPlanningProposal(

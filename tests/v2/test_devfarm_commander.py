@@ -13,12 +13,14 @@ from scripts.devfarm_commander import (
     collect_plan,
     create_plan,
     dispatch_plan,
+    list_active_ownership,
     mark_integrated,
     recover_orphaned_dispatches,
     reassign_task,
     refresh_plan,
     resume_plan,
     summarize_delegation,
+    validate_plan,
     verify_plan,
 )
 from scripts.devfarm_orchestrator import DevFarmOrchestrator, HostConcurrencyGovernor, RemoteConcurrencyGovernor
@@ -327,6 +329,72 @@ def test_commander_preserves_work_address_and_rejects_duplicate_addresses(tmp_pa
                 ],
             },
         )
+
+
+def test_commander_auto_assigns_work_addresses_and_preserves_parallel_parentage():
+    normalized = validate_plan(
+        {
+            "run_id": "work-address-auto",
+            "objective": "allocate positions without replacing UUID identity",
+            "base_revision": "abc123",
+            "tasks": [
+                {"task_id": "parent", "owner": "codex", "work_address": "5-B"},
+                {
+                    "task_id": "lane-a",
+                    "owner": "codex",
+                    "work_address_parent": "5-B",
+                    "work_address_kind": "letter",
+                },
+                {
+                    "task_id": "lane-b",
+                    "owner": "codex",
+                    "work_address_parent": "5-B",
+                    "work_address_kind": "letter",
+                },
+                {"task_id": "next-root", "owner": "codex"},
+            ],
+        }
+    )
+
+    by_id = {task["task_id"]: task for task in normalized["tasks"]}
+    assert by_id["parent"]["work_address"] == "5-B"
+    assert by_id["lane-a"]["work_address"] == "5-B-A"
+    assert by_id["lane-b"]["work_address"] == "5-B-B"
+    assert by_id["next-root"]["work_address"] == "1"
+    assert by_id["lane-a"]["node_type"] == "task"
+
+
+def test_commander_exposes_active_file_ownership_without_claiming_or_releasing(tmp_path):
+    root, targets, revision = _repo(tmp_path)
+    create_plan(
+        root,
+        {
+            "run_id": "ownership-query",
+            "objective": "inspect active file ownership",
+            "base_revision": revision,
+            "tasks": [
+                {
+                    "task_id": "owner-a",
+                    "owner": "codex",
+                    "ownership": [targets[0]],
+                },
+                {
+                    "task_id": "owner-b",
+                    "owner": "codex",
+                    "ownership": [targets[1]],
+                },
+            ],
+        },
+    )
+
+    records = list_active_ownership(root)
+    assert [(item["task_id"], item["path"]) for item in records] == [
+        ("owner-a", targets[0]),
+        ("owner-b", targets[1]),
+    ]
+    assert all(item["status"] == "READY" for item in records)
+    assert {item["work_address"] for item in records} == {"1", "2"}
+    assert list_active_ownership(root, run_id="ownership-query") == records
 
 
 def test_supervisor_approved_integration_applies_patch_and_records_git_proof(tmp_path):

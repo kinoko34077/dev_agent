@@ -10,6 +10,7 @@ from src.dev_agent.coordination.work import (
     InterruptionMode,
     ResumeCapsule,
     WorkAddress,
+    allocate_work_address,
     classify_intervention,
 )
 
@@ -36,6 +37,15 @@ def test_next_child_allocates_numeric_and_parallel_lane_without_collision() -> N
 
     assert str(parent.next_child(existing, kind="numeric")) == "5-B-8-3"
     assert str(parent.next_child(existing, kind="letter")) == "5-B-8-B"
+
+
+def test_work_address_allocator_assigns_root_and_parented_positions() -> None:
+    existing = ["1", "1-A", "2"]
+
+    assert str(allocate_work_address(None, existing)) == "3"
+    assert str(allocate_work_address(None, existing, kind="letter")) == "A"
+    assert str(allocate_work_address("1", existing, kind="letter")) == "1-B"
+    assert str(WorkAddress.next_root(["A", "A-1"], kind="letter")) == "B"
 
 
 def test_resume_capsule_is_bounded_and_json_serializable() -> None:

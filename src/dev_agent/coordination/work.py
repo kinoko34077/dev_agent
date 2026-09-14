@@ -35,6 +35,15 @@ _NUMERIC_SEGMENT = re.compile(r"^[1-9][0-9]*$")
 _LETTER_SEGMENT = re.compile(r"^[A-Z]$")
 
 
+def _child_kind(value: Any) -> str:
+    if not isinstance(value, str):
+        raise CoordinationValidationError("child kind must be text")
+    normalized = value.strip().lower()
+    if normalized not in {"numeric", "letter"}:
+        raise CoordinationValidationError("child kind must be numeric or letter")
+    return normalized
+
+
 def _address_segment(value: Any, name: str = "address segment") -> str:
     if not isinstance(value, str) or not value or value != value.strip() or len(value) > 64:
         raise CoordinationValidationError(f"{name} is invalid")
@@ -107,11 +116,7 @@ class WorkAddress:
 
         if isinstance(existing, (str, bytes)) or not isinstance(existing, Sequence):
             raise CoordinationValidationError("existing addresses must be a sequence")
-        if not isinstance(kind, str):
-            raise CoordinationValidationError("child kind must be text")
-        normalized_kind = kind.strip().lower()
-        if normalized_kind not in {"numeric", "letter"}:
-            raise CoordinationValidationError("child kind must be numeric or letter")
+        normalized_kind = _child_kind(kind)
         occupied: set[str] = set()
         prefix = self.segments
         for index, item in enumerate(existing):
@@ -133,6 +138,46 @@ class WorkAddress:
                 return WorkAddress(prefix + (segment,))
             candidate += 1
         raise CoordinationValidationError("no numeric child address is available")
+
+    @classmethod
+    def next_root(
+        cls,
+        existing: Sequence[str | "WorkAddress"],
+        *,
+        kind: str = "numeric",
+    ) -> "WorkAddress":
+        """Allocate a deterministic root/lane address without a parent.
+
+        Commander plans do not always persist the external parent Task that
+        owns their children.  Root allocation gives those plans a stable
+        display address while leaving UUID, dependency, and ownership
+        authority unchanged.  Any existing descendant reserves its first
+        segment so an automatically-created root cannot split an existing
+        address tree.
+        """
+
+        if isinstance(existing, (str, bytes)) or not isinstance(existing, Sequence):
+            raise CoordinationValidationError("existing addresses must be a sequence")
+        normalized_kind = _child_kind(kind)
+        occupied: set[str] = set()
+        for item in existing:
+            parsed = item if isinstance(item, WorkAddress) else cls.parse(item)
+            occupied.add(parsed.segments[0])
+
+        if normalized_kind == "letter":
+            for codepoint in range(ord("A"), ord("Z") + 1):
+                segment = chr(codepoint)
+                if segment not in occupied:
+                    return cls((segment,))
+            raise CoordinationValidationError("no uppercase letter root address is available")
+
+        candidate = 1
+        while candidate <= 100_000:
+            segment = str(candidate)
+            if segment not in occupied:
+                return cls((segment,))
+            candidate += 1
+        raise CoordinationValidationError("no numeric root address is available")
 
     def __str__(self) -> str:
         return "-".join(self.segments)
@@ -476,6 +521,26 @@ def classify_intervention(value: Any) -> InterruptionMode:
     return InterruptionMode.NOTE
 
 
+def allocate_work_address(
+    parent: WorkAddress | str | None,
+    existing: Sequence[str | WorkAddress],
+    *,
+    kind: str = "numeric",
+) -> WorkAddress:
+    """Allocate one address for a Host-owned task projection.
+
+    This helper only allocates a display position.  The caller still owns
+    persistence, dependencies, file ownership, leases, and queue actions.
+    ``parent=None`` is used for a Commander plan whose external parent is not
+    represented in the plan file.
+    """
+
+    if parent is None:
+        return WorkAddress.next_root(existing, kind=kind)
+    parsed_parent = parent if isinstance(parent, WorkAddress) else WorkAddress.parse(parent)
+    return parsed_parent.next_child(existing, kind=kind)
+
+
 __all__ = [
     "MAX_ADDRESS_DEPTH",
     "MAX_INTERRUPT_DEPTH",
@@ -485,5 +550,6 @@ __all__ = [
     "InterruptionMode",
     "ResumeCapsule",
     "WorkAddress",
+    "allocate_work_address",
     "classify_intervention",
 ]

@@ -9,6 +9,14 @@
 - Numeric segments express sequential position and letter segments express a
   parallel lane. Dependencies and ownership, not the address alone, control
   readiness and concurrency.
+- Commander may allocate an omitted address from the smallest unused root or
+  direct child position. `work_address_parent` selects an external parent and
+  `work_address_kind` selects numeric versus uppercase-lane allocation; an
+  explicit address remains subject to deterministic syntax, parent, collision,
+  and depth validation.
+- Existing Commander ownership remains authoritative. A read-only active
+  ownership projection exposes unfinished plan/task/path/owner/status/address
+  records for collision inspection without claiming or releasing a path.
 - A bounded resume capsule records the active address, checkpoint, next action,
   owned paths, and artifact references without raw conversation.
 - The capsule may carry the existing Task UUID for durable correlation while

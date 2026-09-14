@@ -16,6 +16,7 @@ from uuid import NAMESPACE_URL, uuid5
 
 from scripts.devfarm import DevFarmError, validate_manifest
 from scripts.devfarm_commander import validate_plan
+from src.dev_agent.coordination import WorkAddress
 from src.dev_agent.domain.protocol import RiskLevel, Task, TaskType
 from src.dev_agent.intelligence.planner import (
     PlannerDependencyType,
@@ -65,6 +66,7 @@ class DevelopmentPlanningBridge:
         task_specs: Mapping[str, Mapping[str, Any]],
         existing_tasks: tuple[Task, ...] = (),
         objective: str | None = None,
+        parent_work_address: WorkAddress | str | None = None,
     ) -> DevelopmentPlanCandidate:
         """Build a Commander plan candidate from a Host-validated proposal.
 
@@ -81,6 +83,7 @@ class DevelopmentPlanningBridge:
         run_id = self._safe_run_id(run_id)
         base_revision = self._safe_revision(base_revision)
         plan_objective = self._text(objective if objective is not None else parent.objective, "objective", 4000)
+        parent_address = self._safe_work_address(parent_work_address)
         if not isinstance(task_specs, Mapping):
             raise PlanningBridgeError("task_specs must be an object")
         proposal_keys = {child.child_key for child in proposal.children}
@@ -128,6 +131,15 @@ class DevelopmentPlanningBridge:
                 ),
                 "assignment": dict(raw_spec.get("assignment", {})) if isinstance(raw_spec.get("assignment", {}), Mapping) else {},
             }
+            if raw_spec.get("work_address") is not None:
+                task["work_address"] = self._safe_work_address(raw_spec["work_address"])
+            elif parent_address is not None:
+                # The Commander normalizer allocates a collision-free child
+                # under this external parent.  The parent Task itself need
+                # not be duplicated into the development plan.
+                task["work_address_parent"] = parent_address
+            if raw_spec.get("work_address_kind") is not None:
+                task["work_address_kind"] = self._work_address_kind(raw_spec["work_address_kind"])
             if owner == "worker":
                 raw_manifest = raw_spec.get("manifest")
                 if not isinstance(raw_manifest, Mapping):
@@ -215,6 +227,21 @@ class DevelopmentPlanningBridge:
         if not isinstance(value, str) or not value.strip() or value.strip().startswith("-") or any(char.isspace() for char in value):
             raise PlanningBridgeError("base_revision must be a safe Git revision")
         return value.strip()
+
+    @staticmethod
+    def _safe_work_address(value: Any) -> str | None:
+        if value is None:
+            return None
+        try:
+            return str(value if isinstance(value, WorkAddress) else WorkAddress.parse(value))
+        except (TypeError, ValueError) as exc:
+            raise PlanningBridgeError("work address is invalid") from exc
+
+    @staticmethod
+    def _work_address_kind(value: Any) -> str:
+        if not isinstance(value, str) or value.strip().lower() not in {"numeric", "letter"}:
+            raise PlanningBridgeError("work_address_kind must be numeric or letter")
+        return value.strip().lower()
 
     @staticmethod
     def _text(value: Any, name: str, maximum: int) -> str:

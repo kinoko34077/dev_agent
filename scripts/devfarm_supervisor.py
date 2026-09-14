@@ -191,6 +191,11 @@ class CodexSupervisedCommanderRun:
     def plan(self) -> dict[str, Any]:
         return self.store.load(self.run_id)
 
+    def ownership(self) -> list[dict[str, Any]]:
+        """Return active file ownership for this run without changing state."""
+
+        return self.store.active_ownership(run_id=self.run_id)
+
     def _step(self, plan: Mapping[str, Any]) -> SupervisorStep:
         metadata = normalize_supervisor_metadata(plan.get("supervisor"))
         return SupervisorStep(
@@ -973,7 +978,7 @@ def _latest_rework_decision(plan: Mapping[str, Any], task_id: str, attempt_id: s
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="bounded Codex supervisor view over a Commander plan")
     sub = parser.add_subparsers(dest="command", required=True)
-    for command in ("status", "resume", "run", "review", "rework", "integrate", "codexless"):
+    for command in ("status", "resume", "run", "review", "rework", "integrate", "ownership", "codexless"):
         item = sub.add_parser(command)
         item.add_argument("run_id")
         item.add_argument("--root", type=Path, default=Path.cwd())
@@ -1015,6 +1020,12 @@ def main(argv: list[str] | None = None) -> int:
     integrate.add_argument("--target-checkout", type=Path, required=True)
     integrate.add_argument("--target-ref", required=True)
     integrate.add_argument("--commit-message", required=True)
+    ownership = sub.choices["ownership"]
+    ownership.add_argument(
+        "--all",
+        action="store_true",
+        help="show active ownership across all unfinished Commander plans",
+    )
     codexless = sub.choices["codexless"]
     codexless.add_argument("task_id")
     codexless.add_argument("--proposal-file", type=Path, required=True)
@@ -1023,6 +1034,12 @@ def main(argv: list[str] | None = None) -> int:
     runner = CodexSupervisedCommanderRun(args.root, args.run_id)
     if args.command == "status":
         print(json.dumps(runner.status().to_dict(), ensure_ascii=False, indent=2))
+        return 0
+    if args.command == "ownership":
+        records = CommanderPlanStore(args.root).active_ownership(
+            run_id=None if args.all else args.run_id
+        )
+        print(json.dumps(records, ensure_ascii=False, indent=2))
         return 0
     if args.command == "review":
         step = runner.record_review_decision(

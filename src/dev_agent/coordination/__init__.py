@@ -19,6 +19,7 @@ from .work import (
     InterruptionMode,
     ResumeCapsule,
     WorkAddress,
+    allocate_work_address,
     classify_intervention,
 )
 
@@ -41,5 +42,6 @@ __all__ = [
     "InterruptionMode",
     "ResumeCapsule",
     "WorkAddress",
+    "allocate_work_address",
     "classify_intervention",
 ]

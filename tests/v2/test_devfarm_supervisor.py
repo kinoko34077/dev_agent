@@ -16,7 +16,7 @@ from scripts.devfarm_supervisor_protocol import (
     record_wake,
     select_heartbeat_cadence,
 )
-from scripts.devfarm_supervisor import CodexSupervisedCommanderRun
+from scripts.devfarm_supervisor import CodexSupervisedCommanderRun, main as supervisor_main
 from scripts.devfarm_supervisor import _providers_for_resume
 from scripts.devfarm_commander import create_plan
 
@@ -381,6 +381,34 @@ def test_supervisor_step_exposes_plan_delegation_summary(tmp_path):
     assert step.delegation["codex_direct_implementation_count"] == 1
     assert step.delegation["codex_direct_reasons"] == ["cross_cutting"]
     assert step.to_dict()["delegation"] == dict(step.delegation)
+
+
+def test_supervisor_ownership_command_exposes_current_file_holders(tmp_path, capsys):
+    create_plan(
+        tmp_path,
+        _plan(
+            tasks=[
+                {
+                    "task_id": "codex-owned-file",
+                    "owner": "codex",
+                    "ownership": ["src/dev_agent/coordination/work.py"],
+                }
+            ],
+            ownership=[
+                {
+                    "task_id": "codex-owned-file",
+                    "paths": ["src/dev_agent/coordination/work.py"],
+                }
+            ],
+            assignments=[{"task_id": "codex-owned-file", "owner": "codex"}],
+            dependencies=[{"task_id": "codex-owned-file", "depends_on": []}],
+        ),
+    )
+
+    assert supervisor_main(["ownership", "supervisor-test-001", "--root", str(tmp_path)]) == 0
+    output = capsys.readouterr().out
+    assert '"path": "src/dev_agent/coordination/work.py"' in output
+    assert '"work_address": "1"' in output
 
 
 def test_supervised_run_wait_budget_is_not_human_decision_and_wake_is_deduplicated(tmp_path):
