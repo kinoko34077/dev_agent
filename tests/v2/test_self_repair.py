@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
@@ -19,6 +20,7 @@ from src.dev_agent.intelligence.self_repair import (
     RepairPolicy,
 )
 from src.dev_agent.policy.approvals import canonical_arguments_hash
+from scripts.devfarm_self_repair import integrate_approved_repair
 
 
 def _plan() -> ImprovementPlanProposal:
@@ -154,8 +156,12 @@ def _execution_request(candidate: RepairCandidate) -> RepairExecutionRequest:
         run_id="repair-run-1",
         task_id="repair-task-1",
         attempt_id=candidate.evidence.attempt_id,
+        base_revision=candidate.evidence.base_revision,
+        patch_sha256=candidate.evidence.patch_sha256,
+        manifest_ref=candidate.evidence.manifest_ref,
+        verification_ref=candidate.evidence.verification_ref,
         review_decision_id="review-repair-1",
-        target_checkout_ref="workspace",
+        target_checkout_ref=str(Path("workspace").resolve()),
         target_ref="HEAD",
         commit_message="apply bounded repair",
         approval_id="approval-repair-1",
@@ -241,3 +247,107 @@ def test_repair_execution_preflight_requires_durable_approval() -> None:
     assert evaluation.eligible is False
     assert evaluation.status == "REJECTED"
     assert "approval_missing_or_mismatched" in evaluation.reasons
+
+
+class _IntegrationApprovalStore(_ApprovalStore):
+    def consume_approval(self, approval_id: str, **kwargs: object) -> bool:
+        self.consumed = True
+        self.calls.append({"consumed_approval_id": approval_id, **kwargs})
+        return True
+
+
+class _RepairRunner:
+    run_id = "repair-run-1"
+
+    def __init__(self, candidate: RepairCandidate) -> None:
+        self.candidate = candidate
+        self.integration_args: dict[str, object] | None = None
+        self.plan_data: dict[str, object] = {
+            "tasks": [
+                {
+                    "task_id": "repair-task-1",
+                    "owner": "worker",
+                    "status": "HOST_VERIFIED",
+                    "last_attempt_id": self.candidate.evidence.attempt_id,
+                    "verified_patch_digest": self.candidate.evidence.patch_sha256,
+                    "manifest_path": self.candidate.evidence.manifest_ref,
+                }
+            ],
+            "review_decisions": [
+                {
+                    "decision_id": "review-repair-1",
+                    "task_id": "repair-task-1",
+                    "attempt_id": self.candidate.evidence.attempt_id,
+                    "decision": "APPROVE_INTEGRATION",
+                }
+            ],
+        }
+
+    def plan(self) -> dict[str, object]:
+        return self.plan_data
+
+    def review_packet(self, task_id: str, *, attempt_id: str) -> dict[str, object]:
+        assert task_id == "repair-task-1"
+        assert attempt_id == self.candidate.evidence.attempt_id
+        return {
+            "task_id": task_id,
+            "attempt_id": attempt_id,
+            "patch_sha256": self.candidate.evidence.patch_sha256,
+            "artifact_refs": [
+                {"kind": "patch", "path": self.candidate.evidence.patch_ref},
+                {"kind": "verification", "path": self.candidate.evidence.verification_ref},
+            ],
+        }
+
+    def integrate_approved_worker(self, task_id: str, **kwargs: object) -> str:
+        self.integration_args = {"task_id": task_id, **kwargs}
+        return "host-integration-result"
+
+
+def test_approved_repair_adapter_rechecks_authority_before_consuming_approval() -> None:
+    candidate_result = RepairPolicy().evaluate(_plan(), _evidence())
+    assert candidate_result.candidate is not None
+    candidate = candidate_result.candidate
+    request = _execution_request(candidate)
+    runner = _RepairRunner(candidate)
+    store = _IntegrationApprovalStore(approved=True)
+
+    result = integrate_approved_repair(
+        runner,
+        candidate,
+        request,
+        approval_store=store,
+        target_checkout="workspace",
+    )
+
+    assert result == "host-integration-result"
+    assert store.consumed is True
+    assert runner.integration_args == {
+        "task_id": "repair-task-1",
+        "decision_id": "review-repair-1",
+        "commit_message": "apply bounded repair",
+        "target_checkout": "workspace",
+        "target_ref": "HEAD",
+    }
+
+
+def test_approved_repair_adapter_fails_before_consuming_mismatched_patch() -> None:
+    candidate_result = RepairPolicy().evaluate(_plan(), _evidence())
+    assert candidate_result.candidate is not None
+    candidate = candidate_result.candidate
+    request = _execution_request(candidate)
+    runner = _RepairRunner(candidate)
+    runner.plan_data["tasks"][0]["verified_patch_digest"] = "c" * 64  # type: ignore[index]
+    store = _IntegrationApprovalStore(approved=True)
+
+    with pytest.raises(ValueError, match="patch digest"):
+        integrate_approved_repair(
+            runner,
+            candidate,
+            request,
+            approval_store=store,
+            target_checkout="workspace",
+        )
+
+    assert store.consumed is False
+    assert runner.integration_args is None

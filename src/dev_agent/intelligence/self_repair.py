@@ -266,6 +266,10 @@ class RepairExecutionRequest:
     run_id: str
     task_id: str
     attempt_id: str
+    base_revision: str
+    patch_sha256: str
+    manifest_ref: str
+    verification_ref: str
     review_decision_id: str
     target_checkout_ref: str
     target_ref: str
@@ -279,6 +283,8 @@ class RepairExecutionRequest:
             ("run_id", 128),
             ("task_id", 128),
             ("attempt_id", 128),
+            ("base_revision", 128),
+            ("patch_sha256", 64),
             ("review_decision_id", 128),
             ("target_checkout_ref", 512),
             ("target_ref", 256),
@@ -286,6 +292,11 @@ class RepairExecutionRequest:
             ("call_id", 128),
         ):
             object.__setattr__(self, name, _text(getattr(self, name), name, maximum=maximum))
+        if not _HEX_SHA256.fullmatch(self.patch_sha256.lower()):
+            raise ValueError("patch_sha256 must be a SHA-256 hex digest")
+        object.__setattr__(self, "patch_sha256", self.patch_sha256.lower())
+        object.__setattr__(self, "manifest_ref", _safe_artifact_ref(self.manifest_ref, "manifest_ref"))
+        object.__setattr__(self, "verification_ref", _safe_artifact_ref(self.verification_ref, "verification_ref"))
         object.__setattr__(
             self,
             "commit_message",
@@ -300,6 +311,10 @@ class RepairExecutionRequest:
             "run_id": self.run_id,
             "task_id": self.task_id,
             "attempt_id": self.attempt_id,
+            "base_revision": self.base_revision,
+            "patch_sha256": self.patch_sha256,
+            "manifest_ref": self.manifest_ref,
+            "verification_ref": self.verification_ref,
             "review_decision_id": self.review_decision_id,
             "target_checkout_ref": self.target_checkout_ref,
             "target_ref": self.target_ref,
@@ -315,6 +330,10 @@ class RepairExecutionRequest:
             "run_id": self.run_id,
             "task_id": self.task_id,
             "attempt_id": self.attempt_id,
+            "base_revision": self.base_revision,
+            "patch_sha256": self.patch_sha256,
+            "manifest_ref": self.manifest_ref,
+            "verification_ref": self.verification_ref,
             "review_decision_id": self.review_decision_id,
             "target_checkout_ref": self.target_checkout_ref,
             "target_ref": self.target_ref,
@@ -333,6 +352,10 @@ class RepairExecutionRequest:
             "run_id",
             "task_id",
             "attempt_id",
+            "base_revision",
+            "patch_sha256",
+            "manifest_ref",
+            "verification_ref",
             "review_decision_id",
             "target_checkout_ref",
             "target_ref",
@@ -401,6 +424,14 @@ class RepairExecutionPolicy:
             reasons.append("candidate_identity_mismatch")
         if request.attempt_id != candidate.evidence.attempt_id:
             reasons.append("attempt_identity_mismatch")
+        if request.base_revision != candidate.evidence.base_revision:
+            reasons.append("base_revision_mismatch")
+        if request.patch_sha256 != candidate.evidence.patch_sha256:
+            reasons.append("patch_digest_mismatch")
+        if request.manifest_ref != candidate.evidence.manifest_ref:
+            reasons.append("manifest_reference_mismatch")
+        if request.verification_ref != candidate.evidence.verification_ref:
+            reasons.append("verification_reference_mismatch")
         if not request.review_decision_id:
             reasons.append("review_decision_required")
         if reasons:
