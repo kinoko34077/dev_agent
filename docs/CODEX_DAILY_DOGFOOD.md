@@ -60,6 +60,8 @@ Worker作業中はCodexがstatusを短周期pollしたり、同じ実装を並�
 
 ## Review / integration
 
+Free L2 Reviewer Shadow is proposal-only, so Codex final review and Host deterministic integration remain required.
+
 `run`が返したReviewPacketを最初に読む。通常見るのはtask・attempt・provider/model・
 changed files・patch digest・verification summary・known issues・acceptance・artifact
 referenceだけで、raw Worker会話や巨大patchは必要時にだけ取得する。
