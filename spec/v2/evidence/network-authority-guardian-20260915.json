@@ -1,0 +1,53 @@
+{
+  "evidence_id": "network-authority-guardian-20260915",
+  "observed_at": "2026-09-15",
+  "implementation_baseline_before_documentation_sync": "fc1c1e844aa63117f4e9f4780a169042347d77aa",
+  "network": {
+    "host_owned_worker_boundary": "implemented",
+    "codex_direct_provider_request": "not_used_by_standard_cli_path",
+    "transport_diagnostic_categories": [
+      "sandbox_network_denied",
+      "local_network_policy_denied",
+      "provider_transport_failure",
+      "transport_unclassified"
+    ],
+    "egress_manifest": "per_dispatch_digest_and_content_scan_persisted_without_source",
+    "read_only_preflight": "PASS",
+    "live_production_worker": "BLOCKED_EXTERNAL_WINERROR_10013",
+    "model_escalation_after_transport_failure": false,
+    "unknown_effect_replayed": false
+  },
+  "authority": {
+    "protected_path_policy": "central_policy_preserved",
+    "lease_freshness": "current_peer_requires_generation_active_status_and_unexpired_lease",
+    "terminal_plan_supersession": "explicit_api_and_cli_with_inflight_rejection"
+  },
+  "guardian": {
+    "local_process_ownership": "verified",
+    "bounded_serve_loop": "verified_with_six_second_poll_default",
+    "os_registration": "NOT_CONFIGURED",
+    "registration_mode": "read_only_dry_run_by_default",
+    "deployed_crash_recovery": "NOT_VERIFIED"
+  },
+  "rollback": {
+    "rollback_proof_boundary": "implemented_and_locally_verified",
+    "official_runtime_mutation": "NOT_RELEASED"
+  },
+  "adaptive_refinement": {
+    "one_action_host_adapter": "implemented",
+    "autonomous_retry_loop": false,
+    "live_production_refinement": "BLOCKED_BY_HOST_TRANSPORT"
+  },
+  "verification": {
+    "tests_v2": "1244 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head_ci": {
+      "remote_head": "fc1c1e844aa63117f4e9f4780a169042347d77aa",
+      "v2_core_run": "34909066053",
+      "v2_provider_smoke_run": "34909066122",
+      "result": "PASS"
+    }
+  },
+  "secrets_or_raw_payloads_saved": false
+}
