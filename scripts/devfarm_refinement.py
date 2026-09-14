@@ -29,6 +29,106 @@ class ReviewPacketSource(Protocol):
         ...
 
 
+_FORMAT_FAILURES = frozenset(
+    {
+        "format_patch",
+        "patch_format_failure",
+        "malformed_patch",
+        "hunk_apply_failure",
+        "delimiter_imbalance",
+        "json_shape_failure",
+        "syntax_incomplete",
+        "new_file_contract_failure",
+        "model_output_invalid",
+    }
+)
+_SEMANTIC_FAILURES = frozenset(
+    {
+        "semantic_test",
+        "test_failure",
+        "host_verification_failure",
+    }
+)
+_PROVIDER_FAILURES = frozenset(
+    {
+        "provider_failure",
+        "provider_error",
+        "provider_transport",
+        "transport_failure",
+        "provider_unavailable",
+        "rate_limit",
+        "quota",
+        "quota_exhausted",
+        "authentication_failure",
+        "authorization_failure",
+        "binding_saturation",
+        "timeout",
+    }
+)
+_CAPABILITY_FAILURES = frozenset(
+    {
+        "capability_failure",
+        "capability_reasoning",
+        "reasoning_failure",
+    }
+)
+_SECURITY_FAILURES = frozenset(
+    {
+        "security_egress_authority",
+        "manifest_input_failure",
+        "scope_violation",
+        "egress_denied",
+        "secret_detected",
+        "protected_path",
+        "approval_missing",
+    }
+)
+_UNKNOWN_FAILURES = frozenset(
+    {
+        "unknown",
+        "unknown_external_effect",
+        "timeout_after_send",
+        "connection_lost_after_send",
+        "decode_ambiguity",
+        "billing_reconciliation_unknown",
+        "lease_loss_after_external_effect",
+    }
+)
+
+
+def classify_worker_failure(
+    failure_category: str,
+    *,
+    external_outcome_known: bool = True,
+) -> FailureClass:
+    """Map one Host category to a bounded refinement failure class.
+
+    The mapping is intentionally closed rather than substring-based.  An
+    unknown category must be classified by the Host before any model change
+    or retry is considered.  ``external_outcome_known=False`` always wins and
+    prevents a fresh dispatch from being selected for an ambiguous effect.
+    """
+
+    if not isinstance(failure_category, str) or not failure_category.strip():
+        raise RefinementCompositionError("failure_category must be non-empty text")
+    if not isinstance(external_outcome_known, bool):
+        raise RefinementCompositionError("external_outcome_known must be a boolean")
+    category = failure_category.strip().lower().replace("-", "_").replace(" ", "_")
+    if not external_outcome_known or category in _UNKNOWN_FAILURES:
+        return FailureClass.UNKNOWN_EXTERNAL_EFFECT
+    if category in _SECURITY_FAILURES:
+        return FailureClass.SECURITY_EGRESS_AUTHORITY
+    if category in _FORMAT_FAILURES:
+        return FailureClass.FORMAT_PATCH
+    if category in _SEMANTIC_FAILURES:
+        return FailureClass.SEMANTIC_TEST
+    if category in _CAPABILITY_FAILURES:
+        return FailureClass.CAPABILITY_REASONING
+    if category in _PROVIDER_FAILURES:
+        return FailureClass.PROVIDER_TRANSPORT
+    raise RefinementCompositionError(f"unsupported failure category: {category}")
+
+
 def _failure_class(value: FailureClass | str) -> str:
     try:
         return FailureClass(value).value
@@ -120,5 +220,6 @@ __all__ = [
     "RefinementCompositionError",
     "ReviewPacketSource",
     "build_refinement_packet",
+    "classify_worker_failure",
     "propose_critic",
 ]

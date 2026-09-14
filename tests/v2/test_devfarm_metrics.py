@@ -4,6 +4,7 @@ import pytest
 
 from scripts.devfarm_metrics import WorkerMetricsError, WorkerMetricsStore
 from scripts.devfarm_worker import apply_and_verify, run_worker
+from src.dev_agent.domain.protocol import ModelResponse
 from tests.v2.devfarm_test_support import _WorkerProvider, _workspace, _patch
 
 
@@ -136,3 +137,33 @@ def test_worker_metrics_summarize_usage_preserves_observation_gaps(tmp_path):
         }
     ]
     assert summary["reasoning_efforts"] == ["low", "minimal"]
+
+
+def test_worker_metrics_preserve_bounded_refinement_usage_from_provider_response(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+
+    class UsageProvider(_WorkerProvider):
+        def request(self, request):
+            self.request_count += 1
+            output = _proposal_output()
+            return ModelResponse(
+                provider=self.provider_id,
+                model=self.model_id,
+                text_segments=[json.dumps(output)],
+                usage={
+                    "input_tokens": 21,
+                    "output_tokens": 8,
+                    "refinement_round": 1,
+                    "reasoning_effort": "low",
+                    "unrelated_provider_payload": "must be omitted",
+                },
+            )
+
+    result = run_worker(root, manifest_path, provider=UsageProvider({}))
+
+    assert result["worker_metrics"]["usage"] == {
+        "input_tokens": 21,
+        "output_tokens": 8,
+        "refinement_round": 1,
+        "reasoning_effort": "low",
+    }

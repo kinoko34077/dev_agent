@@ -1346,6 +1346,8 @@ _USAGE_KEYS = frozenset(
         "reset_at",
         "latency_ms",
         "failure_count",
+        "refinement_round",
+        "reasoning_effort",
     }
 )
 _QUOTA_OBSERVATION_KEYS = frozenset(
