@@ -123,11 +123,13 @@ required correctionだけを`rework_request()`で渡し、`reassign()`が旧mani
 `ExternalTextReference`のHTTPS・SHA-256・size・expiry metadataだけをHandoffへ保持し、
 取得・upload・権限発行はこの層の責務にしない。外部本文はPayloadであり、Controlを上書きしない。
 
-CompressionはHumanの明示接続指示後、`HttpCompressionService`の固定endpoint・固定
-`semantic-dense-v1` profileを明示compositionした場合だけ利用する。3,000 Unicode
-code points以下は送信せず、超過時もControlを除いたPayloadだけを送る。失敗はbounded
-categoryへ正規化し、最適化用途では原文へfallbackできる。CompressionはG6O1、Provider
-pool、Budget authorityへ接続しない。live smokeの認証未検証状態は
+Compressionは`HttpCompressionService`の固定endpoint・固定`semantic-dense-v1` profileを
+通常Handoff compositionから利用できる。import時I/Oは行わず、`COMPRESSION_API_TOKEN`がある
+場合だけfactoryを遅延compositionする。3,000 Unicode code points以下は送信せず、超過時も
+Controlを除いたPayloadだけを送る。構造上限1,000,000とprovider-safe limit 200,000を分離し、
+provider-safe limit超過は送信前にbounded configuration failureへ閉じる。tokenなし・設定不備は
+最適化用途では原文へfallbackできる。CompressionはG6O1、Provider pool、Budget authorityへ
+接続しない。live smokeの認証未検証状態は
 [`spec/v2/evidence/compression-service-connection-20260914.json`](../spec/v2/evidence/compression-service-connection-20260914.json)に記録する。
 
 MCP runtimeは[`src/dev_agent/mcp/runtime.py`](../src/dev_agent/mcp/runtime.py)のtransport-

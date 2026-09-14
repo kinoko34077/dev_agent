@@ -26,8 +26,8 @@ correctionの差分だけを参照形式で渡す。
 
 - 責務: HandoffのPayloadだけを、固定profileで独立Compression Serviceへ送る薄いHTTP client境界。
 - 公開入口: `HttpCompressionService.from_environment()`、`HttpCompressionService.compress(text, profile="semantic-dense-v1")`、`compress_handoff_payload(...)`。
-- 入力/出力: 明示された`https://api.kinotch.workers.dev/v1/compress`へ`text`と固定`profile`だけを送信し、compressed text、digest、文字数、Prompt version、model、warningsを検証して返す。認証は`COMPRESSION_API_TOKEN`だけをfactory呼出時に読み、import時I/Oやredirect bearer forwardingは行わない。呼出側は原文reference、原文digest、Compression provenanceをHandoffへ保持する。
-- 適用: Controlは常に非圧縮。reference-first後、Payloadが3,000 Unicode code pointsを超える場合だけ`semantic-dense-v1`を使う。HTTP/transport/invalid-response/auth failureはbounded categoryへ正規化し、最適化用途では原文へfallbackできる。live接続可否はコード/testとは別Evidenceである。
+- 入力/出力: 明示された`https://api.kinotch.workers.dev/v1/compress`へ`text`と固定`profile`だけを送信し、compressed text、digest、文字数、Prompt version、model、warningsを検証して返す。認証は`COMPRESSION_API_TOKEN`だけをfactory呼出時に読み、import時I/Oやredirect bearer forwardingは行わない。通常の`OneCycleDevelopmentLoop`はtokenがある場合だけfactoryを遅延compositionし、tokenなし・設定不備は最適化用途の原文fallbackへ閉じる。呼出側は原文reference、原文digest、Compression provenanceをHandoffへ保持する。
+- 適用: Controlは常に非圧縮。reference-first後、Payloadが3,000 Unicode code pointsを超える場合だけ`semantic-dense-v1`を使う。構造上限1,000,000とprovider-safe context limit 200,000を分離し、後者超過はHTTP送信前に`configuration_error`でfail-fastする。HTTP/transport/invalid-response/auth failureはbounded categoryへ正規化し、最適化用途では原文へfallbackできる。live接続可否はコード/testとは別Evidenceである。
 - 権限: Compressionのtransportと機械的情報保持検査のみ。Provider routing、任意prompt、tool、budget、Task stateを所有しない。
 - 禁止: instruction、conditions、cautions、Directive内authority/source/comparison/output contractの圧縮、compressed payloadを原文SSOTとして扱うこと、未知profileや不一致digestの受理。Service endpointやProviderをHandoff runtimeへ暗黙に接続しない。
 

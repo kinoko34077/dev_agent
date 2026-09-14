@@ -5,12 +5,12 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Implementation/evidence baseline | `1f8c5d3` (D4 discovery boundary, fixed Compression client boundary, thin MCP Supervisor adapter, and synchronized evidence/docs) |
-| Worktree | clean after the D4/D5/Compression synchronization commits |
-| Local regression | `1007 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 177.19s) |
+| Implementation/evidence baseline | `a355270` (automatic optional Compression composition, provider-safe input boundary, D4/D5 boundaries, and synchronized evidence/docs) |
+| Worktree | clean after the Compression composition implementation and documentation sync commit |
+| Local regression | `1011 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 205.85s) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for `1f8c5d3`: `v2-core` [run 34795815245](https://github.com/kinoko34077/dev_agent/actions/runs/34795815245) and `v2-provider-smoke` [run 34795815227](https://github.com/kinoko34077/dev_agent/actions/runs/34795815227). |
+| Exact-head CI | PASS for `a355270`: `v2-core` [run 34798687301](https://github.com/kinoko34077/dev_agent/actions/runs/34798687301) and `v2-provider-smoke` [run 34798687316](https://github.com/kinoko34077/dev_agent/actions/runs/34798687316). |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
@@ -24,7 +24,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 - Planner/model evidence boundary: strict JSON proposal handling, Host-only planning validation/bridge, explicit Model Catalog, alias, Benchmark, Capability, qualification, billing, privacy, quota, and health separation, plus bounded same-tier failover. UNKNOWN outcomes remain reconciliation-only and L1 is not an automatic Planner downgrade.
 - D1 live Planner evidence: a real Free L2 request selected `gemini:worker:free-3` / `gemini-3.6-flash`, decoded strict JSON, built one `RootPlanningProposal`, and passed Host validation through the qualified pool. See [`planner-l2-live-d1-20260914.json`](../spec/v2/evidence/planner-l2-live-d1-20260914.json).
 - D2 live development evidence: that proposal passed `DevelopmentPlanningBridge`, created a Commander Plan, delegated a narrow child to `gemini:worker` / `gemini-3.5-flash-lite`, passed independent Host Verification, received durable Codex `APPROVE_INTEGRATION`, and was integrated by the deterministic Host helper. The target child had zero Codex direct implementation. See [`planner-to-worker-e2e-20260914.json`](../spec/v2/evidence/planner-to-worker-e2e-20260914.json).
-- Compression boundary: `HttpCompressionService` uses the fixed endpoint/profile only when explicitly composed; `compress_handoff_payload()` keeps Control out of the request, applies the 3,000 Unicode code-point threshold to Payload after reference-first handling, validates provenance/digests, and has bounded fallback or fail-closed behavior.
+- Compression boundary: normal `OneCycleDevelopmentLoop` composition lazily builds `HttpCompressionService` only when `COMPRESSION_API_TOKEN` is present; import-time secret/network I/O remains absent. `compress_handoff_payload()` keeps Control out of the request, applies the 3,000 Unicode code-point threshold to Payload after reference-first handling, preserves provenance/digests, separates the 1,000,000 structural limit from the 200,000 provider-safe limit, and has bounded fallback or fail-closed behavior.
 - MCP boundary: `McpRuntimeAdapter` and development-only `SupervisorMcpBinding` delegate bounded operations to existing Supervisor authority. Connected operations are `status`, `artifact_summary`, `run`, `resume`, `review`, `rework`, and `integrate`. Wire transport and Planner proposal/apply authority remain unconnected. See [`mcp-runtime-adapter-20260914.json`](../spec/v2/evidence/mcp-runtime-adapter-20260914.json).
 
 ## Partially implemented / not verified

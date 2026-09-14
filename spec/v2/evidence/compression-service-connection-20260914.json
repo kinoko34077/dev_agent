@@ -7,6 +7,9 @@
   "endpoint": "https://api.kinotch.workers.dev/v1/compress",
   "profile": "semantic-dense-v1",
   "threshold_unicode_code_points": 3000,
+  "structural_max_input_code_points": 1000000,
+  "provider_safe_context_limit_code_points": 200000,
+  "normal_handoff_composition": "PASS (bounded local tests; live service remains unverified)",
   "live_smoke": {
     "status": "NOT_VERIFIED",
     "failure_category": "authentication_failure",
@@ -17,6 +20,8 @@
   "checks": [
     "payload-only compression",
     "control fields remain uncompressed",
+    "normal handoff composition uses the fixed environment factory only when a token is present",
+    "provider-safe input limit fails before HTTP request",
     "digest/character-count/prompt-version/model provenance validation",
     "bounded failure fallback without unbounded retry",
     "no redirect bearer forwarding"
