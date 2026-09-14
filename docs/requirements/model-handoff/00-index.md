@@ -65,15 +65,14 @@ Task state、Scheduler、Budget、Provider routing、AgentBackend authorityを
   Evidence、boundedなTask分類、独立Host Verification、scope、trust、ReviewPacketを
   合成して、Codex-less routine candidateをdeterministically評価する。結果は候補に
   留まり、公式branchの自動merge・push・Gate昇格・integration authorityは持たない。
-- 実装済みslice: `src/dev_agent/intelligence/self_improvement.py` が、Host observation、
-  observationにgroundedなdiagnosis、human approval必須のimprovement plan proposalを
-  bounded JSON契約として提供する。自動dispatch、Task mutation、repair、integrationは
-  このsliceへ接続しない。
+- 実装済みslice: `src/dev_agent/intelligence/self_improvement.py` のF0–F2 contractに加え、
+  `scripts/devfarm_self_improvement.py` が既存Supervisorのcompact observationから
+  immutableなproposal artifactを生成するHost compositionを提供する。自動dispatch、
+  Task mutation、repair、integrationはこのsliceへ接続しない。
 - **NOT VERIFIED / NOT CONNECTED**: Compression live availability、wire MCP transport、
   MCP planner proposal/apply authority、simulated-paid runtime E2E、Reviewer decision
-  authority、live Codex-less cycle、運用接続されたF0–F2 Self-Improvement、
-  有限multi-cycleは未検証または未接続である。CompressionはG6O1-SIM/LIVEのbilling/evidence
-  へ接続しない。
+  authority、live Codex-less cycle、model-driven diagnosis、automatic repair、有限multi-cycleは
+  未検証または未接続である。CompressionはG6O1-SIM/LIVEのbilling/evidenceへ接続しない。
 - 後続slice: wire transport、simulated-paid接続、Reviewer shadow、Control Planeが所有する
   有限cycle拡張。ただし各機構の既存authorityを二重化しない。
 - G6O1-SIMは仕様分離済みとして扱い、Gate全体やG6O1-LIVEを自動昇格しない。

@@ -72,7 +72,8 @@
 
 - 依存: D7。
 - 順序: Observation → Diagnosis → Improvement Planning。既存のCandidate Generation / Validation / Controlled Repairを置換しない。
-- 現在: `ObservationRecord`、Observationにgroundedな`ImprovementDiagnosis`、human approval必須の`ImprovementPlanProposal`を追加した。各recordはbounded JSON-safeで、raw output/secretを受け付けず、proposal-onlyのままDevFarm/Scheduler/Task mutation/Repairへ接続しない。D7 candidate evidenceは得られたが、D8の運用compositionは未接続である。
+- 現在: `scripts/devfarm_self_improvement.py` が既存Supervisorのcompact plan/ReviewPacketをHost側で観測し、`observe → diagnose → plan` を`.devfarm/self-improvement/`配下のimmutable bounded artifactへ変換する。F0–F2は既存契約どおりevidence-grounded、`PROPOSAL_ONLY`、Human approval必須であり、model call、dispatch、Task mutation、repair、integrationは接続しない。実compositionの証拠は[`d8-self-improvement-composition-20260914.json`](../spec/v2/evidence/d8-self-improvement-composition-20260914.json)。
+- 次: D8のproposal artifactを追加の観測へ適用し、D9へ進む場合もbounded candidate / deterministic validation / approval / rollbackを別Gateとして設計する。D8 compositionを自動修復の証拠へ昇格させない。
 
 ### D9 — Controlled Self-Repair
 

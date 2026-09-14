@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "status": "D8_HOST_COMPOSITION_VERIFIED",
+  "observed_at": "2026-09-14T14:58:44.345402+09:00",
+  "purpose": "Bounded Host composition of existing F0 Observation, F1 Diagnosis, and F2 Improvement Plan contracts.",
+  "source": {
+    "supervisor_run_id": "d7-live-documentation-20260914",
+    "task_id": "d7-live-documentation-20260914",
+    "observation_ref": ".devfarm/self-improvement/observations/d7-live-documentation-20260914.json",
+    "observation_sha256": "a0c0ed951681a1a36f482c333b1bb96362d3a93a53ad94c472696a7d3372353a",
+    "diagnosis_ref": ".devfarm/self-improvement/diagnoses/d7-live-documentation-20260914.json",
+    "diagnosis_sha256": "c0c41339399210e9c533bfb2ee10b86ab95061b7e80656f2fe7a257e30ace3a0",
+    "improvement_plan_ref": ".devfarm/self-improvement/plans/d7-live-documentation-20260914.json",
+    "improvement_plan_sha256": "8f3d09e1ba9d9851fdc1426df1ef465a00be72e8619e1492315dc5cd3bba5090"
+  },
+  "composition": {
+    "observe": "passed",
+    "diagnose": "passed",
+    "plan": "passed",
+    "proposal_status": "PROPOSAL_ONLY",
+    "requires_human_approval": true,
+    "output_area": ".devfarm/self-improvement/",
+    "append_only": true,
+    "raw_worker_output_recorded": false,
+    "commander_plan_mutated": false,
+    "git_state_mutated": false,
+    "dispatch_performed": false,
+    "integration_performed": false
+  },
+  "authority": {
+    "f0_f2_authority": "proposal_only",
+    "task_mutation": false,
+    "repair_authority": false,
+    "approval_authority": false,
+    "integration_authority": false
+  },
+  "implementation": {
+    "mode": "codex_direct",
+    "codex_direct_implementation_count": 1,
+    "reason": "external_payload_policy",
+    "worker_dispatch_attempted": false,
+    "worker_plan_terminal_status": "BLOCKED",
+    "worker_plan_block_reason": "external_payload_policy"
+  },
+  "verification": {
+    "focused_tests": "9 passed",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS"
+  },
+  "not_verified": [
+    "model-driven diagnosis",
+    "automatic improvement dispatch",
+    "automatic repair",
+    "automatic integration",
+    "Codex-less official-branch promotion"
+  ],
+  "raw_conversation_recorded": false
+}

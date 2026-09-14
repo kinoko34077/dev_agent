@@ -29,3 +29,11 @@
   approval authorityを持たない。
 - F0〜F2は既存DevFarm、Commander、Scheduler、Budget、Host Verification、
   Controlled Repairを置換せず、これらへ接続する場合も既存Authorityを通る。
+
+### D8 Host composition boundary
+
+- Hostは既存Supervisorのcompact plan/ReviewPacketからF0 Observationを作成し、
+  既存のF1/F2 contractへ接続できる。出力は`.devfarm/self-improvement/`配下のbounded
+  append-only artifactに限り、Commander plan、Git、Task、Worker dispatchを変更しない。
+- このcompositionはmodel-driven diagnosis、automatic repair、approval、integrationの
+  authorityを与えない。実行を伴う次工程は、別途Human/Host Gateと既存DevFarm境界を通る。
