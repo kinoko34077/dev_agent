@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "status": "PROPOSAL_ONLY_VERIFIED",
+  "observed_at": "2026-09-14T13:39:55.947884+09:00",
+  "purpose": "Second live Free L2 Reviewer Shadow proposal over a distinct test-focused D2 packet.",
+  "source": {
+    "d2_run_id": "d2-planner-worker-retry2-20260914",
+    "task_id": "824c0c90-e881-5865-a618-a3457c4d1b6b",
+    "attempt_id": "bc35ba2a6a794fc0ae6a6aa599fc0a51",
+    "packet_sha256": "94041f9d1d1879bdcc400bea4cf5aa400f332842724d433e818dd362c4d0efbd"
+  },
+  "reviewer": {
+    "provider": "gemini",
+    "binding": "gemini:worker:free-3",
+    "model": "gemini-3.6-flash",
+    "intelligence_tier": "L2",
+    "allow_unknown_quota": true
+  },
+  "proposal": {
+    "decision": "APPROVE_INTEGRATION",
+    "proposal_sha256": "295a2d527b9091dd84345d33a7feafcb05fa2d22f7bacef617a9dddb6f2163df",
+    "findings": [],
+    "evidence_refs": [
+      ".devfarm/results/824c0c90-e881-5865-a618-a3457c4d1b6b/attempts/bc35ba2a6a794fc0ae6a6aa599fc0a51/verification/79ef9b5d3cec4d25a932777168776ed6.json"
+    ]
+  },
+  "codex_final_decision": {
+    "decision_id": "review-cbfee3a9f37244dfb50c3a62f5518b97",
+    "decision": "APPROVE_INTEGRATION",
+    "reviewer_role": "codex_supervisor"
+  },
+  "comparison": {
+    "agreement": true,
+    "false_approve": false,
+    "false_reject": false,
+    "missed_issue": false,
+    "unnecessary_rework": false,
+    "evidence_quality": "grounded"
+  },
+  "host_verification": {
+    "status": "passed",
+    "trust_level": "TRUSTED_HOST_EXEC",
+    "operator_approved": true,
+    "independent_verification": true,
+    "verified_test_count": 2
+  },
+  "authority": {
+    "reviewer_mode": "shadow",
+    "proposal_only": true,
+    "final_authority": ["codex_review", "host_integration"],
+    "integration_performed_by_shadow": false
+  },
+  "roadmap": {
+    "d6_status": "bounded_live_shadow_evidence",
+    "d7_promoted": false,
+    "d7_reason": "Two distinct grounded agreement samples now satisfy the minimum comparison prerequisite; D7 implementation and candidate evaluation remain separate gates."
+  },
+  "raw_worker_conversation_recorded": false
+}
