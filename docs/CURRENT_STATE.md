@@ -5,11 +5,12 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Implementation/evidence baseline | `63559bb` (D4 discovery boundary, fixed Compression client boundary, and thin MCP Supervisor adapter) |
+| Implementation/evidence baseline | `ee23bfa` (D4 discovery boundary, fixed Compression client boundary, thin MCP Supervisor adapter, and synchronized evidence/docs) |
+| Worktree | clean after the D4/D5/Compression synchronization commits |
 | Local regression | `1007 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 177.19s) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | The current D4/D5/Compression documentation sync is pending push and exact-head verification; do not infer CI from local tests. |
+| Exact-head CI | PASS for `ee23bfa`: `v2-core` [run 34795582218](https://github.com/kinoko34077/dev_agent/actions/runs/34795582218) and `v2-provider-smoke` [run 34795582184](https://github.com/kinoko34077/dev_agent/actions/runs/34795582184). |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
@@ -45,14 +46,14 @@ state. Detailed requirements and decisions stay in their owning documents.
 - External Compression authentication and MCP wire transport are unverified/unconnected; neither is silently treated as complete.
 - External API/session settle polling has no applicable D4 implementation currently. If a future external readiness/discovery poll is added, use approximately 6 seconds with finite attempts and a deadline. Do not change request/provider timeouts or UNKNOWN-effect resend semantics.
 - Model discovery and benchmark evidence are observation inputs, not routing grants. Exact current qualification, capability, billing, privacy, quota, health, and binding admission remain required.
-- GitHub protection and required checks are external evidence separate from local integration, local regression, and remote push. No local artifact promotes a Gate.
+- The active `v2/bootstrap` GitHub ruleset requires `kernel (3.10)`, `kernel (3.11)`, and `provider-smoke`, and prevents deletion/non-fast-forward updates. The current authenticated direct-push identity is a configured bypass actor, so remote push acceptance does not replace exact-head CI evidence. No local artifact promotes a Gate.
 
 ## Immediate next target
 
 1. Keep D3 conditional and bounded; fix only a recorded recurring failure class.
 2. Preserve D4's explicit-discovery/UNKNOWN boundary; do not invent Codex session discovery.
-3. Continue D5 only through a thin adapter over existing Supervisor/Commander authority. Wire transport and Planner mutation tools are separate future slices.
-4. After D4/D5 verification, select the next non-blocking roadmap task without relaxing G6O1 or D6 dependencies.
+3. Treat the D5 in-process adapter as the current boundary; wire transport and Planner mutation tools are separate future slices over the same authority.
+4. Select the next non-blocking roadmap task without relaxing G6O1 or D6 dependencies.
 
 The ordered roadmap is [`docs/V2_DETAILED_ROADMAP.md`](V2_DETAILED_ROADMAP.md),
 and the compact operational procedure is [`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_DAILY_DOGFOOD.md).
