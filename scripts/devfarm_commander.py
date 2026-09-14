@@ -875,6 +875,61 @@ class CommanderPlanStore:
     def list(self) -> list[dict[str, Any]]:
         return [self.load(path.stem) for path in sorted(self.directory.glob("*.json")) if not path.is_symlink()]
 
+    def _plans_for_ownership(self) -> list[dict[str, Any]]:
+        """Load plans for conflict checks without releasing legacy ownership.
+
+        A plan can become unreadable under a deliberately tightened manifest
+        policy, for example when an older Worker manifest owns a path that is
+        now protected.  Such a historical plan must not be silently ignored:
+        its raw, validated path ownership still reserves the checkout.  Keep
+        the normal ``load`` path strict for status/dispatch, but use this
+        narrow projection for cross-plan ownership checks so unrelated new
+        plans can be created safely.
+        """
+
+        plans: list[dict[str, Any]] = []
+        for path in sorted(self.directory.glob("*.json")):
+            if path.is_symlink():
+                continue
+            try:
+                plans.append(self.load(path.stem))
+            except DevFarmError as validation_error:
+                try:
+                    raw = _read_json(path)
+                    if not isinstance(raw, Mapping) or raw.get("schema_version", PLAN_SCHEMA_VERSION) != PLAN_SCHEMA_VERSION:
+                        raise DevFarmError("legacy plan projection is invalid")
+                    run_id = _plan_id(raw.get("run_id"))
+                    raw_tasks = raw.get("tasks")
+                    if not isinstance(raw_tasks, list) or not raw_tasks:
+                        raise DevFarmError("legacy plan projection has no tasks")
+                    projected_tasks: list[dict[str, Any]] = []
+                    for raw_task in raw_tasks:
+                        if not isinstance(raw_task, Mapping):
+                            raise DevFarmError("legacy plan task projection is invalid")
+                        task_id = _text(raw_task.get("task_id"), "legacy task_id", max_length=101)
+                        owner = _text(raw_task.get("owner"), "legacy task owner", max_length=16).lower()
+                        if owner not in _OWNERS:
+                            raise DevFarmError("legacy plan task owner is invalid")
+                        status = _text(raw_task.get("status"), "legacy task status", max_length=32).upper()
+                        if status not in _PLAN_STATUSES:
+                            raise DevFarmError("legacy plan task status is invalid")
+                        if status not in _ACTIVE_TASK_STATUSES:
+                            continue
+                        projected_tasks.append(
+                            {
+                                "task_id": task_id,
+                                "owner": owner,
+                                "status": status,
+                                "ownership": _paths(raw_task.get("ownership", []), "legacy ownership paths"),
+                            }
+                        )
+                    plans.append({"run_id": run_id, "tasks": projected_tasks})
+                except (TypeError, ValueError, DevFarmError):
+                    # An unreadable plan whose ownership cannot be safely
+                    # projected remains a hard error; never fail open.
+                    raise validation_error
+        return plans
+
     def active_ownership_conflicts(self, plan: Mapping[str, Any]) -> list[dict[str, str]]:
         """Return path conflicts with unfinished plans before a new plan is saved.
 
@@ -895,7 +950,7 @@ class CommanderPlanStore:
         if not candidate_paths:
             return []
         conflicts: list[dict[str, str]] = []
-        for existing in self.list():
+        for existing in self._plans_for_ownership():
             if existing["run_id"] == candidate["run_id"]:
                 continue
             for existing_task in existing["tasks"]:
@@ -926,7 +981,7 @@ class CommanderPlanStore:
         supersession, or an explicit recovery action is recorded.
         """
 
-        selected = [self.load(run_id)] if run_id is not None else self.list()
+        selected = [self.load(run_id)] if run_id is not None else self._plans_for_ownership()
         records: list[dict[str, Any]] = []
         for plan in selected:
             for task in plan["tasks"]:

@@ -397,6 +397,64 @@ def test_commander_exposes_active_file_ownership_without_claiming_or_releasing(t
     assert list_active_ownership(root, run_id="ownership-query") == records
 
 
+def test_new_plan_can_compare_against_legacy_plan_with_now_protected_manifest(tmp_path):
+    root, _targets, revision = _repo(tmp_path)
+    legacy_directory = root / ".devfarm" / "plans"
+    legacy_directory.mkdir(parents=True, exist_ok=True)
+    (legacy_directory / "legacy-protected-plan.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run_id": "legacy-protected-plan",
+                "objective": "historical worker plan",
+                "base_revision": revision,
+                "status": "REJECTED",
+                "tasks": [
+                    {
+                        "task_id": "legacy-protected-task",
+                        "owner": "worker",
+                        "status": "REJECTED",
+                        "task_type": "worker",
+                        "risk": "normal",
+                        "sensitivity": "normal",
+                        "dependencies": [],
+                        "dependency_types": {},
+                        "ownership": ["src/dev_agent/intelligence/refinement.py"],
+                        "manifest_path": ".devfarm/tasks/legacy-protected-task.json",
+                        "max_attempts": 1,
+                        "attempt_count": 1,
+                        "worker_candidate": True,
+                        "delegation_reason": "worker_assignment",
+                        "assignment": {
+                            "owner": "worker",
+                            "provider_id": "cloudflare",
+                            "model_id": "worker-model",
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    plan = create_plan(
+        root,
+        {
+            "run_id": "new-plan-after-legacy",
+            "objective": "create an unrelated plan without releasing legacy ownership",
+            "base_revision": revision,
+            "tasks": [{"task_id": "new-task", "owner": "codex", "ownership": ["docs/new.md"]}],
+        },
+    )
+
+    assert plan["status"] == "READY"
+    ownership = list_active_ownership(root)
+    assert {(item["run_id"], item["path"]) for item in ownership} == {
+        ("legacy-protected-plan", "src/dev_agent/intelligence/refinement.py"),
+        ("new-plan-after-legacy", "docs/new.md"),
+    }
+
+
 def test_supervisor_approved_integration_applies_patch_and_records_git_proof(tmp_path):
     root, targets, revision = _repo(tmp_path)
     _manifest(root, revision, "worker-a", targets[0])
