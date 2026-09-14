@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "status": "D9_APPROVAL_PREFLIGHT_VERIFIED",
+  "observed_at": "2026-09-14T15:36:51.6382856+09:00",
+  "purpose": "Non-mutating approval preflight for a bounded Controlled Self-Repair request.",
+  "implementation": {
+    "module": "src/dev_agent/intelligence/self_repair.py",
+    "policy": "RepairExecutionPolicy",
+    "request": "RepairExecutionRequest",
+    "candidate_status": "PROPOSAL_ONLY",
+    "integration_authority": "existing_supervisor_host_helper",
+    "patch_executed": false,
+    "approval_consumed": false,
+    "rollback_performed": false,
+    "task_mutated": false,
+    "git_mutated": false
+  },
+  "checks": {
+    "candidate_identity_bound": true,
+    "verified_attempt_identity_bound": true,
+    "durable_review_decision_reference_required": true,
+    "approval_side_effect_arguments_hash_bound": true,
+    "request_digest_round_trip": true,
+    "identity_mismatch_fail_closed": true,
+    "missing_or_mismatched_approval_fail_closed": true,
+    "approval_lookup_is_read_only": true,
+    "raw_patch_recorded": false,
+    "raw_output_recorded": false
+  },
+  "verification": {
+    "focused_tests": "14 passed",
+    "full_v2": "1054 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS"
+  },
+  "not_verified": [
+    "approval consumption",
+    "Host repair execution",
+    "rollback drill",
+    "real Worker-generated self-repair candidate",
+    "official-branch integration"
+  ],
+  "raw_conversation_recorded": false
+}

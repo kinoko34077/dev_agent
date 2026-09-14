@@ -50,3 +50,7 @@
 - 候補は常に`PROPOSAL_ONLY`かつHuman approval必須である。D9 policyはpatch実行、
   approval消費、rollback、Task mutation、Git integrationを行わず、既存DevFarmと
   Host/approval/Recovery authorityを置換しない。
+- `RepairExecutionRequest` / `RepairExecutionPolicy`は、候補・verified attempt・
+  durable review reference・target・external-write approvalのexact argument hashを
+  read-onlyに束縛するpreflightである。preflightはapprovalを消費せず、既存
+  SupervisorのHost integration/rollback authorityへ渡す準備状態だけを返す。

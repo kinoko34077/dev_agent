@@ -5,12 +5,12 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Implementation/evidence baseline | `b52b36a` (bounded D9 proposal-only Controlled Self-Repair candidate policy) |
+| Implementation/evidence baseline | `74e1bea` (bounded D9 approval-bound execution preflight) |
 | Worktree | clean after D9 implementation and Evidence/documentation synchronization |
-| Local regression | `1050 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 177.71s) |
+| Local regression | `1054 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 213.09s) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for current implementation/evidence HEAD `b9f29201383807ffc72e466389e581417c257ea7`: `v2-core` [run 34813195445](https://github.com/kinoko34077/dev_agent/actions/runs/34813195445) and `v2-provider-smoke` [run 34813195462](https://github.com/kinoko34077/dev_agent/actions/runs/34813195462). |
+| Exact-head CI | PASS for current implementation/evidence HEAD `74e1bea538e7be5932ea60c1dee4726fdfe38455`: `v2-core` [run 34814187290](https://github.com/kinoko34077/dev_agent/actions/runs/34814187290) and `v2-provider-smoke` [run 34814187343](https://github.com/kinoko34077/dev_agent/actions/runs/34814187343). |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
@@ -30,7 +30,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 - D7 bounded candidate boundary: `CodexLessPolicy` and the Supervisor read-only `codexless` CLI evaluate distinct clean Shadow evidence, Worker ownership, low/normal Task classification, scope/protected paths, independent Host Verification, trust/approval, and ReviewPacket grounding. A passing result is only a `CANDIDATE`; it does not grant Reviewer, official-branch, push, merge, Gate, or unconditional integration authority.
 - D7 live candidate evidence: a real Free L1 Worker changed one bounded public documentation file, independent Host Verification passed, and a real Free L2 Reviewer produced a proposal-only `APPROVE_INTEGRATION` without a Codex decision. The Supervisor `codexless` policy returned `CANDIDATE`; no official-branch integration or auto-merge was performed. See [`d7-codexless-candidate-20260914.json`](../spec/v2/evidence/d7-codexless-candidate-20260914.json).
 - D8 Host composition: `scripts/devfarm_self_improvement.py` reads a public Supervisor plan/ReviewPacket boundary and composes `observe → diagnose → plan` into immutable bounded artifacts under `.devfarm/self-improvement/`. The records remain evidence-grounded and proposal-only; no model call, automatic dispatch, Task mutation, repair, approval, or integration is connected. See [`d8-self-improvement-composition-20260914.json`](../spec/v2/evidence/d8-self-improvement-composition-20260914.json).
-- D9 candidate boundary: `RepairPolicy` accepts only an F2 `PROPOSAL_ONLY` plan plus bounded Host evidence with independent verification, known external outcome, attempt-scoped trust/approval, safe paths, and a rollback reference. It returns a `CANDIDATE` with Human approval still required; it does not execute repair, consume approval, rollback, mutate Tasks, or integrate. See [`d9-repair-candidate-policy-20260914.json`](../spec/v2/evidence/d9-repair-candidate-policy-20260914.json).
+- D9 candidate boundary: `RepairPolicy` accepts only an F2 `PROPOSAL_ONLY` plan plus bounded Host evidence with independent verification, known external outcome, attempt-scoped trust/approval, safe paths, and a rollback reference. `RepairExecutionPolicy` adds a non-mutating preflight that binds the candidate, verified attempt, durable review reference, target, and exact approval arguments before the existing Host integration helper may be invoked. It does not execute repair, consume approval, rollback, mutate Tasks, or integrate. See [`d9-repair-candidate-policy-20260914.json`](../spec/v2/evidence/d9-repair-candidate-policy-20260914.json) and [`d9-repair-approval-preflight-20260914.json`](../spec/v2/evidence/d9-repair-approval-preflight-20260914.json).
 
 ## Partially implemented / not verified
 
@@ -38,7 +38,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 - D4 same-operation resume is `NOT_AVAILABLE` for the concrete Codex backend without a formal external discovery API. The safe result is `UNKNOWN`/reconciliation, not inferred resume or blind restart.
 - D5 is a transport-neutral in-process/development adapter. A network MCP server/wire transport and Planner mutation authority are not implemented.
 - D3 Worker reliability remains conditional. A bounded recurrence of malformed Python patches was classified as `patch_format_failure` / `host_verification_failure` / `model_output_invalid`; the Worker prompt now states syntax-completeness and delimiter-balance requirements, while the validator remains fail-closed. A separate outbound secret-candidate observation was rejected before sending. See [`d3-worker-reliability-observation-20260914.json`](../spec/v2/evidence/d3-worker-reliability-observation-20260914.json).
-- Free L2 Reviewer shadow has two live proposal-only comparison samples and remains non-authoritative. The bounded D7 candidate cycle is live-evidence verified, but official-branch Codex-less integration is not enabled. D8 Host F0–F2 composition and the D9 deterministic candidate policy are verified; model-driven diagnosis, automatic improvement dispatch/repair, rollback execution, and official-branch promotion remain unconnected.
+- Free L2 Reviewer shadow has two live proposal-only comparison samples and remains non-authoritative. The bounded D7 candidate cycle is live-evidence verified, but official-branch Codex-less integration is not enabled. D8 Host F0–F2 composition and the D9 deterministic candidate/approval-preflight policies are verified; model-driven diagnosis, automatic improvement dispatch/repair, approval consumption, rollback execution, and official-branch promotion remain unconnected.
 
 ## External and frozen
 
@@ -58,7 +58,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 1. Keep D3 conditional and bounded; compare the recorded prompt-contract remediation against any future recurrence without weakening validation.
 2. Preserve D4's explicit-discovery/UNKNOWN boundary; do not invent Codex session discovery.
 3. Treat the D5 in-process adapter as the current boundary; wire transport and Planner mutation tools are separate future slices over the same authority.
-4. Keep D7 official-branch Codex-less integration disabled. Treat D8/D9 as proposal-only Host boundaries; next work is a separate approval-bound repair execution/evidence slice, not automatic self-repair.
+4. Keep D7 official-branch Codex-less integration disabled. Treat D8/D9 as proposal-only Host boundaries; the next D9 slice must re-read all evidence and route an explicitly approved request through the existing Host integration/rollback authorities, not create automatic self-repair.
 
 The ordered roadmap is [`docs/V2_DETAILED_ROADMAP.md`](V2_DETAILED_ROADMAP.md),
 and the compact operational procedure is [`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_DAILY_DOGFOOD.md).
@@ -70,6 +70,7 @@ and the compact operational procedure is [`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_D
 - Compression client/live smoke boundary: [`compression-service-connection-20260914.json`](../spec/v2/evidence/compression-service-connection-20260914.json)
 - D8 bounded Host F0–F2 composition: [`d8-self-improvement-composition-20260914.json`](../spec/v2/evidence/d8-self-improvement-composition-20260914.json)
 - D9 bounded repair candidate policy: [`d9-repair-candidate-policy-20260914.json`](../spec/v2/evidence/d9-repair-candidate-policy-20260914.json)
+- D9 approval-bound execution preflight: [`d9-repair-approval-preflight-20260914.json`](../spec/v2/evidence/d9-repair-approval-preflight-20260914.json)
 - Planner live D1 / D2 development evidence: [`planner-l2-live-d1-20260914.json`](../spec/v2/evidence/planner-l2-live-d1-20260914.json), [`planner-to-worker-e2e-20260914.json`](../spec/v2/evidence/planner-to-worker-e2e-20260914.json)
 - Supplemental D2, D3, D6, and D7 observations: [`d2-dogfood-doc-note-20260914.json`](../spec/v2/evidence/d2-dogfood-doc-note-20260914.json), [`d3-worker-reliability-observation-20260914.json`](../spec/v2/evidence/d3-worker-reliability-observation-20260914.json), [`reviewer-shadow-20260914.json`](../spec/v2/evidence/reviewer-shadow-20260914.json), [`reviewer-shadow-20260914-02.json`](../spec/v2/evidence/reviewer-shadow-20260914-02.json), [`d7-codexless-candidate-20260914.json`](../spec/v2/evidence/d7-codexless-candidate-20260914.json)
 - Model catalog and pool observations: [`spec/v2/evidence/`](../spec/v2/evidence/)
