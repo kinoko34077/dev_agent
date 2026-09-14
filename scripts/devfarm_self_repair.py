@@ -9,15 +9,20 @@ retries, rolls back, or infers an unknown external outcome.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 from scripts.devfarm import DevFarmError
+from scripts.devfarm_commander import load_worker_manifest
+from src.dev_agent.intelligence.self_improvement import ImprovementPlanProposal
 from src.dev_agent.intelligence.self_repair import (
     RepairCandidate,
     RepairExecutionPolicy,
     RepairExecutionRequest,
+    RepairEvidence,
+    RepairEvaluation,
+    RepairPolicy,
 )
 from src.dev_agent.policy.approvals import ApprovalPolicy
 
@@ -59,6 +64,115 @@ def _artifact_paths(packet: Mapping[str, Any]) -> set[str]:
         if isinstance(reference, Mapping) and isinstance(reference.get("path"), str):
             paths.add(reference["path"])
     return paths
+
+
+def build_repair_candidate(
+    runner: Any,
+    improvement_plan: ImprovementPlanProposal,
+    task_id: str,
+    *,
+    rollback_ref: str,
+    external_outcome_known: bool,
+) -> RepairEvaluation:
+    """Build one proposal-only repair candidate from current Host evidence.
+
+    This is a read-only composition boundary.  It rehydrates the current
+    Supervisor task, validated Worker manifest, and compact ReviewPacket, then
+    delegates eligibility to ``RepairPolicy``.  It does not read raw Worker
+    output, consume approval, mutate a Task, or touch Git.
+    """
+
+    if not isinstance(improvement_plan, ImprovementPlanProposal):
+        raise TypeError("improvement_plan must be an ImprovementPlanProposal")
+    if not isinstance(task_id, str) or not task_id.strip():
+        raise ValueError("task_id must be a non-empty string")
+    if not isinstance(external_outcome_known, bool):
+        raise TypeError("external_outcome_known must be a boolean")
+    root = getattr(runner, "root", None)
+    if not isinstance(root, (str, Path)):
+        raise TypeError("runner must expose a repository root")
+    if not callable(getattr(runner, "plan", None)) or not callable(
+        getattr(runner, "review_packet", None)
+    ):
+        raise TypeError("runner must expose public plan() and review_packet()")
+
+    plan = runner.plan()
+    task = _task(plan, task_id)
+    if task.get("owner") != "worker" or task.get("status") != "HOST_VERIFIED":
+        raise DevFarmError("repair candidate requires a HOST_VERIFIED Worker task")
+    attempt_id = task.get("last_attempt_id")
+    if not isinstance(attempt_id, str) or not attempt_id.strip():
+        raise DevFarmError("repair candidate requires a current Worker attempt")
+    packet = runner.review_packet(task_id, attempt_id=attempt_id)
+    if packet.get("task_id") != task_id or packet.get("attempt_id") != attempt_id:
+        raise DevFarmError("repair ReviewPacket identity does not match the current task")
+    if packet.get("status") != "HOST_VERIFIED":
+        raise DevFarmError("repair candidate requires a Host-verified ReviewPacket")
+
+    summary = packet.get("verification_summary")
+    if not isinstance(summary, Mapping):
+        raise DevFarmError("repair ReviewPacket verification summary is missing")
+    patch_sha256 = packet.get("patch_sha256")
+    changed_files = packet.get("changed_files")
+    verification_ref = packet.get("verification_ref")
+    if not isinstance(patch_sha256, str) or not patch_sha256.strip():
+        raise DevFarmError("repair ReviewPacket patch digest is missing")
+    if not isinstance(changed_files, Sequence) or isinstance(changed_files, (str, bytes)):
+        raise DevFarmError("repair ReviewPacket changed files are missing")
+    if not isinstance(verification_ref, str) or not verification_ref.strip():
+        raise DevFarmError("repair ReviewPacket verification reference is missing")
+    references = packet.get("artifact_refs")
+    if not isinstance(references, list):
+        raise DevFarmError("repair ReviewPacket artifact references are missing")
+    patch_ref = next(
+        (
+            item.get("path")
+            for item in references
+            if isinstance(item, Mapping)
+            and item.get("kind") == "patch"
+            and isinstance(item.get("path"), str)
+        ),
+        None,
+    )
+    if not isinstance(patch_ref, str) or not patch_ref.strip():
+        raise DevFarmError("repair ReviewPacket patch reference is missing")
+    reference_paths = _artifact_paths(packet)
+    if patch_ref not in reference_paths or verification_ref not in reference_paths:
+        raise DevFarmError("repair ReviewPacket artifact references are incomplete")
+    if task.get("verified_patch_digest") != patch_sha256:
+        raise DevFarmError("repair task patch digest does not match the ReviewPacket")
+
+    _, manifest = load_worker_manifest(Path(root).resolve(), task)
+    trust_level = summary.get("verification_trust_level")
+    operator_approved = summary.get("operator_approved")
+    independent_verification = summary.get("independent_verification")
+    if (
+        not isinstance(trust_level, str)
+        or not isinstance(operator_approved, bool)
+        or not isinstance(independent_verification, bool)
+    ):
+        raise DevFarmError("repair verification summary is incomplete")
+    verification_passed = all(
+        summary.get(key) is True
+        for key in ("host_verified", "host_tests_passed", "result_accepted")
+    )
+    evidence = RepairEvidence(
+        plan_id=improvement_plan.plan_id,
+        base_revision=manifest["base_revision"],
+        attempt_id=attempt_id,
+        patch_ref=patch_ref,
+        patch_sha256=patch_sha256,
+        manifest_ref=str(task["manifest_path"]),
+        verification_ref=verification_ref,
+        changed_files=tuple(changed_files),
+        verification_status="passed" if verification_passed else "failed",
+        verification_trust_level=trust_level,
+        operator_approved=operator_approved,
+        independent_verification=independent_verification,
+        external_outcome_known=external_outcome_known,
+        rollback_ref=rollback_ref,
+    )
+    return RepairPolicy().evaluate(improvement_plan, evidence)
 
 
 def integrate_approved_repair(
@@ -135,4 +249,4 @@ def integrate_approved_repair(
     )
 
 
-__all__ = ["integrate_approved_repair"]
+__all__ = ["build_repair_candidate", "integrate_approved_repair"]

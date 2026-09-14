@@ -8,7 +8,7 @@ from pathlib import Path
 from scripts.devfarm import write_manifest
 from scripts.devfarm_commander import create_plan
 from scripts.devfarm_orchestrator import DevFarmOrchestrator
-from scripts.devfarm_self_repair import integrate_approved_repair
+from scripts.devfarm_self_repair import build_repair_candidate, integrate_approved_repair
 from scripts.devfarm_supervisor import CodexSupervisedCommanderRun
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.intelligence.self_improvement import (
@@ -16,11 +16,7 @@ from src.dev_agent.intelligence.self_improvement import (
     diagnose_observation,
     propose_improvement,
 )
-from src.dev_agent.intelligence.self_repair import (
-    RepairEvidence,
-    RepairExecutionRequest,
-    RepairPolicy,
-)
+from src.dev_agent.intelligence.self_repair import RepairExecutionRequest
 from src.dev_agent.providers.fake.provider import FakeProvider
 
 
@@ -200,23 +196,13 @@ def test_approved_repair_adapter_uses_real_supervisor_host_integration(tmp_path:
         risk="low",
         plan_id="improvement-plan-real-repair-1",
     )
-    evidence = RepairEvidence(
-        plan_id=improvement_plan.plan_id,
-        base_revision=revision,
-        attempt_id=task["last_attempt_id"],
-        patch_ref=patch_ref,
-        patch_sha256=packet["patch_sha256"],
-        manifest_ref=manifest_ref,
-        verification_ref=verification_ref,
-        changed_files=tuple(packet["changed_files"]),
-        verification_status="passed",
-        verification_trust_level="TRUSTED_HOST_EXEC",
-        operator_approved=True,
-        independent_verification=True,
-        external_outcome_known=True,
+    candidate_result = build_repair_candidate(
+        runner,
+        improvement_plan,
+        "repair-worker-task",
         rollback_ref="git:last-known-good",
+        external_outcome_known=True,
     )
-    candidate_result = RepairPolicy().evaluate(improvement_plan, evidence)
     assert candidate_result.candidate is not None
 
     decision_step = runner.record_review_decision(
