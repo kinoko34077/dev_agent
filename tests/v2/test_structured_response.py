@@ -5,6 +5,7 @@ import json
 import pytest
 
 from src.dev_agent.domain.protocol import ModelResponse
+from src.dev_agent.intelligence import decode_json_object as package_decode_json_object
 from src.dev_agent.intelligence.structured_response import (
     StructuredResponseError,
     decode_json_object,
@@ -34,6 +35,10 @@ def test_decode_json_object_accepts_structured_and_fenced_text_responses():
 
     assert structured == {"kind": "structured"}
     assert fenced == {"kind": "text"}
+
+
+def test_intelligence_package_exposes_the_shared_decoder_boundary():
+    assert package_decode_json_object is decode_json_object
 
 
 def test_decode_json_object_rejects_invalid_or_oversized_provider_text():

@@ -84,6 +84,8 @@ _LAZY_EXPORTS = {
     "ModelCriticAdapter": (".critic_adapter", "ModelCriticAdapter"),
     "CRITIC_PROPOSAL_RESPONSE_SCHEMA": (".critic_adapter", "CRITIC_PROPOSAL_RESPONSE_SCHEMA"),
     "CriticAdapterError": (".critic_adapter", "CriticAdapterError"),
+    "StructuredResponseError": (".structured_response", "StructuredResponseError"),
+    "decode_json_object": (".structured_response", "decode_json_object"),
 }
 
 
