@@ -81,6 +81,9 @@ _LAZY_EXPORTS = {
     "RefinementContext": (".refinement", "RefinementContext"),
     "RefinementPlan": (".refinement", "RefinementPlan"),
     "RefinementProposal": (".refinement", "RefinementProposal"),
+    "ModelCriticAdapter": (".critic_adapter", "ModelCriticAdapter"),
+    "CRITIC_PROPOSAL_RESPONSE_SCHEMA": (".critic_adapter", "CRITIC_PROPOSAL_RESPONSE_SCHEMA"),
+    "CriticAdapterError": (".critic_adapter", "CriticAdapterError"),
 }
 
 
