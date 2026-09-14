@@ -51,6 +51,9 @@ _DEPENDENCY_COMPLETE = frozenset({"INTEGRATED"})
 _DEPENDENCY_FAILURE = frozenset({"REJECTED", "BLOCKED", "SUPERSEDED"})
 _SUPPORTED_DEPENDENCY_TYPES = frozenset({"CODE_INTEGRATED"})
 _PROTECTED_PATHS = PROTECTED_AUTHORITY_PATHS
+_ACTIVE_TASK_STATUSES = frozenset(
+    {"PLANNED", "READY", "DISPATCHED", "PROPOSED", "HOST_VERIFIED", "REJECTED", "BLOCKED"}
+)
 
 
 class PlanConflictError(DevFarmError):
@@ -311,6 +314,15 @@ def _check_ownership(records: Sequence[Mapping[str, Any]]) -> None:
                         f"ownership paths overlap between {previous_task} and {task_id}: {previous_path}, {path}"
                     )
             seen.append((task_id, path))
+
+
+def _ownership_conflict(
+    left_path: str,
+    right_path: str,
+) -> bool:
+    left = PurePosixPath(left_path)
+    right = PurePosixPath(right_path)
+    return left == right or left in right.parents or right in left.parents
 
 
 def _check_dependency_cycles(tasks: Sequence[Mapping[str, Any]]) -> None:
@@ -749,10 +761,23 @@ class CommanderPlanStore:
     def create(self, value: Mapping[str, Any]) -> dict[str, Any]:
         plan = refresh_plan(validate_plan(value, root=self.root))
         path = self.path_for(plan["run_id"])
-        with self._lock(path):
-            if path.exists():
-                raise FileExistsError(path)
-            self._write(plan)
+        # Serialize the read/check/write window across independent plan files;
+        # per-plan CAS locks alone cannot prevent two simultaneous plans from
+        # both observing the same path as available.
+        with self._lock(self.directory / ".ownership"):
+            with self._lock(path):
+                if path.exists():
+                    raise FileExistsError(path)
+                conflicts = self.active_ownership_conflicts(plan)
+                if conflicts:
+                    first = conflicts[0]
+                    raise DevFarmError(
+                        "active ownership conflict: "
+                        f"{first['existing_run_id']}/{first['existing_task_id']} owns "
+                        f"{first['existing_path']} overlapping "
+                        f"{first['run_id']}/{first['task_id']}:{first['path']}"
+                    )
+                self._write(plan)
         return plan
 
     def load(self, run_id: str) -> dict[str, Any]:
@@ -783,6 +808,47 @@ class CommanderPlanStore:
 
     def list(self) -> list[dict[str, Any]]:
         return [self.load(path.stem) for path in sorted(self.directory.glob("*.json")) if not path.is_symlink()]
+
+    def active_ownership_conflicts(self, plan: Mapping[str, Any]) -> list[dict[str, str]]:
+        """Return path conflicts with unfinished plans before a new plan is saved.
+
+        Ownership is still a Commander concern: this check does not schedule,
+        claim, or retry work.  It closes the gap between the per-plan overlap
+        check and two independent active plans targeting the same checkout.
+        Terminal task ownership is released only after integration or explicit
+        supersession has been durably recorded.
+        """
+
+        candidate = validate_plan(plan, root=self.root)
+        candidate_paths = [
+            (task["task_id"], path)
+            for task in candidate["tasks"]
+            if task["status"] in _ACTIVE_TASK_STATUSES
+            for path in task["ownership"]
+        ]
+        if not candidate_paths:
+            return []
+        conflicts: list[dict[str, str]] = []
+        for existing in self.list():
+            if existing["run_id"] == candidate["run_id"]:
+                continue
+            for existing_task in existing["tasks"]:
+                if existing_task["status"] not in _ACTIVE_TASK_STATUSES:
+                    continue
+                for existing_path in existing_task["ownership"]:
+                    for task_id, path in candidate_paths:
+                        if _ownership_conflict(existing_path, path):
+                            conflicts.append(
+                                {
+                                    "existing_run_id": existing["run_id"],
+                                    "existing_task_id": existing_task["task_id"],
+                                    "existing_path": existing_path,
+                                    "run_id": candidate["run_id"],
+                                    "task_id": task_id,
+                                    "path": path,
+                                }
+                            )
+        return conflicts
 
     def _write(self, plan: Mapping[str, Any]) -> None:
         normalized = validate_plan(plan, root=self.root)

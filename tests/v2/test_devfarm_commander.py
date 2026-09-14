@@ -782,6 +782,33 @@ def test_commander_rejects_overlapping_ownership(tmp_path):
         )
 
 
+def test_commander_rejects_cross_plan_active_ownership_overlap(tmp_path):
+    root, _targets, revision = _repo(tmp_path)
+    create_plan(
+        root,
+        {
+            "run_id": "active-owner",
+            "objective": "hold a source path",
+            "base_revision": revision,
+            "tasks": [
+                {"task_id": "owner", "owner": "codex", "ownership": ["src/shared.py"]},
+            ],
+        },
+    )
+    with pytest.raises(DevFarmError, match="active ownership conflict"):
+        create_plan(
+            root,
+            {
+                "run_id": "overlapping-plan",
+                "objective": "do not double claim a source path",
+                "base_revision": revision,
+                "tasks": [
+                    {"task_id": "contender", "owner": "codex", "ownership": ["src/shared.py"]},
+                ],
+            },
+        )
+
+
 def test_commander_reassigns_a_failed_worker_within_attempt_limit(tmp_path):
     root, targets, revision = _repo(tmp_path)
     _manifest(root, revision, "worker-a", targets[0])
