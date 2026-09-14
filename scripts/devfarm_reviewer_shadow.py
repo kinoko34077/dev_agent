@@ -152,6 +152,107 @@ def run_shadow(
         }
 
 
+def run_proposal_only(
+    *,
+    root: str | Path,
+    run_id: str,
+    task_id: str,
+    provider_id: str,
+    binding_id: str,
+    model_id: str,
+    api_key_env: str,
+    quota_domain: str,
+    timeout_seconds: float,
+    allow_unknown_quota: bool,
+) -> dict[str, object]:
+    """Request one Free L2 proposal without requiring a Codex decision.
+
+    This is the D7 input boundary.  It reads the current Host-built packet,
+    uses the same qualified Resource composition as the comparison path, and
+    returns a proposal-only record.  It never writes a review decision,
+    changes Task state, or performs integration.
+    """
+
+    runner = CodexSupervisedCommanderRun(root, run_id)
+    packet = runner.review_packet(task_id)
+    attempt_id = packet.get("attempt_id")
+    if not isinstance(attempt_id, str) or not attempt_id.strip():
+        raise ReviewAdapterError("ReviewPacket has no attempt identity")
+    resolver = QualificationResolver()
+    evidence = ModelEvidenceCatalog.load_default()
+    binding = make_binding(
+        provider_id=provider_id,
+        binding_id=binding_id,
+        model_id=model_id,
+        api_key_env=api_key_env,
+        quota_domain=quota_domain,
+        timeout_seconds=timeout_seconds,
+    )
+    admitted = admit_resource_pool(
+        (binding,),
+        resolver=resolver,
+        required_tier="L2",
+        no_charge_required=True,
+        model_admission_resolver=evidence.resolver,
+        model_catalog=evidence.catalog,
+    )
+    if not admitted:
+        raise ReviewAdapterError("exact current high-confidence L2 reviewer resource is not admitted")
+
+    with compose_resource_pool(
+        admitted,
+        resolver=resolver,
+        model_admission_resolver=evidence.resolver,
+        resource_id_prefix="reviewer-shadow",
+    ) as resource_pool:
+        dispatcher = resource_pool.dispatcher
+        proposal = ModelReviewAdapter(
+            dispatcher,
+            allow_unknown_quota=allow_unknown_quota,
+        ).propose(packet)
+        selected = next((entry for entry in reversed(dispatcher.audits) if entry.outcome == "succeeded"), None)
+        proposal_digest = hashlib.sha256(
+            json.dumps(proposal.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        packet_digest = hashlib.sha256(
+            json.dumps(packet, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        return {
+            "status": "live_shadow_proposal_only",
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "run_id": run_id,
+            "task_id": task_id,
+            "attempt_id": attempt_id,
+            "packet_sha256": packet_digest,
+            "reviewer": {
+                "provider": selected.provider_id if selected is not None else None,
+                "binding": selected.provider_binding_id if selected is not None else None,
+                "model": selected.model_id if selected is not None else None,
+                "intelligence_tier": "L2",
+            },
+            "proposal_sha256": proposal_digest,
+            "proposal": proposal.to_dict(),
+            "host_verification": packet.get("verification_summary", {}),
+            "authority": {
+                "reviewer_mode": "shadow",
+                "proposal_only": True,
+                "final_authority": ["codexless_policy", "host_policy"],
+                "integration_performed_by_shadow": False,
+            },
+            "dispatch_audits": [
+                {
+                    "provider": entry.provider_id,
+                    "binding": entry.provider_binding_id,
+                    "model": entry.model_id,
+                    "outcome": entry.outcome,
+                }
+                for entry in dispatcher.audits
+            ],
+            "allow_unknown_quota": allow_unknown_quota,
+            "raw_worker_conversation_recorded": False,
+        }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path.cwd())
@@ -164,9 +265,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--quota-domain", default="gemini:project:982142111392")
     parser.add_argument("--timeout-seconds", type=float, default=45.0)
     parser.add_argument("--allow-unknown-quota", action="store_true")
+    parser.add_argument(
+        "--proposal-only",
+        action="store_true",
+        help="emit a D7 Free L2 proposal without requiring a durable Codex decision",
+    )
     args = parser.parse_args(argv)
     try:
-        output = run_shadow(
+        runner = run_proposal_only if args.proposal_only else run_shadow
+        output = runner(
             root=args.root,
             run_id=args.run_id,
             task_id=args.task_id,

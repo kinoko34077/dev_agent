@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "status": "CANDIDATE_VERIFIED",
+  "observed_at": "2026-09-14T14:41:13+09:00",
+  "purpose": "Bounded live D7 candidate evaluation using a Free L1 Worker, independent Host Verification, and a Free L2 proposal-only review.",
+  "baseline": {
+    "worker_base_revision": "05606ab5c77b24690c604e52ed0064159275598e",
+    "official_branch_auto_merge": false,
+    "official_branch_changed": false
+  },
+  "worker": {
+    "provider": "gemini",
+    "binding": "gemini:worker",
+    "model": "gemini-3.5-flash-lite",
+    "task_id": "d7-live-documentation-20260914",
+    "attempt_id": "4678b581b29245b386db6c818873d3b4",
+    "changed_files": [
+      "docs/CODEX_DAILY_DOGFOOD.md"
+    ],
+    "patch_sha256": "6a02fb17645849341ffb9f5ef4e52d9da0dae051f22a8bf19d55997f16f9c73f",
+    "codex_direct_implementation_count": 0
+  },
+  "host_verification": {
+    "status": "passed",
+    "verification_ref": ".devfarm/results/d7-live-documentation-20260914/attempts/4678b581b29245b386db6c818873d3b4/verification/3dc35ef34c804367952440f92ac8cd7f.json",
+    "trust_level": "TRUSTED_HOST_EXEC",
+    "operator_approved": true,
+    "independent_verification": true,
+    "verified_test_count": 1
+  },
+  "reviewer": {
+    "provider": "gemini",
+    "binding": "gemini:worker:free-3",
+    "model": "gemini-3.6-flash",
+    "intelligence_tier": "L2",
+    "mode": "proposal_only",
+    "packet_sha256": "a842075b5c2b582ed674f09219b20297654764291a51fd9538582c6a5fec8d6d",
+    "proposal_sha256": "c5e27b93b47c8883139001eb7c676791e47d1bd31fffdef07b8e2b125d2a55e2",
+    "decision": "APPROVE_INTEGRATION",
+    "findings": [],
+    "evidence_refs": [
+      ".devfarm/results/d7-live-documentation-20260914/attempts/4678b581b29245b386db6c818873d3b4/verification/3dc35ef34c804367952440f92ac8cd7f.json"
+    ],
+    "raw_worker_conversation_recorded": false
+  },
+  "codexless_policy": {
+    "status": "CANDIDATE",
+    "eligible": true,
+    "codex_review_required": false,
+    "integration_authority": "host_policy",
+    "official_branch_auto_merge": false,
+    "reasons": [
+      "d6_shadow_gate_satisfied",
+      "host_verification_passed",
+      "review_proposal_approved"
+    ],
+    "shadow_evidence_refs": [
+      {
+        "task_id": "8dbfa1f4-3116-54f5-8054-05d0fd22d70e",
+        "attempt_id": "ac512021c06b45f08d158ab513e49c7d"
+      },
+      {
+        "task_id": "824c0c90-e881-5865-a618-a3457c4d1b6b",
+        "attempt_id": "bc35ba2a6a794fc0ae6a6aa599fc0a51"
+      }
+    ]
+  },
+  "integration": {
+    "performed": false,
+    "reason": "D7 candidate evaluation is read-only; Codex-less official-branch integration is not enabled."
+  }
+}

@@ -1,5 +1,5 @@
 import json
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -96,6 +96,25 @@ def test_model_review_adapter_sends_compact_packet_without_raw_worker_output():
     assert "raw Worker conversation" in prompt
     assert "required_correction" in prompt
     assert "patch" not in json.loads(prompt.split("review_packet:\n", 1)[1])
+
+
+def test_model_review_adapter_maps_devfarm_task_id_to_protocol_uuid():
+    packet = _packet()
+    packet["task_id"] = "d7-live-documentation-20260914"
+    provider = _Provider(
+        ModelResponse(
+            provider="reviewer-test",
+            model="free-l2-reviewer",
+            structured_output=_proposal(packet),
+        )
+    )
+
+    proposal = ModelReviewAdapter(provider).propose(packet)
+
+    assert proposal.task_id == packet["task_id"]
+    assert len(provider.requests) == 1
+    UUID(provider.requests[0].task_id)
+    assert provider.requests[0].metadata["dev_agent_task_id"] == packet["task_id"]
 
 
 def test_model_review_adapter_accepts_bounded_json_text_and_checks_identity():

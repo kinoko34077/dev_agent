@@ -13,6 +13,7 @@ from dataclasses import dataclass
 import json
 import re
 from typing import Any
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 from ..domain.protocol import ModelRequest, ModelResponse
 from ..providers.base import ModelProvider
@@ -77,6 +78,22 @@ def _text(value: Any, name: str, *, max_length: int) -> str:
     if len(value) > max_length:
         raise ReviewAdapterError(f"{name} is too long")
     return value
+
+
+def _protocol_task_id(task_id: str) -> str:
+    """Map a readable DevFarm task id to the protocol's UUID identity.
+
+    Development manifests intentionally use readable ids, while the shared
+    ModelRequest contract requires UUID task identities.  Keep the readable id
+    in the proposal and prompt, and use a deterministic UUID only at the
+    protocol boundary so retries and reviews retain one stable task identity.
+    """
+
+    try:
+        UUID(task_id)
+    except (TypeError, ValueError, AttributeError):
+        return str(uuid5(NAMESPACE_URL, f"dev_agent.reviewer/{task_id}"))
+    return task_id
 
 
 def _reject_forbidden(value: Any, name: str) -> None:
@@ -284,6 +301,7 @@ class ModelReviewAdapter:
     def propose(self, packet: Mapping[str, Any]) -> ReviewProposal:
         normalized = self._packet(packet)
         task_id = normalized["task_id"]
+        protocol_task_id = _protocol_task_id(task_id)
         content = (
             "Generate exactly one raw JSON object matching the supplied review proposal schema. "
             "Do not emit Markdown fences, explanatory prose, comments, or trailing text. "
@@ -300,6 +318,7 @@ class ModelReviewAdapter:
             f"{json.dumps(normalized, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}"
         )
         metadata = {
+            "dev_agent_task_id": task_id,
             "review_mode": "shadow",
             "authority": "host_validation_required",
             "integration_authority": "codex_and_host",
@@ -311,7 +330,7 @@ class ModelReviewAdapter:
             metadata["allow_unknown_quota"] = True
         try:
             request = ModelRequest(
-                task_id=task_id,
+                task_id=protocol_task_id,
                 messages=[{"role": "user", "content": content}],
                 requested_capabilities=["text"],
                 response_schema=REVIEW_PROPOSAL_RESPONSE_SCHEMA,
