@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import sys
 
 import pytest
@@ -183,3 +184,35 @@ def test_subprocess_runtime_uses_static_profile_without_shell(tmp_path):
     assert seen["kwargs"]["stdin"] is not None
     assert seen["terminated"] is True
     assert seen["timeout"] == 2.0
+
+
+def test_guardian_process_service_starts_and_stops_real_local_subprocess(tmp_path):
+    store = _store(tmp_path)
+    profile = LaunchProfile(
+        profile_id="agent-real-local",
+        role="agent",
+        generation=12,
+        revision="rev-a",
+        executable=sys.executable,
+        arguments=("-c", "import time; time.sleep(30)"),
+        runtime_root=tmp_path,
+        environment_profile="minimal",
+    )
+    runtime = SubprocessProcessRuntime(stop_timeout_seconds=5.0)
+    service = GuardianProcessService(store, profiles=(profile,), runtime=runtime)
+    start_request = _request(action=ControlAction.START)
+    stop_request = replace(
+        _request(action=ControlAction.STOP),
+        request_id="request-stop-real-local",
+        idempotency_key="operation-stop-real-local",
+    )
+    try:
+        started = service.submit(start_request, now="2026-09-15T12:01:00+00:00")
+        assert started.status is GuardianActionStatus.COMPLETED
+        assert started.result_code == "executor_completed"
+
+        stopped = service.submit(stop_request, now="2026-09-15T12:01:01+00:00")
+        assert stopped.status is GuardianActionStatus.COMPLETED
+        assert stopped.result_code == "executor_completed"
+    finally:
+        store.close()
