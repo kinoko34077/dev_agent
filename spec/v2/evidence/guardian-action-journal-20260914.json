@@ -1,0 +1,74 @@
+{
+  "evidence_id": "guardian-action-journal-20260914",
+  "status": "VERIFIED_FOUNDATION_ONLY",
+  "observed_at": "2026-09-14",
+  "implementation_commit": "7069fcf0d38ba16d9d2d6ca576b79c479f4eb32e",
+  "scope": {
+    "implemented": [
+      "generation-fenced GuardianActionRecord protocol",
+      "CoordinationStore schema version 2 guardian_actions journal",
+      "PENDING to EXECUTING to COMPLETED transition",
+      "policy rejection persistence as REJECTED",
+      "interrupted execution closure as UNKNOWN with reconciliation_required",
+      "idempotency and request digest conflict detection",
+      "public ProcessCoordinationService journal/reconciliation wrappers"
+    ],
+    "not_implemented": [
+      "process creation or signalling",
+      "OS service or Guardian daemon",
+      "drain/checkpoint transaction",
+      "restart or rolling update",
+      "revision-pinned runtime",
+      "rollback",
+      "D9 real self-repair"
+    ]
+  },
+  "verification": {
+    "focused": {
+      "command": "python -m pytest tests/v2/test_process_coordination_protocol.py tests/v2/test_process_coordination_store.py tests/v2/test_process_coordination_guardian.py tests/v2/test_process_coordination_service.py -q",
+      "result": "33 passed"
+    },
+    "full_v2": {
+      "command": "python -m pytest tests/v2 -q",
+      "result": "1133 passed, 1 skipped"
+    },
+    "architecture": {
+      "command": "python scripts/check_architecture.py",
+      "result": "ARCHITECTURE_PASS"
+    },
+    "compileall": {
+      "command": "python -m compileall -q src recovery scripts",
+      "result": "PASS"
+    },
+    "external_ci": {
+      "status": "PASS",
+      "head": "7069fcf0d38ba16d9d2d6ca576b79c479f4eb32e",
+      "checks": [
+        {
+          "name": "kernel (3.10)",
+          "run_id": 34853004999,
+          "url": "https://github.com/kinoko34077/dev_agent/actions/runs/34853004999",
+          "status": "PASS"
+        },
+        {
+          "name": "kernel (3.11)",
+          "run_id": 34853004999,
+          "url": "https://github.com/kinoko34077/dev_agent/actions/runs/34853004999",
+          "status": "PASS"
+        },
+        {
+          "name": "provider-smoke",
+          "run_id": 34853005430,
+          "url": "https://github.com/kinoko34077/dev_agent/actions/runs/34853005430",
+          "status": "PASS"
+        }
+      ]
+    }
+  },
+  "security": {
+    "raw_errors_stored": false,
+    "secrets_stored": false,
+    "process_authority_added": false,
+    "unknown_external_outcome_replayed": false
+  }
+}
