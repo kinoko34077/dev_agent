@@ -6,7 +6,7 @@ import pytest
 
 from src.dev_agent.coordination import ResumeCapsule, WorkAddress
 from src.dev_agent.coordination.protocol import ControlAction, GuardianActionStatus, HandoffNote, MessageKind, PeerStatus
-from src.dev_agent.coordination.service import ProcessCoordinationService
+from src.dev_agent.coordination.service import CoordinationSnapshot, ProcessCoordinationService
 
 
 def _note() -> HandoffNote:
@@ -212,6 +212,55 @@ def test_service_evaluates_control_request_against_latest_peer_generations(tmp_p
 
         assert evaluation.decision.value == "ACCEPTED"
         assert evaluation.process_action is None
+
+
+def test_service_snapshot_exposes_expired_peers_unacked_mailbox_and_guardian_journal(tmp_path) -> None:
+    with ProcessCoordinationService(data_dir=tmp_path) as service:
+        agent = service.attach_peer(
+            "agent",
+            revision="rev-a",
+            capabilities=("checkpoint",),
+            instance_id="agent-1",
+            now="2026-09-14T12:00:00+00:00",
+            lease_seconds=30,
+        )
+        codex = service.attach_peer(
+            "codex",
+            revision="rev-a",
+            capabilities=("review",),
+            instance_id="codex-1",
+            now="2026-09-14T12:00:00+00:00",
+            lease_seconds=300,
+        )
+        service.set_peer_status(agent, PeerStatus.READY)
+        service.set_peer_status(codex, PeerStatus.READY)
+        reference, message = service.send_checkpoint(
+            agent,
+            recipient_role="codex",
+            capsule=ResumeCapsule(
+                work_address=WorkAddress.parse("5-B-8"),
+                status="RUNNING",
+                objective="inspect coordination state",
+                current_action="snapshot",
+                completed=(),
+                next_action="read the snapshot",
+                resume_from="snapshot",
+                blocked_by=(),
+                owned_paths=(),
+                checkpoint_revision="rev-a",
+            ),
+            idempotency_key="snapshot-checkpoint-1",
+        )
+
+        snapshot = service.snapshot(now="2026-09-14T12:01:00+00:00")
+
+        assert isinstance(snapshot, CoordinationSnapshot)
+        assert snapshot.observed_at == "2026-09-14T12:01:00+00:00"
+        assert snapshot.expired_peer_ids == ("agent:agent-1:1",)
+        assert snapshot.mailbox[0].message_id == message.message_id
+        assert snapshot.mailbox[0].artifact_refs[0].sha256 == reference.sha256
+        assert snapshot.guardian_actions == ()
+        assert service.store.get_peer("agent", "agent-1", 1).status is PeerStatus.READY
 
 
 def test_service_guardian_action_wrapper_persists_without_process_authority(tmp_path) -> None:

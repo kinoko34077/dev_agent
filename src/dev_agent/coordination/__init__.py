@@ -36,6 +36,7 @@ from .drain import DrainDecision, DrainResult, ExternalEffectState, GracefulDrai
 from .runtime_release import RevisionPinnedRuntimeStore, RuntimeRelease, RuntimeReleaseError
 from .rolling import RollingDecision, RollingRestartResult, RollingRestartService
 from .runtime_rollback import RollbackDecision, RuntimeRollbackResult, RuntimeRollbackService
+from .service import CoordinationPaths, CoordinationSnapshot, ProcessCoordinationService
 from .work import (
     InterruptFrame,
     InterruptStack,
@@ -86,6 +87,9 @@ __all__ = [
     "RollbackDecision",
     "RuntimeRollbackResult",
     "RuntimeRollbackService",
+    "CoordinationPaths",
+    "CoordinationSnapshot",
+    "ProcessCoordinationService",
     "InterruptFrame",
     "InterruptStack",
     "InterruptionMode",

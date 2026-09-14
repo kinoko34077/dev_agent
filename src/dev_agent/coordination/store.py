@@ -682,6 +682,57 @@ class CoordinationStore:
             ).fetchone()
             return _message_from_row(row) if row is not None else None
 
+    def list_messages(
+        self,
+        *,
+        recipient_role: str | None = None,
+        statuses: tuple[MailboxStatus | str, ...] | None = None,
+        limit: int = _MAX_CLAIM_LIMIT,
+    ) -> tuple[MailboxMessage, ...]:
+        """Return a bounded mailbox projection without claiming messages.
+
+        This is intentionally read-only.  Claim leases are reconciled only by
+        the existing ``claim`` operation, so attach/recovery diagnostics do
+        not mutate delivery state while inspecting it.
+        """
+
+        if recipient_role is not None:
+            recipient_role = validate_identifier(recipient_role, "recipient_role")
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 0 < limit <= _MAX_CLAIM_LIMIT:
+            raise CoordinationValidationError(f"limit must be between 1 and {_MAX_CLAIM_LIMIT}")
+        normalized_statuses: tuple[MailboxStatus, ...] | None = None
+        if statuses is not None:
+            if isinstance(statuses, (str, bytes)) or not isinstance(statuses, tuple) or not statuses:
+                raise CoordinationValidationError("statuses must be a non-empty tuple")
+            try:
+                normalized_statuses = tuple(
+                    item if isinstance(item, MailboxStatus) else MailboxStatus(item)
+                    for item in statuses
+                )
+            except (TypeError, ValueError) as exc:
+                raise CoordinationValidationError("statuses contains an unsupported value") from exc
+            if len(set(normalized_statuses)) != len(normalized_statuses):
+                raise CoordinationValidationError("statuses must not contain duplicates")
+
+        clauses: list[str] = []
+        params: list[Any] = []
+        if recipient_role is not None:
+            clauses.append("recipient_role=?")
+            params.append(recipient_role)
+        if normalized_statuses is not None:
+            placeholders = ", ".join("?" for _ in normalized_statuses)
+            clauses.append(f"status IN ({placeholders})")
+            params.extend(item.value for item in normalized_statuses)
+        where = " WHERE " + " AND ".join(clauses) if clauses else ""
+        with self._lock:
+            if self._closed:
+                raise RuntimeError("coordination store is closed")
+            rows = self.connection.execute(
+                f"SELECT * FROM mailbox{where} ORDER BY created_at, message_id LIMIT ?",
+                (*params, limit),
+            ).fetchall()
+            return tuple(_message_from_row(row) for row in rows)
+
     def claim(
         self,
         recipient_role: str,

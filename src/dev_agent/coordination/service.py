@@ -53,6 +53,44 @@ class CoordinationPaths:
         )
 
 
+@dataclass(frozen=True)
+class CoordinationSnapshot:
+    """Bounded, read-only state needed for attach and restart recovery."""
+
+    observed_at: str
+    peers: tuple[PeerRecord, ...]
+    expired_peer_ids: tuple[str, ...]
+    mailbox: tuple[MailboxMessage, ...]
+    guardian_actions: tuple[GuardianActionRecord, ...]
+
+    def __post_init__(self) -> None:
+        validate_timestamp(self.observed_at, "observed_at")
+        if any(not isinstance(item, PeerRecord) for item in self.peers):
+            raise CoordinationValidationError("peers must contain PeerRecord values")
+        if any(not isinstance(item, MailboxMessage) for item in self.mailbox):
+            raise CoordinationValidationError("mailbox must contain MailboxMessage values")
+        if any(not isinstance(item, GuardianActionRecord) for item in self.guardian_actions):
+            raise CoordinationValidationError("guardian_actions must contain GuardianActionRecord values")
+        if len(self.mailbox) > 64 or len(self.guardian_actions) > 64:
+            raise CoordinationValidationError("snapshot contains too many durable records")
+        object.__setattr__(
+            self,
+            "expired_peer_ids",
+            tuple(validate_identifier(item, "expired_peer_id") for item in self.expired_peer_ids),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return references and bounded state, never artifact contents."""
+
+        return {
+            "observed_at": self.observed_at,
+            "peers": [item.to_dict() for item in self.peers],
+            "expired_peer_ids": list(self.expired_peer_ids),
+            "mailbox": [item.to_dict() for item in self.mailbox],
+            "guardian_actions": [item.to_dict() for item in self.guardian_actions],
+        }
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -179,6 +217,46 @@ class ProcessCoordinationService:
 
     def expire_peer_leases(self, *, now: str | None = None) -> tuple[PeerRecord, ...]:
         return self.store.expire_peer_leases(now=now or _now())
+
+    def snapshot(
+        self,
+        *,
+        now: str | None = None,
+        recipient_role: str | None = None,
+        limit: int = 64,
+    ) -> CoordinationSnapshot:
+        """Inspect attach/recovery state without claiming or expiring records.
+
+        ``expired_peer_ids`` is an observation.  Callers that intentionally
+        want to persist the degraded transition must use the existing
+        ``expire_peer_leases`` operation explicitly.
+        """
+
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 0 < limit <= 64:
+            raise CoordinationValidationError("limit must be between 1 and 64")
+        timestamp = now or _now()
+        validate_timestamp(timestamp, "now")
+        observed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        peers = self.store.list_peers()
+        expired_peer_ids = tuple(
+            f"{peer.role}:{peer.instance_id}:{peer.generation}"
+            for peer in peers
+            if peer.status not in {PeerStatus.STOPPED, PeerStatus.DEGRADED}
+            and datetime.fromisoformat(peer.lease_until.replace("Z", "+00:00")) <= observed
+        )
+        mailbox = self.store.list_messages(
+            recipient_role=recipient_role,
+            statuses=(MailboxStatus.PENDING, MailboxStatus.CLAIMED),
+            limit=limit,
+        )
+        guardian_actions = self.store.list_guardian_actions(limit=limit)
+        return CoordinationSnapshot(
+            observed_at=timestamp,
+            peers=peers,
+            expired_peer_ids=expired_peer_ids,
+            mailbox=mailbox,
+            guardian_actions=guardian_actions,
+        )
 
     def send_message(
         self,
@@ -432,4 +510,4 @@ class ProcessCoordinationService:
         self.close()
 
 
-__all__ = ["CoordinationPaths", "ProcessCoordinationService"]
+__all__ = ["CoordinationPaths", "CoordinationSnapshot", "ProcessCoordinationService"]
