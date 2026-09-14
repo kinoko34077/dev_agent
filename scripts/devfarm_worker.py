@@ -1597,6 +1597,12 @@ def run_worker(
     except ProviderError as exc:
         metrics = _worker_metrics(provider, request, elapsed_ms=round((time.perf_counter() - started) * 1000), task_type=manifest["task_type"])
         metrics["execution_boundary"] = dispatch.execution_boundary
+        # Keep the provider/Host failure category distinct from the bounded
+        # transport-layer diagnostic.  A Host configuration rejection must
+        # not be reported as an unexplained transport failure, while a
+        # transport category is still preserved when the Host boundary
+        # provides one.
+        metrics["provider_failure_category"] = exc.category
         metrics["transport_failure_category"] = (
             dispatch.last_transport_category.value if dispatch.last_transport_category is not None else None
         )

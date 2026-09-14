@@ -14,6 +14,7 @@ from scripts.devfarm_orchestrator import (
     WorkerAssignment,
 )
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
+from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.fake.provider import FakeProvider
 
 
@@ -78,6 +79,16 @@ class _HostDispatch:
             provider=self.provider.provider_id,
             model=self.provider.model_id,
             text_segments=[json.dumps(self.provider.output)],
+        )
+
+
+class _FailingHostDispatch(_HostDispatch):
+    def request(self, _request):
+        self.calls += 1
+        raise ProviderError(
+            "Host provider runtime rejected the dispatch",
+            category="host_configuration",
+            retryable=False,
         )
 
 
@@ -239,6 +250,24 @@ def test_orchestrator_preserves_host_dispatch_boundary_for_worker_assignment(tmp
     assert proposals[0]["status"] == "completed"
     assert host_dispatch.calls == 1
     assert provider.tracker is None
+
+
+def test_worker_metrics_preserve_host_failure_category_separately_from_transport(tmp_path):
+    target = "tests/v2/worker.py"
+    root, manifests = _repo(tmp_path, [target])
+    provider = _ConcurrentProvider(_output(target))
+    host_dispatch = _FailingHostDispatch(provider)
+
+    orchestrator = DevFarmOrchestrator(remote_governor=RemoteConcurrencyGovernor(max_inflight=1))
+    proposals = orchestrator.propose(
+        root,
+        [WorkerAssignment(manifests[0], provider, host_dispatch=host_dispatch)],
+    )
+
+    assert proposals[0]["status"] == "failed"
+    metrics = proposals[0]["worker_metrics"]
+    assert metrics["provider_failure_category"] == "host_configuration"
+    assert metrics["transport_failure_category"] is None
 
 
 def test_disabled_host_resource_is_fail_closed():
