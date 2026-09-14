@@ -21,6 +21,17 @@ from .guardian import (
     GuardianExecutor,
     GuardianPolicy,
 )
+from .guardian_process import (
+    EnvironmentFactory,
+    GuardianProcessExecutionError,
+    GuardianProcessExecutor,
+    GuardianProcessPolicy,
+    GuardianProcessService,
+    LaunchProfile,
+    ProcessHandle,
+    ProcessRuntime,
+    SubprocessProcessRuntime,
+)
 from .work import (
     InterruptFrame,
     InterruptStack,
@@ -49,6 +60,15 @@ __all__ = [
     "GuardianActionService",
     "GuardianExecutor",
     "GuardianPolicy",
+    "EnvironmentFactory",
+    "GuardianProcessExecutionError",
+    "GuardianProcessExecutor",
+    "GuardianProcessPolicy",
+    "GuardianProcessService",
+    "LaunchProfile",
+    "ProcessHandle",
+    "ProcessRuntime",
+    "SubprocessProcessRuntime",
     "InterruptFrame",
     "InterruptStack",
     "InterruptionMode",
