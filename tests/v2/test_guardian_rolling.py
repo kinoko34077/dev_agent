@@ -112,3 +112,22 @@ def test_rolling_restart_requires_a_strictly_new_generation(tmp_path):
         service.roll(old, same, health_check=lambda _handle: True)
 
     assert runtime.calls == []
+
+
+def test_unexpected_new_start_failure_is_closed_as_unknown_without_retry(tmp_path):
+    class _StartFailureRuntime(_Runtime):
+        def start(self, profile: LaunchProfile) -> ProcessHandle:
+            self.calls.append(("start", profile.profile_id))
+            raise RuntimeError("runtime lost its start result")
+
+    runtime = _StartFailureRuntime()
+    old = _profile(tmp_path, profile_id="old", generation=1, revision="rev-old")
+    new = _profile(tmp_path, profile_id="new", generation=2, revision="rev-new")
+    service = RollingRestartService(GuardianProcessExecutor((old, new), runtime))
+
+    result = service.roll(old, new, health_check=lambda _handle: True)
+
+    assert result.decision is RollingDecision.NEW_START_UNKNOWN
+    assert result.reconciliation_required is True
+    assert result.old_stopped is False
+    assert runtime.calls == [("start", "new")]

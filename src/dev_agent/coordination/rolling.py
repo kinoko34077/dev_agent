@@ -13,7 +13,6 @@ from enum import Enum
 from typing import Any
 
 from .guardian_process import (
-    GuardianProcessExecutionError,
     GuardianProcessExecutor,
     LaunchProfile,
     ProcessHandle,
@@ -71,7 +70,7 @@ class RollingRestartService:
 
         try:
             new_handle = self.executor.start_profile(new_profile)
-        except GuardianProcessExecutionError:
+        except Exception:
             return RollingRestartResult(
                 decision=RollingDecision.NEW_START_UNKNOWN,
                 new_handle=None,
@@ -87,7 +86,7 @@ class RollingRestartService:
         if not healthy:
             try:
                 self.executor.stop_profile(new_profile)
-            except GuardianProcessExecutionError:
+            except Exception:
                 return RollingRestartResult(
                     decision=RollingDecision.NEW_STOP_UNKNOWN,
                     new_handle=new_handle,
@@ -103,7 +102,7 @@ class RollingRestartService:
 
         try:
             self.executor.stop_profile(old_profile)
-        except GuardianProcessExecutionError:
+        except Exception:
             return RollingRestartResult(
                 decision=RollingDecision.OLD_STOP_UNKNOWN,
                 new_handle=new_handle,
