@@ -22,6 +22,16 @@
       "server_header": "cloudflare",
       "cf_ray_present": true
     },
+    "invalid_token_edge_probe": {
+      "status": "NOT_VERIFIED",
+      "token_value_recorded": false,
+      "http_status": 403,
+      "failure_category": "authentication_failure",
+      "diagnostic_code": "http_forbidden",
+      "x_request_id_present": false,
+      "server_header": "cloudflare",
+      "cf_ray_present": true
+    },
     "raw_response_recorded": false
   },
   "checks": [
@@ -33,5 +43,5 @@
     "bounded failure fallback without unbounded retry",
     "no redirect bearer forwarding"
   ],
-  "limitation": "The operator smoke reached the fixed endpoint using the configured Credential Manager entry but received HTTP 403 authentication_failure. The response exposed only bounded Cloudflare edge metadata and no application X-Request-ID, so this does not establish that the request reached the compression Worker. No token, raw request, or response body was recorded; service authentication remains unverified."
+  "limitation": "The operator smoke reached the fixed endpoint using the configured Credential Manager entry but received HTTP 403 authentication_failure. A separate one-shot probe with a deliberately invalid diagnostic token produced the same bounded 403 Cloudflare response and no application X-Request-ID. This points to an edge or pre-application gate, but does not prove the request reached the Gateway or compression Worker and does not diagnose the downstream Gemini key. No token, raw request, or response body was recorded; service authentication remains unverified."
 }
