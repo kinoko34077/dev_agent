@@ -87,13 +87,13 @@
 - 目的: D9 real mutationや常駐運用へ進む前に、Task Planeとは別のProcess Coordination Planeへ、作業位置・復帰点・外部送信manifest・generation-fenced requestを記録できるようにする。
 - 実装済み: `WorkAddress`、`ResumeCapsule`、bounded LIFO `InterruptStack`、NOTE/PARALLEL/INTERRUPT/CANCEL分類、Host `EgressManifest`、durable `ControlRequest`、`GuardianPolicy`評価、およびgeneration-fenced `GuardianActionService`のbounded action journal。
 - 検証: Work Address/Resume/egress/ControlRequest/Guardianのfocused testと全`tests/v2`回帰、Architecture、compileallを通過。Guardian action journalの詳細とexact-head CIは[`guardian-action-journal-20260914.json`](../spec/v2/evidence/guardian-action-journal-20260914.json)、基礎全体の証拠は[`coordination-work-egress-foundation-20260914.json`](../spec/v2/evidence/coordination-work-egress-foundation-20260914.json)。
-- G1〜G5実装済み: Guardianの静的profileによるSTART/STOP/RESTART、graceful drain/checkpoint、revision-pinned runtime release、rolling restart、last-known-good rollback composition。deterministic fake/local runtimeのfault testとfull regressionで検証し、UNKNOWN結果はreconciliation-requiredとして再送しない。証拠は[`guardian-fault-drill-20260915.json`](../spec/v2/evidence/guardian-fault-drill-20260915.json)。
+- G1〜G5実装済み: Guardianの静的profileによるSTART/STOP/RESTART、graceful drain/checkpoint、revision-pinned runtime release、rolling restart、last-known-good rollback composition。deterministic fake/local runtimeのfault testに加えて、G1の実ローカルsubprocess START/STOPをfull regressionで検証し、UNKNOWN結果はreconciliation-requiredとして再送しない。証拠は[`guardian-fault-drill-20260915.json`](../spec/v2/evidence/guardian-fault-drill-20260915.json)と[`guardian-real-local-process-20260915.json`](../spec/v2/evidence/guardian-real-local-process-20260915.json)。
 - 未実装/未検証: OS Service/Task Schedulerへの常駐接続、配備後Guardian crash recovery、実processのrolling/rollback運用、D9 official runtime mutation。これらを実証するまでD9 real mutationを解放しない。
 
 ### D10C/G1 — Guardian static process execution
 
 - 既存Guardian action journalへ、Host設定済み`LaunchProfile`だけを解決する`GuardianProcessExecutor`を接続した。任意commandはControlRequestから生成せず、START/STOP/RESTART以外は境界外とする。
-- local/fake runtimeで成功、profile/revision不一致、executor失敗→UNKNOWN/no replayを検証した。OS Service/Task Schedulerへの接続は未検証。
+- real local subprocess/fake runtimeで成功、profile/revision不一致、executor失敗→UNKNOWN/no replayを検証した。OS Service/Task Schedulerへの接続は未検証。
 
 ### D10D/G2 — Graceful drain and checkpoint
 

@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "guardian_real_local_process_execution",
+  "observed_at": "2026-09-15",
+  "implementation_baseline": "8d1bd50ace89cb992a7496054ae585581b01b335",
+  "stage": "G1_static_process_execution",
+  "result": "VERIFIED_LOCAL_REAL_SUBPROCESS",
+  "execution": {
+    "profile": "Host-bound agent LaunchProfile",
+    "command_source": "static profile",
+    "shell": false,
+    "actions": [
+      "GuardianProcessService START",
+      "durable action journal COMPLETED",
+      "GuardianProcessService STOP",
+      "durable action journal COMPLETED"
+    ],
+    "process_output_recorded": false
+  },
+  "focused_test": "tests/v2/test_process_coordination_execution.py::test_guardian_process_service_starts_and_stops_real_local_subprocess",
+  "local_verification": {
+    "tests_v2": "1173 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "skip_reason": "Windows ACLs are deployment-owned"
+  },
+  "exact_head_ci": {
+    "head": "8d1bd50ace89cb992a7496054ae585581b01b335",
+    "v2_core_run": "34874499552",
+    "provider_smoke_run": "34874499682",
+    "kernel_3_10": "PASS",
+    "kernel_3_11": "PASS",
+    "provider_smoke": "PASS"
+  },
+  "scope_boundary": "This is a bounded foreground local-subprocess verification of the existing static Guardian executor and action journal. It is not OS Service/Task Scheduler evidence, deployed Guardian crash-recovery evidence, production rolling/rollback evidence, or D9 official-runtime self-repair evidence.",
+  "raw_process_output_or_secret_recorded": false
+}
