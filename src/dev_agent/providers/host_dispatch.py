@@ -165,10 +165,21 @@ class HostProviderDispatch:
                 else self._provider.request(request)
             )
         except ProviderError as exc:
-            self.last_transport_category = classify_transport_failure(
-                exc,
-                execution_boundary=None if self.execution_boundary == "unclassified" else self.execution_boundary,
-            )
+            preserved = getattr(exc, "transport_failure_category", None)
+            try:
+                self.last_transport_category = (
+                    TransportFailureCategory(preserved)
+                    if isinstance(preserved, str)
+                    else classify_transport_failure(
+                        exc,
+                        execution_boundary=None if self.execution_boundary == "unclassified" else self.execution_boundary,
+                    )
+                )
+            except ValueError:
+                self.last_transport_category = classify_transport_failure(
+                    exc,
+                    execution_boundary=None if self.execution_boundary == "unclassified" else self.execution_boundary,
+                )
             raise
         if not isinstance(response, ModelResponse):
             raise TypeError("provider must return ModelResponse")
@@ -311,13 +322,22 @@ class HostProcessExecutor:
                 category = response_payload.get("category")
                 if not isinstance(category, str) or not category.strip():
                     category = "host_configuration" if completed.returncode != 0 else "provider_http"
-                raise ProviderError(
+                failure = ProviderError(
                     "Host provider runtime rejected the dispatch",
                     category=category,
                     retryable=response_payload.get("retryable") is True,
                     failover_safe=response_payload.get("failover_safe") is True,
                     http_status=response_payload.get("http_status") if isinstance(response_payload.get("http_status"), int) else None,
                 )
+                preserved = response_payload.get("transport_failure_category")
+                if isinstance(preserved, str):
+                    try:
+                        TransportFailureCategory(preserved)
+                    except ValueError:
+                        pass
+                    else:
+                        setattr(failure, "transport_failure_category", preserved)
+                raise failure
             response = response_payload.get("response")
             if not isinstance(response, dict):
                 raise ProviderError("Host provider runtime response is missing", category="reconciliation_required", retryable=False)

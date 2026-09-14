@@ -11,6 +11,7 @@ from scripts.devfarm_worker import (
     _input_context_with_manifest,
     _prompt,
     _provider,
+    _write_auxiliary_artifacts,
     apply_and_verify,
     run_worker,
 )
@@ -336,6 +337,27 @@ def test_worker_input_context_exposes_host_egress_authorization_without_source_m
     prompt = _prompt(manifest, context, egress_manifest=egress)
     assert '"decision": "ALLOW"' in prompt
     assert egress.manifest_sha256 in prompt
+
+
+def test_worker_persists_bounded_egress_manifest_without_source_content(tmp_path):
+    workspace, manifest_path = _workspace(tmp_path, prepare=False)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    _context, egress = _input_context_with_manifest(workspace, manifest, destination="cloudflare")
+
+    _write_auxiliary_artifacts(
+        tmp_path,
+        manifest["task_id"],
+        {"patch": "", "tests_run": [], "tests_passed": False, "notes": "transport observation"},
+        worker_metrics={"execution_boundary": "host_process"},
+        attempt_id="a" * 32,
+        egress_manifest=egress,
+    )
+
+    artifact = tmp_path / ".devfarm" / "results" / manifest["task_id"] / "attempts" / ("a" * 32) / "egress-manifest.json"
+    projection = tmp_path / ".devfarm" / "results" / manifest["task_id"] / "egress-manifest.json"
+    assert json.loads(artifact.read_text(encoding="utf-8"))["manifest_sha256"] == egress.manifest_sha256
+    assert json.loads(projection.read_text(encoding="utf-8"))["files"][0]["sha256"] == egress.files[0].sha256
+    assert "def test_target" not in artifact.read_text(encoding="utf-8")
 
 
 def test_manifest_allows_only_bounded_host_test_command_shapes():

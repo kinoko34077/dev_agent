@@ -1052,6 +1052,7 @@ def _write_auxiliary_artifacts(
     *,
     worker_metrics: Mapping[str, Any] | None = None,
     attempt_id: str | None = None,
+    egress_manifest: EgressManifest | None = None,
 ) -> None:
     selected_attempt = _attempt_id(attempt_id or output.get("attempt_id") or "legacy")
     directories = _result_directories(root, task_id, selected_attempt)
@@ -1089,6 +1090,17 @@ def _write_auxiliary_artifacts(
     _write_immutable_text(attempt_directory / "patch.diff", patch)
     _write_immutable_text(attempt_directory / "tests.json", json.dumps(tests, ensure_ascii=False, indent=2) + "\n")
     _write_immutable_text(attempt_directory / "notes.md", notes + "\n")
+    if egress_manifest is not None:
+        if not isinstance(egress_manifest, EgressManifest):
+            raise DevFarmError("egress_manifest must be an EgressManifest")
+        egress_payload = json.dumps(
+            egress_manifest.to_dict(),
+            ensure_ascii=False,
+            sort_keys=True,
+            indent=2,
+        ) + "\n"
+        root_directory.joinpath("egress-manifest.json").write_text(egress_payload, encoding="utf-8")
+        _write_immutable_text(attempt_directory / "egress-manifest.json", egress_payload)
 
 
 def _record_failed_model_output(
@@ -1098,6 +1110,7 @@ def _record_failed_model_output(
     *,
     worker_metrics: Mapping[str, Any] | None = None,
     attempt_id: str | None = None,
+    egress_manifest: EgressManifest | None = None,
 ) -> dict[str, Any]:
     selected_attempt = _attempt_id(attempt_id)
     result = {
@@ -1121,6 +1134,7 @@ def _record_failed_model_output(
         {**result, "patch": "", "notes": reason},
         worker_metrics=result["worker_metrics"],
         attempt_id=selected_attempt,
+        egress_manifest=egress_manifest,
     )
     return result
 
@@ -1556,7 +1570,14 @@ def run_worker(
             "assumptions": ["The worker provider was unavailable; no patch was produced."],
         }
         write_result(root, result, manifest=manifest)
-        _write_auxiliary_artifacts(root, manifest["task_id"], {**result, "notes": str(exc)}, worker_metrics=metrics, attempt_id=attempt_id)
+        _write_auxiliary_artifacts(
+            root,
+            manifest["task_id"],
+            {**result, "notes": str(exc)},
+            worker_metrics=metrics,
+            attempt_id=attempt_id,
+            egress_manifest=egress_manifest,
+        )
         return result
     elapsed_ms = round((time.perf_counter() - started) * 1000)
     metrics = _worker_metrics(provider, request, response=response, elapsed_ms=elapsed_ms, task_type=manifest["task_type"])
@@ -1567,14 +1588,29 @@ def run_worker(
             "worker response identity mismatch with admitted provider binding",
             worker_metrics=metrics,
             attempt_id=attempt_id,
+            egress_manifest=egress_manifest,
         )
     text = "".join(response.text_segments)
     if len(text) > MAX_OUTPUT_TEXT_CHARS:
-        return _record_failed_model_output(root, manifest, "worker response exceeds output limit", worker_metrics=metrics, attempt_id=attempt_id)
+        return _record_failed_model_output(
+            root,
+            manifest,
+            "worker response exceeds output limit",
+            worker_metrics=metrics,
+            attempt_id=attempt_id,
+            egress_manifest=egress_manifest,
+        )
     try:
         output = _extract_json(text)
     except DevFarmError as exc:
-        return _record_failed_model_output(root, manifest, str(exc), worker_metrics=metrics, attempt_id=attempt_id)
+        return _record_failed_model_output(
+            root,
+            manifest,
+            str(exc),
+            worker_metrics=metrics,
+            attempt_id=attempt_id,
+            egress_manifest=egress_manifest,
+        )
     try:
         patch = output.get("patch", "")
         patch_normalizations: list[str] = []
@@ -1619,9 +1655,23 @@ def run_worker(
         }
         normalized = validate_result(result, manifest=manifest)
     except DevFarmError as exc:
-        return _record_failed_model_output(root, manifest, str(exc), worker_metrics=metrics, attempt_id=attempt_id)
+        return _record_failed_model_output(
+            root,
+            manifest,
+            str(exc),
+            worker_metrics=metrics,
+            attempt_id=attempt_id,
+            egress_manifest=egress_manifest,
+        )
     write_result(root, normalized, manifest=manifest)
-    _write_auxiliary_artifacts(root, manifest["task_id"], {**output, "attempt_id": attempt_id}, worker_metrics=metrics, attempt_id=attempt_id)
+    _write_auxiliary_artifacts(
+        root,
+        manifest["task_id"],
+        {**output, "attempt_id": attempt_id},
+        worker_metrics=metrics,
+        attempt_id=attempt_id,
+        egress_manifest=egress_manifest,
+    )
     return normalized
 
 

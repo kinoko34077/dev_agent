@@ -141,6 +141,47 @@ def test_host_process_executor_treats_missing_response_as_unknown_without_retry(
     assert list(tmp_path.iterdir()) == []
 
 
+def test_host_process_executor_preserves_bounded_transport_category_from_host_runtime(tmp_path):
+    provider = _Provider(ModelResponse(provider="fake", model="fake-model", text_segments=["unused"]))
+    request = _request()
+    request.metadata["egress_manifest_sha256"] = "e" * 64
+    code = (
+        "import json,sys; "
+        "response=sys.argv[sys.argv.index('--response')+1]; "
+        "open(response,'w',encoding='utf-8').write(json.dumps({"
+        "'status':'failed','category':'transport','retryable':True,"
+        "'failover_safe':False,'reconciliation_required':True,"
+        "'transport_failure_category':'sandbox_network_denied'}))"
+    )
+    executor = HostProcessExecutor((sys.executable, "-c", code), request_dir=tmp_path, timeout_seconds=2)
+
+    with pytest.raises(ProviderError) as caught:
+        executor(provider, request)
+
+    assert getattr(caught.value, "transport_failure_category", None) == "sandbox_network_denied"
+
+
+def test_host_provider_dispatch_uses_preserved_host_transport_category(tmp_path):
+    provider = _Provider(ModelResponse(provider="fake", model="fake-model", text_segments=["unused"]))
+    request = _request()
+    request.metadata["egress_manifest_sha256"] = "f" * 64
+    code = (
+        "import json,sys; "
+        "response=sys.argv[sys.argv.index('--response')+1]; "
+        "open(response,'w',encoding='utf-8').write(json.dumps({"
+        "'status':'failed','category':'transport','retryable':True,"
+        "'failover_safe':False,'reconciliation_required':True,"
+        "'transport_failure_category':'local_network_policy_denied'}))"
+    )
+    executor = HostProcessExecutor((sys.executable, "-c", code), request_dir=tmp_path, timeout_seconds=2)
+    dispatch = HostProviderDispatch(provider, execution_boundary="host_process", executor=executor)
+
+    with pytest.raises(ProviderError):
+        dispatch.request(request)
+
+    assert dispatch.last_transport_category is TransportFailureCategory.LOCAL_NETWORK_POLICY_DENIED
+
+
 def test_host_routed_dispatcher_keeps_selection_with_dispatcher_and_moves_call_to_host_executor():
     provider = _Provider(ModelResponse(provider="fake", model="fake-model", text_segments=["selected"]))
     dispatcher = _RoutedDispatcher(provider)

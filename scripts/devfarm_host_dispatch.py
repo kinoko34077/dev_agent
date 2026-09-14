@@ -121,7 +121,13 @@ def _dispatch_configured(envelope: HostDispatchEnvelope) -> ModelResponse:
     if len(admitted) != 1:
         raise HostDispatchRuntimeError("Host dispatch binding failed current admission")
     with compose_resource_pool(admitted, resolver=resolver, resource_id_prefix="devfarm-host") as runtime:
-        response = HostProviderDispatch(runtime.dispatcher, execution_boundary="host_process").request(envelope.request)
+        dispatch = HostProviderDispatch(runtime.dispatcher, execution_boundary="host_process")
+        try:
+            response = dispatch.request(envelope.request)
+        except ProviderError as exc:
+            if dispatch.last_transport_category is not None:
+                setattr(exc, "transport_failure_category", dispatch.last_transport_category.value)
+            raise
     if response.provider != envelope.provider_id or response.model != envelope.model_id:
         raise HostDispatchRuntimeError("Host dispatch response identity mismatch")
     return response
@@ -160,6 +166,9 @@ def process_once(
             "reconciliation_required": exc.requires_reconciliation,
             "http_status": exc.http_status,
         }
+        preserved = getattr(exc, "transport_failure_category", None)
+        if isinstance(preserved, str):
+            result["transport_failure_category"] = preserved
     except (HostDispatchRuntimeError, TypeError, ValueError) as exc:
         result = {
             "status": "rejected",
