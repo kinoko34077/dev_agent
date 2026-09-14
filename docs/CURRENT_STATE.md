@@ -5,12 +5,12 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Implementation/evidence baseline | `74e1bea` (bounded D9 approval-bound execution preflight) |
-| Worktree | clean after D9 implementation and Evidence/documentation synchronization |
-| Local regression | `1054 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 213.09s) |
+| Implementation/evidence baseline | `35cbd98` (bounded D9 approval-bound Host adapter) |
+| Worktree | clean after D9 Host adapter and Evidence/documentation synchronization |
+| Local regression | `1057 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 182.08s) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for current implementation/evidence HEAD `74e1bea538e7be5932ea60c1dee4726fdfe38455`: `v2-core` [run 34814187290](https://github.com/kinoko34077/dev_agent/actions/runs/34814187290) and `v2-provider-smoke` [run 34814187343](https://github.com/kinoko34077/dev_agent/actions/runs/34814187343). |
+| Exact-head CI | PASS for current implementation/evidence HEAD `35cbd984fa981a8674905717f9949bfc232f1967`: `v2-core` [run 34815098259](https://github.com/kinoko34077/dev_agent/actions/runs/34815098259) and `v2-provider-smoke` [run 34815098226](https://github.com/kinoko34077/dev_agent/actions/runs/34815098226). |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
@@ -30,7 +30,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 - D7 bounded candidate boundary: `CodexLessPolicy` and the Supervisor read-only `codexless` CLI evaluate distinct clean Shadow evidence, Worker ownership, low/normal Task classification, scope/protected paths, independent Host Verification, trust/approval, and ReviewPacket grounding. A passing result is only a `CANDIDATE`; it does not grant Reviewer, official-branch, push, merge, Gate, or unconditional integration authority.
 - D7 live candidate evidence: a real Free L1 Worker changed one bounded public documentation file, independent Host Verification passed, and a real Free L2 Reviewer produced a proposal-only `APPROVE_INTEGRATION` without a Codex decision. The Supervisor `codexless` policy returned `CANDIDATE`; no official-branch integration or auto-merge was performed. See [`d7-codexless-candidate-20260914.json`](../spec/v2/evidence/d7-codexless-candidate-20260914.json).
 - D8 Host composition: `scripts/devfarm_self_improvement.py` reads a public Supervisor plan/ReviewPacket boundary and composes `observe → diagnose → plan` into immutable bounded artifacts under `.devfarm/self-improvement/`. The records remain evidence-grounded and proposal-only; no model call, automatic dispatch, Task mutation, repair, approval, or integration is connected. See [`d8-self-improvement-composition-20260914.json`](../spec/v2/evidence/d8-self-improvement-composition-20260914.json).
-- D9 candidate boundary: `RepairPolicy` accepts only an F2 `PROPOSAL_ONLY` plan plus bounded Host evidence with independent verification, known external outcome, attempt-scoped trust/approval, safe paths, and a rollback reference. `RepairExecutionPolicy` adds a non-mutating preflight that binds the candidate, verified attempt, durable review reference, target, and exact approval arguments before the existing Host integration helper may be invoked. It does not execute repair, consume approval, rollback, mutate Tasks, or integrate. See [`d9-repair-candidate-policy-20260914.json`](../spec/v2/evidence/d9-repair-candidate-policy-20260914.json) and [`d9-repair-approval-preflight-20260914.json`](../spec/v2/evidence/d9-repair-approval-preflight-20260914.json).
+- D9 candidate boundary: `RepairPolicy` accepts only an F2 `PROPOSAL_ONLY` plan plus bounded Host evidence with independent verification, known external outcome, attempt-scoped trust/approval, safe paths, and a rollback reference. `RepairExecutionPolicy` adds a non-mutating preflight that binds the candidate, verified attempt, durable review reference, target, and exact approval arguments. The thin Host adapter rechecks the current Supervisor plan/ReviewPacket, consumes the existing external-write approval only after those checks, and delegates mutation to `integrate_approved_worker()`; it does not add retry/rollback authority. Live repair execution remains unperformed. See [`d9-repair-candidate-policy-20260914.json`](../spec/v2/evidence/d9-repair-candidate-policy-20260914.json) and [`d9-repair-approval-preflight-20260914.json`](../spec/v2/evidence/d9-repair-approval-preflight-20260914.json).
 
 ## Partially implemented / not verified
 
@@ -38,7 +38,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 - D4 same-operation resume is `NOT_AVAILABLE` for the concrete Codex backend without a formal external discovery API. The safe result is `UNKNOWN`/reconciliation, not inferred resume or blind restart.
 - D5 is a transport-neutral in-process/development adapter. A network MCP server/wire transport and Planner mutation authority are not implemented.
 - D3 Worker reliability remains conditional. A bounded recurrence of malformed Python patches was classified as `patch_format_failure` / `host_verification_failure` / `model_output_invalid`; the Worker prompt now states syntax-completeness and delimiter-balance requirements, while the validator remains fail-closed. A separate outbound secret-candidate observation was rejected before sending. See [`d3-worker-reliability-observation-20260914.json`](../spec/v2/evidence/d3-worker-reliability-observation-20260914.json).
-- Free L2 Reviewer shadow has two live proposal-only comparison samples and remains non-authoritative. The bounded D7 candidate cycle is live-evidence verified, but official-branch Codex-less integration is not enabled. D8 Host F0–F2 composition and the D9 deterministic candidate/approval-preflight policies are verified; model-driven diagnosis, automatic improvement dispatch/repair, approval consumption, rollback execution, and official-branch promotion remain unconnected.
+- Free L2 Reviewer shadow has two live proposal-only comparison samples and remains non-authoritative. The bounded D7 candidate cycle is live-evidence verified, but official-branch Codex-less integration is not enabled. D8 Host F0–F2 composition and the D9 deterministic candidate/approval-bound Host adapter are verified; real candidate execution, model-driven diagnosis, automatic improvement dispatch/repair, rollback execution, and official-branch promotion remain unconnected.
 
 ## External and frozen
 
@@ -58,7 +58,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 1. Keep D3 conditional and bounded; compare the recorded prompt-contract remediation against any future recurrence without weakening validation.
 2. Preserve D4's explicit-discovery/UNKNOWN boundary; do not invent Codex session discovery.
 3. Treat the D5 in-process adapter as the current boundary; wire transport and Planner mutation tools are separate future slices over the same authority.
-4. Keep D7 official-branch Codex-less integration disabled. Treat D8/D9 as proposal-only Host boundaries; the next D9 slice must re-read all evidence and route an explicitly approved request through the existing Host integration/rollback authorities, not create automatic self-repair.
+4. Keep D7 official-branch Codex-less integration disabled. Treat D8/D9 as bounded Host boundaries; any real D9 execution must re-read all evidence and route an explicitly approved request through the existing Host integration/rollback authorities, with no automatic self-repair or blind retry.
 
 The ordered roadmap is [`docs/V2_DETAILED_ROADMAP.md`](V2_DETAILED_ROADMAP.md),
 and the compact operational procedure is [`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_DAILY_DOGFOOD.md).

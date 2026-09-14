@@ -79,8 +79,8 @@
 
 - 依存: D8、既存Host Verification・approval・Gate。
 - 完了条件: bounded candidate、deterministic validation、Human/authority boundary、rollback/evidence。
-- 現在: `RepairEvidence` と `RepairPolicy` により、F2 `PROPOSAL_ONLY` plan、独立Host Verification、既知の外部結果、attempt単位のtrust/approval、安全な変更範囲、rollback referenceを決定的に検査し、proposal-only `CANDIDATE`を返す。`RepairExecutionRequest` / `RepairExecutionPolicy` は候補・attempt・ReviewDecision・対象・approval引数の一致をread-onlyに事前確認する。Evidenceは[`d9-repair-candidate-policy-20260914.json`](../spec/v2/evidence/d9-repair-candidate-policy-20260914.json)と[`d9-repair-approval-preflight-20260914.json`](../spec/v2/evidence/d9-repair-approval-preflight-20260914.json)。patch実行、approval消費、rollback実行、Task mutation、integrationは未接続。
-- 次: 実修復へ進む場合も、既存DevFarmの新immutable attempt、Host Verification、明示Human approval、Git-backed integration/rollbackを一つずつ接続する。preflightの存在だけでapproval消費・自動修復・Gate昇格を行わない。
+- 現在: `RepairEvidence` と `RepairPolicy` により、F2 `PROPOSAL_ONLY` plan、独立Host Verification、既知の外部結果、attempt単位のtrust/approval、安全な変更範囲、rollback referenceを決定的に検査し、proposal-only `CANDIDATE`を返す。`RepairExecutionRequest` / `RepairExecutionPolicy` と `scripts/devfarm_self_repair.py` の薄いadapterは候補・attempt・ReviewDecision・対象・approval引数を再照合し、既存ApprovalPolicyとSupervisor Host helperへ接続できる準備を提供する。Evidenceは[`d9-repair-candidate-policy-20260914.json`](../spec/v2/evidence/d9-repair-candidate-policy-20260914.json)と[`d9-repair-approval-preflight-20260914.json`](../spec/v2/evidence/d9-repair-approval-preflight-20260914.json)。実candidateのrepair、rollback drill、official branch integrationは未実施。
+- 次: 実修復へ進む場合も、既存DevFarmの新immutable attempt、Host Verification、明示Human approval、Git-backed integration/rollbackを一つずつ接続する。adapterの存在だけで実行・Gate昇格を行わず、approval消費後の結果は既存Recovery境界で扱う。
 
 ### Main Phase 8 / Main Phase 9
 

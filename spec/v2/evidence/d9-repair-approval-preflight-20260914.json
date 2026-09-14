@@ -1,16 +1,19 @@
 {
   "schema_version": 1,
-  "status": "D9_APPROVAL_PREFLIGHT_VERIFIED",
+  "status": "D9_APPROVAL_BOUND_HOST_ADAPTER_VERIFIED",
   "observed_at": "2026-09-14T15:36:51.6382856+09:00",
   "purpose": "Non-mutating approval preflight for a bounded Controlled Self-Repair request.",
   "implementation": {
     "module": "src/dev_agent/intelligence/self_repair.py",
     "policy": "RepairExecutionPolicy",
     "request": "RepairExecutionRequest",
+    "adapter": "scripts/devfarm_self_repair.py:integrate_approved_repair",
     "candidate_status": "PROPOSAL_ONLY",
     "integration_authority": "existing_supervisor_host_helper",
     "patch_executed": false,
     "approval_consumed": false,
+    "approval_consumption_path": "existing ApprovalPolicy",
+    "host_integration_path": "existing Supervisor integrate_approved_worker",
     "rollback_performed": false,
     "task_mutated": false,
     "git_mutated": false
@@ -24,18 +27,19 @@
     "identity_mismatch_fail_closed": true,
     "missing_or_mismatched_approval_fail_closed": true,
     "approval_lookup_is_read_only": true,
+    "adapter_rechecks_before_consumption": true,
     "raw_patch_recorded": false,
     "raw_output_recorded": false
   },
   "verification": {
-    "focused_tests": "14 passed",
-    "full_v2": "1054 passed, 1 skipped",
+    "focused_tests": "16 passed",
+    "full_v2": "1057 passed, 1 skipped",
     "architecture": "ARCHITECTURE_PASS",
     "compileall": "PASS"
   },
   "not_verified": [
-    "approval consumption",
-    "Host repair execution",
+    "real approval-store consumption with Host integration",
+    "Host repair execution against a real candidate",
     "rollback drill",
     "real Worker-generated self-repair candidate",
     "official-branch integration"

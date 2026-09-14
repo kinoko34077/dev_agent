@@ -54,3 +54,7 @@
   durable review reference・target・external-write approvalのexact argument hashを
   read-onlyに束縛するpreflightである。preflightはapprovalを消費せず、既存
   SupervisorのHost integration/rollback authorityへ渡す準備状態だけを返す。
+- `scripts/devfarm_self_repair.py`のHost adapterは、current plan/ReviewPacketと候補の
+  digest/referenceを再照合した後だけ既存`ApprovalPolicy`のexternal-write approvalを
+  消費し、既存`integrate_approved_worker()`へ委譲する。adapter自身はretry、rollback、
+  Task state、Git authorityを持たず、approval消費後の失敗は既存Recovery境界で扱う。
