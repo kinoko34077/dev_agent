@@ -5,13 +5,13 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Current HEAD | `39e08d9` (`docs: record exact-head regression recovery`) |
+| Current HEAD | `ec0632d` (`docs: sync current head and CI evidence`) |
 | Implementation/evidence baseline | `a26c33c` (coordination/egress foundation plus deterministic provider-saturation regression fixture) |
 | Worktree | clean at the current verification checkpoint; this documentation sync records the same checkpoint |
 | Local regression | `1113 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 186.38s) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for current HEAD `39e08d997544a4a231a1f7fb0bcff9d9526abb21`: `v2-core` [run 34838820322](https://github.com/kinoko34077/dev_agent/actions/runs/34838820322) and `v2-provider-smoke` [run 34838820369](https://github.com/kinoko34077/dev_agent/actions/runs/34838820369). |
+| Exact-head CI | PASS for current HEAD `ec0632d65203292af1bea06010e3769f52bda568`: `v2-core` [run 34839040270](https://github.com/kinoko34077/dev_agent/actions/runs/34839040270) and `v2-provider-smoke` [run 34839040257](https://github.com/kinoko34077/dev_agent/actions/runs/34839040257). |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
@@ -35,7 +35,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 - Numbered work coordination: `WorkAddress` provides a bounded mixed numeric/uppercase address projection while UUID task identity, dependency, ownership, and lease remain authoritative. `ResumeCapsule` now persists the active position, next action, owned paths, artifact references, and bounded LIFO interrupt stack; old capsules without the new stack remain readable. NOTE/PARALLEL/INTERRUPT/CANCEL classification is explicit and ambiguous input is non-interrupting. See [`coordination-work-egress-foundation-20260914.json`](../spec/v2/evidence/coordination-work-egress-foundation-20260914.json).
 - Host egress boundary: a per-dispatch `EgressManifest` is built from an explicit standing low-risk grant, exact base-revision bytes, path/symlink/protected-path checks, bounded content scanning, sensitivity, size, UTF-8, and SHA-256. Only `ALLOW` reaches the existing Worker provider boundary; `REVIEW`/`DENY` remain Host outcomes and no secret/raw source content is recorded. The Worker prompt receives only a bounded transfer authorization projection.
 - Process Coordination foundation: `ControlRequest` is durably stored and delivered through the existing mailbox, and `GuardianPolicy` can perform deterministic generation/lease/policy evaluation without any process creation, signalling, restart, or rollback side effect. This is preparation for a future Guardian, not process-control authority.
-- CI regression follow-up: exact-head `a26c33c` passed `kernel (3.10)`, `kernel (3.11)`, and `provider-smoke` after the provider-saturation test fixture was made deterministic; the subsequent documentation checkpoint `39e08d9` also passed all three checks. The fixture change did not alter production dispatch or UNKNOWN/reconciliation semantics.
+- CI regression follow-up: exact-head `a26c33c` passed `kernel (3.10)`, `kernel (3.11)`, and `provider-smoke` after the provider-saturation test fixture was made deterministic; the subsequent documentation checkpoints `39e08d9` and `ec0632d` also passed all three checks. The fixture change did not alter production dispatch or UNKNOWN/reconciliation semantics.
 
 ## Partially implemented / not verified
 
