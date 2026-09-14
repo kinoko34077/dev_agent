@@ -161,6 +161,7 @@ class ResumeCapsule:
     checkpoint_revision: str
     artifact_refs: tuple[ArtifactReference, ...] = ()
     node_type: str = "task"
+    interrupt_stack: "InterruptStack | None" = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.work_address, WorkAddress):
@@ -199,6 +200,14 @@ class ResumeCapsule:
         if not isinstance(self.node_type, str) or self.node_type.strip().lower() not in {"task", "step"}:
             raise CoordinationValidationError("resume node_type must be task or step")
         node_type = self.node_type.strip().lower()
+        if self.interrupt_stack is None:
+            interrupt_stack = InterruptStack()
+        elif isinstance(self.interrupt_stack, InterruptStack):
+            interrupt_stack = self.interrupt_stack
+        elif isinstance(self.interrupt_stack, Mapping):
+            interrupt_stack = InterruptStack.from_dict(self.interrupt_stack)
+        else:
+            raise CoordinationValidationError("resume interrupt_stack must be an InterruptStack")
         normalized = {
             "work_address": str(self.work_address),
             "status": status,
@@ -212,6 +221,7 @@ class ResumeCapsule:
             "checkpoint_revision": checkpoint_revision,
             "artifact_refs": [item.to_dict() for item in artifact_refs],
             "node_type": node_type,
+            "interrupt_stack": interrupt_stack.to_dict(),
         }
         ensure_json_safe(normalized, "resume capsule")
         ensure_secret_free(normalized, "resume capsule")
@@ -226,6 +236,7 @@ class ResumeCapsule:
         object.__setattr__(self, "checkpoint_revision", checkpoint_revision)
         object.__setattr__(self, "artifact_refs", tuple(artifact_refs))
         object.__setattr__(self, "node_type", node_type)
+        object.__setattr__(self, "interrupt_stack", interrupt_stack)
 
     def to_dict(self) -> dict[str, Any]:
         value = {
@@ -241,6 +252,7 @@ class ResumeCapsule:
             "checkpoint_revision": self.checkpoint_revision,
             "artifact_refs": [item.to_dict() for item in self.artifact_refs],
             "node_type": self.node_type,
+            "interrupt_stack": self.interrupt_stack.to_dict(),
         }
         ensure_json_safe(value, "resume capsule")
         ensure_secret_free(value, "resume capsule")
@@ -281,6 +293,7 @@ class ResumeCapsule:
             checkpoint_revision=value["checkpoint_revision"],
             artifact_refs=value.get("artifact_refs", ()),
             node_type=value.get("node_type", "task"),
+            interrupt_stack=value.get("interrupt_stack"),
         )
 
 

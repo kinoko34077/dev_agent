@@ -39,6 +39,14 @@ def test_next_child_allocates_numeric_and_parallel_lane_without_collision() -> N
 
 
 def test_resume_capsule_is_bounded_and_json_serializable() -> None:
+    parent_frame = InterruptFrame(
+        task_id="parent-task",
+        work_address=WorkAddress.parse("5-B"),
+        resume_from="after the interrupt",
+        next_action="continue the parent task",
+        checkpoint_revision="rev-a",
+    )
+    interrupt_stack = InterruptStack().push(parent_frame)
     capsule = ResumeCapsule(
         work_address=WorkAddress.parse("5-B-8"),
         status="RUNNING",
@@ -50,11 +58,13 @@ def test_resume_capsule_is_bounded_and_json_serializable() -> None:
         blocked_by=(),
         owned_paths=("src/dev_agent/coordination/work.py",),
         checkpoint_revision="rev-a",
+        interrupt_stack=interrupt_stack,
     )
 
     restored = ResumeCapsule.from_dict(capsule.to_dict())
     assert restored == capsule
     assert capsule.to_dict()["work_address"] == "5-B-8"
+    assert restored.interrupt_stack == interrupt_stack
     json.dumps(restored.to_dict(), ensure_ascii=False, allow_nan=False)
 
     with pytest.raises(ValueError):
@@ -78,6 +88,25 @@ def test_resume_capsule_is_bounded_and_json_serializable() -> None:
                 "objective": 123,
             }
         )
+
+
+def test_resume_capsule_defaults_to_an_empty_interrupt_stack_for_old_records() -> None:
+    capsule = ResumeCapsule.from_dict(
+        {
+            "work_address": "5",
+            "status": "RUNNING",
+            "objective": "continue",
+            "current_action": "work",
+            "completed": [],
+            "next_action": "next",
+            "resume_from": "checkpoint",
+            "blocked_by": [],
+            "owned_paths": [],
+            "checkpoint_revision": "rev-a",
+        }
+    )
+
+    assert capsule.interrupt_stack == InterruptStack()
 
 
 def test_interrupt_stack_returns_latest_frame_first_and_is_bounded() -> None:
