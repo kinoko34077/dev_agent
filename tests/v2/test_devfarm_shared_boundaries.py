@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 
+from scripts.devfarm_artifacts import artifact_reference, attempt_id, bounded_test_output
 from scripts.devfarm_resource_pool import admit_resource_pool, make_binding
+from scripts.devfarm_verification import validate_host_test_targets
 
 
 def test_resource_pool_binding_factory_keeps_exact_execution_identity():
@@ -50,3 +52,15 @@ def test_resource_pool_admission_is_role_neutral(monkeypatch):
     admitted = admit_resource_pool((binding,), resolver=Resolver(), required_tier="L2")
 
     assert admitted == ((binding, qualification, profile),)
+
+
+def test_public_artifact_and_verification_boundaries_are_bounded(tmp_path):
+    assert artifact_reference(".devfarm/results/task/result.json", kind="result") == {
+        "kind": "result",
+        "path": ".devfarm/results/task/result.json",
+    }
+    assert attempt_id("attempt-1") == "attempt-1"
+    bounded = bounded_test_output("ok")
+    assert bounded == {"text": "ok", "truncated": False}
+
+    validate_host_test_targets(tmp_path, ["python", "-m", "pytest", "tests/v2/test_target.py", "-q"])

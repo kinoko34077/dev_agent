@@ -29,15 +29,17 @@ from scripts.devfarm import (
     validate_patch,
     write_result,
 )
-from scripts.devfarm_worker import (
+from scripts.devfarm_artifacts import (
+    attempt_id as normalize_attempt_id,
+    bounded_test_output,
+    write_immutable_text,
+    write_latest_result_projection,
+    write_verification_record,
+)
+from scripts.devfarm_verification import (
     HostVerificationRunner,
-    _attempt_id,
-    _bounded_test_output,
-    _target_is_independent,
-    _validate_host_test_targets,
-    _write_immutable_text,
-    _write_latest_result_projection,
-    _write_verification_record,
+    target_is_independent,
+    validate_host_test_targets,
 )
 from src.dev_agent.backends.codex_exec import CodexExecBackend
 from src.dev_agent.backends.protocol import (
@@ -254,8 +256,8 @@ def _persist_attempt(
 ) -> None:
     write_result(root, result, manifest=manifest)
     attempt_dir = root / ".devfarm" / "results" / str(manifest["task_id"]) / "attempts" / str(result["attempt_id"])
-    _write_immutable_text(attempt_dir / "patch.diff", patch)
-    _write_immutable_text(attempt_dir / "notes.md", notes + "\n")
+    write_immutable_text(attempt_dir / "patch.diff", patch)
+    write_immutable_text(attempt_dir / "notes.md", notes + "\n")
 
 
 def _collect_events(backend: AgentBackend, session_id: str, existing: dict[int, AgentBackendEvent]) -> None:
@@ -316,13 +318,13 @@ def _run_host_verification(
         if time.monotonic() - started >= 120:
             raise DevFarmError("worker verification exceeded total wall-clock budget")
         tokens = parse_host_test_command(command)
-        _validate_host_test_targets(workspace, tokens)
+        validate_host_test_targets(workspace, tokens)
         targets = {
             token.split("::", 1)[0].replace("\\", "/")
             for token in tokens[3:]
             if token not in {"-q", "-x"} and not token.startswith("--maxfail=")
         }
-        if any(_target_is_independent(workspace, target, changed_set) for target in targets):
+        if any(target_is_independent(workspace, target, changed_set) for target in targets):
             independent = True
         host_result = runner.run(tokens, cwd=workspace)
         verified.append(
@@ -330,8 +332,8 @@ def _run_host_verification(
                 "command": command,
                 "exit_code": host_result["returncode"],
                 "passed": host_result["returncode"] == 0 and not host_result["timed_out"],
-                "stdout": _bounded_test_output(host_result["stdout"]),
-                "stderr": _bounded_test_output(host_result["stderr"]),
+                "stdout": bounded_test_output(host_result["stdout"]),
+                "stderr": bounded_test_output(host_result["stderr"]),
                 "timed_out": host_result["timed_out"],
                 "output_truncated": host_result["output_truncated"],
                 "containment": host_result["containment"],
@@ -364,7 +366,7 @@ def run_codex_attempt(
     except (OSError, json.JSONDecodeError) as exc:
         raise DevFarmError(f"could not read manifest: {manifest_file}") from exc
     manifest = validate_manifest(manifest_value)
-    selected_attempt = _attempt_id(attempt_id or uuid4().hex)
+    selected_attempt = normalize_attempt_id(attempt_id or uuid4().hex)
     if isinstance(max_wait_seconds, bool) or not isinstance(max_wait_seconds, (int, float)) or max_wait_seconds <= 0:
         raise ValueError("max_wait_seconds must be positive")
     if trust_level not in {"STATIC_ONLY", "TRUSTED_HOST_EXEC", "OS_SANDBOXED"}:
@@ -511,9 +513,9 @@ def run_codex_attempt(
         "verified_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "operator_approved": operator_approved is True,
     }
-    verification_id = _write_verification_record(root_path, manifest, selected_attempt, verification_record)
+    verification_id = write_verification_record(root_path, manifest, selected_attempt, verification_record)
     result["verification_id"] = verification_id
-    _write_latest_result_projection(root_path, result, manifest=manifest)
+    write_latest_result_projection(root_path, result, manifest=manifest)
     return {
         "authority_status": authority_status,
         "host_verification_started": bool(verified),

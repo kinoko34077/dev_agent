@@ -27,8 +27,8 @@ from scripts.devfarm import (
     DevFarmError,
     MAX_OUTBOUND_BYTES,
     VERIFICATION_TRUST_LEVELS,
-    _is_protected,
     canonical_digest,
+    is_protected_path,
     normalize_patch_hunk_counts,
     parse_host_test_command,
     prepare_worktree,
@@ -47,6 +47,20 @@ from src.dev_agent.resources.provider_policy import validate_provider_instance_a
 from src.dev_agent.resources.qualification import QualificationError, QualificationResolver
 from src.dev_agent.security.audit import AuditRecorder
 from scripts.devfarm_metrics import WorkerMetricsError, WorkerMetricsStore
+from scripts.devfarm_artifacts import (
+    attempt_id as shared_attempt_id,
+    bounded_test_output as shared_bounded_test_output,
+    list_verification_records as shared_list_verification_records,
+    result_directories as shared_result_directories,
+    write_immutable_text as shared_write_immutable_text,
+    write_latest_result_projection as shared_write_latest_result_projection,
+    write_verification_record as shared_write_verification_record,
+)
+from scripts.devfarm_verification import (
+    HostVerificationRunner as shared_host_verification_runner,
+    target_is_independent as shared_target_is_independent,
+    validate_host_test_targets as shared_validate_host_test_targets,
+)
 
 
 MAX_INPUT_FILE_BYTES = 64 * 1024
@@ -62,6 +76,10 @@ _MODEL_STATUS_ALIASES = {
     "failure": "failed",
     "blocked": "blocked_external",
 }
+
+# Local compatibility name; cross-script imports use the public path-policy
+# symbol above so the architecture checker can enforce the boundary.
+_is_protected = is_protected_path
 
 
 @dataclass(frozen=True)
@@ -849,6 +867,20 @@ def _write_latest_result_projection(root: Path, result: Mapping[str, Any], *, ma
     return path
 
 
+# Keep the historical private names for in-process callers and old fixtures,
+# while making the shared public modules the runtime source of truth.
+HostVerificationRunner = shared_host_verification_runner
+_validate_host_test_targets = shared_validate_host_test_targets
+_target_is_independent = shared_target_is_independent
+_bounded_test_output = shared_bounded_test_output
+_attempt_id = shared_attempt_id
+_result_directories = shared_result_directories
+_write_immutable_text = shared_write_immutable_text
+_write_verification_record = shared_write_verification_record
+_list_verification_records = shared_list_verification_records
+_write_latest_result_projection = shared_write_latest_result_projection
+
+
 def _input_context(workspace: Path, manifest: Mapping[str, Any]) -> str:
     manifest = validate_manifest(manifest)
     chunks: list[str] = []
@@ -945,6 +977,17 @@ def _provider(
         )
     except (TypeError, ValueError) as exc:
         raise DevFarmError(f"unsupported development worker provider: {name}") from exc
+
+
+def build_worker_provider(
+    name: str,
+    model: str,
+    timeout_seconds: float,
+    provider_binding_id: str | None = None,
+) -> ModelProvider:
+    """Public provider-construction boundary for development adapters."""
+
+    return _provider(name, model, timeout_seconds, provider_binding_id)
 
 
 def _write_auxiliary_artifacts(
