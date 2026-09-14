@@ -32,6 +32,7 @@ from .guardian_process import (
     ProcessRuntime,
     SubprocessProcessRuntime,
 )
+from .drain import DrainDecision, DrainResult, ExternalEffectState, GracefulDrainService
 from .work import (
     InterruptFrame,
     InterruptStack,
@@ -69,6 +70,10 @@ __all__ = [
     "ProcessHandle",
     "ProcessRuntime",
     "SubprocessProcessRuntime",
+    "DrainDecision",
+    "DrainResult",
+    "ExternalEffectState",
+    "GracefulDrainService",
     "InterruptFrame",
     "InterruptStack",
     "InterruptionMode",

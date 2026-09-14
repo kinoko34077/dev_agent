@@ -11,6 +11,7 @@ from typing import Any
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from .artifacts import CoordinationArtifactStore
+from .drain import DrainResult, ExternalEffectState
 from .guardian import GuardianActionService, GuardianEvaluation, GuardianExecutor, GuardianPolicy
 from .protocol import (
     ArtifactReference,
@@ -83,6 +84,42 @@ class ProcessCoordinationService:
         if current.status in {PeerStatus.STOPPED, PeerStatus.DEGRADED}:
             raise CoordinationConflict("peer is not active")
         return current
+
+    def require_current_peer(self, peer: PeerRecord) -> PeerRecord:
+        """Expose current-peer validation to coordination sub-services."""
+
+        return self._assert_current(peer)
+
+    def assert_work_claim_allowed(self, peer: PeerRecord) -> PeerRecord:
+        """Guard new work claims without owning Task scheduling."""
+
+        current = self._assert_current(peer)
+        if current.status is not PeerStatus.READY:
+            raise CoordinationConflict("peer is not READY; work claims are paused")
+        return current
+
+    def prepare_drain(
+        self,
+        peer: PeerRecord,
+        *,
+        capsule: ResumeCapsule,
+        recipient_role: str,
+        idempotency_key: str,
+        external_effect_state: ExternalEffectState | str = ExternalEffectState.NONE,
+        expires_at: str | None = None,
+    ) -> DrainResult:
+        """Persist a safe checkpoint before a Guardian-owned restart."""
+
+        from .drain import GracefulDrainService
+
+        return GracefulDrainService(self).prepare(
+            peer,
+            capsule=capsule,
+            recipient_role=recipient_role,
+            idempotency_key=idempotency_key,
+            external_effect_state=external_effect_state,
+            expires_at=expires_at,
+        )
 
     def attach_peer(
         self,

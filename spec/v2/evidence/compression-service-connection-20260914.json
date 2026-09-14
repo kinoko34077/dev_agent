@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "evidence_kind": "compression_service_connection",
-  "observed_at": "2026-09-14",
+  "observed_at": "2026-09-15",
   "status": "NOT_VERIFIED",
   "client_contract": "PASS",
   "endpoint": "https://api.kinotch.workers.dev/v1/compress",
@@ -16,7 +16,12 @@
     "http_status": 403,
     "credential_source": "Windows Credential Manager",
     "credential_target": "kinotch-api / compression",
-    "safe_edge_diagnostics_captured": false,
+    "safe_edge_diagnostics_captured": true,
+    "safe_edge_diagnostics": {
+      "x_request_id_present": false,
+      "server_header": "cloudflare",
+      "cf_ray_present": true
+    },
     "raw_response_recorded": false
   },
   "checks": [
@@ -28,5 +33,5 @@
     "bounded failure fallback without unbounded retry",
     "no redirect bearer forwarding"
   ],
-  "limitation": "The operator smoke reached the fixed endpoint using the configured Credential Manager entry but received HTTP 403 authentication_failure. The pre-diagnostic smoke did not capture safe edge-header presence fields. No token, raw request, or response body was recorded; service authentication remains unverified."
+  "limitation": "The operator smoke reached the fixed endpoint using the configured Credential Manager entry but received HTTP 403 authentication_failure. The response exposed only bounded Cloudflare edge metadata and no application X-Request-ID, so this does not establish that the request reached the compression Worker. No token, raw request, or response body was recorded; service authentication remains unverified."
 }
