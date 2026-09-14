@@ -1428,6 +1428,61 @@ def test_commander_integration_requires_git_evidence_and_records_it(tmp_path):
     assert integrated_task["verified_patch_digest"] == hashlib.sha256(patch.encode("utf-8")).hexdigest()
 
 
+def test_codex_integration_digest_handles_utf8_commit_content(tmp_path):
+    root, _targets, revision = _repo(tmp_path)
+    document = root / "docs" / "レビュー.md"
+    document.parent.mkdir(parents=True, exist_ok=True)
+    document.write_text("# 統合レビュー\n", encoding="utf-8")
+    _git(root, "add", "--all")
+    _git(root, "commit", "-m", "integrate UTF-8 review")
+    integration_revision = _git(root, "rev-parse", "HEAD").stdout.strip()
+    create_plan(
+        root,
+        {
+            "run_id": "utf8-codex-integration-run",
+            "objective": "record a UTF-8 Codex integration",
+            "base_revision": revision,
+            "tasks": [
+                {
+                    "task_id": "codex-task",
+                    "owner": "codex",
+                    "ownership": ["docs/レビュー.md"],
+                }
+            ],
+        },
+    )
+    diff = subprocess.run(
+        [
+            "git",
+            "-c",
+            f"safe.directory={root.as_posix()}",
+            "diff-tree",
+            "--root",
+            "--binary",
+            "--no-commit-id",
+            "-r",
+            integration_revision,
+            "--",
+        ],
+        cwd=root,
+        capture_output=True,
+        check=True,
+    ).stdout
+
+    integrated = mark_integrated(
+        root,
+        "utf8-codex-integration-run",
+        "codex-task",
+        note="record UTF-8 integration evidence",
+        target_ref="HEAD",
+        integration_revision=integration_revision,
+        source_attempt_id="codex-utf8-commit",
+        verified_patch_digest=hashlib.sha256(diff).hexdigest(),
+    )
+
+    assert integrated["tasks"][0]["status"] == "INTEGRATED"
+
+
 def test_commander_reissues_dependent_manifest_from_integration_revision(tmp_path):
     root, targets, revision = _repo(tmp_path)
     _manifest(root, revision, "worker-a", targets[0])

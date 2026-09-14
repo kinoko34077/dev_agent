@@ -1523,12 +1523,12 @@ def _git_diff_digest(root: Path, revision: str) -> str:
         ],
         cwd=root,
         capture_output=True,
-        text=True,
         check=False,
     )
     if result.returncode != 0:
-        raise DevFarmError(result.stderr.strip() or "could not read integration revision diff")
-    return hashlib.sha256(result.stdout.encode("utf-8")).hexdigest()
+        error = result.stderr.decode("utf-8", errors="replace").strip()
+        raise DevFarmError(error or "could not read integration revision diff")
+    return hashlib.sha256(result.stdout).hexdigest()
 
 
 def _verified_worker_patch(root: Path, task: Mapping[str, Any]) -> tuple[str, dict[str, Any], str]:
