@@ -114,6 +114,15 @@ python scripts/devfarm_supervisor.py resume <run-id> --root .
 未知の外部効果を勝手に再実行しない。`REVIEWING`、`INTEGRATING`、`REWORK`では表示された
 Codex actionを先に処理し、unfinished Planを閉じるまで同じ目的の新Planを作らない。
 
+作業中の表示位置は既存Task UUIDに任意の`work_address`を付けて管理する。形式と
+割込みの扱いは[`CODEX_WORK_COORDINATION.md`](CODEX_WORK_COORDINATION.md)を正本とし、
+曖昧な横槍は現在作業を止めないNOTE/PARALLELへ倒す。checkpointはResume Capsuleと
+immutable artifact referenceで残し、アドレスだけから依存やownershipを推測しない。
+
+外部Workerへ送るファイルは、既存manifestの明示scopeに加え、Host側のstanding egress
+grantとdispatchごとのcontent scan/hashを通す。ALLOW以外は送信せず、secret・credential・
+protected source・raw conversationは送信・保存しない。
+
 ## 対象外と終了報告
 
 Humanが明示的に再開しない限り、G6O1-SIM/LIVE、real paid-provider qualification、

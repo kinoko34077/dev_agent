@@ -75,6 +75,21 @@ for filenames, tests, or Worker choice when existing authority can decide.
   an optional fixed-profile payload optimization: use it only through the
   explicit client/env boundary, and never treat it as G6O1 evidence.
 
+Process Coordination is a separate peer/presence/mailbox/handoff plane, not a
+second Task Scheduler. Attach or resume from its durable records only through
+`src/dev_agent/coordination/`; do not infer external session discovery from
+stale artifacts or thread IDs. Commander ownership remains the source of truth
+for task files, and active-plan overlap is rejected before a new plan is
+persisted. Guardian, direct process control, revision-pinned runtime, and D9
+real mutation remain later gates until their evidence exists.
+
+Numbered work addresses, bounded resume capsules, and NOTE/PARALLEL/INTERRUPT/
+CANCEL handling are defined in `docs/CODEX_WORK_COORDINATION.md`. They annotate
+existing Task UUIDs and do not replace dependency or ownership checks. External
+Worker egress uses Host-owned standing policy plus a per-dispatch content-scanned
+manifest; lower models do not re-decide whether an already-allowed file may be
+sent. Do not send secrets, credentials, protected source, or raw conversations.
+
 The short operator procedure is in `docs/CODEX_DAILY_DOGFOOD.md`; the durable
 contracts remain in `docs/CODEX_SUPERVISOR.md` and
 `docs/CODEX_COMMANDER.md`.

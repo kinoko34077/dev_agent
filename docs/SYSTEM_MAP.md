@@ -24,6 +24,7 @@
 | DevFarm | `scripts/devfarm*.py`（`devfarm_codex.py`を含む） | manifest、proposal、Codex AgentBackend attempt、Host Verification、metrics | ProviderFactory + Git artifacts | outbound scope、worktree、patch、no auto-integration | `tests/v2/test_devfarm_*.py` |
 | Commander | `scripts/devfarm_commander.py` | development-only parent Plan、DAG、dispatch、collect、verify | existing DevFarm only | ownership、bounded reassign | `tests/v2/test_devfarm_commander.py` |
 | Supervisor | `scripts/devfarm_supervisor.py`, `scripts/devfarm_supervisor_protocol.py` | bounded `advance` snapshot、blocking `run_until_intervention`、cadence、compact wake/review evidence、rework handoff | existing Commander + Handoff | no auto-integration、no second scheduler | `tests/v2/test_devfarm_supervisor.py`, `docs/CODEX_SUPERVISOR.md` |
+| Process Coordination | `src/dev_agent/coordination/` | peer identity/generation、presence lease、durable mailbox、immutable handoff artifacts、Work Address/Resume projection | SQLite primitive / security audit | no Task/Scheduler/Guardian/process authority | `tests/v2/test_process_coordination_*.py`, `docs/requirements/process-coordination/`, `docs/CODEX_WORK_COORDINATION.md` |
 | DevFarm data | `.devfarm/` | plans、tasks、results、worktrees、metrics | ignored local artifacts | never source/Gate authority | `docs/DEVFARM.md` |
 | Formal spec | `spec/v2/` | requirements、ADR、Gate、traceability、schemas | documentation | Gate promotion evidence | `spec/v2/GATE_STATUS.json` |
 | Current state | `docs/CURRENT_STATE.md` | implementation baseline、tests、live state | evidence references | no duplicated authority | this document / changelog |
@@ -36,6 +37,18 @@ primitives shared by State and Scheduler. `runtime` composes state, provider, re
 tool boundaries. `scheduler` owns queue/lease mechanics; `recovery` remains
 independent of Controller and Scheduler. `DevFarm` and `Commander` are
 development tooling and do not become Production Runtime components.
+
+Process Coordination is orthogonal to the Task Plane. It stores peer/presence,
+mailbox delivery, immutable handoff references, and bounded work-position
+projections only; it must not become a
+parallel Scheduler, Task state machine, Provider router, Budget authority, or
+process launcher. Commander owns task-file ownership and rejects overlap across
+unfinished plans before a new plan is persisted.
+
+Host egress policy/manifest is a separate check at the existing DevFarm outbound
+boundary. It may inspect and hash explicitly scoped files, but it does not grant
+write, approval, Provider, or process authority. See
+`docs/CODEX_WORK_COORDINATION.md` for the numbered operation contract.
 
 The canonical provider path is:
 

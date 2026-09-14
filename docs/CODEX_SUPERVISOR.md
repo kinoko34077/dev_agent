@@ -55,6 +55,11 @@ Heartbeatの時間幅は待機をLLMのbusy loopにしないための補助情�
 延長する。これはOS timerやWorker完了イベントを偽装するものではなく、外部の呼出し
 機構が同じPlanを再開する際の推奨値である。
 
+作業アドレス、Resume Capsule、ユーザー割込みの分類、Host-owned egress manifestは
+[`CODEX_WORK_COORDINATION.md`](CODEX_WORK_COORDINATION.md)の番号付き契約に従う。
+Supervisorはそれらを既存Plan/Coordinationへ投影するだけで、Task Scheduler、process
+authority、外部送信の安全判定を新設しない。
+
 ## 処理順
 
 ```text
@@ -148,3 +153,18 @@ provider-safe limit超過は送信前にbounded configuration failureへ閉じ�
 MCP runtimeは[`src/dev_agent/mcp/runtime.py`](../src/dev_agent/mcp/runtime.py)のtransport-
 neutral adapterと、既存Supervisorへ束ねる[`scripts/devfarm_mcp.py`](../scripts/devfarm_mcp.py)
 で構成する。wire transport、Planner proposal/applyのauthorityはこのsliceへ追加しない。
+
+## Process Coordination foundation
+
+Agent/Codexのprocess-level presenceとhandoffは、Task Planとは別の
+`src/dev_agent/coordination/`へ置く。`PeerRecord`はrole、instance、generation、
+revision、heartbeat、leaseを持ち、旧generationを拒否する。`CoordinationStore`は
+別SQLiteでMailboxのat-least-once claim/ACK/idempotencyを保持し、
+`CoordinationArtifactStore`はSHA-256・size・revision付きのimmutable artifactを保存する。
+`ProcessCoordinationService`はこの三者の薄いcompositionだけを提供する。
+
+このfoundationはAgent/Codexを起動・停止・killせず、Guardian、OS service、drain、
+rolling restart、revision-pinned runtime、rollback、D9 real repairも有効化しない。
+正式なCodex external session discoveryがない場合は、既存D4方針どおりUNKNOWN/
+reconciliationに閉じる。Coordination DBをTask stateへ統合したり、raw会話をmemory SSOTへ
+保存したりしない。

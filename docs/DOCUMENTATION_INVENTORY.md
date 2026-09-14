@@ -13,6 +13,7 @@
 | `docs/CODEX_COMMANDER.md` | Commanderの恒久運用契約 |
 | `docs/CODEX_SUPERVISOR.md` | Supervisorの恒久運用契約 |
 | `docs/CODEX_DAILY_DOGFOOD.md` | 日常操作手順 |
+| `docs/CODEX_WORK_COORDINATION.md` | 番号付き作業アドレス、復帰点、割込み、Host egress契約 |
 | `docs/DEVFARM.md` | Worker/Host Verification境界 |
 
 ## Stable requirements
@@ -31,7 +32,7 @@
 
 ## Active working plan
 
-完了済みD1/D2の作業Planはarchive済みで、D4の明示discovery/UNKNOWN境界とD5のtransport-neutral MCP adapterまで実装済みである。次の作業は`docs/V2_DETAILED_ROADMAP.md`のD3条件付き評価、D4/D5の残る外部境界、またはその後の非ブロッキングTaskを、必要に応じて新しい狭いPlanとして開始する。
+完了済みD1/D2の作業Planはarchive済みで、D4の明示discovery/UNKNOWN境界とD5のtransport-neutral MCP adapterまで実装済みである。Process Coordination foundationと番号付き作業アドレス/Host egressの現行計画は、`docs/superpowers/plans/`の対応Planで追跡する。次の作業は`docs/V2_DETAILED_ROADMAP.md`のD3条件付き評価、D4/D5の残る外部境界、またはその後の非ブロッキングTaskを、必要に応じて新しい狭いPlanとして開始する。
 
 ## Historical archive
 

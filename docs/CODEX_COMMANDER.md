@@ -138,11 +138,32 @@ manifestは作成／再割当時にfail-closedで拒否する。
 依存Taskのmanifestは、統合後のrevisionを基準にした新しいmanifestとして再発行し、
 旧manifestを履歴に残す。
 
+Plan内のownership overlapに加え、`CommanderPlanStore.create()`は未完了Planを
+横断してactive Taskのownershipを照合する。`INTEGRATED`/`SUPERSEDED`済みTaskの
+所有権は解放されるが、`READY`、`DISPATCHED`、`PROPOSED`、`HOST_VERIFIED`、
+`REJECTED`、`BLOCKED`等の未完了Taskは、別Planから同一pathまたは親子pathを二重取得
+できない。作成時は短い全体lockを持つため、同時作成のcheck-then-write競合も
+boundedに防ぐ。この機構はTask ownershipだけを扱い、process lifecycleやSchedulerを
+追加しない。
+
 unknownな外部効果の再送、approval／budget／privacyの迂回、model自己申告だけの
 verification、自動integrationは禁止する。`resume`はartifactを再読込して依存を
 解放するだけで、Providerを勝手に再実行しない。Supervisorのreview decisionは
 attempt/evidenceと結合してPlanへ保存し、REWORKは差分Handoffを付けた新manifestへ、
 APPROVE_INTEGRATIONは明示承認後のHost側Git integration helperへ接続する。
+
+作業位置の表示・割込み復帰・外部送信manifestは、[`CODEX_WORK_COORDINATION.md`](CODEX_WORK_COORDINATION.md)
+を参照する。`task_id`は不変UUIDのまま、`work_address`（例 `5-B-8-3`）を任意の
+表示/復帰projectionとして付与する。数字/英字の形だけで依存や並列実行を決めず、
+既存のdependency・ownership・leaseを正本にする。NOTE/PARALLEL/INTERRUPT/CANCELの
+分類、bounded Resume Capsule、LIFO復帰stackは新しいSchedulerではなく既存Planと
+immutable Coordination artifactへ記録する。
+
+外部Workerへ渡すbytesは、standing egress grantだけでは確定しない。Hostが既存の
+path/protected/secret/privacy/provider policyを通し、dispatchごとのhash・size・
+sensitivity付きmanifestを発行し、`ALLOW`だけを送信する。`REVIEW`/`DENY`、transport
+failure、Provider拒否、UNKNOWN external effectは別結果として扱い、下層モデルや
+manifest本文へAuthorityを移さない。
 
 `codexless`は既存のcleanなReviewer Shadow evidenceとHost Verificationを使って、
 低risk・非protected・既知Task classのroutine candidateをread-only評価するだけである。
