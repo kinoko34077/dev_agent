@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "status": "D9_POLICY_VERIFIED",
+  "observed_at": "2026-09-14T15:18:26.680753+09:00",
+  "purpose": "Deterministic proposal-only gating for a bounded Controlled Self-Repair candidate.",
+  "implementation": {
+    "module": "src/dev_agent/intelligence/self_repair.py",
+    "policy": "RepairPolicy",
+    "candidate_status": "PROPOSAL_ONLY",
+    "integration_performed": false,
+    "automatic_dispatch": false,
+    "automatic_repair": false,
+    "automatic_rollback": false,
+    "approval_authority": false,
+    "integration_authority": "host_policy"
+  },
+  "evidence_contract": {
+    "requires_f2_proposal_only": true,
+    "requires_host_verification": true,
+    "requires_independent_verification": true,
+    "requires_known_external_outcome": true,
+    "requires_rollback_reference": true,
+    "allows_protected_paths": false,
+    "allowed_trust_levels": ["TRUSTED_HOST_EXEC", "OS_SANDBOXED"],
+    "raw_patch_recorded": false,
+    "raw_output_recorded": false
+  },
+  "policy_tests": {
+    "focused": "22 passed",
+    "full_v2": "1050 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS"
+  },
+  "not_verified": [
+    "real Worker-generated repair candidate",
+    "Host repair execution",
+    "rollback drill",
+    "Human approval consumption",
+    "official-branch integration"
+  ],
+  "raw_conversation_recorded": false
+}

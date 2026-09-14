@@ -69,6 +69,10 @@ Task state、Scheduler、Budget、Provider routing、AgentBackend authorityを
   `scripts/devfarm_self_improvement.py` が既存Supervisorのcompact observationから
   immutableなproposal artifactを生成するHost compositionを提供する。自動dispatch、
   Task mutation、repair、integrationはこのsliceへ接続しない。
+- 実装済みslice: `src/dev_agent/intelligence/self_repair.py` が、F2 proposalとHost evidenceを
+  boundedに検査するproposal-only Controlled Self-Repair candidate policyを提供する。
+  protected/unknown/incomplete evidenceはfail closedし、patch実行、approval消費、rollback、
+  integrationは接続しない。
 - **NOT VERIFIED / NOT CONNECTED**: Compression live availability、wire MCP transport、
   MCP planner proposal/apply authority、simulated-paid runtime E2E、Reviewer decision
   authority、live Codex-less cycle、model-driven diagnosis、automatic repair、有限multi-cycleは

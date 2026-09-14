@@ -37,3 +37,16 @@
   append-only artifactに限り、Commander plan、Git、Task、Worker dispatchを変更しない。
 - このcompositionはmodel-driven diagnosis、automatic repair、approval、integrationの
   authorityを与えない。実行を伴う次工程は、別途Human/Host Gateと既存DevFarm境界を通る。
+
+## D9 — Controlled Self-Repair candidate boundary
+
+- D9の最初の段階は、F2 `PROPOSAL_ONLY` planとHostが収集したbounded evidenceから、
+  repair candidateの採否を決定的に評価することに限る。候補にはpatch本文を含めず、
+  patch/manifest/verificationのreference、digest、base revision、変更path、rollback
+  referenceだけを保持する。
+- 候補成立には、独立Host Verification、known external outcome、attempt単位のtrust/approval、
+  protected path不在、安全なrisk、rollback referenceを要求する。UNKNOWN、検証不備、
+  protected path、rollback欠落はfail closedする。
+- 候補は常に`PROPOSAL_ONLY`かつHuman approval必須である。D9 policyはpatch実行、
+  approval消費、rollback、Task mutation、Git integrationを行わず、既存DevFarmと
+  Host/approval/Recovery authorityを置換しない。
