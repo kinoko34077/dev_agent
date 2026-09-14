@@ -8,6 +8,9 @@ from typing import Protocol
 
 
 COMPRESSION_PROFILE = "semantic-dense-v1"
+COMPRESSION_API_TOKEN_ENV = "COMPRESSION_API_TOKEN"
+DEFAULT_COMPRESSION_ENDPOINT = "https://api.kinotch.workers.dev/v1/compress"
+DEFAULT_COMPRESSION_THRESHOLD_CHARS = 3000
 
 
 def _text(value: object, name: str, *, max_length: int = 256) -> str:
@@ -72,4 +75,11 @@ class CompressionService(Protocol):
         ...
 
 
-__all__ = ["COMPRESSION_PROFILE", "CompressionResult", "CompressionService"]
+__all__ = [
+    "COMPRESSION_API_TOKEN_ENV",
+    "COMPRESSION_PROFILE",
+    "DEFAULT_COMPRESSION_ENDPOINT",
+    "DEFAULT_COMPRESSION_THRESHOLD_CHARS",
+    "CompressionResult",
+    "CompressionService",
+]

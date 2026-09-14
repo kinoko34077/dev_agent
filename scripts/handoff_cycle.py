@@ -15,7 +15,11 @@ from typing import Any, Mapping
 from scripts.devfarm import DevFarmError
 from scripts.devfarm_codex import run_codex_attempt
 from src.dev_agent.backends.protocol import AgentBackend
-from src.dev_agent.compression import CompressionService, compress_handoff_payload
+from src.dev_agent.compression import (
+    DEFAULT_COMPRESSION_THRESHOLD_CHARS,
+    CompressionService,
+    compress_handoff_payload,
+)
 from src.dev_agent.handoff import (
     ExecutorRole,
     HandoffEnvelope,
@@ -72,18 +76,23 @@ class OneCycleDevelopmentLoop:
         compression_service: CompressionService | None = None,
         max_uncompressed_chars: int | None = None,
         strict_compression: bool = False,
+        fallback_to_original: bool = True,
     ) -> None:
         if compression_service is not None:
-            if max_uncompressed_chars is None or max_uncompressed_chars <= 0:
-                raise ValueError("max_uncompressed_chars is required with compression_service")
+            threshold = DEFAULT_COMPRESSION_THRESHOLD_CHARS if max_uncompressed_chars is None else max_uncompressed_chars
+            if isinstance(threshold, bool) or not isinstance(threshold, int) or threshold <= 0:
+                raise ValueError("max_uncompressed_chars must be a positive integer")
         elif max_uncompressed_chars is not None:
             raise ValueError("max_uncompressed_chars requires compression_service")
+        if not isinstance(fallback_to_original, bool):
+            raise ValueError("fallback_to_original must be a boolean")
         self._planner = planner
         self._executor = executor
         self._reviewer = reviewer
         self._compression_service = compression_service
-        self._max_uncompressed_chars = max_uncompressed_chars
+        self._max_uncompressed_chars = threshold if compression_service is not None else None
         self._strict_compression = strict_compression
+        self._fallback_to_original = fallback_to_original
 
     def run(
         self,
@@ -132,6 +141,7 @@ class OneCycleDevelopmentLoop:
                 self._compression_service,
                 max_uncompressed_chars=self._max_uncompressed_chars or 1,
                 strict_integrity=self._strict_compression,
+                fallback_to_original=self._fallback_to_original,
             )
         executed = _require_role_transition(
             self._executor.execute(planned),
