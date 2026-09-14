@@ -126,10 +126,10 @@
 - Input: one validated failure packet and existing `RefinementPlan`.
 - Output: one bounded next action (`CORRECT`, `CRITIQUE`, `REASSIGN_SAME_TIER`, `INCREASE_REASONING`, `ESCALATE_TIER`, `RECONCILE`, `HUMAN`, or `FAIL`) with no loop and no integration/approval authority.
 
-- [ ] Add a red test proving a format failure selects one correction action and does not raise thinking/tier.
-- [ ] Add a red semantic test proving one L1 Critic proposal can feed a bounded rework request without the Critic changing ownership or integrating.
-- [ ] Implement only the one-action Host adapter; persist round/usage references through existing attempt artifacts.
-- [ ] Run focused refinement tests and confirm successful first-pass paths make no extra model call.
+- [x] Add a red test proving a format failure selects one correction action and does not raise thinking/tier.
+- [x] Add a red semantic test proving one L1 Critic proposal can feed a bounded rework request without the Critic changing ownership or integrating.
+- [x] Implement only the one-action Host adapter; persist round/usage references through existing attempt artifacts.
+- [x] Run focused refinement tests and confirm successful first-pass paths make no extra model call.
 
 ---
 

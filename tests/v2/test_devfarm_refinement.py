@@ -6,6 +6,7 @@ import pytest
 
 from scripts.devfarm_refinement import (
     RefinementCompositionError,
+    apply_refinement_action,
     build_refinement_packet,
     classify_worker_failure,
     plan_refinement,
@@ -14,6 +15,7 @@ from scripts.devfarm_refinement import (
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.domain.protocol import IntelligenceTier
 from src.dev_agent.intelligence.refinement import (
+    CriticFinding,
     FailureClass,
     RefinementAction,
     RefinementContext,
@@ -41,6 +43,20 @@ class _Provider:
     def request(self, request: ModelRequest) -> ModelResponse:
         self.requests.append(request)
         return self.response
+
+
+class _ActionRunner:
+    def __init__(self) -> None:
+        self.handoff_calls: list[dict[str, Any]] = []
+        self.reassign_calls: list[dict[str, Any]] = []
+
+    def rework_handoff(self, task_id: str, **kwargs: Any) -> dict[str, Any]:
+        self.handoff_calls.append({"task_id": task_id, **kwargs})
+        return {"kind": "repair_request", "task_id": task_id}
+
+    def reassign(self, task_id: str, **kwargs: Any) -> dict[str, Any]:
+        self.reassign_calls.append({"task_id": task_id, **kwargs})
+        return {"status": "ACTIVE", "task_id": task_id}
 
 
 def _review_packet() -> dict[str, Any]:
@@ -219,3 +235,63 @@ def test_plan_refinement_preserves_unknown_external_effect_boundary():
 def test_plan_refinement_rejects_unknown_category_before_policy_execution():
     with pytest.raises(RefinementCompositionError, match="unsupported failure category"):
         plan_refinement(_refinement_context(), "future_failure")
+
+
+def test_apply_refinement_action_formats_one_correction_without_thinking_escalation():
+    runner = _ActionRunner()
+    plan = plan_refinement(_refinement_context(), "patch_format_failure")
+
+    result = apply_refinement_action(
+        runner,
+        plan,
+        failure_evidence_reference={"kind": "verification", "path": ".devfarm/failure.json"},
+        required_correction="Regenerate the bounded unified diff with the exact file context.",
+        assignment={
+            "provider_id": "cloudflare",
+            "model_id": "@cf/meta/llama-3.1-8b-instruct",
+            "provider_binding_id": "cloudflare",
+        },
+    )
+
+    assert result.action is RefinementAction.CORRECT
+    assert result.executed is True
+    assert result.thinking_escalated is False
+    assert len(runner.handoff_calls) == 1
+    assert len(runner.reassign_calls) == 1
+    assert runner.reassign_calls[0]["rework_handoff"] == {"kind": "repair_request", "task_id": "production-task-1"}
+
+
+def test_apply_refinement_action_uses_one_l1_critic_proposal_for_rework_only():
+    runner = _ActionRunner()
+    plan = plan_refinement(_refinement_context(), "host_verification_failure")
+    proposal = RefinementProposal(
+        task_id="production-task-1",
+        attempt_id="attempt-1",
+        findings=(
+            CriticFinding(
+                location="src/dev_agent/coordination/work.py:10",
+                problem="The reconciliation marker is not persisted.",
+                required_correction="Persist the marker before returning.",
+            ),
+        ),
+        evidence_refs=(".devfarm/verification/attempt-1.json",),
+    )
+
+    result = apply_refinement_action(
+        runner,
+        plan,
+        failure_evidence_reference={"kind": "verification", "path": ".devfarm/failure.json"},
+        critic_proposal=proposal,
+        assignment={
+            "provider_id": "cloudflare",
+            "model_id": "@cf/meta/llama-3.1-8b-instruct",
+            "provider_binding_id": "cloudflare",
+        },
+    )
+
+    assert result.action is RefinementAction.CRITIQUE
+    assert result.executed is True
+    assert len(runner.handoff_calls) == 1
+    assert len(runner.reassign_calls) == 1
+    assert runner.handoff_calls[0]["review_findings_reference"]["kind"] == "refinement_proposal"
+    assert "Persist the marker" in runner.handoff_calls[0]["required_correction"]

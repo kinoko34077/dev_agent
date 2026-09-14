@@ -9,12 +9,13 @@ source; those authorities remain with the existing Host/Commander boundaries.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import Any, Protocol
 
 from src.dev_agent.intelligence.critic_adapter import ModelCriticAdapter
 from src.dev_agent.intelligence.refinement import (
     BoundedRefinementPolicy,
+    RefinementAction,
     FailureClass,
     RefinementContext,
     RefinementProposal,
@@ -24,6 +25,37 @@ from src.dev_agent.intelligence.refinement import (
 
 class RefinementCompositionError(ValueError):
     """The public Supervisor packet cannot safely become a Critic packet."""
+
+
+@dataclass(frozen=True)
+class RefinementActionResult:
+    """Bounded result of applying one Host-selected refinement action.
+
+    This projection intentionally omits the returned handoff and provider
+    result.  Those artifacts remain in their existing durable boundaries; the
+    adapter only reports whether one existing Host operation was invoked.
+    """
+
+    plan_id: str
+    task_id: str
+    action: RefinementAction
+    status: str
+    executed: bool
+    handoff_created: bool = False
+    thinking_escalated: bool = False
+    reason: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "plan_id": self.plan_id,
+            "task_id": self.task_id,
+            "action": self.action.value,
+            "status": self.status,
+            "executed": self.executed,
+            "handoff_created": self.handoff_created,
+            "thinking_escalated": self.thinking_escalated,
+            "reason": self.reason,
+        }
 
 
 class ReviewPacketSource(Protocol):
@@ -241,8 +273,180 @@ def propose_critic(
     return ModelCriticAdapter(provider, max_output_tokens=max_output_tokens).propose(packet)
 
 
+def _assignment_values(
+    plan: RefinementPlan,
+    assignment: Mapping[str, Any] | None,
+) -> tuple[str, str, str | None]:
+    if not isinstance(assignment, Mapping):
+        raise RefinementCompositionError("assignment is required for a Worker refinement action")
+    values: list[str | None] = []
+    for name, maximum in (("provider_id", 128), ("model_id", 256)):
+        value = assignment.get(name)
+        if not isinstance(value, str) or not value.strip() or len(value.strip()) > maximum:
+            raise RefinementCompositionError(f"assignment.{name} must be bounded non-empty text")
+        values.append(value.strip())
+    binding = assignment.get("provider_binding_id")
+    if binding is not None:
+        if not isinstance(binding, str) or not binding.strip() or len(binding.strip()) > 256:
+            raise RefinementCompositionError("assignment.provider_binding_id must be bounded text")
+        binding = binding.strip()
+    if plan.action is RefinementAction.REASSIGN_SAME_TIER:
+        if plan.next_binding_id is None:
+            raise RefinementCompositionError("same-tier plan has no next binding")
+        if binding is not None and binding != plan.next_binding_id:
+            raise RefinementCompositionError("assignment binding does not match refinement plan")
+        binding = plan.next_binding_id
+    return values[0], values[1], binding
+
+
+def _critic_correction(
+    plan: RefinementPlan,
+    proposal: RefinementProposal | None,
+) -> tuple[str, Mapping[str, Any]]:
+    if not isinstance(proposal, RefinementProposal):
+        raise RefinementCompositionError("CRITIQUE action requires a RefinementProposal")
+    if proposal.task_id != plan.task_id:
+        raise RefinementCompositionError("critic proposal task_id does not match refinement plan")
+    if not proposal.findings:
+        raise RefinementCompositionError("critic proposal must contain a finding")
+    correction = "\n".join(
+        f"{finding.location}: {finding.required_correction}" for finding in proposal.findings
+    )
+    return _bounded_summary(correction), {
+        "kind": "refinement_proposal",
+        "task_id": proposal.task_id,
+        "attempt_id": proposal.attempt_id,
+        "evidence_refs": list(proposal.evidence_refs),
+    }
+
+
+def apply_refinement_action(
+    runner: Any,
+    plan: RefinementPlan,
+    *,
+    failure_evidence_reference: Mapping[str, Any] | Any | None = None,
+    review_findings_reference: Mapping[str, Any] | Any | None = None,
+    required_correction: str | None = None,
+    critic_proposal: RefinementProposal | None = None,
+    assignment: Mapping[str, Any] | None = None,
+) -> RefinementActionResult:
+    """Execute at most one existing Host action for a refinement plan.
+
+    The policy remains the owner of action selection.  This adapter only
+    turns a correction/critique/same-tier plan into one existing Supervisor
+    ``rework_handoff`` plus ``reassign`` call.  It never loops, selects a
+    resource, changes ownership, consumes approval, or integrates a patch.
+    Non-dispatch actions are returned as explicit bounded statuses for their
+    owning reconciliation or authority boundary.
+    """
+
+    if not isinstance(plan, RefinementPlan):
+        raise RefinementCompositionError("plan must be RefinementPlan")
+    if not callable(getattr(runner, "reassign", None)):
+        raise RefinementCompositionError("runner must expose reassign()")
+    action = plan.action
+    if action in {RefinementAction.CORRECT, RefinementAction.CRITIQUE, RefinementAction.REASSIGN_SAME_TIER}:
+        provider_id, model_id, binding_id = _assignment_values(plan, assignment)
+    else:
+        provider_id = model_id = binding_id = None
+
+    if action is RefinementAction.CORRECT:
+        if not isinstance(failure_evidence_reference, Mapping) or not failure_evidence_reference:
+            raise RefinementCompositionError("CORRECT action requires failure evidence reference")
+        correction = _bounded_summary(required_correction or "")
+        if not callable(getattr(runner, "rework_handoff", None)):
+            raise RefinementCompositionError("runner must expose rework_handoff()")
+        handoff = runner.rework_handoff(
+            plan.task_id,
+            failure_evidence_reference=failure_evidence_reference,
+            review_findings_reference=review_findings_reference,
+            required_correction=correction,
+        )
+        runner.reassign(
+            plan.task_id,
+            provider_id=provider_id,
+            model_id=model_id,
+            provider_binding_id=binding_id,
+            rework_handoff=handoff,
+        )
+        return RefinementActionResult(
+            plan_id=plan.plan_id,
+            task_id=plan.task_id,
+            action=action,
+            status="REWORK_DISPATCHED",
+            executed=True,
+            handoff_created=True,
+            reason=plan.reasons[0] if plan.reasons else None,
+        )
+
+    if action is RefinementAction.CRITIQUE:
+        if not isinstance(failure_evidence_reference, Mapping) or not failure_evidence_reference:
+            raise RefinementCompositionError("CRITIQUE action requires failure evidence reference")
+        correction, critic_reference = _critic_correction(plan, critic_proposal)
+        if not callable(getattr(runner, "rework_handoff", None)):
+            raise RefinementCompositionError("runner must expose rework_handoff()")
+        handoff = runner.rework_handoff(
+            plan.task_id,
+            failure_evidence_reference=failure_evidence_reference,
+            review_findings_reference=review_findings_reference or critic_reference,
+            required_correction=correction,
+        )
+        runner.reassign(
+            plan.task_id,
+            provider_id=provider_id,
+            model_id=model_id,
+            provider_binding_id=binding_id,
+            rework_handoff=handoff,
+        )
+        return RefinementActionResult(
+            plan_id=plan.plan_id,
+            task_id=plan.task_id,
+            action=action,
+            status="REWORK_DISPATCHED",
+            executed=True,
+            handoff_created=True,
+            reason=plan.reasons[0] if plan.reasons else None,
+        )
+
+    if action is RefinementAction.REASSIGN_SAME_TIER:
+        runner.reassign(
+            plan.task_id,
+            provider_id=provider_id,
+            model_id=model_id,
+            provider_binding_id=binding_id,
+        )
+        return RefinementActionResult(
+            plan_id=plan.plan_id,
+            task_id=plan.task_id,
+            action=action,
+            status="REASSIGNED",
+            executed=True,
+            reason=plan.reasons[0] if plan.reasons else None,
+        )
+
+    status_by_action = {
+        RefinementAction.NONE: "NO_ACTION",
+        RefinementAction.RECONCILE: "RECONCILIATION_REQUIRED",
+        RefinementAction.HUMAN: "HUMAN_REQUIRED",
+        RefinementAction.FAIL: "FAILED",
+        RefinementAction.INCREASE_REASONING: "HOST_ACTION_REQUIRED",
+        RefinementAction.ESCALATE_TIER: "HOST_ACTION_REQUIRED",
+    }
+    return RefinementActionResult(
+        plan_id=plan.plan_id,
+        task_id=plan.task_id,
+        action=action,
+        status=status_by_action[action],
+        executed=False,
+        thinking_escalated=action is RefinementAction.INCREASE_REASONING,
+        reason=plan.reasons[0] if plan.reasons else None,
+    )
+
+
 __all__ = [
+    "RefinementActionResult",
     "RefinementCompositionError",
+    "apply_refinement_action",
     "ReviewPacketSource",
     "build_refinement_packet",
     "classify_worker_failure",
