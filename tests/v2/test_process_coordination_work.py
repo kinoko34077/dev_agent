@@ -21,6 +21,7 @@ def test_work_address_round_trips_mixed_sequential_and_parallel_segments() -> No
     assert address.to_dict() == {"address": "5-B-8-3"}
     assert WorkAddress.from_dict(address.to_dict()) == address
     assert str(address.parent) == "5-B-8"
+    assert WorkAddress.parse("5").parent is None
 
 
 @pytest.mark.parametrize("value", ["", "5-", "5-b", "0", "5-0", "5-A1", "../5", "5--B"])
@@ -53,6 +54,7 @@ def test_resume_capsule_is_bounded_and_json_serializable() -> None:
 
     restored = ResumeCapsule.from_dict(capsule.to_dict())
     assert restored == capsule
+    assert capsule.to_dict()["work_address"] == "5-B-8"
     json.dumps(restored.to_dict(), ensure_ascii=False, allow_nan=False)
 
     with pytest.raises(ValueError):
@@ -67,6 +69,14 @@ def test_resume_capsule_is_bounded_and_json_serializable() -> None:
             blocked_by=(),
             owned_paths=("../outside.py",),
             checkpoint_revision="rev-a",
+        )
+
+    with pytest.raises(ValueError):
+        ResumeCapsule.from_dict(
+            {
+                **capsule.to_dict(),
+                "objective": 123,
+            }
         )
 
 
@@ -102,9 +112,27 @@ def test_interrupt_stack_returns_latest_frame_first_and_is_bounded() -> None:
             )
         )
 
+    assert InterruptStack().max_depth == 8
+    assert InterruptStack.from_dict(stack.to_dict()) == stack
+
+
+def test_interrupt_frame_rejects_invalid_task_or_checkpoint_values() -> None:
+    with pytest.raises(ValueError):
+        InterruptFrame(
+            task_id="",
+            work_address=WorkAddress.parse("5-B"),
+            resume_from="step 2",
+            next_action="finish",
+            checkpoint_revision="rev-a",
+        )
+
+    with pytest.raises(ValueError):
+        InterruptStack.from_dict({"max_depth": 0, "frames": []})
+
 
 def test_ambiguous_intervention_defaults_to_non_interrupting_note() -> None:
     assert classify_intervention(None) is InterruptionMode.NOTE
     assert classify_intervention("unknown") is InterruptionMode.NOTE
     assert classify_intervention("PARALLEL") is InterruptionMode.PARALLEL
     assert classify_intervention(InterruptionMode.INTERRUPT) is InterruptionMode.INTERRUPT
+    assert classify_intervention("CANCEL") is InterruptionMode.CANCEL
