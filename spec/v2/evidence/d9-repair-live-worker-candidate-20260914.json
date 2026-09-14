@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "status": "D9_REAL_WORKER_CANDIDATE_VERIFIED",
+  "observed_at": "2026-09-14T16:39:52.2500510+09:00",
+  "purpose": "Materialize one live D7 Free Worker Host-verified result as a bounded D9 proposal-only repair candidate.",
+  "source": {
+    "run_id": "d7-live-documentation-20260914",
+    "task_id": "d7-live-documentation-20260914",
+    "attempt_id": "4678b581b29245b386db6c818873d3b4",
+    "worker_provider": "gemini",
+    "worker_binding": "gemini:worker",
+    "worker_model": "gemini-3.5-flash-lite",
+    "candidate_id": "repair-candidate-d90749e735fb4cb5ac17e24c5dcc2775",
+    "improvement_plan_id": "improvement-plan-28b58a65e2e549ddb6cc94918f7b8055",
+    "patch_sha256": "6a02fb17645849341ffb9f5ef4e52d9da0dae051f22a8bf19d55997f16f9c73f",
+    "changed_files": [
+      "docs/CODEX_DAILY_DOGFOOD.md"
+    ]
+  },
+  "composition": {
+    "host_materializer": "scripts/devfarm_self_repair.py:build_repair_candidate",
+    "source_packet": "Supervisor compact ReviewPacket",
+    "repair_policy": "src/dev_agent/intelligence/self_repair.py:RepairPolicy",
+    "status": "CANDIDATE",
+    "candidate_status": "PROPOSAL_ONLY",
+    "integration_authority": "host_policy",
+    "requires_human_approval": true,
+    "external_outcome_known": "explicitly supplied true",
+    "rollback_ref": "git:last-known-good"
+  },
+  "checks": {
+    "live_worker_artifact_reused": true,
+    "host_verified_packet_required": true,
+    "exact_attempt_and_patch_binding": true,
+    "manifest_and_artifact_refs_bound": true,
+    "raw_patch_read_by_materializer": false,
+    "raw_worker_output_recorded": false,
+    "approval_consumed": false,
+    "integration_performed": false,
+    "official_checkout_mutated": false,
+    "remote_mutated": false
+  },
+  "implementation": {
+    "commit": "32e6495d2ea99ba371ebb3f40ff01b1006aefb2b",
+    "test": "tests/v2/test_devfarm_self_repair.py::test_approved_repair_adapter_uses_real_supervisor_host_integration"
+  },
+  "verification": {
+    "focused_tests": "26 passed",
+    "full_v2": "1058 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head_ci": {
+      "head": "32e6495d2ea99ba371ebb3f40ff01b1006aefb2b",
+      "v2-core": "https://github.com/kinoko34077/dev_agent/actions/runs/34818381534",
+      "v2-provider-smoke": "https://github.com/kinoko34077/dev_agent/actions/runs/34818381598",
+      "conclusion": "success"
+    }
+  },
+  "not_verified": [
+    "production approval-store execution",
+    "real repair integration",
+    "rollback execution drill",
+    "official-branch integration",
+    "automatic self-repair or retry"
+  ],
+  "raw_conversation_recorded": false,
+  "credentials_recorded": false
+}
