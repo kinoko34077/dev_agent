@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import datetime
+import hashlib
 import json
 from pathlib import PurePosixPath
 import re
@@ -28,6 +30,7 @@ MAX_TEXT_CHARS = 4_000
 _HEX_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _TRUST_LEVELS = frozenset({"TRUSTED_HOST_EXEC", "OS_SANDBOXED"})
 _VERIFICATION_STATUSES = frozenset({"passed", "failed", "unknown"})
+_ROLLBACK_HEALTH_STATUSES = frozenset({"passed", "healthy"})
 _FORBIDDEN_KEYS = frozenset(
     {
         "patch",
@@ -99,6 +102,151 @@ def _contains_forbidden(value: Any) -> bool:
 
 
 @dataclass(frozen=True)
+class RollbackProof:
+    """Evidence that a known-good runtime can be materialized and started.
+
+    A rollback reference names a target, but does not prove that the target is
+    usable.  This value object binds the full revision, release materialization
+    state, clean-release state, and bounded health result into one digest.  It
+    is evidence only; it does not perform materialization, health checks, or
+    rollback itself.
+    """
+
+    revision: str
+    release_ref: str
+    release_materialized: bool
+    release_clean: bool
+    health_status: str
+    verified_at: str
+    proof_digest: str = ""
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        revision: str,
+        release_ref: str,
+        health_status: str,
+        verified_at: str,
+        release_materialized: bool = True,
+        release_clean: bool = True,
+    ) -> "RollbackProof":
+        return cls(
+            revision=revision,
+            release_ref=release_ref,
+            release_materialized=release_materialized,
+            release_clean=release_clean,
+            health_status=health_status,
+            verified_at=verified_at,
+        )
+
+    def __post_init__(self) -> None:
+        revision = _text(self.revision, "revision", maximum=64).lower()
+        if not re.fullmatch(r"[0-9a-f]{40,64}", revision):
+            raise ValueError("revision must be a full hexadecimal revision")
+        object.__setattr__(self, "revision", revision)
+        object.__setattr__(self, "release_ref", _safe_artifact_ref(self.release_ref, "release_ref"))
+        materialized = _bool(self.release_materialized, "release_materialized")
+        clean = _bool(self.release_clean, "release_clean")
+        if not materialized:
+            raise ValueError("release_materialized must be true")
+        if not clean:
+            raise ValueError("release_clean must be true")
+        object.__setattr__(self, "release_materialized", materialized)
+        object.__setattr__(self, "release_clean", clean)
+        health = _text(self.health_status, "health_status", maximum=32).lower()
+        if health not in _ROLLBACK_HEALTH_STATUSES:
+            raise ValueError(f"unsupported health_status: {health}")
+        object.__setattr__(self, "health_status", health)
+        verified_at = _text(self.verified_at, "verified_at", maximum=64)
+        try:
+            timestamp = datetime.fromisoformat(verified_at.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError("verified_at must be an ISO-8601 timestamp") from exc
+        if timestamp.tzinfo is None or timestamp.utcoffset() is None:
+            raise ValueError("verified_at must include a timezone")
+        object.__setattr__(self, "verified_at", verified_at)
+
+        supplied_digest = self.proof_digest
+        if supplied_digest:
+            digest = _text(supplied_digest, "proof_digest", maximum=64).lower()
+            if not _HEX_SHA256.fullmatch(digest):
+                raise ValueError("proof_digest must be a SHA-256 hex digest")
+        else:
+            digest = ""
+        expected = self._digest_for(
+            revision=revision,
+            release_ref=self.release_ref,
+            release_materialized=materialized,
+            release_clean=clean,
+            health_status=health,
+            verified_at=verified_at,
+        )
+        if digest and digest != expected:
+            raise ValueError("proof_digest does not match rollback proof contents")
+        object.__setattr__(self, "proof_digest", expected)
+
+    @staticmethod
+    def _digest_for(
+        *,
+        revision: str,
+        release_ref: str,
+        release_materialized: bool,
+        release_clean: bool,
+        health_status: str,
+        verified_at: str,
+    ) -> str:
+        canonical = json.dumps(
+            {
+                "revision": revision,
+                "release_ref": release_ref,
+                "release_materialized": release_materialized,
+                "release_clean": release_clean,
+                "health_status": health_status,
+                "verified_at": verified_at,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return hashlib.sha256(canonical).hexdigest()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "revision": self.revision,
+            "release_ref": self.release_ref,
+            "release_materialized": self.release_materialized,
+            "release_clean": self.release_clean,
+            "health_status": self.health_status,
+            "verified_at": self.verified_at,
+            "proof_digest": self.proof_digest,
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "RollbackProof":
+        if not isinstance(value, Mapping):
+            raise ValueError("rollback proof must be an object")
+        if _contains_forbidden(value):
+            raise ValueError("rollback proof contains patch or secret material")
+        allowed = {
+            "revision",
+            "release_ref",
+            "release_materialized",
+            "release_clean",
+            "health_status",
+            "verified_at",
+            "proof_digest",
+        }
+        unknown = set(value) - allowed
+        if unknown:
+            raise ValueError(f"unknown rollback proof field: {sorted(unknown)[0]}")
+        try:
+            return cls(**dict(value))
+        except TypeError as exc:
+            raise ValueError(f"invalid rollback proof: {exc}") from exc
+
+
+@dataclass(frozen=True)
 class RepairEvidence:
     """Host evidence required before a repair candidate can be proposed."""
 
@@ -116,6 +264,7 @@ class RepairEvidence:
     independent_verification: bool
     external_outcome_known: bool
     rollback_ref: str | None
+    rollback_proof: RollbackProof | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "plan_id", _text(self.plan_id, "plan_id", maximum=128))
@@ -148,6 +297,8 @@ class RepairEvidence:
         )
         if self.rollback_ref is not None:
             object.__setattr__(self, "rollback_ref", _text(self.rollback_ref, "rollback_ref"))
+        if self.rollback_proof is not None and not isinstance(self.rollback_proof, RollbackProof):
+            raise TypeError("rollback_proof must be RollbackProof or None")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -165,6 +316,7 @@ class RepairEvidence:
             "independent_verification": self.independent_verification,
             "external_outcome_known": self.external_outcome_known,
             "rollback_ref": self.rollback_ref,
+            "rollback_proof": self.rollback_proof.to_dict() if self.rollback_proof is not None else None,
         }
 
     @classmethod
@@ -188,12 +340,16 @@ class RepairEvidence:
             "independent_verification",
             "external_outcome_known",
             "rollback_ref",
+            "rollback_proof",
         }
         unknown = set(value) - allowed
         if unknown:
             raise ValueError(f"unknown repair evidence field: {sorted(unknown)[0]}")
         try:
-            return cls(**dict(value))
+            payload = dict(value)
+            if payload.get("rollback_proof") is not None:
+                payload["rollback_proof"] = RollbackProof.from_dict(payload["rollback_proof"])
+            return cls(**payload)
         except TypeError as exc:
             raise ValueError(f"invalid repair evidence: {exc}") from exc
 
@@ -277,6 +433,7 @@ class RepairExecutionRequest:
     commit_message: str
     approval_id: str
     call_id: str
+    rollback_proof_digest: str | None = None
 
     def __post_init__(self) -> None:
         for name, maximum in (
@@ -300,6 +457,11 @@ class RepairExecutionRequest:
         object.__setattr__(self, "manifest_ref", _safe_artifact_ref(self.manifest_ref, "manifest_ref"))
         object.__setattr__(self, "verification_ref", _safe_artifact_ref(self.verification_ref, "verification_ref"))
         object.__setattr__(self, "rollback_ref", _text(self.rollback_ref, "rollback_ref", maximum=512))
+        if self.rollback_proof_digest is not None:
+            digest = _text(self.rollback_proof_digest, "rollback_proof_digest", maximum=64).lower()
+            if not _HEX_SHA256.fullmatch(digest):
+                raise ValueError("rollback_proof_digest must be a SHA-256 hex digest")
+            object.__setattr__(self, "rollback_proof_digest", digest)
         object.__setattr__(
             self,
             "commit_message",
@@ -319,6 +481,7 @@ class RepairExecutionRequest:
             "manifest_ref": self.manifest_ref,
             "verification_ref": self.verification_ref,
             "rollback_ref": self.rollback_ref,
+            "rollback_proof_digest": self.rollback_proof_digest or "",
             "review_decision_id": self.review_decision_id,
             "target_checkout_ref": self.target_checkout_ref,
             "target_ref": self.target_ref,
@@ -345,6 +508,7 @@ class RepairExecutionRequest:
             "commit_message": self.commit_message,
             "approval_id": self.approval_id,
             "call_id": self.call_id,
+            "rollback_proof_digest": self.rollback_proof_digest,
             "authorization_arguments_hash": self.authorization_hash(),
         }
 
@@ -368,6 +532,7 @@ class RepairExecutionRequest:
             "commit_message",
             "approval_id",
             "call_id",
+            "rollback_proof_digest",
             "authorization_arguments_hash",
         }
         unknown = set(value) - allowed
@@ -440,6 +605,16 @@ class RepairExecutionPolicy:
             reasons.append("verification_reference_mismatch")
         if request.rollback_ref != candidate.evidence.rollback_ref:
             reasons.append("rollback_reference_mismatch")
+        proof = candidate.evidence.rollback_proof
+        if proof is None:
+            reasons.append("rollback_proof_required")
+        else:
+            if request.rollback_proof_digest is None:
+                reasons.append("rollback_proof_required")
+            elif request.rollback_proof_digest != proof.proof_digest:
+                reasons.append("rollback_proof_mismatch")
+            if proof.revision != candidate.evidence.base_revision.lower():
+                reasons.append("rollback_proof_revision_mismatch")
         if not request.review_decision_id:
             reasons.append("review_decision_required")
         if reasons:
@@ -538,4 +713,5 @@ __all__ = [
     "RepairExecutionPolicy",
     "RepairExecutionRequest",
     "RepairPolicy",
+    "RollbackProof",
 ]

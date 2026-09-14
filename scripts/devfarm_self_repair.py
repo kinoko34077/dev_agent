@@ -23,6 +23,7 @@ from src.dev_agent.intelligence.self_repair import (
     RepairEvidence,
     RepairEvaluation,
     RepairPolicy,
+    RollbackProof,
 )
 from src.dev_agent.policy.approvals import ApprovalPolicy
 
@@ -72,6 +73,7 @@ def build_repair_candidate(
     task_id: str,
     *,
     rollback_ref: str,
+    rollback_proof: RollbackProof | None = None,
     external_outcome_known: bool,
 ) -> RepairEvaluation:
     """Build one proposal-only repair candidate from current Host evidence.
@@ -171,6 +173,7 @@ def build_repair_candidate(
         independent_verification=independent_verification,
         external_outcome_known=external_outcome_known,
         rollback_ref=rollback_ref,
+        rollback_proof=rollback_proof,
     )
     return RepairPolicy().evaluate(improvement_plan, evidence)
 

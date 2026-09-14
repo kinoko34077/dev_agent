@@ -108,10 +108,10 @@
 - Produce an immutable, JSON-safe `RollbackProof` containing full revision SHA, existence, materialized release path/reference, clean verification, bounded health result, `verified_at`, and proof digest.
 - Bind `RepairExecutionRequest`/candidate evaluation to the proof identity; retain backward-read compatibility for old proposal-only artifacts but fail closed for real execution.
 
-- [ ] Add red tests for missing proof, mismatched proof digest/revision, dirty release, failed health, and a valid proof.
-- [ ] Run the focused tests and observe failure before implementation.
-- [ ] Implement proof creation from `RevisionPinnedRuntimeStore` without mutating the official checkout or starting a runtime.
-- [ ] Re-run self-repair and runtime tests; keep D9 mutation disabled.
+- [x] Add red tests for missing proof, mismatched proof digest/revision, dirty release, failed health, and a valid proof.
+- [x] Run the focused tests and observe failure before implementation.
+- [x] Implement proof creation from `RevisionPinnedRuntimeStore` without mutating the official checkout or starting a runtime.
+- [x] Re-run self-repair and runtime tests; keep D9 mutation disabled.
 
 ---
 

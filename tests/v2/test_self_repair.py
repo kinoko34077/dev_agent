@@ -18,6 +18,7 @@ from src.dev_agent.intelligence.self_repair import (
     RepairExecutionPolicy,
     RepairExecutionRequest,
     RepairPolicy,
+    RollbackProof,
 )
 from src.dev_agent.policy.approvals import canonical_arguments_hash
 from scripts.devfarm_self_repair import integrate_approved_repair
@@ -70,6 +71,12 @@ def _evidence(**overrides: object) -> RepairEvidence:
         "independent_verification": True,
         "external_outcome_known": True,
         "rollback_ref": "git:last-known-good",
+        "rollback_proof": RollbackProof.create(
+            revision="a" * 40,
+            release_ref=".devfarm/runtime-releases/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            health_status="passed",
+            verified_at="2026-09-16T12:00:00+00:00",
+        ),
     }
     values.update(overrides)
     return RepairEvidence(**values)
@@ -127,6 +134,38 @@ def test_repair_evidence_round_trip_is_bounded() -> None:
     assert "patch" not in restored.to_dict()
 
 
+def test_rollback_proof_round_trip_binds_revision_release_and_health() -> None:
+    proof = _evidence().rollback_proof
+
+    assert isinstance(proof, RollbackProof)
+    restored = RollbackProof.from_dict(proof.to_dict())
+
+    assert restored == proof
+    assert restored.revision == "a" * 40
+    assert restored.release_materialized is True
+    assert restored.release_clean is True
+    assert restored.health_status == "passed"
+    assert len(restored.proof_digest) == 64
+
+
+def test_rollback_proof_rejects_unverified_release_or_health() -> None:
+    with pytest.raises(ValueError, match="release_materialized"):
+        RollbackProof.create(
+            revision="a" * 40,
+            release_ref=".devfarm/runtime-releases/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            release_materialized=False,
+            health_status="passed",
+            verified_at="2026-09-16T12:00:00+00:00",
+        )
+    with pytest.raises(ValueError, match="health_status"):
+        RollbackProof.create(
+            revision="a" * 40,
+            release_ref=".devfarm/runtime-releases/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            health_status="failed",
+            verified_at="2026-09-16T12:00:00+00:00",
+        )
+
+
 def test_repair_evidence_rejects_raw_patch_or_secret_fields() -> None:
     with pytest.raises(ValueError, match="patch"):
         RepairEvidence.from_dict({**_evidence().to_dict(), "patch": "raw"})
@@ -161,6 +200,7 @@ def _execution_request(candidate: RepairCandidate) -> RepairExecutionRequest:
         manifest_ref=candidate.evidence.manifest_ref,
         verification_ref=candidate.evidence.verification_ref,
         rollback_ref=candidate.evidence.rollback_ref or "",
+        rollback_proof_digest=candidate.evidence.rollback_proof.proof_digest if candidate.evidence.rollback_proof else None,
         review_decision_id="review-repair-1",
         target_checkout_ref=str(Path("workspace").resolve()),
         target_ref="HEAD",
@@ -192,6 +232,30 @@ def test_repair_execution_preflight_binds_existing_approval_without_consuming_it
             "arguments_hash": canonical_arguments_hash(request.authorization_arguments()),
         }
     ]
+
+
+def test_repair_execution_preflight_rejects_missing_or_mismatched_rollback_proof() -> None:
+    candidate_result = RepairPolicy().evaluate(_plan(), _evidence())
+    assert candidate_result.candidate is not None
+    request = _execution_request(candidate_result.candidate)
+
+    missing = replace(request, rollback_proof_digest=None)
+    missing_evaluation = RepairExecutionPolicy().evaluate(
+        candidate_result.candidate,
+        missing,
+        _ApprovalStore(approved=True),
+    )
+    mismatched = replace(request, rollback_proof_digest="c" * 64)
+    mismatch_evaluation = RepairExecutionPolicy().evaluate(
+        candidate_result.candidate,
+        mismatched,
+        _ApprovalStore(approved=True),
+    )
+
+    assert missing_evaluation.eligible is False
+    assert "rollback_proof_required" in missing_evaluation.reasons
+    assert mismatch_evaluation.eligible is False
+    assert "rollback_proof_mismatch" in mismatch_evaluation.reasons
 
 
 def test_repair_execution_request_round_trip_checks_authorization_digest() -> None:

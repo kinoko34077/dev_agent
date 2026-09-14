@@ -16,7 +16,7 @@ from src.dev_agent.intelligence.self_improvement import (
     diagnose_observation,
     propose_improvement,
 )
-from src.dev_agent.intelligence.self_repair import RepairExecutionRequest
+from src.dev_agent.intelligence.self_repair import RepairExecutionRequest, RollbackProof
 from src.dev_agent.providers.fake.provider import FakeProvider
 
 
@@ -201,6 +201,12 @@ def test_approved_repair_adapter_uses_real_supervisor_host_integration(tmp_path:
         improvement_plan,
         "repair-worker-task",
         rollback_ref="git:last-known-good",
+        rollback_proof=RollbackProof.create(
+            revision=revision,
+            release_ref=f".devfarm/runtime-releases/{revision}",
+            health_status="passed",
+            verified_at="2026-09-16T12:00:00+00:00",
+        ),
         external_outcome_known=True,
     )
     assert candidate_result.candidate is not None
@@ -224,6 +230,7 @@ def test_approved_repair_adapter_uses_real_supervisor_host_integration(tmp_path:
         manifest_ref=manifest_ref,
         verification_ref=verification_ref,
         rollback_ref="git:last-known-good",
+        rollback_proof_digest=candidate_result.candidate.evidence.rollback_proof.proof_digest,
         review_decision_id=decision_id,
         target_checkout_ref=str(target_checkout),
         target_ref="HEAD",

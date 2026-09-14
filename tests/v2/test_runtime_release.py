@@ -59,6 +59,23 @@ def test_materialize_reuses_only_an_unchanged_release_and_never_follows_source_c
     assert release.runtime_root.joinpath("agent.py").read_text(encoding="utf-8") == "REVISION = 'one'\n"
 
 
+def test_create_rollback_proof_materializes_clean_release_without_starting_runtime(tmp_path):
+    source, revision = _repository(tmp_path)
+    store = RevisionPinnedRuntimeStore(source, tmp_path / "releases")
+
+    proof = store.create_rollback_proof(
+        revision,
+        health_status="passed",
+        verified_at="2026-09-16T12:00:00+00:00",
+    )
+
+    assert proof.revision == revision
+    assert proof.release_materialized is True
+    assert proof.release_clean is True
+    assert proof.release_ref == f".devfarm/runtime-releases/{revision}"
+    assert (tmp_path / "releases" / revision / "agent.py").exists()
+
+
 def test_materialize_rejects_a_modified_release_without_overwriting_it(tmp_path):
     source, revision = _repository(tmp_path)
     store = RevisionPinnedRuntimeStore(source, tmp_path / "releases")

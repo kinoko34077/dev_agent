@@ -114,6 +114,32 @@ class RevisionPinnedRuntimeStore:
         self._write_metadata(metadata_path, resolved_revision)
         return RuntimeRelease(resolved_revision, runtime_root, metadata_path)
 
+    def create_rollback_proof(
+        self,
+        revision: str,
+        *,
+        health_status: str,
+        verified_at: str,
+    ) -> Any:
+        """Materialize a clean release and return bounded rollback evidence.
+
+        Materialization verifies the exact revision, metadata, and clean
+        worktree without starting the runtime or mutating the source
+        checkout.  The caller supplies the result of its separately bounded
+        health check; the returned proof is still only evidence and grants no
+        rollback or integration authority.
+        """
+
+        release = self.materialize(revision)
+        from ..intelligence.self_repair import RollbackProof
+
+        return RollbackProof.create(
+            revision=release.revision,
+            release_ref=f".devfarm/runtime-releases/{release.revision}",
+            health_status=health_status,
+            verified_at=verified_at,
+        )
+
     def _resolve_revision(self, revision: str) -> str:
         requested = _revision_text(revision)
         result = self._run_git(self.source_root, "rev-parse", "--verify", f"{requested}^{{commit}}")
