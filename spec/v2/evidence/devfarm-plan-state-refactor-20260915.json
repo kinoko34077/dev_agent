@@ -1,0 +1,51 @@
+{
+  "evidence_id": "devfarm-plan-state-refactor-20260915",
+  "status": "VERIFIED",
+  "scope": "bounded_devfarm_responsibility_refactor",
+  "implementation_commit_before_documentation_sync": "a4c777b249d9e924935cfacd33469e8df416b4f2",
+  "summary": "Durable Commander plan persistence, CAS locking, dependency readiness projection, and bounded result recording moved to a neutral plan-state boundary. Commander compatibility exports remain available; Integration, Supervisor, resume, and CLI consumers use the explicit state boundary.",
+  "changed_files": [
+    "scripts/devfarm_plan_state.py",
+    "scripts/devfarm_commander.py",
+    "scripts/devfarm_integration.py",
+    "scripts/devfarm_resume.py",
+    "scripts/devfarm_supervisor.py",
+    "scripts/devfarm_supervisor_cli.py",
+    "tests/v2/test_devfarm_plan_state_boundary.py"
+  ],
+  "preserved": [
+    "CommanderPlanStore optimistic CAS and OS lock behavior",
+    "cross-plan ownership conflict authority",
+    "dependency release and terminal plan projection",
+    "Host integration and ReviewDecision authority",
+    "UNKNOWN/reconciliation and D9 proposal-only boundaries",
+    "compatibility imports from scripts.devfarm_commander"
+  ],
+  "focused_tests": {
+    "command": "python -m pytest tests/v2/test_devfarm_plan_state_boundary.py tests/v2/test_devfarm_commander.py tests/v2/test_devfarm_supervisor.py tests/v2/test_devfarm_resume_services.py tests/v2/test_architecture_script.py -q -rA",
+    "passed": 63,
+    "failed": 0
+  },
+  "full_regression": {
+    "command": "python -m pytest tests/v2 -q",
+    "passed": 1315,
+    "skipped": 1,
+    "failed": 0,
+    "duration_seconds": 209.02
+  },
+  "architecture": "ARCHITECTURE_PASS",
+  "compileall": "PASS",
+  "exact_head_ci": {
+    "v2_core": {
+      "run_id": 34959485378,
+      "conclusion": "success",
+      "jobs": ["kernel (3.10)", "kernel (3.11)"]
+    },
+    "v2_provider_smoke": {
+      "run_id": 34959485342,
+      "conclusion": "success"
+    }
+  },
+  "external_calls": "none",
+  "authority_notes": "Structural refactor only. No scheduler, retry engine, provider authority, process authority, integration authority, or D9 mutation path was added."
+}
