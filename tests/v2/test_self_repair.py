@@ -272,6 +272,22 @@ def test_repair_execution_request_round_trip_checks_authorization_digest() -> No
         RepairExecutionRequest.from_dict(payload)
 
 
+def test_repair_execution_request_binds_operation_type() -> None:
+    candidate_result = RepairPolicy().evaluate(_plan(), _evidence())
+    assert candidate_result.candidate is not None
+    request = _execution_request(candidate_result.candidate)
+
+    assert request.operation_type == "repair_integration"
+    assert request.authorization_arguments()["operation_type"] == "repair_integration"
+    assert request.to_dict()["operation_type"] == "repair_integration"
+
+    payload = request.to_dict()
+    payload["operation_type"] = "other_operation"
+    payload["authorization_arguments_hash"] = request.authorization_hash()
+    with pytest.raises(ValueError, match="operation_type"):
+        RepairExecutionRequest.from_dict(payload)
+
+
 @pytest.mark.parametrize(
     ("change", "reason"),
     [

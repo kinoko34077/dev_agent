@@ -434,6 +434,7 @@ class RepairExecutionRequest:
     approval_id: str
     call_id: str
     rollback_proof_digest: str | None = None
+    operation_type: str = "repair_integration"
 
     def __post_init__(self) -> None:
         for name, maximum in (
@@ -449,8 +450,11 @@ class RepairExecutionRequest:
             ("target_ref", 256),
             ("approval_id", 128),
             ("call_id", 128),
+            ("operation_type", 64),
         ):
             object.__setattr__(self, name, _text(getattr(self, name), name, maximum=maximum))
+        if self.operation_type != "repair_integration":
+            raise ValueError("operation_type must be repair_integration")
         if not _HEX_SHA256.fullmatch(self.patch_sha256.lower()):
             raise ValueError("patch_sha256 must be a SHA-256 hex digest")
         object.__setattr__(self, "patch_sha256", self.patch_sha256.lower())
@@ -482,6 +486,7 @@ class RepairExecutionRequest:
             "verification_ref": self.verification_ref,
             "rollback_ref": self.rollback_ref,
             "rollback_proof_digest": self.rollback_proof_digest or "",
+            "operation_type": self.operation_type,
             "review_decision_id": self.review_decision_id,
             "target_checkout_ref": self.target_checkout_ref,
             "target_ref": self.target_ref,
@@ -509,6 +514,7 @@ class RepairExecutionRequest:
             "approval_id": self.approval_id,
             "call_id": self.call_id,
             "rollback_proof_digest": self.rollback_proof_digest,
+            "operation_type": self.operation_type,
             "authorization_arguments_hash": self.authorization_hash(),
         }
 
@@ -533,6 +539,7 @@ class RepairExecutionRequest:
             "approval_id",
             "call_id",
             "rollback_proof_digest",
+            "operation_type",
             "authorization_arguments_hash",
         }
         unknown = set(value) - allowed

@@ -29,6 +29,7 @@
     "verification_ref": true,
     "rollback_ref": true,
     "rollback_proof_digest": true,
+    "operation_type": "repair_integration",
     "review_decision_id": true,
     "target_checkout_ref": true,
     "target_ref": true,
@@ -38,6 +39,7 @@
     "expiry": "implemented",
     "revoke": "implemented",
     "consume_once": "implemented_and_focused_tested",
+    "operation_type_bound_in_authorization_hash": true,
     "mismatched_candidate_or_patch_rejected": "implemented_by_authorization_hash",
     "unknown_after_consume_blind_retry": "forbidden_by_existing_effect/reconciliation_boundary"
   },
