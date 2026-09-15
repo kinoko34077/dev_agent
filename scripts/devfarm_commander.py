@@ -24,6 +24,7 @@ import uuid
 
 from scripts.devfarm import DevFarmError, canonical_digest, init_farm, sha256_text, validate_manifest, validate_patch, validate_result
 from scripts.devfarm_orchestrator import DevFarmOrchestrator, WorkerAssignment
+from scripts.devfarm_repository import git, read_json, repository_path, resolved_revision
 from scripts.devfarm_supervisor_protocol import normalize_review_decision, normalize_supervisor_metadata
 from src.dev_agent.coordination import WorkAddress, allocate_work_address
 from src.dev_agent.providers.base import ModelProvider
@@ -55,6 +56,15 @@ _PROTECTED_PATHS = PROTECTED_AUTHORITY_PATHS
 _ACTIVE_TASK_STATUSES = frozenset(
     {"PLANNED", "READY", "DISPATCHED", "PROPOSED", "HOST_VERIFIED", "REJECTED", "BLOCKED"}
 )
+
+# These local names preserve the Commander implementation's private internal
+# vocabulary while the repository/Git behavior itself lives in one public
+# development-only boundary.  Other DevFarm modules import the public names,
+# never these aliases.
+_read_json = read_json
+_repository_path = repository_path
+_git = git
+_resolved_revision = resolved_revision
 
 
 class PlanConflictError(DevFarmError):
@@ -175,49 +185,6 @@ def _timestamp(value: Any, name: str) -> str:
 
 def _is_protected(path: str) -> bool:
     return is_protected_path(path)
-
-
-def _read_json(path: Path) -> Any:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise DevFarmError(f"could not read JSON file {path}") from exc
-
-
-def _repository_path(root: Path, relative: str, *, required_parent: str | None = None) -> Path:
-    candidate = (root / relative).resolve()
-    root = root.resolve()
-    try:
-        candidate.relative_to(root)
-    except ValueError as exc:
-        raise DevFarmError("plan path resolves outside repository") from exc
-    if required_parent is not None:
-        parent = (root / required_parent).resolve()
-        try:
-            candidate.relative_to(parent)
-        except ValueError as exc:
-            raise DevFarmError(f"plan path must stay under {required_parent}") from exc
-    return candidate
-
-
-def _git(root: Path, *arguments: str) -> str:
-    result = subprocess.run(
-        ["git", "-c", f"safe.directory={root.as_posix()}", *arguments],
-        cwd=root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        raise DevFarmError(result.stderr.strip() or "Git command failed")
-    return result.stdout.strip()
-
-
-def _resolved_revision(root: Path, revision: str) -> str:
-    try:
-        return _git(root, "rev-parse", "--verify", f"{revision}^{{commit}}")
-    except DevFarmError as exc:
-        raise DevFarmError(f"plan base_revision cannot be resolved: {revision}") from exc
 
 
 def _require_current_revision(root: Path, revision: str) -> str:
