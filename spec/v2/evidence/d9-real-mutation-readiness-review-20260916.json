@@ -1,0 +1,60 @@
+{
+  "evidence_id": "d9-real-mutation-readiness-review-20260916",
+  "observed_at": "2026-09-16",
+  "purpose": "Updated non-mutating readiness review after production Worker integration; no D9 mutation was performed.",
+  "status": "NOT_READY",
+  "implementation_baseline": "2c5d40acd06636bfc58acc9365d82b4d857415cb",
+  "exact_head_ci": {
+    "remote_head": "2c5d40acd06636bfc58acc9365d82b4d857415cb",
+    "v2_core": {
+      "run": "34990153742",
+      "kernel_3_10": "PASS",
+      "kernel_3_11": "PASS"
+    },
+    "provider_smoke": {
+      "run": "34990153594",
+      "result": "PASS"
+    }
+  },
+  "checks": {
+    "candidate_identity": "PASS_PROPOSAL_ONLY",
+    "attempt_identity": "PASS_FOR_EXISTING_EVIDENCE",
+    "base_revision_and_patch_digest": "AVAILABLE_FOR_PRODUCTION_WORKER_EVIDENCE",
+    "egress_manifest_reference": "PASS_FOR_PRODUCTION_WORKER_EVIDENCE",
+    "host_verification": "PASS_FOR_PRODUCTION_WORKER_EVIDENCE",
+    "review_decision": "PASS_FOR_PRODUCTION_WORKER_EVIDENCE",
+    "human_approval_binding": "NOT_STARTED_FOR_REAL_REPAIR",
+    "rollback_proof": "PASS_LOCAL_COMPOSITION_ONLY",
+    "pinned_release": "PASS_LOCAL_COMPOSITION_ONLY",
+    "guardian_process_ownership": "PASS_LOCAL_WINDOWS_JOB_OBJECT",
+    "drain_checkpoint": "PASS_LOCAL",
+    "rolling_replacement": "PASS_FAKE_LOCAL_COMPOSITION_ONLY",
+    "health_verification": "PASS_LOCAL_COMPOSITION_ONLY",
+    "os_guardian_liveness": "NOT_CONFIGURED",
+    "deployed_crash_recovery": "NOT_VERIFIED",
+    "production_worker_integration": "PASS",
+    "production_runtime_mutation": "NOT_STARTED",
+    "rollback_after_real_mutation": "NOT_VERIFIED",
+    "unknown_reconciliation": "PRESERVED",
+    "official_branch_self_repair": "NOT_RELEASED"
+  },
+  "blocking_evidence": [
+    "guardian-fault-drill-20260915.json",
+    "guardian-real-local-process-20260915.json",
+    "guardian-job-object-20260915.json",
+    "d9-repair-approval-preflight-20260914.json",
+    "network-authority-guardian-20260915.json"
+  ],
+  "missing_before_real_mutation": [
+    "OS-owned Guardian liveness and crash/reboot recovery evidence",
+    "real Agent generation rolling replacement and rollback evidence",
+    "real repair approval-store binding and Human approval for one bounded repair",
+    "real runtime health verification after mutation and rollback drill"
+  ],
+  "production_worker_reference": "d2-production-worker-integration-20260916.json",
+  "mutation_performed": false,
+  "approval_consumed": false,
+  "official_checkout_changed": false,
+  "raw_conversation_recorded": false,
+  "credentials_recorded": false
+}
