@@ -1,0 +1,60 @@
+{
+  "evidence_id": "d2-production-worker-reconciliation-20260915",
+  "observed_at": "2026-09-15T12:57:21+09:00",
+  "purpose": "Record a bounded production-code Worker dispatch that closed at the existing UNKNOWN/reconciliation boundary without inflating D2 success.",
+  "implementation_baseline_before_documentation_sync": "fdc888c",
+  "run_id": "d2-production-model-discovery-text-filter-20260915-openrouter-v2",
+  "attempt_id": "7c5cf778b8fb4610ab98139b67c5deb9",
+  "target": {
+    "changed_files": [
+      "src/dev_agent/providers/model_discovery.py",
+      "tests/v2/test_model_catalog_admission.py"
+    ],
+    "production_code_target": "src/dev_agent/providers/model_discovery.py",
+    "task_type": "provider-discovery",
+    "codex_direct_implementation_count": 0
+  },
+  "worker": {
+    "provider_id": "openrouter",
+    "provider_binding_id": "openrouter:free",
+    "model_id": "openrouter/free",
+    "intelligence_tier": "L1",
+    "execution_boundary": "host_process",
+    "request_id": "838126df-391f-4ea5-b478-79b1850e9d88",
+    "attempt_count": 1,
+    "patch_generated": false,
+    "changed_files": [],
+    "host_verified": false,
+    "integrated": false,
+    "refinement_rounds": 0,
+    "usage": {}
+  },
+  "outcome": {
+    "status": "FAILED_RECONCILIATION_REQUIRED",
+    "provider_failure_category": "reconciliation_required",
+    "transport_failure_category": null,
+    "known_issue": "Host provider runtime rejected the dispatch",
+    "interpretation": "The external outcome was not safely knowable after Host dispatch. This is not model-output, patch-format, or qualification evidence.",
+    "automatic_retry": false,
+    "automatic_failover": false,
+    "codex_takeover": false,
+    "raw_provider_payload_saved": false,
+    "credentials_saved": false
+  },
+  "verification_baseline": {
+    "tests_v2": "1277 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head_ci": {
+      "remote_head": "fdc888c",
+      "v2_core": "34926713090",
+      "v2_provider_smoke": "34926713097",
+      "result": "PASS"
+    }
+  },
+  "d2_status": "NOT_VERIFIED",
+  "notes": [
+    "The existing D1/D2 success evidence remains valid and is not replaced by this failed production-code attempt.",
+    "A new operation is required for any later Worker attempt; the UNKNOWN operation must not be replayed blindly."
+  ]
+}

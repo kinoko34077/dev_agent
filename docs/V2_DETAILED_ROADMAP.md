@@ -31,7 +31,7 @@
 - 依存: D1。
 - 目的: Hostがvalidated proposalをDevelopmentPlanningBridgeでCommander Plan候補へ変換し、既知のqualified Free L1 Workerへ狭いchildを委譲する。
 - 完了条件: Plan永続化、Worker実装、Host Verification、ReviewPacket、Codex review、deterministic Host integration、exact revision、focused/full/CI Evidence。既存Evidence: [`planner-to-worker-e2e-20260914.json`](../spec/v2/evidence/planner-to-worker-e2e-20260914.json)。次の未完了受入条件は、通常Host process境界を使ったproduction `src/`/`scripts/` Worker taskのWorker-originated integrationであり、対象childのCodex direct implementationは0件とする。
-- 不変条件: `CODE_INTEGRATED`を保持し、未対応dependency typeはfail-closed。対象childのCodex直接実装は成功Evidenceに含めない。
+- 不変条件: `CODE_INTEGRATED`を保持し、未対応dependency typeはfail-closed。対象childのCodex直接実装は成功Evidenceに含めない。2026-09-15には通常Host process境界からproduction `src/` taskをOpenRouter free laneへ一度委譲したが、patch生成前に`reconciliation_required`へ閉じたため、再送せずD2成功へ算入していない。証拠は[`d2-production-worker-reconciliation-20260915.json`](../spec/v2/evidence/d2-production-worker-reconciliation-20260915.json)。
 
 ### D3 — Worker reliability hardening
 
