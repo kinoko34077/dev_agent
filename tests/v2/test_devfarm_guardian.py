@@ -215,6 +215,28 @@ def test_guardian_os_registration_status_reports_missing_task_without_raw_output
     assert "specified" not in json.dumps(result)
 
 
+def test_guardian_os_registration_status_can_query_without_runtime_config(monkeypatch):
+    def fake_run(command, **kwargs):
+        return guardian_module.subprocess.CompletedProcess(
+            command,
+            1,
+            stdout="",
+            stderr="ERROR: The system cannot find the file specified.",
+        )
+
+    monkeypatch.setattr(guardian_module, "os", SimpleNamespace(name="nt"))
+    monkeypatch.setattr(guardian_module.subprocess, "run", fake_run)
+
+    result = guardian_module.guardian_os_registration_status()
+
+    assert result["status"] == "NOT_CONFIGURED"
+    assert result["registration"] == "NOT_CONFIGURED"
+    assert result["config_status"] == "NOT_PROVIDED"
+    assert result["profile_count"] is None
+    assert result["query_performed"] is True
+    assert result["mutation_performed"] is False
+
+
 @pytest.mark.parametrize(
     ("exception", "reason"),
     [

@@ -293,7 +293,7 @@ def guardian_unregistration(
 
 
 def guardian_os_registration_status(
-    config_path: str | Path,
+    config_path: str | Path | None = None,
     *,
     task_name: str = "DevAgentGuardian",
 ) -> dict[str, Any]:
@@ -305,13 +305,33 @@ def guardian_os_registration_status(
     """
 
     task_name = _validated_task_name(task_name)
-    profiles = load_launch_profiles(config_path)
     query = ["schtasks.exe", "/Query", "/TN", task_name, "/FO", "LIST"]
+    profile_count: int | None = None
+    config_status = "NOT_PROVIDED"
+    if config_path is not None:
+        try:
+            profile_count = len(load_launch_profiles(config_path))
+        except GuardianOperatorError:
+            return {
+                "status": "NOT_VERIFIED",
+                "registration": "NOT_VERIFIED",
+                "task_name": task_name,
+                "profile_count": None,
+                "config_status": "INVALID",
+                "query_command_static": True,
+                "query_performed": False,
+                "mutation_performed": False,
+                "arbitrary_command": False,
+                "os": os.name,
+                "reason": "config_invalid",
+            }
+        config_status = "VALIDATED"
     result: dict[str, Any] = {
         "status": "NOT_VERIFIED",
         "registration": "NOT_VERIFIED",
         "task_name": task_name,
-        "profile_count": len(profiles),
+        "profile_count": profile_count,
+        "config_status": config_status,
         "query_command_static": True,
         "query_performed": False,
         "mutation_performed": False,
@@ -388,7 +408,7 @@ def _parser() -> argparse.ArgumentParser:
     uninstall.add_argument("--task-name", default="DevAgentGuardian")
     uninstall.add_argument("--apply", action="store_true")
     status = subparsers.add_parser("os-status", help="read static Windows liveness registration status")
-    status.add_argument("--config", required=True, type=Path)
+    status.add_argument("--config", type=Path)
     status.add_argument("--task-name", default="DevAgentGuardian")
     return parser
 

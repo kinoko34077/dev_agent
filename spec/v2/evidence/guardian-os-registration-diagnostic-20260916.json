@@ -32,9 +32,11 @@
     "scheduled_task_cmdlet": "UNAVAILABLE_IN_CURRENT_SHELL"
   },
   "guardian_result": {
-    "status": "NOT_VERIFIED",
-    "registration": "NOT_VERIFIED",
-    "query_performed": false,
+    "status": "NOT_CONFIGURED",
+    "registration": "NOT_CONFIGURED",
+    "config_status": "NOT_PROVIDED",
+    "observed_task_state": "absent",
+    "query_performed": true,
     "mutation_performed": false,
     "os_registration_authority": "guardian_registration --apply"
   },
