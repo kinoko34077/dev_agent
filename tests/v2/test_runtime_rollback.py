@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import sys
 import subprocess
+import time
 
 from src.dev_agent.coordination.guardian_process import (
     GuardianProcessExecutionError,
     GuardianProcessExecutor,
     LaunchProfile,
     ProcessHandle,
+    SubprocessProcessRuntime,
 )
 from src.dev_agent.coordination.rolling import RollingRestartService
 from src.dev_agent.coordination.runtime_rollback import (
@@ -85,6 +88,15 @@ def _service(tmp_path, *, old, new, runtime, source):
     return RuntimeRollbackService(store, RollingRestartService(executor))
 
 
+def _wait_for_marker(path, *, timeout: float = 5.0) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if path.is_file():
+            return True
+        time.sleep(0.05)
+    return path.is_file()
+
+
 def test_rollback_materializes_last_known_good_before_rolling_to_it(tmp_path):
     source, good, bad = _repository(tmp_path)
     release_root = tmp_path / "releases" / good
@@ -158,3 +170,66 @@ def test_rollback_reports_unknown_when_old_generation_stop_is_not_confirmed(tmp_
     assert result.rolling is not None
     assert result.rolling.reconciliation_required is True
     assert runtime.calls == [("start", "good"), ("stop", "old")]
+
+
+def test_real_subprocess_rollback_materializes_and_promotes_known_good_release(tmp_path):
+    source, good, bad = _repository(tmp_path)
+    old_marker = tmp_path / "rollback-old-ready.txt"
+    good_marker = tmp_path / "rollback-good-ready.txt"
+    (tmp_path / "mutable").mkdir()
+    old = LaunchProfile(
+        profile_id="rollback-old-real",
+        role="agent",
+        generation=1,
+        revision=bad,
+        executable=sys.executable,
+        arguments=(
+            "-c",
+            f"from pathlib import Path; import time; Path({str(old_marker)!r}).write_text('bad', encoding='utf-8'); time.sleep(30)",
+        ),
+        runtime_root=tmp_path / "mutable",
+        environment_profile="minimal",
+    )
+    release_root = tmp_path / "releases" / good
+    new = LaunchProfile(
+        profile_id="rollback-good-real",
+        role="agent",
+        generation=2,
+        revision=good,
+        executable=sys.executable,
+        arguments=(
+            "-c",
+            f"from pathlib import Path; import time; Path({str(good_marker)!r}).write_text('good', encoding='utf-8'); time.sleep(30)",
+        ),
+        runtime_root=release_root,
+        environment_profile="minimal",
+    )
+    runtime = SubprocessProcessRuntime(stop_timeout_seconds=5.0)
+    store = RevisionPinnedRuntimeStore(source, tmp_path / "releases")
+    executor = GuardianProcessExecutor((old, new), runtime)
+    service = RuntimeRollbackService(store, RollingRestartService(executor))
+
+    try:
+        old_handle = executor.start_profile(old)
+        assert _wait_for_marker(old_marker)
+        result = service.rollback(
+            old,
+            new,
+            health_check=lambda handle: handle.revision == good and _wait_for_marker(good_marker),
+        )
+
+        assert result.decision is RollbackDecision.COMPLETED
+        assert result.release is not None
+        assert result.release.revision == good
+        assert result.rolling is not None
+        assert result.rolling.old_stopped is True
+        assert result.rolling.reconciliation_required is False
+        assert old_handle.pid > 0
+        assert good_marker.read_text(encoding="utf-8") == "good"
+        assert (old.role, old.generation) not in runtime._processes
+        assert (new.role, new.generation) in runtime._processes
+    finally:
+        try:
+            executor.stop_profile(new)
+        except GuardianProcessExecutionError:
+            pass

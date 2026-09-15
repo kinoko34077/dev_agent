@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import sys
+import time
+
 import pytest
 
 from src.dev_agent.coordination.guardian_process import (
@@ -7,6 +10,7 @@ from src.dev_agent.coordination.guardian_process import (
     GuardianProcessExecutionError,
     LaunchProfile,
     ProcessHandle,
+    SubprocessProcessRuntime,
 )
 from src.dev_agent.coordination.rolling import RollingDecision, RollingRestartService
 
@@ -22,6 +26,15 @@ def _profile(tmp_path, *, profile_id: str, generation: int, revision: str) -> La
         runtime_root=tmp_path,
         environment_profile="minimal",
     )
+
+
+def _wait_for_marker(path, *, timeout: float = 5.0) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if path.is_file():
+            return True
+        time.sleep(0.05)
+    return path.is_file()
 
 
 class _Runtime:
@@ -131,3 +144,61 @@ def test_unexpected_new_start_failure_is_closed_as_unknown_without_retry(tmp_pat
     assert result.reconciliation_required is True
     assert result.old_stopped is False
     assert runtime.calls == [("start", "new")]
+
+
+def test_real_subprocess_rolling_keeps_old_until_new_health(tmp_path):
+    old_marker = tmp_path / "old-ready.txt"
+    new_marker = tmp_path / "new-ready.txt"
+    old = LaunchProfile(
+        profile_id="old-real",
+        role="agent",
+        generation=1,
+        revision="revision-old",
+        executable=sys.executable,
+        arguments=(
+            "-c",
+            f"from pathlib import Path; import time; Path({str(old_marker)!r}).write_text('old', encoding='utf-8'); time.sleep(30)",
+        ),
+        runtime_root=tmp_path,
+        environment_profile="minimal",
+    )
+    new = LaunchProfile(
+        profile_id="new-real",
+        role="agent",
+        generation=2,
+        revision="revision-new",
+        executable=sys.executable,
+        arguments=(
+            "-c",
+            f"from pathlib import Path; import time; Path({str(new_marker)!r}).write_text('new', encoding='utf-8'); time.sleep(30)",
+        ),
+        runtime_root=tmp_path,
+        environment_profile="minimal",
+    )
+    runtime = SubprocessProcessRuntime(stop_timeout_seconds=5.0)
+    executor = GuardianProcessExecutor((old, new), runtime)
+    rolling = RollingRestartService(executor)
+
+    try:
+        old_handle = executor.start_profile(old)
+        assert _wait_for_marker(old_marker)
+        result = rolling.roll(
+            old,
+            new,
+            health_check=lambda handle: handle.revision == new.revision and _wait_for_marker(new_marker),
+        )
+
+        assert result.decision is RollingDecision.COMPLETED
+        assert result.new_handle is not None
+        assert result.new_handle.revision == new.revision
+        assert result.old_stopped is True
+        assert result.reconciliation_required is False
+        assert old_handle.pid > 0
+        assert new_marker.read_text(encoding="utf-8") == "new"
+        assert (old.role, old.generation) not in runtime._processes
+        assert (new.role, new.generation) in runtime._processes
+    finally:
+        try:
+            executor.stop_profile(new)
+        except GuardianProcessExecutionError:
+            pass
