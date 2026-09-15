@@ -1,0 +1,37 @@
+{
+  "evidence_id": "compression-service-smoke-20260915",
+  "observed_at": "2026-09-15",
+  "status": "NOT_VERIFIED",
+  "endpoint": "https://api.kinotch.workers.dev/v1/compress",
+  "profile": "semantic-dense-v1",
+  "payload": {
+    "threshold_path": "over_3000_unicode_code_points",
+    "raw_payload_recorded": false,
+    "token_recorded": false
+  },
+  "credential_path": {
+    "source": "Windows Credential Manager",
+    "target": "kinotch-api / compression",
+    "missing_credential_error": false
+  },
+  "response": {
+    "http_status": 403,
+    "failure_category": "authentication_failure",
+    "diagnostic_code": "http_forbidden",
+    "server_header": "cloudflare",
+    "x_request_id_present": false,
+    "cf_ray_present": true
+  },
+  "classification": {
+    "caller_credential_lookup": "reached_http_request_path",
+    "downstream_gemini_key_tested": false,
+    "likely_boundary": "compression_endpoint_or_edge_authentication",
+    "not_proven": [
+      "Gateway accepted the caller token",
+      "Compression Worker received the request",
+      "Downstream Gemini authentication"
+    ],
+    "retry_policy": "no_automatic_retry"
+  },
+  "raw_response_recorded": false
+}

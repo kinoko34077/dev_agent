@@ -1,7 +1,7 @@
 {
   "evidence_id": "network-authority-guardian-20260915",
   "observed_at": "2026-09-15",
-  "implementation_baseline_before_documentation_sync": "1b4cef54e8c9002532c90e50bb7abb1369464b57",
+  "implementation_baseline_before_documentation_sync": "a823225c07edf23cd7a0b3e2b39f82fed4f8f37c",
   "network": {
     "host_owned_worker_boundary": "implemented",
     "codex_direct_provider_request": "not_used_by_standard_cli_path",
@@ -54,13 +54,13 @@
     "live_production_refinement": "BLOCKED_BY_HOST_TRANSPORT"
   },
   "verification": {
-    "tests_v2": "1246 passed, 1 skipped",
+    "tests_v2": "1248 passed, 1 skipped",
     "architecture": "ARCHITECTURE_PASS",
     "compileall": "PASS",
     "exact_head_ci": {
-      "remote_head": "1b4cef54e8c9002532c90e50bb7abb1369464b57",
-      "v2_core_run": "34912367480",
-      "v2_provider_smoke_run": "34912367467",
+      "remote_head": "a823225c07edf23cd7a0b3e2b39f82fed4f8f37c",
+      "v2_core_run": "34914694570",
+      "v2_provider_smoke_run": "34914694568",
       "result": "PASS"
     }
   },

@@ -5,13 +5,13 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Latest implementation commit before documentation sync | `1b4cef5` (`test: keep model admission fixture time-stable`) |
-| Implementation/evidence baseline | `1b4cef5` (Host-owned dispatch boundary, read-only egress preflight, explicit Plan supersession, RollbackProof, bounded refinement, Guardian serve composition, and time-stable model admission regression) |
+| Latest implementation commit before documentation sync | `a823225` (`refactor: centralize worker verification artifacts`) |
+| Implementation/evidence baseline | `a823225` (Host-owned dispatch boundary, bounded Guardian/authority hardening, adaptive refinement composition, and shared Worker verification/artifact services) |
 | Worktree | clean at the current verification checkpoint; this documentation sync records the same checkpoint |
-| Local regression | `1246 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 206.54s) |
+| Local regression | `1248 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 225.98s) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for implementation baseline `1b4cef5`: `v2-core` [run 34912367480](https://github.com/kinoko34077/dev_agent/actions/runs/34912367480) and `v2-provider-smoke` [run 34912367467](https://github.com/kinoko34077/dev_agent/actions/runs/34912367467), covering kernel (3.10), kernel (3.11), and provider-smoke. |
+| Exact-head CI | PASS for implementation baseline `a823225`: `v2-core` [run 34914694570](https://github.com/kinoko34077/dev_agent/actions/runs/34914694570) and `v2-provider-smoke` [run 34914694568](https://github.com/kinoko34077/dev_agent/actions/runs/34914694568), covering kernel (3.10), kernel (3.11), and provider-smoke. |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
@@ -45,7 +45,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 
 ## Partially implemented / not verified
 
-- Compression live availability is `NOT_VERIFIED`: the operator smoke reached the fixed endpoint through the configured Windows Credential Manager entry but received HTTP 403. The client now exposes only bounded diagnostic code/header presence metadata (`http_forbidden`, `X-Request-ID`, `Server`, `CF-Ray`); no authenticated service result, token, or raw response is claimed. See [`compression-service-connection-20260914.json`](../spec/v2/evidence/compression-service-connection-20260914.json). No token or raw response is stored.
+- Compression live availability is `NOT_VERIFIED`: the latest one-shot smoke reached the fixed endpoint through the configured Windows Credential Manager path but received HTTP 403. This is an endpoint/edge authentication boundary, not evidence that the downstream Gemini key was exercised; no automatic retry was made. The client exposes only bounded diagnostic code/header presence metadata (`http_forbidden`, `X-Request-ID`, `Server`, `CF-Ray`); no token or raw response is stored. See [`compression-service-smoke-20260915.json`](../spec/v2/evidence/compression-service-smoke-20260915.json) and the prior contract record [`compression-service-connection-20260914.json`](../spec/v2/evidence/compression-service-connection-20260914.json).
 - D4 same-operation resume is `NOT_AVAILABLE` for the concrete Codex backend without a formal external discovery API. The safe result is `UNKNOWN`/reconciliation, not inferred resume or blind restart.
 - Process Coordination remains Host/local foundation rather than a production daemon: peer/store/mailbox/immutable artifacts, work-position checkpoints, generation fencing, static Guardian process execution (including one bounded real local subprocess), bounded six-second reconciliation serve, drain, pinned release, rolling, and bounded rollback composition are locally verified. OS Service/Task Scheduler installation, Guardian crash recovery in a deployed environment, and D9 official-runtime mutation remain unverified.
 - D5 is a transport-neutral in-process/development adapter. A network MCP server/wire transport and Planner mutation authority are not implemented.
@@ -84,6 +84,7 @@ and the compact operational procedure is [`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_D
 - D4 Codex session discovery boundary: [`codex-session-restart-discovery-20260914.json`](../spec/v2/evidence/codex-session-restart-discovery-20260914.json)
 - D5 MCP runtime adapter boundary: [`mcp-runtime-adapter-20260914.json`](../spec/v2/evidence/mcp-runtime-adapter-20260914.json)
 - Compression client/live smoke boundary: [`compression-service-connection-20260914.json`](../spec/v2/evidence/compression-service-connection-20260914.json)
+- Latest bounded Compression smoke: [`compression-service-smoke-20260915.json`](../spec/v2/evidence/compression-service-smoke-20260915.json)
 - D8 bounded Host F0–F2 composition: [`d8-self-improvement-composition-20260914.json`](../spec/v2/evidence/d8-self-improvement-composition-20260914.json)
 - D9 bounded repair candidate policy: [`d9-repair-candidate-policy-20260914.json`](../spec/v2/evidence/d9-repair-candidate-policy-20260914.json)
 - D9 approval-bound execution preflight: [`d9-repair-approval-preflight-20260914.json`](../spec/v2/evidence/d9-repair-approval-preflight-20260914.json)
