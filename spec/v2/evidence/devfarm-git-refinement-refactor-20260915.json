@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "status": "VERIFIED",
+  "slice": "bounded_devfarm_git_and_refinement_refactor",
+  "observed_at": "2026-09-15",
+  "implementation_commits": [
+    {"sha": "e40f6e328fd9a395ce9070f0f7017769d3d7abcf", "message": "refactor: share devfarm git process boundary"},
+    {"sha": "fb69f8542826947576f54a07614a3bfc8f7461b7", "message": "refactor: reuse devfarm git boundary for codex"},
+    {"sha": "043159d5b837f9f266f912b6349bdbccfd4fd777", "message": "feat: support ranked refinement fallback bindings"}
+  ],
+  "changes": {
+    "git_boundary": [
+      "scripts.devfarm_repository.git_process",
+      "scripts.devfarm_repository.git_bytes",
+      "Worker, Codex backend, and Host integration use the shared process boundary"
+    ],
+    "adaptive_refinement": [
+      "RefinementContext accepts a bounded Host-ranked alternate_binding_ids sequence",
+      "legacy alternate_binding_id remains readable and maps to the first candidate",
+      "BoundedRefinementPolicy still emits one action and does not route, retry, or integrate"
+    ]
+  },
+  "authority_preserved": [
+    "Host provider admission and routing",
+    "Egress and protected-path validation",
+    "Host Verification",
+    "UNKNOWN/reconciliation",
+    "approval and integration authority"
+  ],
+  "external_calls": "none",
+  "worker": {
+    "attempted": 0,
+    "integrated": 0,
+    "reason": "cross_cutting Host boundary and protected refinement policy change"
+  },
+  "verification": {
+    "focused": "151 passed across repository, Codex, integration, patch-validation, Supervisor, adaptive-refinement, Critic, and metrics suites",
+    "full_tests_v2": "1320 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS"
+  },
+  "exact_head_ci": {
+    "head": "043159d5b837f9f266f912b6349bdbccfd4fd777",
+    "v2-core": {"run_id": 34963672382, "conclusion": "success"},
+    "v2-provider-smoke": {"run_id": 34963672363, "conclusion": "success"}
+  },
+  "not_claimed": [
+    "production-code Free Worker integration",
+    "OS Guardian residency",
+    "D9 real mutation"
+  ]
+}
