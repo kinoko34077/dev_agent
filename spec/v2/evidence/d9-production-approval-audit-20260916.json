@@ -52,7 +52,8 @@
     "official_runtime_mutated": false
   },
   "verification": {
-    "focused_tests": "existing approval/self-repair/state-store coverage passed in current baseline",
+    "focused_tests": "31 passed: self-repair, devfarm self-repair, approval boundary, and real SQLite approval consume-once coverage",
+    "sqlite_store_round_trip": "PASS",
     "raw_credentials_recorded": false,
     "raw_patch_recorded": false
   },

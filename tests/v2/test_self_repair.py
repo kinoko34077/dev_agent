@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+from time import time
 
 import pytest
 
@@ -21,6 +22,7 @@ from src.dev_agent.intelligence.self_repair import (
     RollbackProof,
 )
 from src.dev_agent.policy.approvals import canonical_arguments_hash
+from src.dev_agent.state.sqlite_store import SQLiteStateStore
 from scripts.devfarm_self_repair import integrate_approved_repair
 
 
@@ -232,6 +234,42 @@ def test_repair_execution_preflight_binds_existing_approval_without_consuming_it
             "arguments_hash": canonical_arguments_hash(request.authorization_arguments()),
         }
     ]
+
+
+def test_repair_execution_uses_existing_sqlite_approval_and_consumes_once(tmp_path) -> None:
+    candidate_result = RepairPolicy().evaluate(_plan(), _evidence())
+    assert candidate_result.candidate is not None
+    request = _execution_request(candidate_result.candidate)
+
+    with SQLiteStateStore(tmp_path / "repair-approval.sqlite3") as store:
+        store.save_approval(
+            request.approval_id,
+            task_id=request.task_id,
+            side_effect_level="external_write",
+            actor="human",
+            call_id=request.call_id,
+            arguments_hash=request.authorization_hash(),
+            expires_at=time() + 60,
+        )
+
+        evaluation = RepairExecutionPolicy().evaluate(candidate_result.candidate, request, store)
+        assert evaluation.eligible is True
+        assert evaluation.status == "READY_FOR_HOST_EXECUTION"
+
+        assert store.consume_approval(
+            request.approval_id,
+            task_id=request.task_id,
+            side_effect_level="external_write",
+            call_id=request.call_id,
+            arguments_hash=request.authorization_hash(),
+        ) is True
+        assert store.consume_approval(
+            request.approval_id,
+            task_id=request.task_id,
+            side_effect_level="external_write",
+            call_id=request.call_id,
+            arguments_hash=request.authorization_hash(),
+        ) is False
 
 
 def test_repair_execution_preflight_rejects_missing_or_mismatched_rollback_proof() -> None:
