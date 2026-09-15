@@ -1,9 +1,34 @@
 import json
 from types import SimpleNamespace
 
+import pytest
+
 import scripts.devfarm_reviewer_shadow as reviewer_shadow
 from src.dev_agent.intelligence.reviewer_adapter import ReviewProposal
 from src.dev_agent.resources.control import DispatchDenied
+
+
+def test_reviewer_pool_selector_uses_shared_resource_boundary():
+    values = {
+        "GEMINI_API_KEY_3": "secret-value",
+        "GEMINI_MODEL_3": "gemini-review-model",
+    }
+
+    bindings = reviewer_shadow.resolve_provider_pool(
+        pool_json=None,
+        use_configured_pool=True,
+        env=values.get,
+    )
+
+    assert bindings is not None
+    selected = next(item for item in bindings if item.binding_id == "gemini:worker:free-3")
+    assert selected.model == "gemini-review-model"
+    assert "secret-value" not in repr(selected)
+
+
+def test_reviewer_pool_selector_rejects_invalid_pool():
+    with pytest.raises(reviewer_shadow.ReviewAdapterError, match="invalid binding object"):
+        reviewer_shadow.resolve_provider_pool(pool_json="[1]", use_configured_pool=False)
 
 
 def test_reviewer_shadow_cli_classifies_dispatch_denied_without_raw_output(monkeypatch, capsys):
@@ -75,7 +100,13 @@ def test_reviewer_proposal_only_does_not_require_codex_decision(monkeypatch):
 
     monkeypatch.setattr(reviewer_shadow, "CodexSupervisedCommanderRun", FakeRunner)
     monkeypatch.setattr(reviewer_shadow, "ModelReviewAdapter", FakeAdapter)
-    monkeypatch.setattr(reviewer_shadow, "admit_resource_pool", lambda *_args, **_kwargs: ("admitted",))
+    admission_calls = {}
+
+    def admit(bindings, **_kwargs):
+        admission_calls["bindings"] = bindings
+        return ("admitted",)
+
+    monkeypatch.setattr(reviewer_shadow, "admit_resource_pool", admit)
     monkeypatch.setattr(reviewer_shadow, "compose_resource_pool", lambda *_args, **_kwargs: FakePool())
 
     output = reviewer_shadow.run_proposal_only(
@@ -89,9 +120,11 @@ def test_reviewer_proposal_only_does_not_require_codex_decision(monkeypatch):
         quota_domain="gemini:project:982142111392",
         timeout_seconds=45.0,
         allow_unknown_quota=True,
+        provider_pool=("pool-a", "pool-b"),
     )
 
     assert output["status"] == "live_shadow_proposal_only"
+    assert admission_calls["bindings"] == ("pool-a", "pool-b")
     assert output["proposal"] == proposal.to_dict()
     assert "codex_decision" not in output
     assert output["authority"] == {

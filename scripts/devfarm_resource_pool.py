@@ -7,16 +7,18 @@ shared knowledge; it does not own production routing, budget, or task state.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
+import json
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 
 from scripts.devfarm import DevFarmError
-from src.dev_agent.operation import OperationProviderBinding
+from src.dev_agent.operation import OperationProviderBinding, configured_provider_pool_from_environment
 from src.dev_agent.providers.base import ModelProvider
 from src.dev_agent.providers.dispatch import ProviderDispatcher, ProviderRegistry
 from src.dev_agent.providers.factory import ProviderDefinition, ProviderFactory
@@ -61,6 +63,50 @@ def make_binding(
         base_url=base_url,
         intelligence_tier=intelligence_tier,
     )
+
+
+def resolve_provider_pool(
+    *,
+    pool_json: str | None,
+    use_configured_pool: bool,
+    env: Callable[[str], str | None] = os.getenv,
+) -> tuple[OperationProviderBinding, ...] | None:
+    """Resolve one explicit, non-secret Provider pool source.
+
+    This only materializes binding metadata.  Qualification, billing,
+    privacy, quota, health, and model-candidate admission remain owned by
+    :func:`admit_resource_pool`.  Keeping source selection here lets Planner
+    and Reviewer use the same opt-in boundary without importing each other's
+    private helpers.
+    """
+
+    if not isinstance(use_configured_pool, bool):
+        raise ResourcePoolError("use_configured_pool must be a boolean")
+    if not callable(env):
+        raise ResourcePoolError("env must be callable")
+    if pool_json is not None and not isinstance(pool_json, str):
+        raise ResourcePoolError("pool-json must be a JSON string")
+    if pool_json is not None and use_configured_pool:
+        raise ResourcePoolError("pool-json and configured-pool cannot be combined")
+    if pool_json is not None:
+        try:
+            raw_pool = json.loads(pool_json)
+        except json.JSONDecodeError as exc:
+            raise ResourcePoolError("pool-json must be valid JSON") from exc
+        if not isinstance(raw_pool, list) or not raw_pool:
+            raise ResourcePoolError("pool-json must be a non-empty JSON array")
+        if any(not isinstance(entry, Mapping) for entry in raw_pool):
+            raise ResourcePoolError("pool-json contains an invalid binding object")
+        try:
+            return tuple(OperationProviderBinding(**dict(entry)) for entry in raw_pool)
+        except (TypeError, ValueError) as exc:
+            raise ResourcePoolError(f"pool-json contains an invalid binding: {exc}") from exc
+    if use_configured_pool:
+        configured = configured_provider_pool_from_environment(env)
+        if not configured:
+            raise ResourcePoolError("configured provider pool is empty")
+        return configured
+    return None
 
 
 def build_provider(*, binding: OperationProviderBinding) -> ModelProvider:
@@ -296,4 +342,5 @@ __all__ = [
     "build_provider",
     "compose_resource_pool",
     "make_binding",
+    "resolve_provider_pool",
 ]

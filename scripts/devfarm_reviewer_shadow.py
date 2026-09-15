@@ -21,9 +21,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.devfarm_resource_pool import (  # noqa: E402 - explicit script boundary
+    ResourcePoolError,
     admit_resource_pool,
     compose_resource_pool,
     make_binding,
+    resolve_provider_pool as resolve_shared_provider_pool,
 )
 from scripts.devfarm_host_dispatch import create_host_process_executor  # noqa: E402
 from scripts.devfarm_supervisor import CodexSupervisedCommanderRun  # noqa: E402
@@ -38,6 +40,43 @@ from src.dev_agent.providers.host_dispatch import route_through_host  # noqa: E4
 from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog  # noqa: E402
 from src.dev_agent.resources.control import DispatchDenied  # noqa: E402
 from src.dev_agent.resources.qualification import QualificationResolver  # noqa: E402
+from src.dev_agent.operation import OperationProviderBinding  # noqa: E402
+
+
+def resolve_provider_pool(*, pool_json: str | None, use_configured_pool: bool, env=None):
+    """Resolve an explicit Reviewer pool through the shared Host boundary."""
+
+    try:
+        kwargs = {"pool_json": pool_json, "use_configured_pool": use_configured_pool}
+        if env is not None:
+            kwargs["env"] = env
+        return resolve_shared_provider_pool(**kwargs)
+    except ResourcePoolError as exc:
+        raise ReviewAdapterError(str(exc)) from exc
+
+
+def _reviewer_bindings(
+    *,
+    provider_pool: tuple[OperationProviderBinding, ...] | list[OperationProviderBinding] | None,
+    provider_id: str,
+    binding_id: str,
+    model_id: str,
+    api_key_env: str,
+    quota_domain: str,
+    timeout_seconds: float,
+) -> tuple[OperationProviderBinding, ...]:
+    if provider_pool is not None:
+        return tuple(provider_pool)
+    return (
+        make_binding(
+            provider_id=provider_id,
+            binding_id=binding_id,
+            model_id=model_id,
+            api_key_env=api_key_env,
+            quota_domain=quota_domain,
+            timeout_seconds=timeout_seconds,
+        ),
+    )
 
 
 def run_shadow(
@@ -53,6 +92,10 @@ def run_shadow(
     timeout_seconds: float,
     allow_unknown_quota: bool,
     execution_boundary: str = "in_process",
+    provider_pool: tuple[OperationProviderBinding, ...] | list[OperationProviderBinding] | None = None,
+    model_admission_resolver=None,
+    model_catalog=None,
+    expand_discovered_models: bool = False,
 ) -> dict[str, object]:
     runner = CodexSupervisedCommanderRun(root, run_id)
     plan = runner.plan()
@@ -82,7 +125,10 @@ def run_shadow(
     codex_decision = decisions[-1]
     resolver = QualificationResolver()
     evidence = ModelEvidenceCatalog.load_default()
-    binding = make_binding(
+    admission_resolver = model_admission_resolver if model_admission_resolver is not None else evidence.resolver
+    catalog = model_catalog if model_catalog is not None else evidence.catalog
+    bindings = _reviewer_bindings(
+        provider_pool=provider_pool,
         provider_id=provider_id,
         binding_id=binding_id,
         model_id=model_id,
@@ -91,12 +137,13 @@ def run_shadow(
         timeout_seconds=timeout_seconds,
     )
     admitted = admit_resource_pool(
-        (binding,),
+        bindings,
         resolver=resolver,
         required_tier="L2",
         no_charge_required=True,
-        model_admission_resolver=evidence.resolver,
-        model_catalog=evidence.catalog,
+        model_admission_resolver=admission_resolver,
+        model_catalog=catalog,
+        expand_discovered_models=expand_discovered_models,
     )
     if not admitted:
         raise ReviewAdapterError("exact current high-confidence L2 reviewer resource is not admitted")
@@ -106,7 +153,7 @@ def run_shadow(
     with compose_resource_pool(
         admitted,
         resolver=resolver,
-        model_admission_resolver=evidence.resolver,
+        model_admission_resolver=admission_resolver,
         resource_id_prefix="reviewer-shadow",
     ) as resource_pool:
         dispatcher = resource_pool.dispatcher
@@ -179,6 +226,10 @@ def run_proposal_only(
     timeout_seconds: float,
     allow_unknown_quota: bool,
     execution_boundary: str = "in_process",
+    provider_pool: tuple[OperationProviderBinding, ...] | list[OperationProviderBinding] | None = None,
+    model_admission_resolver=None,
+    model_catalog=None,
+    expand_discovered_models: bool = False,
 ) -> dict[str, object]:
     """Request one Free L2 proposal without requiring a Codex decision.
 
@@ -195,7 +246,10 @@ def run_proposal_only(
         raise ReviewAdapterError("ReviewPacket has no attempt identity")
     resolver = QualificationResolver()
     evidence = ModelEvidenceCatalog.load_default()
-    binding = make_binding(
+    admission_resolver = model_admission_resolver if model_admission_resolver is not None else evidence.resolver
+    catalog = model_catalog if model_catalog is not None else evidence.catalog
+    bindings = _reviewer_bindings(
+        provider_pool=provider_pool,
         provider_id=provider_id,
         binding_id=binding_id,
         model_id=model_id,
@@ -204,12 +258,13 @@ def run_proposal_only(
         timeout_seconds=timeout_seconds,
     )
     admitted = admit_resource_pool(
-        (binding,),
+        bindings,
         resolver=resolver,
         required_tier="L2",
         no_charge_required=True,
-        model_admission_resolver=evidence.resolver,
-        model_catalog=evidence.catalog,
+        model_admission_resolver=admission_resolver,
+        model_catalog=catalog,
+        expand_discovered_models=expand_discovered_models,
     )
     if not admitted:
         raise ReviewAdapterError("exact current high-confidence L2 reviewer resource is not admitted")
@@ -219,7 +274,7 @@ def run_proposal_only(
     with compose_resource_pool(
         admitted,
         resolver=resolver,
-        model_admission_resolver=evidence.resolver,
+        model_admission_resolver=admission_resolver,
         resource_id_prefix="reviewer-shadow",
     ) as resource_pool:
         dispatcher = resource_pool.dispatcher
@@ -292,6 +347,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--timeout-seconds", type=float, default=45.0)
     parser.add_argument("--allow-unknown-quota", action="store_true")
     parser.add_argument(
+        "--pool-json",
+        help="explicit JSON array of non-secret OperationProviderBinding objects",
+    )
+    parser.add_argument(
+        "--configured-pool",
+        action="store_true",
+        help="explicitly use configured non-secret Provider bindings as the Reviewer pool",
+    )
+    parser.add_argument(
+        "--expand-discovered-models",
+        action="store_true",
+        help="explicitly materialize current ordinary text models from each credential binding",
+    )
+    parser.add_argument(
         "--execution-boundary",
         choices=("host_process", "in_process"),
         default="host_process",
@@ -305,6 +374,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         runner = run_proposal_only if args.proposal_only else run_shadow
+        model_evidence = ModelEvidenceCatalog.load_default()
+        provider_pool = resolve_provider_pool(
+            pool_json=args.pool_json,
+            use_configured_pool=args.configured_pool,
+        )
         output = runner(
             root=args.root,
             run_id=args.run_id,
@@ -317,6 +391,10 @@ def main(argv: list[str] | None = None) -> int:
             timeout_seconds=args.timeout_seconds,
             allow_unknown_quota=args.allow_unknown_quota,
             execution_boundary=args.execution_boundary,
+            provider_pool=provider_pool,
+            model_admission_resolver=model_evidence.resolver,
+            model_catalog=model_evidence.catalog,
+            expand_discovered_models=args.expand_discovered_models,
         )
         code = 0
     except (ReviewAdapterError, DispatchDenied, ProviderPoolExhausted, ProviderError) as exc:

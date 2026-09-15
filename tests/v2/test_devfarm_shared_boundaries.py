@@ -1,7 +1,14 @@
 from types import SimpleNamespace
 
 from scripts.devfarm_artifacts import artifact_reference, attempt_id, bounded_test_output
-from scripts.devfarm_resource_pool import admit_resource_pool, make_binding
+import pytest
+
+from scripts.devfarm_resource_pool import (
+    ResourcePoolError,
+    admit_resource_pool,
+    make_binding,
+    resolve_provider_pool,
+)
 from scripts.devfarm_verification import validate_host_test_targets
 
 
@@ -52,6 +59,46 @@ def test_resource_pool_admission_is_role_neutral(monkeypatch):
     admitted = admit_resource_pool((binding,), resolver=Resolver(), required_tier="L2")
 
     assert admitted == ((binding, qualification, profile),)
+
+
+def test_resource_pool_resolver_accepts_explicit_non_secret_pool_json():
+    bindings = resolve_provider_pool(
+        pool_json='[{"provider_id":"fake","model":"model-a","provider_binding_id":"fake:a","api_key_env":"FAKE_A","quota_domain":"fake:quota","timeout_seconds":5}]',
+        use_configured_pool=False,
+    )
+
+    assert bindings is not None
+    assert [(item.binding_id, item.model) for item in bindings] == [("fake:a", "model-a")]
+    assert "FAKE_A" in repr(bindings[0])
+
+
+def test_resource_pool_resolver_uses_explicit_configured_metadata_without_secret_values():
+    values = {
+        "GEMINI_API_KEY_3": "secret-value",
+        "GEMINI_PROJECT_ID_3": "ignored",
+        "GEMINI_MODEL_3": "gemini-test",
+    }
+
+    bindings = resolve_provider_pool(
+        pool_json=None,
+        use_configured_pool=True,
+        env=values.get,
+    )
+
+    assert bindings is not None
+    selected = next(item for item in bindings if item.binding_id == "gemini:worker:free-3")
+    assert selected.model == "gemini-test"
+    assert "secret-value" not in repr(selected)
+
+
+def test_resource_pool_resolver_rejects_ambiguous_or_malformed_sources():
+    with pytest.raises(ResourcePoolError, match="cannot be combined"):
+        resolve_provider_pool(
+            pool_json='[{"provider_id":"fake","model":"model-a"}]',
+            use_configured_pool=True,
+        )
+    with pytest.raises(ResourcePoolError, match="invalid binding object"):
+        resolve_provider_pool(pool_json="[1]", use_configured_pool=False)
 
 
 def test_public_artifact_and_verification_boundaries_are_bounded(tmp_path):

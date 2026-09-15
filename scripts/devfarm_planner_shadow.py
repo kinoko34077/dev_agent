@@ -15,11 +15,9 @@ headroom or turn a paid/unknown billing profile into a free route.
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
 import hashlib
 import json
-import os
 from pathlib import Path
 import sys
 from uuid import UUID, uuid4
@@ -31,7 +29,7 @@ if str(ROOT) not in sys.path:
 from src.dev_agent.domain.protocol import RiskLevel, Task, TaskStatus, TaskType
 from src.dev_agent.intelligence.planner import RootPlanningValidator
 from src.dev_agent.intelligence.planner_adapter import ModelPlanningAdapter
-from src.dev_agent.operation import OperationProviderBinding, configured_provider_pool_from_environment
+from src.dev_agent.operation import OperationProviderBinding
 from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.dispatch import ProviderPoolExhausted
 from src.dev_agent.providers.host_dispatch import route_through_host
@@ -47,6 +45,7 @@ from scripts.devfarm_resource_pool import (
     build_provider,
     compose_resource_pool,
     make_binding,
+    resolve_provider_pool as resolve_shared_provider_pool,
 )
 from scripts.devfarm_host_dispatch import create_host_process_executor
 
@@ -137,7 +136,7 @@ def resolve_provider_pool(
     *,
     pool_json: str | None,
     use_configured_pool: bool,
-    env: Callable[[str], str | None] = os.getenv,
+    env=None,
 ) -> tuple[OperationProviderBinding, ...] | None:
     """Resolve one explicit Planner pool source without activating resources.
 
@@ -146,31 +145,13 @@ def resolve_provider_pool(
     privacy, quota, and health admission still happen in ``run_shadow``.
     """
 
-    if not isinstance(use_configured_pool, bool):
-        raise PlannerShadowInputError("use_configured_pool must be a boolean")
-    if not callable(env):
-        raise PlannerShadowInputError("env must be callable")
-    if pool_json is not None and use_configured_pool:
-        raise PlannerShadowInputError("pool-json and configured-pool cannot be combined")
-    if pool_json is not None:
-        try:
-            raw_pool = json.loads(pool_json)
-        except json.JSONDecodeError as exc:
-            raise PlannerShadowInputError("pool-json must be valid JSON") from exc
-        if not isinstance(raw_pool, list) or not raw_pool:
-            raise PlannerShadowInputError("pool-json must be a non-empty JSON array")
-        if any(not isinstance(entry, Mapping) for entry in raw_pool):
-            raise PlannerShadowInputError("pool-json contains an invalid binding object")
-        try:
-            return tuple(OperationProviderBinding(**dict(entry)) for entry in raw_pool)
-        except (TypeError, ValueError) as exc:
-            raise PlannerShadowInputError(f"pool-json contains an invalid binding: {exc}") from exc
-    if use_configured_pool:
-        configured = configured_provider_pool_from_environment(env)
-        if not configured:
-            raise PlannerShadowInputError("configured provider pool is empty")
-        return configured
-    return None
+    try:
+        kwargs = {"pool_json": pool_json, "use_configured_pool": use_configured_pool}
+        if env is not None:
+            kwargs["env"] = env
+        return resolve_shared_provider_pool(**kwargs)
+    except ResourcePoolError as exc:
+        raise PlannerShadowInputError(str(exc)) from exc
 
 
 def run_shadow(
