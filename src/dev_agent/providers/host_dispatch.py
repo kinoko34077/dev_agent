@@ -166,6 +166,13 @@ class HostProviderDispatch:
             )
         except ProviderError as exc:
             preserved = getattr(exc, "transport_failure_category", None)
+            # The diagnostic field describes outbound transport only.  A
+            # Host admission/configuration rejection or a confirmed provider
+            # response must remain available through ``exc.category`` rather
+            # than being mislabeled as an unexplained transport failure.
+            if preserved is None and exc.category not in {"transport"}:
+                self.last_transport_category = None
+                raise
             try:
                 self.last_transport_category = (
                     TransportFailureCategory(preserved)

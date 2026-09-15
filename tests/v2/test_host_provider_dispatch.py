@@ -86,6 +86,22 @@ def test_host_dispatch_rejects_unsupported_execution_boundary():
         HostProviderDispatch(provider, execution_boundary="arbitrary_proxy")
 
 
+def test_host_dispatch_does_not_label_non_transport_failure_as_unclassified_transport():
+    provider = _Provider(
+        error=ProviderError(
+            "Host provider runtime rejected the dispatch",
+            category="host_configuration",
+            retryable=False,
+        )
+    )
+    dispatch = HostProviderDispatch(provider, execution_boundary="host_process")
+
+    with pytest.raises(ProviderError):
+        dispatch.request(_request())
+
+    assert dispatch.last_transport_category is None
+
+
 def test_host_dispatch_can_receive_a_host_runtime_executor_without_adding_retry():
     provider = _Provider(ModelResponse(provider="fake", model="fake-model", text_segments=["inline"]))
     calls = []
