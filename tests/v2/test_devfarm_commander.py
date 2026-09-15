@@ -12,6 +12,7 @@ from scripts.devfarm_commander import (
     PlanConflictError,
     collect_plan,
     create_plan,
+    dispatch_cli,
     dispatch_plan,
     list_active_ownership,
     mark_integrated,
@@ -1674,3 +1675,66 @@ def test_dependency_blocked_task_releases_after_dependency_recovery():
 
     assert refreshed["tasks"][1]["status"] == "READY"
     assert "block_reason" not in refreshed["tasks"][1]
+
+
+def test_dispatch_cli_preserves_assigned_provider_binding(tmp_path, monkeypatch):
+    write_manifest(
+        tmp_path,
+        {
+            "task_id": "binding-dispatch-task",
+            "objective": "preserve the exact configured worker lane",
+            "base_revision": "a" * 40,
+            "allowed_files": ["tests/v2/worker.py"],
+            "read_files": ["tests/v2/worker.py"],
+            "forbidden_files": [],
+            "external_provider_allowed": True,
+            "approved_provider_ids": ["gemini"],
+            "outbound_files": ["tests/v2/worker.py"],
+            "requirements": [],
+            "acceptance": [],
+            "test_commands": ["python -m pytest tests/v2/worker.py -q"],
+            "max_attempts": 1,
+            "output_contract": {},
+        },
+    )
+    create_plan(
+        tmp_path,
+        {
+            "run_id": "binding-dispatch-run",
+            "objective": "preserve the exact configured worker lane",
+            "base_revision": "a" * 40,
+            "tasks": [
+                {
+                    "task_id": "binding-dispatch-task",
+                    "owner": "worker",
+                    "status": "READY",
+                    "manifest_path": ".devfarm/tasks/binding-dispatch-task.json",
+                    "ownership": ["tests/v2/worker.py"],
+                    "assignment": {
+                        "provider_id": "gemini",
+                        "provider_binding_id": "gemini:worker",
+                        "model_id": "gemini-3.5-flash-lite",
+                    },
+                }
+            ],
+        },
+    )
+    provider_calls = []
+    dispatch_calls = []
+
+    def fake_build(provider_id, model_id, timeout_seconds, provider_binding_id):
+        provider_calls.append((provider_id, model_id, timeout_seconds, provider_binding_id))
+        return object()
+
+    def fake_dispatch(root, run_id, **kwargs):
+        dispatch_calls.append((root, run_id, kwargs))
+        return {"status": "captured"}
+
+    monkeypatch.setattr("scripts.devfarm_commander.build_cli_provider", fake_build)
+    monkeypatch.setattr("scripts.devfarm_commander.dispatch_plan", fake_dispatch)
+
+    result = dispatch_cli(tmp_path, "binding-dispatch-run", timeout_seconds=17.0, execution_boundary="in_process")
+
+    assert result == {"status": "captured"}
+    assert provider_calls == [("gemini", "gemini-3.5-flash-lite", 17.0, "gemini:worker")]
+    assert dispatch_calls[0][2]["providers"]["binding-dispatch-task"] is not None

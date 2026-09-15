@@ -623,18 +623,28 @@ def mark_integrated(
     )
 
 
-def _cli_provider(provider_id: str, model_id: str, timeout_seconds: float) -> ModelProvider:
+def _cli_provider(
+    provider_id: str,
+    model_id: str,
+    timeout_seconds: float,
+    provider_binding_id: str | None = None,
+) -> ModelProvider:
     # The provider runtime remains the only construction/activation boundary.
     # Keep this import local so importing the plan store never constructs one.
     from scripts.devfarm_provider_runtime import build_worker_provider
 
-    return build_worker_provider(provider_id, model_id, timeout_seconds)
+    return build_worker_provider(provider_id, model_id, timeout_seconds, provider_binding_id)
 
 
-def build_cli_provider(provider_id: str, model_id: str, timeout_seconds: float) -> ModelProvider:
+def build_cli_provider(
+    provider_id: str,
+    model_id: str,
+    timeout_seconds: float,
+    provider_binding_id: str | None = None,
+) -> ModelProvider:
     """Public CLI composition boundary for an assigned development provider."""
 
-    return _cli_provider(provider_id, model_id, timeout_seconds)
+    return _cli_provider(provider_id, model_id, timeout_seconds, provider_binding_id)
 
 
 def dispatch_cli(
@@ -668,7 +678,12 @@ def dispatch_cli(
         selected_model = model_id or assignment.get("model_id")
         if not selected_provider or not selected_model:
             raise DevFarmError(f"provider and model are required for worker task: {task['task_id']}")
-        provider = build_cli_provider(selected_provider, selected_model, timeout_seconds)
+        selected_binding = assignment.get("provider_binding_id")
+        if provider_id is not None or model_id is not None:
+            # An explicit provider/model override must not accidentally reuse
+            # the assignment's binding for a different resource identity.
+            selected_binding = None
+        provider = build_cli_provider(selected_provider, selected_model, timeout_seconds, selected_binding)
         providers[task["task_id"]] = provider
         if host_executor is not None:
             from src.dev_agent.providers.host_dispatch import route_through_host
