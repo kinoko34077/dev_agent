@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-09-16",
+  "evidence_id": "phase8-multirole-input-validation-20260916",
+  "scope": "bounded Phase 8 role projection input validation",
+  "implementation_baseline": {
+    "commit": "a39d50230afe071364d51ae93a3750b437d03f0c",
+    "message": "fix: bound multi-role assignment input"
+  },
+  "change": {
+    "file": "scripts/devfarm_multirole.py",
+    "behavior": "non-sequence assignments are rejected before iteration with RoleAssignmentError",
+    "regression_test": "tests/v2/test_devfarm_multirole.py::test_multirole_adapter_rejects_non_sequence_assignments_before_iteration",
+    "external_provider_called": false,
+    "codex_direct_implementation_count": 1,
+    "codex_direct_reason": "delegation_overhead",
+    "worker_tasks_attempted": 0
+  },
+  "stage5_boundary": {
+    "role_manifest_and_instance": "unchanged",
+    "commander_ownership": "unchanged",
+    "parallel_implementer_projection": "unchanged",
+    "host_verification": "unchanged",
+    "reviewer_authority": "proposal_only",
+    "integration_authority": "existing_host_boundary",
+    "dependency_semantics": "CODE_INTEGRATED preserved",
+    "status": "LOCAL_DETERMINISTIC_BOUNDARY_PRESERVED"
+  },
+  "verification": {
+    "focused_tests": "26 passed",
+    "full_tests_v2": "1355 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head_ci": {
+      "head": "a39d50230afe071364d51ae93a3750b437d03f0c",
+      "v2-core": {
+        "run_id": "35029859339",
+        "status": "PASS"
+      },
+      "v2-provider-smoke": {
+        "run_id": "35029859459",
+        "status": "PASS"
+      }
+    }
+  },
+  "limitations": [
+    "This evidence is deterministic local validation only; it is not live multi-role Provider evidence.",
+    "OS Guardian installation, deployed recovery, D9 real mutation, and MCP wire remain outside this slice."
+  ],
+  "secrets_or_raw_provider_content_stored": false
+}
