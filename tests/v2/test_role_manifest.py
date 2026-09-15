@@ -124,6 +124,16 @@ def test_role_instance_reuses_peer_identity_and_strict_lease():
         instance.is_current(_peer(instance_id="agent-2"), now=_timestamp())
 
 
+def test_role_instance_preserves_existing_peer_identifier_vocabulary():
+    manifest = _implementer_manifest()
+    peer = _peer(instance_id="Agent:free-3.v2")
+
+    instance = RoleInstance.from_peer(manifest, peer)
+
+    assert instance.instance_id == "Agent:free-3.v2"
+    assert instance.is_current(peer, now=_timestamp()) is True
+
+
 def test_validate_assignment_set_reuses_peer_lease_and_rejects_overlap():
     manifest = _implementer_manifest()
     peer_a = _peer(instance_id="agent-a")
