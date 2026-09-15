@@ -23,14 +23,14 @@
 - 目的: 明示opt-inされたqualified exact L2 resource poolからbounded requestを行い、strict JSON decodeと`RootPlanningProposal`構築を証明する。候補化は、明示的なModel Catalog、Benchmark Catalog、Capability Catalog、既存Runtime State/Qualification/Billing/Privacy/Quota/Healthの別レイヤーを合成する。HTTP 503の明示Unavailable、429、quota、authentication/authorization等のconfirmed failover-safe failureは既存Dispatcherで別のeligible L2へ切替え、transport/timeout/decode/billing等のUNKNOWNはreconciliationへ閉じる。
 - Host確認: `parent_task_id`、child count、cycle、dependency type、sensitivity、protected boundary、capability vocabulary。
 - pool admission: model名からL2を推測しない。current high-confidence qualification、期限付きbenchmark-derived tier/capability evidence、trusted billing/no-charge authority、quota/privacy/tier admissionをidentity単位で満たす候補だけを使用し、L1への自動降格はしない。Discovery refreshは明示的・read-onlyで、発見だけではrouting admissionにならない。
-- 完了Evidence: eligible pool、selection order、provider/binding/model、request/proposal digest、failure category、Host validation結果。成功Evidence: [`planner-l2-live-d1-20260914.json`](../spec/v2/evidence/planner-l2-live-d1-20260914.json)。Planner authorityは引き続きproposal-only。
+- 完了Evidence: eligible pool、selection order、provider/binding/model、request/proposal digest、failure category、Host validation結果。既存成功Evidenceは[`planner-l2-live-d1-20260914.json`](../spec/v2/evidence/planner-l2-live-d1-20260914.json)。Configured poolのHost-owned process boundaryを通じた追加成功Evidenceは[`planner-host-dispatch-d1-20260915.json`](../spec/v2/evidence/planner-host-dispatch-d1-20260915.json)。Codex/sandbox内の`local_network_policy_denied`はProvider能力失敗へ算入せず、通常Host processの成功と分離する。Planner authorityは引き続きproposal-only。
 - 制約: 自動連打・retry storm・Task作成・Commander書込みなし。
 
 ### D2 — Planner → Bridge → Commander → L1 Worker E2E
 
 - 依存: D1。
 - 目的: Hostがvalidated proposalをDevelopmentPlanningBridgeでCommander Plan候補へ変換し、既知のqualified Free L1 Workerへ狭いchildを委譲する。
-- 完了条件: Plan永続化、Worker実装、Host Verification、ReviewPacket、Codex review、deterministic Host integration、exact revision、focused/full/CI Evidence。完了Evidence: [`planner-to-worker-e2e-20260914.json`](../spec/v2/evidence/planner-to-worker-e2e-20260914.json)。対象childのCodex direct implementationは0件。
+- 完了条件: Plan永続化、Worker実装、Host Verification、ReviewPacket、Codex review、deterministic Host integration、exact revision、focused/full/CI Evidence。既存Evidence: [`planner-to-worker-e2e-20260914.json`](../spec/v2/evidence/planner-to-worker-e2e-20260914.json)。次の未完了受入条件は、通常Host process境界を使ったproduction `src/`/`scripts/` Worker taskのWorker-originated integrationであり、対象childのCodex direct implementationは0件とする。
 - 不変条件: `CODE_INTEGRATED`を保持し、未対応dependency typeはfail-closed。対象childのCodex直接実装は成功Evidenceに含めない。
 
 ### D3 — Worker reliability hardening

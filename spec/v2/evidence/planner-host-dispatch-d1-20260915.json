@@ -1,0 +1,71 @@
+{
+  "schema_version": "v2",
+  "evidence_type": "planner_host_dispatch_d1",
+  "observed_at": "2026-09-15T03:12:55.644584+00:00",
+  "branch": "v2/bootstrap",
+  "implementation_commit": "3206b6fe3b78d26e30067896cb1d69437989321a",
+  "operation": {
+    "entrypoint": "scripts/devfarm_planner_shadow.py",
+    "configured_pool": true,
+    "expand_discovered_models": true,
+    "allow_unknown_quota": true,
+    "execution_boundary": "host_process",
+    "timeout_seconds": 20,
+    "raw_request_or_response_saved": false
+  },
+  "sandbox_observation": {
+    "status": "blocked_external",
+    "category": "transport",
+    "transport_failure_category": "local_network_policy_denied",
+    "reconciliation_required": true,
+    "action": "no_retry_or_model_escalation"
+  },
+  "host_observation": {
+    "status": "live_shadow_validated",
+    "provider": "gemini",
+    "binding": "gemini:worker:free-3::model::gemini-3.6-flash::cf27b68ecf38",
+    "model": "gemini-3.6-flash",
+    "intelligence_tier": "L2",
+    "qualification_confidence": "high",
+    "host_validation": "passed",
+    "child_count": 1,
+    "child_keys": ["setup_bootstrap_structure"],
+    "proposal_sha256": "a866f888a25a97b082bd0c033ed1a24cdfb4badcb106440465f73fe4ec42891c",
+    "eligible_pool_count": 4,
+    "dispatch_audit": {
+      "outcome": "succeeded",
+      "provider": "gemini",
+      "binding": "gemini:worker:free-3::model::gemini-3.6-flash::cf27b68ecf38",
+      "model": "gemini-3.6-flash"
+    }
+  },
+  "boundary_fixes": [
+    "Host materializes discovered model candidates from configured credential lanes.",
+    "Host re-admits model evidence during runtime composition and preserves the exact L2 tier for bounded routing.",
+    "Per-dispatch model-request Egress Manifest metadata is required without persisting source or credentials.",
+    "Bounded child failure diagnostics preserve only safe category/type projections and UNKNOWN reconciliation semantics."
+  ],
+  "verification": {
+    "focused_tests": "56 passed",
+    "full_tests_v2": "1273 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head_ci": {
+      "v2_core": {
+        "run_id": 34924254560,
+        "conclusion": "success"
+      },
+      "v2_provider_smoke": {
+        "run_id": 34924254625,
+        "conclusion": "success"
+      }
+    }
+  },
+  "gate_status": {
+    "D1_valid_live_free_l2_proposal": "verified",
+    "D2_planner_to_worker_e2e": "existing_evidence_preserved_not_repeated_in_this_observation",
+    "production_worker_task": "not_claimed",
+    "D9_real_mutation": "not_connected"
+  },
+  "secrets_or_raw_provider_content": false
+}
