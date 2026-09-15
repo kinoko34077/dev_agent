@@ -39,6 +39,10 @@ KNOWN_CODEX_LESS_TASK_TYPES = frozenset(
         "fixture",
         "fixtures",
         "mechanical_refactor",
+        "bounded_bugfix",
+        "small_helper",
+        "cli_adapter",
+        "data_model",
     }
 )
 _CODEX_LESS_TRUST_LEVELS = frozenset({"TRUSTED_HOST_EXEC", "OS_SANDBOXED"})

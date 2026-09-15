@@ -122,6 +122,27 @@ def test_codexless_policy_returns_candidate_without_integration_authority() -> N
     assert result.official_branch_auto_merge is False
 
 
+@pytest.mark.parametrize("task_type", ["bounded_bugfix", "small_helper", "cli_adapter", "data_model"])
+def test_codexless_policy_accepts_bounded_production_task_classes(task_type: str) -> None:
+    task, manifest, packet, proposal, shadow = _candidate_inputs()
+    task["task_type"] = task_type
+    task["ownership"] = ["src/dev_agent/example.py"]
+    manifest["allowed_files"] = ["src/dev_agent/example.py"]
+    packet["changed_files"] = ["src/dev_agent/example.py"]
+
+    result = CodexLessPolicy().evaluate(
+        task=task,
+        manifest=manifest,
+        packet=packet,
+        proposal=proposal,
+        shadow_evidence=shadow,
+    )
+
+    assert result.eligible is True
+    assert result.status == "CANDIDATE"
+    assert result.official_branch_auto_merge is False
+
+
 @pytest.mark.parametrize(
     ("field", "value", "reason"),
     [
