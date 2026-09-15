@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from scripts.devfarm import DevFarmError
-from scripts.devfarm_commander import load_worker_manifest
+from scripts.devfarm_manifests import load_worker_manifest
 from scripts.devfarm_plan_queries import (
     artifact_reference_paths,
     require_approved_review_decision,

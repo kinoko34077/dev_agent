@@ -28,6 +28,7 @@ from scripts.devfarm_integration import (
     integrate_approved_worker as host_integrate_approved_worker,
     integrate_worker as host_record_integration,
 )
+from scripts.devfarm_manifests import load_worker_manifest
 from scripts.devfarm_repository import read_bounded_json
 from scripts.devfarm_review_packet import build_review_packet
 from scripts.devfarm_commander import (
@@ -35,7 +36,6 @@ from scripts.devfarm_commander import (
     record_result,
     collect_plan,
     dispatch_plan,
-    load_worker_manifest,
     recover_orphaned_dispatches,
     reassign_task,
     refresh_plan,

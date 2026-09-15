@@ -21,6 +21,7 @@ from typing import Any, Mapping, Sequence
 import uuid
 
 from scripts.devfarm import DevFarmError, init_farm, validate_manifest, validate_result
+from scripts.devfarm_manifests import load_worker_manifest
 from scripts.devfarm_orchestrator import DevFarmOrchestrator, WorkerAssignment
 from scripts.devfarm_repository import git, read_json, repository_path, resolved_revision
 from scripts.devfarm_plan_queries import result_reference
@@ -984,23 +985,7 @@ def _task(plan: Mapping[str, Any], task_id: str) -> dict[str, Any]:
     raise DevFarmError(f"Commander task does not exist: {task_id}")
 
 
-def _manifest_for(root: Path, task: Mapping[str, Any]) -> tuple[Path, dict[str, Any]]:
-    relative = task.get("manifest_path")
-    if not isinstance(relative, str):
-        raise DevFarmError(f"worker task has no manifest path: {task['task_id']}")
-    path = _repository_path(root, relative, required_parent=".devfarm/tasks")
-    manifest = validate_manifest(_read_json(path))
-    if manifest["task_id"] != task["task_id"]:
-        raise DevFarmError(f"manifest task_id does not match plan task: {task['task_id']}")
-    if not set(manifest["allowed_files"]).issubset(set(task["ownership"])):
-        raise DevFarmError(f"manifest allowed_files exceed plan ownership: {task['task_id']}")
-    return path, manifest
-
-
-def load_worker_manifest(root: str | Path, task: Mapping[str, Any]) -> tuple[Path, dict[str, Any]]:
-    """Load one validated Worker manifest through the Commander boundary."""
-
-    return _manifest_for(Path(root).resolve(), task)
+_manifest_for = load_worker_manifest
 
 
 _result_ref = result_reference

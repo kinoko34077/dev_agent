@@ -27,12 +27,8 @@ from scripts.devfarm import (
     validate_result,
 )
 from scripts.devfarm_artifacts import write_immutable_text
-from scripts.devfarm_commander import (
-    CommanderPlanStore,
-    load_worker_manifest,
-    record_result,
-    refresh_plan,
-)
+from scripts.devfarm_commander import CommanderPlanStore, record_result, refresh_plan
+from scripts.devfarm_manifests import load_worker_manifest
 from scripts.devfarm_plan_queries import require_approved_review_decision, require_task, result_reference
 from scripts.devfarm_repository import git, git_diff_digest, read_json, repository_path, resolved_revision
 
