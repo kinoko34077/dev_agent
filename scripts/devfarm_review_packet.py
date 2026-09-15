@@ -9,20 +9,13 @@ review decision and does not mutate a Commander plan.
 from __future__ import annotations
 
 import hashlib
-import json
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 from scripts.devfarm import DevFarmError
+from scripts.devfarm_repository import read_json
 from scripts.devfarm_supervisor_protocol import normalize_review_packet
-
-
-def _read_json(path: Path) -> Any:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise DevFarmError("review artifact cannot be read") from exc
 
 
 def build_review_packet(root: str | Path, task: Mapping[str, Any]) -> dict[str, Any]:
@@ -45,7 +38,7 @@ def build_review_packet(root: str | Path, task: Mapping[str, Any]) -> dict[str, 
         raise DevFarmError("review result reference escapes repository") from exc
     result: Mapping[str, Any] = {}
     if result_path.is_file():
-        loaded = _read_json(result_path)
+        loaded = read_json(result_path)
         if not isinstance(loaded, Mapping):
             raise DevFarmError("review result artifact must be an object")
         result = loaded
@@ -60,7 +53,7 @@ def build_review_packet(root: str | Path, task: Mapping[str, Any]) -> dict[str, 
         records: list[Mapping[str, Any]] = []
         for candidate in sorted(verification_dir.glob("*.json")):
             try:
-                loaded = _read_json(candidate)
+                loaded = read_json(candidate)
             except DevFarmError:
                 continue
             if isinstance(loaded, Mapping):
@@ -87,7 +80,7 @@ def build_review_packet(root: str | Path, task: Mapping[str, Any]) -> dict[str, 
         try:
             manifest_path.relative_to(root_path)
             if manifest_path.is_file():
-                loaded_manifest = _read_json(manifest_path)
+                loaded_manifest = read_json(manifest_path)
                 if isinstance(loaded_manifest, Mapping):
                     manifest = loaded_manifest
         except (ValueError, DevFarmError):

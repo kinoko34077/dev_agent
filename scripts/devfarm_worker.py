@@ -42,6 +42,7 @@ from scripts.devfarm_worker_admission import (
     validate_worker_provider as shared_validate_worker_provider,
 )
 from scripts.devfarm_provider_runtime import build_worker_provider
+from scripts.devfarm_repository import read_json
 from src.dev_agent.security.egress import (
     EgressManifest,
     contains_secret_candidate,
@@ -84,13 +85,6 @@ MAX_VERIFICATION_WALL_CLOCK_SECONDS = 10 * 60
 # Local compatibility name; cross-script imports use the public path-policy
 # symbol above so the architecture checker can enforce the boundary.
 _is_protected = is_protected_path
-
-
-def _read_json(path: Path) -> Any:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise DevFarmError(f"could not read JSON file {path}: {exc}") from exc
 
 
 _extract_json = extract_json_object
@@ -385,7 +379,7 @@ def inspect_worker_egress(
     """
 
     root_path = Path(root).resolve()
-    manifest = validate_manifest(_read_json(Path(manifest_path)))
+    manifest = validate_manifest(read_json(Path(manifest_path)))
     if not manifest["external_provider_allowed"]:
         raise DevFarmError("external provider execution is not approved by manifest")
     if provider_id not in manifest["approved_provider_ids"]:
@@ -564,7 +558,7 @@ def apply_and_verify(
         raise DevFarmError(f"unsupported verification trust level: {trust_level}")
 
     root = Path(root).resolve()
-    manifest = validate_manifest(_read_json(Path(manifest_path)))
+    manifest = validate_manifest(read_json(Path(manifest_path)))
     result = _read_result_artifact(root, manifest)
     attempt_id = _attempt_id(result.get("attempt_id") or "legacy")
     if trust_level == "OS_SANDBOXED":
@@ -743,7 +737,7 @@ def run_worker(
     host_dispatch: HostProviderDispatch | None = None,
 ) -> dict[str, Any]:
     root = Path(root).resolve()
-    manifest = validate_manifest(_read_json(Path(manifest_path)))
+    manifest = validate_manifest(read_json(Path(manifest_path)))
     attempt_id = _attempt_id()
     if not manifest["external_provider_allowed"]:
         raise DevFarmError("external provider execution is not approved by manifest")
