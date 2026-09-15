@@ -24,6 +24,7 @@ if str(ROOT) not in sys.path:
 
 from scripts.devfarm import DevFarmError
 from scripts.devfarm_artifacts import write_immutable_text
+from scripts.devfarm_repository import read_bounded_json
 from scripts.devfarm_supervisor import CodexSupervisedCommanderRun
 from src.dev_agent.intelligence.self_improvement import (
     ImprovementDiagnosis,
@@ -44,32 +45,6 @@ def _safe_identifier(value: Any, name: str) -> str:
     if not isinstance(value, str) or not _SAFE_IDENTIFIER.fullmatch(value.strip()):
         raise DevFarmError(f"{name} must be a safe identifier")
     return value.strip()
-
-
-def _read_bounded_json(root: Path, value: str | Path) -> Any:
-    """Read one bounded JSON artifact without allowing repository escape."""
-
-    repository = root.resolve()
-    candidate = Path(value)
-    if not candidate.is_absolute():
-        candidate = repository / candidate
-    candidate = candidate.resolve()
-    try:
-        candidate.relative_to(repository)
-    except ValueError as exc:
-        raise DevFarmError("JSON input path escapes repository") from exc
-    if not candidate.is_file():
-        raise DevFarmError(f"JSON input does not exist: {value}")
-    try:
-        content = candidate.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise DevFarmError("JSON input cannot be read") from exc
-    if len(content) > MAX_INPUT_CHARS:
-        raise DevFarmError("JSON input exceeds the bounded size")
-    try:
-        return json.loads(content)
-    except json.JSONDecodeError as exc:
-        raise DevFarmError("JSON input is invalid") from exc
 
 
 def _output_path(root: Path, value: str | Path) -> Path:
@@ -189,14 +164,14 @@ def _task_observation(root: Path, run_id: str, task_id: str) -> ObservationRecor
 
 
 def _observation_from_file(root: Path, value: str | Path) -> ObservationRecord:
-    loaded = _read_bounded_json(root, value)
+    loaded = read_bounded_json(root, value, maximum_chars=MAX_INPUT_CHARS)
     if not isinstance(loaded, Mapping):
         raise DevFarmError("observation input must be an object")
     return ObservationRecord.from_dict(loaded)
 
 
 def _diagnosis_from_file(root: Path, value: str | Path) -> ImprovementDiagnosis:
-    loaded = _read_bounded_json(root, value)
+    loaded = read_bounded_json(root, value, maximum_chars=MAX_INPUT_CHARS)
     if not isinstance(loaded, Mapping):
         raise DevFarmError("diagnosis input must be an object")
     return ImprovementDiagnosis.from_dict(loaded)

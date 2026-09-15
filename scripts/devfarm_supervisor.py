@@ -28,6 +28,7 @@ from scripts.devfarm_integration import (
     integrate_approved_worker as host_integrate_approved_worker,
     integrate_worker as host_record_integration,
 )
+from scripts.devfarm_repository import read_bounded_json
 from scripts.devfarm_review_packet import build_review_packet
 from scripts.devfarm_commander import (
     CommanderPlanStore,
@@ -52,29 +53,6 @@ from scripts.devfarm_supervisor_protocol import (
 )
 from src.dev_agent.handoff import ExternalTextReference, HandoffEnvelope, rework_request
 from src.dev_agent.intelligence.codexless import CodexLessEvaluation, CodexLessPolicy
-
-
-def _read_bounded_json(root: Path, path: Path) -> Any:
-    """Read a bounded local JSON input without allowing repository escape."""
-
-    root = root.resolve()
-    candidate = path.resolve()
-    try:
-        candidate.relative_to(root)
-    except ValueError as exc:
-        raise DevFarmError("JSON input path escapes repository") from exc
-    if not candidate.is_file():
-        raise DevFarmError(f"JSON input does not exist: {path}")
-    try:
-        text = candidate.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise DevFarmError("JSON input cannot be read") from exc
-    if len(text) > 250_000:
-        raise DevFarmError("JSON input exceeds the bounded size")
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise DevFarmError("JSON input is invalid") from exc
 
 
 def _remaining_supervisor_deadline(metadata: Mapping[str, Any]) -> float | None:
@@ -929,9 +907,9 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(step.to_dict(), ensure_ascii=False, indent=2))
         return 0
     if args.command == "codexless":
-        proposal = _read_bounded_json(args.root, args.proposal_file)
+        proposal = read_bounded_json(args.root, args.proposal_file)
         shadow_evidence = [
-            _read_bounded_json(args.root, path)
+            read_bounded_json(args.root, path)
             for path in args.shadow_evidence_file
         ]
         result = runner.evaluate_codexless_candidate(

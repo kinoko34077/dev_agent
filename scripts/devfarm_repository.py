@@ -26,6 +26,44 @@ def read_json(path: str | Path) -> Any:
         raise DevFarmError(f"could not read JSON file {target}") from exc
 
 
+def read_bounded_json(
+    root: str | Path,
+    value: str | Path,
+    *,
+    maximum_chars: int = 250_000,
+) -> Any:
+    """Read one bounded repository-local JSON artifact.
+
+    This is the shared read-only boundary for proposal/evidence inputs.  It
+    deliberately owns containment, size, and parser failures only; callers
+    still validate the decoded domain object themselves.
+    """
+
+    if isinstance(maximum_chars, bool) or not isinstance(maximum_chars, int) or maximum_chars <= 0:
+        raise DevFarmError("maximum_chars must be a positive integer")
+    repository = Path(root).resolve()
+    candidate = Path(value)
+    if not candidate.is_absolute():
+        candidate = repository / candidate
+    candidate = candidate.resolve()
+    try:
+        candidate.relative_to(repository)
+    except ValueError as exc:
+        raise DevFarmError("JSON input path escapes repository") from exc
+    if not candidate.is_file():
+        raise DevFarmError(f"JSON input does not exist: {value}")
+    try:
+        content = candidate.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise DevFarmError("JSON input cannot be read") from exc
+    if len(content) > maximum_chars:
+        raise DevFarmError("JSON input exceeds the bounded size")
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError as exc:
+        raise DevFarmError("JSON input is invalid") from exc
+
+
 def repository_path(
     root: str | Path,
     relative: str,
@@ -112,6 +150,7 @@ def git_diff_digest(root: str | Path, revision: str) -> str:
 __all__ = [
     "git",
     "git_diff_digest",
+    "read_bounded_json",
     "read_json",
     "repository_path",
     "resolved_revision",
