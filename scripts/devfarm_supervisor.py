@@ -40,7 +40,7 @@ from scripts.devfarm_commander import (
     verify_plan,
     summarize_delegation,
 )
-from scripts.devfarm_provider_runtime import build_worker_provider
+from scripts.devfarm_provider_runtime import build_assigned_providers, build_worker_provider
 from scripts.devfarm_supervisor_protocol import (
     advance_heartbeat,
     normalize_supervisor_metadata,
@@ -948,18 +948,11 @@ def providers_for_resume(root: Path, run_id: str, timeout_seconds: float) -> dic
     """Construct only the already assigned providers needed for one pass."""
 
     runner = CodexSupervisedCommanderRun(root, run_id)
-    providers: dict[str, Any] = {}
-    for task in runner.plan()["tasks"]:
-        if task["owner"] != "worker" or task["status"] not in {"PLANNED", "READY"}:
-            continue
-        assignment = task["assignment"]
-        providers[task["task_id"]] = build_worker_provider(
-            assignment["provider_id"],
-            assignment["model_id"],
-            timeout_seconds,
-            assignment.get("provider_binding_id"),
-        )
-    return providers
+    return build_assigned_providers(
+        runner.plan(),
+        timeout_seconds,
+        provider_builder=build_worker_provider,
+    )
 
 
 def _providers_for_resume(root: Path, run_id: str, timeout_seconds: float) -> dict[str, Any]:
