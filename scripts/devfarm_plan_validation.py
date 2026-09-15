@@ -16,7 +16,8 @@ from typing import Any, Mapping, Sequence
 from scripts.devfarm_contracts import validate_manifest
 from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_repository import read_json, repository_path
-from scripts.devfarm_supervisor_protocol import normalize_review_decision, normalize_supervisor_metadata
+from scripts.devfarm_review_protocol import normalize_review_decision
+from scripts.devfarm_supervisor_protocol import normalize_supervisor_metadata
 from src.dev_agent.coordination import WorkAddress, allocate_work_address
 from src.dev_agent.security.protected_paths import is_protected_path
 

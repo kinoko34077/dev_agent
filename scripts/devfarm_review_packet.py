@@ -15,7 +15,7 @@ from typing import Any
 
 from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_repository import read_json
-from scripts.devfarm_supervisor_protocol import normalize_review_packet
+from scripts.devfarm_review_protocol import normalize_review_packet
 
 
 def build_review_packet(root: str | Path, task: Mapping[str, Any]) -> dict[str, Any]:

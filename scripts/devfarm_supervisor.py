@@ -44,10 +44,10 @@ from scripts.devfarm_commander import (
 )
 from scripts.devfarm_plan_queries import latest_rework_decision as query_latest_rework_decision
 from scripts.devfarm_resume import providers_for_resume as compose_providers_for_resume
+from scripts.devfarm_review_protocol import normalize_review_decision, normalize_review_packet
 from scripts.devfarm_supervisor_protocol import (
     advance_heartbeat,
     normalize_supervisor_metadata,
-    normalize_review_decision,
     record_wake,
     select_heartbeat_cadence,
 )
