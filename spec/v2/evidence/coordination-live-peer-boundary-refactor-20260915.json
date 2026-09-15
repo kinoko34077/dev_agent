@@ -1,0 +1,55 @@
+{
+  "evidence_id": "coordination-live-peer-boundary-refactor-20260915",
+  "status": "VERIFIED",
+  "observed_at": "2026-09-15",
+  "implementation_commit": "e859ce74a6bb954569e510b4c66cd813c87f9958",
+  "implementation_message": "refactor: centralize live peer authority checks",
+  "scope": {
+    "shared_boundary": "src/dev_agent/coordination/protocol.py::PeerRecord.is_live",
+    "consumers": [
+      "GuardianPolicy sender/target evaluation",
+      "ProcessCoordinationService current-peer validation",
+      "ProcessCoordinationService snapshot expiry projection"
+    ],
+    "semantics": "latest generation remains caller-selected; live requires an active peer status and lease_until strictly after the authority-check timestamp",
+    "retained_authority": "Task ownership, Guardian process execution, approval, recovery, and UNKNOWN/reconciliation remain unchanged"
+  },
+  "invariants": [
+    "Lease expiration does not require maintenance expiry before authority is denied",
+    "Exact lease equality is expired",
+    "Stale generations remain fenced by existing store generation checks",
+    "No scheduler, retry framework, network path, or process authority was added"
+  ],
+  "worker": {
+    "production_task_attempted": 0,
+    "codex_direct_implementation_count": 1,
+    "codex_direct_implementation_reason": "authority_sensitive_coordination_boundary"
+  },
+  "verification": {
+    "focused": "32 passed",
+    "full_v2": "1313 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS"
+  },
+  "exact_head_ci": {
+    "remote_head": "e859ce74a6bb954569e510b4c66cd813c87f9958",
+    "v2_core": {
+      "run_id": 34957018451,
+      "conclusion": "success",
+      "jobs": ["kernel (3.10)", "kernel (3.11)"]
+    },
+    "v2_provider_smoke": {
+      "run_id": 34957018484,
+      "conclusion": "success"
+    }
+  },
+  "not_claimed": [
+    "production-code Worker integration",
+    "OS Guardian registration or deployed crash recovery",
+    "D9 real mutation",
+    "MCP wire transport"
+  ],
+  "raw_conversation_saved": false,
+  "credentials_saved": false
+}

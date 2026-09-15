@@ -75,6 +75,7 @@
 - [x] Run the focused tests and confirm the failures are caused by acceptance of expired peers, not test setup errors.
 - [x] Implement the shared freshness check and pass one `now` through each authority decision so maintenance expiry is not a prerequisite for safety.
 - [x] Re-run service/Guardian/coordination tests and confirm normal heartbeat/attach behavior remains unchanged.
+- [x] Centralize the shared live-peer status/lease predicate on `PeerRecord.is_live()` and verify exact lease-boundary rejection through the Guardian and service focused tests; keep Task/Guardian authority and UNKNOWN/reconciliation unchanged. Evidence: [`coordination-live-peer-boundary-refactor-20260915.json`](../../spec/v2/evidence/coordination-live-peer-boundary-refactor-20260915.json).
 
 ---
 
