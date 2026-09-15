@@ -16,6 +16,8 @@ from scripts.devfarm import DevFarmError
 from src.dev_agent.resources.billing_catalog import TRUSTED_RESOURCE_CATALOG
 from src.dev_agent.resources.provider_policy import is_local_provider as _is_local_provider
 from src.dev_agent.resources.qualification import QualificationError, QualificationResolver
+from src.dev_agent.providers.base import ModelProvider
+from src.dev_agent.resources.provider_policy import validate_provider_instance_authority
 
 
 @dataclass(frozen=True)
@@ -182,4 +184,53 @@ class DevFarmActivationPolicy:
         return eligibility.provider_binding_id, eligibility.intelligence_tier
 
 
-__all__ = ["DevFarmActivationPolicy", "DevFarmWorkerEligibility"]
+def validate_worker_provider(
+    provider: ModelProvider,
+) -> tuple[str, str, str, str | None, DevFarmWorkerEligibility]:
+    """Validate one injected Provider against Host admission authority.
+
+    Construction and routing remain separate.  This function only verifies
+    the live instance identity/authority and re-resolves the existing
+    qualification/billing evidence before Worker execution begins.
+    """
+
+    provider_id = getattr(provider, "provider_id", None)
+    model_id = getattr(provider, "model_id", None) or getattr(provider, "model", None)
+    binding_id = getattr(provider, "provider_binding_id", None)
+    tier = getattr(provider, "intelligence_tier", None)
+    tier = getattr(tier, "value", tier)
+    if not isinstance(provider_id, str) or not provider_id.strip():
+        raise DevFarmError("worker provider must expose a non-empty provider_id")
+    if not isinstance(model_id, str) or not model_id.strip():
+        raise DevFarmError("worker provider must expose a non-empty model_id")
+    if not isinstance(binding_id, str) or not binding_id.strip():
+        raise DevFarmError("worker provider must expose a non-empty provider_binding_id")
+    if tier is not None and (not isinstance(tier, str) or not tier.strip()):
+        raise DevFarmError("worker provider intelligence_tier must be a non-empty string or None")
+    normalized_provider = provider_id.strip()
+    normalized_model = model_id.strip()
+    normalized_binding = binding_id.strip()
+    normalized_tier = tier.strip() if isinstance(tier, str) else None
+    try:
+        validate_provider_instance_authority(provider)
+    except ValueError as exc:
+        raise DevFarmError(f"worker provider failed authority validation: {exc}") from exc
+    eligibility = DevFarmActivationPolicy().eligibility_for(
+        normalized_provider,
+        normalized_model,
+        provider_binding_id=normalized_binding,
+    )
+    if not eligibility.eligible:
+        raise DevFarmError(
+            "worker provider is not eligible for external development work: "
+            f"{normalized_provider}/{normalized_binding}/{normalized_model} ({eligibility.reason})"
+        )
+    if normalized_tier is not None and normalized_tier != eligibility.intelligence_tier:
+        raise DevFarmError(
+            "worker provider intelligence tier does not match qualified binding: "
+            f"{normalized_tier} != {eligibility.intelligence_tier}"
+        )
+    return normalized_provider, normalized_model, normalized_binding, normalized_tier, eligibility
+
+
+__all__ = ["DevFarmActivationPolicy", "DevFarmWorkerEligibility", "validate_worker_provider"]

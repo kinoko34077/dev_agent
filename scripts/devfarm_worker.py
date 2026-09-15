@@ -36,8 +36,11 @@ from scripts.devfarm import (
 from src.dev_agent.domain.protocol import ModelRequest
 from src.dev_agent.providers.base import ModelProvider, ProviderError
 from src.dev_agent.providers.host_dispatch import HostProviderDispatch
-from src.dev_agent.resources.provider_policy import validate_provider_instance_authority
-from scripts.devfarm_worker_admission import DevFarmActivationPolicy, DevFarmWorkerEligibility
+from scripts.devfarm_worker_admission import (
+    DevFarmActivationPolicy,
+    DevFarmWorkerEligibility,
+    validate_worker_provider as shared_validate_worker_provider,
+)
 from scripts.devfarm_provider_runtime import build_worker_provider
 from src.dev_agent.security.egress import (
     EgressManifest,
@@ -729,50 +732,10 @@ def _request_task_id(manifest: Mapping[str, Any]) -> str:
     return str(uuid5(NAMESPACE_URL, f"dev_agent.devfarm/{manifest['task_id']}"))
 
 
-def _worker_provider_identity(provider: ModelProvider) -> tuple[str, str, str, str | None]:
-    provider_id = getattr(provider, "provider_id", None)
-    model_id = getattr(provider, "model_id", None) or getattr(provider, "model", None)
-    binding_id = getattr(provider, "provider_binding_id", None)
-    tier = getattr(provider, "intelligence_tier", None)
-    tier = getattr(tier, "value", tier)
-    if not isinstance(provider_id, str) or not provider_id.strip():
-        raise DevFarmError("worker provider must expose a non-empty provider_id")
-    if not isinstance(model_id, str) or not model_id.strip():
-        raise DevFarmError("worker provider must expose a non-empty model_id")
-    if not isinstance(binding_id, str) or not binding_id.strip():
-        raise DevFarmError("worker provider must expose a non-empty provider_binding_id")
-    if tier is not None and (not isinstance(tier, str) or not tier.strip()):
-        raise DevFarmError("worker provider intelligence_tier must be a non-empty string or None")
-    return provider_id.strip(), model_id.strip(), binding_id.strip(), tier.strip() if isinstance(tier, str) else None
-
-
 def _validate_worker_provider(provider: ModelProvider) -> tuple[str, str, str, str | None, DevFarmWorkerEligibility]:
-    provider_id, model_id, binding_id, tier = _worker_provider_identity(provider)
-    # Identity fields (provider_id/model_id/binding_id/tier) can be correct
-    # while the instance itself points at an unapproved endpoint or
-    # credential source — the instance may have been constructed directly
-    # rather than through ProviderDefinition, or mutated afterward.  Re-derive
-    # the same endpoint/credential/adapter-class checks from the live object.
-    try:
-        validate_provider_instance_authority(provider)
-    except ValueError as exc:
-        raise DevFarmError(f"worker provider failed authority validation: {exc}") from exc
-    eligibility = DevFarmActivationPolicy().eligibility_for(
-        provider_id,
-        model_id,
-        provider_binding_id=binding_id,
-    )
-    if not eligibility.eligible:
-        raise DevFarmError(
-            "worker provider is not eligible for external development work: "
-            f"{provider_id}/{binding_id}/{model_id} ({eligibility.reason})"
-        )
-    if tier is not None and tier != eligibility.intelligence_tier:
-        raise DevFarmError(
-            "worker provider intelligence tier does not match qualified binding: "
-            f"{tier} != {eligibility.intelligence_tier}"
-        )
-    return provider_id, model_id, binding_id, tier, eligibility
+    """Backward-compatible alias for Host-owned admission validation."""
+
+    return shared_validate_worker_provider(provider)
 
 
 def run_worker(

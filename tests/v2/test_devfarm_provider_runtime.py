@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import pytest
+
+from scripts.devfarm import DevFarmError
+from scripts.devfarm_worker_admission import validate_worker_provider
 from scripts.devfarm_provider_runtime import build_assigned_providers
 
 
@@ -44,3 +48,8 @@ def test_build_assigned_providers_materializes_only_resumable_worker_tasks() -> 
 
     assert set(providers) == {"worker-ready"}
     assert calls == [("gemini", "gemini-3.6-flash", 30.0, "gemini:worker:free-3")]
+
+
+def test_validate_worker_provider_rejects_an_unidentified_injected_instance() -> None:
+    with pytest.raises(DevFarmError, match="provider must expose a non-empty provider_id"):
+        validate_worker_provider(object())
