@@ -266,7 +266,8 @@ def compose_resource_pool(
         ledger = ResourceLedger(Path(directory) / "resources.sqlite3")
         try:
             concrete: list[ModelProvider] = []
-            for binding, qualification, profile in admitted:
+            resolved_admissions: list[Any | None] = []
+            for binding, qualification, _profile in admitted:
                 model_admission = _resolved_model_admission(
                     binding,
                     model_admission_resolver,
@@ -285,6 +286,29 @@ def compose_resource_pool(
                     # Planner or Reviewer cannot silently outlive its
                     # benchmark admission window.
                     raise ResourcePoolError("model evidence expired after resource admission")
+                resolved_admissions.append(model_admission)
+
+            # A legacy L1 resource is intentionally allowed to use its exact,
+            # current qualification record when no model-evidence row exists.
+            # Do not pass the optional resolver to ResourceRouter in that
+            # all-legacy case: the Router's strict resolver mode quite
+            # correctly excludes resources with missing model evidence, which
+            # would otherwise contradict the L1 admission contract above.
+            # Mixed pools are rejected rather than weakening model evidence
+            # checks for only part of a composed pool.
+            has_legacy_l1 = any(model_admission is None for model_admission in resolved_admissions)
+            has_model_evidence = any(model_admission is not None for model_admission in resolved_admissions)
+            if has_legacy_l1 and has_model_evidence:
+                raise ResourcePoolError("model evidence is incomplete for a mixed resource pool")
+            router_model_admission_resolver = (
+                None if has_legacy_l1 else model_admission_resolver
+            )
+
+            for (binding, qualification, profile), model_admission in zip(
+                admitted,
+                resolved_admissions,
+                strict=True,
+            ):
                 effective_capabilities = sorted(
                     frozenset(getattr(qualification, "routing_capabilities", ()))
                     & (
@@ -336,7 +360,7 @@ def compose_resource_pool(
                 router_factory(
                     ledger,
                     qualification_resolver=resolver,
-                    model_admission_resolver=model_admission_resolver,
+                    model_admission_resolver=router_model_admission_resolver,
                 ),
                 BudgetGovernor(ledger, policy),
             )

@@ -1,8 +1,10 @@
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 
 from scripts.devfarm_resource_pool import ResourcePoolError, compose_resource_pool
+from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.operation import OperationProviderBinding
 from src.dev_agent.resources.billing_catalog import profile_for
 from src.dev_agent.resources.model_admission import ModelAdmissionResolver
@@ -30,6 +32,11 @@ class _Provider:
 
     def request(self, _request):  # pragma: no cover - composition does not call providers
         raise AssertionError("provider must not be called during pool composition")
+
+
+class _RespondingProvider(_Provider):
+    def request(self, _request):  # pragma: no cover - execution is injected
+        raise AssertionError("the focused route test uses the dispatcher callback")
 
 
 def _binding() -> OperationProviderBinding:
@@ -69,6 +76,42 @@ def test_composition_accepts_exact_qualified_l1_without_model_evidence(monkeypat
     assert resource is not None
     assert resource["metadata"]["intelligence_tier"] == "L1"
     assert resource["capabilities"] == ("text",)
+
+
+def test_composition_routes_legacy_qualified_l1_without_model_evidence(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-only-secret")
+    qualification = _QualificationResolver("L1").resolve("openrouter", "openrouter:free", "openrouter/free")
+    profile = profile_for("openrouter", "openrouter:free", "openrouter/free")
+    request = ModelRequest(
+        task_id=str(uuid4()),
+        messages=[{"role": "user", "content": "bounded test"}],
+        requested_capabilities=["text"],
+        metadata={
+            "intelligence_routing": "bounded",
+            "allowed_intelligence_tiers": ["L1"],
+            "allow_unknown_quota": True,
+        },
+    )
+
+    with compose_resource_pool(
+        ((_binding(), qualification, profile),),
+        resolver=_QualificationResolver("L1"),
+        model_admission_resolver=_missing_model_evidence_resolver(),
+        provider_builder=lambda *, binding: _RespondingProvider(),
+    ) as runtime:
+        response = runtime.dispatcher.request_with_execution(
+            request,
+            execute=lambda provider, _request, _late: ModelResponse(
+                provider=provider.provider_id,
+                model=provider.model_id,
+                parts=["ok"],
+                usage={"cost_minor": 0},
+            ),
+        )
+
+    assert response.provider == "openrouter"
+    assert response.model == "openrouter/free"
+    assert response.parts == ["ok"]
 
 
 def test_composition_rejects_l2_when_model_evidence_disappears():
