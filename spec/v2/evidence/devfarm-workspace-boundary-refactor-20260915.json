@@ -1,0 +1,58 @@
+{
+  "evidence_id": "devfarm-workspace-boundary-refactor-20260915",
+  "status": "VERIFIED",
+  "observed_at": "2026-09-15",
+  "implementation_commit": "599695624192108a504208ef5ef24ce206cca7b8",
+  "implementation_message": "refactor: isolate devfarm workspace operations",
+  "scope": {
+    "new_boundary": "scripts/devfarm_workspace.py",
+    "compatibility_entrypoint": "scripts/devfarm.py",
+    "moved_operations": [
+      "init_farm",
+      "write_manifest",
+      "write_result",
+      "prepare_worktree"
+    ],
+    "consumer_boundary": "DevFarm internal consumers import workspace operations directly; scripts.devfarm remains an operator and compatibility entrypoint",
+    "architecture": "No new scheduler, provider, verification, integration, or authority implementation was introduced"
+  },
+  "authority_invariants": [
+    "Commander ownership and dependency authority remain unchanged",
+    "Host Verification remains the only verification authority",
+    "protected path, Egress, approval, and integration boundaries remain unchanged",
+    "UNKNOWN and reconciliation semantics remain unchanged",
+    "D9 remains proposal-only"
+  ],
+  "worker": {
+    "production_task_attempted": 0,
+    "codex_direct_implementation_count": 1,
+    "codex_direct_implementation_reason": "cross_cutting_host_workspace_boundary"
+  },
+  "verification": {
+    "focused": "32 passed",
+    "full_v2": "1301 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS"
+  },
+  "exact_head_ci": {
+    "remote_head": "599695624192108a504208ef5ef24ce206cca7b8",
+    "v2_core": {
+      "run_id": 34949513066,
+      "conclusion": "success",
+      "jobs": ["kernel (3.10)", "kernel (3.11)"]
+    },
+    "v2_provider_smoke": {
+      "run_id": 34949513069,
+      "conclusion": "success"
+    }
+  },
+  "not_claimed": [
+    "production-code Worker integration",
+    "OS Guardian registration or deployed crash recovery",
+    "D9 real mutation",
+    "MCP wire transport"
+  ],
+  "raw_conversation_saved": false,
+  "credentials_saved": false
+}
