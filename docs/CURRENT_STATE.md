@@ -5,13 +5,13 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Latest implementation commit before documentation sync | `2e290f7` (`refactor: separate worker admission authority`) |
-| Implementation/evidence baseline | `2e290f7` (Host-owned dispatch boundary, bounded Guardian/authority hardening, adaptive refinement composition, shared Worker verification/artifacts, shared Planner/Reviewer pool composition, and separated Worker admission authority) |
+| Latest implementation commit before documentation sync | `f38c185` (`refactor: centralize supervisor plan queries`) |
+| Implementation/evidence baseline | `f38c185` (Host-owned dispatch boundary, bounded Guardian/authority hardening, adaptive refinement composition, shared Worker verification/artifacts, shared Planner/Reviewer pool composition, separated Worker admission authority, and bounded DevFarm responsibility refactors) |
 | Worktree | clean at the current verification checkpoint; this documentation sync records the same checkpoint |
-| Local regression | `1253 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 212.28s) |
+| Local regression | `1263 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 338.92s) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for implementation baseline `e324833`: `v2-core` [run 34916263081](https://github.com/kinoko34077/dev_agent/actions/runs/34916263081) and `v2-provider-smoke` [run 34916263104](https://github.com/kinoko34077/dev_agent/actions/runs/34916263104), covering kernel (3.10), kernel (3.11), and provider-smoke. |
+| Exact-head CI | PASS for implementation baseline `f38c185`: `v2-core` [run 34919445197](https://github.com/kinoko34077/dev_agent/actions/runs/34919445197) and `v2-provider-smoke` [run 34919445339](https://github.com/kinoko34077/dev_agent/actions/runs/34919445339), covering kernel (3.10), kernel (3.11), and provider-smoke. |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
@@ -43,6 +43,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 - Adaptive refinement / Guardian hardening: `scripts/devfarm_refinement.py::plan_refinement()` now exposes the category-to-policy composition without creating a retry loop, and `SubprocessProcessRuntime` bounds cleanup when a Popen result cannot be represented by a valid process handle. Focused and full evidence is recorded in [`adaptive-refinement-guardian-hardening-20260915.json`](../spec/v2/evidence/adaptive-refinement-guardian-hardening-20260915.json).
 - DevFarm responsibility refactor: shared Worker verification/artifact services and Reviewer/Planner Resource Pool composition are now used by their consumers; compatibility aliases remain only at existing local seams, and the architecture check continues to reject cross-DevFarm private imports. Focused/full regression and exact-head CI remain green. See [`devfarm-resource-pool-refactor-20260915.json`](../spec/v2/evidence/devfarm-resource-pool-refactor-20260915.json).
 - Worker admission responsibility refactor: activation, qualification, trusted no-charge billing admission, and local-provider exclusion now live in the protected `scripts/devfarm_worker_admission.py` boundary; Worker execution keeps compatibility imports but does not own its eligibility policy. See [`devfarm-worker-admission-refactor-20260915.json`](../spec/v2/evidence/devfarm-worker-admission-refactor-20260915.json).
+- Additional DevFarm responsibility refactor: read-only plan queries, assigned Provider materialization, Worker prompt composition, and bounded Worker output/metric projection are separated into explicit development-only modules. Commander/Supervisor/Host authority, Egress, Verification, UNKNOWN/reconciliation, and D9 boundaries are unchanged. See [`devfarm-responsibility-refactor-20260915.json`](../spec/v2/evidence/devfarm-responsibility-refactor-20260915.json).
 - Network/authority operator boundary: standard Commander/Supervisor Worker dispatch, Planner, and Critic composition can route through the static Host one-shot process boundary; transport diagnostics preserve sandbox/local/provider categories, per-dispatch Egress Manifest metadata is durably retained without source content, and terminal Commander Plans can be explicitly superseded without erasing in-flight or host-verified work. A read-only Worker egress preflight reports the exact approved provider binding, revision, path digests, and ALLOW decision without contacting a Provider.
 - Guardian operator boundary: `guardian serve` delegates only to existing bounded reconciliation at a default six-second cadence, while the Windows Task Scheduler registration command is static and dry-run by default. No OS registration, deployed crash recovery, or arbitrary command execution is claimed.
 
@@ -104,6 +105,7 @@ and the compact operational procedure is [`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_D
 - Adaptive refinement / Guardian hardening: [`adaptive-refinement-guardian-hardening-20260915.json`](../spec/v2/evidence/adaptive-refinement-guardian-hardening-20260915.json)
 - DevFarm shared pool/refactor checkpoint: [`devfarm-resource-pool-refactor-20260915.json`](../spec/v2/evidence/devfarm-resource-pool-refactor-20260915.json)
 - DevFarm Worker admission refactor checkpoint: [`devfarm-worker-admission-refactor-20260915.json`](../spec/v2/evidence/devfarm-worker-admission-refactor-20260915.json)
+- DevFarm responsibility refactor checkpoint: [`devfarm-responsibility-refactor-20260915.json`](../spec/v2/evidence/devfarm-responsibility-refactor-20260915.json)
 - Planner live D1 / D2 development evidence: [`planner-l2-live-d1-20260914.json`](../spec/v2/evidence/planner-l2-live-d1-20260914.json), [`planner-to-worker-e2e-20260914.json`](../spec/v2/evidence/planner-to-worker-e2e-20260914.json)
 - Supplemental D2, D3, D6, and D7 observations: [`d2-dogfood-doc-note-20260914.json`](../spec/v2/evidence/d2-dogfood-doc-note-20260914.json), [`d3-worker-reliability-observation-20260914.json`](../spec/v2/evidence/d3-worker-reliability-observation-20260914.json), [`reviewer-shadow-20260914.json`](../spec/v2/evidence/reviewer-shadow-20260914.json), [`reviewer-shadow-20260914-02.json`](../spec/v2/evidence/reviewer-shadow-20260914-02.json), [`d7-codexless-candidate-20260914.json`](../spec/v2/evidence/d7-codexless-candidate-20260914.json)
 - Model catalog and pool observations: [`spec/v2/evidence/`](../spec/v2/evidence/)

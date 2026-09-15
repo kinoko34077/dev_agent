@@ -1,0 +1,58 @@
+{
+  "evidence_id": "devfarm-responsibility-refactor-20260915",
+  "status": "verified",
+  "scope": "bounded development-only responsibility separation",
+  "implementation_baseline_before_documentation_sync": "f38c1858889baf7b0893da55e3701a4cbd7dfc46",
+  "implementation_commits": [
+    "c98ce23dea30e161544aa880f02dd81b502d6fe0",
+    "b669c993cb6f6aa5700d2bf65e3be9244d6ab901",
+    "29cc476ae7fee0de52fe52c526ac15352c5ded12",
+    "5c43bf7d4d58e48b1cbf4986ac71900c7a11511c",
+    "cd78c2685ad5f735994ac1aa21768b1479d8cb73",
+    "f38c1858889baf7b0893da55e3701a4cbd7dfc46"
+  ],
+  "changes": [
+    "shared read-only plan/task/review/artifact queries",
+    "assigned Worker Provider materialization separated from Supervisor",
+    "Worker prompt construction separated from execution and egress checks",
+    "Worker JSON/status/usage/metric projection separated from execution and verification",
+    "MCP REWORK query uses the shared read-only boundary"
+  ],
+  "authority_preserved": [
+    "Commander Task ownership and dependency state",
+    "Supervisor review and integration authority",
+    "Host Egress Manifest and Provider admission",
+    "Host Verification and UNKNOWN/reconciliation",
+    "D9 proposal-only and approval-bound boundaries"
+  ],
+  "worker": {
+    "production_task_attempted": 0,
+    "codex_direct_implementation_count": 0,
+    "note": "No live Worker dispatch was repeated in this refactor checkpoint because the prior Host outbound WinError 10013 remains an external transport blocker; the refactor targets cross-cutting Host boundaries and compatibility seams."
+  },
+  "focused_verification": {
+    "plan_query_supervisor_mcp": "38 passed",
+    "provider_runtime": "27 passed",
+    "worker_prompt_and_execution": "67 passed",
+    "worker_output_and_metrics": "68 passed"
+  },
+  "full_verification": {
+    "command": "python -m pytest tests/v2 -q",
+    "result": "1263 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS"
+  },
+  "exact_head_ci": {
+    "head": "f38c1858889baf7b0893da55e3701a4cbd7dfc46",
+    "v2-core": {
+      "run_id": 34919445197,
+      "conclusion": "success"
+    },
+    "v2-provider-smoke": {
+      "run_id": 34919445339,
+      "conclusion": "success"
+    }
+  },
+  "raw_conversation_saved": false,
+  "credentials_saved": false
+}
