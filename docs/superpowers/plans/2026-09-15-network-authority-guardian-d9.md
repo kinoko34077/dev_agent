@@ -196,6 +196,7 @@
 - [x] Move ReviewPacket/ReviewDecision normalization into `scripts.devfarm_review_protocol`; keep Supervisor metadata and compatibility exports separate, update consumers, and verify review/D7/D9 semantics. Evidence: [`devfarm-review-contract-refactor-20260915.json`](../../spec/v2/evidence/devfarm-review-contract-refactor-20260915.json).
 - [x] Admit bounded production task classes to the read-only D7 candidate evaluator while retaining all existing safety/evidence gates and official-branch lock. Evidence: [`d7-bounded-production-task-admission-20260915.json`](../../spec/v2/evidence/d7-bounded-production-task-admission-20260915.json).
 - [x] Isolate Supervisor heartbeat/status metadata from Review contracts while retaining the historical compatibility facade and all Supervisor/D7/D9 semantics. Evidence: [`devfarm-supervisor-metadata-refactor-20260915.json`](../../spec/v2/evidence/devfarm-supervisor-metadata-refactor-20260915.json).
+- [x] Isolate Supervisor CLI parsing/operation dispatch behind `scripts.devfarm_supervisor_cli` while retaining the historical `scripts.devfarm_supervisor.main` entrypoint and all Supervisor/D7/D9 semantics. Evidence: [`devfarm-supervisor-cli-refactor-20260915.json`](../../spec/v2/evidence/devfarm-supervisor-cli-refactor-20260915.json).
 - [ ] Continue only with another measured responsibility boundary; do not split `OperationService`, `Controller`, or `ProviderDispatcher` by size alone.
 
 ## Verification and delivery checklist

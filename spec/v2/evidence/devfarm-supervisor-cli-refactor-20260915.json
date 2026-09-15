@@ -1,0 +1,55 @@
+{
+  "evidence_id": "devfarm-supervisor-cli-refactor-20260915",
+  "status": "VERIFIED",
+  "observed_at": "2026-09-15",
+  "implementation_commit": "97a6132c1ac81e064f69f605a5c26639747dd984",
+  "implementation_message": "refactor: isolate supervisor cli adapter",
+  "scope": {
+    "new_boundary": "scripts/devfarm_supervisor_cli.py",
+    "compatibility_boundary": "scripts/devfarm_supervisor.py::main",
+    "moved_responsibility": "Argument parsing and operator command dispatch",
+    "retained_authority": "CodexSupervisedCommanderRun and existing Commander/Host services retain plan, review, rework, approval, integration, and UNKNOWN/reconciliation authority",
+    "commands": ["status", "resume", "run", "review", "rework", "integrate", "ownership", "codexless"]
+  },
+  "invariants": [
+    "Direct python scripts/devfarm_supervisor.py invocation remains supported",
+    "Historical imports of scripts.devfarm_supervisor.main remain supported",
+    "D7 remains candidate-only",
+    "D9 remains proposal-only",
+    "No second scheduler or retry framework was introduced",
+    "No live Provider or external API call was made"
+  ],
+  "worker": {
+    "production_task_attempted": 0,
+    "codex_direct_implementation_count": 1,
+    "codex_direct_implementation_reason": "cross_cutting_supervisor_cli_authority_boundary"
+  },
+  "verification": {
+    "focused": "39 passed",
+    "full_v2": "1308 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS",
+    "direct_cli_help": "PASS"
+  },
+  "exact_head_ci": {
+    "remote_head": "97a6132c1ac81e064f69f605a5c26639747dd984",
+    "v2_core": {
+      "run_id": 34955223894,
+      "conclusion": "success",
+      "jobs": ["kernel (3.10)", "kernel (3.11)"]
+    },
+    "v2_provider_smoke": {
+      "run_id": 34955223277,
+      "conclusion": "success"
+    }
+  },
+  "not_claimed": [
+    "live production-code Worker integration",
+    "OS Guardian registration or deployed crash recovery",
+    "D9 real mutation",
+    "MCP wire transport"
+  ],
+  "raw_conversation_saved": false,
+  "credentials_saved": false
+}
