@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-09-16",
+  "status": "LIVE_EXTERNAL_NOT_VERIFIED",
+  "scope": "Phase 8 Stage 5 multi-role production implementation attempts",
+  "base_revisions": [
+    {
+      "run_id": "phase8-live-multirole-r2-20260916",
+      "base_revision": "905f0930e4059b19fbe79bd1cd3f832fbb6df5d8",
+      "provider": "gemini",
+      "binding": "gemini:worker:free-3",
+      "model": "gemini-3.5-flash-lite",
+      "worker_dispatch_count": 2,
+      "worker_integrated_count": 0,
+      "codex_direct_implementation_count": 0,
+      "failure_categories": [
+        "sandbox_network_denied",
+        "reconciliation_required"
+      ],
+      "provider_request_sent": false,
+      "replayed": false
+    },
+    {
+      "run_id": "phase8-live-multirole-cf-20260916",
+      "base_revision": "905f0930e4059b19fbe79bd1cd3f832fbb6df5d8",
+      "provider": "cloudflare",
+      "binding": "cloudflare",
+      "model": "@cf/meta/llama-3.1-8b-instruct",
+      "worker_dispatch_count": 2,
+      "worker_integrated_count": 0,
+      "codex_direct_implementation_count": 0,
+      "failure_categories": [
+        "patch_format_failure",
+        "host_verification_failure"
+      ],
+      "provider_request_sent": true,
+      "replayed": false
+    },
+    {
+      "run_id": "phase8-live-multirole-cf-rework-20260916",
+      "base_revision": "905f0930e4059b19fbe79bd1cd3f832fbb6df5d8",
+      "provider": "cloudflare",
+      "binding": "cloudflare",
+      "model": "@cf/meta/llama-3.1-8b-instruct",
+      "worker_dispatch_count": 2,
+      "worker_integrated_count": 0,
+      "codex_direct_implementation_count": 0,
+      "failure_categories": [
+        "patch_format_failure",
+        "host_verification_failure"
+      ],
+      "provider_request_sent": true,
+      "replayed": false,
+      "rework_rounds": 1
+    },
+    {
+      "run_id": "phase8-live-multirole-or-20260916",
+      "base_revision": "905f0930e4059b19fbe79bd1cd3f832fbb6df5d8",
+      "provider": "openrouter",
+      "binding": "openrouter:free",
+      "model": "openrouter/free",
+      "worker_dispatch_count": 2,
+      "worker_integrated_count": 0,
+      "codex_direct_implementation_count": 0,
+      "failure_categories": [
+        "provider_decode",
+        "timeout",
+        "reconciliation_required"
+      ],
+      "provider_request_sent": true,
+      "replayed": false
+    },
+    {
+      "run_id": "phase8-live-multirole-r3-20260916",
+      "base_revision": "db3d6fd5c2c4bf3badb5365be2c9549d310cadf8",
+      "provider": "cloudflare",
+      "binding": "cloudflare",
+      "model": "@cf/meta/llama-3.1-8b-instruct",
+      "worker_dispatch_count": 2,
+      "worker_integrated_count": 0,
+      "codex_direct_implementation_count": 0,
+      "failure_categories": [
+        "model_output_invalid",
+        "json_syntax"
+      ],
+      "provider_request_sent": true,
+      "replayed": false,
+      "usage": {
+        "recorded": true,
+        "raw_prompt_and_response_saved": false
+      }
+    },
+    {
+      "run_id": "phase8-live-multirole-r4-20260916",
+      "base_revision": "9396272e12e66bb92e4c79261c4b8545cb15d2c7",
+      "provider": "cloudflare",
+      "binding": "cloudflare",
+      "model": "@cf/meta/llama-3.1-8b-instruct",
+      "worker_dispatch_count": 0,
+      "worker_integrated_count": 0,
+      "codex_direct_implementation_count": 0,
+      "failure_categories": [
+        "host_egress_escalation_rejected"
+      ],
+      "provider_request_sent": false,
+      "replayed": false,
+      "external_effect": "none"
+    }
+  ],
+  "host_hardening": {
+    "host_generated_patch": true,
+    "accepted_replacement_forms": [
+      "bounded_text",
+      "bounded_line_array"
+    ],
+    "validator_relaxed": false,
+    "new_retry_loop": false,
+    "raw_provider_output_persisted": false
+  },
+  "local_stage5": {
+    "status": "LOCAL_DETERMINISTIC_VERIFIED",
+    "evidence": "phase8-multirole-runtime-20260916.json",
+    "implementer_tasks": 2,
+    "independent_host_verification": true,
+    "reviewer_integration_authority": false,
+    "codex_direct_implementation_count": 0
+  },
+  "live_acceptance": {
+    "worker_integrated_task_count": 0,
+    "codex_direct_implementation_count": 0,
+    "reviewed": false,
+    "integrated": false,
+    "status": "NOT_VERIFIED"
+  },
+  "guardrails": [
+    "UNKNOWN external effects were not resent",
+    "no automatic L1 downgrade was used",
+    "existing Egress, Host Verification, review, and integration authority was retained",
+    "the failed live plans were superseded rather than reused"
+  ]
+}

@@ -61,7 +61,7 @@ G6O1、paid provider、OpenAI/Claude API、Production auto-deploy、UI、unbound
 - 依存: D2の失敗分類。
 - 目的: `manifest_input_failure`、`new_file_contract_failure`、`patch_format_failure`、`scope_violation`、`provider_failure`、`model_output_invalid`、`host_verification_failure`を分離し、再現した形式障害だけを最小修正する。
 - 完了条件: bounded REWORKとimmutable attemptが機能し、検証を緩めず同種失敗の再発率をEvidenceで比較できる。
-- 現在: malformed Python patchの再発を観測し、Worker promptへ構文完結性・区切り文字バランス・既存ファイル用通常diff・JSON escape契約を追加した。Cloudflare L1では既存ファイルdiff拒否とinvalid JSONを追加観測したが、Validator緩和、無制限retry、成功Evidenceへの算入は行っていない。証拠は[`d3-worker-reliability-observation-20260914.json`](../spec/v2/evidence/d3-worker-reliability-observation-20260914.json)と[`d2-production-worker-output-contract-blocker-20260915.json`](../spec/v2/evidence/d2-production-worker-output-contract-blocker-20260915.json)。
+- 現在: malformed Python patchの再発を観測し、Worker promptへ構文完結性・区切り文字バランス・既存ファイル用通常diff・JSON escape契約を追加した。さらに同じattempt内の限定的な出力正規化として、Hostがexact base revisionとmanifest範囲を再検査したうえで、bounded textまたはline-arrayの全ファイル内容からdiffを生成できるようにした。Validator緩和、無制限retry、成功Evidenceへの算入は行っていない。2026-09-16のStage 5 live試行はGeminiのlocal network policy denial、Cloudflare/OpenRouterのpatch・decode・timeout系失敗、最新Cloudflareの送信前egress拒否で終わり、live integrationは未検証である。証拠は[`d3-worker-reliability-observation-20260914.json`](../spec/v2/evidence/d3-worker-reliability-observation-20260914.json)、[`d2-production-worker-output-contract-blocker-20260915.json`](../spec/v2/evidence/d2-production-worker-output-contract-blocker-20260915.json)、[`phase8-multirole-live-attempts-20260916.json`](../spec/v2/evidence/phase8-multirole-live-attempts-20260916.json)。
 
 ### D4 — Group D concrete session restart/discovery
 
