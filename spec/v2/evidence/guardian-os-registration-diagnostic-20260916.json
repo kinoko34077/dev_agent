@@ -4,10 +4,12 @@
   "operation": "guardian_os_registration_diagnostic",
   "observed_at": "2026-09-16",
   "branch": "v2/bootstrap",
-  "implementation_revision": "4fc9e5ff26d0d9ccb67e7052d07dc34637b4ed93",
+  "implementation_revision": "2876c5e61643124d1479cba12889ac86054f7be2",
   "implementation_boundary": "scripts/devfarm_guardian.py::guardian_os_registration_status",
   "mutation_performed": false,
-  "registration_apply_attempted": false,
+  "registration_apply_attempted": true,
+  "registration_apply_result": "REJECTED",
+  "registration_apply_reason": "access_denied",
   "task_name": "DevAgentGuardian",
   "static_query": {
     "command_family": "schtasks /Query",
@@ -21,6 +23,8 @@
     "registration_apply_flag_required": true,
     "launcher_uses_absolute_script_path": true,
     "working_directory_independent": true,
+    "task_scheduler_run_command_length": 160,
+    "task_scheduler_run_command_limit": 261,
     "disable_command_static": ["schtasks.exe", "/Change", "/TN", "DevAgentGuardian", "/DISABLE"],
     "unregister_command_static": ["schtasks.exe", "/Delete", "/TN", "DevAgentGuardian", "/F"],
     "unregister_default": "DRY_RUN",
@@ -30,23 +34,25 @@
   "environment_observation": {
     "platform": "win32",
     "task_scheduler_service": "RUNNING",
-    "task_registration": "NOT_CONFIRMED",
-    "task_registration_reason": "bounded task query did not find the requested task",
+    "task_registration": "NOT_CONFIGURED",
+    "task_registration_reason": "registration was rejected with access_denied and bounded query found no task",
     "scheduled_task_cmdlet": "UNAVAILABLE_IN_CURRENT_SHELL"
   },
   "guardian_result": {
     "status": "NOT_CONFIGURED",
     "registration": "NOT_CONFIGURED",
-    "config_status": "NOT_PROVIDED",
+    "config_status": "VALIDATED",
     "observed_task_state": "absent",
     "query_performed": true,
     "mutation_performed": false,
-    "os_registration_authority": "guardian_registration --apply"
+    "os_registration_authority": "guardian_registration --apply",
+    "registration_apply_reason": "access_denied"
   },
   "safety": {
-    "config_path": "not_available_in_repository",
-    "registration_blocked_until_human_approval": true,
+    "config_path": "ignored local Host profile under .dev_agent/guardian.json",
+    "registration_approval": "provided_for_bounded_dogfood_attempt",
+    "registration_blocked_by_host_permission": true,
     "no_secret_or_task_scheduler_output_saved": true
   },
-  "next": ["1-A-3", "1-A-4", "1-D-1"]
+  "next": ["1-A-7", "1-B", "1-C", "1-D", "1-E"]
 }
