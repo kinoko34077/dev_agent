@@ -1,0 +1,42 @@
+{
+  "evidence_id": "devfarm-manifest-reader-refactor-20260915",
+  "status": "verified",
+  "observed_at": "2026-09-15",
+  "implementation_baseline_before_documentation_sync": "396b5f8635619b6b695f574d094de6b5936f3de2",
+  "scope": {
+    "shared_reader": "Codex attempt manifest loading and DevFarm orchestrator assignment normalization now use scripts.devfarm_repository.read_json.",
+    "authority": "Manifest validation, attempt identity, Worker dispatch, Host Verification, failure artifact persistence, UNKNOWN/reconciliation, and D9 semantics are unchanged."
+  },
+  "verification": {
+    "focused_tests": "16 passed",
+    "full_tests_v2": "1295 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS"
+  },
+  "exact_head_ci": {
+    "remote_head": "396b5f8635619b6b695f574d094de6b5936f3de2",
+    "v2_core": {
+      "run_id": 34942771450,
+      "conclusion": "success",
+      "jobs": ["kernel (3.10)", "kernel (3.11)"]
+    },
+    "v2_provider_smoke": {
+      "run_id": 34942771483,
+      "conclusion": "success"
+    }
+  },
+  "worker": {
+    "production_task_attempted": 0,
+    "codex_direct_implementation_count": 1,
+    "reason": "Manifest input loading is a cross-cutting Host boundary used by Codex and the parallel orchestrator; no live Worker dispatch was used for this refactor."
+  },
+  "not_claimed": [
+    "production Worker integration",
+    "MCP wire transport",
+    "OS Guardian registration",
+    "D9 real mutation"
+  ],
+  "raw_conversation_saved": false,
+  "credentials_saved": false
+}

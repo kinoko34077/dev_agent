@@ -128,6 +128,7 @@
 - Read-only active-plan and legacy ownership projection now lives in `scripts.devfarm_plan_ownership`; Commander retains locking, cross-plan conflict decisions, and ownership authority. `1291 passed, 1 skipped` and exact-head CI are recorded in [`devfarm-plan-ownership-refactor-20260915.json`](../spec/v2/evidence/devfarm-plan-ownership-refactor-20260915.json).
 - ReviewPacket and Worker now share `scripts.devfarm_repository.read_json` for bounded repository JSON input; duplicate local artifact readers were removed while Host Verification, Egress, approval, UNKNOWN/reconciliation, and D9 authority remain unchanged. `1292 passed, 1 skipped` and exact-head CI are recorded in [`devfarm-artifact-json-reader-refactor-20260915.json`](../spec/v2/evidence/devfarm-artifact-json-reader-refactor-20260915.json).
 - Guardian static profile loading now consumes the same Host-owned repository JSON reader and preserves Guardian-specific type/profile validation. `1293 passed, 1 skipped` and exact-head CI are recorded in [`devfarm-guardian-json-reader-refactor-20260915.json`](../spec/v2/evidence/devfarm-guardian-json-reader-refactor-20260915.json).
+- Codex attempt and parallel DevFarm assignment manifest loading now share the Host repository JSON reader; worker validation, attempt identity, and Host failure semantics remain unchanged. `1295 passed, 1 skipped` and exact-head CI are recorded in [`devfarm-manifest-reader-refactor-20260915.json`](../spec/v2/evidence/devfarm-manifest-reader-refactor-20260915.json).
 
 ### Main Phase 8 / Main Phase 9
 
