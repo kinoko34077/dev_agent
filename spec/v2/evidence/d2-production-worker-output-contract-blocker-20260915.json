@@ -1,0 +1,76 @@
+{
+  "evidence_id": "d2-production-worker-output-contract-blocker-20260915",
+  "observed_at": "2026-09-15",
+  "purpose": "Record the bounded production-code Worker attempts after the existing-file patch-contract clarification without promoting a failed dispatch to D2 success.",
+  "implementation_baseline": "0e26efdc8b0e42af829d319609a00a3e47c4b441",
+  "target": {
+    "production_code": "src/dev_agent/resources/model_catalog.py",
+    "focused_tests": "tests/v2/test_model_catalog_expansion.py",
+    "codex_direct_implementation_count": 0
+  },
+  "attempts": [
+    {
+      "run_id": "d2-production-model-catalog-filter-20260915-cloudflare-r3",
+      "attempt_id": "c7c8e536738548c28f0db591942a2239",
+      "execution_boundary": "host_process",
+      "provider_id": "cloudflare",
+      "model_id": "@cf/meta/llama-3.1-8b-instruct",
+      "status": "HOST_VERIFICATION_FAILED",
+      "failure_category": "host_verification_failure",
+      "patch_generated": true,
+      "patch_accepted": false,
+      "reason": "The Worker returned an existing-file task as new-file diff form and included trailing whitespace; Host patch validation rejected it.",
+      "usage": {
+        "prompt_tokens": 8807,
+        "completion_tokens": 2685,
+        "total_tokens": 11492
+      }
+    },
+    {
+      "run_id": "d2-production-model-catalog-filter-20260915-cloudflare-r4",
+      "attempt_id": "52cae975a27a4ea591d541ef8b26a57e",
+      "execution_boundary": "host_process",
+      "provider_id": "cloudflare",
+      "model_id": "@cf/meta/llama-3.1-8b-instruct",
+      "status": "RECONCILIATION_REQUIRED",
+      "failure_category": "local_network_policy_denied",
+      "patch_generated": false,
+      "patch_accepted": false,
+      "automatic_retry": false,
+      "automatic_failover": false
+    },
+    {
+      "run_id": "d2-production-model-catalog-filter-20260915-cloudflare-r5",
+      "attempt_id": "ff8da73f912e406692b277634ceeecde",
+      "execution_boundary": "host_process",
+      "provider_id": "cloudflare",
+      "model_id": "@cf/meta/llama-3.1-8b-instruct",
+      "status": "MODEL_OUTPUT_INVALID",
+      "failure_category": "model_output_invalid",
+      "patch_generated": false,
+      "patch_accepted": false,
+      "reason": "The sandbox-external Host request reached the provider, but the response was rejected as invalid JSON because of a raw control character.",
+      "usage": {
+        "prompt_tokens": 8963,
+        "completion_tokens": 4096,
+        "total_tokens": 13059
+      }
+    }
+  ],
+  "summary": {
+    "production_worker_tasks_attempted": 3,
+    "production_worker_tasks_integrated": 0,
+    "refinement_rounds": 0,
+    "codex_takeover_count": 0,
+    "provider_model_calls": 2,
+    "input_tokens": 17770,
+    "output_tokens": 6781,
+    "unknown_effect_replayed": false,
+    "unqualified_binding_promoted": false,
+    "raw_provider_payload_saved": false,
+    "credentials_saved": false
+  },
+  "d2_status": "NOT_VERIFIED",
+  "interpretation": "The normal Host-owned dispatch and strict validation boundaries are functioning. The configured Cloudflare L1 is currently not a reliable production patch worker: one attempt produced an invalid patch and the next live attempt produced invalid JSON. No further retry is authorized by this evidence.",
+  "next_condition": "Resume D2 only with a newly qualified/reviewed Worker binding or a separately justified output-transport correction; do not replay these attempts."
+}
