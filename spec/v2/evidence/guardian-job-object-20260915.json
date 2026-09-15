@@ -1,0 +1,38 @@
+{
+  "evidence_id": "guardian-job-object-20260915",
+  "observed_at": "2026-09-15",
+  "purpose": "Verify the Windows Guardian process-ownership boundary with a real bounded Guardian subprocess and managed child.",
+  "implementation_baseline": "2f53231",
+  "platform": "Windows",
+  "test": "tests/v2/test_process_coordination_execution.py::test_windows_job_object_ends_managed_child_when_guardian_process_dies",
+  "result": {
+    "guardian_started": true,
+    "managed_child_started": true,
+    "guardian_terminated": true,
+    "managed_child_pid_absent_after_guardian_termination": true,
+    "managed_child_completion_marker_present": false,
+    "duplicate_orphan_process_observed": false
+  },
+  "ownership": {
+    "adapter": "WindowsJobObjectOwnership",
+    "policy": "KILL_ON_JOB_CLOSE",
+    "pid_only_rediscovery": false,
+    "arbitrary_command": false
+  },
+  "verification": {
+    "focused": "PASS",
+    "full_tests_v2": "1279 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head_ci": {
+      "remote_head": "2f53231",
+      "v2_core": "34929284912",
+      "v2_provider_smoke": "34929285097",
+      "result": "PASS"
+    }
+  },
+  "limits": [
+    "This verifies local Windows child ownership only; it does not verify OS Task Scheduler registration, deployed Guardian crash recovery, or D9 real mutation.",
+    "No process output or credentials were retained."
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "evidence_id": "d2-production-worker-reconciliation-20260915-cloudflare",
+  "observed_at": "2026-09-15T13:13:48+09:00",
+  "purpose": "Record a distinct bounded production-code Worker dispatch through the Cloudflare Free lane without replaying the earlier OpenRouter UNKNOWN operation or inflating D2 success.",
+  "implementation_baseline": "eb15046",
+  "run_id": "d2-production-model-discovery-text-filter-20260915-cloudflare",
+  "attempt_id": "40e4600c313d4937b1b62c0c23078fcc",
+  "target": {
+    "production_code_target": "src/dev_agent/providers/model_discovery.py",
+    "test_target": "tests/v2/test_model_catalog_admission.py",
+    "ownership": [
+      "src/dev_agent/providers/model_discovery.py",
+      "tests/v2/test_model_catalog_admission.py"
+    ],
+    "codex_direct_implementation_count": 0
+  },
+  "worker": {
+    "provider_id": "cloudflare",
+    "provider_binding_id": "cloudflare",
+    "model_id": "@cf/meta/llama-3.1-8b-instruct",
+    "intelligence_tier": "L1",
+    "execution_boundary": "host_process",
+    "request_id": "17baaeda-293d-40db-973d-119240639950",
+    "attempt_count": 1,
+    "patch_generated": false,
+    "changed_files": [],
+    "host_verified": false,
+    "integrated": false,
+    "refinement_rounds": 0,
+    "usage": {}
+  },
+  "outcome": {
+    "status": "FAILED_RECONCILIATION_REQUIRED",
+    "provider_failure_category": "reconciliation_required",
+    "transport_failure_category": null,
+    "known_issue": "Host provider runtime rejected the dispatch",
+    "interpretation": "The external outcome was not safely knowable after Host dispatch. This is not model-output, patch-format, or qualification evidence.",
+    "automatic_retry": false,
+    "automatic_failover": false,
+    "codex_takeover": false,
+    "raw_provider_payload_saved": false,
+    "credentials_saved": false
+  },
+  "verification_baseline": {
+    "tests_v2": "1279 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head_ci": {
+      "remote_head": "2f53231",
+      "v2_core": "34929284912",
+      "v2_provider_smoke": "34929285097",
+      "result": "PASS"
+    }
+  },
+  "d2_status": "NOT_VERIFIED",
+  "notes": [
+    "The existing D1/D2 success evidence remains valid and is not replaced by this failed production-code attempt.",
+    "A new operation is required for any later Worker attempt; this UNKNOWN operation must not be replayed blindly."
+  ]
+}

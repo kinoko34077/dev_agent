@@ -31,7 +31,7 @@
 - 依存: D1。
 - 目的: Hostがvalidated proposalをDevelopmentPlanningBridgeでCommander Plan候補へ変換し、既知のqualified Free L1 Workerへ狭いchildを委譲する。
 - 完了条件: Plan永続化、Worker実装、Host Verification、ReviewPacket、Codex review、deterministic Host integration、exact revision、focused/full/CI Evidence。既存Evidence: [`planner-to-worker-e2e-20260914.json`](../spec/v2/evidence/planner-to-worker-e2e-20260914.json)。次の未完了受入条件は、通常Host process境界を使ったproduction `src/`/`scripts/` Worker taskのWorker-originated integrationであり、対象childのCodex direct implementationは0件とする。
-- 不変条件: `CODE_INTEGRATED`を保持し、未対応dependency typeはfail-closed。対象childのCodex直接実装は成功Evidenceに含めない。2026-09-15には通常Host process境界からproduction `src/` taskをOpenRouter free laneへ一度委譲したが、patch生成前に`reconciliation_required`へ閉じたため、再送せずD2成功へ算入していない。証拠は[`d2-production-worker-reconciliation-20260915.json`](../spec/v2/evidence/d2-production-worker-reconciliation-20260915.json)。
+- 不変条件: `CODE_INTEGRATED`を保持し、未対応dependency typeはfail-closed。対象childのCodex直接実装は成功Evidenceに含めない。2026-09-15には通常Host process境界からproduction `src/` taskをOpenRouter free lane、続いてCloudflare free laneへ独立委譲したが、いずれもpatch生成前に`reconciliation_required`へ閉じたため、再送せずD2成功へ算入していない。証拠は[`d2-production-worker-reconciliation-20260915.json`](../spec/v2/evidence/d2-production-worker-reconciliation-20260915.json)と[`d2-production-worker-reconciliation-20260915-cloudflare.json`](../spec/v2/evidence/d2-production-worker-reconciliation-20260915-cloudflare.json)。
 
 ### D3 — Worker reliability hardening
 
@@ -89,7 +89,7 @@
 - 検証: Work Address/Resume/egress/ControlRequest/Guardianのfocused testと全`tests/v2`回帰、Architecture、compileallを通過。Guardian action journalの詳細とexact-head CIは[`guardian-action-journal-20260914.json`](../spec/v2/evidence/guardian-action-journal-20260914.json)、基礎全体の証拠は[`coordination-work-egress-foundation-20260914.json`](../spec/v2/evidence/coordination-work-egress-foundation-20260914.json)。
 - G1〜G5実装済み: Guardianの静的profileによるSTART/STOP/RESTART、graceful drain/checkpoint、revision-pinned runtime release、rolling restart、last-known-good rollback composition。deterministic fake/local runtimeのfault testに加えて、G1の実ローカルsubprocess START/STOPをfull regressionで検証し、UNKNOWN結果はreconciliation-requiredとして再送しない。証拠は[`guardian-fault-drill-20260915.json`](../spec/v2/evidence/guardian-fault-drill-20260915.json)と[`guardian-real-local-process-20260915.json`](../spec/v2/evidence/guardian-real-local-process-20260915.json)。
 - 未実装/未検証: OS Service/Task Schedulerへの常駐接続、配備後Guardian crash recovery、実processのrolling/rollback運用、D9 official runtime mutation。これらを実証するまでD9 real mutationを解放しない。
-- 追加の安全境界: 標準Worker/Planner/CriticのHost process dispatch、per-dispatch Egress Manifest、transport failure category保持、明示的terminal Plan supersession、有限6秒Guardian serve、静的Task Scheduler registration dry-runを実装・ローカル検証した。OS登録の実適用、配備後crash recovery、実production Worker成功は未検証であり、`WinError 10013`はモデル能力ではなく外部transport blockerとして扱う。
+- 追加の安全境界: 標準Worker/Planner/CriticのHost process dispatch、per-dispatch Egress Manifest、transport failure category保持、bounded Host failure diagnostics、明示的terminal Plan supersession、有限6秒Guardian serve、静的Task Scheduler registration dry-runを実装・ローカル検証した。Windows Job Objectによるmanaged child ownershipも実processで確認した。OS登録の実適用、配備後crash recovery、実production Worker成功は未検証であり、`WinError 10013`および`reconciliation_required`はモデル能力ではなく外部transport/effect不確実性として扱う。
 
 ### D10C/G1 — Guardian static process execution
 
