@@ -187,10 +187,10 @@ def guardian_registration(
     config = Path(config_path).resolve()
     data = Path(data_dir).resolve()
     profiles = load_launch_profiles(config)
+    script_path = Path(__file__).resolve()
     command = [
         sys.executable,
-        "-m",
-        "scripts.devfarm_guardian",
+        str(script_path),
         "serve",
         "--config",
         str(config),

@@ -88,7 +88,8 @@ def test_guardian_registration_is_static_dry_run_by_default(tmp_path):
     assert result["status"] == "DRY_RUN"
     assert result["registration"] == "NOT_APPLIED"
     assert result["task_name"] == "DevAgentGuardian"
-    assert result["command"][1:4] == ["-m", "scripts.devfarm_guardian", "serve"]
+    assert result["command"][1] == str(guardian_module.Path(guardian_module.__file__).resolve())
+    assert result["command"][2] == "serve"
     assert "--poll-seconds" in result["command"]
     assert result["arbitrary_command"] is False
     assert result["recovery"]["disable_command"] == [
