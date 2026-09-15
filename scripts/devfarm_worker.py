@@ -733,10 +733,13 @@ def run_worker(
             {"role": "system", "content": "Return the bounded development-worker result as JSON only."},
             {"role": "user", "content": _prompt(manifest, inputs, egress_manifest=egress_manifest)},
         ],
+        requested_capabilities=["text"],
         metadata={
             "devfarm_task_id": manifest["task_id"],
             "egress_manifest_sha256": egress_manifest.manifest_sha256,
+            "intelligence_routing": "bounded",
             "allowed_intelligence_tiers": [worker_tier],
+            **({"allow_unknown_quota": True} if _eligibility.billing_admitted else {}),
         },
         max_output_tokens=4096,
     )

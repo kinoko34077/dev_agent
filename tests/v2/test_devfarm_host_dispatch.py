@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.operation import OperationProviderBinding
 from src.dev_agent.providers.host_dispatch import HostDispatchEnvelope
+from src.dev_agent.resources.control import DispatchDenied
 import scripts.devfarm_host_dispatch as host_dispatch
 from scripts.devfarm_host_dispatch import process_once
 
@@ -87,6 +88,29 @@ def test_host_runtime_projects_unexpected_failure_as_bounded_reconciliation(tmp_
         "category": "host_runtime_failure",
         "reconciliation_required": True,
         "exception_type": "RuntimeError",
+    }
+    assert json.loads(response_path.read_text(encoding="utf-8")) == result
+
+
+def test_host_runtime_preserves_local_dispatch_denial_without_falsely_marking_unknown(tmp_path, monkeypatch):
+    request_path = tmp_path / "request.json"
+    response_path = tmp_path / "response.json"
+    request_path.write_text(json.dumps(_envelope().to_dict()), encoding="utf-8")
+
+    def deny_before_external_effect(_envelope):
+        raise DispatchDenied("no_route", "no eligible resource")
+
+    monkeypatch.setattr(host_dispatch, "_dispatch_configured", deny_before_external_effect)
+
+    result = process_once(request_path, response_path)
+
+    assert result == {
+        "status": "failed",
+        "category": "no_route",
+        "retryable": False,
+        "failover_safe": False,
+        "reconciliation_required": False,
+        "http_status": None,
     }
     assert json.loads(response_path.read_text(encoding="utf-8")) == result
 

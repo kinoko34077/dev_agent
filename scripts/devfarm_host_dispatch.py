@@ -31,6 +31,7 @@ from src.dev_agent.providers.host_dispatch import (
     HostProviderDispatch,
 )
 from src.dev_agent.resources.qualification import QualificationResolver
+from src.dev_agent.resources.control import DispatchDenied
 from src.dev_agent.resources.model_candidates import materialize_provider_bindings
 from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
 
@@ -191,6 +192,18 @@ def process_once(
         preserved = getattr(exc, "transport_failure_category", None)
         if isinstance(preserved, str):
             result["transport_failure_category"] = preserved
+    except DispatchDenied as exc:
+        # Resource admission and routing denials happen before the concrete
+        # Provider is entered. Preserve that local, confirmed failure instead
+        # of projecting it as an UNKNOWN external effect.
+        result = {
+            "status": "failed",
+            "category": exc.category,
+            "retryable": False,
+            "failover_safe": False,
+            "reconciliation_required": False,
+            "http_status": None,
+        }
     except (HostDispatchRuntimeError, TypeError, ValueError) as exc:
         result = {
             "status": "rejected",

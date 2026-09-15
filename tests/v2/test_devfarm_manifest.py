@@ -35,6 +35,16 @@ class _MismatchedResponseProvider(_WorkerProvider):
         )
 
 
+class _CapturingWorkerProvider(_WorkerProvider):
+    def __init__(self, output):
+        super().__init__(output)
+        self.requests = []
+
+    def request(self, request):
+        self.requests.append(request)
+        return super().request(request)
+
+
 def test_devfarm_provider_uses_factory_and_explicit_activation_allowlist():
     policy = DevFarmActivationPolicy()
     assert not policy.is_active("cloudflare")
@@ -184,6 +194,30 @@ def test_run_worker_rejects_response_identity_mismatch(tmp_path):
     assert result["status"] == "failed"
     assert result["changed_files"] == []
     assert "identity mismatch" in result["known_issues"][0]
+
+
+def test_run_worker_marks_host_admitted_free_request_for_bounded_unknown_quota_bootstrap(tmp_path):
+    root, manifest_path = _workspace(tmp_path, prepare=False)
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": False,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": _patch(),
+        "notes": "bounded request metadata",
+    }
+    provider = _CapturingWorkerProvider(output)
+
+    result = run_worker(root, manifest_path, provider=provider)
+
+    assert result["status"] == "completed"
+    request = provider.requests[0]
+    assert request.requested_capabilities == ["text"]
+    assert request.metadata["intelligence_routing"] == "bounded"
+    assert request.metadata["allowed_intelligence_tiers"] == ["L1"]
+    assert request.metadata["allow_unknown_quota"] is True
 
 
 def test_worker_prompt_makes_patch_and_test_claim_boundaries_explicit(tmp_path):
