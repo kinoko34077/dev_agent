@@ -24,11 +24,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from scripts.devfarm_errors import DevFarmError
+from scripts.devfarm_repository import read_json
 from src.dev_agent.security.protected_paths import PROTECTED_AUTHORITY_PATHS, is_protected_path
-
-
-class DevFarmError(ValueError):
-    """A development-farm manifest or result is unsafe or malformed."""
 
 
 def sha256_text(value: str) -> str:
@@ -602,13 +600,6 @@ def prepare_worktree(root: str | Path, *, task_id: str, branch: str, revision: s
     return worktree
 
 
-def _read_json(path: Path) -> Any:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise DevFarmError(f"could not read JSON file {path}: {exc}") from exc
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -681,15 +672,15 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "prepare-worktree":
             print(prepare_worktree(args.root, task_id=args.task_id, branch=args.branch, revision=args.revision))
         elif args.command == "validate-manifest":
-            print(json.dumps(validate_manifest(_read_json(args.path)), ensure_ascii=False, indent=2))
+            print(json.dumps(validate_manifest(read_json(args.path)), ensure_ascii=False, indent=2))
         elif args.command == "validate-result":
-            normalized_manifest = validate_manifest(_read_json(args.manifest))
-            normalized_result = validate_result(_read_json(args.path), manifest=normalized_manifest)
+            normalized_manifest = validate_manifest(read_json(args.manifest))
+            normalized_result = validate_result(read_json(args.path), manifest=normalized_manifest)
             print(json.dumps(normalized_result, ensure_ascii=False, indent=2))
         elif args.command == "plan":
             from scripts.devfarm_commander import create_plan
 
-            print(json.dumps(create_plan(args.root, _read_json(args.spec)), ensure_ascii=False, indent=2))
+            print(json.dumps(create_plan(args.root, read_json(args.spec)), ensure_ascii=False, indent=2))
         elif args.command == "dispatch":
             from scripts.devfarm_commander import dispatch_cli
 

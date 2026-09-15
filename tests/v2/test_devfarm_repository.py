@@ -4,8 +4,15 @@ from pathlib import Path
 
 import pytest
 
+import scripts.devfarm as devfarm_module
 from scripts.devfarm import DevFarmError
-from scripts.devfarm_repository import read_bounded_json, repository_path
+from scripts.devfarm_errors import DevFarmError as SharedDevFarmError
+from scripts.devfarm_repository import read_bounded_json, read_json, repository_path
+
+
+def test_devfarm_cli_uses_neutral_error_and_shared_json_reader():
+    assert DevFarmError is SharedDevFarmError
+    assert devfarm_module.read_json is read_json
 
 
 def test_repository_path_keeps_development_artifacts_under_the_requested_parent(tmp_path: Path):

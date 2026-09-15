@@ -13,7 +13,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from scripts.devfarm import DevFarmError
+from scripts.devfarm_errors import DevFarmError
 
 
 def read_json(path: str | Path) -> Any:
