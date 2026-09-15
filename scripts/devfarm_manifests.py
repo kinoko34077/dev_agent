@@ -6,7 +6,8 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from scripts.devfarm import DevFarmError, validate_manifest
+from scripts.devfarm_contracts import validate_manifest
+from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_repository import read_json, repository_path
 
 

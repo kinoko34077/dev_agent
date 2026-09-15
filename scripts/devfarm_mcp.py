@@ -12,7 +12,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from scripts.devfarm import DevFarmError
+from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_artifacts import artifact_reference
 from scripts.devfarm_plan_queries import latest_rework_decision
 from scripts.devfarm_resume import providers_for_resume

@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
-from scripts.devfarm import DevFarmError
+from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_codex import run_codex_attempt
 from src.dev_agent.backends.protocol import AgentBackend
 from src.dev_agent.compression import (

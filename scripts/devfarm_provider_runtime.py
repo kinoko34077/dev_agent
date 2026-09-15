@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 
-from scripts.devfarm import DevFarmError
+from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_worker_admission import DevFarmActivationPolicy
 from src.dev_agent.providers.base import ModelProvider
 from src.dev_agent.providers.factory import ProviderDefinition, ProviderFactory

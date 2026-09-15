@@ -19,20 +19,19 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.devfarm import (
-    DevFarmError,
+from scripts.devfarm import prepare_worktree, write_result
+from scripts.devfarm_contracts import (
     VERIFICATION_TRUST_LEVELS,
     canonical_digest,
-    is_protected_path,
     normalize_patch_hunk_counts,
     parse_host_test_command,
-    prepare_worktree,
     sha256_text,
     validate_manifest,
     validate_patch,
     validate_result,
-    write_result,
 )
+from scripts.devfarm_errors import DevFarmError
+from src.dev_agent.security.protected_paths import is_protected_path
 from src.dev_agent.domain.protocol import ModelRequest
 from src.dev_agent.providers.base import ModelProvider, ProviderError
 from src.dev_agent.providers.host_dispatch import HostProviderDispatch

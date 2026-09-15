@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.devfarm import DevFarmError
+from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_repository import read_json
 from src.dev_agent.coordination.guardian import GuardianActionService
 from src.dev_agent.coordination.guardian_process import LaunchProfile

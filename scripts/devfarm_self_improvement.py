@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.devfarm import DevFarmError
+from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_artifacts import write_immutable_text
 from scripts.devfarm_repository import read_bounded_json
 from scripts.devfarm_supervisor import CodexSupervisedCommanderRun

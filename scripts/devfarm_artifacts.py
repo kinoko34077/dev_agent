@@ -8,7 +8,8 @@ from pathlib import Path
 from typing import Any, Mapping
 from uuid import uuid4
 
-from scripts.devfarm import DevFarmError, validate_manifest, validate_result
+from scripts.devfarm_contracts import validate_manifest, validate_result
+from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_repository import read_json
 from src.dev_agent.security.audit import AuditRecorder
 

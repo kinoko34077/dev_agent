@@ -17,7 +17,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 
-from scripts.devfarm import DevFarmError
+from scripts.devfarm_errors import DevFarmError
 from src.dev_agent.operation import OperationProviderBinding, configured_provider_pool_from_environment
 from src.dev_agent.providers.base import ModelProvider
 from src.dev_agent.providers.dispatch import ProviderDispatcher, ProviderRegistry

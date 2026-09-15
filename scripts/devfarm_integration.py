@@ -18,14 +18,14 @@ import tempfile
 from typing import Any, Mapping, Sequence
 import uuid
 
-from scripts.devfarm import (
-    DevFarmError,
+from scripts.devfarm_contracts import (
     canonical_digest,
     sha256_text,
     validate_manifest,
     validate_patch,
     validate_result,
 )
+from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_artifacts import write_immutable_text
 from scripts.devfarm_commander import CommanderPlanStore, record_result, refresh_plan
 from scripts.devfarm_manifests import load_worker_manifest

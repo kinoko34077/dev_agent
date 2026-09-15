@@ -13,7 +13,8 @@ from pathlib import Path, PurePosixPath
 import re
 from typing import Any, Mapping, Sequence
 
-from scripts.devfarm import DevFarmError, validate_manifest
+from scripts.devfarm_contracts import validate_manifest
+from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_repository import read_json, repository_path
 from scripts.devfarm_supervisor_protocol import normalize_review_decision, normalize_supervisor_metadata
 from src.dev_agent.coordination import WorkAddress, allocate_work_address

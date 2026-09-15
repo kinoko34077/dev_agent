@@ -14,7 +14,8 @@ import re
 from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
-from scripts.devfarm import DevFarmError, validate_manifest
+from scripts.devfarm_contracts import validate_manifest
+from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_commander import validate_plan
 from src.dev_agent.coordination import WorkAddress
 from src.dev_agent.domain.protocol import RiskLevel, Task, TaskType

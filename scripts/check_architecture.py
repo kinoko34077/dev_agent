@@ -76,6 +76,44 @@ def _private_devfarm_imports(current: str, tree: ast.AST) -> tuple[tuple[str, st
     return tuple(violations)
 
 
+_DEVFARM_CONTRACT_SYMBOLS = frozenset(
+    {
+        "DevFarmError",
+        "MAX_ACCEPTANCE",
+        "MAX_ACCEPTANCE_CHARS",
+        "MAX_OBJECTIVE_CHARS",
+        "MAX_OUTBOUND_BYTES",
+        "MAX_OUTBOUND_FILES",
+        "MAX_REQUIREMENT_CHARS",
+        "MAX_REQUIREMENTS",
+        "MAX_TEST_COMMANDS",
+        "VERIFICATION_TRUST_LEVELS",
+        "canonical_digest",
+        "normalize_patch_hunk_counts",
+        "parse_host_test_command",
+        "sha256_text",
+        "validate_manifest",
+        "validate_patch",
+        "validate_result",
+    }
+)
+
+
+def _devfarm_contract_imports(current: str, tree: ast.AST) -> tuple[str, ...]:
+    """Return imports that bypass the standalone contract boundary."""
+
+    if not current.startswith("scripts.devfarm") or current == "scripts.devfarm":
+        return ()
+    violations: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ImportFrom) or node.module != "scripts.devfarm":
+            continue
+        for alias in node.names:
+            if alias.name in _DEVFARM_CONTRACT_SYMBOLS:
+                violations.append(alias.name)
+    return tuple(violations)
+
+
 def _violation(current: str, target: str) -> str | None:
     if current.startswith("dev_agent.domain") and target.startswith(("dev_agent.runtime", "dev_agent.providers", "dev_agent.resources", "dev_agent.state")):
         return "domain must not import runtime/providers/resources/state"
@@ -122,6 +160,11 @@ def check(paths: tuple[Path, ...] | None = None) -> list[str]:
             violations.append(
                 f"{path.relative_to(ROOT)} -> {target}.{symbol}: "
                 "DevFarm scripts must use public cross-module boundaries"
+            )
+        for symbol in _devfarm_contract_imports(current, tree):
+            violations.append(
+                f"{path.relative_to(ROOT)} -> scripts.devfarm.{symbol}: "
+                "DevFarm contract consumers must import scripts.devfarm_contracts"
             )
     return violations
 

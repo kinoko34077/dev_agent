@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from scripts.devfarm import DevFarmError
+from scripts.devfarm_errors import DevFarmError
 
 
 def result_reference(task_id: str, attempt_id: str | None = None) -> str:

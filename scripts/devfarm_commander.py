@@ -19,7 +19,9 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 import uuid
 
-from scripts.devfarm import DevFarmError, init_farm, validate_manifest, validate_result
+from scripts.devfarm import init_farm
+from scripts.devfarm_contracts import validate_manifest, validate_result
+from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_manifests import load_worker_manifest
 from scripts.devfarm_orchestrator import DevFarmOrchestrator, WorkerAssignment
 from scripts import devfarm_plan_validation as plan_validation

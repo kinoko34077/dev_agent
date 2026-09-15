@@ -16,7 +16,9 @@ import threading
 from typing import Any, Iterator, Mapping, Sequence
 from uuid import uuid4
 
-from scripts.devfarm import DevFarmError, validate_manifest, write_result
+from scripts.devfarm import write_result
+from scripts.devfarm_contracts import validate_manifest
+from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_repository import read_json
 from scripts.devfarm_worker import apply_and_verify, run_worker
 from src.dev_agent.providers.base import ModelProvider

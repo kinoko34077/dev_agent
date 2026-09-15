@@ -10,7 +10,8 @@ import tempfile
 import threading
 from typing import Any
 
-from scripts.devfarm import DevFarmError, is_protected_path
+from scripts.devfarm_errors import DevFarmError
+from src.dev_agent.security.protected_paths import is_protected_path
 from scripts.devfarm_artifacts import MAX_TEST_OUTPUT_CHARS, bounded_test_output
 from src.dev_agent.security.audit import AuditRecorder
 

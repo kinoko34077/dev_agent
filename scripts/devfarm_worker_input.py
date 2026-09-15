@@ -10,7 +10,8 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from scripts.devfarm import MAX_OUTBOUND_BYTES, MAX_OUTBOUND_FILES, DevFarmError
+from scripts.devfarm_contracts import MAX_OUTBOUND_BYTES, MAX_OUTBOUND_FILES
+from scripts.devfarm_errors import DevFarmError
 from src.dev_agent.security.egress import (
     EgressDecision,
     EgressManifest,
