@@ -144,8 +144,8 @@
 - Use Commander Plan → existing Supervisor run → ReviewPacket → durable Codex decision → Host integration.
 - Worker task must have non-overlapping ownership, a safe egress manifest, zero Codex direct implementation, and no protected responsibility.
 
-- [ ] Select a real production helper/parser/serializer/CLI or bounded bugfix; do not count test-only or evidence-only documentation.
-- [ ] If the current outbound boundary still returns `WinError 10013`, record it as transport/sandbox evidence and stop that live attempt without model escalation or repeated resend.
+- [x] Select a real production helper/parser/serializer/CLI or bounded bugfix; do not count test-only or evidence-only documentation. The selected discovery predicate task targets `src/dev_agent/providers/model_discovery.py` plus its focused admission test.
+- [x] If the current outbound boundary still returns `WinError 10013`, record it as transport/sandbox evidence and stop that live attempt without model escalation or repeated resend. The first binding also exposed a missing Host project configuration, and the alternate free-2 qualification probe ended with bounded `limits_exceeded`; neither was promoted to Worker qualification.
 - [ ] If dispatch is available, run the bounded task, classify failure with Task 6, and use at most the existing bounded REWORK/reassign path.
 - [ ] Integrate only after independent Host Verification and Codex ReviewDecision; record Worker KPIs and exact revision.
 

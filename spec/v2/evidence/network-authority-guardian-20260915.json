@@ -1,7 +1,7 @@
 {
   "evidence_id": "network-authority-guardian-20260915",
   "observed_at": "2026-09-15",
-  "implementation_baseline_before_documentation_sync": "fc1c1e844aa63117f4e9f4780a169042347d77aa",
+  "implementation_baseline_before_documentation_sync": "1b4cef54e8c9002532c90e50bb7abb1369464b57",
   "network": {
     "host_owned_worker_boundary": "implemented",
     "codex_direct_provider_request": "not_used_by_standard_cli_path",
@@ -13,9 +13,24 @@
     ],
     "egress_manifest": "per_dispatch_digest_and_content_scan_persisted_without_source",
     "read_only_preflight": "PASS",
-    "live_production_worker": "BLOCKED_EXTERNAL_WINERROR_10013",
+    "live_production_worker": "BLOCKED_BEFORE_PATCH_BY_HOST_TRANSPORT_AND_ALTERNATE_QUALIFICATION",
     "model_escalation_after_transport_failure": false,
-    "unknown_effect_replayed": false
+    "unknown_effect_replayed": false,
+    "w1_observation": {
+      "target": "src/dev_agent/providers/model_discovery.py",
+      "task_status": "SUPERSEDED_AFTER_BOUNDED_ATTEMPTS",
+      "codex_takeover_count": 0,
+      "integrated": false,
+      "primary_binding": "gemini:worker",
+      "primary_binding_configured": false,
+      "alternate_binding": "gemini:worker:free-2",
+      "alternate_model": "gemini-3.5-flash-lite",
+      "alternate_qualification": "NOT_PROMOTED",
+      "alternate_qualification_evidence": "gemini-worker-free-2-qualification-20260915.json",
+      "alternate_qualification_failure": "limits_exceeded: execution limits exceeded",
+      "patch_generated": false,
+      "raw_provider_payload_saved": false
+    }
   },
   "authority": {
     "protected_path_policy": "central_policy_preserved",
@@ -39,13 +54,13 @@
     "live_production_refinement": "BLOCKED_BY_HOST_TRANSPORT"
   },
   "verification": {
-    "tests_v2": "1244 passed, 1 skipped",
+    "tests_v2": "1246 passed, 1 skipped",
     "architecture": "ARCHITECTURE_PASS",
     "compileall": "PASS",
     "exact_head_ci": {
-      "remote_head": "fc1c1e844aa63117f4e9f4780a169042347d77aa",
-      "v2_core_run": "34909066053",
-      "v2_provider_smoke_run": "34909066122",
+      "remote_head": "1b4cef54e8c9002532c90e50bb7abb1369464b57",
+      "v2_core_run": "34912367480",
+      "v2_provider_smoke_run": "34912367467",
       "result": "PASS"
     }
   },

@@ -5,13 +5,13 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Latest implementation commit before documentation sync | `fc1c1e8` (`feat: add bounded guardian serve entrypoint`) |
-| Implementation/evidence baseline | `fc1c1e8` (Host-owned dispatch boundary, read-only egress preflight, explicit Plan supersession, RollbackProof, bounded refinement, and Guardian serve composition) |
+| Latest implementation commit before documentation sync | `1b4cef5` (`test: keep model admission fixture time-stable`) |
+| Implementation/evidence baseline | `1b4cef5` (Host-owned dispatch boundary, read-only egress preflight, explicit Plan supersession, RollbackProof, bounded refinement, Guardian serve composition, and time-stable model admission regression) |
 | Worktree | clean at the current verification checkpoint; this documentation sync records the same checkpoint |
-| Local regression | `1244 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 233.90s) |
+| Local regression | `1246 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 206.54s) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for implementation baseline `fc1c1e8`: `v2-core` [run 34909066053](https://github.com/kinoko34077/dev_agent/actions/runs/34909066053) and `v2-provider-smoke` [run 34909066122](https://github.com/kinoko34077/dev_agent/actions/runs/34909066122), covering kernel (3.10), kernel (3.11), and provider-smoke. |
+| Exact-head CI | PASS for implementation baseline `1b4cef5`: `v2-core` [run 34912367480](https://github.com/kinoko34077/dev_agent/actions/runs/34912367480) and `v2-provider-smoke` [run 34912367467](https://github.com/kinoko34077/dev_agent/actions/runs/34912367467), covering kernel (3.10), kernel (3.11), and provider-smoke. |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
@@ -63,7 +63,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 - External Compression authentication and MCP wire transport are unverified/unconnected; neither is silently treated as complete.
 - The bounded Free Worker documentation attempt on 2026-09-15 failed before patch generation because the available Windows outbound transport returned `WinError 10013`; it is recorded as transport failure, not model or patch-quality evidence. See [`worker-delegation-observation-20260915.json`](../spec/v2/evidence/worker-delegation-observation-20260915.json).
 - The explicit configured Planner pool was also exercised once on 2026-09-15; the request stopped at the same local outbound transport boundary before a proposal was returned. No alternate model was called after the ambiguous transport failure, and no retry storm was started. See [`planner-configured-pool-observation-20260915.json`](../spec/v2/evidence/planner-configured-pool-observation-20260915.json).
-- The first real production-code Worker attempt remains blocked before patch generation by the Host outbound transport boundary (`WinError 10013`). The new dry-run proves the exact revision, approved binding, path digests, and Egress ALLOW decision without sending the payload; this is not Worker implementation or patch-quality evidence. See [`network-authority-guardian-20260915.json`](../spec/v2/evidence/network-authority-guardian-20260915.json).
+- The first real production-code Worker attempt remains blocked before patch generation by the Host outbound transport boundary (`WinError 10013`). The primary `gemini:worker` lane was not Host-configured, and one bounded `gemini:worker:free-2` qualification probe ended in `limits_exceeded`; it was not promoted to qualification or retried as a Worker. The dry-run still proves the exact revision, approved binding metadata, path digests, and Egress ALLOW decision without sending source content. See [`network-authority-guardian-20260915.json`](../spec/v2/evidence/network-authority-guardian-20260915.json) and [`gemini-worker-free-2-qualification-20260915.json`](../spec/v2/evidence/gemini-worker-free-2-qualification-20260915.json).
 - External API/session settle polling has no applicable D4 implementation currently. If a future external readiness/discovery poll is added, use approximately 6 seconds with finite attempts and a deadline. Do not change request/provider timeouts or UNKNOWN-effect resend semantics.
 - Model discovery and benchmark evidence are observation inputs, not routing grants. Exact current qualification, capability, billing, privacy, quota, health, and binding admission remain required.
 - The active `v2/bootstrap` GitHub ruleset requires `kernel (3.10)`, `kernel (3.11)`, and `provider-smoke`, and prevents deletion/non-fast-forward updates. The current authenticated direct-push identity is a configured bypass actor, so remote push acceptance does not replace exact-head CI evidence. No local artifact promotes a Gate.
@@ -72,7 +72,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 
 1. Keep D3 conditional and bounded; use the closed Host failure classifier, read-only egress preflight, and proposal-only L1 Critic only when the recorded failure categories recur, without weakening validation.
 2. Preserve D4's explicit-discovery/UNKNOWN boundary and D5's transport-neutral authority boundary; do not invent Codex session discovery or MCP Planner authority.
-3. Reattempt the bounded production `src/` Worker slice only when the Host outbound runtime is explicitly available and the dry-run evidence is accepted; do not escalate model capability for a transport denial or take over the target code in Codex.
+3. Reattempt the bounded production `src/` Worker slice only when the Host outbound runtime and an explicitly qualified binding are available; do not escalate model capability for a transport denial, promote an unqualified alternate, or take over the target code in Codex.
 4. Keep Guardian OS registration, deployed crash recovery, real rolling/rollback, and D9 official-runtime mutation unverified. The next local gate is a read-only/approved OS liveness check followed by fresh real-process fault evidence.
 5. After the Network/Authority/Guardian gates are independently closed, profile dependency/ownership hotspots and begin bounded responsibility refactors; D9 real mutation remains locked until the readiness review has every required proof.
 
@@ -90,6 +90,7 @@ and the compact operational procedure is [`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_D
 - D9 temporary-Git Host integration composition: [`d9-repair-host-integration-20260914.json`](../spec/v2/evidence/d9-repair-host-integration-20260914.json)
 - D9 live Worker candidate materialization: [`d9-repair-live-worker-candidate-20260914.json`](../spec/v2/evidence/d9-repair-live-worker-candidate-20260914.json)
 - Network, authority, egress, supersession, and Guardian operator boundary: [`network-authority-guardian-20260915.json`](../spec/v2/evidence/network-authority-guardian-20260915.json)
+- Bounded alternate Gemini qualification observation: [`gemini-worker-free-2-qualification-20260915.json`](../spec/v2/evidence/gemini-worker-free-2-qualification-20260915.json)
 - Coordination work/egress/Guardian foundation: [`coordination-work-egress-foundation-20260914.json`](../spec/v2/evidence/coordination-work-egress-foundation-20260914.json)
 - Guardian G1–G5 local execution/fault drill: [`guardian-fault-drill-20260915.json`](../spec/v2/evidence/guardian-fault-drill-20260915.json)
 - Guardian G1 real local subprocess: [`guardian-real-local-process-20260915.json`](../spec/v2/evidence/guardian-real-local-process-20260915.json)
