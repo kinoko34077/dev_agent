@@ -21,8 +21,6 @@ if str(ROOT) not in sys.path:
 
 from scripts.devfarm import (
     DevFarmError,
-    MAX_OUTBOUND_FILES,
-    MAX_OUTBOUND_BYTES,
     VERIFICATION_TRUST_LEVELS,
     canonical_digest,
     is_protected_path,
@@ -42,10 +40,7 @@ from src.dev_agent.resources.provider_policy import validate_provider_instance_a
 from scripts.devfarm_worker_admission import DevFarmActivationPolicy, DevFarmWorkerEligibility
 from scripts.devfarm_provider_runtime import build_worker_provider
 from src.dev_agent.security.egress import (
-    EgressDecision,
     EgressManifest,
-    StandingEgressGrant,
-    build_egress_manifest,
     contains_secret_candidate,
 )
 from scripts.devfarm_metrics import WorkerMetricsError, WorkerMetricsStore
@@ -60,6 +55,10 @@ from scripts.devfarm_artifacts import (
     write_verification_record as shared_write_verification_record,
 )
 from scripts.devfarm_worker_prompt import build_worker_prompt
+from scripts.devfarm_worker_input import (
+    MAX_INPUT_FILE_BYTES as SHARED_MAX_INPUT_FILE_BYTES,
+    build_worker_input_context,
+)
 from scripts.devfarm_worker_output import (
     build_worker_metrics,
     extract_json_object,
@@ -73,7 +72,7 @@ from scripts.devfarm_verification import (
 )
 
 
-MAX_INPUT_FILE_BYTES = 64 * 1024
+MAX_INPUT_FILE_BYTES = SHARED_MAX_INPUT_FILE_BYTES
 MAX_OUTPUT_TEXT_CHARS = 32 * 1024
 MAX_VERIFICATION_WALL_CLOCK_SECONDS = 10 * 60
 
@@ -330,47 +329,15 @@ def _input_context_with_manifest(
     destination: str | None = None,
 ) -> tuple[str, EgressManifest]:
     manifest = validate_manifest(manifest)
-    chunks: list[str] = []
-    files: list[tuple[str, bytes]] = []
-    aggregate_bytes = 0
-    for relative in manifest["outbound_files"]:
-        try:
-            data = read_file_at_revision(workspace, manifest["base_revision"], relative)
-        except DevFarmError as exc:
-            raise DevFarmError(f"worker input file cannot be read: {relative}: {exc}") from exc
-        if len(data) > MAX_INPUT_FILE_BYTES:
-            raise DevFarmError(f"worker input file exceeds {MAX_INPUT_FILE_BYTES} bytes: {relative}")
-        aggregate_bytes += len(data)
-        if aggregate_bytes > MAX_OUTBOUND_BYTES:
-            raise DevFarmError(f"worker outbound files exceed {MAX_OUTBOUND_BYTES} aggregate bytes")
-        try:
-            content = data.decode("utf-8")
-        except UnicodeDecodeError as exc:
-            raise DevFarmError(f"worker input file is not UTF-8: {relative}") from exc
-        files.append((relative, data))
-        chunks.append(f"\n--- BEGIN FILE {relative} ---\n{content}\n--- END FILE {relative} ---\n")
-    selected_destination = destination or manifest["approved_provider_ids"][0]
-    grant = StandingEgressGrant(
-        policy_id="devfarm-low-risk-source-egress-v1",
-        destinations=tuple(manifest["approved_provider_ids"]),
-        allowed_roots=tuple(manifest["outbound_files"]) or ("__no_outbound_files__",),
-        max_files=MAX_OUTBOUND_FILES,
-        max_bytes=MAX_OUTBOUND_BYTES,
-        max_file_bytes=MAX_INPUT_FILE_BYTES,
+    return build_worker_input_context(
+        manifest,
+        read_file_at_revision=lambda revision, relative: read_file_at_revision(
+            workspace,
+            revision,
+            relative,
+        ),
+        destination=destination,
     )
-    egress_manifest = build_egress_manifest(
-        task_id=manifest["task_id"],
-        destination=selected_destination,
-        revision=manifest["base_revision"],
-        files=tuple(files),
-        grant=grant,
-    )
-    if egress_manifest.decision is not EgressDecision.ALLOW:
-        reasons = ", ".join(egress_manifest.reasons) or "host_policy_rejected"
-        if "secret_detected" in egress_manifest.reasons:
-            raise DevFarmError("worker outbound source contains a secret candidate")
-        raise DevFarmError(f"worker egress preflight did not allow outbound source: {reasons}")
-    return "".join(chunks), egress_manifest
 
 
 def _input_context(workspace: Path, manifest: Mapping[str, Any]) -> str:
