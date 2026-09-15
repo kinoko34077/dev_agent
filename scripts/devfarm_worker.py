@@ -52,6 +52,7 @@ from scripts.devfarm_artifacts import (
     attempt_id as shared_attempt_id,
     bounded_test_output as shared_bounded_test_output,
     list_verification_records as shared_list_verification_records,
+    read_latest_result_projection as shared_read_latest_result_projection,
     result_directories as shared_result_directories,
     write_immutable_text as shared_write_immutable_text,
     write_latest_result_projection as shared_write_latest_result_projection,
@@ -509,12 +510,7 @@ _normalize_model_status = normalize_model_status
 
 
 def _read_result_artifact(root: Path, manifest: Mapping[str, Any]) -> dict[str, Any]:
-    path = root / ".devfarm" / "results" / manifest["task_id"] / "result.json"
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise DevFarmError(f"worker result artifact cannot be read: {exc}") from exc
-    return validate_result(value, manifest=manifest)
+    return shared_read_latest_result_projection(root, manifest)
 
 
 def _attempt_artifact_path(

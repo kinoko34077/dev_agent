@@ -9,6 +9,7 @@ from typing import Any, Mapping
 from uuid import uuid4
 
 from scripts.devfarm import DevFarmError, validate_manifest, validate_result
+from scripts.devfarm_repository import read_json
 from src.dev_agent.security.audit import AuditRecorder
 
 
@@ -137,12 +138,24 @@ def write_latest_result_projection(root: Path, result: Mapping[str, Any], *, man
     return path
 
 
+def read_latest_result_projection(root: Path, manifest: Mapping[str, Any]) -> dict[str, Any]:
+    """Read and validate one mutable latest-result projection."""
+
+    path = Path(root) / ".devfarm" / "results" / manifest["task_id"] / "result.json"
+    try:
+        value = read_json(path)
+    except DevFarmError as exc:
+        raise DevFarmError(f"worker result artifact cannot be read: {exc}") from exc
+    return validate_result(value, manifest=manifest)
+
+
 __all__ = [
     "MAX_TEST_OUTPUT_CHARS",
     "artifact_reference",
     "attempt_id",
     "bounded_test_output",
     "list_verification_records",
+    "read_latest_result_projection",
     "result_directories",
     "write_immutable_text",
     "write_latest_result_projection",
