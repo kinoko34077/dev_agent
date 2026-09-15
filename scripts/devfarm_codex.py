@@ -12,7 +12,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 from pathlib import Path
-import subprocess
 import tempfile
 import time
 from typing import Any, Mapping
@@ -27,7 +26,7 @@ from scripts.devfarm_contracts import (
 )
 from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_workspace import prepare_worktree, write_result
-from scripts.devfarm_repository import read_json
+from scripts.devfarm_repository import git_process, read_json
 from scripts.devfarm_artifacts import (
     attempt_id as normalize_attempt_id,
     bounded_test_output,
@@ -108,15 +107,7 @@ def _git(
     *arguments: str,
     env: Mapping[str, str] | None = None,
 ) -> str:
-    command = ["git", "-c", f"safe.directory={workspace.as_posix()}", *arguments]
-    completed = subprocess.run(
-        command,
-        cwd=workspace,
-        env=dict(env) if env is not None else None,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    completed = git_process(workspace, *arguments, env=dict(env) if env is not None else None)
     if completed.returncode != 0:
         detail = completed.stderr.strip() or completed.stdout.strip() or "git command failed"
         raise DevFarmError(f"git {' '.join(arguments[:2])}: {detail}")
