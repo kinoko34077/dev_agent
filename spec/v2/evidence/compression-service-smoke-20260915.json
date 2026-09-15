@@ -22,6 +22,13 @@
     "x_request_id_present": false,
     "cf_ray_present": true
   },
+  "recheck": {
+    "performed_once_after_operator_credential_update": true,
+    "payload_kind": "generated_synthetic_smoke_only",
+    "payload_chars": 3001,
+    "result": "same_http_403_authentication_failure",
+    "automatic_retry": false
+  },
   "classification": {
     "caller_credential_lookup": "reached_http_request_path",
     "downstream_gemini_key_tested": false,
