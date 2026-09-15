@@ -60,6 +60,33 @@ _QUOTA_OBSERVATION_KEYS = frozenset(
         "consumed",
     }
 )
+_HOST_FAILURE_CATEGORIES = frozenset(
+    {
+        "host_configuration",
+        "host_runtime_failure",
+        "provider_http",
+        "provider_decode",
+        "transport",
+        "reconciliation_required",
+    }
+)
+
+
+def safe_host_failure_metadata(error: BaseException) -> dict[str, str]:
+    """Project only bounded child-runtime diagnostics into Worker metrics."""
+
+    metadata: dict[str, str] = {}
+    category = getattr(error, "host_failure_category", None)
+    if isinstance(category, str) and category in _HOST_FAILURE_CATEGORIES:
+        metadata["host_failure_category"] = category
+    diagnostic_type = getattr(error, "host_failure_type", None)
+    if (
+        isinstance(diagnostic_type, str)
+        and 0 < len(diagnostic_type) <= 64
+        and all(part.isidentifier() for part in diagnostic_type.split("."))
+    ):
+        metadata["host_failure_type"] = diagnostic_type
+    return metadata
 
 
 def extract_json_object(text: str) -> Mapping[str, Any]:
@@ -177,5 +204,6 @@ __all__ = [
     "build_worker_metrics",
     "extract_json_object",
     "normalize_model_status",
+    "safe_host_failure_metadata",
     "safe_usage",
 ]

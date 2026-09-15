@@ -66,6 +66,7 @@ from scripts.devfarm_worker_output import (
     build_worker_metrics,
     extract_json_object,
     normalize_model_status,
+    safe_host_failure_metadata,
     safe_usage,
 )
 from scripts.devfarm_verification import (
@@ -794,6 +795,7 @@ def run_worker(
         metrics["transport_failure_category"] = (
             dispatch.last_transport_category.value if dispatch.last_transport_category is not None else None
         )
+        metrics.update(safe_host_failure_metadata(exc))
         status = "blocked_external" if exc.category == "authentication" else "failed"
         result = {
             "status": status,

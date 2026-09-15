@@ -7,6 +7,7 @@ from scripts.devfarm_worker_output import (
     build_worker_metrics,
     extract_json_object,
     normalize_model_status,
+    safe_host_failure_metadata,
     safe_usage,
 )
 from src.dev_agent.domain.protocol import ModelRequest
@@ -58,3 +59,11 @@ def test_build_worker_metrics_keeps_bounded_identity_and_usage() -> None:
     assert metrics["provider_id"] == "gemini"
     assert metrics["provider_binding_id"] == "gemini:worker:free-3"
     assert metrics["usage"] == {"input_tokens": 5, "output_tokens": 7}
+
+
+def test_safe_host_failure_metadata_drops_untrusted_child_values() -> None:
+    class Error(Exception):
+        host_failure_category = "secret-category"
+        host_failure_type = "RuntimeError\nraw child output"
+
+    assert safe_host_failure_metadata(Error()) == {}

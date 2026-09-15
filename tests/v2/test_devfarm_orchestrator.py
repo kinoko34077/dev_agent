@@ -85,11 +85,14 @@ class _HostDispatch:
 class _FailingHostDispatch(_HostDispatch):
     def request(self, _request):
         self.calls += 1
-        raise ProviderError(
+        error = ProviderError(
             "Host provider runtime rejected the dispatch",
             category="host_configuration",
             retryable=False,
         )
+        error.host_failure_category = "host_runtime_failure"
+        error.host_failure_type = "RuntimeError"
+        raise error
 
 
 def _git(cwd, *args):
@@ -268,6 +271,8 @@ def test_worker_metrics_preserve_host_failure_category_separately_from_transport
     metrics = proposals[0]["worker_metrics"]
     assert metrics["provider_failure_category"] == "host_configuration"
     assert metrics["transport_failure_category"] is None
+    assert metrics["host_failure_category"] == "host_runtime_failure"
+    assert metrics["host_failure_type"] == "RuntimeError"
 
 
 def test_disabled_host_resource_is_fail_closed():
