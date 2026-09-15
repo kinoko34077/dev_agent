@@ -671,12 +671,11 @@ def dispatch_cli(
         provider = build_cli_provider(selected_provider, selected_model, timeout_seconds)
         providers[task["task_id"]] = provider
         if host_executor is not None:
-            from src.dev_agent.providers.host_dispatch import HostProviderDispatch
+            from src.dev_agent.providers.host_dispatch import route_through_host
 
-            host_dispatches[task["task_id"]] = HostProviderDispatch(
+            host_dispatches[task["task_id"]] = route_through_host(
                 provider,
-                execution_boundary="host_process",
-                executor=host_executor,
+                host_executor,
             )
     return dispatch_plan(
         root_path,

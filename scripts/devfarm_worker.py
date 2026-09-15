@@ -34,7 +34,7 @@ from scripts.devfarm_workspace import prepare_worktree, write_result
 from src.dev_agent.security.protected_paths import is_protected_path
 from src.dev_agent.domain.protocol import ModelRequest
 from src.dev_agent.providers.base import ModelProvider, ProviderError
-from src.dev_agent.providers.host_dispatch import HostProviderDispatch
+from src.dev_agent.providers.host_dispatch import HostProviderDispatch, route_through_host
 from scripts.devfarm_worker_admission import (
     DevFarmActivationPolicy,
     DevFarmWorkerEligibility,
@@ -964,15 +964,16 @@ def main(argv: list[str] | None = None) -> int:
                     args.root / ".devfarm" / "host-dispatch",
                     timeout_seconds=args.timeout_seconds,
                 )
+            host_dispatch = (
+                route_through_host(provider, executor)
+                if executor is not None
+                else HostProviderDispatch(provider, execution_boundary=args.execution_boundary)
+            )
             result = run_worker(
                 args.root,
                 args.manifest,
                 provider=provider,
-                host_dispatch=HostProviderDispatch(
-                    provider,
-                    execution_boundary=args.execution_boundary,
-                    executor=executor,
-                ),
+                host_dispatch=host_dispatch,
             )
     except (DevFarmError, ProviderError) as exc:
         parser.error(str(exc))

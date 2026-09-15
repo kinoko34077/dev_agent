@@ -341,17 +341,16 @@ class CodexSupervisedCommanderRun:
                 host_dispatches = None
                 if execution_boundary == "host_process":
                     from scripts.devfarm_host_dispatch import create_host_process_executor
-                    from src.dev_agent.providers.host_dispatch import HostProviderDispatch
+                    from src.dev_agent.providers.host_dispatch import route_through_host
 
                     executor = create_host_process_executor(
                         self.root / ".devfarm" / "host-dispatch",
                         timeout_seconds=dispatch_timeout_seconds,
                     )
                     host_dispatches = {
-                        task_id: HostProviderDispatch(
+                        task_id: route_through_host(
                             providers[task_id],
-                            execution_boundary="host_process",
-                            executor=executor,
+                            executor,
                         )
                         for task_id in ready_worker_ids
                         if task_id in providers
