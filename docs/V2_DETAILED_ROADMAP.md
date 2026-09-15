@@ -8,6 +8,8 @@
 
 ## 現行Work Addressプログラム
 
+Stage 4/5の現在の実装境界: Role Manifest/RoleInstance/Commander投影と、temporary-Git/fake-providerによる決定論的Stage 5構成（2 Implementer並列、独立Host Verification、proposal-only Reviewer、`CODE_INTEGRATED`依存解放、Host integration）は検証済みである。これはlive Providerを用いたPhase 8 runtime E2EやPhase 8 activationではなく、既存Commander/Orchestrator境界の局所的な準備証拠である。D9/Stage 1の未達条件を理由なく緩和しない。
+
 現在の開発順序は、既存のTask UUID・dependency・ownership・lease・Gate IDを置換せず、
 それらへ表示用のWork Addressを付与する次のStageへ統合する。Stage間は直列、同一Stageの
 別laneは依存がない場合だけ並列とする。実行権限は従来どおりCommander/Hostが持ち、

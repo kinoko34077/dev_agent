@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-09-16",
+  "work_addresses": [
+    "4-A-1",
+    "4-B-1",
+    "4-C-1",
+    "4-E-1",
+    "5-B-1",
+    "5-C-1",
+    "5-E-1"
+  ],
+  "status": "LOCAL_DETERMINISTIC_VERIFIED",
+  "scope": "Phase 8 multi-role foundation and runtime composition",
+  "mode": "temporary_git_repository_with_fake_provider",
+  "external_provider_called": false,
+  "authority": {
+    "role_manifest": "data-only bounded contract",
+    "role_instance": "existing peer identity with strict status-and-lease check",
+    "task_ownership": "existing Commander plan validation and store",
+    "integration": "existing Host deterministic integration boundary",
+    "review": "proposal/review path; no Reviewer integration authority"
+  },
+  "roles": [
+    {
+      "role_id": "planner",
+      "autonomy_ceiling": "proposal_only",
+      "review_requirement": "host"
+    },
+    {
+      "role_id": "implementer",
+      "autonomy_ceiling": "task_execution",
+      "review_requirement": "host"
+    },
+    {
+      "role_id": "reviewer",
+      "autonomy_ceiling": "proposal_only",
+      "review_requirement": "codex"
+    }
+  ],
+  "instances": [
+    {
+      "role_id": "implementer",
+      "instance_id": "Agent:worker-a.v1",
+      "generation": 1,
+      "lease_check": "PASS"
+    },
+    {
+      "role_id": "implementer",
+      "instance_id": "Agent:worker-b.v1",
+      "generation": 1,
+      "lease_check": "PASS"
+    },
+    {
+      "role_id": "reviewer",
+      "instance_id": "Codex:reviewer.v1",
+      "generation": 1,
+      "lease_check": "PASS"
+    }
+  ],
+  "task_graph": {
+    "implementer_tasks": 2,
+    "reviewer_tasks": 1,
+    "ownership_non_overlap": true,
+    "implementer_tasks_independent": true,
+    "reviewer_dependency": [
+      "worker-a",
+      "worker-b"
+    ],
+    "dependency_type": "CODE_INTEGRATED"
+  },
+  "execution": {
+    "remote_max_inflight": 2,
+    "observed_remote_peak": 2,
+    "host_verification_slots": 1,
+    "worker_proposals": 2,
+    "host_verification": "PASS",
+    "review_decisions": 2,
+    "worker_integrations": 2,
+    "dependent_reviewer_release": "PASS",
+    "final_plan_status": "INTEGRATED"
+  },
+  "delegation": {
+    "implementation_tasks_worker_owned": 2,
+    "implementation_tasks_integrated": 2,
+    "codex_direct_implementation_count": 0,
+    "codex_role": "review/integration decision only"
+  },
+  "verification": {
+    "focused_test": "tests/v2/test_devfarm_multirole.py: 6 passed",
+    "related_tests": "53 passed",
+    "architecture": "PASS",
+    "compileall": "PASS",
+    "full_regression": "1354 passed, 1 skipped",
+    "exact_head_ci": {
+      "commit": "1a8da1b6320b34951be23cda7338da1c883717a2",
+      "v2-core": {
+        "run_id": "35027774480",
+        "status": "PASS"
+      },
+      "v2-provider-smoke": {
+        "run_id": "35027774470",
+        "status": "PASS"
+      }
+    }
+  },
+  "limitations": [
+    "This is a deterministic local composition test; it is not live Free Provider evidence.",
+    "OS Guardian installation, deployed crash recovery, D9 real mutation, and MCP wire transport remain outside this evidence."
+  ]
+}
