@@ -195,6 +195,7 @@
 - [x] Move DevFarm workspace lifecycle operations into `scripts.devfarm_workspace`; retain compatibility exports from `scripts.devfarm`, add focused compatibility coverage, run the full regression, commit, push, and exact-head CI. Evidence: [`devfarm-workspace-boundary-refactor-20260915.json`](../../spec/v2/evidence/devfarm-workspace-boundary-refactor-20260915.json).
 - [x] Move ReviewPacket/ReviewDecision normalization into `scripts.devfarm_review_protocol`; keep Supervisor metadata and compatibility exports separate, update consumers, and verify review/D7/D9 semantics. Evidence: [`devfarm-review-contract-refactor-20260915.json`](../../spec/v2/evidence/devfarm-review-contract-refactor-20260915.json).
 - [x] Admit bounded production task classes to the read-only D7 candidate evaluator while retaining all existing safety/evidence gates and official-branch lock. Evidence: [`d7-bounded-production-task-admission-20260915.json`](../../spec/v2/evidence/d7-bounded-production-task-admission-20260915.json).
+- [x] Isolate Supervisor heartbeat/status metadata from Review contracts while retaining the historical compatibility facade and all Supervisor/D7/D9 semantics. Evidence: [`devfarm-supervisor-metadata-refactor-20260915.json`](../../spec/v2/evidence/devfarm-supervisor-metadata-refactor-20260915.json).
 - [ ] Continue only with another measured responsibility boundary; do not split `OperationService`, `Controller`, or `ProviderDispatcher` by size alone.
 
 ## Verification and delivery checklist

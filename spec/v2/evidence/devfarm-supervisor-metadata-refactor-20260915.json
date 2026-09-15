@@ -1,0 +1,59 @@
+{
+  "evidence_id": "devfarm-supervisor-metadata-refactor-20260915",
+  "status": "VERIFIED",
+  "observed_at": "2026-09-15",
+  "implementation_commit": "a94092568a8d5745bde42e0b089ee8f08eece663",
+  "implementation_message": "refactor: isolate supervisor metadata contracts",
+  "scope": {
+    "new_boundary": "scripts/devfarm_supervisor_metadata.py",
+    "compatibility_boundary": "scripts/devfarm_supervisor_protocol.py",
+    "moved_contracts": [
+      "Supervisor status metadata",
+      "heartbeat cadence selection",
+      "wake event projection",
+      "bounded Supervisor metrics metadata",
+      "heartbeat advancement"
+    ],
+    "review_boundary": "ReviewPacket and ReviewDecision contracts remain in scripts.devfarm_review_protocol",
+    "authority": "Metadata normalization is Host-side bookkeeping only; it does not grant task, review, approval, integration, Guardian, or D9 authority"
+  },
+  "authority_invariants": [
+    "Supervisor run and intervention semantics are unchanged",
+    "Codex action-required boundaries are unchanged",
+    "Worker wait and UNKNOWN/reconciliation behavior are unchanged",
+    "D7 remains candidate-only and D9 remains proposal-only",
+    "Compatibility imports from scripts.devfarm_supervisor_protocol remain available"
+  ],
+  "worker": {
+    "production_task_attempted": 0,
+    "codex_direct_implementation_count": 1,
+    "codex_direct_implementation_reason": "cross_cutting_supervisor_metadata_contract_boundary"
+  },
+  "verification": {
+    "focused": "31 passed",
+    "full_v2": "1307 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS"
+  },
+  "exact_head_ci": {
+    "remote_head": "a94092568a8d5745bde42e0b089ee8f08eece663",
+    "v2_core": {
+      "run_id": 34953415037,
+      "conclusion": "success",
+      "jobs": ["kernel (3.10)", "kernel (3.11)"]
+    },
+    "v2_provider_smoke": {
+      "run_id": 34953415045,
+      "conclusion": "success"
+    }
+  },
+  "not_claimed": [
+    "live production-code Worker integration",
+    "OS Guardian registration or deployed crash recovery",
+    "D9 real mutation",
+    "MCP wire transport"
+  ],
+  "raw_conversation_saved": false,
+  "credentials_saved": false
+}
