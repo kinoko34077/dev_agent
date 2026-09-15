@@ -1,0 +1,44 @@
+{
+  "evidence_id": "devfarm-bounded-json-refactor-20260915",
+  "status": "verified",
+  "observed_at": "2026-09-15",
+  "implementation_baseline_before_documentation_sync": "7a539228d76ea215b03b698cf8220c31f0c11256",
+  "scope": {
+    "shared_boundary": "Repository-local bounded JSON reading now lives in scripts.devfarm_repository.read_bounded_json.",
+    "migrated_consumers": ["scripts.devfarm_supervisor", "scripts.devfarm_self_improvement"],
+    "preserved_errors": "Containment, missing-file, read, size, and JSON decode failures remain bounded DevFarmError outcomes.",
+    "authority": "The change is read-only; no plan, dispatch, approval, integration, recovery, or D9 authority changed."
+  },
+  "verification": {
+    "focused_tests": "35 passed",
+    "full_tests_v2": "1287 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS"
+  },
+  "exact_head_ci": {
+    "remote_head": "7a539228d76ea215b03b698cf8220c31f0c11256",
+    "v2_core": {
+      "run_id": 34934390380,
+      "conclusion": "success",
+      "jobs": ["kernel (3.10)", "kernel (3.11)"]
+    },
+    "v2_provider_smoke": {
+      "run_id": 34934390347,
+      "conclusion": "success"
+    }
+  },
+  "worker": {
+    "production_task_attempted": 0,
+    "codex_direct_implementation_count": 0,
+    "reason": "This shared read-only repository boundary is cross-cutting Host infrastructure; no live Worker dispatch was repeated."
+  },
+  "not_claimed": [
+    "production Worker integration",
+    "MCP wire transport",
+    "OS Guardian registration",
+    "D9 real mutation"
+  ],
+  "raw_conversation_saved": false,
+  "credentials_saved": false
+}
