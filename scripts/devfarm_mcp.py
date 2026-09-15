@@ -15,9 +15,9 @@ from typing import Any
 from scripts.devfarm import DevFarmError
 from scripts.devfarm_artifacts import artifact_reference
 from scripts.devfarm_plan_queries import latest_rework_decision
+from scripts.devfarm_resume import providers_for_resume
 from scripts.devfarm_supervisor import (
     CodexSupervisedCommanderRun,
-    providers_for_resume,
 )
 from src.dev_agent.mcp import (
     McpAuthorizer,

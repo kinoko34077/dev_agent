@@ -41,8 +41,8 @@ from scripts.devfarm_commander import (
     verify_plan,
     summarize_delegation,
 )
-from scripts.devfarm_provider_runtime import build_assigned_providers, build_worker_provider
 from scripts.devfarm_plan_queries import latest_rework_decision as query_latest_rework_decision
+from scripts.devfarm_resume import providers_for_resume as compose_providers_for_resume
 from scripts.devfarm_supervisor_protocol import (
     advance_heartbeat,
     normalize_supervisor_metadata,
@@ -752,14 +752,9 @@ class CodexSupervisedCommanderRun:
 
 
 def providers_for_resume(root: Path, run_id: str, timeout_seconds: float) -> dict[str, Any]:
-    """Construct only the already assigned providers needed for one pass."""
+    """Backward-compatible Supervisor boundary for assigned Provider composition."""
 
-    runner = CodexSupervisedCommanderRun(root, run_id)
-    return build_assigned_providers(
-        runner.plan(),
-        timeout_seconds,
-        provider_builder=build_worker_provider,
-    )
+    return compose_providers_for_resume(root, run_id, timeout_seconds)
 
 
 def _providers_for_resume(root: Path, run_id: str, timeout_seconds: float) -> dict[str, Any]:
