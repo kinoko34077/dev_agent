@@ -1,0 +1,47 @@
+{
+  "evidence_id": "devfarm-worker-boundary-refactor-20260915",
+  "status": "verified",
+  "scope": "Worker input, Egress composition, and Provider admission separation",
+  "implementation_baseline_before_documentation_sync": "2328e6ac9b187fbab03146fb539090fe62e8e665",
+  "changes": [
+    "Host-owned Worker input context and Egress Manifest composition now use an injected exact Git-object reader",
+    "Worker Provider identity, canonical adapter authority, qualification, billing, and tier checks now live in the admission boundary",
+    "Worker execution retains compatibility aliases but does not own Provider admission or Egress policy"
+  ],
+  "preserved": [
+    "per-dispatch Egress Manifest",
+    "protected path and secret scanning",
+    "Host Provider dispatch",
+    "Provider qualification and no-charge billing admission",
+    "UNKNOWN/reconciliation semantics",
+    "Host Verification and D9 authority boundaries"
+  ],
+  "worker": {
+    "production_task_attempted": 0,
+    "codex_direct_implementation_count": 0,
+    "reason": "This cross-cutting Host boundary refactor was completed without repeating the known blocked live dispatch; the previous WinError 10013 transport observation remains external evidence."
+  },
+  "focused_verification": {
+    "worker_input_manifest_patch": "63 passed",
+    "provider_admission_authority": "89 passed"
+  },
+  "full_verification": {
+    "command": "python -m pytest tests/v2 -q",
+    "result": "1265 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS"
+  },
+  "exact_head_ci": {
+    "head": "2328e6ac9b187fbab03146fb539090fe62e8e665",
+    "v2-core": {
+      "run_id": 34920591240,
+      "conclusion": "success"
+    },
+    "v2-provider-smoke": {
+      "run_id": 34920591267,
+      "conclusion": "success"
+    }
+  },
+  "raw_conversation_saved": false,
+  "credentials_saved": false
+}
