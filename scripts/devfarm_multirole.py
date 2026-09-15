@@ -97,6 +97,8 @@ class MultiRolePlanAdapter:
         plan = validate_plan(deepcopy(candidate.plan))
         tasks = plan["tasks"]
         task_by_id = {task["task_id"]: task for task in tasks}
+        if isinstance(assignments, (str, bytes)) or not isinstance(assignments, Sequence):
+            raise RoleAssignmentError("assignments must be a sequence")
         if len(assignments) != len(tasks) or {item.task_id for item in assignments} != set(task_by_id):
             raise RoleAssignmentError("each plan task requires exactly one role assignment")
         if set(profiles) != set(task_by_id):

@@ -190,6 +190,25 @@ def test_multirole_adapter_requires_all_plan_tasks_to_have_role_assignments(tmp_
         )
 
 
+def test_multirole_adapter_rejects_non_sequence_assignments_before_iteration(tmp_path):
+    candidate = _candidate(tmp_path)
+    assignment, profiles = _implementer_projection(candidate)
+    peer = _peer()
+    manifests = builtin_role_manifests()
+    instance = RoleInstance.from_peer(manifests["implementer"], peer)
+
+    with pytest.raises(RoleAssignmentError, match="assignments must be a sequence"):
+        MultiRolePlanAdapter(tmp_path).build_candidate(
+            candidate,
+            role_manifests=manifests,
+            role_instances={instance.instance_id: instance},
+            task_profiles=profiles,
+            assignments="not-a-sequence",
+            peers=(peer,),
+            now="2026-09-16T12:00:00+00:00",
+        )
+
+
 def test_multirole_adapter_rejects_expired_role_instance_before_plan_projection(tmp_path):
     from scripts.devfarm_multirole import MultiRolePlanAdapter
 
