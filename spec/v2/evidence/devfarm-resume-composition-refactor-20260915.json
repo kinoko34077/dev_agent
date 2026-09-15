@@ -1,0 +1,52 @@
+{
+  "evidence_id": "devfarm-resume-composition-refactor-20260915",
+  "status": "verified",
+  "observed_at": "2026-09-15",
+  "implementation_baseline_before_documentation_sync": "fd7647d2a792740809d27b9dde9992e194be9704",
+  "scope": {
+    "service": "Assigned Provider reconstruction for one durable Supervisor/MCP pass",
+    "new_boundary": "scripts.devfarm_resume.providers_for_resume",
+    "consumer_migration": "MCP imports the resume service directly; Supervisor retains only a compatibility wrapper",
+    "authority": "No plan advancement, dispatch, retry, approval, integration, or recovery semantics changed"
+  },
+  "preserved": [
+    "assigned provider identity and binding",
+    "provider runtime admission and timeout handling",
+    "Supervisor/MCP bounded operation contracts",
+    "UNKNOWN/reconciliation semantics",
+    "no cross-DevFarm private import"
+  ],
+  "worker": {
+    "production_task_attempted": 0,
+    "codex_direct_implementation_count": 0,
+    "reason": "Provider composition is a cross-cutting Host boundary; no live Worker dispatch was repeated for this refactor."
+  },
+  "verification": {
+    "focused_tests": "27 passed",
+    "full_tests_v2": "1286 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS"
+  },
+  "exact_head_ci": {
+    "remote_head": "fd7647d2a792740809d27b9dde9992e194be9704",
+    "v2_core": {
+      "run_id": 34933604565,
+      "conclusion": "success",
+      "jobs": ["kernel (3.10)", "kernel (3.11)"]
+    },
+    "v2_provider_smoke": {
+      "run_id": 34933604533,
+      "conclusion": "success"
+    }
+  },
+  "not_claimed": [
+    "live Provider request",
+    "production Worker integration",
+    "MCP wire transport",
+    "OS Guardian registration",
+    "D9 real mutation"
+  ],
+  "raw_conversation_saved": false,
+  "credentials_saved": false
+}
