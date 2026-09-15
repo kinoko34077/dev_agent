@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from uuid import uuid4
 
 import pytest
 
@@ -8,8 +9,10 @@ from src.dev_agent.security.egress import (
     EgressDecision,
     EgressValidationError,
     StandingEgressGrant,
+    attach_model_request_egress,
     build_egress_manifest,
 )
+from src.dev_agent.domain.protocol import ModelRequest
 
 
 def _grant() -> StandingEgressGrant:
@@ -117,3 +120,30 @@ def test_invalid_grant_does_not_create_a_broad_default() -> None:
             destinations=("gemini",),
             allowed_roots=(),
         )
+
+
+def test_model_request_egress_attaches_digest_without_retaining_prompt_content() -> None:
+    request = ModelRequest(
+        task_id=str(uuid4()),
+        messages=[{"role": "user", "content": "bounded planning request"}],
+        metadata={"planning_mode": "proposal_only"},
+    )
+
+    prepared, manifest = attach_model_request_egress(request)
+
+    assert prepared.metadata["egress_manifest_sha256"] == manifest.manifest_sha256
+    assert prepared.metadata["egress_manifest_policy"] == "dev-agent-model-request-egress-v1"
+    assert manifest.decision is EgressDecision.ALLOW
+    serialized = manifest.to_dict()
+    assert "bounded planning request" not in str(serialized)
+    assert "content" not in str(serialized).lower()
+
+
+def test_model_request_egress_rejects_secret_shaped_prompt_content() -> None:
+    request = ModelRequest(
+        task_id=str(uuid4()),
+        messages=[{"role": "user", "content": "api_key=super-secret-value"}],
+    )
+
+    with pytest.raises(EgressValidationError, match="secret candidate"):
+        attach_model_request_egress(request)

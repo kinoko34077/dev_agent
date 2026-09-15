@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
+from types import SimpleNamespace
 
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
+from src.dev_agent.operation import OperationProviderBinding
 from src.dev_agent.providers.host_dispatch import HostDispatchEnvelope
+import scripts.devfarm_host_dispatch as host_dispatch
 from scripts.devfarm_host_dispatch import process_once
 
 
@@ -66,3 +70,117 @@ def test_host_runtime_rejects_unknown_envelope_field_before_provider_factory(tmp
     assert result["status"] == "rejected"
     assert called is False
     assert json.loads(response_path.read_text(encoding="utf-8"))["category"] == "host_configuration"
+
+
+def test_host_runtime_projects_unexpected_failure_as_bounded_reconciliation(tmp_path):
+    request_path = tmp_path / "request.json"
+    response_path = tmp_path / "response.json"
+    request_path.write_text(json.dumps(_envelope().to_dict()), encoding="utf-8")
+
+    def provider_factory(_envelope):
+        raise RuntimeError("private diagnostic must not cross the boundary")
+
+    result = process_once(request_path, response_path, provider_factory=provider_factory)
+
+    assert result == {
+        "status": "failed",
+        "category": "host_runtime_failure",
+        "reconciliation_required": True,
+        "exception_type": "RuntimeError",
+    }
+    assert json.loads(response_path.read_text(encoding="utf-8")) == result
+
+
+def test_host_runtime_resolves_materialized_discovered_model_from_configured_lane(monkeypatch):
+    configured = OperationProviderBinding(
+        provider_id="gemini",
+        model="gemini-3.8-flash",
+        provider_binding_id="gemini:worker:free-3",
+        qualification_binding_id="gemini:worker:free-3",
+        quota_domain="gemini:project:982142111392",
+        api_key_env="GEMINI_API_KEY_3",
+    )
+    expanded = OperationProviderBinding(
+        provider_id="gemini",
+        model="gemini-3.6-flash",
+        provider_binding_id="gemini:worker:free-3::model::gemini-3.6-flash::digest",
+        qualification_binding_id="gemini:worker:free-3",
+        quota_domain="gemini:project:982142111392",
+        api_key_env="GEMINI_API_KEY_3",
+    )
+    monkeypatch.setattr(host_dispatch, "configured_provider_pool_from_environment", lambda: (configured,))
+    monkeypatch.setattr(
+        host_dispatch,
+        "materialize_provider_bindings",
+        lambda binding, _catalog, expand_discovered_models: (binding, expanded)
+        if expand_discovered_models
+        else (binding,),
+    )
+    monkeypatch.setattr(
+        host_dispatch,
+        "ModelEvidenceCatalog",
+        SimpleNamespace(load_default=lambda: SimpleNamespace(catalog=object())),
+    )
+    envelope = HostDispatchEnvelope(
+        dispatch_id="dispatch-expanded",
+        provider_id="gemini",
+        provider_binding_id=expanded.binding_id,
+        model_id=expanded.model,
+        intelligence_tier="L2",
+        request=ModelRequest(
+            task_id="00000000-0000-0000-0000-000000000001",
+            messages=[{"role": "user", "content": "bounded"}],
+        ),
+        egress_manifest_sha256="d" * 64,
+    )
+
+    assert host_dispatch._configured_binding(envelope) == expanded
+
+
+def test_host_dispatch_propagates_model_admission_into_runtime_composition(monkeypatch):
+    binding = OperationProviderBinding(
+        provider_id="gemini",
+        model="gemini-3.6-flash",
+        provider_binding_id="gemini:worker:free-3::model::gemini-3.6-flash::digest",
+        qualification_binding_id="gemini:worker:free-3",
+        quota_domain="gemini:project:982142111392",
+        api_key_env="GEMINI_API_KEY_3",
+    )
+    evidence = SimpleNamespace(catalog=object(), resolver=object())
+    admitted = ((binding, SimpleNamespace(), SimpleNamespace()),)
+    monkeypatch.setattr(host_dispatch, "_configured_binding", lambda _envelope: binding)
+    monkeypatch.setattr(host_dispatch, "ModelEvidenceCatalog", SimpleNamespace(load_default=lambda: evidence))
+    monkeypatch.setattr(host_dispatch, "admit_resource_pool", lambda *args, **kwargs: admitted)
+
+    class _Dispatcher:
+        provider_id = "resource-router"
+
+        def request(self, _request):
+            return ModelResponse(provider="gemini", model="gemini-3.6-flash", text_segments=["{}"])
+
+    @contextmanager
+    def fake_compose(_admitted, *, resolver, model_admission_resolver, resource_id_prefix):
+        assert model_admission_resolver is evidence.resolver
+        assert resource_id_prefix == "devfarm-host"
+        yield SimpleNamespace(dispatcher=_Dispatcher())
+
+    monkeypatch.setattr(host_dispatch, "compose_resource_pool", fake_compose)
+    envelope = HostDispatchEnvelope(
+        dispatch_id="dispatch-admission",
+        provider_id="gemini",
+        provider_binding_id=binding.binding_id,
+        model_id=binding.model,
+        intelligence_tier="L2",
+        request=ModelRequest(
+            task_id="00000000-0000-0000-0000-000000000002",
+            messages=[{"role": "user", "content": "bounded"}],
+            requested_capabilities=["text"],
+            metadata={"allowed_intelligence_tiers": ["L2"]},
+        ),
+        egress_manifest_sha256="e" * 64,
+    )
+
+    response = host_dispatch._dispatch_configured(envelope)
+
+    assert response.provider == "gemini"
+    assert response.model == "gemini-3.6-flash"

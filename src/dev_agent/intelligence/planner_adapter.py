@@ -17,6 +17,7 @@ from typing import Any
 from ..domain.capabilities import CANONICAL_EXECUTION_CAPABILITIES
 from ..domain.protocol import ModelRequest, ModelResponse
 from ..providers.base import ModelProvider
+from ..security.egress import EgressValidationError, attach_model_request_egress
 from .capabilities import TASK_COMPETENCIES, TASK_POLICY_TRAITS
 from .planner import PlanningValidationError, RootPlanningProposal
 from .structured_response import StructuredResponseError, decode_json_object
@@ -173,6 +174,10 @@ class ModelPlanningAdapter:
             )
         except (TypeError, ValueError) as exc:
             raise PlanningAdapterError(f"invalid planning request: {exc}") from exc
+        try:
+            request, _egress_manifest = attach_model_request_egress(request)
+        except EgressValidationError as exc:
+            raise PlanningAdapterError(f"model request egress rejected: {exc}") from exc
         response = self.provider.request(request)
         payload = self._response_payload(response)
         try:

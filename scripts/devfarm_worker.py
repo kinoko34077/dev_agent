@@ -751,6 +751,9 @@ def run_worker(
     if not manifest["external_provider_allowed"]:
         raise DevFarmError("external provider execution is not approved by manifest")
     provider_id, model_id, _binding_id, _tier, _eligibility = _validate_worker_provider(provider)
+    worker_tier = _tier or _eligibility.intelligence_tier
+    if not isinstance(worker_tier, str) or not worker_tier.strip():
+        raise DevFarmError("worker provider has no Host-admitted intelligence tier")
     if provider_id not in manifest["approved_provider_ids"]:
         raise DevFarmError(f"provider is not approved by manifest: {provider_id}")
     # Stage A is remote proposal only.  Do not require or create a Git
@@ -769,6 +772,7 @@ def run_worker(
         metadata={
             "devfarm_task_id": manifest["task_id"],
             "egress_manifest_sha256": egress_manifest.manifest_sha256,
+            "allowed_intelligence_tiers": [worker_tier],
         },
         max_output_tokens=4096,
     )

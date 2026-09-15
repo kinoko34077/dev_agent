@@ -421,7 +421,18 @@ def main(argv: list[str] | None = None) -> int:
         output = {"status": "invalid_input", "category": type(exc).__name__, "message": str(exc)}
         code = 2
     except (PlannerShadowBlocked, DispatchDenied, ProviderError) as exc:
-        output = {"status": "blocked_external", "category": type(exc).__name__, "message": str(exc)}
+        output = {
+            "status": "blocked_external",
+            "category": getattr(exc, "host_failure_category", getattr(exc, "category", type(exc).__name__)),
+            "reconciliation_required": getattr(exc, "requires_reconciliation", False),
+            "message": str(exc),
+        }
+        host_failure_type = getattr(exc, "host_failure_type", None)
+        if isinstance(host_failure_type, str):
+            output["host_failure_type"] = host_failure_type
+        transport_failure_category = getattr(exc, "transport_failure_category", None)
+        if isinstance(transport_failure_category, str):
+            output["transport_failure_category"] = transport_failure_category
         code = 2
     except Exception as exc:
         output = {"status": "failed", "category": type(exc).__name__, "message": str(exc)}

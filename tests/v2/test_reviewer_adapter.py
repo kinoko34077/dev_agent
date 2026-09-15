@@ -90,6 +90,8 @@ def test_model_review_adapter_sends_compact_packet_without_raw_worker_output():
     assert request.metadata["integration_authority"] == "codex_and_host"
     assert request.metadata["intelligence_routing"] == "bounded"
     assert request.metadata["allowed_intelligence_tiers"] == ["L2"]
+    assert len(request.metadata["egress_manifest_sha256"]) == 64
+    assert request.metadata["egress_manifest_policy"] == "dev-agent-model-request-egress-v1"
     prompt = request.messages[0]["content"]
     assert "docs/CODEX_DAILY_DOGFOOD.md" in prompt
     assert "patch_sha256" in prompt

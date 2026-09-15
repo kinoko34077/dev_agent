@@ -133,6 +133,20 @@ def test_host_dispatch_envelope_contains_only_bounded_identity_and_request():
     assert HostDispatchEnvelope.from_dict(encoded) == envelope
 
 
+def test_host_dispatch_uses_host_selected_tier_when_concrete_adapter_has_no_tier():
+    provider = _Provider(ModelResponse(provider="fake", model="fake-model", text_segments=["ok"]))
+    provider.intelligence_tier = None
+    request = _request()
+    request.metadata["allowed_intelligence_tiers"] = ["L2"]
+
+    envelope = HostProviderDispatch(provider, execution_boundary="host_process").envelope(
+        request,
+        egress_manifest_sha256="a" * 64,
+    )
+
+    assert envelope.intelligence_tier == "L2"
+
+
 @pytest.mark.parametrize("forbidden", ["api_key", "authorization", "base_url", "credential_id"])
 def test_host_dispatch_envelope_rejects_credential_or_endpoint_fields(forbidden):
     provider = _Provider(ModelResponse(provider="fake", model="fake-model", text_segments=["ok"]))
@@ -175,6 +189,28 @@ def test_host_process_executor_preserves_bounded_transport_category_from_host_ru
         executor(provider, request)
 
     assert getattr(caught.value, "transport_failure_category", None) == "sandbox_network_denied"
+
+
+def test_host_process_executor_preserves_reconciliation_for_unexpected_child_failure(tmp_path):
+    provider = _Provider(ModelResponse(provider="fake", model="fake-model", text_segments=["unused"]))
+    request = _request()
+    request.metadata["egress_manifest_sha256"] = "7" * 64
+    code = (
+        "import json,sys; "
+        "response=sys.argv[sys.argv.index('--response')+1]; "
+        "open(response,'w',encoding='utf-8').write(json.dumps({"
+        "'status':'failed','category':'host_runtime_failure','exception_type':'RuntimeError',"
+        "'reconciliation_required':True}))"
+    )
+    executor = HostProcessExecutor((sys.executable, "-c", code), request_dir=tmp_path, timeout_seconds=2)
+
+    with pytest.raises(ProviderError) as caught:
+        executor(provider, request)
+
+    assert caught.value.category == "reconciliation_required"
+    assert caught.value.requires_reconciliation is True
+    assert caught.value.host_failure_category == "host_runtime_failure"
+    assert caught.value.host_failure_type == "RuntimeError"
 
 
 def test_host_provider_dispatch_uses_preserved_host_transport_category(tmp_path):

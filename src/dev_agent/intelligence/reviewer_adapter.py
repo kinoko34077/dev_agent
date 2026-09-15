@@ -16,6 +16,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 
 from ..domain.protocol import ModelRequest, ModelResponse
 from ..providers.base import ModelProvider
+from ..security.egress import EgressValidationError, attach_model_request_egress
 from .structured_response import StructuredResponseError, decode_json_object
 
 
@@ -338,6 +339,10 @@ class ModelReviewAdapter:
             )
         except (TypeError, ValueError) as exc:
             raise ReviewAdapterError(f"invalid review request: {exc}") from exc
+        try:
+            request, _egress_manifest = attach_model_request_egress(request)
+        except EgressValidationError as exc:
+            raise ReviewAdapterError(f"model request egress rejected: {exc}") from exc
         response = self.provider.request(request)
         payload = self._response_payload(response)
         proposal = ReviewProposal.from_dict(payload)

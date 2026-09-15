@@ -31,6 +31,8 @@ from src.dev_agent.providers.host_dispatch import (
     HostProviderDispatch,
 )
 from src.dev_agent.resources.qualification import QualificationResolver
+from src.dev_agent.resources.model_candidates import materialize_provider_bindings
+from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
 
 
 MAX_REQUEST_BYTES = 512 * 1024
@@ -96,13 +98,25 @@ def _write_response(path: str | Path, payload: dict[str, Any]) -> None:
 
 
 def _configured_binding(envelope: HostDispatchEnvelope) -> OperationProviderBinding:
-    candidates = tuple(
-        binding
-        for binding in configured_provider_pool_from_environment()
-        if binding.provider_id == envelope.provider_id
-        and binding.binding_id == envelope.provider_binding_id
-        and binding.model == envelope.model_id
-    )
+    catalog = ModelEvidenceCatalog.load_default().catalog
+    candidates: list[OperationProviderBinding] = []
+    for configured in configured_provider_pool_from_environment():
+        if configured.provider_id != envelope.provider_id:
+            continue
+        try:
+            materialized = materialize_provider_bindings(
+                configured,
+                catalog,
+                expand_discovered_models=True,
+            )
+        except (TypeError, ValueError) as exc:
+            raise HostDispatchRuntimeError("Host configured model catalog is invalid") from exc
+        candidates.extend(
+            binding
+            for binding in materialized
+            if binding.binding_id == envelope.provider_binding_id
+            and binding.model == envelope.model_id
+        )
     if len(candidates) != 1:
         raise HostDispatchRuntimeError("Host dispatch identity is not one configured binding")
     return candidates[0]
@@ -110,6 +124,7 @@ def _configured_binding(envelope: HostDispatchEnvelope) -> OperationProviderBind
 
 def _dispatch_configured(envelope: HostDispatchEnvelope) -> ModelResponse:
     binding = _configured_binding(envelope)
+    evidence = ModelEvidenceCatalog.load_default()
     resolver = QualificationResolver()
     admitted = admit_resource_pool(
         (binding,),
@@ -117,10 +132,17 @@ def _dispatch_configured(envelope: HostDispatchEnvelope) -> ModelResponse:
         required_tier=envelope.intelligence_tier,
         required_capabilities=tuple(envelope.request.requested_capabilities),
         no_charge_required=True,
+        model_admission_resolver=evidence.resolver,
+        model_catalog=evidence.catalog,
     )
     if len(admitted) != 1:
         raise HostDispatchRuntimeError("Host dispatch binding failed current admission")
-    with compose_resource_pool(admitted, resolver=resolver, resource_id_prefix="devfarm-host") as runtime:
+    with compose_resource_pool(
+        admitted,
+        resolver=resolver,
+        model_admission_resolver=evidence.resolver,
+        resource_id_prefix="devfarm-host",
+    ) as runtime:
         dispatch = HostProviderDispatch(runtime.dispatcher, execution_boundary="host_process")
         try:
             response = dispatch.request(envelope.request)
@@ -174,6 +196,17 @@ def process_once(
             "status": "rejected",
             "category": "host_configuration",
             "reconciliation_required": False,
+        }
+    except Exception as exc:
+        # The one-shot runtime must always leave a bounded response artifact.
+        # Do not expose exception text or assume that an unexpected failure
+        # happened before an external effect; callers must reconcile it and
+        # must not blindly retry the dispatch.
+        result = {
+            "status": "failed",
+            "category": "host_runtime_failure",
+            "reconciliation_required": True,
+            "exception_type": type(exc).__name__,
         }
     _write_response(response_path, result)
     return result

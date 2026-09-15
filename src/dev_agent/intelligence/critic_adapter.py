@@ -22,6 +22,7 @@ from ..coordination.protocol_helpers import (
 )
 from ..domain.protocol import ModelRequest, ModelResponse
 from ..providers.base import ModelProvider
+from ..security.egress import EgressValidationError, attach_model_request_egress
 from .refinement import CriticFinding, RefinementProposal
 from .structured_response import StructuredResponseError, decode_json_object
 
@@ -206,10 +207,13 @@ class ModelCriticAdapter:
         except (TypeError, ValueError) as exc:
             raise CriticAdapterError(f"invalid critic request: {exc}") from exc
         try:
+            request, _egress_manifest = attach_model_request_egress(request)
             payload = decode_json_object(response := self.provider.request(request), role="critic", max_chars=_MAX_RESPONSE_CHARS)
             proposal = RefinementProposal.from_dict(payload)
         except StructuredResponseError as exc:
             raise CriticAdapterError(str(exc)) from exc
+        except EgressValidationError as exc:
+            raise CriticAdapterError(f"model request egress rejected: {exc}") from exc
         except (TypeError, ValueError) as exc:
             raise CriticAdapterError(str(exc)) from exc
         if proposal.task_id != task_id:

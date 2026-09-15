@@ -9,7 +9,7 @@ dispatch.  Neither value contains the source content itself.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 import hashlib
 import json
@@ -17,6 +17,7 @@ from pathlib import PurePosixPath
 import re
 from typing import Any
 
+from ..domain.protocol import ModelRequest
 from .audit import AuditRecorder
 from .protected_paths import is_protected_path
 
@@ -65,6 +66,11 @@ _SAFE_TEXT_SUFFIXES = frozenset(
         ".yml",
     }
 )
+
+MODEL_REQUEST_EGRESS_POLICY = "dev-agent-model-request-egress-v1"
+MODEL_REQUEST_EGRESS_DESTINATION = "qualified-provider-pool"
+MODEL_REQUEST_EGRESS_PATH = "__model_request__.json"
+MODEL_REQUEST_EGRESS_MAX_BYTES = 512 * 1024
 
 
 def _text(value: Any, name: str, *, max_chars: int = 256) -> str:
@@ -475,6 +481,65 @@ def contains_secret_candidate(value: str) -> bool:
     return any(pattern.search(value) for pattern in AuditRecorder.SECRET_PATTERNS)
 
 
+def attach_model_request_egress(
+    request: ModelRequest,
+    *,
+    revision: str = "model-request",
+) -> tuple[ModelRequest, EgressManifest]:
+    """Attach a Host-owned digest for one bounded model request.
+
+    Planner, Reviewer, and Critic requests do not have source-file manifests,
+    but they still cross the same external-model boundary.  Represent the
+    canonical request as one virtual, scanned payload so the Host one-shot
+    dispatch contract is never bypassed.  The manifest records only hashes
+    and bounded metadata; request text is not retained in the returned
+    manifest or its metadata.
+    """
+
+    if not isinstance(request, ModelRequest):
+        raise EgressValidationError("model request must be a ModelRequest")
+    if not isinstance(revision, str) or not revision.strip():
+        raise EgressValidationError("model request revision must be non-empty text")
+    metadata = dict(request.metadata)
+    metadata.pop("egress_manifest_sha256", None)
+    metadata.pop("egress_manifest_policy", None)
+    unsigned_request = replace(request, metadata=metadata)
+    encoded = json.dumps(
+        unsigned_request.to_dict(),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    if len(encoded) > MODEL_REQUEST_EGRESS_MAX_BYTES:
+        raise EgressValidationError("model request exceeds the egress payload limit")
+    grant = StandingEgressGrant(
+        policy_id=MODEL_REQUEST_EGRESS_POLICY,
+        destinations=(MODEL_REQUEST_EGRESS_DESTINATION,),
+        allowed_roots=(MODEL_REQUEST_EGRESS_PATH,),
+        max_files=1,
+        max_bytes=MODEL_REQUEST_EGRESS_MAX_BYTES,
+        max_file_bytes=MODEL_REQUEST_EGRESS_MAX_BYTES,
+        max_sensitivity="normal",
+    )
+    manifest = build_egress_manifest(
+        task_id=request.task_id,
+        destination=MODEL_REQUEST_EGRESS_DESTINATION,
+        revision=revision,
+        files=((MODEL_REQUEST_EGRESS_PATH, encoded),),
+        grant=grant,
+    )
+    if manifest.decision is not EgressDecision.ALLOW:
+        reasons = ", ".join(manifest.reasons) or "egress_policy_rejected"
+        if "secret_detected" in manifest.reasons:
+            raise EgressValidationError("model request egress rejected: secret candidate")
+        raise EgressValidationError(f"model request egress rejected: {reasons}")
+    prepared_metadata = dict(metadata)
+    prepared_metadata["egress_manifest_sha256"] = manifest.manifest_sha256
+    prepared_metadata["egress_manifest_policy"] = MODEL_REQUEST_EGRESS_POLICY
+    return replace(request, metadata=prepared_metadata), manifest
+
+
 def _add_reason(reasons: list[str], reason: str) -> None:
     if reason not in reasons:
         reasons.append(reason)
@@ -486,6 +551,11 @@ __all__ = [
     "EgressManifest",
     "EgressValidationError",
     "StandingEgressGrant",
+    "MODEL_REQUEST_EGRESS_POLICY",
+    "MODEL_REQUEST_EGRESS_DESTINATION",
+    "MODEL_REQUEST_EGRESS_PATH",
+    "MODEL_REQUEST_EGRESS_MAX_BYTES",
+    "attach_model_request_egress",
     "build_egress_manifest",
     "contains_secret_candidate",
 ]

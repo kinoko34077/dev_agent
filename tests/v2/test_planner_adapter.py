@@ -8,13 +8,14 @@ from src.dev_agent.domain.protocol import ModelRequest, ModelResponse, TaskType
 from src.dev_agent.intelligence.planner import PlanningValidationError, RootPlanningProposal
 from src.dev_agent.intelligence.planner_adapter import ModelPlanningAdapter, PlanningAdapterError
 from src.dev_agent.operation import OperationConfig, OperationService
-from src.dev_agent.providers.base import ModelProvider
+from src.dev_agent.providers.base import ModelProvider, ProviderError
 from src.dev_agent.providers.dispatch import ProviderDispatcher, ProviderRegistry
 from src.dev_agent.resources.budget import BudgetAuthority, BudgetGovernor, BudgetPolicy
 from src.dev_agent.resources.control import ResourceControlPlane
 from src.dev_agent.resources.ledger import ResourceLedger
 from src.dev_agent.resources.qualification import QualificationResolver
 from src.dev_agent.resources.router import ResourceRouter
+import scripts.devfarm_planner_shadow as planner_shadow
 from scripts.devfarm_planner_shadow import (
     PlannerShadowInputError,
     resolve_provider_pool,
@@ -201,6 +202,8 @@ def test_model_planner_can_use_existing_dispatcher_for_exact_qualified_l2(tmp_pa
         assert proposal.parent_task_id == parent_task_id
         assert len(provider.requests) == 1
         assert provider.requests[0].metadata["allowed_intelligence_tiers"] == ["L2"]
+        assert len(provider.requests[0].metadata["egress_manifest_sha256"]) == 64
+        assert provider.requests[0].metadata["egress_manifest_policy"] == "dev-agent-model-request-egress-v1"
     finally:
         ledger.close()
 
@@ -254,6 +257,33 @@ def test_typed_proposal_round_trip_rejects_untracked_fields():
     payload["untracked_authority"] = "must not be accepted"
     with pytest.raises(PlanningValidationError, match="unknown planning proposal field"):
         RootPlanningProposal.from_dict(payload)
+
+
+def test_planner_shadow_reports_bounded_host_transport_category(monkeypatch, capsys):
+    failure = ProviderError(
+        "Host provider runtime rejected the dispatch",
+        category="reconciliation_required",
+        retryable=False,
+    )
+    failure.transport_failure_category = "sandbox_network_denied"
+    monkeypatch.setattr(
+        planner_shadow.ModelEvidenceCatalog,
+        "load_default",
+        lambda: type("Evidence", (), {"resolver": object(), "catalog": object()})(),
+    )
+    monkeypatch.setattr(planner_shadow, "resolve_provider_pool", lambda **_kwargs: None)
+
+    def fail_shadow(**_kwargs):
+        raise failure
+
+    monkeypatch.setattr(planner_shadow, "run_shadow", fail_shadow)
+
+    assert planner_shadow.main(["--objective", "diagnostic"]) == 2
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["category"] == "reconciliation_required"
+    assert output["reconciliation_required"] is True
+    assert output["transport_failure_category"] == "sandbox_network_denied"
 
 
 def test_planner_output_is_only_a_proposal_until_operation_host_validation(tmp_path):

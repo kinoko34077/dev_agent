@@ -27,6 +27,7 @@ _EXECUTION_BOUNDARIES = frozenset(
     {"unclassified", "codex_sandbox", "host_process", "provider_process"}
 )
 _DIGEST = re.compile(r"^[0-9a-fA-F]{64}$")
+_SAFE_DIAGNOSTIC_TYPE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]{0,63}$")
 _ENVELOPE_FIELDS = frozenset(
     {
         "dispatch_id",
@@ -198,12 +199,27 @@ class HostProviderDispatch:
         if not isinstance(request, ModelRequest):
             raise TypeError("request must be a ModelRequest")
         identity = self.provider_identity
+        intelligence_tier = identity["intelligence_tier"]
+        if not isinstance(intelligence_tier, str) or not intelligence_tier.strip():
+            # A routed temporary provider may not carry the tier on its
+            # concrete adapter.  Reuse the Host-selected exact tier already
+            # bound into the request; never infer it from a model name.
+            allowed_tiers = request.metadata.get("allowed_intelligence_tiers")
+            if (
+                isinstance(allowed_tiers, (list, tuple))
+                and len(allowed_tiers) == 1
+                and isinstance(allowed_tiers[0], str)
+                and allowed_tiers[0] in {"L0", "L1", "L2", "L3"}
+            ):
+                intelligence_tier = allowed_tiers[0]
+        if not isinstance(intelligence_tier, str) or not intelligence_tier.strip():
+            raise ValueError("provider intelligence_tier must be available from Host admission")
         return HostDispatchEnvelope(
             dispatch_id=dispatch_id or uuid4().hex,
             provider_id=identity["provider_id"],
             provider_binding_id=identity["provider_binding_id"],
             model_id=identity["model_id"],
-            intelligence_tier=identity["intelligence_tier"],
+            intelligence_tier=intelligence_tier,
             request=request,
             egress_manifest_sha256=egress_manifest_sha256,
         )
@@ -329,13 +345,24 @@ class HostProcessExecutor:
                 category = response_payload.get("category")
                 if not isinstance(category, str) or not category.strip():
                     category = "host_configuration" if completed.returncode != 0 else "provider_http"
+                reconciliation_required = response_payload.get("reconciliation_required") is True
+                failure_category = "reconciliation_required" if reconciliation_required else category
                 failure = ProviderError(
                     "Host provider runtime rejected the dispatch",
-                    category=category,
+                    category=failure_category,
                     retryable=response_payload.get("retryable") is True,
                     failover_safe=response_payload.get("failover_safe") is True,
                     http_status=response_payload.get("http_status") if isinstance(response_payload.get("http_status"), int) else None,
                 )
+                if reconciliation_required and category != failure_category:
+                    # Keep the bounded Host diagnostic without allowing an
+                    # unexpected child failure to weaken the UNKNOWN policy.
+                    setattr(failure, "host_failure_category", category)
+                exception_type = response_payload.get("exception_type")
+                if isinstance(exception_type, str) and _SAFE_DIAGNOSTIC_TYPE.fullmatch(exception_type):
+                    # The child may expose only a bounded exception type; raw
+                    # messages and tracebacks must never cross this boundary.
+                    setattr(failure, "host_failure_type", exception_type)
                 preserved = response_payload.get("transport_failure_category")
                 if isinstance(preserved, str):
                     try:

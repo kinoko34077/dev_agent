@@ -75,6 +75,8 @@ def test_critic_adapter_returns_bounded_proposal_without_review_authority():
     assert request.metadata["proposal_only"] is True
     assert request.metadata["integration_authority"] == "host_and_codex"
     assert request.metadata["allowed_intelligence_tiers"] == ["L1"]
+    assert len(request.metadata["egress_manifest_sha256"]) == 64
+    assert request.metadata["egress_manifest_policy"] == "dev-agent-model-request-egress-v1"
     assert "diff --git" not in request.messages[0]["content"]
     assert "conversation" not in request.messages[0]["content"]
     assert "failure_summary" in request.messages[0]["content"]
