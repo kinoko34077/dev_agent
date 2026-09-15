@@ -5,13 +5,13 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Latest implementation commit before documentation sync | `9b7ca90` (`refactor: isolate plan ownership projections`) |
-| Implementation/evidence baseline | `9b7ca90` (Host-owned dispatch boundary, explicit configured Free Worker lanes, exact L1 qualification admission without requiring dynamic model evidence, strict L2 evidence admission, bounded Host failure diagnostics, Windows Job Object child ownership verification, Guardian/authority hardening, adaptive refinement composition, shared Worker verification/artifacts, shared Planner/Reviewer pool composition, separated Worker admission authority, and bounded DevFarm plan-validation/ownership/service-boundary refactors) |
+| Latest implementation commit before documentation sync | `1a941d0` (`refactor: share devfarm artifact JSON reader`) |
+| Implementation/evidence baseline | `1a941d0` (Host-owned dispatch boundary, explicit configured Free Worker lanes, exact L1 qualification admission without requiring dynamic model evidence, strict L2 evidence admission, bounded Host failure diagnostics, Windows Job Object child ownership verification, Guardian/authority hardening, adaptive refinement composition, shared Worker verification/artifacts, shared Planner/Reviewer pool composition, separated Worker admission authority, and bounded DevFarm plan-validation/ownership/artifact-reader/service-boundary refactors) |
 | Worktree | clean at the current verification checkpoint; this documentation sync records the same checkpoint |
-| Local regression | `1291 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 212.38s) |
+| Local regression | `1292 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 239.80s) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for implementation baseline `9b7ca90`: `v2-core` [run 34939288609](https://github.com/kinoko34077/dev_agent/actions/runs/34939288609) and `v2-provider-smoke` [run 34939288611](https://github.com/kinoko34077/dev_agent/actions/runs/34939288611), covering kernel (3.10), kernel (3.11), and provider-smoke. |
+| Exact-head CI | PASS for implementation baseline `1a941d0`: `v2-core` [run 34940381647](https://github.com/kinoko34077/dev_agent/actions/runs/34940381647) and `v2-provider-smoke` [run 34940381653](https://github.com/kinoko34077/dev_agent/actions/runs/34940381653), covering kernel (3.10), kernel (3.11), and provider-smoke. |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
@@ -59,6 +59,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 
 - Commander plan shape, dependency, ownership, assignment, work-address, and delegation validation now live in the role-neutral `scripts.devfarm_plan_validation` boundary. Commander retains only compatibility exports; persistence, dispatch, verification, recovery, and integration remain separate. `1290 passed, 1 skipped` and exact-head CI are recorded in [`devfarm-plan-validation-refactor-20260915.json`](../spec/v2/evidence/devfarm-plan-validation-refactor-20260915.json).
 - Read-only active-plan and legacy ownership projection now lives in `scripts.devfarm_plan_ownership`; Commander retains locking, cross-plan conflict decisions, and ownership authority. `1291 passed, 1 skipped` and exact-head CI are recorded in [`devfarm-plan-ownership-refactor-20260915.json`](../spec/v2/evidence/devfarm-plan-ownership-refactor-20260915.json).
+- ReviewPacket and Worker now use the shared `scripts.devfarm_repository.read_json` boundary; duplicate artifact JSON readers were removed without changing manifest, Egress, Host Verification, UNKNOWN/reconciliation, or D9 semantics. `1292 passed, 1 skipped` and exact-head CI are recorded in [`devfarm-artifact-json-reader-refactor-20260915.json`](../spec/v2/evidence/devfarm-artifact-json-reader-refactor-20260915.json).
 
 ## Partially implemented / not verified
 
@@ -130,6 +131,7 @@ and the compact operational procedure is [`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_D
 - DevFarm Manifest boundary refactor checkpoint: [`devfarm-manifest-boundary-refactor-20260915.json`](../spec/v2/evidence/devfarm-manifest-boundary-refactor-20260915.json)
 - DevFarm plan validation boundary refactor checkpoint: [`devfarm-plan-validation-refactor-20260915.json`](../spec/v2/evidence/devfarm-plan-validation-refactor-20260915.json)
 - DevFarm plan ownership projection refactor checkpoint: [`devfarm-plan-ownership-refactor-20260915.json`](../spec/v2/evidence/devfarm-plan-ownership-refactor-20260915.json)
+- DevFarm shared artifact JSON reader refactor checkpoint: [`devfarm-artifact-json-reader-refactor-20260915.json`](../spec/v2/evidence/devfarm-artifact-json-reader-refactor-20260915.json)
 - Planner live D1 / D2 development evidence: [`planner-l2-live-d1-20260914.json`](../spec/v2/evidence/planner-l2-live-d1-20260914.json), [`planner-to-worker-e2e-20260914.json`](../spec/v2/evidence/planner-to-worker-e2e-20260914.json)
 - Supplemental D2, D3, D6, and D7 observations: [`d2-dogfood-doc-note-20260914.json`](../spec/v2/evidence/d2-dogfood-doc-note-20260914.json), [`d3-worker-reliability-observation-20260914.json`](../spec/v2/evidence/d3-worker-reliability-observation-20260914.json), [`reviewer-shadow-20260914.json`](../spec/v2/evidence/reviewer-shadow-20260914.json), [`reviewer-shadow-20260914-02.json`](../spec/v2/evidence/reviewer-shadow-20260914-02.json), [`d7-codexless-candidate-20260914.json`](../spec/v2/evidence/d7-codexless-candidate-20260914.json)
 - Model catalog and pool observations: [`spec/v2/evidence/`](../spec/v2/evidence/)

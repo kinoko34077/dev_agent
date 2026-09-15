@@ -1,0 +1,42 @@
+{
+  "evidence_id": "devfarm-artifact-json-reader-refactor-20260915",
+  "status": "verified",
+  "observed_at": "2026-09-15",
+  "implementation_baseline_before_documentation_sync": "1a941d048d6a0d29a5ad236a6401c7242bd0ec5d",
+  "scope": {
+    "shared_reader": "ReviewPacket and Worker artifact consumers now use scripts.devfarm_repository.read_json instead of duplicate local JSON readers.",
+    "authority": "Manifest validation, Egress, Host Verification, approval, UNKNOWN/reconciliation, and D9 semantics are unchanged."
+  },
+  "verification": {
+    "focused_tests": "34 passed",
+    "full_tests_v2": "1292 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS"
+  },
+  "exact_head_ci": {
+    "remote_head": "1a941d048d6a0d29a5ad236a6401c7242bd0ec5d",
+    "v2_core": {
+      "run_id": 34940381647,
+      "conclusion": "success",
+      "jobs": ["kernel (3.10)", "kernel (3.11)"]
+    },
+    "v2_provider_smoke": {
+      "run_id": 34940381653,
+      "conclusion": "success"
+    }
+  },
+  "worker": {
+    "production_task_attempted": 0,
+    "codex_direct_implementation_count": 1,
+    "reason": "The shared artifact input boundary is a cross-cutting Host read path; no live Worker dispatch was used for this refactor."
+  },
+  "not_claimed": [
+    "production Worker integration",
+    "MCP wire transport",
+    "OS Guardian registration",
+    "D9 real mutation"
+  ],
+  "raw_conversation_saved": false,
+  "credentials_saved": false
+}
