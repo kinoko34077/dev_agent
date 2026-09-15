@@ -40,7 +40,7 @@ from scripts.devfarm_commander import (
     verify_plan,
     summarize_delegation,
 )
-from scripts.devfarm_worker import build_worker_provider
+from scripts.devfarm_provider_runtime import build_worker_provider
 from scripts.devfarm_supervisor_protocol import (
     advance_heartbeat,
     normalize_supervisor_metadata,

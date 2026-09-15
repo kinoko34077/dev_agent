@@ -30,7 +30,7 @@ PROBE_TASK_NAMESPACE = uuid5(NAMESPACE_URL, "dev_agent.devfarm/capability-probe"
 PROBE_VERSION = "fixed-v3"
 
 from scripts.devfarm import DevFarmError
-from scripts.devfarm_worker import build_worker_provider
+from scripts.devfarm_provider_runtime import build_worker_provider
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.providers.base import ModelProvider, ProviderError
 

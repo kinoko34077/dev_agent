@@ -313,7 +313,7 @@ def test_supervisor_resume_preserves_assigned_worker_binding(tmp_path, monkeypat
         calls.append((name, model, timeout_seconds, provider_binding_id))
         return object()
 
-    monkeypatch.setattr("scripts.devfarm_worker._provider", fake_provider)
+    monkeypatch.setattr("scripts.devfarm_supervisor.build_worker_provider", fake_provider)
 
     providers = _providers_for_resume(tmp_path, "supervisor-test-001", 30)
 

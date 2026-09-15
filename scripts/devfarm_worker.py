@@ -38,10 +38,10 @@ from scripts.devfarm import (
 )
 from src.dev_agent.domain.protocol import ModelRequest
 from src.dev_agent.providers.base import ModelProvider, ProviderError
-from src.dev_agent.providers.factory import ProviderDefinition, ProviderFactory
 from src.dev_agent.providers.host_dispatch import HostProviderDispatch
 from src.dev_agent.resources.provider_policy import validate_provider_instance_authority
 from scripts.devfarm_worker_admission import DevFarmActivationPolicy, DevFarmWorkerEligibility
+from scripts.devfarm_provider_runtime import build_worker_provider
 from src.dev_agent.security.egress import (
     EgressDecision,
     EgressManifest,
@@ -465,42 +465,7 @@ def _prompt(
     )
 
 
-def _provider(
-    name: str,
-    model: str,
-    timeout_seconds: float,
-    provider_binding_id: str | None = None,
-) -> ModelProvider:
-    policy = DevFarmActivationPolicy()
-    policy.ensure_active(name, model, provider_binding_id=provider_binding_id)
-    binding_id, intelligence_tier = policy.binding_for(
-        name,
-        model,
-        provider_binding_id=provider_binding_id,
-    )
-    try:
-        return ProviderFactory().create(
-            ProviderDefinition(
-                provider_id=name,
-                model=model,
-                timeout_seconds=timeout_seconds,
-                provider_binding_id=binding_id,
-                intelligence_tier=intelligence_tier,
-            )
-        )
-    except (TypeError, ValueError) as exc:
-        raise DevFarmError(f"unsupported development worker provider: {name}") from exc
-
-
-def build_worker_provider(
-    name: str,
-    model: str,
-    timeout_seconds: float,
-    provider_binding_id: str | None = None,
-) -> ModelProvider:
-    """Public provider-construction boundary for development adapters."""
-
-    return _provider(name, model, timeout_seconds, provider_binding_id)
+_provider = build_worker_provider
 
 
 def inspect_worker_egress(

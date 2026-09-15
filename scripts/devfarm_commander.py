@@ -1898,10 +1898,9 @@ def mark_integrated(
 
 
 def _cli_provider(provider_id: str, model_id: str, timeout_seconds: float) -> ModelProvider:
-    # ProviderFactory and the existing DevFarm activation policy remain the
-    # only construction/activation boundary.  This import is intentionally
-    # local so importing the plan store never constructs a provider.
-    from scripts.devfarm_worker import build_worker_provider
+    # The provider runtime remains the only construction/activation boundary.
+    # Keep this import local so importing the plan store never constructs one.
+    from scripts.devfarm_provider_runtime import build_worker_provider
 
     return build_worker_provider(provider_id, model_id, timeout_seconds)
 

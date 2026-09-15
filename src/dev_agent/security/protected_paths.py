@@ -60,6 +60,7 @@ PROTECTED_AUTHORITY_PATHS = frozenset(
         "scripts/devfarm.py",
         "scripts/devfarm_worker.py",
         "scripts/devfarm_worker_admission.py",
+        "scripts/devfarm_provider_runtime.py",
         "scripts/devfarm_commander.py",
         "scripts/devfarm_orchestrator.py",
         ".gitmodules",
