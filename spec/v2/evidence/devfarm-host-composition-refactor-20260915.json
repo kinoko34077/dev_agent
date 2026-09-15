@@ -1,0 +1,52 @@
+{
+  "evidence_id": "devfarm-host-composition-refactor-20260915",
+  "status": "VERIFIED",
+  "scope": "bounded_host_outbound_composition_refactor",
+  "implementation_commit_before_documentation_sync": "3acf52aae03f6c20d28fafb80fefa24658b26045",
+  "summary": "Standard DevFarm host-process entrypoints now use the shared route_through_host boundary. In-process behavior remains unchanged; the adapter still delegates provider selection, admission, failover, and reconciliation to existing Host/Provider services.",
+  "changed_files": [
+    "scripts/devfarm_commander.py",
+    "scripts/devfarm_supervisor.py",
+    "scripts/devfarm_worker.py",
+    "tests/v2/test_devfarm_host_composition_boundary.py"
+  ],
+  "preserved": [
+    "Host-owned one-shot outbound process",
+    "Provider admission and routing authority",
+    "Egress manifest boundary",
+    "UNKNOWN/reconciliation semantics",
+    "in-process Worker behavior",
+    "no arbitrary HTTP proxy or second scheduler"
+  ],
+  "focused_tests": {
+    "command": "python -m pytest tests/v2/test_devfarm_host_composition_boundary.py tests/v2/test_host_provider_dispatch.py tests/v2/test_devfarm_host_dispatch.py tests/v2/test_devfarm_commander.py tests/v2/test_devfarm_supervisor.py tests/v2/test_devfarm_patch_validation.py tests/v2/test_devfarm_orchestrator.py -q",
+    "passed": 127,
+    "failed": 0
+  },
+  "full_regression": {
+    "command": "python -m pytest tests/v2 -q",
+    "passed": 1316,
+    "skipped": 1,
+    "failed": 0,
+    "duration_seconds": 265.34
+  },
+  "architecture": "ARCHITECTURE_PASS",
+  "compileall": "PASS",
+  "exact_head_ci": {
+    "v2_core": {
+      "run_id": 34961112103,
+      "conclusion": "success",
+      "jobs": ["kernel (3.10)", "kernel (3.11)"]
+    },
+    "v2_provider_smoke": {
+      "run_id": 34961112161,
+      "conclusion": "success"
+    }
+  },
+  "external_calls": "none",
+  "worker_delegation": {
+    "attempted": 0,
+    "integrated": 0,
+    "codex_direct_reason": "cross_cutting_host_boundary_refactor"
+  }
+}
