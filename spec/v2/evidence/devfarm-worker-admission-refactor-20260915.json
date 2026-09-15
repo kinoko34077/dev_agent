@@ -1,0 +1,35 @@
+{
+  "evidence_id": "devfarm-worker-admission-refactor-20260915",
+  "observed_at": "2026-09-15",
+  "implementation_baseline_before_documentation_sync": "2e290f778fee9f996ecff83a994c32ea5a937648",
+  "scope": {
+    "new_boundary": "scripts/devfarm_worker_admission.py",
+    "responsibility": [
+      "operator activation",
+      "qualification and capability evidence",
+      "trusted no-charge billing admission",
+      "local-provider exclusion"
+    ],
+    "worker_execution": "retains compatibility imports and no longer defines admission policy",
+    "protected_policy": "new admission module is centrally protected",
+    "authority": "Host/Codex admission remains separate from Worker dispatch"
+  },
+  "verification": {
+    "focused_tests": "99 passed",
+    "full_tests_v2": "1253 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head_ci": {
+      "remote_head": "2e290f778fee9f996ecff83a994c32ea5a937648",
+      "v2_core_run": "34917147909",
+      "v2_provider_smoke_run": "34917147943",
+      "result": "PASS"
+    }
+  },
+  "not_claimed": [
+    "live Provider request",
+    "OS Guardian registration",
+    "D9 real mutation"
+  ],
+  "secrets_or_raw_payloads_saved": false
+}
