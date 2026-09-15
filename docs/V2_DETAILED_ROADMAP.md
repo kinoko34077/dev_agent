@@ -6,6 +6,27 @@
 
 `D0 Documentation SSOT consolidation`、`D1 Valid live Free L2 proposal`、`D2 Planner → Bridge → Commander → L1 Worker E2E` はbounded live evidenceで完了した。D2には、2026-09-16に`gemini:worker:free-3` / `gemini-3.5-flash-lite`を使ったproduction `scripts/` Worker taskの実装、独立Host Verification、Codex review、Host deterministic integrationまでが追加された。D4はCodexExecBackendに正式な外部discoveryがないため、明示DiscoveryAuthority以外の復元を行わずUNKNOWNへ閉じる境界を確認した。D5のtransport-neutral thin runtime adapterまで進め、wire transportは未接続である。D6は異なる2件のproposal-only Reviewer Shadow比較を取得し、D7の決定的candidate policy/CLIと、D8 F0–F2のproposal-onlyデータ契約を実装した。さらにD7の実Free Worker → Host Verification → Free L2 proposal-only → Host candidate評価を証拠化した。D10のG1〜G5として、静的Guardian process実行、graceful drain/checkpoint、revision-pinned release、rolling restart、last-known-good rollback compositionとfault drillをHost/localで検証した。直近では標準Worker/Planner/Critic dispatchをHost-owned one-shot boundaryへ寄せ、transport/egress証跡、明示Plan supersede、六秒既定のGuardian serve、OS登録dry-runを追加した。DevFarmは、plan query、assigned Provider composition、Worker prompt、Worker output/metrics projectionの限定責務分離まで進めた。ただし公式branchへのCodex-less統合、OS常駐Guardian、配備後crash recovery、D9 real mutationは未接続である。新しいHost dispatch identity修正とproduction Worker evidenceは[`d2-production-worker-integration-20260916.json`](../spec/v2/evidence/d2-production-worker-integration-20260916.json)を参照する。
 
+## 現行Work Addressプログラム
+
+現在の開発順序は、既存のTask UUID・dependency・ownership・lease・Gate IDを置換せず、
+それらへ表示用のWork Addressを付与する次のStageへ統合する。Stage間は直列、同一Stageの
+別laneは依存がない場合だけ並列とする。実行権限は従来どおりCommander/Hostが持ち、
+Address自身はAuthorityではない。詳細な契約は[`CODEX_WORK_COORDINATION.md`](CODEX_WORK_COORDINATION.md)を参照する。
+
+- **Stage 1 — Phase 7 closeout / Guardian実運用化**: `1-A` OS liveness、`1-B` 実rolling、`1-C` 実rollback、`1-D` production approval persistence、`1-E` readiness evidence。現在は`1-A-1`/`1-A-2`のread-only診断と`1-D-1`の既存approval監査を優先し、OS登録・実mutationは未承認/未検証のまま保持する。
+- **Stage 2 — D9 Real Self-Repair**: `2-A` Observation/Diagnosis/Plan、`2-B` candidate、`2-C` Human approval付きreal mutation、`2-D` rollback drill、`2-E` closure。Stage 1のD9 readiness `READY`後だけ開始する。
+- **Stage 3 — Autonomy Safety Model**: `3-A` path分類、`3-B` disposable worktree、`3-C` non-Git backup、`3-D` egress、`3-E` Codex policy、`3-F` safety regression。Stage 2完了後に安全モデルを更新する。
+- **Stage 4 — Phase 8 Multi-Role Foundation**: `4-A` Role Manifest、`4-B` role instance/ownership、`4-C` resource admission、`4-D` handoff、`4-E` Planner/Implementer/Reviewer role set。新Scheduler/StateStore/Budget/Agent frameworkは追加しない。
+- **Stage 5 — Multi-Role Runtime E2E**: `5-A` Planner、`5-B` 並列Implementer、`5-C` Reviewer、`5-D` failure/refinement、`5-E` Host integration。Stage 4のcontract成立後、実repositoryで2以上の非重複childを使う。
+- **Stage 6 — AI Company benchmark**: `6-A` scenarios、`6-B` metrics/audit、`6-C` independent evaluator、`6-D` adversarial cases、`6-E` workflow promotion、`6-F` survival modes。Kernel correctnessやAuthorityをbenchmarkへ移さない。
+- **Stage 7 — Formal Operation / MCP API**: `7-A` Operation監査、`7-B` planning tools、`7-C` wire transport、`7-D` external-client E2E、`7-E` compatibility。既存Operation/Supervisor authorityへdelegateし、MCP独自Scheduler/Retry/Approvalは作らない。
+- **Stage 8 — UI Entry Readiness**: `8-A` read model、`8-B` control model、`8-C` state taxonomy、`8-D` update model、`8-E` redaction、`8-F` headless simulation、`8-G` contract freeze。ここまで完了するまでVirtual Office UIは開始しない。
+
+Stage 1の完了条件はOS Guardian登録/解除、crash/restart、実rolling/rollback、durable approval、
+exact-head CI、D9 readiness `READY`である。Stage 2は1件の実repairとrollback、Stage 4以降は
+既存のD9/Phase 8依存を満たした後に進める。未検証案をVerified capabilityへ昇格させず、
+G6O1、paid provider、OpenAI/Claude API、Production auto-deploy、UI、unbounded loopは従来どおり対象外とする。
+
 ## 順序とGate
 
 補足: D2には別内容の bounded documentation Worker sliceも追加で成功した。D6は異なるTask/attemptによる2件のproposal-only Reviewer Shadow比較を取得し、最小比較条件を満たした。D7は別のbounded documentation Taskでlive candidate評価まで通過したが、公式branchの自動integrationは有効化していない。D8の実運用昇格条件は別に判定し、コードの存在や単体テストだけでは昇格しない。
@@ -97,6 +118,12 @@
 
 - 既存Guardian action journalへ、Host設定済み`LaunchProfile`だけを解決する`GuardianProcessExecutor`を接続した。任意commandはControlRequestから生成せず、START/STOP/RESTART以外は境界外とする。
 - real local subprocess/fake runtimeで成功、profile/revision不一致、executor失敗→UNKNOWN/no replayを検証した。OS Service/Task Schedulerへの接続は未検証。
+- Work Address `1-A-1`/`1-A-2`として、`guardian os-status` read-only照会を追加した。固定Task名だけをbounded queryし、raw Task Scheduler outputを保持せず、OS mutationは行わない。現在のregistrationは未確認であり、実登録はHuman approval後の別sliceとする。Evidence: [`guardian-os-registration-diagnostic-20260916.json`](../spec/v2/evidence/guardian-os-registration-diagnostic-20260916.json)。
+
+### D9 / Work Address `1-D` — Production approval persistence audit
+
+- Work Address `1-D-1`で既存SQLite/JSON StateStoreのapproval repository、expiry、revoke、consume-onceを監査した。`RepairExecutionRequest`はcandidate、task、attempt、base revision、patch/manifest/verification、RollbackProof、review、target、operation callのauthorization digestへ接続している。新しいapproval DBは作らない。
+- この結果は既存境界の監査であり、real repairのHuman approval消費・official runtime mutationを示さない。Evidence: [`d9-production-approval-audit-20260916.json`](../spec/v2/evidence/d9-production-approval-audit-20260916.json)。残りは`1-D-3`〜`1-D-6`の実candidate binding/reuse拒否/expiry/revoke/UNKNOWN境界確認である。
 
 ### D10D/G2 — Graceful drain and checkpoint
 

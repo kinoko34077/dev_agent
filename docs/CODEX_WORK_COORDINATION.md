@@ -8,31 +8,33 @@ artifactを正本として利用する。
 
 ## 1. 番号付き開発プログラム
 
-この順序を当面の書置きとして扱う。各項目は、実装・focused test・必要な証拠が
-揃うまで次の依存項目を完了扱いにしない。
+現在の書置きは、旧来の7項目プログラムを包含する次の8 Stageへ更新した。Work Addressは
+既存Task UUID、dependency、ownership、lease、Gate IDを置換しない。Stage間は直列、同一
+Stageの別laneは依存がない場合だけ並列であり、各項目は実装・focused test・必要な証拠が
+揃うまで完了扱いにしない。詳細の一行正本は[`V2_DETAILED_ROADMAP.md`](V2_DETAILED_ROADMAP.md)
+の「現行Work Addressプログラム」である。
 
-1. **安定化** — 現行HEAD、Gate、local regression、文書drift、UNKNOWN/reconciliation、
-   Worker failureを確認し、確認できた不整合だけを最小修正する。
-2. **限定refactor** — private cross-module依存、重複するResource/Artifact/Verification
-   知識、active Plan間のownership重複を既存public boundaryへ整理する。
-3. **作業アドレスと復帰点** — UUIDとは別のhuman-readable address、checkpoint、
-   interrupt stack、NOTE/PARALLEL/INTERRUPT/CANCELを既存Plan/Coordination artifactへ
-   接続する。
-4. **送信許可** — standing egress grantとdispatchごとのcontent-scanned manifestを
-   Host側で発行し、read/write/external-send/approvalを分離する。
-5. **Process Coordination** — peer identity、generation、presence、durable mailbox、
-   immutable handoffを検証する。これはTask Planeを置換しない。
-6. **Guardian準備** — ControlRequest、generation fencing、bounded action journal、
-   drain、checkpoint、restart、revision-pinned runtime、rollbackを、前項の証拠を使って
-   段階実装する。
-7. **D9 real controlled repair** — 1〜6が実証された後だけ、Human approval付きの
-   bounded・non-protected・rollback可能なruntime更新を一件検証する。
+1. **Stage 1 / `1-A`〜`1-E` — Phase 7 closeout / Guardian実運用化**: OS liveness、実rolling、
+   実rollback、production approval persistence、D9 readinessを順に閉じる。現在はread-only
+   OS診断と既存approval監査から開始し、OS登録・D9 mutationは未検証のまま維持する。
+2. **Stage 2 / `2-A`〜`2-E` — D9 Real Self-Repair**: Stage 1のREADY後にだけ、Human approval付き
+   bounded repair、runtime promotion、health、rollback、recoveryを1件実証する。
+3. **Stage 3 / `3-A`〜`3-F` — Autonomy Safety Model**: HARD_DENY、AUTHORITY_SENSITIVE、
+   NORMAL_REPO、worktree、backup、egress、Codex policyを整理し、安全回帰を通す。
+4. **Stage 4 / `4-A`〜`4-E` — Phase 8 Multi-Role Foundation**: Role Manifest、Role Instance、
+   ownership/admission/handoff、Planner/Implementer/Reviewerを既存境界へ接続する。
+5. **Stage 5 / `5-A`〜`5-E` — Multi-Role Runtime E2E**: 2以上の非重複Implementer、独立検証、
+   Reviewer、bounded refinement、Host integrationを実repositoryで成立させる。
+6. **Stage 6 / `6-A`〜`6-F` — AI Company benchmark**: scenarios、metrics、独立Evaluator、
+   adversarial cases、workflow promotion、survival modesを評価可能にする。
+7. **Stage 7 / `7-A`〜`7-E` — Formal Operation / MCP API**: Operation監査、planning tools、
+   wire、external-client E2E、compatibilityを既存Authorityへ委譲して閉じる。
+8. **Stage 8 / `8-A`〜`8-G` — UI Entry Readiness**: read/control model、state、update、redaction、
+   headless simulation、contract freezeを完了するまでUI実装へ進まない。
 
-現在は3と4、および5のdurable foundationが実装済みである。ControlRequest、
-generation-fenced Guardian policy、ならびにprocess side effectを持たないbounded action
-journalは6の準備として実装済みである。process操作は持たない。
-full Guardian、drain、restart、revision-pinned runtime、rollbackは未実装・未検証であり、
-7のD9 real controlled repairはproposal-only境界を越えない。
+Stage 1未完の現在は、`1-A-1`/`1-A-2`（Guardian read-only診断）と`1-D-1`（既存approval
+authority監査）を着手点とする。旧来の安定化/refactor/egress/Process Coordination/Guardian/D9
+の説明は、このStage列の対応するlaneへ吸収されたものとして扱う。
 
 ## 2. Work Address
 

@@ -124,6 +124,87 @@ def test_guardian_registration_apply_closes_timeout_without_raw_process_output(t
         guardian_registration(_config(tmp_path), tmp_path / "runtime", apply=True)
 
 
+def test_guardian_os_registration_status_reports_configured_without_task_output(tmp_path, monkeypatch):
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append((command, kwargs))
+        return guardian_module.subprocess.CompletedProcess(
+            command,
+            0,
+            stdout="TaskName: \\DevAgentGuardian\nSecretPath: hidden",
+            stderr="",
+        )
+
+    monkeypatch.setattr(guardian_module, "os", SimpleNamespace(name="nt"))
+    monkeypatch.setattr(guardian_module.subprocess, "run", fake_run)
+
+    result = guardian_module.guardian_os_registration_status(_config(tmp_path))
+
+    assert result["status"] == "CONFIGURED"
+    assert result["registration"] == "CONFIGURED"
+    assert result["query_performed"] is True
+    assert result["mutation_performed"] is False
+    assert result["query_command_static"] is True
+    assert "SecretPath" not in json.dumps(result)
+    assert calls[0][0] == ["schtasks.exe", "/Query", "/TN", "DevAgentGuardian", "/FO", "LIST"]
+    assert calls[0][1]["timeout"] == 10
+
+
+def test_guardian_os_registration_status_reports_missing_task_without_raw_output(tmp_path, monkeypatch):
+    def fake_run(command, **kwargs):
+        return guardian_module.subprocess.CompletedProcess(
+            command,
+            1,
+            stdout="",
+            stderr="ERROR: The system cannot find the file specified.",
+        )
+
+    monkeypatch.setattr(guardian_module, "os", SimpleNamespace(name="nt"))
+    monkeypatch.setattr(guardian_module.subprocess, "run", fake_run)
+
+    result = guardian_module.guardian_os_registration_status(_config(tmp_path))
+
+    assert result["status"] == "NOT_CONFIGURED"
+    assert result["registration"] == "NOT_CONFIGURED"
+    assert result["observed_task_state"] == "absent"
+    assert "specified" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    ("exception", "reason"),
+    [
+        (FileNotFoundError("schtasks.exe"), "query_unavailable"),
+        (guardian_module.subprocess.TimeoutExpired("schtasks.exe", 10), "query_timeout"),
+    ],
+)
+def test_guardian_os_registration_status_is_bounded_when_query_unavailable(
+    tmp_path, monkeypatch, exception, reason
+):
+    def fake_run(_command, **_kwargs):
+        raise exception
+
+    monkeypatch.setattr(guardian_module, "os", SimpleNamespace(name="nt"))
+    monkeypatch.setattr(guardian_module.subprocess, "run", fake_run)
+
+    result = guardian_module.guardian_os_registration_status(_config(tmp_path))
+
+    assert result["status"] == "NOT_VERIFIED"
+    assert result["registration"] == "NOT_VERIFIED"
+    assert result["reason"] == reason
+    assert result["mutation_performed"] is False
+
+
+def test_guardian_os_registration_status_does_not_claim_windows_registration_elsewhere(tmp_path):
+    result = guardian_module.guardian_os_registration_status(_config(tmp_path))
+
+    if guardian_module.os.name != "nt":
+        assert result["status"] == "NOT_APPLICABLE"
+        assert result["registration"] == "NOT_VERIFIED"
+        assert result["query_performed"] is False
+        assert result["mutation_performed"] is False
+
+
 def test_guardian_config_rejects_arbitrary_command_field(tmp_path):
     path = _config(tmp_path)
     value = json.loads(path.read_text(encoding="utf-8"))

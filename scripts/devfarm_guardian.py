@@ -47,6 +47,16 @@ _PROFILE_FIELDS = frozenset(
     }
 )
 _TASK_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
+_TASK_NOT_FOUND = re.compile(
+    r"(?:cannot find|does not exist|not found|system cannot find)",
+    re.IGNORECASE,
+)
+
+
+def _validated_task_name(task_name: str) -> str:
+    if not isinstance(task_name, str) or _TASK_NAME.fullmatch(task_name.strip()) is None:
+        raise GuardianOperatorError("task_name is outside the static registration policy")
+    return task_name.strip()
 
 
 def load_launch_profiles(path: str | Path) -> tuple[LaunchProfile, ...]:
@@ -173,8 +183,7 @@ def guardian_registration(
     no mailbox or caller-supplied arbitrary command is accepted.
     """
 
-    if not isinstance(task_name, str) or _TASK_NAME.fullmatch(task_name.strip()) is None:
-        raise GuardianOperatorError("task_name is outside the static registration policy")
+    task_name = _validated_task_name(task_name)
     config = Path(config_path).resolve()
     data = Path(data_dir).resolve()
     profiles = load_launch_profiles(config)
@@ -193,7 +202,7 @@ def guardian_registration(
     result: dict[str, Any] = {
         "status": "DRY_RUN",
         "registration": "NOT_APPLIED",
-        "task_name": task_name.strip(),
+        "task_name": task_name,
         "profile_count": len(profiles),
         "command": command,
         "arbitrary_command": False,
@@ -234,6 +243,80 @@ def guardian_registration(
     }
 
 
+def guardian_os_registration_status(
+    config_path: str | Path,
+    *,
+    task_name: str = "DevAgentGuardian",
+) -> dict[str, Any]:
+    """Read the static Windows liveness registration without mutating the OS.
+
+    Only the bounded result category is exposed.  Task Scheduler stdout and
+    stderr can contain operator-specific paths or other environment details,
+    so neither is returned, logged, or written to evidence.
+    """
+
+    task_name = _validated_task_name(task_name)
+    profiles = load_launch_profiles(config_path)
+    query = ["schtasks.exe", "/Query", "/TN", task_name, "/FO", "LIST"]
+    result: dict[str, Any] = {
+        "status": "NOT_VERIFIED",
+        "registration": "NOT_VERIFIED",
+        "task_name": task_name,
+        "profile_count": len(profiles),
+        "query_command_static": True,
+        "query_performed": False,
+        "mutation_performed": False,
+        "arbitrary_command": False,
+        "os": os.name,
+    }
+    if os.name != "nt":
+        return {
+            **result,
+            "status": "NOT_APPLICABLE",
+            "reason": "windows_task_scheduler_only",
+        }
+
+    try:
+        completed = subprocess.run(
+            query,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except subprocess.TimeoutExpired:
+        return {**result, "query_performed": True, "reason": "query_timeout"}
+    except OSError:
+        return {**result, "query_performed": True, "reason": "query_unavailable"}
+
+    # Classification is intentionally based on a bounded local probe.  Raw
+    # provider/OS output is never copied into the projection.
+    output = "\n".join(
+        value for value in (completed.stdout, completed.stderr) if isinstance(value, str)
+    )
+    if completed.returncode == 0:
+        return {
+            **result,
+            "status": "CONFIGURED",
+            "registration": "CONFIGURED",
+            "query_performed": True,
+            "observed_task_state": "present",
+        }
+    if _TASK_NOT_FOUND.search(output):
+        return {
+            **result,
+            "status": "NOT_CONFIGURED",
+            "registration": "NOT_CONFIGURED",
+            "query_performed": True,
+            "observed_task_state": "absent",
+        }
+    return {
+        **result,
+        "query_performed": True,
+        "reason": "query_failed",
+    }
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Host-owned bounded Guardian operator")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -252,6 +335,9 @@ def _parser() -> argparse.ArgumentParser:
     install.add_argument("--data-dir", type=Path, default=Path(os.environ.get("DEV_AGENT_DATA_DIR", ".dev_agent")))
     install.add_argument("--task-name", default="DevAgentGuardian")
     install.add_argument("--apply", action="store_true")
+    status = subparsers.add_parser("os-status", help="read static Windows liveness registration status")
+    status.add_argument("--config", required=True, type=Path)
+    status.add_argument("--task-name", default="DevAgentGuardian")
     return parser
 
 
@@ -269,13 +355,15 @@ def main(argv: list[str] | None = None) -> int:
                 poll_seconds=args.poll_seconds,
                 max_cycles=args.max_cycles,
             )
-        else:
+        elif args.command == "install":
             result = guardian_registration(
                 args.config,
                 args.data_dir,
                 task_name=args.task_name,
                 apply=args.apply,
             )
+        else:
+            result = guardian_os_registration_status(args.config, task_name=args.task_name)
     except GuardianOperatorError as exc:
         print(json.dumps({"status": "REJECTED", "error": str(exc)}, ensure_ascii=False, sort_keys=True))
         return 2
@@ -290,6 +378,7 @@ if __name__ == "__main__":
 __all__ = [
     "GuardianOperatorError",
     "guardian_health",
+    "guardian_os_registration_status",
     "guardian_registration",
     "guardian_run_once",
     "guardian_serve",

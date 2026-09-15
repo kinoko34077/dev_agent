@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "work_address": "1-D-1",
+  "operation": "d9_production_approval_persistence_audit",
+  "observed_at": "2026-09-16",
+  "branch": "v2/bootstrap",
+  "status": "AUDITED_NOT_READY",
+  "implementation": {
+    "durable_store": "existing StateStore approval repository",
+    "sqlite_store": "src/dev_agent/state/sqlite_store.py",
+    "json_store": "src/dev_agent/state/json_store.py",
+    "schema": "approvals plus approval_consumptions",
+    "second_approval_database_created": false,
+    "codex_direct_reason": "authority_sensitive"
+  },
+  "existing_binding": {
+    "approval_identity": "approval_id",
+    "task_id": true,
+    "side_effect_level": "external_write",
+    "actor": true,
+    "call_id": true,
+    "arguments_hash": true,
+    "candidate_id": true,
+    "run_id": true,
+    "attempt_id": true,
+    "base_revision": true,
+    "patch_sha256": true,
+    "manifest_ref": true,
+    "verification_ref": true,
+    "rollback_ref": true,
+    "rollback_proof_digest": true,
+    "review_decision_id": true,
+    "target_checkout_ref": true,
+    "target_ref": true,
+    "commit_message": true
+  },
+  "durable_semantics": {
+    "expiry": "implemented",
+    "revoke": "implemented",
+    "consume_once": "implemented_and_focused_tested",
+    "mismatched_candidate_or_patch_rejected": "implemented_by_authorization_hash",
+    "unknown_after_consume_blind_retry": "forbidden_by_existing_effect/reconciliation_boundary"
+  },
+  "d9_execution_boundary": {
+    "preflight_is_read_only": true,
+    "approval_consumption_occurs_only_after_rechecks": true,
+    "host_integration_authority": "existing_supervisor_host_helper",
+    "real_repair_approval_persisted_for_live_candidate": false,
+    "human_approval_for_real_repair": false,
+    "official_runtime_mutated": false
+  },
+  "verification": {
+    "focused_tests": "existing approval/self-repair/state-store coverage passed in current baseline",
+    "raw_credentials_recorded": false,
+    "raw_patch_recorded": false
+  },
+  "remaining": ["1-D-3", "1-D-4", "1-D-5", "1-D-6"]
+}
