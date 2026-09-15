@@ -22,7 +22,7 @@ def read_json(path: str | Path) -> Any:
     target = Path(path)
     try:
         return json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise DevFarmError(f"could not read JSON file {target}") from exc
 
 

@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 import scripts.devfarm_guardian as guardian_module
+from scripts.devfarm_repository import read_json
 from scripts.devfarm_guardian import (
     GuardianOperatorError,
     guardian_health,
@@ -14,6 +15,10 @@ from scripts.devfarm_guardian import (
     guardian_run_once,
     guardian_serve,
 )
+
+
+def test_guardian_uses_shared_repository_json_reader():
+    assert guardian_module.read_json is read_json
 
 
 def _config(tmp_path):

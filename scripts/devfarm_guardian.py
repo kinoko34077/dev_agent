@@ -23,6 +23,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from scripts.devfarm import DevFarmError
+from scripts.devfarm_repository import read_json
 from src.dev_agent.coordination.guardian import GuardianActionService
 from src.dev_agent.coordination.guardian_process import LaunchProfile
 from src.dev_agent.coordination.store import CoordinationStore
@@ -47,20 +49,15 @@ _PROFILE_FIELDS = frozenset(
 _TASK_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
 
 
-def _read_json(path: Path) -> dict[str, Any]:
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise GuardianOperatorError("Guardian configuration is unreadable") from exc
-    if not isinstance(value, dict):
-        raise GuardianOperatorError("Guardian configuration must be an object")
-    return value
-
-
 def load_launch_profiles(path: str | Path) -> tuple[LaunchProfile, ...]:
     """Load only Host-authored static launch profiles from JSON."""
 
-    document = _read_json(Path(path).resolve())
+    try:
+        document = read_json(Path(path).resolve())
+    except DevFarmError as exc:
+        raise GuardianOperatorError("Guardian configuration is unreadable") from exc
+    if not isinstance(document, dict):
+        raise GuardianOperatorError("Guardian configuration must be an object")
     unknown = set(document) - {"profiles"}
     if unknown:
         raise GuardianOperatorError(f"unknown Guardian configuration field: {sorted(unknown)[0]}")
