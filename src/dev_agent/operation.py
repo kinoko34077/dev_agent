@@ -234,6 +234,19 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
                 api_key_env="OPENROUTER_API_KEY",
             )
         )
+    cloudflare_account_id = env("CLOUDFLARE_ACCOUNT_ID")
+    if env("CLOUDFLARE_API_TOKEN") and cloudflare_account_id:
+        bindings.append(
+            OperationProviderBinding(
+                provider_id="cloudflare",
+                model=env("CLOUDFLARE_MODEL") or "@cf/meta/llama-3.1-8b-instruct",
+                provider_binding_id="cloudflare",
+                quota_domain=f"cloudflare:account:{cloudflare_account_id}",
+                credential_id="cloudflare-account",
+                api_key_env="CLOUDFLARE_API_TOKEN",
+                project_id=cloudflare_account_id,
+            )
+        )
     ollama_model = env("OLLAMA_CLOUD_MODEL")
     if env("OLLAMA_API_KEY") and ollama_model:
         bindings.append(

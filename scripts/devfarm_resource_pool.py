@@ -272,7 +272,18 @@ def compose_resource_pool(
                     model_admission_resolver,
                     now=None,
                 )
-                if model_admission is None and model_admission_resolver is not None:
+                if (
+                    model_admission is None
+                    and model_admission_resolver is not None
+                    and getattr(qualification, "intelligence_tier", None) != "L1"
+                ):
+                    # Known L1 Worker bindings may be admitted from exact,
+                    # current qualification evidence even when the optional
+                    # discovery/benchmark catalog has no entry for legacy
+                    # resources such as the OpenRouter free lane.  Keep the
+                    # stricter model-evidence requirement for L2/L3 so a
+                    # Planner or Reviewer cannot silently outlive its
+                    # benchmark admission window.
                     raise ResourcePoolError("model evidence expired after resource admission")
                 effective_capabilities = sorted(
                     frozenset(getattr(qualification, "routing_capabilities", ()))

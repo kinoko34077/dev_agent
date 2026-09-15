@@ -834,6 +834,22 @@ def test_configured_provider_pool_includes_explicit_openrouter_free_lane(monkeyp
     assert all("secret-not-read" not in repr(binding) for binding in bindings.values())
 
 
+def test_configured_provider_pool_includes_explicit_cloudflare_free_lane(monkeypatch, tmp_path):
+    monkeypatch.setenv("DEV_AGENT_ENABLE_CONFIGURED_POOL", "1")
+    monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "account-not-read-into-config")
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "secret-not-read-into-config")
+
+    config = OperationConfig.from_environment(data_dir=tmp_path)
+
+    bindings = {binding.binding_id: binding for binding in config.provider_bindings}
+    assert bindings["cloudflare"].provider_id == "cloudflare"
+    assert bindings["cloudflare"].model == "@cf/meta/llama-3.1-8b-instruct"
+    assert bindings["cloudflare"].api_key_env == "CLOUDFLARE_API_TOKEN"
+    assert bindings["cloudflare"].project_id == "account-not-read-into-config"
+    assert bindings["cloudflare"].quota_domain == "cloudflare:account:account-not-read-into-config"
+    assert all("secret-not-read" not in repr(binding) for binding in bindings.values())
+
+
 def test_configured_provider_pool_public_boundary_reads_only_non_secret_binding_metadata():
     values = {
         "GEMINI_API_KEY_3": "secret-value",
