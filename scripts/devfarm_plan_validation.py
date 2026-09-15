@@ -14,7 +14,7 @@ import re
 from typing import Any, Mapping, Sequence
 
 from scripts.devfarm import DevFarmError, validate_manifest
-from scripts.devfarm_repository import git, read_json, repository_path, resolved_revision
+from scripts.devfarm_repository import read_json, repository_path
 from scripts.devfarm_supervisor_protocol import normalize_review_decision, normalize_supervisor_metadata
 from src.dev_agent.coordination import WorkAddress, allocate_work_address
 from src.dev_agent.security.protected_paths import is_protected_path

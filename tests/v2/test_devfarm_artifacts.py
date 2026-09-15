@@ -4,8 +4,29 @@ import json
 from pathlib import Path
 
 from scripts.devfarm import write_result
-from scripts.devfarm_artifacts import read_latest_result_projection
+import scripts.devfarm_artifacts as artifacts_module
+from scripts.devfarm_artifacts import list_verification_records, read_latest_result_projection
+from scripts.devfarm_repository import read_json
 from tests.v2.devfarm_test_support import _workspace
+
+
+def test_verification_artifacts_use_shared_repository_json_reader(tmp_path: Path, monkeypatch):
+    verification_dir = tmp_path / ".devfarm" / "results" / "task-1" / "attempts" / "attempt-1" / "verification"
+    verification_dir.mkdir(parents=True)
+    path = verification_dir / "record.json"
+    path.write_text(json.dumps({"verification_id": "record-1", "verified_at": "now"}), encoding="utf-8")
+    calls = []
+
+    def _read(path_value):
+        calls.append(path_value)
+        return read_json(path_value)
+
+    monkeypatch.setattr(artifacts_module, "read_json", _read)
+
+    assert list_verification_records(tmp_path, "task-1", "attempt-1") == [
+        {"verification_id": "record-1", "verified_at": "now"}
+    ]
+    assert calls == [path]
 
 
 def test_read_latest_result_projection_validates_the_shared_result_boundary(tmp_path: Path) -> None:

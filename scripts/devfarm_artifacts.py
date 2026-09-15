@@ -111,8 +111,8 @@ def list_verification_records(root: Path, task_id: str, attempt: str) -> list[di
     for path in sorted(verification_dir.iterdir()):
         if path.suffix == ".json" and path.stem and not path.stem.startswith("."):
             try:
-                records.append(json.loads(path.read_text(encoding="utf-8")))
-            except (OSError, json.JSONDecodeError):
+                records.append(read_json(path))
+            except DevFarmError:
                 pass
     records.sort(key=lambda record: (record.get("verified_at") or "", record.get("verification_id") or ""))
     return records
