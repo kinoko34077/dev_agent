@@ -13,8 +13,6 @@ from pathlib import PurePosixPath
 import shlex
 import subprocess
 import sys
-import tempfile
-import threading
 import time
 from typing import Any, Mapping
 from uuid import NAMESPACE_URL, uuid4, uuid5
@@ -47,7 +45,6 @@ from src.dev_agent.resources.billing_catalog import TRUSTED_RESOURCE_CATALOG
 from src.dev_agent.resources.provider_policy import is_local_provider as _is_local_provider
 from src.dev_agent.resources.provider_policy import validate_provider_instance_authority
 from src.dev_agent.resources.qualification import QualificationError, QualificationResolver
-from src.dev_agent.security.audit import AuditRecorder
 from src.dev_agent.security.egress import (
     EgressDecision,
     EgressManifest,
@@ -57,6 +54,7 @@ from src.dev_agent.security.egress import (
 )
 from scripts.devfarm_metrics import WorkerMetricsError, WorkerMetricsStore
 from scripts.devfarm_artifacts import (
+    MAX_TEST_OUTPUT_CHARS,
     attempt_id as shared_attempt_id,
     bounded_test_output as shared_bounded_test_output,
     list_verification_records as shared_list_verification_records,
@@ -74,7 +72,6 @@ from scripts.devfarm_verification import (
 
 MAX_INPUT_FILE_BYTES = 64 * 1024
 MAX_OUTPUT_TEXT_CHARS = 32 * 1024
-MAX_TEST_OUTPUT_CHARS = 32 * 1024
 MAX_VERIFICATION_WALL_CLOCK_SECONDS = 10 * 60
 _MODEL_STATUS_ALIASES = {
     "success": "completed",
@@ -444,142 +441,6 @@ def _validate_patch_application(workspace: Path, patch: str) -> None:
         raise DevFarmError(f"worker patch apply check failed: {detail}")
 
 
-class HostVerificationRunner:
-    """Run allowlisted verification commands behind a small host boundary.
-
-    This is process-tree containment and environment sanitization, not an OS
-    sandbox.  The result records that distinction so an unattended caller
-    cannot mistake a Git worktree for a security boundary.
-    """
-
-    _SAFE_ENVIRONMENT_KEYS = frozenset(
-        {
-            "COMSPEC",
-            "LANG",
-            "LC_ALL",
-            "PATH",
-            "PATHEXT",
-            "SYSTEMROOT",
-            "TEMP",
-            "TMP",
-        }
-    )
-
-    def __init__(self, *, timeout_seconds: float = 120.0, max_output_bytes: int = MAX_TEST_OUTPUT_CHARS) -> None:
-        if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, (int, float)) or not math.isfinite(float(timeout_seconds)) or timeout_seconds <= 0:
-            raise ValueError("timeout_seconds must be positive")
-        if isinstance(max_output_bytes, bool) or not isinstance(max_output_bytes, int) or max_output_bytes <= 0:
-            raise ValueError("max_output_bytes must be positive")
-        self.timeout_seconds = float(timeout_seconds)
-        self.max_output_bytes = max_output_bytes
-
-    def _environment(self, home: Path) -> dict[str, str]:
-        environment = {
-            key: value
-            for key, value in os.environ.items()
-            if key.upper() in self._SAFE_ENVIRONMENT_KEYS
-        }
-        home_value = home.as_posix()
-        environment.update(
-            {
-                "HOME": home_value,
-                "USERPROFILE": home_value,
-                "HOMEDRIVE": home.drive,
-                "HOMEPATH": home_value[len(home.drive) :] if home.drive else home_value,
-                "DEV_AGENT_HOST_VERIFICATION": "1",
-                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
-                "PYTHONNOUSERSITE": "1",
-            }
-        )
-        return environment
-
-    def _terminate_tree(self, process: subprocess.Popen[bytes]) -> None:
-        if process.poll() is not None:
-            return
-        if os.name == "nt":
-            subprocess.run(
-                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            return
-        try:
-            import signal
-
-            os.killpg(process.pid, signal.SIGKILL)
-        except (ProcessLookupError, PermissionError):
-            process.kill()
-
-    def run(self, command: list[str], *, cwd: Path) -> dict[str, Any]:
-        if not isinstance(command, list) or not command or not all(isinstance(token, str) and token for token in command):
-            raise ValueError("command must be a non-empty token list")
-        workspace = cwd.resolve()
-        with tempfile.TemporaryDirectory(prefix="devfarm-host-home-") as home_dir:
-            home = Path(home_dir)
-            creationflags = 0
-            if os.name == "nt":
-                creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(subprocess, "CREATE_NO_WINDOW", 0)
-            process = subprocess.Popen(
-                command,
-                cwd=workspace,
-                env=self._environment(home),
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                creationflags=creationflags,
-                start_new_session=os.name != "nt",
-            )
-            stdout = bytearray()
-            stderr = bytearray()
-            output_state = {"stdout_truncated": False, "stderr_truncated": False}
-
-            def capture(stream, buffer: bytearray, key: str) -> None:
-                while True:
-                    chunk = stream.read(4096)
-                    if not chunk:
-                        return
-                    remaining = self.max_output_bytes - len(buffer)
-                    if remaining > 0:
-                        buffer.extend(chunk[:remaining])
-                    if len(chunk) > max(remaining, 0):
-                        output_state[key] = True
-
-            threads = [
-                threading.Thread(target=capture, args=(process.stdout, stdout, "stdout_truncated"), daemon=True),
-                threading.Thread(target=capture, args=(process.stderr, stderr, "stderr_truncated"), daemon=True),
-            ]
-            for thread in threads:
-                thread.start()
-            timed_out = False
-            try:
-                return_code = process.wait(timeout=self.timeout_seconds)
-            except subprocess.TimeoutExpired:
-                timed_out = True
-                self._terminate_tree(process)
-                try:
-                    return_code = process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    return_code = process.wait(timeout=5)
-            for thread in threads:
-                thread.join(timeout=5)
-            return {
-                "returncode": None if timed_out else return_code,
-                "stdout": AuditRecorder.sanitize_payload({"text": bytes(stdout).decode("utf-8", errors="replace")})["text"],
-                "stderr": AuditRecorder.sanitize_payload({"text": bytes(stderr).decode("utf-8", errors="replace")})["text"],
-                "timed_out": timed_out,
-                "output_truncated": output_state["stdout_truncated"] or output_state["stderr_truncated"],
-                "containment": {
-                    "environment": "sanitized_allowlist",
-                    "home": "temporary",
-                    "process_tree": "terminated_on_timeout",
-                    "network": "not_isolated",
-                    "sandbox": "not_provided",
-                },
-            }
-
-
 def _workspace(root: Path, manifest: Mapping[str, Any]) -> Path:
     farm_path = root / ".devfarm"
     worktree_path = farm_path / "worktrees"
@@ -724,156 +585,8 @@ def _contains_secret(value: str) -> bool:
     return contains_secret_candidate(value)
 
 
-def _validate_host_test_targets(workspace: Path, tokens: list[str]) -> None:
-    """Resolve every structured test target inside the verification worktree."""
-    for token in tokens[3:]:
-        if token in {"-q", "-x"} or token.startswith("--maxfail="):
-            continue
-        target = token.split("::", 1)[0].replace("\\", "/")
-        parsed = PurePosixPath(target)
-        if parsed.is_absolute() or any(part in {"", ".", ".."} for part in parsed.parts) or _is_protected(target):
-            raise DevFarmError(f"host test target is outside the allowed worktree scope: {target}")
-        current = workspace
-        for part in parsed.parts:
-            current = current / part
-            if current.is_symlink():
-                raise DevFarmError(f"host test target symlink is not allowed: {target}")
-        resolved = (workspace / target).resolve()
-        if not _is_within(workspace, resolved):
-            raise DevFarmError(f"host test target resolves outside the worktree: {target}")
-
-
-def _target_is_independent(workspace: Path, target: str, changed_set: frozenset[str]) -> bool:
-    """True when the test target covers at least one file not authored by the worker.
-
-    A file target is independent when it is not in the changed set.  A directory
-    target is independent only when it contains at least one file that is not in
-    the changed set; this prevents a worker from satisfying the independence
-    requirement by authoring every file under the target directory.
-    """
-    path = (workspace / target).resolve()
-    if path.is_dir():
-        for child in path.rglob("*"):
-            if not child.is_file():
-                continue
-            try:
-                rel = child.relative_to(workspace).as_posix()
-            except ValueError:
-                continue
-            if rel not in changed_set:
-                return True
-        return False
-    return target not in changed_set
-
-
-def _bounded_test_output(value: str) -> dict[str, Any]:
-    original_chars = len(value)
-    clipped = value[:MAX_TEST_OUTPUT_CHARS]
-    sanitized = AuditRecorder.sanitize_payload({"text": clipped})["text"]
-    result: dict[str, Any] = {"text": sanitized, "truncated": original_chars > MAX_TEST_OUTPUT_CHARS}
-    if original_chars > MAX_TEST_OUTPUT_CHARS:
-        result["original_chars"] = original_chars
-    return result
-
-
-def _attempt_id(value: Any = None) -> str:
-    if value is None:
-        return uuid4().hex
-    if not isinstance(value, str) or not value.strip() or not value.replace("-", "").replace("_", "").isalnum():
-        raise DevFarmError("attempt_id must contain only safe identifier characters")
-    return value.strip()
-
-
-def _result_directories(root: Path, task_id: str, attempt_id: str) -> tuple[Path, Path]:
-    base = root / ".devfarm" / "results" / task_id
-    attempt = base / "attempts" / _attempt_id(attempt_id)
-    base.mkdir(parents=True, exist_ok=True)
-    attempt.mkdir(parents=True, exist_ok=True)
-    return base, attempt
-
-
-def _write_immutable_text(path: Path, content: str) -> None:
-    """Create an attempt artifact once, refusing all later rewrites.
-
-    Uses os.link() instead of os.rename() so that an existing destination
-    raises FileExistsError on both POSIX/Linux and Windows.  os.rename() on
-    POSIX silently replaces the destination, making immutability OS-dependent.
-    """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
-    try:
-        with temporary.open("x", encoding="utf-8", newline="\n") as handle:
-            handle.write(content)
-            handle.flush()
-            os.fsync(handle.fileno())
-        try:
-            os.link(temporary, path)
-        except FileExistsError as exc:
-            raise DevFarmError(f"immutable worker artifact already exists: {path.name}") from exc
-        except OSError as exc:
-            raise DevFarmError(f"immutable worker artifact link failed: {path.name}: {exc}") from exc
-    finally:
-        try:
-            temporary.unlink()
-        except FileNotFoundError:
-            pass
-
-
-def _write_verification_record(root: Path, manifest: Mapping[str, Any], attempt_id: str, record: Mapping[str, Any]) -> str:
-    """Append a verification record to the attempt's immutable verification directory.
-
-    Each call creates a new file under attempts/<attempt_id>/verification/<verification_id>.json
-    so multiple verifications (e.g. STATIC_ONLY followed by TRUSTED_HOST_EXEC) can coexist
-    without overwriting earlier evidence.  Returns the verification_id assigned.
-    """
-    _base, attempt = _result_directories(root, manifest["task_id"], attempt_id)
-    verification_id = uuid4().hex
-    record_with_id = dict(record)
-    record_with_id["verification_id"] = verification_id
-    payload = json.dumps(record_with_id, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
-    verification_dir = attempt / "verification"
-    verification_dir.mkdir(parents=True, exist_ok=True)
-    _write_immutable_text(verification_dir / f"{verification_id}.json", payload)
-    return verification_id
-
-
-def _list_verification_records(root: Path, task_id: str, attempt_id: str) -> list[dict[str, Any]]:
-    """Return all verification records for an attempt, sorted by verified_at ascending."""
-    safe_attempt = _attempt_id(attempt_id)
-    verification_dir = root / ".devfarm" / "results" / task_id / "attempts" / safe_attempt / "verification"
-    if not verification_dir.is_dir():
-        return []
-    records = []
-    for path in sorted(verification_dir.iterdir()):
-        if path.suffix == ".json" and path.stem and not path.stem.startswith("."):
-            try:
-                records.append(json.loads(path.read_text(encoding="utf-8")))
-            except (OSError, json.JSONDecodeError):
-                pass
-    records.sort(key=lambda r: (r.get("verified_at") or "", r.get("verification_id") or ""))
-    return records
-
-
 _canonical_digest = canonical_digest
 _sha256_text = sha256_text
-
-
-def _write_latest_result_projection(root: Path, result: Mapping[str, Any], *, manifest: Mapping[str, Any]) -> Path:
-    normalized_manifest = validate_manifest(manifest)
-    normalized = validate_result(result, manifest=normalized_manifest)
-    directory = root / ".devfarm" / "results" / normalized_manifest["task_id"]
-    directory.mkdir(parents=True, exist_ok=True)
-    path = directory / "result.json"
-    temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
-    try:
-        temporary.write_text(json.dumps(normalized, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        os.replace(temporary, path)
-    finally:
-        try:
-            temporary.unlink()
-        except FileNotFoundError:
-            pass
-    return path
 
 
 # Keep the historical private names for in-process callers and old fixtures,
