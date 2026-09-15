@@ -23,6 +23,7 @@ from src.dev_agent.intelligence.role_manifest import (
     RoleInstance,
     RoleManifest,
     RoleTaskAssignment,
+    RoleTaskProfile,
     validate_assignment_set,
 )
 
@@ -81,7 +82,7 @@ class MultiRolePlanAdapter:
         *,
         role_manifests: Mapping[str, RoleManifest],
         role_instances: Mapping[str, RoleInstance],
-        task_profiles: Mapping[str, Task],
+        task_profiles: Mapping[str, Task | RoleTaskProfile],
         assignments: Sequence[RoleTaskAssignment],
         peers: Sequence[Any] = (),
         now: str | None = None,
@@ -128,7 +129,12 @@ class MultiRolePlanAdapter:
             if profile.risk.value != task["risk"] or profile.sensitivity != task["sensitivity"]:
                 raise RoleAssignmentError("task profile risk/privacy does not match plan task")
             try:
-                manifest.validate_task(profile, policy.decide(profile))
+                if isinstance(profile, Task):
+                    manifest.validate_task(profile, policy.decide(profile))
+                elif isinstance(profile, RoleTaskProfile):
+                    manifest.validate_profile(profile)
+                else:
+                    raise TypeError("task profile must be Task or RoleTaskProfile")
             except (TypeError, ValueError) as exc:
                 raise RoleAssignmentError(f"role task admission failed: {assignment.task_id}") from exc
             if assignment.owned_paths != tuple(task["ownership"]):
@@ -184,12 +190,12 @@ class MultiRolePlanAdapter:
         return result
 
     @staticmethod
-    def _profiles(value: Mapping[str, Task]) -> dict[str, Task]:
+    def _profiles(value: Mapping[str, Task | RoleTaskProfile]) -> dict[str, Task | RoleTaskProfile]:
         if not isinstance(value, Mapping):
             raise RoleAssignmentError("task_profiles must be an object")
-        result: dict[str, Task] = {}
+        result: dict[str, Task | RoleTaskProfile] = {}
         for key, profile in value.items():
-            if not isinstance(profile, Task) or key != profile.task_id:
+            if not isinstance(profile, (Task, RoleTaskProfile)) or key != profile.task_id:
                 raise RoleAssignmentError("task profile mapping key does not match task_id")
             result[key] = profile
         return result

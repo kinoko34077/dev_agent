@@ -157,6 +157,44 @@ def _peer_value(peer: Any, name: str) -> Any:
 
 
 @dataclass(frozen=True)
+class RoleTaskProfile:
+    """Host-owned task shape for Commander IDs that are not Kernel UUIDs."""
+
+    task_id: str
+    task_type: TaskType
+    required_capabilities: tuple[str, ...]
+    intelligence_tier: IntelligenceTier
+    risk: RiskLevel
+    sensitivity: str
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "task_id", _text(self.task_id, "task_id", max_chars=128))
+        object.__setattr__(self, "task_type", _enum(self.task_type, TaskType, "task_type"))
+        object.__setattr__(
+            self,
+            "required_capabilities",
+            _items(self.required_capabilities, "required_capabilities", max_chars=128),
+        )
+        object.__setattr__(
+            self,
+            "intelligence_tier",
+            _enum(self.intelligence_tier, IntelligenceTier, "intelligence_tier"),
+        )
+        object.__setattr__(self, "risk", _enum(self.risk, RiskLevel, "risk"))
+        object.__setattr__(self, "sensitivity", _sensitivity(self.sensitivity))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "task_id": self.task_id,
+            "task_type": self.task_type.value,
+            "required_capabilities": list(self.required_capabilities),
+            "intelligence_tier": self.intelligence_tier.value,
+            "risk": self.risk.value,
+            "sensitivity": self.sensitivity,
+        }
+
+
+@dataclass(frozen=True)
 class RoleManifest:
     """Data-only role definition with bounded policy references."""
 
@@ -308,17 +346,40 @@ class RoleManifest:
         tier = _enum(intelligence_decision.minimum_tier, IntelligenceTier, "intelligence_decision.minimum_tier")
         if not _tier_at_least(tier, self.minimum_intelligence_tier) or _TIERS.index(tier) > _TIERS.index(self.maximum_intelligence_tier):
             raise RoleManifestError("task intelligence tier is outside role manifest bounds")
-        risk = _enum(task.risk, RiskLevel, "task.risk")
+        profile = RoleTaskProfile(
+            task_id=task.task_id,
+            task_type=task.task_type,
+            required_capabilities=task_capabilities,
+            intelligence_tier=tier,
+            risk=task.risk,
+            sensitivity=task.sensitivity,
+        )
+        return self.validate_profile(profile)
+
+    def validate_profile(self, profile: RoleTaskProfile) -> "RoleTaskAdmission":
+        """Validate a Host-projected Commander task profile."""
+
+        if not isinstance(profile, RoleTaskProfile):
+            raise TypeError("profile must be RoleTaskProfile")
+        task_type = profile.task_type.value
+        if task_type not in self.allowed_task_types:
+            raise RoleManifestError("task type is not allowed by role manifest")
+        if any(capability not in set(self.required_capabilities) for capability in profile.required_capabilities):
+            raise RoleManifestError("task capability is outside role manifest capability set")
+        tier = profile.intelligence_tier
+        if not _tier_at_least(tier, self.minimum_intelligence_tier) or _TIERS.index(tier) > _TIERS.index(self.maximum_intelligence_tier):
+            raise RoleManifestError("task intelligence tier is outside role manifest bounds")
+        risk = profile.risk
         if _risk_at_least(risk, self.risk_ceiling) and risk is not self.risk_ceiling:
             raise RoleManifestError("task risk exceeds role manifest ceiling")
-        sensitivity = _sensitivity(task.sensitivity)
+        sensitivity = profile.sensitivity
         if _sensitivity_at_least(sensitivity, self.privacy_ceiling) and sensitivity != self.privacy_ceiling:
             raise RoleManifestError("task sensitivity exceeds role privacy ceiling")
         return RoleTaskAdmission(
             role_id=self.role_id,
-            task_id=task.task_id,
+            task_id=profile.task_id,
             task_type=task_type,
-            required_capabilities=task_capabilities,
+            required_capabilities=profile.required_capabilities,
             intelligence_tier=tier,
             risk=risk,
             sensitivity=sensitivity,
@@ -585,6 +646,7 @@ __all__ = [
     "RoleManifestError",
     "RoleTaskAdmission",
     "RoleTaskAssignment",
+    "RoleTaskProfile",
     "builtin_role_manifests",
     "validate_assignment_set",
 ]
