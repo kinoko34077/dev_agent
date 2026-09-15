@@ -1,0 +1,43 @@
+{
+  "evidence_id": "devfarm-worker-artifact-refactor-20260915",
+  "status": "verified",
+  "observed_at": "2026-09-15",
+  "implementation_baseline_before_documentation_sync": "9b2d604a97dd01148a09300cbf3a083f8f75c131",
+  "scope": {
+    "artifact_boundary": "Latest Worker result projection read and validation now live in scripts.devfarm_artifacts.read_latest_result_projection.",
+    "consumer_migration": "Worker execution delegates latest-result artifact loading to the shared Artifact service.",
+    "authority": "Result validation, Host Verification, UNKNOWN/reconciliation, approval, integration, and D9 semantics are unchanged."
+  },
+  "verification": {
+    "focused_tests": "8 passed across Artifact, Worker output, and Orchestrator coverage",
+    "full_tests_v2": "1288 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS"
+  },
+  "exact_head_ci": {
+    "remote_head": "9b2d604a97dd01148a09300cbf3a083f8f75c131",
+    "v2_core": {
+      "run_id": 34935174251,
+      "conclusion": "success",
+      "jobs": ["kernel (3.10)", "kernel (3.11)"]
+    },
+    "v2_provider_smoke": {
+      "run_id": 34935174231,
+      "conclusion": "success"
+    }
+  },
+  "worker": {
+    "production_task_attempted": 0,
+    "codex_direct_implementation_count": 0,
+    "reason": "This is a cross-cutting Artifact/Worker responsibility refactor; no live Provider or Worker dispatch was repeated."
+  },
+  "not_claimed": [
+    "production Worker integration",
+    "MCP wire transport",
+    "OS Guardian registration",
+    "D9 real mutation"
+  ],
+  "raw_conversation_saved": false,
+  "credentials_saved": false
+}

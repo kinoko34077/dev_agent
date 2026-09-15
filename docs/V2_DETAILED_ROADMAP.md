@@ -121,6 +121,7 @@
 - `1285 passed, 1 skipped`、Architecture、compileall、およびexact-head CI（kernel 3.10/3.11、provider-smoke）を `59a7f12` で確認した。詳細Evidenceは[`devfarm-service-boundary-refactor-20260915.json`](../spec/v2/evidence/devfarm-service-boundary-refactor-20260915.json)。次のrefactorもサイズではなく依存・所有責務を基準に狭く分割する。
 - Assigned Provider reconstruction for Supervisor/MCP resume is now isolated in `scripts/devfarm_resume.py`; MCP uses it directly and Supervisor keeps only a compatibility wrapper. `1286 passed, 1 skipped` and exact-head CI are recorded in [`devfarm-resume-composition-refactor-20260915.json`](../spec/v2/evidence/devfarm-resume-composition-refactor-20260915.json).
 - Supervisor and Self-Improvement now share the repository-local bounded JSON reader from `scripts.devfarm_repository`; containment and size/parser errors are no longer duplicated. `1287 passed, 1 skipped` and exact-head CI are recorded in [`devfarm-bounded-json-refactor-20260915.json`](../spec/v2/evidence/devfarm-bounded-json-refactor-20260915.json).
+- Latest Worker result projection loading and validation now live in `scripts.devfarm_artifacts`; Worker execution delegates this read-only responsibility. `1288 passed, 1 skipped` and exact-head CI are recorded in [`devfarm-worker-artifact-refactor-20260915.json`](../spec/v2/evidence/devfarm-worker-artifact-refactor-20260915.json).
 
 ### Main Phase 8 / Main Phase 9
 
