@@ -67,6 +67,7 @@
 - 依存: D6の十分なshadow Evidence。
 - 範囲: LOW/NORMAL、非protected、既知task classのみ。official branchへの無人mergeは別Gate。
 - 現在: `CodexLessPolicy` とSupervisorのread-only `codexless` CLIを実装し、実Free L1 Workerのbounded documentation変更、独立Host Verification、Free L2 proposal-only review、D6 Shadow gateを一続きで評価した。結果は`CANDIDATE`で、証拠は[`d7-codexless-candidate-20260914.json`](../spec/v2/evidence/d7-codexless-candidate-20260914.json)。Reviewerのdecision authority、公式branchの自動merge/push、Gate昇格、無条件integrationは付与しない。
+- D7 candidate evaluator now also admits explicit bounded production task classes (`bounded_bugfix`, `small_helper`, `cli_adapter`, `data_model`) without changing any downstream safety/evidence gate. This only broadens a read-only candidate classification; it does not count as production Worker evidence or enable official-branch Codex-less integration. Evidence: [`d7-bounded-production-task-admission-20260915.json`](../spec/v2/evidence/d7-bounded-production-task-admission-20260915.json).
 
 ### D8 — F0–F2 Self-Improvement
 

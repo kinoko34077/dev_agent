@@ -1,0 +1,52 @@
+{
+  "evidence_id": "d7-bounded-production-task-admission-20260915",
+  "status": "VERIFIED",
+  "observed_at": "2026-09-15",
+  "implementation_commit": "808792fbafb55cec08f07589cc659093c10bc311",
+  "implementation_message": "feat: admit bounded production codexless tasks",
+  "scope": {
+    "policy": "src/dev_agent/intelligence/codexless.py",
+    "test": "tests/v2/test_codexless_policy.py",
+    "new_known_task_types": ["bounded_bugfix", "small_helper", "cli_adapter", "data_model"],
+    "meaning": "These task classes may reach the read-only D7 candidate evaluator when every existing safety and evidence gate passes"
+  },
+  "authority_invariants": [
+    "D7 remains proposal/candidate-only",
+    "Codex-less official-branch integration and auto-merge remain disabled",
+    "LOW/NORMAL risk and public/normal sensitivity remain required",
+    "Worker ownership, allowed paths, protected paths, Host Verification, trust, operator approval, and D6 shadow evidence remain required",
+    "Reviewer and Host authority are unchanged"
+  ],
+  "worker": {
+    "production_task_attempted": 0,
+    "codex_direct_implementation_count": 1,
+    "codex_direct_implementation_reason": "small policy allowlist change was part of D7 safety/candidate boundary and was not delegated as a live production Worker task"
+  },
+  "verification": {
+    "focused": "12 passed",
+    "full_v2": "1306 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS"
+  },
+  "exact_head_ci": {
+    "remote_head": "808792fbafb55cec08f07589cc659093c10bc311",
+    "v2_core": {
+      "run_id": 34952374259,
+      "conclusion": "success",
+      "jobs": ["kernel (3.10)", "kernel (3.11)"]
+    },
+    "v2_provider_smoke": {
+      "run_id": 34952374258,
+      "conclusion": "success"
+    }
+  },
+  "not_claimed": [
+    "live production-code Worker integration",
+    "D7 official-branch Codex-less cycle",
+    "Reviewer authority promotion",
+    "D9 real mutation"
+  ],
+  "raw_conversation_saved": false,
+  "credentials_saved": false
+}
