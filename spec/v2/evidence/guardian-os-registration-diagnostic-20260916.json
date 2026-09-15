@@ -10,6 +10,13 @@
   "registration_apply_attempted": true,
   "registration_apply_result": "REJECTED",
   "registration_apply_reason": "access_denied",
+  "alternate_trigger_probe": {
+    "trigger": "ONLOGON",
+    "task_name": "DevAgentGuardianLogonProbe",
+    "result": "REJECTED",
+    "reason": "access_denied",
+    "temporary_task_deleted": "NOT_CREATED"
+  },
   "task_name": "DevAgentGuardian",
   "static_query": {
     "command_family": "schtasks /Query",
