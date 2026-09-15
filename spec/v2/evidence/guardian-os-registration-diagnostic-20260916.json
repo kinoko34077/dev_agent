@@ -14,6 +14,16 @@
     "raw_output_retained": false,
     "timeout_seconds": 10
   },
+  "static_registration_recovery": {
+    "registration_command_available": true,
+    "registration_default": "DRY_RUN",
+    "registration_apply_flag_required": true,
+    "disable_command_static": ["schtasks.exe", "/Change", "/TN", "DevAgentGuardian", "/DISABLE"],
+    "unregister_command_static": ["schtasks.exe", "/Delete", "/TN", "DevAgentGuardian", "/F"],
+    "unregister_default": "DRY_RUN",
+    "arbitrary_command": false,
+    "applied": false
+  },
   "environment_observation": {
     "platform": "win32",
     "task_scheduler_service": "RUNNING",

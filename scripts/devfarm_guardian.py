@@ -205,6 +205,11 @@ def guardian_registration(
         "task_name": task_name,
         "profile_count": len(profiles),
         "command": command,
+        "recovery": {
+            "disable_command": ["schtasks.exe", "/Change", "/TN", task_name, "/DISABLE"],
+            "unregister_command": ["schtasks.exe", "/Delete", "/TN", task_name, "/F"],
+            "arbitrary_command": False,
+        },
         "arbitrary_command": False,
         "os": os.name,
     }
@@ -240,6 +245,50 @@ def guardian_registration(
         **result,
         "status": "APPLIED",
         "registration": "CONFIGURED",
+    }
+
+
+def guardian_unregistration(
+    *,
+    task_name: str = "DevAgentGuardian",
+    apply: bool = False,
+) -> dict[str, Any]:
+    """Build or explicitly apply the reversible static Task Scheduler removal."""
+
+    task_name = _validated_task_name(task_name)
+    command = ["schtasks.exe", "/Delete", "/TN", task_name, "/F"]
+    result: dict[str, Any] = {
+        "status": "DRY_RUN",
+        "registration": "UNREGISTER_NOT_APPLIED",
+        "task_name": task_name,
+        "command": command,
+        "arbitrary_command": False,
+        "mutation_performed": False,
+        "os": os.name,
+    }
+    if not apply:
+        return result
+    if os.name != "nt":
+        raise GuardianOperatorError("Windows Task Scheduler unregistration requires Windows")
+    try:
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise GuardianOperatorError("Windows Task Scheduler unregistration timed out") from exc
+    except OSError as exc:
+        raise GuardianOperatorError("Windows Task Scheduler unregistration could not start") from exc
+    if completed.returncode != 0:
+        raise GuardianOperatorError("Windows Task Scheduler unregistration failed")
+    return {
+        **result,
+        "status": "APPLIED",
+        "registration": "UNREGISTERED",
+        "mutation_performed": True,
     }
 
 
@@ -335,6 +384,9 @@ def _parser() -> argparse.ArgumentParser:
     install.add_argument("--data-dir", type=Path, default=Path(os.environ.get("DEV_AGENT_DATA_DIR", ".dev_agent")))
     install.add_argument("--task-name", default="DevAgentGuardian")
     install.add_argument("--apply", action="store_true")
+    uninstall = subparsers.add_parser("uninstall", help="show or explicitly remove static OS liveness registration")
+    uninstall.add_argument("--task-name", default="DevAgentGuardian")
+    uninstall.add_argument("--apply", action="store_true")
     status = subparsers.add_parser("os-status", help="read static Windows liveness registration status")
     status.add_argument("--config", required=True, type=Path)
     status.add_argument("--task-name", default="DevAgentGuardian")
@@ -362,6 +414,8 @@ def main(argv: list[str] | None = None) -> int:
                 task_name=args.task_name,
                 apply=args.apply,
             )
+        elif args.command == "uninstall":
+            result = guardian_unregistration(task_name=args.task_name, apply=args.apply)
         else:
             result = guardian_os_registration_status(args.config, task_name=args.task_name)
     except GuardianOperatorError as exc:
@@ -380,6 +434,7 @@ __all__ = [
     "guardian_health",
     "guardian_os_registration_status",
     "guardian_registration",
+    "guardian_unregistration",
     "guardian_run_once",
     "guardian_serve",
     "load_launch_profiles",

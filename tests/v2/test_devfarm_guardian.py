@@ -12,6 +12,7 @@ from scripts.devfarm_guardian import (
     GuardianOperatorError,
     guardian_health,
     guardian_registration,
+    guardian_unregistration,
     guardian_run_once,
     guardian_serve,
 )
@@ -90,6 +91,49 @@ def test_guardian_registration_is_static_dry_run_by_default(tmp_path):
     assert result["command"][1:4] == ["-m", "scripts.devfarm_guardian", "serve"]
     assert "--poll-seconds" in result["command"]
     assert result["arbitrary_command"] is False
+    assert result["recovery"]["disable_command"] == [
+        "schtasks.exe",
+        "/Change",
+        "/TN",
+        "DevAgentGuardian",
+        "/DISABLE",
+    ]
+    assert result["recovery"]["unregister_command"] == [
+        "schtasks.exe",
+        "/Delete",
+        "/TN",
+        "DevAgentGuardian",
+        "/F",
+    ]
+
+
+def test_guardian_unregistration_is_static_dry_run_by_default():
+    result = guardian_unregistration()
+
+    assert result["status"] == "DRY_RUN"
+    assert result["registration"] == "UNREGISTER_NOT_APPLIED"
+    assert result["command"] == ["schtasks.exe", "/Delete", "/TN", "DevAgentGuardian", "/F"]
+    assert result["mutation_performed"] is False
+    assert result["arbitrary_command"] is False
+
+
+def test_guardian_unregistration_apply_uses_bounded_static_command(monkeypatch):
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append((command, kwargs))
+        return guardian_module.subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(guardian_module, "os", SimpleNamespace(name="nt"))
+    monkeypatch.setattr(guardian_module.subprocess, "run", fake_run)
+
+    result = guardian_unregistration(apply=True)
+
+    assert result["status"] == "APPLIED"
+    assert result["registration"] == "UNREGISTERED"
+    assert result["mutation_performed"] is True
+    assert calls[0][0] == ["schtasks.exe", "/Delete", "/TN", "DevAgentGuardian", "/F"]
+    assert calls[0][1]["timeout"] == 30
 
 
 def test_guardian_registration_apply_uses_bounded_static_command(tmp_path, monkeypatch):
