@@ -222,6 +222,18 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
                 project_id=f"projects/{project_number}",
             )
         )
+    openrouter_model = env("OPENROUTER_MODEL") or "openrouter/free"
+    if env("OPENROUTER_API_KEY"):
+        bindings.append(
+            OperationProviderBinding(
+                provider_id="openrouter",
+                model=openrouter_model,
+                provider_binding_id="openrouter:free",
+                quota_domain="openrouter:account",
+                credential_id="openrouter-free",
+                api_key_env="OPENROUTER_API_KEY",
+            )
+        )
     ollama_model = env("OLLAMA_CLOUD_MODEL")
     if env("OLLAMA_API_KEY") and ollama_model:
         bindings.append(

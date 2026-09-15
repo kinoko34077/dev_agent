@@ -820,6 +820,20 @@ def test_operation_config_can_explicitly_build_configured_cloud_provider_pool(mo
     assert all("secret-not-read" not in repr(binding) for binding in bindings.values())
 
 
+def test_configured_provider_pool_includes_explicit_openrouter_free_lane(monkeypatch, tmp_path):
+    monkeypatch.setenv("DEV_AGENT_ENABLE_CONFIGURED_POOL", "1")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "secret-not-read-into-config")
+
+    config = OperationConfig.from_environment(data_dir=tmp_path)
+
+    bindings = {binding.binding_id: binding for binding in config.provider_bindings}
+    assert bindings["openrouter:free"].provider_id == "openrouter"
+    assert bindings["openrouter:free"].model == "openrouter/free"
+    assert bindings["openrouter:free"].api_key_env == "OPENROUTER_API_KEY"
+    assert bindings["openrouter:free"].quota_domain == "openrouter:account"
+    assert all("secret-not-read" not in repr(binding) for binding in bindings.values())
+
+
 def test_configured_provider_pool_public_boundary_reads_only_non_secret_binding_metadata():
     values = {
         "GEMINI_API_KEY_3": "secret-value",
