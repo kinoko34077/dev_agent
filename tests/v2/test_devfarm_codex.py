@@ -6,7 +6,9 @@ import subprocess
 
 import pytest
 
+import scripts.devfarm_codex as codex_module
 from scripts.devfarm import DevFarmError, write_manifest
+from scripts.devfarm_repository import read_json
 from scripts.devfarm_codex import run_codex_attempt
 from src.dev_agent.backends.protocol import (
     AgentBackendArtifactReference,
@@ -17,6 +19,10 @@ from src.dev_agent.backends.protocol import (
     AgentBackendSession,
     AgentBackendStatus,
 )
+
+
+def test_codex_attempt_uses_shared_repository_json_reader():
+    assert codex_module.read_json is read_json
 
 
 def _git(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:

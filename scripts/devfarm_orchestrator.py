@@ -11,13 +11,13 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass
-import json
 from pathlib import Path
 import threading
 from typing import Any, Iterator, Mapping, Sequence
 from uuid import uuid4
 
 from scripts.devfarm import DevFarmError, validate_manifest, write_result
+from scripts.devfarm_repository import read_json
 from scripts.devfarm_worker import apply_and_verify, run_worker
 from src.dev_agent.providers.base import ModelProvider
 
@@ -219,8 +219,8 @@ class DevFarmOrchestrator:
         for value in assignments:
             assignment = value if isinstance(value, WorkerAssignment) else WorkerAssignment(Path(value[0]), value[1])
             try:
-                raw = json.loads(assignment.manifest_path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError) as exc:
+                raw = read_json(assignment.manifest_path)
+            except DevFarmError as exc:
                 raise DevFarmError(f"could not read worker manifest: {assignment.manifest_path}") from exc
             manifest = validate_manifest(raw)
             task_id = manifest["task_id"]
@@ -248,7 +248,7 @@ class DevFarmOrchestrator:
                 # task-scoped failed result so Commander status, retry and
                 # review tooling have durable evidence instead of a silent
                 # proposal_dispatch_error with no artifact.
-                manifest = validate_manifest(json.loads(assignment.manifest_path.read_text(encoding="utf-8")))
+                manifest = validate_manifest(read_json(assignment.manifest_path))
                 result = self._failed_boundary_result(exc, manifest=manifest)
                 write_result(root, result, manifest=manifest)
                 return result

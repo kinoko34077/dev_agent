@@ -10,7 +10,6 @@ untracked files) and records a proposal that remains unintegrated.
 from __future__ import annotations
 
 from dataclasses import dataclass
-import json
 import os
 from pathlib import Path
 import subprocess
@@ -29,6 +28,7 @@ from scripts.devfarm import (
     validate_patch,
     write_result,
 )
+from scripts.devfarm_repository import read_json
 from scripts.devfarm_artifacts import (
     attempt_id as normalize_attempt_id,
     bounded_test_output,
@@ -362,8 +362,8 @@ def run_codex_attempt(
     root_path = Path(root).resolve()
     manifest_file = Path(manifest_path)
     try:
-        manifest_value = json.loads(manifest_file.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        manifest_value = read_json(manifest_file)
+    except DevFarmError as exc:
         raise DevFarmError(f"could not read manifest: {manifest_file}") from exc
     manifest = validate_manifest(manifest_value)
     selected_attempt = normalize_attempt_id(attempt_id or uuid4().hex)

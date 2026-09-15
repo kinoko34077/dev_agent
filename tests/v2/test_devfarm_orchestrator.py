@@ -5,7 +5,9 @@ import time
 
 import pytest
 
+import scripts.devfarm_orchestrator as orchestrator_module
 from scripts.devfarm import write_manifest
+from scripts.devfarm_repository import read_json
 from scripts.devfarm_orchestrator import (
     ConcurrencyLimitError,
     DevFarmOrchestrator,
@@ -16,6 +18,10 @@ from scripts.devfarm_orchestrator import (
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.fake.provider import FakeProvider
+
+
+def test_orchestrator_uses_shared_repository_json_reader():
+    assert orchestrator_module.read_json is read_json
 
 
 class _ConcurrentProvider(FakeProvider):
