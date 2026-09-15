@@ -190,6 +190,7 @@
 - [x] Reuse the same repository JSON reader for static Guardian profile input while retaining Guardian-specific schema validation and error boundaries. Evidence: [`devfarm-guardian-json-reader-refactor-20260915.json`](../../spec/v2/evidence/devfarm-guardian-json-reader-refactor-20260915.json).
 - [x] Share the repository JSON reader for Codex attempt manifests and parallel DevFarm assignment manifests, retaining existing validation and failure artifact semantics. Evidence: [`devfarm-manifest-reader-refactor-20260915.json`](../../spec/v2/evidence/devfarm-manifest-reader-refactor-20260915.json).
 - [x] Share the repository JSON reader for immutable verification records and remove unused plan-validation repository imports; preserve invalid-record skipping and all authority semantics. Evidence: [`devfarm-verification-reader-refactor-20260915.json`](../../spec/v2/evidence/devfarm-verification-reader-refactor-20260915.json).
+- [x] Move `DevFarmError` to a neutral module so the repository reader and `devfarm.py` CLI share one dependency direction; preserve compatibility imports and CLI behavior. Evidence: [`devfarm-error-boundary-refactor-20260915.json`](../../spec/v2/evidence/devfarm-error-boundary-refactor-20260915.json).
 - [ ] Continue only with another measured responsibility boundary; do not split `OperationService`, `Controller`, or `ProviderDispatcher` by size alone.
 
 ## Verification and delivery checklist

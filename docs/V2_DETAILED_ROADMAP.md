@@ -130,6 +130,7 @@
 - Guardian static profile loading now consumes the same Host-owned repository JSON reader and preserves Guardian-specific type/profile validation. `1293 passed, 1 skipped` and exact-head CI are recorded in [`devfarm-guardian-json-reader-refactor-20260915.json`](../spec/v2/evidence/devfarm-guardian-json-reader-refactor-20260915.json).
 - Codex attempt and parallel DevFarm assignment manifest loading now share the Host repository JSON reader; worker validation, attempt identity, and Host failure semantics remain unchanged. `1295 passed, 1 skipped` and exact-head CI are recorded in [`devfarm-manifest-reader-refactor-20260915.json`](../spec/v2/evidence/devfarm-manifest-reader-refactor-20260915.json).
 - Immutable verification-record loading now shares the Host repository JSON reader, while invalid-record skipping and plan-validation semantics remain unchanged. `1296 passed, 1 skipped` and exact-head CI are recorded in [`devfarm-verification-reader-refactor-20260915.json`](../spec/v2/evidence/devfarm-verification-reader-refactor-20260915.json).
+- `DevFarmError` is now neutral to the CLI module, allowing the repository JSON service and the `devfarm.py` CLI to share one reader without a reverse dependency. Existing public imports remain compatible. `1297 passed, 1 skipped` and exact-head CI are recorded in [`devfarm-error-boundary-refactor-20260915.json`](../spec/v2/evidence/devfarm-error-boundary-refactor-20260915.json).
 
 ### Main Phase 8 / Main Phase 9
 

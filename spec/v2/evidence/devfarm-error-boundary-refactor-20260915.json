@@ -1,0 +1,44 @@
+{
+  "evidence_id": "devfarm-error-boundary-refactor-20260915",
+  "status": "verified",
+  "observed_at": "2026-09-15",
+  "implementation_baseline_before_documentation_sync": "52fdaa0ed327ca42ad14faa26db10b44a887cdff",
+  "scope": {
+    "error_boundary": "DevFarmError now lives in scripts.devfarm_errors; scripts.devfarm_repository no longer imports the monolithic CLI module.",
+    "reader_boundary": "scripts.devfarm.py uses scripts.devfarm_repository.read_json for validate-manifest, validate-result, and plan input paths.",
+    "compatibility": "Existing scripts.devfarm.DevFarmError imports remain compatible through the CLI module re-export.",
+    "authority": "Manifest/result validation, Egress, Host Verification, approval, UNKNOWN/reconciliation, Guardian, and D9 semantics are unchanged."
+  },
+  "verification": {
+    "focused_tests": "56 passed",
+    "full_tests_v2": "1297 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS"
+  },
+  "exact_head_ci": {
+    "remote_head": "52fdaa0ed327ca42ad14faa26db10b44a887cdff",
+    "v2_core": {
+      "run_id": 34945149693,
+      "conclusion": "success",
+      "jobs": ["kernel (3.10)", "kernel (3.11)"]
+    },
+    "v2_provider_smoke": {
+      "run_id": 34945149742,
+      "conclusion": "success"
+    }
+  },
+  "worker": {
+    "production_task_attempted": 0,
+    "codex_direct_implementation_count": 1,
+    "reason": "The neutral error and repository reader dependency boundary is cross-cutting Host infrastructure; no live Worker dispatch was used for this refactor."
+  },
+  "not_claimed": [
+    "production Worker integration",
+    "MCP wire transport",
+    "OS Guardian registration",
+    "D9 real mutation"
+  ],
+  "raw_conversation_saved": false,
+  "credentials_saved": false
+}
