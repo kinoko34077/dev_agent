@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import os
+from pathlib import Path
+import subprocess
 import sys
 
 import pytest
@@ -268,3 +271,51 @@ def test_guardian_process_service_starts_and_stops_real_local_subprocess(tmp_pat
         assert stopped.result_code == "executor_completed"
     finally:
         store.close()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows Job Object ownership is Windows-specific")
+def test_windows_job_object_ends_managed_child_when_guardian_process_dies(tmp_path):
+    sentinel = tmp_path / "child-completed.txt"
+    child_code = (
+        "import time; "
+        "from pathlib import Path; "
+        f"time.sleep(30); Path({str(sentinel)!r}).write_text('completed', encoding='utf-8')"
+    )
+    guardian_code = (
+        "import sys; "
+        "from pathlib import Path; "
+        "from src.dev_agent.coordination.guardian_process import LaunchProfile, SubprocessProcessRuntime; "
+        f"profile=LaunchProfile(profile_id='job-child', role='agent', generation=1, revision='rev-job', "
+        f"executable={sys.executable!r}, arguments=('-c', {child_code!r}), runtime_root=Path({str(tmp_path)!r}), "
+        "environment_profile='minimal'); "
+        "handle=SubprocessProcessRuntime().start(profile); "
+        "print(handle.pid, flush=True); "
+        "sys.stdin.read()"
+    )
+    guardian = subprocess.Popen(
+        [sys.executable, "-c", guardian_code],
+        cwd=str(Path(__file__).resolve().parents[2]),
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    child_pid = None
+    try:
+        line = guardian.stdout.readline() if guardian.stdout is not None else ""
+        child_pid = int(line.strip())
+        guardian.terminate()
+        guardian.wait(timeout=5)
+        assert not sentinel.exists()
+    finally:
+        if guardian.poll() is None:
+            guardian.kill()
+            guardian.wait(timeout=5)
+        if child_pid is not None:
+            subprocess.run(
+                ["taskkill", "/PID", str(child_pid), "/T", "/F"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
