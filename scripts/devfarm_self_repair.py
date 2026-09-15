@@ -15,6 +15,11 @@ from typing import Any
 
 from scripts.devfarm import DevFarmError
 from scripts.devfarm_commander import load_worker_manifest
+from scripts.devfarm_plan_queries import (
+    artifact_reference_paths,
+    require_approved_review_decision,
+    require_task,
+)
 from src.dev_agent.intelligence.self_improvement import ImprovementPlanProposal
 from src.dev_agent.intelligence.self_repair import (
     RepairCandidate,
@@ -26,45 +31,6 @@ from src.dev_agent.intelligence.self_repair import (
     RollbackProof,
 )
 from src.dev_agent.policy.approvals import ApprovalPolicy
-
-
-def _task(plan: Mapping[str, Any], task_id: str) -> Mapping[str, Any]:
-    tasks = plan.get("tasks")
-    if not isinstance(tasks, list):
-        raise DevFarmError("repair plan tasks are missing")
-    for item in tasks:
-        if isinstance(item, Mapping) and item.get("task_id") == task_id:
-            return item
-    raise DevFarmError(f"repair task does not exist: {task_id}")
-
-
-def _review_decision(plan: Mapping[str, Any], request: RepairExecutionRequest) -> Mapping[str, Any]:
-    decisions = plan.get("review_decisions")
-    if not isinstance(decisions, list):
-        raise DevFarmError("repair plan review decisions are missing")
-    for item in decisions:
-        if not isinstance(item, Mapping):
-            continue
-        if (
-            item.get("decision_id") == request.review_decision_id
-            and item.get("task_id") == request.task_id
-            and item.get("attempt_id") == request.attempt_id
-        ):
-            if item.get("decision") != "APPROVE_INTEGRATION":
-                raise DevFarmError("repair requires APPROVE_INTEGRATION")
-            return item
-    raise DevFarmError("matching durable repair review decision is missing")
-
-
-def _artifact_paths(packet: Mapping[str, Any]) -> set[str]:
-    references = packet.get("artifact_refs")
-    if not isinstance(references, list):
-        raise DevFarmError("repair ReviewPacket artifact references are missing")
-    paths: set[str] = set()
-    for reference in references:
-        if isinstance(reference, Mapping) and isinstance(reference.get("path"), str):
-            paths.add(reference["path"])
-    return paths
 
 
 def build_repair_candidate(
@@ -99,7 +65,7 @@ def build_repair_candidate(
         raise TypeError("runner must expose public plan() and review_packet()")
 
     plan = runner.plan()
-    task = _task(plan, task_id)
+    task = require_task(plan, task_id)
     if task.get("owner") != "worker" or task.get("status") != "HOST_VERIFIED":
         raise DevFarmError("repair candidate requires a HOST_VERIFIED Worker task")
     attempt_id = task.get("last_attempt_id")
@@ -138,7 +104,7 @@ def build_repair_candidate(
     )
     if not isinstance(patch_ref, str) or not patch_ref.strip():
         raise DevFarmError("repair ReviewPacket patch reference is missing")
-    reference_paths = _artifact_paths(packet)
+    reference_paths = artifact_reference_paths(packet)
     if patch_ref not in reference_paths or verification_ref not in reference_paths:
         raise DevFarmError("repair ReviewPacket artifact references are incomplete")
     if task.get("verified_patch_digest") != patch_sha256:
@@ -212,7 +178,7 @@ def integrate_approved_repair(
         raise DevFarmError("repair target checkout does not match the approved reference")
 
     plan = runner.plan()
-    task = _task(plan, request.task_id)
+    task = require_task(plan, request.task_id)
     if task.get("owner") != "worker" or task.get("status") != "HOST_VERIFIED":
         raise DevFarmError("repair requires a HOST_VERIFIED Worker task")
     if task.get("last_attempt_id") != request.attempt_id:
@@ -221,12 +187,17 @@ def integrate_approved_repair(
         raise DevFarmError("repair patch digest does not match the current task")
     if task.get("manifest_path") != candidate.evidence.manifest_ref:
         raise DevFarmError("repair manifest reference does not match the current task")
-    _review_decision(plan, request)
+    require_approved_review_decision(
+        plan,
+        decision_id=request.review_decision_id,
+        task_id=request.task_id,
+        attempt_id=request.attempt_id,
+    )
 
     packet = runner.review_packet(request.task_id, attempt_id=request.attempt_id)
     if packet.get("patch_sha256") != candidate.evidence.patch_sha256:
         raise DevFarmError("repair ReviewPacket patch digest does not match candidate")
-    references = _artifact_paths(packet)
+    references = artifact_reference_paths(packet)
     if candidate.evidence.patch_ref not in references:
         raise DevFarmError("repair patch reference is absent from the ReviewPacket")
     if candidate.evidence.verification_ref not in references:
