@@ -26,6 +26,17 @@ from scripts.devfarm_plan_validation import (
 from scripts.devfarm_repository import read_json
 
 
+def plan_paths(directory: str | Path) -> tuple[Path, ...]:
+    """Return durable Commander plans, excluding input specifications."""
+
+    directory_path = Path(directory).resolve()
+    return tuple(
+        path
+        for path in sorted(directory_path.glob("*.json"))
+        if not path.is_symlink() and not path.name.endswith(".input.json")
+    )
+
+
 def _legacy_ownership_projection(raw: Mapping[str, Any]) -> dict[str, Any]:
     """Project enough validated identity to keep historical paths reserved."""
 
@@ -74,9 +85,7 @@ def load_ownership_projections(
     root_path = Path(root).resolve()
     directory = (root_path / ".devfarm" / "plans") if plan_directory is None else Path(plan_directory).resolve()
     projections: list[dict[str, Any]] = []
-    for path in sorted(directory.glob("*.json")):
-        if path.is_symlink():
-            continue
+    for path in plan_paths(directory):
         try:
             projections.append(validate_plan(read_json(path), root=root_path))
         except DevFarmError as validation_error:
@@ -92,4 +101,4 @@ def load_ownership_projections(
     return projections
 
 
-__all__ = ["load_ownership_projections"]
+__all__ = ["load_ownership_projections", "plan_paths"]

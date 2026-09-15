@@ -20,7 +20,7 @@ import uuid
 from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_workspace import init_farm
 from scripts import devfarm_plan_validation as plan_validation
-from scripts.devfarm_plan_ownership import load_ownership_projections
+from scripts.devfarm_plan_ownership import load_ownership_projections, plan_paths
 from scripts.devfarm_repository import read_json
 
 
@@ -193,7 +193,7 @@ class CommanderPlanStore:
         return plan
 
     def list(self) -> list[dict[str, Any]]:
-        return [self.load(path.stem) for path in sorted(self.directory.glob("*.json")) if not path.is_symlink()]
+        return [self.load(path.stem) for path in plan_paths(self.directory)]
 
     def _plans_for_ownership(self) -> list[dict[str, Any]]:
         return load_ownership_projections(self.root, self.directory)
