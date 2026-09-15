@@ -1,0 +1,43 @@
+{
+  "evidence_id": "devfarm-guardian-json-reader-refactor-20260915",
+  "status": "verified",
+  "observed_at": "2026-09-15",
+  "implementation_baseline_before_documentation_sync": "51a539c225e218eddd33624227635afea694ef5e",
+  "scope": {
+    "shared_reader": "Static Guardian profile loading now consumes scripts.devfarm_repository.read_json; the shared reader also normalizes UTF-8 decode failures as bounded DevFarmError values.",
+    "guardian_boundary": "Guardian-specific object/profile schema checks and GuardianOperatorError mapping remain in devfarm_guardian.py.",
+    "authority": "Static launch profiles, process ownership, lease/generation checks, reconciliation, and D9 authority are unchanged."
+  },
+  "verification": {
+    "focused_tests": "10 passed",
+    "full_tests_v2": "1293 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS"
+  },
+  "exact_head_ci": {
+    "remote_head": "51a539c225e218eddd33624227635afea694ef5e",
+    "v2_core": {
+      "run_id": 34941555170,
+      "conclusion": "success",
+      "jobs": ["kernel (3.10)", "kernel (3.11)"]
+    },
+    "v2_provider_smoke": {
+      "run_id": 34941555124,
+      "conclusion": "success"
+    }
+  },
+  "worker": {
+    "production_task_attempted": 0,
+    "codex_direct_implementation_count": 1,
+    "reason": "Guardian profile input is part of the process-authority boundary; this narrow reader refactor was kept Host-owned and was not represented as Worker-originated production work."
+  },
+  "not_claimed": [
+    "production Worker integration",
+    "MCP wire transport",
+    "OS Guardian registration",
+    "D9 real mutation"
+  ],
+  "raw_conversation_saved": false,
+  "credentials_saved": false
+}
