@@ -471,6 +471,33 @@ def test_worker_materializes_full_file_replacement_into_host_generated_patch(tmp
     assert verified["tests_passed"] is True
 
 
+def test_worker_materializes_line_array_file_replacement_into_host_generated_patch(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": True,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": "",
+        "file_replacements": {
+            "tests/v2/test_target.py": [
+                "def test_target():",
+                "    assert True",
+                "    return None",
+            ]
+        },
+        "notes": "line-array replacement",
+    }
+
+    proposed = run_worker(root, manifest_path, provider=_WorkerProvider(output))
+
+    assert proposed["status"] == "completed"
+    assert proposed["worker_metrics"]["host_generated_patch"] == "file_replacements"
+    assert proposed["worker_metrics"]["file_replacement_encoding"] == "lines"
+
+
 def test_worker_rejects_file_replacement_outside_outbound_scope(tmp_path):
     root, manifest_path = _workspace(tmp_path)
     output = {

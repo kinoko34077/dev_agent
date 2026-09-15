@@ -279,6 +279,7 @@ def _contains_secret(value: str) -> bool:
 
 MAX_FILE_REPLACEMENT_FILES = 8
 MAX_FILE_REPLACEMENT_CHARS = MAX_OUTPUT_TEXT_CHARS
+MAX_FILE_REPLACEMENT_LINES = 8_192
 
 
 def _materialize_file_replacements(
@@ -304,6 +305,7 @@ def _materialize_file_replacements(
     normalized_entries: list[tuple[str, str]] = []
     seen: set[str] = set()
     total_chars = 0
+    encodings: set[str] = set()
     for raw_path, replacement in replacements.items():
         if not isinstance(raw_path, str) or not raw_path.strip():
             raise DevFarmError("file replacement path must be a non-empty string")
@@ -321,8 +323,21 @@ def _materialize_file_replacements(
             raise DevFarmError(
                 f"file replacement path must be present in manifest outbound_files: {normalized_path}"
             )
-        if not isinstance(replacement, str):
-            raise DevFarmError(f"file replacement content must be text: {normalized_path}")
+        if isinstance(replacement, list):
+            if len(replacement) > MAX_FILE_REPLACEMENT_LINES:
+                raise DevFarmError(f"file replacement has too many lines: {normalized_path}")
+            if any(not isinstance(line, str) for line in replacement):
+                raise DevFarmError(f"file replacement lines must be strings: {normalized_path}")
+            if any("\r" in line or "\n" in line for line in replacement):
+                raise DevFarmError(f"file replacement lines must not contain newlines: {normalized_path}")
+            replacement = "\n".join(replacement)
+            if replacement:
+                replacement += "\n"
+            encodings.add("lines")
+        elif isinstance(replacement, str):
+            encodings.add("text")
+        else:
+            raise DevFarmError(f"file replacement content must be text or lines: {normalized_path}")
         if "\x00" in replacement:
             raise DevFarmError(f"file replacement contains NUL bytes: {normalized_path}")
         if replacement and not replacement.endswith("\n"):
@@ -364,7 +379,8 @@ def _materialize_file_replacements(
     patch = "".join(patches)
     if len(patch) > MAX_OUTPUT_TEXT_CHARS:
         raise DevFarmError(f"Host-generated replacement patch exceeds {MAX_OUTPUT_TEXT_CHARS} characters")
-    return patch, changed_paths
+    encoding = "lines" if encodings == {"lines"} else "text"
+    return patch, changed_paths, encoding
 
 
 _canonical_digest = canonical_digest
@@ -916,13 +932,18 @@ def run_worker(
             raise DevFarmError("worker patch must be a string")
         replacement_value = output.get("file_replacements")
         host_generated_paths: list[str] = []
+        host_generated_encoding: str | None = None
         if replacement_value is not None:
             if not isinstance(replacement_value, Mapping):
                 raise DevFarmError("file_replacements must be an object")
             if replacement_value:
                 if patch:
                     raise DevFarmError("worker must provide either patch or file_replacements")
-                patch, host_generated_paths = _materialize_file_replacements(root, manifest, replacement_value)
+                patch, host_generated_paths, host_generated_encoding = _materialize_file_replacements(
+                    root,
+                    manifest,
+                    replacement_value,
+                )
                 output = {**output, "patch": patch}
         patch_normalizations: list[str] = []
         if isinstance(patch, str) and patch and not patch.endswith("\n"):
@@ -954,6 +975,7 @@ def run_worker(
         if host_generated_paths:
             metrics["host_generated_patch"] = "file_replacements"
             metrics["host_generated_patch_paths"] = list(host_generated_paths)
+            metrics["file_replacement_encoding"] = host_generated_encoding
         result = {
             "status": status,
             "attempt_id": attempt_id,
