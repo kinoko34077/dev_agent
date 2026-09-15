@@ -11,10 +11,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 import argparse
 from datetime import datetime, timezone
-import hashlib
 import json
 from pathlib import Path
-import subprocess
 import sys
 import time
 from typing import Any, Mapping, Sequence
@@ -26,14 +24,17 @@ if str(ROOT) not in sys.path:
 
 from scripts.devfarm import DevFarmError
 from scripts.devfarm_artifacts import artifact_reference
+from scripts.devfarm_integration import (
+    integrate_approved_worker as host_integrate_approved_worker,
+    integrate_worker as host_record_integration,
+)
+from scripts.devfarm_review_packet import build_review_packet
 from scripts.devfarm_commander import (
     CommanderPlanStore,
-    verified_worker_patch,
     record_result,
     collect_plan,
     dispatch_plan,
     load_worker_manifest,
-    mark_integrated,
     recover_orphaned_dispatches,
     reassign_task,
     refresh_plan,
@@ -46,54 +47,11 @@ from scripts.devfarm_supervisor_protocol import (
     advance_heartbeat,
     normalize_supervisor_metadata,
     normalize_review_decision,
-    normalize_review_packet,
     record_wake,
     select_heartbeat_cadence,
 )
-from scripts.devfarm import validate_patch
 from src.dev_agent.handoff import ExternalTextReference, HandoffEnvelope, rework_request
 from src.dev_agent.intelligence.codexless import CodexLessEvaluation, CodexLessPolicy
-
-
-def _git_process(cwd: Path, *arguments: str, input_text: str | None = None) -> subprocess.CompletedProcess[str]:
-    command = ["git", "-c", f"safe.directory={cwd.as_posix()}", *arguments]
-    raw_input = input_text.encode("utf-8") if input_text is not None else None
-    result = subprocess.run(
-        command,
-        cwd=cwd,
-        input=raw_input,
-        capture_output=True,
-        text=False,
-        check=False,
-    )
-    return subprocess.CompletedProcess(
-        result.args,
-        result.returncode,
-        stdout=result.stdout.decode("utf-8", errors="replace"),
-        stderr=result.stderr.decode("utf-8", errors="replace"),
-    )
-
-
-def _git_output(cwd: Path, *arguments: str) -> str:
-    result = _git_process(cwd, *arguments)
-    if result.returncode != 0:
-        raise DevFarmError(result.stderr.strip() or result.stdout.strip() or "Git command failed")
-    return result.stdout.strip()
-
-
-def _git_status(cwd: Path) -> str:
-    # .devfarm is the existing ignored/development artifact area.  It must
-    # never be staged by this helper, but its untracked attempt files should
-    # not make an otherwise clean integration checkout unusable.
-    return _git_output(
-        cwd,
-        "status",
-        "--porcelain",
-        "--untracked-files=all",
-        "--",
-        ".",
-        ":(exclude).devfarm",
-    )
 
 
 def _read_bounded_json(root: Path, path: Path) -> Any:
@@ -214,112 +172,9 @@ class CodexSupervisedCommanderRun:
         )
 
     def _review_packet(self, task: Mapping[str, Any]) -> dict[str, Any]:
-        """Build a bounded packet from Host-side artifacts, never raw output."""
+        """Build the compact packet through the shared read-only boundary."""
 
-        task_id = str(task["task_id"])
-        attempt_id = task.get("last_attempt_id")
-        if not isinstance(attempt_id, str) or not attempt_id.strip():
-            raise DevFarmError(f"review packet requires an attempt id: {task_id}")
-        result_ref = task.get("result_ref")
-        if not isinstance(result_ref, str) or not result_ref.strip():
-            raise DevFarmError(f"review packet requires a result reference: {task_id}")
-        result_path = (self.root / result_ref).resolve()
-        try:
-            result_path.relative_to(self.root)
-        except ValueError as exc:
-            raise DevFarmError("review result reference escapes repository") from exc
-        result: Mapping[str, Any] = {}
-        if result_path.is_file():
-            try:
-                loaded = json.loads(result_path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError) as exc:
-                raise DevFarmError("review result artifact cannot be read") from exc
-            if not isinstance(loaded, Mapping):
-                raise DevFarmError("review result artifact must be an object")
-            result = loaded
-        assignment = task.get("assignment", {})
-        if not isinstance(assignment, Mapping):
-            assignment = {}
-        attempt_root = result_path.parent
-        verification_id = result.get("verification_id")
-        verification_record: Mapping[str, Any] | None = None
-        verification_dir = attempt_root / "verification"
-        if verification_dir.is_dir():
-            records: list[Mapping[str, Any]] = []
-            for candidate in sorted(verification_dir.glob("*.json")):
-                try:
-                    loaded = json.loads(candidate.read_text(encoding="utf-8"))
-                except (OSError, json.JSONDecodeError):
-                    continue
-                if isinstance(loaded, Mapping):
-                    records.append(loaded)
-            if records:
-                records.sort(key=lambda item: (str(item.get("verified_at", "")), str(item.get("verification_id", ""))))
-                verification_record = records[-1]
-                if isinstance(verification_record.get("verification_id"), str):
-                    verification_id = verification_record["verification_id"]
-        verification_ref = None
-        if isinstance(verification_id, str) and verification_id.strip():
-            verification_ref = (attempt_root / "verification" / f"{verification_id}.json").relative_to(self.root).as_posix()
-        patch_path = attempt_root / "patch.diff"
-        patch_ref = patch_path.relative_to(self.root).as_posix()
-        patch_sha256 = task.get("verified_patch_digest")
-        if patch_path.is_file():
-            patch_sha256 = hashlib.sha256(patch_path.read_bytes()).hexdigest()
-        if task.get("verified_patch_digest") is not None and task["verified_patch_digest"] != patch_sha256:
-            raise DevFarmError("review packet patch digest does not match the Host artifact")
-        manifest_ref = task.get("manifest_path")
-        manifest: Mapping[str, Any] = {}
-        if isinstance(manifest_ref, str):
-            manifest_path = (self.root / manifest_ref).resolve()
-            try:
-                manifest_path.relative_to(self.root)
-                if manifest_path.is_file():
-                    loaded_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-                    if isinstance(loaded_manifest, Mapping):
-                        manifest = loaded_manifest
-            except (ValueError, OSError, json.JSONDecodeError):
-                manifest = {}
-        summary: dict[str, Any] = {}
-        if verification_record is not None:
-            verified_tests = verification_record.get("verified_tests", [])
-            if not isinstance(verified_tests, list):
-                verified_tests = []
-            tests_passed = bool(verified_tests) and all(
-                isinstance(item, Mapping) and item.get("passed") is True
-                for item in verified_tests
-            )
-            summary = {
-                "host_verified": bool(verified_tests),
-                "host_verified_test_count": len(verified_tests),
-                "host_tests_passed": tests_passed,
-                "independent_verification": verification_record.get("independent_verification") is True,
-                "result_accepted": task.get("status") == "HOST_VERIFIED",
-                "verification_trust_level": verification_record.get("containment_level"),
-                "operator_approved": verification_record.get("operator_approved") is True,
-            }
-        return normalize_review_packet(
-            {
-                "task_id": task_id,
-                "attempt_id": attempt_id,
-                "status": task.get("status", result.get("status", "unknown")),
-                "provider": assignment.get("provider_id"),
-                "model": assignment.get("model_id"),
-                "changed_files": result.get("changed_files", []),
-                "patch_sha256": patch_sha256,
-                "result_ref": result_ref,
-                "verification_ref": verification_ref,
-                "verification_summary": summary,
-                "known_issues": result.get("known_issues", []),
-                "acceptance": manifest.get("acceptance", []),
-                "artifact_refs": [
-                    {"kind": "result", "path": result_ref},
-                    {"kind": "patch", "path": patch_ref},
-                    *([{"kind": "verification", "path": verification_ref}] if verification_ref else []),
-                ],
-                "created_at": task.get("updated_at"),
-            }
-        )
+        return build_review_packet(self.root, task)
 
     def review_packet(self, task_id: str, *, attempt_id: str | None = None) -> dict[str, Any]:
         """Return one current compact packet through the Supervisor boundary."""
@@ -825,65 +680,16 @@ class CodexSupervisedCommanderRun:
         target_checkout: str | Path,
         target_ref: str,
     ) -> SupervisorStep:
-        """Apply and commit one already-approved, Host-verified patch.
+        """Delegate deterministic Git mutation to the Host integration service."""
 
-        The reviewer only supplies the durable decision.  All Git mutation is
-        deterministic Host work after verification proof is re-read.  This
-        helper never pushes, merges, edits protected files, or changes Gate
-        state.
-        """
-
-        target = Path(target_checkout).resolve()
-        if not target.is_dir():
-            raise DevFarmError("integration target checkout does not exist")
-        if not isinstance(target_ref, str) or not target_ref.strip():
-            raise DevFarmError("integration target_ref must be non-empty")
-        if not isinstance(commit_message, str) or not commit_message.strip() or len(commit_message.strip()) > 200:
-            raise DevFarmError("integration commit_message must be 1-200 characters")
-        plan = self.store.load(self.run_id)
-        task = next((item for item in plan["tasks"] if item["task_id"] == task_id), None)
-        if task is None:
-            raise DevFarmError(f"Commander task does not exist: {task_id}")
-        if task.get("status") != "HOST_VERIFIED":
-            raise DevFarmError("integration requires a HOST_VERIFIED worker task")
-        decision = next((item for item in plan["review_decisions"] if item["decision_id"] == decision_id), None)
-        if decision is None:
-            raise DevFarmError("durable approval decision is missing")
-        if decision.get("task_id") != task_id or decision.get("attempt_id") != task.get("last_attempt_id"):
-            raise DevFarmError("approval decision does not match the verified attempt")
-        if decision.get("decision") != "APPROVE_INTEGRATION":
-            raise DevFarmError("integration requires APPROVE_INTEGRATION decision")
-        patch, manifest, attempt_id = verified_worker_patch(self.root, task)
-        changed_files = validate_patch(patch, manifest=manifest)
-        patch_digest = hashlib.sha256(patch.encode("utf-8")).hexdigest()
-        if task.get("verified_patch_digest") is not None and task["verified_patch_digest"] != patch_digest:
-            raise DevFarmError("verified patch digest does not match the task record")
-        if _git_status(target):
-            raise DevFarmError("integration target checkout must be clean")
-        target_revision = _git_output(target, "rev-parse", target_ref)
-        try:
-            _git_output(target, "merge-base", "--is-ancestor", manifest["base_revision"], target_revision)
-        except DevFarmError as exc:
-            raise DevFarmError("integration target does not contain the worker base revision") from exc
-        checked = _git_process(target, "apply", "--check", "--whitespace=error", "-", input_text=patch)
-        if checked.returncode != 0:
-            raise DevFarmError(checked.stderr.strip() or checked.stdout.strip() or "verified patch does not apply")
-        applied = _git_process(target, "apply", "--whitespace=error", "-", input_text=patch)
-        if applied.returncode != 0:
-            raise DevFarmError(applied.stderr.strip() or applied.stdout.strip() or "verified patch application failed")
-        _git_output(target, "add", "--", *changed_files)
-        _git_output(target, "diff", "--cached", "--check")
-        _git_output(target, "commit", "-m", commit_message.strip())
-        integration_revision = _git_output(target, "rev-parse", "HEAD")
-        mark_integrated(
+        host_integrate_approved_worker(
             self.root,
             self.run_id,
             task_id,
-            note=f"approved by review decision {decision_id}",
+            decision_id=decision_id,
+            commit_message=commit_message,
+            target_checkout=target_checkout,
             target_ref=target_ref,
-            integration_revision=integration_revision,
-            source_attempt_id=attempt_id,
-            verified_patch_digest=patch_digest,
         )
         plan = refresh_plan(self.store.load(self.run_id))
         metadata = normalize_supervisor_metadata(plan.get("supervisor"))
@@ -928,7 +734,7 @@ class CodexSupervisedCommanderRun:
                 findings=[note],
                 evidence_refs=[{"kind": "verified_patch", "sha256": verified_patch_digest}],
             )
-        mark_integrated(
+        host_record_integration(
             self.root,
             self.run_id,
             task_id,

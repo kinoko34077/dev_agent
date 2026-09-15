@@ -14,6 +14,19 @@ from typing import Any
 from scripts.devfarm import DevFarmError
 
 
+def result_reference(task_id: str, attempt_id: str | None = None) -> str:
+    """Return the canonical bounded result artifact reference for a task."""
+
+    if not isinstance(task_id, str) or not task_id.strip() or len(task_id.strip()) > 101:
+        raise DevFarmError("task_id must be a bounded non-empty string")
+    normalized_task_id = task_id.strip()
+    if attempt_id is None:
+        return f".devfarm/results/{normalized_task_id}/result.json"
+    if not isinstance(attempt_id, str) or not attempt_id.strip() or len(attempt_id.strip()) > 101:
+        raise DevFarmError("attempt_id must be a bounded non-empty string")
+    return f".devfarm/results/{normalized_task_id}/attempts/{attempt_id.strip()}/result.json"
+
+
 def require_task(plan: Mapping[str, Any], task_id: str) -> Mapping[str, Any]:
     """Return one task by durable ID or fail closed."""
 
@@ -91,4 +104,5 @@ __all__ = [
     "latest_rework_decision",
     "require_approved_review_decision",
     "require_task",
+    "result_reference",
 ]
