@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import time
 
 import pytest
 
@@ -306,6 +307,18 @@ def test_windows_job_object_ends_managed_child_when_guardian_process_dies(tmp_pa
         child_pid = int(line.strip())
         guardian.terminate()
         guardian.wait(timeout=5)
+        for _ in range(50):
+            process_listing = subprocess.run(
+                ["tasklist", "/FI", f"PID eq {child_pid}", "/FO", "CSV", "/NH"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            if str(child_pid) not in process_listing.stdout:
+                break
+            time.sleep(0.1)
+        assert str(child_pid) not in process_listing.stdout
         assert not sentinel.exists()
     finally:
         if guardian.poll() is None:
