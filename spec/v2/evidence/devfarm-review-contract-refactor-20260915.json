@@ -1,0 +1,64 @@
+{
+  "evidence_id": "devfarm-review-contract-refactor-20260915",
+  "status": "VERIFIED",
+  "observed_at": "2026-09-15",
+  "implementation_commit": "33818606bbb36a11592d606e6a84c5cfa78ff062",
+  "implementation_message": "refactor: isolate devfarm review contracts",
+  "scope": {
+    "new_boundary": "scripts/devfarm_review_protocol.py",
+    "compatibility_boundary": "scripts/devfarm_supervisor_protocol.py",
+    "moved_contracts": [
+      "ReviewPacket normalization",
+      "ReviewDecision normalization",
+      "bounded review references and findings",
+      "raw conversation/output rejection"
+    ],
+    "consumers": [
+      "scripts/devfarm_plan_validation.py",
+      "scripts/devfarm_review_packet.py",
+      "scripts/devfarm_supervisor.py"
+    ],
+    "authority": "Review payload validation is Host-owned contract handling; approval, integration, task ownership, and D7/D9 authority remain outside this boundary"
+  },
+  "authority_invariants": [
+    "Reviewer remains proposal-only where applicable",
+    "Codex durable ReviewDecision remains final review authority",
+    "Host integration remains the only Git mutation path",
+    "raw Worker conversation and patch text remain rejected from compact packets",
+    "UNKNOWN and reconciliation semantics remain unchanged",
+    "D7 remains candidate-only and D9 remains proposal-only"
+  ],
+  "worker": {
+    "production_task_attempted": 0,
+    "codex_direct_implementation_count": 1,
+    "codex_direct_implementation_reason": "cross_cutting_review_contract_boundary"
+  },
+  "verification": {
+    "focused": "33 passed",
+    "full_v2": "1302 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS"
+  },
+  "exact_head_ci": {
+    "remote_head": "33818606bbb36a11592d606e6a84c5cfa78ff062",
+    "v2_core": {
+      "run_id": 34951259550,
+      "conclusion": "success",
+      "jobs": ["kernel (3.10)", "kernel (3.11)"]
+    },
+    "v2_provider_smoke": {
+      "run_id": 34951259484,
+      "conclusion": "success"
+    }
+  },
+  "not_claimed": [
+    "production-code Worker integration",
+    "D7 official-branch Codex-less integration",
+    "OS Guardian registration or deployed crash recovery",
+    "D9 real mutation",
+    "MCP wire transport"
+  ],
+  "raw_conversation_saved": false,
+  "credentials_saved": false
+}
