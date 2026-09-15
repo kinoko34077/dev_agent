@@ -79,6 +79,99 @@ def _reviewer_bindings(
     )
 
 
+def _admit_reviewer_resources(
+    *,
+    provider_pool: tuple[OperationProviderBinding, ...] | list[OperationProviderBinding] | None,
+    provider_id: str,
+    binding_id: str,
+    model_id: str,
+    api_key_env: str,
+    quota_domain: str,
+    timeout_seconds: float,
+    model_admission_resolver=None,
+    model_catalog=None,
+    expand_discovered_models: bool = False,
+):
+    resolver = QualificationResolver()
+    evidence = ModelEvidenceCatalog.load_default()
+    admission_resolver = model_admission_resolver if model_admission_resolver is not None else evidence.resolver
+    catalog = model_catalog if model_catalog is not None else evidence.catalog
+    bindings = _reviewer_bindings(
+        provider_pool=provider_pool,
+        provider_id=provider_id,
+        binding_id=binding_id,
+        model_id=model_id,
+        api_key_env=api_key_env,
+        quota_domain=quota_domain,
+        timeout_seconds=timeout_seconds,
+    )
+    admitted = admit_resource_pool(
+        bindings,
+        resolver=resolver,
+        required_tier="L2",
+        no_charge_required=True,
+        model_admission_resolver=admission_resolver,
+        model_catalog=catalog,
+        expand_discovered_models=expand_discovered_models,
+    )
+    if not admitted:
+        raise ReviewAdapterError("exact current high-confidence L2 reviewer resource is not admitted")
+    return resolver, admission_resolver, admitted
+
+
+def _request_reviewer_proposal(
+    *,
+    root: str | Path,
+    packet: dict[str, object],
+    admitted,
+    resolver: QualificationResolver,
+    model_admission_resolver,
+    timeout_seconds: float,
+    allow_unknown_quota: bool,
+    execution_boundary: str,
+):
+    if execution_boundary not in {"in_process", "host_process"}:
+        raise ReviewAdapterError("execution_boundary must be in_process or host_process")
+    with compose_resource_pool(
+        admitted,
+        resolver=resolver,
+        model_admission_resolver=model_admission_resolver,
+        resource_id_prefix="reviewer-shadow",
+    ) as resource_pool:
+        reviewer_provider = resource_pool.dispatcher
+        if execution_boundary == "host_process":
+            reviewer_provider = route_through_host(
+                resource_pool.dispatcher,
+                create_host_process_executor(
+                    Path(root).resolve() / ".devfarm" / "host-dispatch",
+                    timeout_seconds=timeout_seconds,
+                ),
+            )
+        proposal = ModelReviewAdapter(
+            reviewer_provider,
+            allow_unknown_quota=allow_unknown_quota,
+        ).propose(packet)
+        selected = next(
+            (entry for entry in reversed(resource_pool.dispatcher.audits) if entry.outcome == "succeeded"),
+            None,
+        )
+        audits = [
+            {
+                "provider": entry.provider_id,
+                "binding": entry.provider_binding_id,
+                "model": entry.model_id,
+                "outcome": entry.outcome,
+            }
+            for entry in resource_pool.dispatcher.audits
+        ]
+        selected_identity = None if selected is None else {
+            "provider": selected.provider_id,
+            "binding": selected.provider_binding_id,
+            "model": selected.model_id,
+        }
+    return proposal, selected_identity, audits
+
+
 def run_shadow(
     *,
     root: str | Path,
@@ -123,11 +216,7 @@ def run_shadow(
     if not decisions:
         raise ReviewAdapterError("durable Codex ReviewDecision is not available")
     codex_decision = decisions[-1]
-    resolver = QualificationResolver()
-    evidence = ModelEvidenceCatalog.load_default()
-    admission_resolver = model_admission_resolver if model_admission_resolver is not None else evidence.resolver
-    catalog = model_catalog if model_catalog is not None else evidence.catalog
-    bindings = _reviewer_bindings(
+    resolver, admission_resolver, admitted = _admit_reviewer_resources(
         provider_pool=provider_pool,
         provider_id=provider_id,
         binding_id=binding_id,
@@ -135,82 +224,50 @@ def run_shadow(
         api_key_env=api_key_env,
         quota_domain=quota_domain,
         timeout_seconds=timeout_seconds,
-    )
-    admitted = admit_resource_pool(
-        bindings,
-        resolver=resolver,
-        required_tier="L2",
-        no_charge_required=True,
-        model_admission_resolver=admission_resolver,
-        model_catalog=catalog,
+        model_admission_resolver=model_admission_resolver,
+        model_catalog=model_catalog,
         expand_discovered_models=expand_discovered_models,
     )
-    if not admitted:
-        raise ReviewAdapterError("exact current high-confidence L2 reviewer resource is not admitted")
-    if execution_boundary not in {"in_process", "host_process"}:
-        raise ReviewAdapterError("execution_boundary must be in_process or host_process")
-
-    with compose_resource_pool(
-        admitted,
+    proposal, selected, audits = _request_reviewer_proposal(
+        root=root,
+        packet=packet,
+        admitted=admitted,
         resolver=resolver,
         model_admission_resolver=admission_resolver,
-        resource_id_prefix="reviewer-shadow",
-    ) as resource_pool:
-        dispatcher = resource_pool.dispatcher
-        reviewer_provider = dispatcher
-        if execution_boundary == "host_process":
-            reviewer_provider = route_through_host(
-                dispatcher,
-                create_host_process_executor(
-                    Path(root).resolve() / ".devfarm" / "host-dispatch",
-                    timeout_seconds=timeout_seconds,
-                ),
-            )
-        proposal = ModelReviewAdapter(
-            reviewer_provider,
-            allow_unknown_quota=allow_unknown_quota,
-        ).propose(packet)
-        comparison = compare_review_proposal(proposal, codex_decision["decision"], packet)
-        selected = next((entry for entry in reversed(dispatcher.audits) if entry.outcome == "succeeded"), None)
-        proposal_digest = hashlib.sha256(
-            json.dumps(proposal.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        ).hexdigest()
-        packet_digest = hashlib.sha256(
-            json.dumps(packet, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        ).hexdigest()
-        return {
-            "status": "live_shadow_validated",
-            "checked_at": datetime.now(timezone.utc).isoformat(),
-            "run_id": run_id,
-            "task_id": task_id,
-            "attempt_id": attempt_id,
-            "packet_sha256": packet_digest,
-            "reviewer": {
-                "provider": selected.provider_id if selected is not None else None,
-                "binding": selected.provider_binding_id if selected is not None else None,
-                "model": selected.model_id if selected is not None else None,
-                "intelligence_tier": "L2",
-            },
-            "proposal_sha256": proposal_digest,
-            "proposal": proposal.to_dict(),
-            "codex_decision": {
-                "decision_id": codex_decision.get("decision_id"),
-                "decision": codex_decision.get("decision"),
-                "reviewer_role": codex_decision.get("reviewer_role"),
-            },
-            "comparison": comparison.to_dict(),
-            "host_verification": packet.get("verification_summary", {}),
-            "dispatch_audits": [
-                {
-                    "provider": entry.provider_id,
-                    "binding": entry.provider_binding_id,
-                    "model": entry.model_id,
-                    "outcome": entry.outcome,
-                }
-                for entry in dispatcher.audits
-            ],
-            "allow_unknown_quota": allow_unknown_quota,
-        }
+        timeout_seconds=timeout_seconds,
+        allow_unknown_quota=allow_unknown_quota,
+        execution_boundary=execution_boundary,
+    )
+    comparison = compare_review_proposal(proposal, codex_decision["decision"], packet)
+    proposal_digest = hashlib.sha256(
+        json.dumps(proposal.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    packet_digest = hashlib.sha256(
+        json.dumps(packet, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return {
+        "status": "live_shadow_validated",
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "run_id": run_id,
+        "task_id": task_id,
+        "attempt_id": attempt_id,
+        "packet_sha256": packet_digest,
+        "reviewer": {
+            **(selected or {"provider": None, "binding": None, "model": None}),
+            "intelligence_tier": "L2",
+        },
+        "proposal_sha256": proposal_digest,
+        "proposal": proposal.to_dict(),
+        "codex_decision": {
+            "decision_id": codex_decision.get("decision_id"),
+            "decision": codex_decision.get("decision"),
+            "reviewer_role": codex_decision.get("reviewer_role"),
+        },
+        "comparison": comparison.to_dict(),
+        "host_verification": packet.get("verification_summary", {}),
+        "dispatch_audits": audits,
+        "allow_unknown_quota": allow_unknown_quota,
+    }
 
 
 def run_proposal_only(
@@ -244,11 +301,7 @@ def run_proposal_only(
     attempt_id = packet.get("attempt_id")
     if not isinstance(attempt_id, str) or not attempt_id.strip():
         raise ReviewAdapterError("ReviewPacket has no attempt identity")
-    resolver = QualificationResolver()
-    evidence = ModelEvidenceCatalog.load_default()
-    admission_resolver = model_admission_resolver if model_admission_resolver is not None else evidence.resolver
-    catalog = model_catalog if model_catalog is not None else evidence.catalog
-    bindings = _reviewer_bindings(
+    resolver, admission_resolver, admitted = _admit_reviewer_resources(
         provider_pool=provider_pool,
         provider_id=provider_id,
         binding_id=binding_id,
@@ -256,82 +309,50 @@ def run_proposal_only(
         api_key_env=api_key_env,
         quota_domain=quota_domain,
         timeout_seconds=timeout_seconds,
-    )
-    admitted = admit_resource_pool(
-        bindings,
-        resolver=resolver,
-        required_tier="L2",
-        no_charge_required=True,
-        model_admission_resolver=admission_resolver,
-        model_catalog=catalog,
+        model_admission_resolver=model_admission_resolver,
+        model_catalog=model_catalog,
         expand_discovered_models=expand_discovered_models,
     )
-    if not admitted:
-        raise ReviewAdapterError("exact current high-confidence L2 reviewer resource is not admitted")
-    if execution_boundary not in {"in_process", "host_process"}:
-        raise ReviewAdapterError("execution_boundary must be in_process or host_process")
-
-    with compose_resource_pool(
-        admitted,
+    proposal, selected, audits = _request_reviewer_proposal(
+        root=root,
+        packet=packet,
+        admitted=admitted,
         resolver=resolver,
         model_admission_resolver=admission_resolver,
-        resource_id_prefix="reviewer-shadow",
-    ) as resource_pool:
-        dispatcher = resource_pool.dispatcher
-        reviewer_provider = dispatcher
-        if execution_boundary == "host_process":
-            reviewer_provider = route_through_host(
-                dispatcher,
-                create_host_process_executor(
-                    Path(root).resolve() / ".devfarm" / "host-dispatch",
-                    timeout_seconds=timeout_seconds,
-                ),
-            )
-        proposal = ModelReviewAdapter(
-            reviewer_provider,
-            allow_unknown_quota=allow_unknown_quota,
-        ).propose(packet)
-        selected = next((entry for entry in reversed(dispatcher.audits) if entry.outcome == "succeeded"), None)
-        proposal_digest = hashlib.sha256(
-            json.dumps(proposal.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        ).hexdigest()
-        packet_digest = hashlib.sha256(
-            json.dumps(packet, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        ).hexdigest()
-        return {
-            "status": "live_shadow_proposal_only",
-            "checked_at": datetime.now(timezone.utc).isoformat(),
-            "run_id": run_id,
-            "task_id": task_id,
-            "attempt_id": attempt_id,
-            "packet_sha256": packet_digest,
-            "reviewer": {
-                "provider": selected.provider_id if selected is not None else None,
-                "binding": selected.provider_binding_id if selected is not None else None,
-                "model": selected.model_id if selected is not None else None,
-                "intelligence_tier": "L2",
-            },
-            "proposal_sha256": proposal_digest,
-            "proposal": proposal.to_dict(),
-            "host_verification": packet.get("verification_summary", {}),
-            "authority": {
-                "reviewer_mode": "shadow",
-                "proposal_only": True,
-                "final_authority": ["codexless_policy", "host_policy"],
-                "integration_performed_by_shadow": False,
-            },
-            "dispatch_audits": [
-                {
-                    "provider": entry.provider_id,
-                    "binding": entry.provider_binding_id,
-                    "model": entry.model_id,
-                    "outcome": entry.outcome,
-                }
-                for entry in dispatcher.audits
-            ],
-            "allow_unknown_quota": allow_unknown_quota,
-            "raw_worker_conversation_recorded": False,
-        }
+        timeout_seconds=timeout_seconds,
+        allow_unknown_quota=allow_unknown_quota,
+        execution_boundary=execution_boundary,
+    )
+    proposal_digest = hashlib.sha256(
+        json.dumps(proposal.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    packet_digest = hashlib.sha256(
+        json.dumps(packet, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return {
+        "status": "live_shadow_proposal_only",
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "run_id": run_id,
+        "task_id": task_id,
+        "attempt_id": attempt_id,
+        "packet_sha256": packet_digest,
+        "reviewer": {
+            **(selected or {"provider": None, "binding": None, "model": None}),
+            "intelligence_tier": "L2",
+        },
+        "proposal_sha256": proposal_digest,
+        "proposal": proposal.to_dict(),
+        "host_verification": packet.get("verification_summary", {}),
+        "authority": {
+            "reviewer_mode": "shadow",
+            "proposal_only": True,
+            "final_authority": ["codexless_policy", "host_policy"],
+            "integration_performed_by_shadow": False,
+        },
+        "dispatch_audits": audits,
+        "allow_unknown_quota": allow_unknown_quota,
+        "raw_worker_conversation_recorded": False,
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
