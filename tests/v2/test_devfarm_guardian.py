@@ -82,8 +82,12 @@ def test_guardian_serve_uses_bounded_polling_without_creating_a_scheduler(tmp_pa
     assert result["task_scheduler"] == "not_owned_by_guardian"
 
 
-def test_guardian_registration_is_static_dry_run_by_default(tmp_path):
-    result = guardian_registration(_config(tmp_path), tmp_path / "runtime")
+def test_guardian_registration_is_static_dry_run_by_default(tmp_path, monkeypatch):
+    config = _config(tmp_path)
+    data_dir = tmp_path / "runtime"
+    monkeypatch.setattr(guardian_module, "_DEFAULT_GUARDIAN_CONFIG", config.resolve())
+    monkeypatch.setattr(guardian_module, "_DEFAULT_GUARDIAN_DATA_DIR", data_dir.resolve())
+    result = guardian_registration(config, data_dir)
 
     assert result["status"] == "DRY_RUN"
     assert result["registration"] == "NOT_APPLIED"
@@ -106,6 +110,25 @@ def test_guardian_registration_is_static_dry_run_by_default(tmp_path):
         "DevAgentGuardian",
         "/F",
     ]
+
+
+def test_guardian_registration_compacts_repository_defaults_for_scheduler_limit(tmp_path, monkeypatch):
+    config = _config(tmp_path)
+    data_dir = tmp_path / "runtime"
+    monkeypatch.setattr(guardian_module, "_DEFAULT_GUARDIAN_CONFIG", config.resolve())
+    monkeypatch.setattr(guardian_module, "_DEFAULT_GUARDIAN_DATA_DIR", data_dir.resolve())
+
+    result = guardian_registration(config, data_dir)
+
+    assert result["command"] == [
+        sys.executable,
+        str(guardian_module.Path(guardian_module.__file__).resolve()),
+        "serve",
+        "--poll-seconds",
+        "6",
+    ]
+    assert result["command_length"] == len(guardian_module.subprocess.list2cmdline(result["command"]))
+    assert result["command_length"] <= result["command_length_limit"] == 261
 
 
 def test_guardian_unregistration_is_static_dry_run_by_default():
@@ -146,8 +169,12 @@ def test_guardian_registration_apply_uses_bounded_static_command(tmp_path, monke
 
     monkeypatch.setattr(guardian_module, "os", SimpleNamespace(name="nt"))
     monkeypatch.setattr(guardian_module.subprocess, "run", fake_run)
+    config = _config(tmp_path)
+    data_dir = tmp_path / "runtime"
+    monkeypatch.setattr(guardian_module, "_DEFAULT_GUARDIAN_CONFIG", config.resolve())
+    monkeypatch.setattr(guardian_module, "_DEFAULT_GUARDIAN_DATA_DIR", data_dir.resolve())
 
-    result = guardian_registration(_config(tmp_path), tmp_path / "runtime", apply=True)
+    result = guardian_registration(config, data_dir, apply=True)
 
     assert result["status"] == "APPLIED"
     assert result["registration"] == "CONFIGURED"
@@ -164,9 +191,35 @@ def test_guardian_registration_apply_closes_timeout_without_raw_process_output(t
 
     monkeypatch.setattr(guardian_module, "os", SimpleNamespace(name="nt"))
     monkeypatch.setattr(guardian_module.subprocess, "run", fake_run)
+    config = _config(tmp_path)
+    data_dir = tmp_path / "runtime"
+    monkeypatch.setattr(guardian_module, "_DEFAULT_GUARDIAN_CONFIG", config.resolve())
+    monkeypatch.setattr(guardian_module, "_DEFAULT_GUARDIAN_DATA_DIR", data_dir.resolve())
 
     with pytest.raises(GuardianOperatorError, match="timed out"):
-        guardian_registration(_config(tmp_path), tmp_path / "runtime", apply=True)
+        guardian_registration(config, data_dir, apply=True)
+
+
+def test_guardian_registration_classifies_access_denied_without_raw_output(tmp_path, monkeypatch):
+    def fake_run(command, **_kwargs):
+        return guardian_module.subprocess.CompletedProcess(
+            command,
+            5,
+            stdout="operator path should not escape",
+            stderr="ERROR: Access is denied.",
+        )
+
+    monkeypatch.setattr(guardian_module, "os", SimpleNamespace(name="nt"))
+    monkeypatch.setattr(guardian_module.subprocess, "run", fake_run)
+    config = _config(tmp_path)
+    data_dir = tmp_path / "runtime"
+    monkeypatch.setattr(guardian_module, "_DEFAULT_GUARDIAN_CONFIG", config.resolve())
+    monkeypatch.setattr(guardian_module, "_DEFAULT_GUARDIAN_DATA_DIR", data_dir.resolve())
+
+    with pytest.raises(GuardianOperatorError, match="access_denied") as raised:
+        guardian_registration(config, data_dir, apply=True)
+
+    assert "operator path" not in str(raised.value)
 
 
 def test_guardian_os_registration_status_reports_configured_without_task_output(tmp_path, monkeypatch):

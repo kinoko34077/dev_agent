@@ -23,6 +23,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+_DEFAULT_GUARDIAN_CONFIG = (ROOT / ".dev_agent" / "guardian.json").resolve()
+_DEFAULT_GUARDIAN_DATA_DIR = (ROOT / ".dev_agent").resolve()
+_TASK_SCHEDULER_RUN_LIMIT = 261
+
 from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_repository import read_json
 from src.dev_agent.coordination.guardian import GuardianActionService
@@ -51,6 +55,19 @@ _TASK_NOT_FOUND = re.compile(
     r"(?:cannot find|does not exist|not found|system cannot find)",
     re.IGNORECASE,
 )
+
+
+def _classify_registration_failure(returncode: int, output: str) -> str:
+    """Return a bounded scheduler failure category without exposing output."""
+
+    bounded_output = output[:4096].lower() if isinstance(output, str) else ""
+    if returncode in {5, -2147024891} or "access is denied" in bounded_output:
+        return "access_denied"
+    if "261 character" in bounded_output or "too long" in bounded_output:
+        return "command_too_long"
+    if "not recognized" in bounded_output or "cannot find" in bounded_output:
+        return "scheduler_unavailable"
+    return "registration_failed"
 
 
 def _validated_task_name(task_name: str) -> str:
@@ -188,23 +205,29 @@ def guardian_registration(
     data = Path(data_dir).resolve()
     profiles = load_launch_profiles(config)
     script_path = Path(__file__).resolve()
-    command = [
-        sys.executable,
-        str(script_path),
-        "serve",
-        "--config",
-        str(config),
-        "--data-dir",
-        str(data),
-        "--poll-seconds",
-        "6",
-    ]
+    # Task Scheduler limits the /TR command line to 261 characters.  Keep
+    # the normal repository-local registration independent of the Scheduler's
+    # working directory by resolving these defaults from this module at
+    # runtime, while retaining explicit paths for operator-supplied profiles.
+    command = [sys.executable, str(script_path), "serve"]
+    if config != _DEFAULT_GUARDIAN_CONFIG:
+        command.extend(("--config", str(config)))
+    if data != _DEFAULT_GUARDIAN_DATA_DIR:
+        command.extend(("--data-dir", str(data)))
+    command.extend(("--poll-seconds", "6"))
+    command_length = len(subprocess.list2cmdline(command))
+    if command_length > _TASK_SCHEDULER_RUN_LIMIT:
+        raise GuardianOperatorError(
+            "Guardian Task Scheduler command exceeds the 261-character /TR limit"
+        )
     result: dict[str, Any] = {
         "status": "DRY_RUN",
         "registration": "NOT_APPLIED",
         "task_name": task_name,
         "profile_count": len(profiles),
         "command": command,
+        "command_length": command_length,
+        "command_length_limit": _TASK_SCHEDULER_RUN_LIMIT,
         "recovery": {
             "disable_command": ["schtasks.exe", "/Change", "/TN", task_name, "/DISABLE"],
             "unregister_command": ["schtasks.exe", "/Delete", "/TN", task_name, "/F"],
@@ -240,7 +263,11 @@ def guardian_registration(
     except OSError as exc:
         raise GuardianOperatorError("Windows Task Scheduler registration could not start") from exc
     if completed.returncode != 0:
-        raise GuardianOperatorError("Windows Task Scheduler registration failed")
+        output = "\n".join(
+            value for value in (completed.stdout, completed.stderr) if isinstance(value, str)
+        )
+        reason = _classify_registration_failure(completed.returncode, output)
+        raise GuardianOperatorError(f"Windows Task Scheduler registration failed ({reason})")
     return {
         **result,
         "status": "APPLIED",
@@ -390,18 +417,18 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Host-owned bounded Guardian operator")
     subparsers = parser.add_subparsers(dest="command", required=True)
     health = subparsers.add_parser("health")
-    health.add_argument("--config", required=True, type=Path)
+    health.add_argument("--config", type=Path, default=_DEFAULT_GUARDIAN_CONFIG)
     run = subparsers.add_parser("run")
-    run.add_argument("--config", required=True, type=Path)
-    run.add_argument("--data-dir", type=Path, default=Path(os.environ.get("DEV_AGENT_DATA_DIR", ".dev_agent")))
+    run.add_argument("--config", type=Path, default=_DEFAULT_GUARDIAN_CONFIG)
+    run.add_argument("--data-dir", type=Path, default=Path(os.environ.get("DEV_AGENT_DATA_DIR", _DEFAULT_GUARDIAN_DATA_DIR)))
     serve = subparsers.add_parser("serve")
-    serve.add_argument("--config", required=True, type=Path)
-    serve.add_argument("--data-dir", type=Path, default=Path(os.environ.get("DEV_AGENT_DATA_DIR", ".dev_agent")))
+    serve.add_argument("--config", type=Path, default=_DEFAULT_GUARDIAN_CONFIG)
+    serve.add_argument("--data-dir", type=Path, default=Path(os.environ.get("DEV_AGENT_DATA_DIR", _DEFAULT_GUARDIAN_DATA_DIR)))
     serve.add_argument("--poll-seconds", type=float, default=6.0)
     serve.add_argument("--max-cycles", type=int)
     install = subparsers.add_parser("install", help="show or explicitly apply static OS liveness registration")
-    install.add_argument("--config", required=True, type=Path)
-    install.add_argument("--data-dir", type=Path, default=Path(os.environ.get("DEV_AGENT_DATA_DIR", ".dev_agent")))
+    install.add_argument("--config", type=Path, default=_DEFAULT_GUARDIAN_CONFIG)
+    install.add_argument("--data-dir", type=Path, default=Path(os.environ.get("DEV_AGENT_DATA_DIR", _DEFAULT_GUARDIAN_DATA_DIR)))
     install.add_argument("--task-name", default="DevAgentGuardian")
     install.add_argument("--apply", action="store_true")
     uninstall = subparsers.add_parser("uninstall", help="show or explicitly remove static OS liveness registration")
