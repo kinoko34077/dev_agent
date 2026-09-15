@@ -4,7 +4,7 @@
   "operation": "d9_production_approval_persistence_audit",
   "observed_at": "2026-09-16",
   "branch": "v2/bootstrap",
-  "status": "AUDITED_NOT_READY",
+  "status": "AUDITED_LOCAL_BOUNDARY_NOT_READY_FOR_LIVE_REPAIR",
   "implementation": {
     "durable_store": "existing StateStore approval repository",
     "sqlite_store": "src/dev_agent/state/sqlite_store.py",
@@ -57,5 +57,8 @@
     "raw_credentials_recorded": false,
     "raw_patch_recorded": false
   },
-  "remaining": ["1-D-3", "1-D-4", "1-D-5", "1-D-6"]
+  "remaining": [
+    "live production candidate approval persistence and consumption",
+    "official runtime mutation remains gated"
+  ]
 }

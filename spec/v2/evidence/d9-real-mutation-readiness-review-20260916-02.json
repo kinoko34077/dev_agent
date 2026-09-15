@@ -3,16 +3,16 @@
   "observed_at": "2026-09-16",
   "purpose": "Non-mutating Stage 1 readiness review after Guardian diagnostics and durable approval binding checks.",
   "status": "NOT_READY",
-  "implementation_baseline": "f2820173073ebea014c275ce576db3abccc56253",
+  "implementation_baseline": "3725e25738e30c8e6c0d9834a43b8e6730d13fca",
   "exact_head_ci": {
-    "remote_head": "f2820173073ebea014c275ce576db3abccc56253",
+    "remote_head": "3725e25738e30c8e6c0d9834a43b8e6730d13fca",
     "v2_core": {
-      "run": "34999927370",
+      "run": "35006767564",
       "kernel_3_10": "PASS",
       "kernel_3_11": "PASS"
     },
     "provider_smoke": {
-      "run": "34999927425",
+      "run": "35006767691",
       "result": "PASS"
     }
   },
@@ -21,8 +21,8 @@
     "1-A-2_os_query_boundary": "PASS_NOT_REGISTERED",
     "1-A-3_static_registration_plan": "PASS_DRY_RUN_ONLY",
     "1-A-4_recovery_unregister_plan": "PASS_DRY_RUN_ONLY",
-    "1-B_real_rolling": "NOT_READY_OS_BOUNDARY_MISSING",
-    "1-C_real_rollback": "NOT_READY_REAL_ROLLING_MISSING",
+    "1-B_real_rolling": "PASS_LOCAL_ONLY_OS_DEPLOYMENT_UNVERIFIED",
+    "1-C_real_rollback": "PASS_LOCAL_ONLY_OS_DEPLOYMENT_UNVERIFIED",
     "1-D-1_existing_approval_store_audit": "PASS",
     "1-D-3_operation_and_candidate_binding": "PASS",
     "1-D-4_expiry_revoke_consume_once": "PASS_FOCUSED_AND_SQLITE",
@@ -35,8 +35,8 @@
     "guardian_local_process_and_job_ownership": "PASS_LOCAL_ONLY",
     "guardian_os_liveness": "NOT_VERIFIED",
     "deployed_crash_recovery": "NOT_VERIFIED",
-    "real_agent_generation_rolling": "NOT_VERIFIED",
-    "real_rollback": "NOT_VERIFIED",
+    "real_agent_generation_rolling": "PASS_LOCAL_ONLY",
+    "real_rollback": "PASS_LOCAL_ONLY",
     "rollback_proof_local_composition": "PASS_LOCAL_ONLY",
     "production_repair_approval_consumption": "NOT_STARTED",
     "real_runtime_mutation": "NOT_STARTED",
@@ -46,14 +46,15 @@
   },
   "missing_before_real_mutation": [
     "Human-approved reversible OS Guardian registration and deployed crash/restart evidence",
-    "real Agent generation rolling replacement and rollback evidence",
+    "OS-deployed Agent generation rolling replacement and rollback evidence",
     "real candidate approval consumption and production runtime binding",
     "post-mutation health and rollback drill"
   ],
   "references": [
     "guardian-os-registration-diagnostic-20260916.json",
     "d9-production-approval-audit-20260916.json",
-    "d2-production-worker-integration-20260916.json"
+    "d2-production-worker-integration-20260916.json",
+    "guardian-real-rolling-rollback-20260916.json"
   ],
   "mutation_performed": false,
   "approval_consumed": false,

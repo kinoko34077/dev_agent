@@ -123,7 +123,7 @@ G6O1、paid provider、OpenAI/Claude API、Production auto-deploy、UI、unbound
 ### D9 / Work Address `1-D` — Production approval persistence audit
 
 - Work Address `1-D-1`/`1-D-3`で既存SQLite/JSON StateStoreのapproval repository、expiry、revoke、consume-onceを監査した。`RepairExecutionRequest`はcandidate、task、attempt、base revision、patch/manifest/verification、RollbackProof、review、target、固定`operation_type=repair_integration`を含むauthorization digestへ接続している。新しいapproval DBは作らない。
-- この結果は既存境界の監査であり、real repairのHuman approval消費・official runtime mutationを示さない。Evidence: [`d9-production-approval-audit-20260916.json`](../spec/v2/evidence/d9-production-approval-audit-20260916.json)。残りは`1-D-3`〜`1-D-6`の実candidate binding/reuse拒否/expiry/revoke/UNKNOWN境界確認である。
+- 既存のfocused/SQLiteテストで`1-D-3`〜`1-D-6`のcandidate binding、approval再利用拒否、expiry/revoke、consume-once、UNKNOWN後blind retry禁止を確認した。これはlive production candidateのHuman approval消費・official runtime mutationを示さない。残りは実candidateを対象にしたproduction approval consumptionとruntime bindingである。Evidence: [`d9-production-approval-audit-20260916.json`](../spec/v2/evidence/d9-production-approval-audit-20260916.json)。
 
 ### D10D/G2 — Graceful drain and checkpoint
 
