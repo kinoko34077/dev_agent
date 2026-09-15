@@ -133,12 +133,27 @@ def main(argv: list[str] | None = None) -> int:
         attempt_id = task.get("last_attempt_id")
         if not isinstance(attempt_id, str) or not attempt_id.strip():
             raise DevFarmError("rework requires the current worker attempt")
-        decision = latest_rework_decision(plan, args.task_id, attempt_id)
-        correction = decision.get("required_correction")
-        if not isinstance(correction, str) or not correction.strip():
-            raise DevFarmError("durable REWORK decision has no required correction")
-        if args.required_correction is not None and args.required_correction != correction:
-            raise DevFarmError("required correction does not match the durable REWORK decision")
+        host_failure_rework = (
+            task.get("status") == "REJECTED"
+            and task.get("block_reason") == "host_verification_failed"
+        )
+        if host_failure_rework:
+            # Host Verification has not produced a ReviewPacket, so creating a
+            # synthetic ReviewDecision here would blur the review boundary.
+            # The operator must provide one bounded correction; reassign_task
+            # still enforces ownership, attempt, and reconciliation limits.
+            correction = args.required_correction
+            if not isinstance(correction, str) or not correction.strip():
+                raise DevFarmError(
+                    "host verification rework requires --required-correction"
+                )
+        else:
+            decision = latest_rework_decision(plan, args.task_id, attempt_id)
+            correction = decision.get("required_correction")
+            if not isinstance(correction, str) or not correction.strip():
+                raise DevFarmError("durable REWORK decision has no required correction")
+            if args.required_correction is not None and args.required_correction != correction:
+                raise DevFarmError("required correction does not match the durable REWORK decision")
         assignment = task.get("assignment")
         if not isinstance(assignment, Mapping):
             raise DevFarmError("worker task has no assignment")

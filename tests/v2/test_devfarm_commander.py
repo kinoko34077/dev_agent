@@ -808,6 +808,74 @@ def test_supervisor_cli_rework_requires_review_and_creates_new_manifest(tmp_path
     capsys.readouterr()
 
 
+def test_supervisor_cli_rework_after_host_failure_uses_bounded_correction(tmp_path, capsys):
+    root, targets, revision = _repo(tmp_path)
+    _manifest(root, revision, "worker-a", targets[0])
+    create_plan(
+        root,
+        {
+            "run_id": "supervisor-cli-host-failure-rework-run",
+            "objective": "recover a worker patch rejected by Host Verification",
+            "tasks": [
+                {
+                    "task_id": "worker-a",
+                    "owner": "worker",
+                    "manifest_path": ".devfarm/tasks/worker-a.json",
+                    "ownership": [targets[0]],
+                    "max_attempts": 2,
+                    "assignment": {"provider_id": "cloudflare", "model_id": "worker-model"},
+                }
+            ],
+            "base_revision": revision,
+        },
+    )
+    provider = _WorkerProvider(
+        {
+            "status": "completed",
+            "changed_files": [targets[0]],
+            "tests_run": [],
+            "tests_passed": True,
+            "known_issues": [],
+            "assumptions": [],
+            "patch": _patch(targets[0]),
+        }
+    )
+    dispatch_plan(root, "supervisor-cli-host-failure-rework-run", providers={"worker-a": provider})
+    failed = verify_plan(
+        root,
+        "supervisor-cli-host-failure-rework-run",
+        orchestrator=_FailingVerifier(),
+    )
+    task = failed["tasks"][0]
+    assert task["status"] == "REJECTED"
+    assert task["block_reason"] == "host_verification_failed"
+    old_manifest = task["manifest_path"]
+    correction = "Regenerate a normal modification diff for the existing file; do not emit a new-file patch."
+
+    assert supervisor_main(
+        [
+            "rework",
+            "supervisor-cli-host-failure-rework-run",
+            "worker-a",
+            "--root",
+            str(root),
+            "--failure-evidence-ref",
+            task["result_ref"],
+            "--required-correction",
+            correction,
+        ]
+    ) == 0
+
+    updated = CodexSupervisedCommanderRun(root, "supervisor-cli-host-failure-rework-run").plan()
+    assert updated["tasks"][0]["status"] == "READY"
+    assert updated["tasks"][0]["manifest_path"] != old_manifest
+    assert updated["review_decisions"] == []
+    new_manifest = json.loads((root / updated["tasks"][0]["manifest_path"]).read_text(encoding="utf-8"))
+    assert new_manifest["rework_handoff"]["kind"] == "repair_request"
+    assert new_manifest["rework_handoff"]["requirements"] == [correction]
+    capsys.readouterr()
+
+
 def test_supervisor_cli_rejects_wrong_attempt_and_invalid_decision(tmp_path, capsys):
     root, targets, revision = _repo(tmp_path)
     _manifest(root, revision, "worker-a", targets[0])
