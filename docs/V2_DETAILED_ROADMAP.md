@@ -118,7 +118,7 @@ G6O1、paid provider、OpenAI/Claude API、Production auto-deploy、UI、unbound
 
 - 既存Guardian action journalへ、Host設定済み`LaunchProfile`だけを解決する`GuardianProcessExecutor`を接続した。任意commandはControlRequestから生成せず、START/STOP/RESTART以外は境界外とする。
 - real local subprocess/fake runtimeで成功、profile/revision不一致、executor失敗→UNKNOWN/no replayを検証した。OS Service/Task Schedulerへの接続は未検証。
-- Work Address `1-A-1`/`1-A-2`として、`guardian os-status` read-only照会を追加した。固定Task名だけをbounded queryし、raw Task Scheduler outputを保持せず、OS mutationは行わない。設定なしの実環境照会は`NOT_CONFIGURED`を返した。`1-A-3`/`1-A-4`として、static registration、disable、unregisterのdry-run計画と明示`--apply`境界も用意した。実登録はHuman approval後の別sliceとする。Evidence: [`guardian-os-registration-diagnostic-20260916.json`](../spec/v2/evidence/guardian-os-registration-diagnostic-20260916.json)。
+- Work Address `1-A-1`/`1-A-2`として、`guardian os-status` read-only照会を追加した。固定Task名だけをbounded queryし、raw Task Scheduler outputを保持せず、OS mutationを行わない。設定なしの実環境照会は`NOT_CONFIGURED`を返した。`1-A-3`/`1-A-4`として、static registration、disable、unregisterのdry-run計画と明示`--apply`境界も用意し、registration launcherはSchedulerのworking directoryに依存しない絶対script pathを使う。実登録はHuman approval後の別sliceとする。Evidence: [`guardian-os-registration-diagnostic-20260916.json`](../spec/v2/evidence/guardian-os-registration-diagnostic-20260916.json)。
 
 ### D9 / Work Address `1-D` — Production approval persistence audit
 
