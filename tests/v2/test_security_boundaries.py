@@ -62,6 +62,7 @@ def test_protected_authority_policy_covers_responsibility_paths():
     assert is_protected_path("spec/v2/model_evidence/model_catalog_snapshot.json")
     assert is_protected_path("config/v2.yaml")
     assert is_protected_path("scripts/devfarm_worker.py")
+    assert is_protected_path("scripts/devfarm_worker_admission.py")
     assert is_protected_path("src/dev_agent/security/audit.py")
     assert is_protected_path("recovery/validate_sqlite_state.py")
     assert is_protected_path(".github/workflows/v2-core.yml")

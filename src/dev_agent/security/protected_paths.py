@@ -59,6 +59,7 @@ PROTECTED_AUTHORITY_PATHS = frozenset(
         "config/v2.yaml",
         "scripts/devfarm.py",
         "scripts/devfarm_worker.py",
+        "scripts/devfarm_worker_admission.py",
         "scripts/devfarm_commander.py",
         "scripts/devfarm_orchestrator.py",
         ".gitmodules",
