@@ -51,7 +51,12 @@ def test_devfarm_provider_uses_factory_and_explicit_activation_allowlist():
     assert policy.is_active("cloudflare", "@cf/meta/llama-3.1-8b-instruct")
     assert not policy.is_active("cloudflare", "arbitrary-unqualified-model")
     assert not policy.is_active("gemini")
-    assert policy.is_active("gemini", "gemini-3.5-flash-lite")
+    assert policy.eligibility_for(
+        "gemini",
+        "gemini-3.5-flash-lite",
+        provider_binding_id="gemini:worker",
+    ).eligible
+    assert not policy.is_active("gemini", "gemini-3.5-flash-lite")
     assert not policy.is_active("gemini", "gemini-3.8-flash")
     assert not policy.is_active("openrouter")
     assert not policy.is_active("mistral")
@@ -65,7 +70,7 @@ def test_devfarm_provider_uses_factory_and_explicit_activation_allowlist():
     assert isinstance(openrouter, OpenRouterHttpProvider)
     assert openrouter.model == "openrouter/free"
 
-    gemini = _provider("gemini", "gemini-3.5-flash-lite", 4)
+    gemini = _provider("gemini", "gemini-3.5-flash-lite", 4, "gemini:worker")
     assert isinstance(gemini, GeminiHttpProvider)
     assert gemini.model == "gemini-3.5-flash-lite"
     assert gemini.provider_binding_id == "gemini:worker"

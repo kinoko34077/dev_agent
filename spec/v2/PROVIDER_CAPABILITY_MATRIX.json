@@ -93,6 +93,22 @@
     },
     {
       "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "provider_binding_id": "gemini:worker:free-3",
+      "intelligence_tier": "L1",
+      "role": "bounded development worker",
+      "api_version": "v1beta generateContent",
+      "adapter_version": "dev_agent GeminiHttpProvider + GeminiTranscriptStore",
+      "tested_at": "2026-09-15T14:31:17.252849+00:00",
+      "expires_at": "2026-10-15T14:31:17.252849+00:00",
+      "confidence": "high",
+      "capabilities": ["text"],
+      "known_quirks": ["bounded text-only contract qualification; provider returned no numeric quota telemetry; quota remains unknown_not_reported; tool-call roundtrip was not used for this admission"],
+      "errors": [],
+      "qualification_scope": "text_only_unknown_quota"
+    },
+    {
+      "provider": "gemini",
       "model": "gemini-3.8-flash",
       "provider_binding_id": "gemini:worker:free-3",
       "intelligence_tier": null,
