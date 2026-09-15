@@ -1,0 +1,43 @@
+{
+  "evidence_id": "devfarm-plan-ownership-refactor-20260915",
+  "status": "verified",
+  "observed_at": "2026-09-15",
+  "implementation_baseline_before_documentation_sync": "9b7ca905c11592e1bf66aae6b75810b90de980cb",
+  "scope": {
+    "ownership_projection": "Read-only active-plan and legacy ownership projection now lives in scripts.devfarm_plan_ownership.",
+    "commander_boundary": "Commander retains ownership locks, cross-plan conflict decisions, and task ownership authority; it delegates only the read projection.",
+    "safety": "Normal validation remains strict. Historical plans rejected by tightened manifest policy remain reserved through a bounded fail-closed projection; unknown identity or ownership still raises."
+  },
+  "verification": {
+    "focused_tests": "32 passed",
+    "full_tests_v2": "1291 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS"
+  },
+  "exact_head_ci": {
+    "remote_head": "9b7ca905c11592e1bf66aae6b75810b90de980cb",
+    "v2_core": {
+      "run_id": 34939288609,
+      "conclusion": "success",
+      "jobs": ["kernel (3.10)", "kernel (3.11)"]
+    },
+    "v2_provider_smoke": {
+      "run_id": 34939288611,
+      "conclusion": "success"
+    }
+  },
+  "worker": {
+    "production_task_attempted": 0,
+    "codex_direct_implementation_count": 1,
+    "reason": "Ownership projection is part of the cross-plan Host authority boundary; locks and conflict decisions remain Codex/Commander-owned, so this refactor was not represented as Worker-originated production work."
+  },
+  "not_claimed": [
+    "production Worker integration",
+    "MCP wire transport",
+    "OS Guardian registration",
+    "D9 real mutation"
+  ],
+  "raw_conversation_saved": false,
+  "credentials_saved": false
+}
