@@ -41,7 +41,7 @@ from scripts.devfarm_worker_admission import (
     validate_worker_provider as shared_validate_worker_provider,
 )
 from scripts.devfarm_provider_runtime import build_worker_provider
-from scripts.devfarm_repository import read_json
+from scripts.devfarm_repository import git_bytes, git_process, read_json
 from src.dev_agent.security.egress import (
     EgressManifest,
     contains_secret_candidate,
@@ -94,27 +94,9 @@ def _is_within(root: Path, candidate: Path) -> bool:
 
 
 def _git_process(workspace: Path, *arguments: str, input_text: str | None = None) -> subprocess.CompletedProcess[str]:
-    # Send patch input as bytes.  Python's text-mode pipe on Windows converts
-    # LF to CRLF, which makes an LF unified diff fail against a CRLF checkout.
-    # Git still receives text output as decoded strings for the callers below.
-    command = [
-        "git",
-        "-c",
-        "core.whitespace=cr-at-eol",
-        "-c",
-        f"safe.directory={workspace.as_posix()}",
-        "-C",
-        workspace.as_posix(),
-        *arguments,
-    ]
-    raw_input = input_text.encode("utf-8") if input_text is not None else None
-    result = subprocess.run(command, input=raw_input, capture_output=True, text=False, check=False)
-    return subprocess.CompletedProcess(
-        result.args,
-        result.returncode,
-        stdout=result.stdout.decode("utf-8", errors="replace"),
-        stderr=result.stderr.decode("utf-8", errors="replace"),
-    )
+    # Keep the historical Worker-specific CRLF handling while using the
+    # shared Host repository process boundary.
+    return git_process(workspace, *arguments, input_text=input_text, cr_at_eol=True)
 
 
 def _git(workspace: Path, *arguments: str) -> str:
@@ -126,15 +108,7 @@ def _git(workspace: Path, *arguments: str) -> str:
 
 
 def _git_bytes(workspace: Path, *arguments: str) -> bytes:
-    command = [
-        "git",
-        "-c",
-        f"safe.directory={workspace.as_posix()}",
-        "-C",
-        workspace.as_posix(),
-        *arguments,
-    ]
-    result = subprocess.run(command, capture_output=True, check=False)
+    result = git_bytes(workspace, *arguments)
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).decode("utf-8", errors="replace").strip() or "unknown Git error"
         raise DevFarmError(f"worker Git object read failed: {detail}")

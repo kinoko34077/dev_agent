@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import subprocess
 from typing import Any
 
 from scripts.devfarm_errors import DevFarmError
@@ -94,19 +95,67 @@ def repository_path(
 def git(root: str | Path, *arguments: str) -> str:
     """Run one bounded Git command in a checked repository."""
 
-    import subprocess
+    result = git_process(root, *arguments)
+    if result.returncode != 0:
+        raise DevFarmError(result.stderr.strip() or "Git command failed")
+    return result.stdout.strip()
 
+
+def git_process(
+    root: str | Path,
+    *arguments: str,
+    input_text: str | None = None,
+    env: dict[str, str] | None = None,
+    cr_at_eol: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    """Run one bounded Git command and decode output consistently.
+
+    Development services previously carried slightly different subprocess
+    wrappers.  This boundary owns only process invocation and safe-directory
+    setup; callers retain their existing validation, authority, and error
+    semantics.  ``cr_at_eol`` is intentionally explicit for patch validation
+    on Windows and is not a general Git-config escape hatch.
+    """
+
+    if any(not isinstance(argument, str) for argument in arguments):
+        raise DevFarmError("Git arguments must be strings")
+    root_path = Path(root).resolve()
+    command = ["git", "-c", f"safe.directory={root_path.as_posix()}"]
+    if cr_at_eol:
+        command.extend(["-c", "core.whitespace=cr-at-eol"])
+    command.extend(arguments)
+    raw_input = input_text.encode("utf-8") if input_text is not None else None
+    result = subprocess.run(
+        command,
+        cwd=root_path,
+        env=dict(env) if env is not None else None,
+        input=raw_input,
+        capture_output=True,
+        text=False,
+        check=False,
+    )
+    return subprocess.CompletedProcess(
+        result.args,
+        result.returncode,
+        stdout=result.stdout.decode("utf-8", errors="replace"),
+        stderr=result.stderr.decode("utf-8", errors="replace"),
+    )
+
+
+def git_bytes(root: str | Path, *arguments: str) -> subprocess.CompletedProcess[bytes]:
+    """Run one bounded Git command while preserving binary stdout."""
+
+    if any(not isinstance(argument, str) for argument in arguments):
+        raise DevFarmError("Git arguments must be strings")
     root_path = Path(root).resolve()
     result = subprocess.run(
         ["git", "-c", f"safe.directory={root_path.as_posix()}", *arguments],
         cwd=root_path,
         capture_output=True,
-        text=True,
+        text=False,
         check=False,
     )
-    if result.returncode != 0:
-        raise DevFarmError(result.stderr.strip() or "Git command failed")
-    return result.stdout.strip()
+    return result
 
 
 def resolved_revision(root: str | Path, revision: str) -> str:
@@ -121,25 +170,15 @@ def resolved_revision(root: str | Path, revision: str) -> str:
 def git_diff_digest(root: str | Path, revision: str) -> str:
     """Return the bounded SHA-256 digest of one commit's binary diff."""
 
-    import subprocess
-
-    root_path = Path(root).resolve()
-    result = subprocess.run(
-        [
-            "git",
-            "-c",
-            f"safe.directory={root_path.as_posix()}",
-            "diff-tree",
-            "--root",
-            "--binary",
-            "--no-commit-id",
-            "-r",
-            revision,
-            "--",
-        ],
-        cwd=root_path,
-        capture_output=True,
-        check=False,
+    result = git_bytes(
+        root,
+        "diff-tree",
+        "--root",
+        "--binary",
+        "--no-commit-id",
+        "-r",
+        revision,
+        "--",
     )
     if result.returncode != 0:
         error = result.stderr.decode("utf-8", errors="replace").strip()
@@ -149,7 +188,9 @@ def git_diff_digest(root: str | Path, revision: str) -> str:
 
 __all__ = [
     "git",
+    "git_bytes",
     "git_diff_digest",
+    "git_process",
     "read_bounded_json",
     "read_json",
     "repository_path",

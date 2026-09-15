@@ -30,7 +30,7 @@ from scripts.devfarm_artifacts import write_immutable_text
 from scripts.devfarm_manifests import load_worker_manifest
 from scripts.devfarm_plan_queries import require_approved_review_decision, require_task, result_reference
 from scripts.devfarm_plan_state import CommanderPlanStore, record_result, refresh_plan
-from scripts.devfarm_repository import git, git_diff_digest, read_json, repository_path, resolved_revision
+from scripts.devfarm_repository import git, git_diff_digest, git_process, read_json, repository_path, resolved_revision
 
 
 _SAFE_DIGEST = re.compile(r"^[0-9a-f]{64}$")
@@ -41,22 +41,7 @@ def _git_process(
     *arguments: str,
     input_text: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    command = ["git", "-c", f"safe.directory={cwd.as_posix()}", *arguments]
-    raw_input = input_text.encode("utf-8") if input_text is not None else None
-    result = subprocess.run(
-        command,
-        cwd=cwd,
-        input=raw_input,
-        capture_output=True,
-        text=False,
-        check=False,
-    )
-    return subprocess.CompletedProcess(
-        result.args,
-        result.returncode,
-        stdout=result.stdout.decode("utf-8", errors="replace"),
-        stderr=result.stderr.decode("utf-8", errors="replace"),
-    )
+    return git_process(cwd, *arguments, input_text=input_text)
 
 
 def _git_output(cwd: Path, *arguments: str) -> str:

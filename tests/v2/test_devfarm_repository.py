@@ -7,7 +7,8 @@ import pytest
 import scripts.devfarm as devfarm_module
 from scripts.devfarm import DevFarmError
 from scripts.devfarm_errors import DevFarmError as SharedDevFarmError
-from scripts.devfarm_repository import read_bounded_json, read_json, repository_path
+from scripts.devfarm_repository import git_bytes, git_process, read_bounded_json, read_json, repository_path
+from scripts.devfarm_worker import _git_process as worker_git_process
 
 
 def test_devfarm_cli_uses_neutral_error_and_shared_json_reader():
@@ -21,6 +22,23 @@ def test_repository_path_keeps_development_artifacts_under_the_requested_parent(
     assert repository_path(root, ".devfarm/tasks/task.json", required_parent=".devfarm/tasks") == (
         root / ".devfarm" / "tasks" / "task.json"
     )
+
+
+def test_shared_git_process_preserves_text_input_and_worker_crlf_compatibility(tmp_path: Path):
+    payload = "line-one\nline-two\n"
+
+    shared = git_process(tmp_path, "hash-object", "--stdin", input_text=payload)
+    worker = worker_git_process(tmp_path, "hash-object", "--stdin", input_text=payload)
+
+    assert shared.returncode == 0
+    assert worker.returncode == 0
+    assert worker.stdout == shared.stdout
+    assert git_bytes(tmp_path, "hash-object", "--stdin").returncode == 0
+
+
+def test_shared_git_process_rejects_non_string_arguments(tmp_path: Path):
+    with pytest.raises(DevFarmError, match="Git arguments"):
+        git_process(tmp_path, "status", 1)  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize(
