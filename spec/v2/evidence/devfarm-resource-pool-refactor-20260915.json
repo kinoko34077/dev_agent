@@ -1,0 +1,32 @@
+{
+  "evidence_id": "devfarm-resource-pool-refactor-20260915",
+  "observed_at": "2026-09-15",
+  "implementation_baseline_before_documentation_sync": "e3248330de96ebdeb64999a92d95b7bb6195c997",
+  "scope": {
+    "shared_pool_source_resolution": "Planner and Reviewer use scripts.devfarm_resource_pool.resolve_provider_pool",
+    "reviewer_composition": "Resource admission, Host dispatch, proposal result, and audit projection are composed once",
+    "worker_verification": "shared Host verification and artifact helpers remain the runtime source of truth",
+    "authority": "Reviewer remains proposal-only; Host/Commander/Codex authority is unchanged",
+    "private_cross_devfarm_imports": "ARCHITECTURE_PASS"
+  },
+  "verification": {
+    "focused_tests": "10 passed after Reviewer composition refactor; 23 passed for shared pool boundary",
+    "full_tests_v2": "1253 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head_ci": {
+      "remote_head": "e3248330de96ebdeb64999a92d95b7bb6195c997",
+      "v2_core_run": "34916263081",
+      "v2_provider_smoke_run": "34916263104",
+      "result": "PASS"
+    }
+  },
+  "not_claimed": [
+    "live Provider request",
+    "Reviewer authority",
+    "MCP wire transport",
+    "OS Guardian registration",
+    "D9 real mutation"
+  ],
+  "secrets_or_raw_payloads_saved": false
+}
