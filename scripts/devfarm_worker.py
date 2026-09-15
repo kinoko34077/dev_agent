@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+import difflib
 import json
 import os
 from pathlib import Path
@@ -274,6 +275,96 @@ def _resolve_input_file(workspace: Path, relative: str) -> Path:
 
 def _contains_secret(value: str) -> bool:
     return contains_secret_candidate(value)
+
+
+MAX_FILE_REPLACEMENT_FILES = 8
+MAX_FILE_REPLACEMENT_CHARS = MAX_OUTPUT_TEXT_CHARS
+
+
+def _materialize_file_replacements(
+    root: Path,
+    manifest: Mapping[str, Any],
+    replacements: Mapping[str, Any],
+) -> tuple[str, list[str]]:
+    """Turn bounded complete-file output into a Host-generated unified diff.
+
+    A Worker may find a literal unified diff difficult to format. This
+    fallback accepts complete UTF-8 text only for files that were already sent
+    in the Host egress manifest. The Host reads the exact base revision,
+    performs the content scan, and creates the patch; the model never supplies
+    patch headers or hunk ranges for this path.
+    """
+
+    if not isinstance(replacements, Mapping):
+        raise DevFarmError("file_replacements must be an object")
+    if len(replacements) > MAX_FILE_REPLACEMENT_FILES:
+        raise DevFarmError(f"file_replacements exceed {MAX_FILE_REPLACEMENT_FILES} files")
+    allowed = set(manifest["allowed_files"])
+    outbound = set(manifest["outbound_files"])
+    normalized_entries: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    total_chars = 0
+    for raw_path, replacement in replacements.items():
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            raise DevFarmError("file replacement path must be a non-empty string")
+        normalized_path = raw_path.strip().replace("\\", "/")
+        parsed_path = PurePosixPath(normalized_path)
+        if parsed_path.is_absolute() or any(part in {"", ".", ".."} for part in parsed_path.parts):
+            raise DevFarmError("file replacement path must be a safe relative path")
+        normalized_path = parsed_path.as_posix()
+        if normalized_path in seen:
+            raise DevFarmError(f"duplicate file replacement path: {normalized_path}")
+        seen.add(normalized_path)
+        if normalized_path not in allowed:
+            raise DevFarmError(f"file replacement path is outside manifest allowed_files: {normalized_path}")
+        if normalized_path not in outbound:
+            raise DevFarmError(
+                f"file replacement path must be present in manifest outbound_files: {normalized_path}"
+            )
+        if not isinstance(replacement, str):
+            raise DevFarmError(f"file replacement content must be text: {normalized_path}")
+        if "\x00" in replacement:
+            raise DevFarmError(f"file replacement contains NUL bytes: {normalized_path}")
+        if replacement and not replacement.endswith("\n"):
+            raise DevFarmError(f"file replacement must end with a newline: {normalized_path}")
+        total_chars += len(replacement)
+        if total_chars > MAX_FILE_REPLACEMENT_CHARS:
+            raise DevFarmError(f"file replacements exceed {MAX_FILE_REPLACEMENT_CHARS} characters")
+        if _contains_secret(replacement):
+            raise DevFarmError(f"file replacement contains a secret candidate: {normalized_path}")
+        base_bytes = read_file_at_revision(root, str(manifest["base_revision"]), normalized_path)
+        try:
+            base_text = base_bytes.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise DevFarmError(f"file replacement base is not UTF-8: {normalized_path}") from exc
+        if "\x00" in base_text:
+            raise DevFarmError(f"file replacement base contains NUL bytes: {normalized_path}")
+        if base_text == replacement:
+            raise DevFarmError(f"file replacement does not change the base file: {normalized_path}")
+        normalized_entries.append((normalized_path, replacement))
+
+    patches: list[str] = []
+    changed_paths: list[str] = []
+    for normalized_path, replacement in sorted(normalized_entries):
+        base_bytes = read_file_at_revision(root, str(manifest["base_revision"]), normalized_path)
+        base_text = base_bytes.decode("utf-8")
+        body = "".join(
+            difflib.unified_diff(
+                base_text.splitlines(keepends=True),
+                replacement.splitlines(keepends=True),
+                fromfile=f"a/{normalized_path}",
+                tofile=f"b/{normalized_path}",
+                n=3,
+            )
+        )
+        if not body:
+            raise DevFarmError(f"file replacement produced no diff: {normalized_path}")
+        patches.append(f"diff --git a/{normalized_path} b/{normalized_path}\n{body}")
+        changed_paths.append(normalized_path)
+    patch = "".join(patches)
+    if len(patch) > MAX_OUTPUT_TEXT_CHARS:
+        raise DevFarmError(f"Host-generated replacement patch exceeds {MAX_OUTPUT_TEXT_CHARS} characters")
+    return patch, changed_paths
 
 
 _canonical_digest = canonical_digest
@@ -821,6 +912,18 @@ def run_worker(
         )
     try:
         patch = output.get("patch", "")
+        if not isinstance(patch, str):
+            raise DevFarmError("worker patch must be a string")
+        replacement_value = output.get("file_replacements")
+        host_generated_paths: list[str] = []
+        if replacement_value is not None:
+            if not isinstance(replacement_value, Mapping):
+                raise DevFarmError("file_replacements must be an object")
+            if replacement_value:
+                if patch:
+                    raise DevFarmError("worker must provide either patch or file_replacements")
+                patch, host_generated_paths = _materialize_file_replacements(root, manifest, replacement_value)
+                output = {**output, "patch": patch}
         patch_normalizations: list[str] = []
         if isinstance(patch, str) and patch and not patch.endswith("\n"):
             # JSON responses commonly omit the final line ending.  Appending
@@ -841,12 +944,16 @@ def run_worker(
             "changed_files": output.get("changed_files"),
             "tests_run": output.get("tests_run"),
             "tests_passed": output.get("tests_passed"),
+            "file_replacements_used": bool(host_generated_paths),
         }
         normalizations = output.get("patch_normalizations", [])
         if normalizations:
             if not isinstance(normalizations, list) or any(not isinstance(item, str) for item in normalizations):
                 raise DevFarmError("patch_normalizations must be a list of strings")
             metrics["patch_normalizations"] = list(normalizations)
+        if host_generated_paths:
+            metrics["host_generated_patch"] = "file_replacements"
+            metrics["host_generated_patch_paths"] = list(host_generated_paths)
         result = {
             "status": status,
             "attempt_id": attempt_id,

@@ -441,6 +441,80 @@ def test_worker_records_malformed_model_patch_as_failed_artifact(tmp_path):
     assert json.loads((root / ".devfarm/results/worker-test-001/tests.json").read_text(encoding="utf-8"))["host_verified_tests"] == []
 
 
+def test_worker_materializes_full_file_replacement_into_host_generated_patch(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    replacement = "def test_target():\n    assert True\n    return None\n"
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": True,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": "",
+        "file_replacements": {"tests/v2/test_target.py": replacement},
+        "notes": "host generated the patch from the complete file replacement",
+    }
+
+    proposed = run_worker(root, manifest_path, provider=_WorkerProvider(output))
+
+    assert proposed["status"] == "completed"
+    assert proposed["changed_files"] == ["tests/v2/test_target.py"]
+    assert proposed["worker_metrics"]["host_generated_patch"] == "file_replacements"
+    patch = (root / ".devfarm/results/worker-test-001/patch.diff").read_text(encoding="utf-8")
+    assert patch.startswith("diff --git a/tests/v2/test_target.py b/tests/v2/test_target.py\n")
+    assert replacement not in (root / ".devfarm/results/worker-test-001/notes.md").read_text(encoding="utf-8")
+
+    verified = _trusted_apply(root, manifest_path)
+
+    assert verified["status"] == "completed"
+    assert verified["tests_passed"] is True
+
+
+def test_worker_rejects_file_replacement_outside_outbound_scope(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_baseline.py"],
+        "tests_run": [],
+        "tests_passed": True,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": "",
+        "file_replacements": {"tests/v2/test_baseline.py": "def test_baseline():\n    assert False\n"},
+        "notes": "out of scope",
+    }
+
+    result = run_worker(root, manifest_path, provider=_WorkerProvider(output))
+
+    assert result["status"] == "failed"
+    assert any("allowed_files" in issue for issue in result["known_issues"])
+    assert (root / ".devfarm/results/worker-test-001/patch.diff").read_text(encoding="utf-8") == ""
+
+
+def test_worker_rejects_secret_candidate_in_file_replacement(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": True,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": "",
+        "file_replacements": {
+            "tests/v2/test_target.py": "API_KEY = 'sk-test-secret-value-1234567890'\n"
+        },
+        "notes": "secret candidate",
+    }
+
+    result = run_worker(root, manifest_path, provider=_WorkerProvider(output))
+
+    assert result["status"] == "failed"
+    assert any("secret candidate" in issue for issue in result["known_issues"])
+    assert (root / ".devfarm/results/worker-test-001/patch.diff").read_text(encoding="utf-8") == ""
+
+
 def test_worker_records_malformed_model_json_as_failed_artifact(tmp_path):
     root, manifest_path = _workspace(tmp_path)
     malformed = '{"status":"completed","patch":"line\nbreak"}'
