@@ -1,0 +1,40 @@
+{
+  "status": "completed",
+  "provider": "gemini",
+  "model": "gemini-3.5-flash-lite",
+  "checked_at": "2026-09-15T14:31:17.252849+00:00",
+  "event_types": [
+    "model.requested",
+    "model.responded",
+    "task.completed"
+  ],
+  "tool_result_count": 0,
+  "provider_audit_count": 1,
+  "effect_intents": [
+    {
+      "idempotency_key": "provider:7f37ec06-3b7f-4873-a773-321eb8f24e22:gemini-free",
+      "status": "succeeded"
+    }
+  ],
+  "quota_observation": null,
+  "quota_status": "unknown_not_reported",
+  "billing_authority": "trusted_catalog",
+  "qualification_scope": "text_only_unknown_quota",
+  "gemini_transcript": {
+    "model_turn_count": 1,
+    "function_call_count": 0,
+    "thought_signatures_received": 1,
+    "thought_signatures_replayed": 0
+  },
+  "budget": {
+    "normal_committed_minor": 0,
+    "recovery_committed_minor": 0,
+    "active_reservations": 0,
+    "hard_cap_minor": 100,
+    "recovery_reserve_minor": 10,
+    "normal_available_minor": 90,
+    "recovery_available_minor": 10,
+    "currency": "JPY",
+    "period_id": "2026-09"
+  }
+}
