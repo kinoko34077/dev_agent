@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from scripts.devfarm_commander import CommanderPlanStore
+from scripts.devfarm_plan_state import CommanderPlanStore
 from scripts.devfarm_provider_runtime import build_assigned_providers, build_worker_provider
 
 

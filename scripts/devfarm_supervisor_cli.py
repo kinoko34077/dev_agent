@@ -13,7 +13,7 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
-from scripts.devfarm_commander import CommanderPlanStore
+from scripts.devfarm_plan_state import CommanderPlanStore
 from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_repository import read_bounded_json
 from scripts.devfarm_supervisor import (
