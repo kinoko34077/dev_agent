@@ -182,8 +182,9 @@
 
 - [ ] Re-read all prerequisite evidence and keep D9 real mutation locked if any item is missing.
 - [ ] If explicitly released later, run one low-risk non-protected reversible repair through approval revalidation, Host integration, pinned runtime, drain, health, promotion, and rollback drill.
-- [ ] After the current gates, profile/test import and dependency hotspots, then create a separate bounded refactor plan; remove duplicate private cross-module dependencies before splitting large core modules.
-- [ ] For every refactor slice, run focused tests, architecture, compileall, full `tests/v2`, commit, push, and exact-head CI before the next slice.
+- [x] Profile/test import and dependency hotspots and begin a separate bounded refactor sequence; remove duplicate private cross-module dependencies before splitting large core modules. The first checkpoint extracted repository/Git, Host integration, and ReviewPacket services without changing authority semantics.
+- [x] For the first refactor slice, run focused tests, architecture, compileall, full `tests/v2`, commit, push, and exact-head CI before the next slice. Evidence: [`devfarm-service-boundary-refactor-20260915.json`](../../spec/v2/evidence/devfarm-service-boundary-refactor-20260915.json).
+- [ ] Continue only with another measured responsibility boundary; do not split `OperationService`, `Controller`, or `ProviderDispatcher` by size alone.
 
 ## Verification and delivery checklist
 

@@ -1,0 +1,55 @@
+{
+  "evidence_id": "devfarm-service-boundary-refactor-20260915",
+  "status": "verified",
+  "observed_at": "2026-09-15",
+  "implementation_baseline_before_documentation_sync": "59a7f1232683b9c43079bac9580b1ee52180fe1e",
+  "scope": {
+    "repository_boundary": "Shared development-only repository and Git primitives now live in scripts.devfarm_repository.",
+    "integration_boundary": "Deterministic Host patch verification and Git integration now live in scripts.devfarm_integration.",
+    "review_boundary": "Compact read-only ReviewPacket construction now lives in scripts.devfarm_review_packet.",
+    "consumer_migration": "Commander and Supervisor use public service boundaries; compatibility wrappers remain only at existing public seams.",
+    "authority": "Commander, Supervisor, Host Verification, approval, UNKNOWN/reconciliation, and D9 authority are unchanged."
+  },
+  "preserved": [
+    "verified patch digest and Host Verification requirements",
+    "clean checkout and base revision checks",
+    "durable ReviewDecision identity binding",
+    "deterministic git apply/add/commit integration",
+    "dependency manifest reissue",
+    "compact ReviewPacket with bounded artifact references",
+    "architecture prohibition on cross-DevFarm private imports"
+  ],
+  "worker": {
+    "production_task_attempted": 0,
+    "codex_direct_implementation_count": 0,
+    "reason": "This cross-cutting Host boundary refactor was kept Host-owned; no live Provider or Worker dispatch was repeated."
+  },
+  "verification": {
+    "focused_tests": "59 passed for integration/Supervisor/Commander/self-repair compatibility; 58 passed for ReviewPacket/Supervisor/Commander; 7 passed for new public boundaries and durable decision queries",
+    "full_tests_v2": "1285 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS"
+  },
+  "exact_head_ci": {
+    "remote_head": "59a7f1232683b9c43079bac9580b1ee52180fe1e",
+    "v2_core": {
+      "run_id": 34932531556,
+      "conclusion": "success",
+      "jobs": ["kernel (3.10)", "kernel (3.11)"]
+    },
+    "v2_provider_smoke": {
+      "run_id": 34932531635,
+      "conclusion": "success"
+    }
+  },
+  "not_claimed": [
+    "live Provider request",
+    "production Worker integration",
+    "MCP wire transport",
+    "OS Guardian registration",
+    "D9 real mutation"
+  ],
+  "raw_conversation_saved": false,
+  "credentials_saved": false
+}

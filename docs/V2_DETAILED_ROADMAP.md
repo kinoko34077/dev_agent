@@ -115,6 +115,11 @@
 - G1〜G5のfault cases（start failure、drain中UNKNOWN、Guardian EXECUTING再起動、health failure、old stop failure、duplicate/stale request、mailbox replay、checkpoint recovery、rollback intent duplicate）をlocal/fake testsで検証した。証拠は[`guardian-fault-drill-20260915.json`](../spec/v2/evidence/guardian-fault-drill-20260915.json)。
 - これはOS常駐・配備後crash recovery・D9 official runtime mutationの証拠ではない。D9 real mutationは引き続き未解放。
 
+### Bounded DevFarm responsibility refactor checkpoint
+
+- `scripts/devfarm_repository.py`、`scripts/devfarm_integration.py`、`scripts/devfarm_review_packet.py` を追加し、共有repository/Git primitive、Host deterministic integration、compact ReviewPacket constructionを明示的なpublic development-only boundaryへ分離した。Commander/Supervisorの既存public seamsには互換wrapperを残したが、authority・approval・Host Verification・UNKNOWN/reconciliation・D9の意味は変更していない。
+- `1285 passed, 1 skipped`、Architecture、compileall、およびexact-head CI（kernel 3.10/3.11、provider-smoke）を `59a7f12` で確認した。詳細Evidenceは[`devfarm-service-boundary-refactor-20260915.json`](../spec/v2/evidence/devfarm-service-boundary-refactor-20260915.json)。次のrefactorもサイズではなく依存・所有責務を基準に狭く分割する。
+
 ### Main Phase 8 / Main Phase 9
 
 - D9後にmanifest-defined multi-role / AI Company benchmarkへ進む。
