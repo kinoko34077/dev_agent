@@ -23,14 +23,13 @@ from scripts.devfarm import DevFarmError, init_farm, validate_manifest, validate
 from scripts.devfarm_manifests import load_worker_manifest
 from scripts.devfarm_orchestrator import DevFarmOrchestrator, WorkerAssignment
 from scripts import devfarm_plan_validation as plan_validation
+from scripts.devfarm_plan_ownership import load_ownership_projections
 from scripts.devfarm_repository import read_json, repository_path, resolved_revision
 from scripts.devfarm_plan_queries import result_reference
 from src.dev_agent.providers.base import ModelProvider
 
 
 PLAN_SCHEMA_VERSION = plan_validation.PLAN_SCHEMA_VERSION
-_PLAN_STATUSES = plan_validation.PLAN_STATUSES
-_OWNERS = plan_validation.OWNERS
 _DEPENDENCY_COMPLETE = plan_validation.DEPENDENCY_COMPLETE
 _DEPENDENCY_FAILURE = plan_validation.DEPENDENCY_FAILURE
 _ACTIVE_TASK_STATUSES = plan_validation.ACTIVE_TASK_STATUSES
@@ -44,7 +43,6 @@ _repository_path = repository_path
 _resolved_revision = resolved_revision
 _text = plan_validation.text
 _plan_id = plan_validation.plan_id
-_paths = plan_validation.paths
 _ownership_conflict = plan_validation.ownership_conflict
 validate_plan = plan_validation.validate_plan
 summarize_delegation = plan_validation.summarize_delegation
@@ -221,59 +219,9 @@ class CommanderPlanStore:
         return [self.load(path.stem) for path in sorted(self.directory.glob("*.json")) if not path.is_symlink()]
 
     def _plans_for_ownership(self) -> list[dict[str, Any]]:
-        """Load plans for conflict checks without releasing legacy ownership.
+        """Load read-only ownership projections through the shared boundary."""
 
-        A plan can become unreadable under a deliberately tightened manifest
-        policy, for example when an older Worker manifest owns a path that is
-        now protected.  Such a historical plan must not be silently ignored:
-        its raw, validated path ownership still reserves the checkout.  Keep
-        the normal ``load`` path strict for status/dispatch, but use this
-        narrow projection for cross-plan ownership checks so unrelated new
-        plans can be created safely.
-        """
-
-        plans: list[dict[str, Any]] = []
-        for path in sorted(self.directory.glob("*.json")):
-            if path.is_symlink():
-                continue
-            try:
-                plans.append(self.load(path.stem))
-            except DevFarmError as validation_error:
-                try:
-                    raw = _read_json(path)
-                    if not isinstance(raw, Mapping) or raw.get("schema_version", PLAN_SCHEMA_VERSION) != PLAN_SCHEMA_VERSION:
-                        raise DevFarmError("legacy plan projection is invalid")
-                    run_id = _plan_id(raw.get("run_id"))
-                    raw_tasks = raw.get("tasks")
-                    if not isinstance(raw_tasks, list) or not raw_tasks:
-                        raise DevFarmError("legacy plan projection has no tasks")
-                    projected_tasks: list[dict[str, Any]] = []
-                    for raw_task in raw_tasks:
-                        if not isinstance(raw_task, Mapping):
-                            raise DevFarmError("legacy plan task projection is invalid")
-                        task_id = _text(raw_task.get("task_id"), "legacy task_id", max_length=101)
-                        owner = _text(raw_task.get("owner"), "legacy task owner", max_length=16).lower()
-                        if owner not in _OWNERS:
-                            raise DevFarmError("legacy plan task owner is invalid")
-                        status = _text(raw_task.get("status"), "legacy task status", max_length=32).upper()
-                        if status not in _PLAN_STATUSES:
-                            raise DevFarmError("legacy plan task status is invalid")
-                        if status not in _ACTIVE_TASK_STATUSES:
-                            continue
-                        projected_tasks.append(
-                            {
-                                "task_id": task_id,
-                                "owner": owner,
-                                "status": status,
-                                "ownership": _paths(raw_task.get("ownership", []), "legacy ownership paths"),
-                            }
-                        )
-                    plans.append({"run_id": run_id, "tasks": projected_tasks})
-                except (TypeError, ValueError, DevFarmError):
-                    # An unreadable plan whose ownership cannot be safely
-                    # projected remains a hard error; never fail open.
-                    raise validation_error
-        return plans
+        return load_ownership_projections(self.root, self.directory)
 
     def active_ownership_conflicts(self, plan: Mapping[str, Any]) -> list[dict[str, str]]:
         """Return path conflicts with unfinished plans before a new plan is saved.
