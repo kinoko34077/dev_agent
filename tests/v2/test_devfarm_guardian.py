@@ -5,6 +5,7 @@ import sys
 
 import pytest
 
+import scripts.devfarm_guardian as guardian_module
 from scripts.devfarm_guardian import (
     GuardianOperatorError,
     guardian_health,
@@ -83,6 +84,38 @@ def test_guardian_registration_is_static_dry_run_by_default(tmp_path):
     assert result["command"][1:4] == ["-m", "scripts.devfarm_guardian", "serve"]
     assert "--poll-seconds" in result["command"]
     assert result["arbitrary_command"] is False
+
+
+def test_guardian_registration_apply_uses_bounded_static_command(tmp_path, monkeypatch):
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append((command, kwargs))
+        return guardian_module.subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(guardian_module.os, "name", "nt")
+    monkeypatch.setattr(guardian_module.subprocess, "run", fake_run)
+
+    result = guardian_registration(_config(tmp_path), tmp_path / "runtime", apply=True)
+
+    assert result["status"] == "APPLIED"
+    assert result["registration"] == "CONFIGURED"
+    assert len(calls) == 1
+    command, kwargs = calls[0]
+    assert command[:4] == ["schtasks.exe", "/Create", "/TN", "DevAgentGuardian"]
+    assert kwargs["timeout"] == 30
+    assert kwargs["check"] is False
+
+
+def test_guardian_registration_apply_closes_timeout_without_raw_process_output(tmp_path, monkeypatch):
+    def fake_run(_command, **_kwargs):
+        raise guardian_module.subprocess.TimeoutExpired("schtasks.exe", 30, output="secret", stderr="secret")
+
+    monkeypatch.setattr(guardian_module.os, "name", "nt")
+    monkeypatch.setattr(guardian_module.subprocess, "run", fake_run)
+
+    with pytest.raises(GuardianOperatorError, match="timed out"):
+        guardian_registration(_config(tmp_path), tmp_path / "runtime", apply=True)
 
 
 def test_guardian_config_rejects_arbitrary_command_field(tmp_path):

@@ -206,22 +206,28 @@ def guardian_registration(
         return result
     if os.name != "nt":
         raise GuardianOperatorError("Windows Task Scheduler registration requires Windows")
-    completed = subprocess.run(
-        [
-            "schtasks.exe",
-            "/Create",
-            "/TN",
-            task_name.strip(),
-            "/SC",
-            "ONSTART",
-            "/TR",
-            subprocess.list2cmdline(command),
-            "/F",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        completed = subprocess.run(
+            [
+                "schtasks.exe",
+                "/Create",
+                "/TN",
+                task_name.strip(),
+                "/SC",
+                "ONSTART",
+                "/TR",
+                subprocess.list2cmdline(command),
+                "/F",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise GuardianOperatorError("Windows Task Scheduler registration timed out") from exc
+    except OSError as exc:
+        raise GuardianOperatorError("Windows Task Scheduler registration could not start") from exc
     if completed.returncode != 0:
         raise GuardianOperatorError("Windows Task Scheduler registration failed")
     return {
