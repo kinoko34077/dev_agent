@@ -224,6 +224,7 @@ def qualify(*, provider_name: str, model: str, timeout_seconds: float, provider_
             output = {
                 "status": result.status.value,
                 "provider": provider_name,
+                "provider_binding_id": binding_id,
                 "model": model,
                 "checked_at": datetime.now(timezone.utc).isoformat(),
                 "event_types": event_types,

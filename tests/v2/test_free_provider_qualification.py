@@ -94,6 +94,7 @@ def test_free_provider_qualification_uses_live_response_for_quota_and_dispatch(m
 
     assert output["status"] == "completed"
     assert output["quota_status"] == "observed"
+    assert output["provider_binding_id"] == "groq:qualification"
     assert output["quota_observation"]["request_remaining"] == 9
     assert output["tool_result_count"] == 1
     assert output["provider_audit_count"] >= 2
@@ -144,6 +145,7 @@ def test_openrouter_free_qualification_uses_canonical_dispatch_path(monkeypatch)
 
     assert output["status"] == "completed"
     assert output["provider"] == "openrouter"
+    assert output["provider_binding_id"] == "openrouter:qualification"
     assert output["quota_status"] == "unknown_not_reported"
     assert output["tool_result_count"] == 1
     assert output["provider_audit_count"] >= 2
@@ -183,6 +185,7 @@ def test_free_qualification_with_an_explicit_quota_domain_uses_only_bounded_unkn
 
     assert output["status"] == "completed"
     assert output["quota_status"] == "unknown_not_reported"
+    assert output["provider_binding_id"] == "openrouter:qualification"
     assert output["qualification_scope"] == "text_only_unknown_quota"
     assert output["tool_result_count"] == 0
     assert responses == []
@@ -210,6 +213,7 @@ def test_gemini_text_only_unknown_quota_bootstrap_does_not_require_tool_signatur
 
     assert output["status"] == "completed"
     assert output["qualification_scope"] == "text_only_unknown_quota"
+    assert output["provider_binding_id"] == "gemini:qualification"
     assert output["tool_result_count"] == 0
     assert responses == []
 
@@ -259,6 +263,7 @@ def test_mistral_free_qualification_uses_canonical_dispatch_path(monkeypatch):
 
     assert output["status"] == "completed"
     assert output["provider"] == "mistral"
+    assert output["provider_binding_id"] == "mistral:qualification"
     assert output["quota_status"] == "unknown_not_reported"
     assert output["tool_result_count"] == 1
     assert output["provider_audit_count"] >= 2
