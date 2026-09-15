@@ -34,3 +34,4 @@ def test_worker_prompt_is_bounded_to_manifest_and_host_egress_projection() -> No
     assert "diff --git" in prompt
     assert "escape every newline as \\n" in prompt
     assert "never use `/dev/null` for an existing listed file" in prompt
+    assert "For an existing file, copy this exact diff shape" in prompt
