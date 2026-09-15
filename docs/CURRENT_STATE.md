@@ -5,13 +5,13 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Latest implementation commit before documentation sync | `396b5f8` (`refactor: share manifest reader across devfarm`) |
-| Implementation/evidence baseline | `396b5f8` (Host-owned dispatch boundary, explicit configured Free Worker lanes, exact L1 qualification admission without requiring dynamic model evidence, strict L2 evidence admission, bounded Host failure diagnostics, Windows Job Object child ownership verification, Guardian/authority hardening, adaptive refinement composition, shared Worker verification/artifacts, shared Planner/Reviewer pool composition, separated Worker admission authority, and bounded DevFarm plan-validation/ownership/artifact-reader/Guardian/manifest/service-boundary refactors) |
+| Latest implementation commit before documentation sync | `12ec01d` (`refactor: centralize verification record reads`) |
+| Implementation/evidence baseline | `12ec01d` (Host-owned dispatch boundary, explicit configured Free Worker lanes, exact L1 qualification admission without requiring dynamic model evidence, strict L2 evidence admission, bounded Host failure diagnostics, Windows Job Object child ownership verification, Guardian/authority hardening, adaptive refinement composition, shared Worker verification/artifacts, shared Planner/Reviewer pool composition, separated Worker admission authority, and bounded DevFarm plan-validation/ownership/artifact-reader/Guardian/manifest/service-boundary refactors) |
 | Worktree | clean at the current verification checkpoint; this documentation sync records the same checkpoint |
-| Local regression | `1295 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 212.54s) |
+| Local regression | `1296 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 302.97s) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for implementation baseline `396b5f8`: `v2-core` [run 34942771450](https://github.com/kinoko34077/dev_agent/actions/runs/34942771450) and `v2-provider-smoke` [run 34942771483](https://github.com/kinoko34077/dev_agent/actions/runs/34942771483), covering kernel (3.10), kernel (3.11), and provider-smoke. |
+| Exact-head CI | PASS for implementation baseline `12ec01d`: `v2-core` [run 34943962947](https://github.com/kinoko34077/dev_agent/actions/runs/34943962947) and `v2-provider-smoke` [run 34943962973](https://github.com/kinoko34077/dev_agent/actions/runs/34943962973), covering kernel (3.10), kernel (3.11), and provider-smoke. |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
@@ -62,6 +62,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 - ReviewPacket and Worker now use the shared `scripts.devfarm_repository.read_json` boundary; duplicate artifact JSON readers were removed without changing manifest, Egress, Host Verification, UNKNOWN/reconciliation, or D9 semantics. `1292 passed, 1 skipped` and exact-head CI are recorded in [`devfarm-artifact-json-reader-refactor-20260915.json`](../spec/v2/evidence/devfarm-artifact-json-reader-refactor-20260915.json).
 - Guardian static profile loading now uses the same Host-owned repository JSON reader, including bounded decode-error normalization; Guardian profile validation, process authority, and reconciliation behavior are unchanged. `1293 passed, 1 skipped` and exact-head CI are recorded in [`devfarm-guardian-json-reader-refactor-20260915.json`](../spec/v2/evidence/devfarm-guardian-json-reader-refactor-20260915.json).
 - Codex attempt manifest loading and parallel DevFarm assignment normalization now use the shared Host-owned repository JSON reader; worker validation, attempt identity, Host Verification, and failure artifact semantics are unchanged. `1295 passed, 1 skipped` and exact-head CI are recorded in [`devfarm-manifest-reader-refactor-20260915.json`](../spec/v2/evidence/devfarm-manifest-reader-refactor-20260915.json).
+- Immutable verification-record loading now uses the shared Host-owned repository JSON reader, and plan validation no longer imports unused repository Git primitives. Invalid verification records remain skipped as before. `1296 passed, 1 skipped` and exact-head CI are recorded in [`devfarm-verification-reader-refactor-20260915.json`](../spec/v2/evidence/devfarm-verification-reader-refactor-20260915.json).
 
 ## Partially implemented / not verified
 
@@ -136,6 +137,7 @@ and the compact operational procedure is [`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_D
 - DevFarm shared artifact JSON reader refactor checkpoint: [`devfarm-artifact-json-reader-refactor-20260915.json`](../spec/v2/evidence/devfarm-artifact-json-reader-refactor-20260915.json)
 - DevFarm Guardian JSON reader refactor checkpoint: [`devfarm-guardian-json-reader-refactor-20260915.json`](../spec/v2/evidence/devfarm-guardian-json-reader-refactor-20260915.json)
 - DevFarm shared manifest reader refactor checkpoint: [`devfarm-manifest-reader-refactor-20260915.json`](../spec/v2/evidence/devfarm-manifest-reader-refactor-20260915.json)
+- DevFarm verification-record reader refactor checkpoint: [`devfarm-verification-reader-refactor-20260915.json`](../spec/v2/evidence/devfarm-verification-reader-refactor-20260915.json)
 - Planner live D1 / D2 development evidence: [`planner-l2-live-d1-20260914.json`](../spec/v2/evidence/planner-l2-live-d1-20260914.json), [`planner-to-worker-e2e-20260914.json`](../spec/v2/evidence/planner-to-worker-e2e-20260914.json)
 - Supplemental D2, D3, D6, and D7 observations: [`d2-dogfood-doc-note-20260914.json`](../spec/v2/evidence/d2-dogfood-doc-note-20260914.json), [`d3-worker-reliability-observation-20260914.json`](../spec/v2/evidence/d3-worker-reliability-observation-20260914.json), [`reviewer-shadow-20260914.json`](../spec/v2/evidence/reviewer-shadow-20260914.json), [`reviewer-shadow-20260914-02.json`](../spec/v2/evidence/reviewer-shadow-20260914-02.json), [`d7-codexless-candidate-20260914.json`](../spec/v2/evidence/d7-codexless-candidate-20260914.json)
 - Model catalog and pool observations: [`spec/v2/evidence/`](../spec/v2/evidence/)

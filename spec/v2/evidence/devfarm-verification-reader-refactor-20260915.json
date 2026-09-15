@@ -1,0 +1,43 @@
+{
+  "evidence_id": "devfarm-verification-reader-refactor-20260915",
+  "status": "verified",
+  "observed_at": "2026-09-15",
+  "implementation_baseline_before_documentation_sync": "12ec01d33cd16b1ac41fa7d2663a00bd66ce2f82",
+  "scope": {
+    "shared_reader": "Immutable verification-record loading now uses scripts.devfarm_repository.read_json; plan validation no longer imports unused repository Git primitives.",
+    "behavior": "Invalid verification records remain skipped, and valid records retain deterministic ordering.",
+    "authority": "Host Verification, Egress, approval, UNKNOWN/reconciliation, Guardian, and D9 semantics are unchanged."
+  },
+  "verification": {
+    "focused_tests": "3 passed",
+    "full_tests_v2": "1296 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS"
+  },
+  "exact_head_ci": {
+    "remote_head": "12ec01d33cd16b1ac41fa7d2663a00bd66ce2f82",
+    "v2_core": {
+      "run_id": 34943962947,
+      "conclusion": "success",
+      "jobs": ["kernel (3.10)", "kernel (3.11)"]
+    },
+    "v2_provider_smoke": {
+      "run_id": 34943962973,
+      "conclusion": "success"
+    }
+  },
+  "worker": {
+    "production_task_attempted": 0,
+    "codex_direct_implementation_count": 1,
+    "reason": "Artifact read semantics and plan-validation imports are shared Host concerns; no live Worker dispatch was used for this cleanup."
+  },
+  "not_claimed": [
+    "production Worker integration",
+    "MCP wire transport",
+    "OS Guardian registration",
+    "D9 real mutation"
+  ],
+  "raw_conversation_saved": false,
+  "credentials_saved": false
+}

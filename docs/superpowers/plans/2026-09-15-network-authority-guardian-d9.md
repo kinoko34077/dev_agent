@@ -189,6 +189,7 @@
 - [x] Share the existing bounded repository JSON reader with ReviewPacket and Worker artifact consumers, removing duplicate readers without changing artifact, Egress, Host Verification, or D9 semantics. Evidence: [`devfarm-artifact-json-reader-refactor-20260915.json`](../../spec/v2/evidence/devfarm-artifact-json-reader-refactor-20260915.json).
 - [x] Reuse the same repository JSON reader for static Guardian profile input while retaining Guardian-specific schema validation and error boundaries. Evidence: [`devfarm-guardian-json-reader-refactor-20260915.json`](../../spec/v2/evidence/devfarm-guardian-json-reader-refactor-20260915.json).
 - [x] Share the repository JSON reader for Codex attempt manifests and parallel DevFarm assignment manifests, retaining existing validation and failure artifact semantics. Evidence: [`devfarm-manifest-reader-refactor-20260915.json`](../../spec/v2/evidence/devfarm-manifest-reader-refactor-20260915.json).
+- [x] Share the repository JSON reader for immutable verification records and remove unused plan-validation repository imports; preserve invalid-record skipping and all authority semantics. Evidence: [`devfarm-verification-reader-refactor-20260915.json`](../../spec/v2/evidence/devfarm-verification-reader-refactor-20260915.json).
 - [ ] Continue only with another measured responsibility boundary; do not split `OperationService`, `Controller`, or `ProviderDispatcher` by size alone.
 
 ## Verification and delivery checklist
