@@ -1,0 +1,43 @@
+{
+  "evidence_id": "devfarm-plan-validation-refactor-20260915",
+  "status": "verified",
+  "observed_at": "2026-09-15",
+  "implementation_baseline_before_documentation_sync": "010430571c45943d9b368cf383468ef64eda19d4",
+  "scope": {
+    "validation_boundary": "Commander plan shape, dependency, ownership, assignment, work-address, and delegation validation now live in scripts.devfarm_plan_validation.",
+    "consumer_migration": "Commander keeps historical validate_plan and summarize_delegation exports as compatibility aliases, while persistence, dispatch, verification, recovery, and integration remain in their existing services.",
+    "authority": "Protected-path, ownership, dependency, approval, Host Verification, UNKNOWN/reconciliation, and D9 semantics are unchanged."
+  },
+  "verification": {
+    "focused_tests": "58 passed",
+    "full_tests_v2": "1290 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS"
+  },
+  "exact_head_ci": {
+    "remote_head": "010430571c45943d9b368cf383468ef64eda19d4",
+    "v2_core": {
+      "run_id": 34937962873,
+      "conclusion": "success",
+      "jobs": ["kernel (3.10)", "kernel (3.11)"]
+    },
+    "v2_provider_smoke": {
+      "run_id": 34937962806,
+      "conclusion": "success"
+    }
+  },
+  "worker": {
+    "production_task_attempted": 0,
+    "codex_direct_implementation_count": 1,
+    "reason": "Plan validation is an authority-sensitive cross-cutting Host boundary; this refactor was intentionally kept on the Codex/Host side and was not represented as Worker-originated production work."
+  },
+  "not_claimed": [
+    "production Worker integration",
+    "MCP wire transport",
+    "OS Guardian registration",
+    "D9 real mutation"
+  ],
+  "raw_conversation_saved": false,
+  "credentials_saved": false
+}
