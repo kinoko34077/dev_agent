@@ -5,6 +5,7 @@ import pytest
 from scripts.devfarm import DevFarmError
 from scripts.devfarm_plan_queries import (
     artifact_reference_paths,
+    latest_rework_decision,
     require_approved_review_decision,
     require_task,
 )
@@ -70,3 +71,32 @@ def test_artifact_reference_paths_are_bounded_to_path_references() -> None:
 
     with pytest.raises(DevFarmError, match="artifact references are missing"):
         artifact_reference_paths({})
+
+
+def test_latest_rework_decision_is_scoped_to_task_and_attempt() -> None:
+    plan = {
+        "review_decisions": [
+            {
+                "decision_id": "old",
+                "task_id": "task-a",
+                "attempt_id": "attempt-0",
+                "decision": "REWORK",
+            },
+            {
+                "decision_id": "current",
+                "task_id": "task-a",
+                "attempt_id": "attempt-1",
+                "decision": "REWORK",
+            },
+            {
+                "decision_id": "other-task",
+                "task_id": "task-b",
+                "attempt_id": "attempt-1",
+                "decision": "REWORK",
+            },
+        ]
+    }
+
+    assert latest_rework_decision(plan, "task-a", "attempt-1")["decision_id"] == "current"
+    with pytest.raises(DevFarmError, match="durable REWORK"):
+        latest_rework_decision(plan, "task-a", "attempt-2")

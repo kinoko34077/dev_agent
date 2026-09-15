@@ -41,6 +41,7 @@ from scripts.devfarm_commander import (
     summarize_delegation,
 )
 from scripts.devfarm_provider_runtime import build_assigned_providers, build_worker_provider
+from scripts.devfarm_plan_queries import latest_rework_decision as query_latest_rework_decision
 from scripts.devfarm_supervisor_protocol import (
     advance_heartbeat,
     normalize_supervisor_metadata,
@@ -974,16 +975,9 @@ def _cli_artifact_reference(value: str, *, kind: str = "artifact") -> dict[str, 
 
 
 def latest_rework_decision(plan: Mapping[str, Any], task_id: str, attempt_id: str) -> Mapping[str, Any]:
-    decisions = [
-        item
-        for item in plan.get("review_decisions", [])
-        if item.get("task_id") == task_id
-        and item.get("attempt_id") == attempt_id
-        and item.get("decision") == "REWORK"
-    ]
-    if not decisions:
-        raise DevFarmError("rework requires a durable REWORK decision for the current attempt")
-    return decisions[-1]
+    """Public compatibility boundary for the shared read-only plan query."""
+
+    return query_latest_rework_decision(plan, task_id, attempt_id)
 
 
 def _latest_rework_decision(plan: Mapping[str, Any], task_id: str, attempt_id: str) -> Mapping[str, Any]:

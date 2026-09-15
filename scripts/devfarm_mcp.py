@@ -14,9 +14,9 @@ from typing import Any
 
 from scripts.devfarm import DevFarmError
 from scripts.devfarm_artifacts import artifact_reference
+from scripts.devfarm_plan_queries import latest_rework_decision
 from scripts.devfarm_supervisor import (
     CodexSupervisedCommanderRun,
-    latest_rework_decision,
     providers_for_resume,
 )
 from src.dev_agent.mcp import (

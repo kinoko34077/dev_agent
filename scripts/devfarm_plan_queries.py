@@ -66,8 +66,29 @@ def artifact_reference_paths(packet: Mapping[str, Any]) -> set[str]:
     }
 
 
+def latest_rework_decision(
+    plan: Mapping[str, Any],
+    task_id: str,
+    attempt_id: str,
+) -> Mapping[str, Any]:
+    """Return the latest durable REWORK decision for one attempt identity."""
+
+    decisions = [
+        item
+        for item in plan.get("review_decisions", [])
+        if isinstance(item, Mapping)
+        and item.get("task_id") == task_id
+        and item.get("attempt_id") == attempt_id
+        and item.get("decision") == "REWORK"
+    ]
+    if not decisions:
+        raise DevFarmError("rework requires a durable REWORK decision for the current attempt")
+    return decisions[-1]
+
+
 __all__ = [
     "artifact_reference_paths",
+    "latest_rework_decision",
     "require_approved_review_decision",
     "require_task",
 ]
