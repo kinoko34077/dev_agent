@@ -115,7 +115,10 @@ def _configured_binding(envelope: HostDispatchEnvelope) -> OperationProviderBind
         candidates.extend(
             binding
             for binding in materialized
-            if binding.binding_id == envelope.provider_binding_id
+            if (
+                binding.binding_id == envelope.provider_binding_id
+                or binding.qualification_binding_id == envelope.provider_binding_id
+            )
             and binding.model == envelope.model_id
         )
     if len(candidates) != 1:

@@ -161,6 +161,52 @@ def test_host_runtime_resolves_materialized_discovered_model_from_configured_lan
     assert host_dispatch._configured_binding(envelope) == expanded
 
 
+def test_host_runtime_resolves_expanded_model_from_credential_lane_identity(monkeypatch):
+    configured = OperationProviderBinding(
+        provider_id="gemini",
+        model="gemini-3.5-flash-lite",
+        provider_binding_id="gemini:worker:free-3",
+        qualification_binding_id="gemini:worker:free-3",
+        quota_domain="gemini:project:982142111392",
+        api_key_env="GEMINI_API_KEY_3",
+    )
+    expanded = OperationProviderBinding(
+        provider_id="gemini",
+        model="gemini-3.5-flash-lite",
+        provider_binding_id="gemini:worker:free-3::model::gemini-3.5-flash-lite::digest",
+        qualification_binding_id="gemini:worker:free-3",
+        quota_domain="gemini:project:982142111392",
+        api_key_env="GEMINI_API_KEY_3",
+    )
+    monkeypatch.setattr(host_dispatch, "configured_provider_pool_from_environment", lambda: (configured,))
+    monkeypatch.setattr(
+        host_dispatch,
+        "materialize_provider_bindings",
+        lambda binding, _catalog, expand_discovered_models: (expanded,)
+        if expand_discovered_models
+        else (binding,),
+    )
+    monkeypatch.setattr(
+        host_dispatch,
+        "ModelEvidenceCatalog",
+        SimpleNamespace(load_default=lambda: SimpleNamespace(catalog=object())),
+    )
+    envelope = HostDispatchEnvelope(
+        dispatch_id="dispatch-credential-lane",
+        provider_id="gemini",
+        provider_binding_id="gemini:worker:free-3",
+        model_id=expanded.model,
+        intelligence_tier="L1",
+        request=ModelRequest(
+            task_id="00000000-0000-0000-0000-000000000003",
+            messages=[{"role": "user", "content": "bounded"}],
+        ),
+        egress_manifest_sha256="f" * 64,
+    )
+
+    assert host_dispatch._configured_binding(envelope) == expanded
+
+
 def test_host_dispatch_propagates_model_admission_into_runtime_composition(monkeypatch):
     binding = OperationProviderBinding(
         provider_id="gemini",
