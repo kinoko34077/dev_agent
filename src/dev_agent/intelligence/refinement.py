@@ -119,6 +119,7 @@ class RefinementContext:
     allowed_reasoning_efforts: tuple[str, ...]
     model_change_used: bool
     reasoning_escalated: bool
+    alternate_binding_ids: tuple[str, ...] = field(default_factory=tuple)
     allow_high_reasoning: bool = False
 
     def __post_init__(self) -> None:
@@ -189,6 +190,19 @@ class RefinementContext:
 
         if self.alternate_binding_id is not None:
             object.__setattr__(self, "alternate_binding_id", validate_identifier(self.alternate_binding_id, "alternate_binding_id"))
+        if isinstance(self.alternate_binding_ids, (str, bytes)) or not isinstance(self.alternate_binding_ids, Sequence):
+            raise ValueError("alternate_binding_ids must be a sequence")
+        alternate_ids = tuple(
+            validate_identifier(item, "alternate_binding_ids[]")
+            for item in self.alternate_binding_ids
+        )
+        if len(set(alternate_ids)) != len(alternate_ids):
+            raise ValueError("alternate_binding_ids must not contain duplicates")
+        if self.alternate_binding_id is not None and self.alternate_binding_id not in alternate_ids:
+            alternate_ids = (self.alternate_binding_id, *alternate_ids)
+        if self.alternate_binding_id is None and alternate_ids:
+            object.__setattr__(self, "alternate_binding_id", alternate_ids[0])
+        object.__setattr__(self, "alternate_binding_ids", alternate_ids)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -210,6 +224,7 @@ class RefinementContext:
             "correction_available": self.correction_available,
             "critic_available": self.critic_available,
             "alternate_binding_id": self.alternate_binding_id,
+            "alternate_binding_ids": list(self.alternate_binding_ids),
             "current_reasoning_effort": self.current_reasoning_effort,
             "allowed_reasoning_efforts": list(self.allowed_reasoning_efforts),
             "model_change_used": self.model_change_used,
@@ -412,6 +427,19 @@ class RefinementPlan:
         )
 
 
+def _next_alternate_binding(context: RefinementContext) -> str | None:
+    """Return the first Host-ranked candidate not already consumed.
+
+    The caller owns candidate admission and must persist a subsequent context
+    with consumed candidates removed.  This helper only makes the existing
+    one-action policy pool-aware; it does not route, retry, or query providers.
+    """
+
+    if context.alternate_binding_ids:
+        return context.alternate_binding_ids[0]
+    return context.alternate_binding_id
+
+
 class BoundedRefinementPolicy:
     """Select the least-expensive safe next action from Host observations."""
 
@@ -450,22 +478,24 @@ class BoundedRefinementPolicy:
             return self._bounded_fallback(context, "semantic_refinement_exhausted")
 
         if failure is FailureClass.PROVIDER_TRANSPORT:
-            if context.alternate_binding_id is not None and not context.model_change_used:
+            next_binding = _next_alternate_binding(context)
+            if next_binding is not None and not context.model_change_used:
                 return self._plan(
                     context,
                     RefinementAction.REASSIGN_SAME_TIER,
                     "provider_transport_reassign",
-                    next_binding_id=context.alternate_binding_id,
+                    next_binding_id=next_binding,
                 )
             return self._plan(context, RefinementAction.FAIL, "provider_pool_exhausted")
 
         if failure is FailureClass.CAPABILITY_REASONING:
-            if context.alternate_binding_id is not None and not context.model_change_used:
+            next_binding = _next_alternate_binding(context)
+            if next_binding is not None and not context.model_change_used:
                 return self._plan(
                     context,
                     RefinementAction.REASSIGN_SAME_TIER,
                     "capability_model_change",
-                    next_binding_id=context.alternate_binding_id,
+                    next_binding_id=next_binding,
                 )
             next_effort = self._next_reasoning_effort(context)
             if next_effort is not None and not context.reasoning_escalated:
@@ -488,12 +518,13 @@ class BoundedRefinementPolicy:
         return self._plan(context, RefinementAction.HUMAN, "unhandled_failure")
 
     def _bounded_fallback(self, context: RefinementContext, reason: str) -> RefinementPlan:
-        if context.alternate_binding_id is not None and not context.model_change_used:
+        next_binding = _next_alternate_binding(context)
+        if next_binding is not None and not context.model_change_used:
             return self._plan(
                 context,
                 RefinementAction.REASSIGN_SAME_TIER,
                 reason,
-                next_binding_id=context.alternate_binding_id,
+                next_binding_id=next_binding,
             )
         return self._plan(context, RefinementAction.HUMAN, reason)
 

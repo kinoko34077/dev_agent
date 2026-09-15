@@ -92,6 +92,35 @@ def test_provider_failure_reassigns_same_tier_without_tier_or_effort_change():
     assert plan.next_reasoning_effort is None
 
 
+def test_provider_failure_consumes_first_host_ranked_alternate_binding():
+    plan = BoundedRefinementPolicy().plan(
+        _context(
+            failure_class=FailureClass.PROVIDER_TRANSPORT,
+            correction_available=False,
+            critic_available=False,
+            alternate_binding_id=None,
+            alternate_binding_ids=("gemini:worker:free-3", "openrouter:free"),
+        )
+    )
+
+    assert plan.action is RefinementAction.REASSIGN_SAME_TIER
+    assert plan.next_binding_id == "gemini:worker:free-3"
+    assert plan.next_tier is None
+    assert plan.next_reasoning_effort is None
+
+
+def test_refinement_context_round_trip_preserves_ranked_alternate_bindings():
+    context = _context(
+        alternate_binding_id=None,
+        alternate_binding_ids=("binding-a", "binding-b"),
+    )
+
+    restored = RefinementContext(**context.to_dict())
+
+    assert restored.alternate_binding_ids == ("binding-a", "binding-b")
+    assert restored.alternate_binding_id == "binding-a"
+
+
 def test_capability_escalates_one_axis_at_a_time():
     model = BoundedRefinementPolicy().plan(
         _context(
