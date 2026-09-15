@@ -22,6 +22,8 @@ PROTECTED_AUTHORITY_PATHS = frozenset(
         "src/dev_agent/resources/provider_authority_constants.py",
         "src/dev_agent/resources/provider_policy.py",
         "src/dev_agent/providers/factory.py",
+        # Host-owned outbound/network boundary and its development operator.
+        "src/dev_agent/providers/host_dispatch.py",
         # Billing and budget authority
         "src/dev_agent/resources/budget.py",
         "src/dev_agent/resources/budget_store.py",
@@ -51,6 +53,9 @@ PROTECTED_AUTHORITY_PATHS = frozenset(
         "scripts/devfarm_self_repair.py",
         "scripts/devfarm_supervisor.py",
         "scripts/devfarm_verification.py",
+        "scripts/devfarm_guardian.py",
+        "scripts/devfarm_host_dispatch.py",
+        "scripts/devfarm_mcp.py",
         "config/v2.yaml",
         "scripts/devfarm.py",
         "scripts/devfarm_worker.py",

@@ -76,9 +76,13 @@ def test_protected_authority_policy_covers_coordination_and_repair_responsibilit
         "src/dev_agent/coordination/new_guardian_authority.py",
         "src/dev_agent/intelligence/self_repair.py",
         "src/dev_agent/intelligence/refinement.py",
+        "src/dev_agent/providers/host_dispatch.py",
         "scripts/devfarm_self_repair.py",
         "scripts/devfarm_supervisor.py",
         "scripts/devfarm_verification.py",
+        "scripts/devfarm_guardian.py",
+        "scripts/devfarm_host_dispatch.py",
+        "scripts/devfarm_mcp.py",
     )
 
     assert all(is_protected_path(path) for path in protected_files)
