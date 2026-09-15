@@ -1,0 +1,43 @@
+{
+  "evidence_id": "devfarm-manifest-boundary-refactor-20260915",
+  "status": "verified",
+  "observed_at": "2026-09-15",
+  "implementation_baseline_before_documentation_sync": "28cd9fe5fcf09eb1414d5b71a3789bde4bc01db2",
+  "scope": {
+    "manifest_boundary": "Worker manifest loading, validation, task identity binding, and ownership containment now live in scripts.devfarm_manifests.",
+    "consumer_migration": "Commander, Host integration, Self-Repair, and Supervisor use the shared manifest boundary; Commander keeps only a compatibility alias for its existing internal seam.",
+    "authority": "Manifest validation, protected paths, approval, Host Verification, UNKNOWN/reconciliation, and D9 semantics are unchanged."
+  },
+  "verification": {
+    "focused_tests": "60 passed",
+    "full_tests_v2": "1289 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS"
+  },
+  "exact_head_ci": {
+    "remote_head": "28cd9fe5fcf09eb1414d5b71a3789bde4bc01db2",
+    "v2_core": {
+      "run_id": 34936057979,
+      "conclusion": "success",
+      "jobs": ["kernel (3.10)", "kernel (3.11)"]
+    },
+    "v2_provider_smoke": {
+      "run_id": 34936058086,
+      "conclusion": "success"
+    }
+  },
+  "worker": {
+    "production_task_attempted": 0,
+    "codex_direct_implementation_count": 0,
+    "reason": "Manifest validation is a cross-cutting Host ownership boundary; no live Worker dispatch was repeated."
+  },
+  "not_claimed": [
+    "production Worker integration",
+    "MCP wire transport",
+    "OS Guardian registration",
+    "D9 real mutation"
+  ],
+  "raw_conversation_saved": false,
+  "credentials_saved": false
+}
