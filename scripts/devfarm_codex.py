@@ -18,7 +18,6 @@ import time
 from typing import Any, Mapping
 from uuid import uuid4
 
-from scripts.devfarm import prepare_worktree, write_result
 from scripts.devfarm_contracts import (
     canonical_digest,
     parse_host_test_command,
@@ -27,6 +26,7 @@ from scripts.devfarm_contracts import (
     validate_patch,
 )
 from scripts.devfarm_errors import DevFarmError
+from scripts.devfarm_workspace import prepare_worktree, write_result
 from scripts.devfarm_repository import read_json
 from scripts.devfarm_artifacts import (
     attempt_id as normalize_attempt_id,

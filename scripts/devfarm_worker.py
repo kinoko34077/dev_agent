@@ -19,7 +19,6 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.devfarm import prepare_worktree, write_result
 from scripts.devfarm_contracts import (
     VERIFICATION_TRUST_LEVELS,
     canonical_digest,
@@ -31,6 +30,7 @@ from scripts.devfarm_contracts import (
     validate_result,
 )
 from scripts.devfarm_errors import DevFarmError
+from scripts.devfarm_workspace import prepare_worktree, write_result
 from src.dev_agent.security.protected_paths import is_protected_path
 from src.dev_agent.domain.protocol import ModelRequest
 from src.dev_agent.providers.base import ModelProvider, ProviderError
