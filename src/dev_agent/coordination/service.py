@@ -27,7 +27,7 @@ from .protocol import (
     PeerRecord,
     PeerStatus,
 )
-from .protocol_helpers import timestamp_is_after, validate_identifier, validate_timestamp, validate_text
+from .protocol_helpers import validate_identifier, validate_timestamp, validate_text
 from .store import CoordinationStore
 from .work import ResumeCapsule
 
@@ -119,9 +119,7 @@ class ProcessCoordinationService:
             raise CoordinationConflict("peer is not attached")
         if current.generation != peer.generation:
             raise CoordinationConflict("peer generation is stale")
-        if current.status in {PeerStatus.STOPPED, PeerStatus.DEGRADED}:
-            raise CoordinationConflict("peer is not active")
-        if not timestamp_is_after(current.lease_until, now or _now()):
+        if not current.is_live(now or _now()):
             raise CoordinationConflict("peer lease is expired")
         return current
 
@@ -238,13 +236,12 @@ class ProcessCoordinationService:
             raise CoordinationValidationError("limit must be between 1 and 64")
         timestamp = now or _now()
         validate_timestamp(timestamp, "now")
-        observed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
         peers = self.store.list_peers()
         expired_peer_ids = tuple(
             f"{peer.role}:{peer.instance_id}:{peer.generation}"
             for peer in peers
-            if peer.status not in {PeerStatus.STOPPED, PeerStatus.DEGRADED}
-            and datetime.fromisoformat(peer.lease_until.replace("Z", "+00:00")) <= observed
+            if not peer.is_live(timestamp)
+            and peer.status not in {PeerStatus.STOPPED, PeerStatus.DEGRADED}
         )
         mailbox = self.store.list_messages(
             recipient_role=recipient_role,

@@ -151,6 +151,22 @@ def test_guardian_treats_lease_boundary_as_expired():
     assert evaluation.decision is not GuardianDecision.ACCEPTED
 
 
+@pytest.mark.parametrize(
+    ("status", "lease_until", "expected"),
+    (
+        (PeerStatus.READY, "2026-09-14T12:01:01+00:00", True),
+        (PeerStatus.READY, "2026-09-14T12:01:00+00:00", False),
+        (PeerStatus.READY, "2026-09-14T11:59:00+00:00", False),
+        (PeerStatus.DRAINING, "2026-09-14T12:10:00+00:00", True),
+        (PeerStatus.STOPPED, "2026-09-14T12:10:00+00:00", False),
+    ),
+)
+def test_peer_record_is_live_centralizes_status_and_lease_boundary(status, lease_until, expected):
+    peer = _peer(role="agent", instance_id="agent-1", generation=12, status=status, lease_until=lease_until)
+
+    assert peer.is_live("2026-09-14T12:01:00+00:00") is expected
+
+
 def _store_with_current_peers(tmp_path):
     store = CoordinationStore(tmp_path / "coordination.sqlite3")
     store.register_peer(_peer(role="codex", instance_id="codex-1", generation=1))

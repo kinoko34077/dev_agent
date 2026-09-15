@@ -21,6 +21,7 @@ from .protocol_helpers import (
     validate_relative_path,
     validate_string_sequence,
     validate_text,
+    timestamp_is_after,
     validate_timestamp,
 )
 
@@ -37,6 +38,17 @@ class PeerStatus(str, Enum):
     STOPPING = "STOPPING"
     STOPPED = "STOPPED"
     DEGRADED = "DEGRADED"
+
+
+_ACTIVE_PEER_STATUSES = frozenset(
+    {
+        PeerStatus.STARTING,
+        PeerStatus.READY,
+        PeerStatus.DRAINING,
+        PeerStatus.RESTARTING,
+        PeerStatus.STOPPING,
+    }
+)
 
 
 class MessageKind(str, Enum):
@@ -207,6 +219,18 @@ class PeerRecord:
             "status": self.status.value,
             "capabilities": list(self.capabilities),
         }
+
+    def is_live(self, now: str) -> bool:
+        """Return whether this peer may participate in current authority checks.
+
+        Generation selection remains the caller's responsibility.  This
+        value-level predicate centralizes the shared status and strict lease
+        boundary so Guardian, mailbox, work-claim, and recovery callers do not
+        drift into subtly different definitions of a live peer.
+        """
+
+        validate_timestamp(now, "now")
+        return self.status in _ACTIVE_PEER_STATUSES and timestamp_is_after(self.lease_until, now)
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> "PeerRecord":

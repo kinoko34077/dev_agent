@@ -23,9 +23,8 @@ from .protocol import (
     GuardianActionRecord,
     GuardianActionStatus,
     PeerRecord,
-    PeerStatus,
 )
-from .protocol_helpers import timestamp_is_after, validate_identifier, validate_timestamp
+from .protocol_helpers import validate_identifier, validate_timestamp
 from .store import CoordinationStore
 
 
@@ -66,17 +65,6 @@ class GuardianEvaluation:
             "target_generation": self.target_generation,
             "process_action": None,
         }
-
-
-_ACTIVE_SENDER_STATUSES = frozenset(
-    {
-        PeerStatus.STARTING,
-        PeerStatus.READY,
-        PeerStatus.DRAINING,
-        PeerStatus.RESTARTING,
-        PeerStatus.STOPPING,
-    }
-)
 
 
 class GuardianPolicy:
@@ -128,8 +116,7 @@ class GuardianPolicy:
         if (
             sender is None
             or sender.generation != request.sender_generation
-            or sender.status not in _ACTIVE_SENDER_STATUSES
-            or not timestamp_is_after(sender.lease_until, now)
+            or not sender.is_live(now)
         ):
             return self._result(request, GuardianDecision.SENDER_NOT_CURRENT, "sender generation is not current")
         if request.action not in self.allowed_actions:
@@ -150,7 +137,7 @@ class GuardianPolicy:
             return self._result(request, GuardianDecision.TARGET_NOT_FOUND, "target generation is not present")
         if len(matching) != 1:
             return self._result(request, GuardianDecision.TARGET_AMBIGUOUS, "target generation is ambiguous")
-        if not timestamp_is_after(matching[0].lease_until, now) or matching[0].status not in _ACTIVE_SENDER_STATUSES:
+        if not matching[0].is_live(now):
             return self._result(request, GuardianDecision.TARGET_NOT_CURRENT, "target peer lease is not current")
         return self._result(request, GuardianDecision.ACCEPTED, "request is valid for Guardian handling")
 
