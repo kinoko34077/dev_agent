@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -93,7 +94,7 @@ def test_guardian_registration_apply_uses_bounded_static_command(tmp_path, monke
         calls.append((command, kwargs))
         return guardian_module.subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
-    monkeypatch.setattr(guardian_module.os, "name", "nt")
+    monkeypatch.setattr(guardian_module, "os", SimpleNamespace(name="nt"))
     monkeypatch.setattr(guardian_module.subprocess, "run", fake_run)
 
     result = guardian_registration(_config(tmp_path), tmp_path / "runtime", apply=True)
@@ -111,7 +112,7 @@ def test_guardian_registration_apply_closes_timeout_without_raw_process_output(t
     def fake_run(_command, **_kwargs):
         raise guardian_module.subprocess.TimeoutExpired("schtasks.exe", 30, output="secret", stderr="secret")
 
-    monkeypatch.setattr(guardian_module.os, "name", "nt")
+    monkeypatch.setattr(guardian_module, "os", SimpleNamespace(name="nt"))
     monkeypatch.setattr(guardian_module.subprocess, "run", fake_run)
 
     with pytest.raises(GuardianOperatorError, match="timed out"):
