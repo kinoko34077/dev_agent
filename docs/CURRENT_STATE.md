@@ -5,13 +5,13 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Latest implementation commit before documentation sync | `52fdaa0` (`refactor: decouple devfarm repository errors`) |
-| Implementation/evidence baseline | `52fdaa0` (Host-owned dispatch boundary, explicit configured Free Worker lanes, exact L1 qualification admission without requiring dynamic model evidence, strict L2 evidence admission, bounded Host failure diagnostics, Windows Job Object child ownership verification, Guardian/authority hardening, adaptive refinement composition, shared Worker verification/artifacts, shared Planner/Reviewer pool composition, separated Worker admission authority, and bounded DevFarm plan-validation/ownership/artifact-reader/Guardian/manifest/error/service-boundary refactors) |
+| Latest implementation commit before documentation sync | `1e0cfc5` (`refactor: isolate devfarm contract validation`) |
+| Implementation/evidence baseline | `1e0cfc5` (Host-owned dispatch boundary, explicit configured Free Worker lanes, exact L1 qualification admission without requiring dynamic model evidence, strict L2 evidence admission, bounded Host failure diagnostics, Windows Job Object child ownership verification, Guardian/authority hardening, adaptive refinement composition, shared Worker verification/artifacts, shared Planner/Reviewer pool composition, separated Worker admission authority, and bounded DevFarm contract/plan-validation/ownership/artifact-reader/Guardian/manifest/error/service-boundary refactors) |
 | Worktree | clean at the current verification checkpoint; this documentation sync records the same checkpoint |
-| Local regression | `1296 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 302.97s) |
+| Local regression | `1300 passed, 1 skipped` (`python -m pytest tests/v2 -q`, 212.25s) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for implementation baseline `52fdaa0`: `v2-core` [run 34945149693](https://github.com/kinoko34077/dev_agent/actions/runs/34945149693) and `v2-provider-smoke` [run 34945149742](https://github.com/kinoko34077/dev_agent/actions/runs/34945149742), covering kernel (3.10), kernel (3.11), and provider-smoke. |
+| Exact-head CI | PASS for implementation baseline `1e0cfc5`: `v2 tests` [run 34948027956](https://github.com/kinoko34077/dev_agent/actions/runs/34948027956) and `v2-core` [run 34948028070](https://github.com/kinoko34077/dev_agent/actions/runs/34948028070), covering kernel (3.10), kernel (3.11), and provider-smoke. |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
@@ -64,6 +64,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 - Codex attempt manifest loading and parallel DevFarm assignment normalization now use the shared Host-owned repository JSON reader; worker validation, attempt identity, Host Verification, and failure artifact semantics are unchanged. `1295 passed, 1 skipped` and exact-head CI are recorded in [`devfarm-manifest-reader-refactor-20260915.json`](../spec/v2/evidence/devfarm-manifest-reader-refactor-20260915.json).
 - Immutable verification-record loading now uses the shared Host-owned repository JSON reader, and plan validation no longer imports unused repository Git primitives. Invalid verification records remain skipped as before. `1296 passed, 1 skipped` and exact-head CI are recorded in [`devfarm-verification-reader-refactor-20260915.json`](../spec/v2/evidence/devfarm-verification-reader-refactor-20260915.json).
 - `DevFarmError` now lives in a neutral development-only module, so `scripts.devfarm_repository` no longer depends on the monolithic CLI module; the CLI itself uses the shared JSON reader. Existing `scripts.devfarm.DevFarmError` imports remain compatible. `1297 passed, 1 skipped` and exact-head CI are recorded in [`devfarm-error-boundary-refactor-20260915.json`](../spec/v2/evidence/devfarm-error-boundary-refactor-20260915.json).
+- DevFarm contract validation is now isolated in `scripts.devfarm_contracts`; Worker, Commander, Planner, Reviewer, Artifact, Verification, and integration consumers import neutral contract/error boundaries instead of the CLI barrel. `scripts/check_architecture.py` rejects regression to those contract imports, while `scripts.devfarm` retains compatibility exports for operators and tests. `1300 passed, 1 skipped` and exact-head CI are recorded in [`devfarm-contract-validation-refactor-20260915.json`](../spec/v2/evidence/devfarm-contract-validation-refactor-20260915.json).
 
 ## Partially implemented / not verified
 
@@ -123,6 +124,7 @@ and the compact operational procedure is [`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_D
 - Worker delegation transport observation: [`worker-delegation-observation-20260915.json`](../spec/v2/evidence/worker-delegation-observation-20260915.json)
 - Production-code Worker reconciliation observation: [`d2-production-worker-reconciliation-20260915.json`](../spec/v2/evidence/d2-production-worker-reconciliation-20260915.json)
 - Production-code Cloudflare Worker reconciliation observation: [`d2-production-worker-reconciliation-20260915-cloudflare.json`](../spec/v2/evidence/d2-production-worker-reconciliation-20260915-cloudflare.json)
+- DevFarm contract-validation boundary refactor: [`devfarm-contract-validation-refactor-20260915.json`](../spec/v2/evidence/devfarm-contract-validation-refactor-20260915.json)
 - Adaptive refinement / Guardian hardening: [`adaptive-refinement-guardian-hardening-20260915.json`](../spec/v2/evidence/adaptive-refinement-guardian-hardening-20260915.json)
 - DevFarm shared pool/refactor checkpoint: [`devfarm-resource-pool-refactor-20260915.json`](../spec/v2/evidence/devfarm-resource-pool-refactor-20260915.json)
 - DevFarm Worker admission refactor checkpoint: [`devfarm-worker-admission-refactor-20260915.json`](../spec/v2/evidence/devfarm-worker-admission-refactor-20260915.json)

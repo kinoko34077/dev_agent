@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "status": "VERIFIED",
+  "slice": "bounded_devfarm_contract_validation_refactor",
+  "implementation_commit": "1e0cfc50aba82547f72d5ed8ac15cd8d69684cf9",
+  "implementation_message": "refactor: isolate devfarm contract validation",
+  "scope": {
+    "new_boundary": "scripts/devfarm_contracts.py",
+    "compatibility_entrypoint": "scripts/devfarm.py",
+    "moved_contracts": [
+      "manifest validation",
+      "unified patch validation",
+      "result validation",
+      "bounded host test command parsing",
+      "patch hunk normalization",
+      "contract digests and limits"
+    ],
+    "architecture_guard": "scripts/check_architecture.py rejects contract imports from the devfarm CLI barrel"
+  },
+  "authority_invariants": [
+    "Host Verification remains the only verification authority",
+    "protected path validation remains centralized",
+    "UNKNOWN and reconciliation semantics unchanged",
+    "D9 remains proposal-only",
+    "public scripts.devfarm compatibility imports remain available"
+  ],
+  "worker": {
+    "production_task_attempted": 0,
+    "codex_direct_implementation_count": 1,
+    "codex_direct_implementation_reason": "cross_cutting_host_contract_boundary"
+  },
+  "verification": {
+    "focused": "55 passed",
+    "full_v2": "1300 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS"
+  },
+  "ci": {
+    "head": "1e0cfc50aba82547f72d5ed8ac15cd8d69684cf9",
+    "v2_tests": {
+      "run_id": 34948027956,
+      "conclusion": "success"
+    },
+    "v2_core": {
+      "run_id": 34948028070,
+      "conclusion": "success"
+    }
+  },
+  "not_claimed": [
+    "production-code Worker integration",
+    "OS Guardian registration or deployed crash recovery",
+    "D9 real mutation",
+    "MCP wire transport"
+  ]
+}
