@@ -24,6 +24,8 @@ from src.dev_agent.security.protected_paths import is_protected_path
 
 PLAN_SCHEMA_VERSION = 1
 PLAN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,100}$")
+ROLE_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
+ROLE_INSTANCE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$")
 PLAN_STATUSES = frozenset(
     {
         "PLANNED",
@@ -92,6 +94,26 @@ def revision(value: Any) -> str:
     if result.startswith("-") or any(char.isspace() or char in "\r\n" for char in result):
         raise DevFarmError("base_revision must be a safe Git revision")
     return result
+
+
+def role_id(value: Any) -> str:
+    result = text(value, "role_id", max_length=64)
+    if ROLE_ID_PATTERN.fullmatch(result) is None:
+        raise DevFarmError("role_id contains unsafe characters")
+    return result
+
+
+def role_instance_id(value: Any) -> str:
+    result = text(value, "role_instance_id", max_length=256)
+    if ROLE_INSTANCE_ID_PATTERN.fullmatch(result) is None:
+        raise DevFarmError("role_instance_id contains unsafe characters")
+    return result
+
+
+def role_generation(value: Any) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise DevFarmError("role_generation must be a positive integer")
+    return value
 
 
 def work_address(value: Any, name: str = "work_address") -> str:
@@ -332,6 +354,14 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
         ownership = paths(raw.get("ownership", []), "task ownership")
         manifest_path = raw.get("manifest_path")
         normalized_manifest_path = None if manifest_path is None else path(manifest_path, "manifest_path")
+        role_values = (raw.get("role_id"), raw.get("role_instance_id"), raw.get("role_generation"))
+        if any(value is not None for value in role_values) and any(value is None for value in role_values):
+            raise DevFarmError(
+                "role_id, role_instance_id, and role_generation must be provided together"
+            )
+        normalized_role_id = None if role_values[0] is None else role_id(role_values[0])
+        normalized_role_instance_id = None if role_values[1] is None else role_instance_id(role_values[1])
+        normalized_role_generation = None if role_values[2] is None else role_generation(role_values[2])
         if owner == "worker":
             if normalized_manifest_path is None:
                 raise DevFarmError(f"worker task requires manifest_path: {task_id}")
@@ -389,6 +419,10 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
             task["work_address"] = str(parsed_address)
         if address_parent is not None:
             task["work_address_parent"] = address_parent
+        if normalized_role_id is not None:
+            task["role_id"] = normalized_role_id
+            task["role_instance_id"] = normalized_role_instance_id
+            task["role_generation"] = normalized_role_generation
         worker_candidate = raw.get("worker_candidate", owner == "worker")
         if not isinstance(worker_candidate, bool):
             raise DevFarmError("worker_candidate must be a boolean")
