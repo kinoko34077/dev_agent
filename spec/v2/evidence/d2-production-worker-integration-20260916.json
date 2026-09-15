@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "status": "verified",
+  "gate": "D2-production-worker",
+  "root_task": "d2-production-qualification-binding-20260916-r2",
+  "child_task": "d2-production-qualification-binding-20260916-r2",
+  "attempt_id": "f44d7b9699d74873b5c25d6d0bcd1447",
+  "provider": "gemini",
+  "provider_binding_id": "gemini:worker:free-3",
+  "model": "gemini-3.5-flash-lite",
+  "intelligence_tier": "L1",
+  "base_revision": "07ac5dcde56d176d59a7db20f01268662f5b6b68",
+  "egress_manifest_sha256": "7231f7ace1837edd50bb50ff79849a9a7487a2b67b9c85c290ec01ca229de257",
+  "changed_paths": [
+    "scripts/qualify_free_provider.py",
+    "tests/v2/test_free_provider_qualification.py"
+  ],
+  "patch_sha256": "35b16acbf0e541762b05064630cf72ca0ee6a55534a763ab9fc7f6ab9826c685",
+  "host_verification": {
+    "status": "passed",
+    "trust_level": "TRUSTED_HOST_EXEC",
+    "operator_approved": true,
+    "independent_verification": true,
+    "verified_tests": [
+      {
+        "command": "python -m pytest -q tests/v2/test_free_provider_qualification.py",
+        "passed": true
+      },
+      {
+        "command": "python -m pytest -q tests/v2/test_model_candidate_diagnostics.py",
+        "passed": true
+      }
+    ],
+    "verification_id": "5ab1a0110b9e4575abbe8e07524b43b3"
+  },
+  "review": {
+    "decision_id": "review-d15dda804a814d688b7299835a3c4606",
+    "decision": "APPROVE_INTEGRATION",
+    "reviewer_role": "codex",
+    "codex_direct_implementation_count": 0
+  },
+  "integration": {
+    "performed": true,
+    "helper": "Host deterministic integration",
+    "revision": "2c5d40acd06636bfc58acc9365d82b4d857415cb"
+  },
+  "worker_usage": {
+    "elapsed_ms": 4444,
+    "prompt_tokens": 8692,
+    "candidate_tokens": 1030,
+    "refinement_rounds": 0,
+    "retries": 0,
+    "reassignments": 0
+  },
+  "local_verification": {
+    "focused_tests": "76 passed",
+    "full_tests_v2": "1327 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS"
+  },
+  "exact_head_ci": {
+    "head": "2c5d40acd06636bfc58acc9365d82b4d857415cb",
+    "kernel_3_10": "PASS",
+    "kernel_3_11": "PASS",
+    "provider_smoke": "PASS",
+    "v2_core_run": 34990153742,
+    "v2_tests_run": 34990153594
+  },
+  "raw_provider_response_stored": false,
+  "credentials_stored": false,
+  "codex_direct_implementation": false
+}
