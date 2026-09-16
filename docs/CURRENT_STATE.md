@@ -5,14 +5,14 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Latest implementation baseline before this documentation sync | `3e9f79ef0d0983813bf864d946afdae3a71d976d` (`feat: expose model candidate gate reasons`) |
-| Latest evidence baseline before this documentation sync | `886f0cd430ab442f9d7b4457cce5958e54aad779` (`docs: record live source slice and planner availability`) |
-| Implementation/evidence baseline | `3e9f79ef0d0983813bf864d946afdae3a71d976d` (three additional live Free Worker production-source integrations, including one bounded contract-shape rework) |
+| Latest implementation baseline before this documentation sync | `15792e07c72a57c5bfa3b4a16d1c508edc4fde58` (`docs: record pinned planner availability`) |
+| Latest evidence baseline before this documentation sync | `15792e07c72a57c5bfa3b4a16d1c508edc4fde58` (`docs: record pinned planner availability`) |
+| Implementation/evidence baseline | `15792e07c72a57c5bfa3b4a16d1c508edc4fde58` (latest bounded Planner availability evidence; runtime implementation remains at the prior verified source baseline) |
 | Worktree | clean at the documentation sync checkpoint |
 | Local regression | `1373 passed, 1 skipped` (`python -m pytest tests/v2 -q`, implementation baseline) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for evidence baseline `886f0cd430ab442f9d7b4457cce5958e54aad779`: `v2-core` [run 35052971730](https://github.com/kinoko34077/dev_agent/actions/runs/35052971730) and `v2-provider-smoke` [run 35052971512](https://github.com/kinoko34077/dev_agent/actions/runs/35052971512). The current sync adds only bounded evidence/documentation and does not alter runtime code. |
+| Exact-head CI | PASS for evidence baseline `15792e07c72a57c5bfa3b4a16d1c508edc4fde58`: `v2-core` [run 35054323301](https://github.com/kinoko34077/dev_agent/actions/runs/35054323301) and `v2-provider-smoke` [run 35054323292](https://github.com/kinoko34077/dev_agent/actions/runs/35054323292). The current sync adds only bounded evidence/documentation and does not alter runtime code. |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
@@ -97,7 +97,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 
 ## Partially implemented / not verified
 
-- Compression live availability is `NOT_VERIFIED`: the latest one-shot smoke reached the fixed endpoint through the configured Windows Credential Manager path but received HTTP 403. This is an endpoint/edge authentication boundary, not evidence that the downstream Gemini key was exercised; no automatic retry was made. The client exposes only bounded diagnostic code/header presence metadata (`http_forbidden`, `X-Request-ID`, `Server`, `CF-Ray`); no token or raw response is stored. See [`compression-service-smoke-20260915.json`](../spec/v2/evidence/compression-service-smoke-20260915.json) and the prior contract record [`compression-service-connection-20260914.json`](../spec/v2/evidence/compression-service-connection-20260914.json).
+- Compression live availability is `NOT_VERIFIED`: the latest one-shot smoke reached the fixed endpoint through the configured Windows Credential Manager path but received HTTP 403. This is an endpoint/edge authentication boundary, not evidence that the downstream Gemini key was exercised; no automatic retry was made. The client exposes only bounded diagnostic code/header presence metadata (`http_forbidden`, `X-Request-ID`, `Server`, `CF-Ray`); no token or raw response is stored. See [`compression-service-smoke-20260916.json`](../spec/v2/evidence/compression-service-smoke-20260916.json) and the prior contract record [`compression-service-connection-20260914.json`](../spec/v2/evidence/compression-service-connection-20260914.json).
 - D4 same-operation resume is `NOT_AVAILABLE` for the concrete Codex backend without a formal external discovery API. The safe result is `UNKNOWN`/reconciliation, not inferred resume or blind restart.
 - Process Coordination remains Host/local foundation rather than a production daemon: peer/store/mailbox/immutable artifacts, work-position checkpoints, generation fencing, static Guardian process execution, bounded six-second reconciliation serve, drain, pinned release, real local process rolling, and real local known-good rollback are verified. The approved Task Scheduler apply was rejected by host permission (`access_denied`), so OS Service/Task Scheduler installation, Guardian crash recovery in a deployed environment, and D9 official-runtime mutation remain unverified.
 - D5 is a transport-neutral in-process/development adapter. A network MCP server/wire transport and Planner mutation authority are not implemented.
