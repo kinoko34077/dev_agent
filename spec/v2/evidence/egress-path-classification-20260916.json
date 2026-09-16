@@ -1,0 +1,40 @@
+{
+  "evidence_id": "egress-path-classification-20260916",
+  "observed_at": "2026-09-16T00:48:00Z",
+  "purpose": "Verify that per-dispatch EgressManifest entries carry centrally recomputed path-class provenance without granting or changing egress authority.",
+  "implementation_baseline": "0d8bb44701d49cb614c72f5dc2e484637e337b1d",
+  "verified_behavior": {
+    "normal_source_entry": "NORMAL_REPO",
+    "protected_secret_entry": "HARD_DENY",
+    "tampered_path_class": "rejected",
+    "manifest_round_trip_digest": "preserved",
+    "raw_content_retention": "none"
+  },
+  "preserved_boundaries": [
+    "ALLOW/REVIEW/DENY decision logic is unchanged",
+    "protected paths remain denied",
+    "EgressManifest does not grant write, ownership, approval, provider, or integration authority",
+    "classification is recomputed from path and cannot be supplied as an authority override"
+  ],
+  "verification": {
+    "focused_manifest_and_boundary_tests": "93 passed",
+    "full_v2_regression": "1364 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head_ci": {
+      "v2_core": {
+        "run": "35041659418",
+        "kernel_3_10": "PASS",
+        "kernel_3_11": "PASS"
+      },
+      "v2_provider_smoke": {
+        "run": "35041659384",
+        "result": "PASS"
+      }
+    }
+  },
+  "secrets_recorded": false,
+  "raw_provider_response_recorded": false,
+  "task_scheduler_touched": false,
+  "official_runtime_mutated": false
+}
