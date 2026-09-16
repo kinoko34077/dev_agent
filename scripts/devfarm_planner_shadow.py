@@ -452,8 +452,8 @@ def main(argv: list[str] | None = None) -> int:
         output = {
             "status": "blocked_external",
             "category": getattr(exc, "host_failure_category", getattr(exc, "category", type(exc).__name__)),
+            "error_type": type(exc).__name__,
             "reconciliation_required": getattr(exc, "requires_reconciliation", False),
-            "message": str(exc),
         }
         host_failure_type = getattr(exc, "host_failure_type", None)
         if isinstance(host_failure_type, str):

@@ -288,7 +288,7 @@ def test_typed_proposal_round_trip_rejects_untracked_fields():
 
 def test_planner_shadow_reports_bounded_host_transport_category(monkeypatch, capsys):
     failure = ProviderError(
-        "Host provider runtime rejected the dispatch",
+        "secret-shaped transport detail must not cross the projection",
         category="reconciliation_required",
         retryable=False,
     )
@@ -311,6 +311,9 @@ def test_planner_shadow_reports_bounded_host_transport_category(monkeypatch, cap
     assert output["category"] == "reconciliation_required"
     assert output["reconciliation_required"] is True
     assert output["transport_failure_category"] == "sandbox_network_denied"
+    assert output["error_type"] == "ProviderError"
+    assert "message" not in output
+    assert "secret-shaped transport detail" not in json.dumps(output)
 
 
 def test_planner_shadow_classifies_invalid_model_output(monkeypatch, capsys):
