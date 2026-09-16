@@ -61,8 +61,23 @@ def diagnose_entries(
         elif result == "ELIGIBLE":
             result = "ELIGIBLE"
         row = diagnostic.to_dict()
+        gate_reason = None
+        if result != "ELIGIBLE":
+            if row.get("discovery") == "FAIL" or row.get("discovery") == "MISSING":
+                gate_reason = "discovery_blocked"
+            elif row.get("benchmark") == "FAIL" or row.get("benchmark") == "MISSING":
+                gate_reason = "benchmark_blocked"
+            elif row.get("capability") == "FAIL" or row.get("capability") == "MISSING":
+                gate_reason = "capability_blocked"
+            elif billing is None or row.get("billing") == "MISSING":
+                gate_reason = "billing_missing"
+            elif qualification is None or row.get("qualification") == "MISSING":
+                gate_reason = "qualification_missing"
+            else:
+                gate_reason = str(result).lower()
         row.update(
             {
+                "gate_reason": gate_reason,
                 "billing": "PASS" if billing is not None else "MISSING",
                 "qualification": "PASS" if qualification is not None else "MISSING",
                 # Static snapshots do not own live health/quota.  Do not imply
