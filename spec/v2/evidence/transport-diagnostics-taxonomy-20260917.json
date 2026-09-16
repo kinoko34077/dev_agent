@@ -1,0 +1,76 @@
+{
+  "evidence_id": "transport-diagnostics-taxonomy-20260917",
+  "schema_version": 1,
+  "observed_at": "2026-09-16T17:02:05.9814543Z",
+  "track": "NETWORK_DIAGNOSTICS",
+  "implementation_baseline": {
+    "revision": "c39287e2d0d8f00be807521f82cb6ca22fcfc7ff",
+    "message": "feat: add bounded transport diagnostics"
+  },
+  "diagnostic_categories": [
+    "sandbox_network_denied",
+    "local_network_policy_denied",
+    "dns_failure",
+    "connect_failure",
+    "connection_reset",
+    "tls_failure",
+    "connect_timeout",
+    "read_timeout",
+    "provider_transport_failure",
+    "transport_unclassified"
+  ],
+  "transport_stages": [
+    "resolve",
+    "connect",
+    "tls",
+    "request_send",
+    "response_wait",
+    "response_read",
+    "unknown"
+  ],
+  "bounded_projection": [
+    "transport_failure_category",
+    "transport_stage",
+    "transport_exception_type",
+    "transport_errno",
+    "transport_winerror"
+  ],
+  "coverage": {
+    "provider_adapters": [
+      "GeminiHttpProvider",
+      "CloudflareWorkersAIHttpProvider",
+      "OpenAICompatibleHttpTransport",
+      "OllamaProvider"
+    ],
+    "host_boundary": "HostProviderDispatch and HostProcessExecutor preserve only validated scalar diagnostics",
+    "worker_planner_projection": "Worker metrics and Planner shadow output use the same bounded projection"
+  },
+  "semantic_invariants": {
+    "retryable_unchanged": true,
+    "failover_safe_unchanged": true,
+    "requires_reconciliation_unchanged": true,
+    "unknown_external_effect_not_replayed": true,
+    "provider_selection_changed": false,
+    "raw_exception_message_projected": false,
+    "raw_provider_response_retained": false
+  },
+  "verification": {
+    "focused": "42 passed",
+    "full_tests_v2": "1388 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head": "c39287e2d0d8f00be807521f82cb6ca22fcfc7ff",
+    "ci": {
+      "v2-core": {
+        "run_id": 35125485772,
+        "conclusion": "success"
+      },
+      "v2-provider-smoke": {
+        "run_id": 35125485762,
+        "conclusion": "success"
+      }
+    }
+  },
+  "live_external_probe": "NOT_RUN",
+  "interpretation": "The taxonomy improves diagnosis of a future transport_unclassified observation without converting an ambiguous outcome into a retry or failover-safe result. The prior UNKNOWN/reconciliation operation was not replayed."
+}
