@@ -12,6 +12,7 @@ Phase 7後半の安全な拡張と開発運用移管。既存のKernel、Resourc
 
 - Group Dのsession identity、bounded artifact reference、reconciliation replay、明示的Backend discovery authority。
 - Free L1 WorkerのSupervisor/Host Verification/ReviewDecision/REWORK/依存integration経路。
+- 2026-09-16のsource-only production Worker sliceでは、`src/dev_agent/resources/model_evidence_builder.py`、`src/dev_agent/providers/model_discovery.py`、`scripts/diagnose_model_candidates.py`をWorker起源で統合した。fresh Planner observationではqualified L2 poolを確認したが、3候補が`provider_unavailable`となり`pool_exhausted`で終了した。完全なlive Stage 5 multi-role activationは`NOT_VERIFIED`のまま。
 - Free L2 Plannerのproposal-only adapter、strict JSON boundary、RootPlanningProposal、Host-only DevelopmentPlanningBridge、および明示的なModel Catalog / Benchmark Catalog / Capability Catalog / Runtime admission境界。
 - D6の異なる2件のproposal-only Reviewer Shadow比較、D7のbounded Codex-less candidate policy/CLI、D8 F0–F2のproposal-only data contracts。
 - D8のHost composition: 既存Supervisorのcompact observationからF0 Observation、F1 Diagnosis、F2 Improvement Planをimmutableな`.devfarm/self-improvement/` artifactへ生成するread-only CLI。model-driven diagnosis、automatic repair、Task mutation、integrationは未接続。

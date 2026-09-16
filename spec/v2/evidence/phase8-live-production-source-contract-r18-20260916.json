@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "phase8_live_production_source_contract_slice",
+  "observed_at": "2026-09-16",
+  "status": "VERIFIED_PRODUCTION_SOURCE_SLICE",
+  "implementation_baseline": "3e9f79ef0d0983813bf864d946afdae3a71d976d",
+  "scope": "bounded Worker-first production-source changes after the production Worker subgate",
+  "plans": [
+    {
+      "run_id": "phase8-live-multirole-r18-safe-20260916",
+      "status": "SUPERSEDED",
+      "reason": "one source-only task failed Host Verification and was replaced by a bounded rework plan"
+    },
+    {
+      "run_id": "phase8-live-multirole-r18-rework-20260916",
+      "status": "INTEGRATED",
+      "base_revision": "f0591e14b66692c104ecff940e6b577cb810038b"
+    }
+  ],
+  "worker_attempts": [
+    {
+      "task_id": "phase8-live-evidence-time-r18-20260916",
+      "attempt_id": "377f5ecd828f4a2aba3f094a8cc4854b",
+      "provider": "gemini",
+      "binding": "gemini:worker:free-3",
+      "model": "gemini-3.5-flash-lite",
+      "changed_paths": ["src/dev_agent/resources/model_evidence_builder.py"],
+      "patch_sha256": "248d6def6a50e029067127fdb06ca23671cadc622724060cb1a55f5d743a5600",
+      "verification_ref": ".devfarm/results/phase8-live-evidence-time-r18-20260916/attempts/377f5ecd828f4a2aba3f094a8cc4854b/verification/4763cbeea2654e9dbf89fb106fafc0e8.json",
+      "review_decision": "APPROVE_INTEGRATION",
+      "integration_revision": "f0591e14b66692c104ecff940e6b577cb810038b"
+    },
+    {
+      "task_id": "phase8-live-discovery-contract-r18-20260916",
+      "attempt_id": "588badc5fcbe40e0b9e29ac6718a908a",
+      "provider": "gemini",
+      "binding": "gemini:worker:free-3",
+      "model": "gemini-3.5-flash-lite",
+      "changed_paths": ["src/dev_agent/providers/model_discovery.py"],
+      "patch_sha256": "d1ea7329fa36c1eb5ee132dc33dfd8f1b23fb306cc7eb488f4f423d56784e930",
+      "verification_ref": ".devfarm/results/phase8-live-discovery-contract-r18-20260916/attempts/588badc5fcbe40e0b9e29ac6718a908a/verification/66977acf1c924e33a80d46b514f3d13a.json",
+      "outcome": "HOST_VERIFICATION_FAILED",
+      "failure_category": "contract_shape_regression",
+      "failure_detail": "list-valued metadata was changed to tuple-valued metadata",
+      "integrated": false
+    },
+    {
+      "task_id": "phase8-live-discovery-contract-r18-rework-20260916",
+      "attempt_id": "c1143818116941d1b5559dd549f97ec6",
+      "provider": "gemini",
+      "binding": "gemini:worker:free-3",
+      "model": "gemini-3.5-flash-lite",
+      "changed_paths": ["src/dev_agent/providers/model_discovery.py"],
+      "patch_sha256": "3a1ba19982abd6142ddf1826a0b84b8517b85d36241ec1e5e4a21a6dd3f64e95",
+      "verification_ref": ".devfarm/results/phase8-live-discovery-contract-r18-rework-20260916/attempts/c1143818116941d1b5559dd549f97ec6/verification/9421c458efe84fd09025b01c0613455a.json",
+      "review_decision": "APPROVE_INTEGRATION",
+      "integration_revision": "cdd225362722603a0259a4057548ad2c2f622aae",
+      "rework_round": 1
+    },
+    {
+      "task_id": "phase8-live-diagnostics-reason-r18-rework-20260916",
+      "attempt_id": "269399dfeb444faba7d1fc1323adee66",
+      "provider": "gemini",
+      "binding": "gemini:worker:free-3",
+      "model": "gemini-3.5-flash-lite",
+      "changed_paths": ["scripts/diagnose_model_candidates.py"],
+      "patch_sha256": "af6552097c6495fc2538aac375dd787163ba4c7d1f884226efcf172024949a39",
+      "verification_ref": ".devfarm/results/phase8-live-diagnostics-reason-r18-rework-20260916/attempts/269399dfeb444faba7d1fc1323adee66/verification/e739f44b9965497f84b53f2a79633c1f.json",
+      "review_decision": "APPROVE_INTEGRATION",
+      "integration_revision": "3e9f79ef0d0983813bf864d946afdae3a71d976d"
+    }
+  ],
+  "delegation": {
+    "worker_production_tasks_attempted": 4,
+    "worker_production_tasks_integrated": 3,
+    "codex_direct_implementation_count": 0,
+    "refinement_rounds": 1,
+    "provider_calls": 4,
+    "input_tokens": 20074,
+    "output_tokens": 2884
+  },
+  "verification": {
+    "focused_tests": "38 passed",
+    "full_tests_v2": "1373 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head_ci": {
+      "head": "3e9f79ef0d0983813bf864d946afdae3a71d976d",
+      "v2_core": {
+        "run_id": 35052151120,
+        "jobs": ["kernel (3.10)", "kernel (3.11)"],
+        "conclusion": "success"
+      },
+      "v2_provider_smoke": {
+        "run_id": 35052151179,
+        "conclusion": "success"
+      }
+    }
+  },
+  "safety": {
+    "source_only_egress": true,
+    "raw_prompts_saved": false,
+    "raw_provider_responses_saved": false,
+    "secrets_saved": false,
+    "host_verification_bypassed": false,
+    "codex_takeover": false
+  },
+  "interpretation": "This is verified Worker-originated production-source progress. It does not close the complete single-root live Planner-to-two-Implementers-to-Reviewer-to-dependent-continuation Stage 5 gate."
+}

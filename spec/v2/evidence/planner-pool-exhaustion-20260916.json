@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "planner_pool_exhaustion",
+  "observed_at": "2026-09-16",
+  "implementation_baseline": "3e9f79ef0d0983813bf864d946afdae3a71d976d",
+  "operation": {
+    "entry": "scripts/devfarm_planner_shadow.py",
+    "parent_task_id": "5637caad-66e4-4bee-b3ce-8d509e8a7545",
+    "configured_pool": true,
+    "expand_discovered_models": true,
+    "required_tier": "L2",
+    "no_charge_required": true,
+    "allow_unknown_quota": true,
+    "execution_boundary": "host_process"
+  },
+  "eligible_pool": [
+    {
+      "provider": "gemini",
+      "binding": "gemini:worker:free-3::model::gemini-3.6-flash::cf27b68ecf38",
+      "model": "gemini-3.6-flash",
+      "quota_domain": "gemini:project:982142111392",
+      "intelligence_tier": "L2"
+    },
+    {
+      "provider": "gemini",
+      "binding": "gemini:worker:free-3::model::gemini-3.8-flash::319034f3e25d",
+      "model": "gemini-3.8-flash",
+      "quota_domain": "gemini:project:982142111392",
+      "intelligence_tier": "L2"
+    },
+    {
+      "provider": "gemini",
+      "binding": "gemini:worker:free-4::model::gemini-3.8-flash::319034f3e25d",
+      "model": "gemini-3.8-flash",
+      "quota_domain": "gemini:project:497456937770",
+      "intelligence_tier": "L2"
+    },
+    {
+      "provider": "gemini",
+      "binding": "gemini:worker:free-5::model::gemini-3.8-flash::319034f3e25d",
+      "model": "gemini-3.8-flash",
+      "quota_domain": "gemini:project:691705059831",
+      "intelligence_tier": "L2"
+    }
+  ],
+  "attempts": [
+    {
+      "model": "gemini-3.6-flash",
+      "binding": "gemini:worker:free-3::model::gemini-3.6-flash::cf27b68ecf38",
+      "category": "provider_unavailable",
+      "failover_safe": true,
+      "reconciliation_required": false
+    },
+    {
+      "model": "gemini-3.8-flash",
+      "binding": "gemini:worker:free-4::model::gemini-3.8-flash::319034f3e25d",
+      "category": "provider_unavailable",
+      "failover_safe": true,
+      "reconciliation_required": false
+    },
+    {
+      "model": "gemini-3.8-flash",
+      "binding": "gemini:worker:free-5::model::gemini-3.8-flash::319034f3e25d",
+      "category": "provider_unavailable",
+      "failover_safe": true,
+      "reconciliation_required": false
+    }
+  ],
+  "result": "pool_exhausted",
+  "host_validation": "not_run",
+  "safety": {
+    "same_binding_immediate_retry": false,
+    "automatic_l1_downgrade": false,
+    "unknown_failover": false,
+    "raw_provider_response_recorded": false,
+    "credential_recorded": false
+  },
+  "interpretation": "All attempted eligible L2 resources returned a confirmed unavailable result. The bounded operation ended without a proposal; this is provider availability evidence, not Planner schema failure."
+}
