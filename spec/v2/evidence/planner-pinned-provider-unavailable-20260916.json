@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "planner_pinned_provider_unavailable",
+  "observed_at": "2026-09-16T04:03:55Z",
+  "status": "POOL_EXHAUSTED",
+  "implementation_baseline": "2658643c7a921b717ada06208fb66fb9f020c562",
+  "operation": {
+    "entry": "scripts/devfarm_planner_shadow.py",
+    "parent_task_id": "44ccff85-c1c6-49b3-b241-95c4640a121b",
+    "provider": "gemini",
+    "binding": "gemini:worker:free-3",
+    "model": "gemini-3.8-flash",
+    "required_tier": "L2",
+    "no_charge_required": true,
+    "allow_unknown_quota": true,
+    "execution_boundary": "host_process",
+    "timeout_seconds": 90
+  },
+  "eligible_pool": [
+    {
+      "provider": "gemini",
+      "binding": "gemini:worker:free-3",
+      "model": "gemini-3.8-flash",
+      "quota_domain": "gemini-core-account",
+      "intelligence_tier": "L2"
+    }
+  ],
+  "attempts": [
+    {
+      "provider_id": "gemini",
+      "binding_id": "gemini:worker:free-3",
+      "model_id": "gemini-3.8-flash",
+      "category": "provider_unavailable",
+      "failover_safe": true,
+      "reconciliation_required": false
+    }
+  ],
+  "result": {
+    "status": "pool_exhausted",
+    "host_validation": "not_run",
+    "proposal_returned": false
+  },
+  "safety": {
+    "same_binding_retry": false,
+    "unknown_external_effect_replayed": false,
+    "automatic_l1_downgrade": false,
+    "raw_provider_response_saved": false,
+    "credential_saved": false,
+    "repository_files_sent": false
+  },
+  "interpretation": "The permitted Host-process request reached the explicitly pinned Provider resource and received a confirmed provider_unavailable result. This distinguishes Provider availability from the separate local_network_policy_denied observation; it is not a Planner schema or model-capability failure. The bounded operation stopped without retry or downgrade."
+}
