@@ -1,0 +1,50 @@
+{
+  "evidence_id": "operation-runtime-pinned-restart-20260917",
+  "status": "VERIFIED_LOCAL",
+  "scope": "local_foreground_operation_runtime_restart",
+  "implementation_commit": "babbab610f345510fca57df828d20969c9480355",
+  "restart": {
+    "previous_generation": 2,
+    "previous_pid": 29140,
+    "previous_stop": "existing durable Operation stop request; process exited",
+    "current_generation": 3,
+    "current_pid": 16008,
+    "current_revision": "babbab610f345510fca57df828d20969c9480355",
+    "instance_id": "operation-runtime",
+    "role": "agent",
+    "status": "READY",
+    "duplicate_generation": false
+  },
+  "smoke": {
+    "task_id": "9ff15801-7cc5-4992-a814-54f7cae0d3ec",
+    "provider": "fake",
+    "binding": "fake:default",
+    "model": "deterministic",
+    "state": "completed",
+    "attempts": 1,
+    "claim_count": 1,
+    "external_network": "none"
+  },
+  "verification": {
+    "focused": "7 operation-runtime tests passed in the implementation slice",
+    "full": "1395 passed, 1 skipped on the pinned implementation commit",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head_ci": {
+      "implementation_head": "babbab610f345510fca57df828d20969c9480355",
+      "v2_core": 35133149255,
+      "v2_provider_smoke": 35133149230,
+      "result": "success"
+    }
+  },
+  "safety": {
+    "provider_request": false,
+    "unknown_replay": false,
+    "os_registration": "DEFERRED_NOT_CONFIGURED",
+    "task_scheduler": "DEFERRED"
+  },
+  "limitations": [
+    "This is local foreground restart evidence, not OS startup or deployed Guardian recovery.",
+    "The coordinator delegates task scheduling and Provider admission to existing Operation components; it is not a second scheduler."
+  ]
+}
