@@ -158,13 +158,13 @@ def main(argv: list[str] | None = None) -> int:
     elif args.as_json:
         print(json.dumps({"status": "ok", "rows": rows}, ensure_ascii=False, indent=2))
     else:
-        headers = ("provider", "binding", "model", "discovery", "benchmark", "capability", "billing", "qualification", "result")
+        headers = ("provider", "binding", "model", "discovery", "benchmark", "capability", "billing", "qualification", "runtime", "gate_reason", "result")
         print("\t".join(headers))
         for row in rows:
             print(
                 "\t".join(
                     str(row.get(key, "-"))
-                    for key in ("provider_id", "provider_binding_id", "model_id", "discovery", "benchmark", "capability", "billing", "qualification", "result")
+                    for key in ("provider_id", "provider_binding_id", "model_id", "discovery", "benchmark", "capability", "billing", "qualification", "runtime", "gate_reason", "result")
                 )
             )
     return 0

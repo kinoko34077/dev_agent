@@ -5,6 +5,7 @@ import pytest
 from scripts.diagnose_model_candidates import (
     MAX_DIAGNOSTIC_ROWS,
     diagnose_entries,
+    main,
     summarize_entries,
 )
 from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
@@ -39,3 +40,28 @@ def test_summarize_entries_returns_only_bounded_aggregate_gate_counts():
         "result_counts": {"BENCHMARK_MISSING": 1, "ELIGIBLE": 2},
         "provider_counts": {"cloudflare": 1, "gemini": 2},
     }
+
+
+def test_main_tabular_output_exposes_runtime_and_gate_reason(model_evidence, capsys):
+    assert main(["--limit", "1"]) == 0
+
+    lines = capsys.readouterr().out.splitlines()
+    assert len(lines) >= 2
+    header = lines[0].split("\t")
+    row = lines[1].split("\t")
+
+    assert header == [
+        "provider",
+        "binding",
+        "model",
+        "discovery",
+        "benchmark",
+        "capability",
+        "billing",
+        "qualification",
+        "runtime",
+        "gate_reason",
+        "result",
+    ]
+    assert len(row) == len(header)
+    assert row[8] == "UNKNOWN"

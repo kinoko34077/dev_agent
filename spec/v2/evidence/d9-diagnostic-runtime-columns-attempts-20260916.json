@@ -1,0 +1,143 @@
+{
+  "evidence_id": "d9-diagnostic-runtime-columns-attempts-20260916",
+  "evidence_kind": "d9_dogfood_worker_attempt_and_bounded_fallback",
+  "observed_at": "2026-09-16",
+  "status": "D9_TRIAL_NOT_READY",
+  "implementation_baseline_before_sync": "32bc97a19c20b4fd08b67a4bb9470a3b9b1661b6",
+  "work_address": "1",
+  "selected_issue": {
+    "description": "Normal tabular model-candidate diagnostics omitted the bounded runtime and first blocking gate fields already present in each JSON row.",
+    "paths": [
+      "scripts/diagnose_model_candidates.py",
+      "tests/v2/test_model_candidate_diagnostics.py"
+    ],
+    "risk": "low",
+    "path_class": "NORMAL_REPO",
+    "external_side_effect": false
+  },
+  "worker_attempts": [
+    {
+      "plan": "d9-diagnostic-runtime-columns-20260916",
+      "attempt_id": "cffbc49250a7480ab69ed762f0bec679",
+      "provider": "gemini",
+      "binding": "gemini:worker:free-3",
+      "model": "gemini-3.5-flash-lite",
+      "outcome": "NO_PATCH",
+      "failure_category": "local_network_policy_denied",
+      "provider_failure_category": "reconciliation_required",
+      "transport_before_provider_result": true,
+      "replayed": false
+    },
+    {
+      "plan": "d9-diagnostic-runtime-columns-20260916",
+      "attempt_id": "a7a27cc8804e43adaaffcda0d57b8812",
+      "provider": "gemini",
+      "binding": "gemini:worker:free-3",
+      "model": "gemini-3.5-flash-lite",
+      "outcome": "PATCH_REJECTED",
+      "failure_category": "FORMAT_PATCH",
+      "changed_paths": [
+        "scripts/diagnose_model_candidates.py",
+        "tests/v2/test_model_candidate_diagnostics.py"
+      ],
+      "host_failure": "new blank line at EOF",
+      "host_verified": false,
+      "usage": {
+        "prompt_tokens": 4684,
+        "candidates_tokens": 983
+      },
+      "replayed": false
+    },
+    {
+      "plan": "d9-diagnostic-runtime-columns-correction-20260916",
+      "attempt_id": "0f326e1db2254e82b5f0d67e060f9000",
+      "provider": "gemini",
+      "binding": "gemini:worker:free-3",
+      "model": "gemini-3.5-flash-lite",
+      "outcome": "PATCH_REJECTED",
+      "failure_category": "FORMAT_PATCH",
+      "changed_paths": [
+        "scripts/diagnose_model_candidates.py",
+        "tests/v2/test_model_candidate_diagnostics.py"
+      ],
+      "host_failure": "new blank line at EOF",
+      "host_verified": false,
+      "usage": {
+        "prompt_tokens": 4705,
+        "candidates_tokens": 967
+      },
+      "replayed": false
+    },
+    {
+      "plan": "d9-diagnostic-runtime-columns-alt-20260916",
+      "attempt_id": "db000cf0c28544d6a989949a671ba00d",
+      "provider": "cloudflare",
+      "binding": "cloudflare",
+      "model": "@cf/meta/llama-3.1-8b-instruct",
+      "outcome": "NO_PATCH",
+      "failure_category": "MODEL_OUTPUT_INVALID",
+      "detail": "bounded provider response was invalid JSON before patch validation",
+      "usage": {
+        "prompt_tokens": 3897,
+        "completion_tokens": 2213,
+        "total_tokens": 6110
+      },
+      "replayed": false
+    }
+  ],
+  "bounded_refinement": {
+    "format_correction_rounds": 2,
+    "same_tier_alternate_attempts": 1,
+    "unbounded_retry": false,
+    "unknown_external_effect_replayed": false,
+    "l1_to_l2_downgrade_or_escalation": false
+  },
+  "host_fallback": {
+    "performed": true,
+    "reason": "no_qualified_worker_after_bounded_attempts",
+    "changed_paths": [
+      "scripts/diagnose_model_candidates.py",
+      "tests/v2/test_model_candidate_diagnostics.py"
+    ],
+    "scope": "same two-line production table projection plus focused regression test as proposed by the Worker",
+    "d9_worker_originated_success_credit": false,
+    "d9_repair_candidate": false,
+    "approval_consumed": false,
+    "official_d9_runtime_mutation": false
+  },
+  "verification": {
+    "focused_tests": "4 passed",
+    "full_tests_v2": "1374 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head_ci_for_baseline": {
+      "head": "32bc97a19c20b4fd08b67a4bb9470a3b9b1661b6",
+      "v2_core": {
+        "run_id": 35058372562,
+        "conclusion": "success"
+      },
+      "v2_provider_smoke": {
+        "run_id": 35058372559,
+        "conclusion": "success"
+      }
+    }
+  },
+  "gate": {
+    "execution_readiness": "READY_FOR_TRIAL",
+    "d9_dogfood": "NOT_READY",
+    "missing": [
+      "Worker-originated Host-verified repair candidate",
+      "exact Human approval for that candidate",
+      "actual D9 integration",
+      "post-repair pinned runtime health",
+      "actual rollback and post-rollback health"
+    ]
+  },
+  "safety": {
+    "raw_provider_response_saved": false,
+    "raw_prompt_saved": false,
+    "credentials_saved": false,
+    "blind_retry": false,
+    "unknown_external_effect": false
+  }
+}
