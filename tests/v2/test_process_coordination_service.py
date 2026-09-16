@@ -9,6 +9,16 @@ from src.dev_agent.coordination.protocol import CoordinationConflict, ControlAct
 from src.dev_agent.coordination.service import CoordinationSnapshot, ProcessCoordinationService
 
 
+@pytest.fixture(autouse=True)
+def _stable_coordination_clock(monkeypatch) -> None:
+    """Keep fixed lease fixtures independent of the CI wall clock."""
+
+    monkeypatch.setattr(
+        "src.dev_agent.coordination.service._now",
+        lambda: "2026-09-16T12:00:01+00:00",
+    )
+
+
 def _note() -> HandoffNote:
     return HandoffNote(
         from_role="agent",
