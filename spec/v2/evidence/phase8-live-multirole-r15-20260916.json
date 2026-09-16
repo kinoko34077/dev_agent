@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "evidence_id": "phase8-live-multirole-r15-20260916",
+  "recorded_at": "2026-09-16T10:20:00+00:00",
+  "track": "PHASE8_STAGE5",
+  "status": "PARTIAL_NOT_LIVE_ACTIVATION",
+  "run_id": "phase8-live-multirole-r15-20260916",
+  "base_revision": "f06f8eb969c38e9faeb42ad482c6574dad6f4ff3",
+  "objective": "Two non-overlapping production-source determinism tasks with independent Host Verification, Codex review, Host integration, and a dependent continuation.",
+  "planner": {
+    "parent_task_id": "874b2d93-ddad-49e0-b1e9-c1f6cb7b774c",
+    "status": "blocked_external",
+    "category": "no_route",
+    "quota_unknown_not_allowed": true,
+    "provider_request_sent": false,
+    "proposal_accepted": false
+  },
+  "worker_execution": {
+    "provider": "gemini",
+    "binding": "gemini:worker:free-3",
+    "model": "gemini-3.5-flash-lite",
+    "intelligence_tier": "L1",
+    "execution_boundary": "host_process",
+    "codex_direct_implementation_count_for_worker_tasks": 0,
+    "tasks": [
+      {
+        "work_address": "5-A",
+        "task_id": "5bad2c19-b61b-41fa-a609-e4418a266c7e",
+        "role": "Implementer",
+        "ownership": ["src/dev_agent/resources/model_evidence_builder.py"],
+        "attempts": [
+          {
+            "attempt_id": "e8cf71ac1c804dcc977a149b72ced7ca",
+            "status": "host_verification_failed",
+            "failure_category": "patch_apply_failure",
+            "provider_result_observed": true,
+            "usage": {
+              "prompt_tokens": 3572,
+              "output_tokens": 924
+            }
+          },
+          {
+            "attempt_id": "ce96a9f69f914381b849518308088548",
+            "status": "host_verified",
+            "host_verification_ref": ".devfarm/results/5bad2c19-b61b-41fa-a609-e4418a266c7e/attempts/ce96a9f69f914381b849518308088548/verification/9c2100fc6bfe4901a7eb98d3475bc015.json",
+            "patch_sha256": "c5cf55d53fa01db862d2f17dd3f73e4b05ebb6878052f4cad1b4af33b6a1f680",
+            "usage": {
+              "prompt_tokens": 4251,
+              "output_tokens": 1263
+            }
+          }
+        ],
+        "review_decision": {
+          "decision_id": "review-7b2c52afde1b486399ce1234c1bf73ca",
+          "decision": "APPROVE_INTEGRATION",
+          "reviewer_role": "codex"
+        },
+        "integration_revision": "4d4b06447367ca4c040c03d7332a8aeabdc0b82f",
+        "integrated": true
+      },
+      {
+        "work_address": "5-B",
+        "task_id": "b4ac855d-4d4b-4f09-92b7-9340975e8c9c",
+        "role": "Implementer",
+        "ownership": ["src/dev_agent/providers/model_discovery.py"],
+        "attempts": [
+          {
+            "attempt_id": "3aec59517b164d15b14810d069b86b74",
+            "status": "host_verified",
+            "host_verification_ref": ".devfarm/results/b4ac855d-4d4b-4f09-92b7-9340975e8c9c/attempts/3aec59517b164d15b14810d069b86b74/verification/708d491ced56438fb08cf5099a00be42.json",
+            "patch_sha256": "94656b830c9697d52b9d8126ccf0b56c1bddcf2659070b5aef6bbe3ebdda90a2",
+            "usage": {
+              "prompt_tokens": 6273,
+              "output_tokens": 596
+            }
+          }
+        ],
+        "review_decision": {
+          "decision_id": "review-989c15f1b064480dabd0dee2f7a0df3b",
+          "decision": "APPROVE_INTEGRATION",
+          "reviewer_role": "codex"
+        },
+        "integration_revision": "207258c6c45fee67eb0ef2deb4e3b0553fa16834",
+        "integrated": true
+      }
+    ]
+  },
+  "dependent_continuation": {
+    "work_address": "5-C",
+    "task_id": "02df72f6-9ec6-4045-8b97-930db8829c94",
+    "role": "Reviewer_and_integration_continuation",
+    "dependency_type": "CODE_INTEGRATED",
+    "depends_on": [
+      "5bad2c19-b61b-41fa-a609-e4418a266c7e",
+      "b4ac855d-4d4b-4f09-92b7-9340975e8c9c"
+    ],
+    "status_before_evidence_commit": "READY",
+    "codex_source_implementation": false
+  },
+  "review_boundary": {
+    "codex_reviewed_worker_patches": true,
+    "independent_free_l2_reviewer_shadow": "not_run",
+    "reviewer_shadow_reason": "safe no-unknown-quota route was unavailable; no alternate quota or paid route was activated",
+    "integration_authority": "host",
+    "host_verification_required": true
+  },
+  "integration": {
+    "worker_integrated_task_count": 2,
+    "worker_originated_production_source_files": 2,
+    "codex_direct_implementation_count": 0,
+    "host_integration_used": true,
+    "root_completion": "pending_dependent_continuation_and_documentation_sync"
+  },
+  "safety": {
+    "raw_provider_response_saved": false,
+    "credentials_saved": false,
+    "raw_prompt_saved": false,
+    "unknown_external_effect": false,
+    "blind_retry": false,
+    "automatic_l1_downgrade": false,
+    "protected_authority_changed": false
+  },
+  "activation_decision": {
+    "phase8_live_activation": "NOT_VERIFIED",
+    "blocking_reasons": [
+      "fresh live Planner proposal was not obtained without unknown-quota admission",
+      "independent proposal-only Reviewer Shadow was not obtained for this root"
+    ]
+  }
+}
