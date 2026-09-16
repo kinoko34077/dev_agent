@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "evidence_id": "planner-shadow-bounded-error-projection-20260917",
+  "evidence_kind": "phase_a_bounded_failure_projection",
+  "recorded_at": "2026-09-16T23:43:00Z",
+  "implementation_baseline": {
+    "revision": "63ecba2e59530e3caac2f243948d4cbff0b43cbf",
+    "message": "fix: redact planner shadow failure details"
+  },
+  "scope": {
+    "boundary": "Planner Shadow external failure JSON projection",
+    "covered_failure": "transport/reconciliation ProviderError",
+    "bounded_fields": [
+      "category",
+      "error_type",
+      "reconciliation_required",
+      "host_failure_type",
+      "transport_failure_category",
+      "transport_stage",
+      "transport_exception_type",
+      "transport_errno",
+      "transport_winerror"
+    ]
+  },
+  "verified_behavior": {
+    "raw_error_message_projected": false,
+    "error_type_projected": true,
+    "transport_metadata_reused": true,
+    "raw_provider_response_projected": false,
+    "credential_projected": false,
+    "source_payload_projected": false
+  },
+  "safety_semantics": {
+    "same_request_retry": false,
+    "same_binding_retry": false,
+    "automatic_failover": false,
+    "unknown_external_effect_replayed": false,
+    "reconciliation_semantics_changed": false,
+    "host_validation_claimed": false,
+    "gate_promotion": false
+  },
+  "verification": {
+    "focused": "27 Planner adapter and transport semantics tests passed",
+    "full_tests_v2": "1399 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head": "63ecba2e59530e3caac2f243948d4cbff0b43cbf",
+    "ci": {
+      "v2-core": {
+        "run_id": 35163433216,
+        "conclusion": "success"
+      },
+      "v2-provider-smoke": {
+        "run_id": 35163433188,
+        "conclusion": "success"
+      }
+    }
+  },
+  "interpretation": "Planner Shadow now emits only bounded error identity and transport metadata for blocked external outcomes; the message field is not included. This is local projection hardening and does not identify the prior transport failure, replay an UNKNOWN operation, create a new Provider request, or establish AR1/Phase 8 success."
+}
