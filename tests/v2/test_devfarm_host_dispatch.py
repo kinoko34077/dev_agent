@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 from contextlib import contextmanager
+import socket
 from types import SimpleNamespace
 
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.operation import OperationProviderBinding
+from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.host_dispatch import HostDispatchEnvelope
 from src.dev_agent.resources.control import DispatchDenied
 import scripts.devfarm_host_dispatch as host_dispatch
@@ -89,6 +91,29 @@ def test_host_runtime_projects_unexpected_failure_as_bounded_reconciliation(tmp_
         "reconciliation_required": True,
         "exception_type": "RuntimeError",
     }
+    assert json.loads(response_path.read_text(encoding="utf-8")) == result
+
+
+def test_host_runtime_projects_safe_transport_diagnostics_without_exception_text(tmp_path):
+    request_path = tmp_path / "request.json"
+    response_path = tmp_path / "response.json"
+    request_path.write_text(json.dumps(_envelope().to_dict()), encoding="utf-8")
+
+    class _DnsFailureProvider(_FakeHostProvider):
+        def request(self, request: ModelRequest) -> ModelResponse:
+            failure = ProviderError("provider transport failed: private resolver detail", category="transport", retryable=True)
+            failure.__cause__ = socket.gaierror(-2, "private resolver detail")
+            raise failure
+
+    result = process_once(request_path, response_path, provider_factory=lambda envelope: _DnsFailureProvider())
+
+    assert result["status"] == "failed"
+    assert result["category"] == "transport"
+    assert result["reconciliation_required"] is True
+    assert result["transport_failure_category"] == "dns_failure"
+    assert result["transport_stage"] == "resolve"
+    assert result["transport_exception_type"] == "gaierror"
+    assert "private resolver detail" not in str({key: result.get(key) for key in result if key.startswith("transport_")})
     assert json.loads(response_path.read_text(encoding="utf-8")) == result
 
 

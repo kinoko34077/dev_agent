@@ -191,6 +191,32 @@ def test_host_process_executor_preserves_bounded_transport_category_from_host_ru
     assert getattr(caught.value, "transport_failure_category", None) == "sandbox_network_denied"
 
 
+def test_host_process_executor_preserves_bounded_transport_diagnostics(tmp_path):
+    provider = _Provider(ModelResponse(provider="fake", model="fake-model", text_segments=["unused"]))
+    request = _request()
+    request.metadata["egress_manifest_sha256"] = "6" * 64
+    code = (
+        "import json,sys; "
+        "response=sys.argv[sys.argv.index('--response')+1]; "
+        "open(response,'w',encoding='utf-8').write(json.dumps({"
+        "'status':'failed','category':'transport','retryable':True,"
+        "'failover_safe':False,'reconciliation_required':True,"
+        "'transport_failure_category':'dns_failure','transport_stage':'resolve',"
+        "'transport_exception_type':'gaierror','transport_errno':11001,"
+        "'transport_winerror':11001}))"
+    )
+    executor = HostProcessExecutor((sys.executable, "-c", code), request_dir=tmp_path, timeout_seconds=2)
+
+    with pytest.raises(ProviderError) as caught:
+        executor(provider, request)
+
+    assert getattr(caught.value, "transport_failure_category", None) == "dns_failure"
+    assert getattr(caught.value, "transport_stage", None) == "resolve"
+    assert getattr(caught.value, "transport_exception_type", None) == "gaierror"
+    assert getattr(caught.value, "transport_errno", None) == 11001
+    assert getattr(caught.value, "transport_winerror", None) == 11001
+
+
 def test_host_process_executor_preserves_reconciliation_for_unexpected_child_failure(tmp_path):
     provider = _Provider(ModelResponse(provider="fake", model="fake-model", text_segments=["unused"]))
     request = _request()

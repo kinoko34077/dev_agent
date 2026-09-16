@@ -24,7 +24,7 @@ if str(ROOT) not in sys.path:
 from scripts.devfarm_resource_pool import admit_resource_pool, compose_resource_pool
 from src.dev_agent.domain.protocol import ModelResponse
 from src.dev_agent.operation import OperationProviderBinding, configured_provider_pool_from_environment
-from src.dev_agent.providers.base import ModelProvider, ProviderError
+from src.dev_agent.providers.base import ModelProvider, ProviderError, transport_failure_metadata
 from src.dev_agent.providers.host_dispatch import (
     HostDispatchEnvelope,
     HostProcessExecutor,
@@ -151,8 +151,9 @@ def _dispatch_configured(envelope: HostDispatchEnvelope) -> ModelResponse:
         try:
             response = dispatch.request(envelope.request)
         except ProviderError as exc:
-            if dispatch.last_transport_category is not None:
-                setattr(exc, "transport_failure_category", dispatch.last_transport_category.value)
+            if dispatch.last_transport_diagnostics is not None:
+                for key, value in dispatch.last_transport_diagnostics.items():
+                    setattr(exc, key, value)
             raise
     if response.provider != envelope.provider_id or response.model != envelope.model_id:
         raise HostDispatchRuntimeError("Host dispatch response identity mismatch")
@@ -195,6 +196,8 @@ def process_once(
         preserved = getattr(exc, "transport_failure_category", None)
         if isinstance(preserved, str):
             result["transport_failure_category"] = preserved
+        if exc.category == "transport" or isinstance(preserved, str):
+            result.update(transport_failure_metadata(exc))
     except DispatchDenied as exc:
         # Resource admission and routing denials happen before the concrete
         # Provider is entered. Preserve that local, confirmed failure instead

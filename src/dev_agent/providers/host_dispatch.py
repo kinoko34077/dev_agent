@@ -20,7 +20,14 @@ from uuid import uuid4
 
 from ..domain.protocol import ModelRequest, ModelResponse
 from ..resources.provider_policy import validate_provider_instance_authority
-from .base import ModelProvider, ProviderError, TransportFailureCategory, classify_transport_failure
+from .base import (
+    ModelProvider,
+    ProviderError,
+    TransportFailureCategory,
+    TransportStage,
+    annotate_transport_failure,
+    project_transport_failure,
+)
 
 
 _EXECUTION_BOUNDARIES = frozenset(
@@ -138,6 +145,7 @@ class HostProviderDispatch:
         self._executor = executor
         self.execution_boundary = execution_boundary
         self.last_transport_category: TransportFailureCategory | None = None
+        self.last_transport_diagnostics: dict[str, str | int | None] | None = None
 
     @property
     def provider_identity(self) -> dict[str, str | None]:
@@ -159,6 +167,7 @@ class HostProviderDispatch:
         if not isinstance(request, ModelRequest):
             raise TypeError("request must be a ModelRequest")
         self.last_transport_category = None
+        self.last_transport_diagnostics = None
         try:
             response = (
                 self._executor(self._provider, request)
@@ -174,20 +183,14 @@ class HostProviderDispatch:
             if preserved is None and exc.category not in {"transport"}:
                 self.last_transport_category = None
                 raise
-            try:
-                self.last_transport_category = (
-                    TransportFailureCategory(preserved)
-                    if isinstance(preserved, str)
-                    else classify_transport_failure(
-                        exc,
-                        execution_boundary=None if self.execution_boundary == "unclassified" else self.execution_boundary,
-                    )
-                )
-            except ValueError:
-                self.last_transport_category = classify_transport_failure(
-                    exc,
-                    execution_boundary=None if self.execution_boundary == "unclassified" else self.execution_boundary,
-                )
+            annotate_transport_failure(
+                exc,
+                execution_boundary=None if self.execution_boundary == "unclassified" else self.execution_boundary,
+            )
+            self.last_transport_diagnostics = project_transport_failure(exc)
+            self.last_transport_category = TransportFailureCategory(
+                self.last_transport_diagnostics["transport_failure_category"]
+            )
             raise
         if not isinstance(response, ModelResponse):
             raise TypeError("provider must return ModelResponse")
@@ -371,6 +374,21 @@ class HostProcessExecutor:
                         pass
                     else:
                         setattr(failure, "transport_failure_category", preserved)
+                transport_stage = response_payload.get("transport_stage")
+                if isinstance(transport_stage, str):
+                    try:
+                        TransportStage(transport_stage)
+                    except ValueError:
+                        pass
+                    else:
+                        setattr(failure, "transport_stage", transport_stage)
+                transport_type = response_payload.get("transport_exception_type")
+                if isinstance(transport_type, str) and _SAFE_DIAGNOSTIC_TYPE.fullmatch(transport_type):
+                    setattr(failure, "transport_exception_type", transport_type)
+                for field in ("transport_errno", "transport_winerror"):
+                    value = response_payload.get(field)
+                    if isinstance(value, int) and not isinstance(value, bool) and -(2**31) <= value <= 2**31 - 1:
+                        setattr(failure, field, value)
                 raise failure
             response = response_payload.get("response")
             if not isinstance(response, dict):

@@ -67,3 +67,27 @@ def test_safe_host_failure_metadata_drops_untrusted_child_values() -> None:
         host_failure_type = "RuntimeError\nraw child output"
 
     assert safe_host_failure_metadata(Error()) == {}
+
+
+def test_safe_host_failure_metadata_keeps_transport_projection_without_message() -> None:
+    class Error(Exception):
+        host_failure_category = "transport"
+        host_failure_type = "RuntimeError"
+        transport_failure_category = "connection_reset"
+        transport_stage = "response_wait"
+        transport_exception_type = "ConnectionResetError"
+        transport_errno = 104
+        transport_winerror = 10054
+
+    metadata = safe_host_failure_metadata(Error("raw transport detail must not cross"))
+
+    assert metadata == {
+        "host_failure_category": "transport",
+        "host_failure_type": "RuntimeError",
+        "transport_failure_category": "connection_reset",
+        "transport_stage": "response_wait",
+        "transport_exception_type": "ConnectionResetError",
+        "transport_errno": 104,
+        "transport_winerror": 10054,
+    }
+    assert "raw transport detail" not in str(metadata)

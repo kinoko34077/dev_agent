@@ -9,7 +9,7 @@ from typing import Any
 
 from scripts.devfarm_errors import DevFarmError
 from src.dev_agent.domain.protocol import ModelRequest
-from src.dev_agent.providers.base import ModelProvider
+from src.dev_agent.providers.base import ModelProvider, transport_failure_metadata
 
 
 _MODEL_STATUS_ALIASES = {
@@ -72,7 +72,7 @@ _HOST_FAILURE_CATEGORIES = frozenset(
 )
 
 
-def safe_host_failure_metadata(error: BaseException) -> dict[str, str]:
+def safe_host_failure_metadata(error: BaseException) -> dict[str, str | int]:
     """Project only bounded child-runtime diagnostics into Worker metrics."""
 
     metadata: dict[str, str] = {}
@@ -86,6 +86,7 @@ def safe_host_failure_metadata(error: BaseException) -> dict[str, str]:
         and all(part.isidentifier() for part in diagnostic_type.split("."))
     ):
         metadata["host_failure_type"] = diagnostic_type
+    metadata.update(transport_failure_metadata(error))
     return metadata
 
 

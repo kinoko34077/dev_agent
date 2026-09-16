@@ -30,7 +30,7 @@ from src.dev_agent.domain.protocol import RiskLevel, Task, TaskStatus, TaskType
 from src.dev_agent.intelligence.planner import RootPlanningValidator
 from src.dev_agent.intelligence.planner_adapter import ModelPlanningAdapter
 from src.dev_agent.operation import OperationProviderBinding
-from src.dev_agent.providers.base import ProviderError
+from src.dev_agent.providers.base import ProviderError, transport_failure_metadata
 from src.dev_agent.providers.dispatch import ProviderPoolExhausted
 from src.dev_agent.providers.host_dispatch import route_through_host
 from src.dev_agent.resources.billing_catalog import profile_for
@@ -441,6 +441,7 @@ def main(argv: list[str] | None = None) -> int:
         transport_failure_category = getattr(exc, "transport_failure_category", None)
         if isinstance(transport_failure_category, str):
             output["transport_failure_category"] = transport_failure_category
+        output.update(transport_failure_metadata(exc))
         code = 2
     except Exception as exc:
         output = {"status": "failed", "category": type(exc).__name__, "message": str(exc)}

@@ -6,7 +6,7 @@ from collections.abc import Callable, Mapping
 from typing import Any
 
 from ...domain.protocol import ModelRequest, ModelResponse
-from ..base import ModelProvider, ProviderError
+from ..base import ModelProvider, ProviderError, annotate_transport_failure
 from ..normalize import normalize_response
 
 
@@ -23,5 +23,6 @@ class OpenAICompatibleProvider(ModelProvider):
         except ProviderError:
             raise
         except Exception as exc:
-            raise ProviderError(f"openai-compatible transport failed: {exc}", category="transport", retryable=True) from exc
+            failure = ProviderError(f"openai-compatible transport failed: {exc}", category="transport", retryable=True)
+            raise annotate_transport_failure(failure, cause=exc) from exc
         return normalize_response(raw, provider=self.provider_id, default_model=self.model)

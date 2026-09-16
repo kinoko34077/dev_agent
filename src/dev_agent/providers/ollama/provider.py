@@ -7,7 +7,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request
 
 from ...domain.protocol import ModelRequest, ModelResponse, ToolCall
-from ..base import ModelProvider, ProviderError
+from ..base import ModelProvider, ProviderError, TransportStage, annotate_transport_failure
 from ..openai_compatible.http import REDIRECT_STATUS_CODES, _read_bounded, urlopen_no_redirect
 
 
@@ -37,8 +37,10 @@ class OllamaProvider(ModelProvider):
     def request(self, request: ModelRequest) -> ModelResponse:
         body = json.dumps(self._payload(request), ensure_ascii=False).encode("utf-8")
         http_request = Request(f"{self.base_url}/api/chat", data=body, headers={"Content-Type": "application/json"}, method="POST")
+        transport_stage = TransportStage.RESPONSE_WAIT
         try:
             with urlopen_no_redirect(http_request, timeout=self.timeout_seconds) as response:
+                transport_stage = TransportStage.RESPONSE_READ
                 raw = json.loads(_read_bounded(response).decode("utf-8"))
         except HTTPError as exc:
             if exc.code in REDIRECT_STATUS_CODES:
@@ -51,8 +53,11 @@ class OllamaProvider(ModelProvider):
                     http_status=exc.code,
                 ) from exc
             raise ProviderError(f"ollama transport failed: HTTP {exc.code}", category="transport", retryable=True) from exc
-        except (URLError, OSError, json.JSONDecodeError) as exc:
-            raise ProviderError(f"ollama transport failed: {exc}", category="transport", retryable=True) from exc
+        except (URLError, OSError) as exc:
+            failure = ProviderError(f"ollama transport failed: {exc}", category="transport", retryable=True)
+            raise annotate_transport_failure(failure, stage=transport_stage, cause=exc) from exc
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ProviderError("ollama response decode failed", category="provider_decode", retryable=False) from exc
         try:
             message = raw["message"]
             calls = []

@@ -1,11 +1,12 @@
 import json
 from io import BytesIO
-from urllib.error import HTTPError
+import socket
+from urllib.error import HTTPError, URLError
 
 import pytest
 
 from src.dev_agent.domain.protocol import ModelRequest
-from src.dev_agent.providers.base import ProviderError
+from src.dev_agent.providers.base import ProviderError, TransportFailureCategory, TransportStage
 from src.dev_agent.providers.groq import GroqHttpProvider
 from src.dev_agent.providers.openai_compatible import OpenAICompatibleHttpProvider
 from src.dev_agent.providers.ollama_cloud import OllamaCloudHttpProvider
@@ -113,6 +114,44 @@ def test_openai_compatible_http_error_detail_is_safe_for_provider_secrets():
     assert "invalid api key" in str(exc.value)
     assert "sk-secret-value" not in str(exc.value)
     assert "[REDACTED]" in str(exc.value)
+
+
+def test_openai_compatible_http_projects_dns_failure_without_raw_exception_text():
+    def fake_urlopen(_request, timeout):
+        assert timeout == 4.0
+        raise URLError(socket.gaierror(-2, "private resolver detail"))
+
+    provider = _TestProvider(model="compatible-model", api_key="secret", timeout_seconds=4, http_open=fake_urlopen)
+
+    with pytest.raises(ProviderError) as exc:
+        provider.request(ModelRequest(task_id="00000000-0000-0000-0000-000000000001", messages=[{"role": "user", "content": "hello"}]))
+
+    assert getattr(exc.value, "transport_failure_category") == TransportFailureCategory.DNS_FAILURE.value
+    assert getattr(exc.value, "transport_stage") == TransportStage.RESOLVE.value
+    assert getattr(exc.value, "transport_exception_type") == "gaierror"
+    assert "private resolver detail" not in str({key: getattr(exc.value, key, None) for key in ("transport_failure_category", "transport_stage", "transport_exception_type", "transport_errno", "transport_winerror")})
+    assert exc.value.failover_safe is False
+    assert exc.value.requires_reconciliation is True
+
+
+def test_openai_compatible_http_projects_response_read_timeout():
+    class _TimeoutResponse(_Response):
+        def read(self, _n: int = -1) -> bytes:
+            raise socket.timeout("private timeout detail")
+
+    def fake_urlopen(_request, timeout):
+        assert timeout == 4.0
+        return _TimeoutResponse({})
+
+    provider = _TestProvider(model="compatible-model", api_key="secret", timeout_seconds=4, http_open=fake_urlopen)
+
+    with pytest.raises(ProviderError) as exc:
+        provider.request(ModelRequest(task_id="00000000-0000-0000-0000-000000000001", messages=[{"role": "user", "content": "hello"}]))
+
+    assert getattr(exc.value, "transport_failure_category") == TransportFailureCategory.READ_TIMEOUT.value
+    assert getattr(exc.value, "transport_stage") == TransportStage.RESPONSE_READ.value
+    assert getattr(exc.value, "transport_exception_type") == "TimeoutError"
+    assert exc.value.requires_reconciliation is True
 
 
 def test_openai_compatible_http_provider_can_probe_models_without_chat_dispatch():

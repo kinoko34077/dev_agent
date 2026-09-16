@@ -16,7 +16,7 @@ from urllib.parse import quote
 from urllib.request import Request
 
 from ...domain.protocol import ModelRequest, ModelResponse, ProtocolError, ToolCall
-from ..base import ModelProvider, ProviderError
+from ..base import ModelProvider, ProviderError, TransportStage, annotate_transport_failure
 from ..openai_compatible import OpenAICompatibleProvider
 from ..openai_compatible.http import REDIRECT_STATUS_CODES, _read_bounded, urlopen_no_redirect
 
@@ -187,8 +187,10 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_token}"},
             method="POST",
         )
+        transport_stage = TransportStage.RESPONSE_WAIT
         try:
             with urlopen_no_redirect(http_request, timeout=self.timeout_seconds) as response:
+                transport_stage = TransportStage.RESPONSE_READ
                 raw = json.loads(_read_bounded(response).decode("utf-8"))
         except HTTPError as exc:
             if exc.code in REDIRECT_STATUS_CODES:
@@ -203,7 +205,8 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
             category = "authentication" if exc.code == 401 else "authorization" if exc.code == 403 else "rate_limit" if exc.code == 429 else "provider_http"
             raise ProviderError(f"cloudflare {category}: HTTP {exc.code}", category=category, retryable=category == "rate_limit", http_status=exc.code) from exc
         except (URLError, OSError) as exc:
-            raise ProviderError(f"cloudflare transport failed: {exc}", category="transport", retryable=True) from exc
+            failure = ProviderError(f"cloudflare transport failed: {exc}", category="transport", retryable=True)
+            raise annotate_transport_failure(failure, stage=transport_stage, cause=exc) from exc
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise ProviderError("cloudflare response decode failed", category="provider_decode", retryable=False) from exc
         return self._decode(raw, request, self.model)

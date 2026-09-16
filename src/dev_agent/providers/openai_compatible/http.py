@@ -11,7 +11,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 from ...domain.protocol import ModelRequest, ModelResponse, ProtocolError, ToolCall
-from ..base import ModelProvider, ProviderError
+from ..base import ModelProvider, ProviderError, TransportStage, annotate_transport_failure
 
 # Hard upper bound on raw HTTP response bytes from any provider.  This prevents
 # a malicious or malfunctioning endpoint from causing a memory DoS by returning
@@ -131,8 +131,10 @@ class OpenAICompatibleHttpTransport:
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
             method=method,
         )
+        transport_stage = TransportStage.RESPONSE_WAIT
         try:
             with self._opener(request, timeout=timeout_seconds) as response:
+                transport_stage = TransportStage.RESPONSE_READ
                 raw = json.loads(_read_bounded(response).decode("utf-8"))
                 return raw, response.headers
         except HTTPError as exc:
@@ -155,7 +157,8 @@ class OpenAICompatibleHttpTransport:
                 http_status=exc.code,
             ) from exc
         except (URLError, OSError) as exc:
-            raise ProviderError(f"{provider_id} transport failed: {exc}", category="transport", retryable=True) from exc
+            failure = ProviderError(f"{provider_id} transport failed: {exc}", category="transport", retryable=True)
+            raise annotate_transport_failure(failure, stage=transport_stage, cause=exc) from exc
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise ProviderError(f"{provider_id} response decode failed", category="provider_decode", retryable=False) from exc
 
