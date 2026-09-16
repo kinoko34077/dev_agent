@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-09-16",
+  "status": "VERIFIED_PRODUCTION_WORKER_SUBGATE",
+  "scope": "Phase 8 live production Worker implementation subgate",
+  "implementation_baseline": "b67bfb15f7b95114573f87cc41f6d092b3f9afa5",
+  "live_worker_runs": [
+    {
+      "run_id": "phase8-live-multirole-r11-20260916",
+      "base_revision": "9a1d1bc604497bfc5d8a1bad72a259a6c56bf30a",
+      "provider": "gemini",
+      "provider_binding": "gemini:worker:free-3",
+      "model": "gemini-3.5-flash-lite",
+      "parallel_worker_dispatch_count": 2,
+      "provider_success_count": 2,
+      "codex_direct_implementation_count": 0,
+      "integrated_task": {
+        "task_id": "phase8-live-model-candidates-r11-20260916",
+        "attempt_id": "962164dce2f143c8ab86f277b4c059fa",
+        "changed_paths": [
+          "src/dev_agent/resources/model_candidates.py"
+        ],
+        "patch_sha256": "b0509281f34101c374386ce3d570225c25b336c8b82fcb7fadefd96c76324009",
+        "verification_ref": ".devfarm/results/phase8-live-model-candidates-r11-20260916/attempts/962164dce2f143c8ab86f277b4c059fa/verification/78987dd687284cafb6368522ef115305.json",
+        "review_decision_id": "review-061557966df2410ab6dbf456276347d5",
+        "review_decision": "APPROVE_INTEGRATION",
+        "integration_revision": "a77ccca5f22af454398c30815a59304db75cdb20"
+      },
+      "sibling_outcome": "bounded_rework_required_in_separate_follow_up_plan"
+    },
+    {
+      "run_id": "phase8-live-provider-normalize-r17-20260916",
+      "base_revision": "a77ccca5f22af454398c30815a59304db75cdb20",
+      "provider": "gemini",
+      "provider_binding": "gemini:worker:free-3",
+      "model": "gemini-3.5-flash-lite",
+      "task_id": "phase8-live-provider-normalize-r17-20260916",
+      "attempt_id": "95e87756b5b04ee386e86324b92ac538",
+      "changed_paths": [
+        "src/dev_agent/providers/normalize.py"
+      ],
+      "patch_sha256": "3336ee2977cccf6cc3af7943a784f939a068b1bc55243beb2403d00d282ceff3",
+      "verification_ref": ".devfarm/results/phase8-live-provider-normalize-r17-20260916/attempts/95e87756b5b04ee386e86324b92ac538/verification/06b2b92cc4294821b4e08589efd04660.json",
+      "review_decision_id": "review-d9f4a8fec8c540ae9732cbf064509cc8",
+      "review_decision": "APPROVE_INTEGRATION",
+      "integration_revision": "b67bfb15f7b95114573f87cc41f6d092b3f9afa5",
+      "codex_direct_implementation_count": 0
+    }
+  ],
+  "bounded_rework": {
+    "phase8-live-provider-normalize-r12-20260916": "REWORK",
+    "phase8-live-provider-normalize-r13-20260916": "REWORK",
+    "phase8-live-provider-normalize-r14-20260916": "REWORK",
+    "phase8-live-provider-normalize-r15-20260916": "HOST_VERIFICATION_PATCH_FORMAT_FAILURE",
+    "phase8-live-provider-normalize-r16-20260916": "REWORK",
+    "phase8-live-provider-normalize-r17-20260916": "APPROVE_INTEGRATION"
+  },
+  "worker_summary": {
+    "production_tasks_integrated": 2,
+    "codex_direct_implementation_count": 0,
+    "parallel_live_worker_tasks_in_r11": 2,
+    "raw_prompts_saved": false,
+    "raw_provider_responses_saved": false,
+    "secrets_saved": false
+  },
+  "verification": {
+    "focused_tests": "46 passed",
+    "full_tests_v2": "1373 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head_ci": {
+      "head": "b67bfb15f7b95114573f87cc41f6d092b3f9afa5",
+      "v2_core": {
+        "run_id": 35048817328,
+        "conclusion": "success"
+      },
+      "v2_provider_smoke": {
+        "run_id": 35048817331,
+        "conclusion": "success"
+      }
+    }
+  },
+  "gate_interpretation": {
+    "production_worker_subgate": "VERIFIED",
+    "phase8_stage5_live_multirole_activation": "NOT_VERIFIED",
+    "reason": "Two production Worker changes were integrated, but no single complete live Planner-to-two-Implementers-to-Reviewer-to-dependent-continuation evidence exists.",
+    "d9_real_mutation": "NOT_READY",
+    "os_guardian": "DEFERRED_NOT_READY"
+  }
+}
