@@ -1,0 +1,81 @@
+{
+  "evidence_id": "phase8-multirole-egress-preflight-r7-20260916",
+  "observed_at": "2026-09-16T01:36:56.3243282Z",
+  "status": "EGRESS_PREFLIGHT_ALLOW_EXTERNAL_NOT_EXECUTED",
+  "scope": "Phase 8 Stage 5 r7 exact outbound manifest preflight",
+  "run_id": "phase8-live-multirole-r7-20260916",
+  "base_revision": "243b1b0689dc26761bb5c1fed44013e0350be6a0",
+  "destination": {
+    "provider": "gemini",
+    "binding": "gemini:worker:free-3",
+    "model": "gemini-3.5-flash-lite",
+    "qualification": "existing qualified no-charge L1 Worker lane"
+  },
+  "tasks": [
+    {
+      "task_id": "phase8-live-provider-normalize-r7-20260916",
+      "decision": "ALLOW",
+      "manifest_sha256": "10b06f1f316b9b28fae6b501dbf16c254d24dd7a37c02f0fcede8736ac391e3d",
+      "files": [
+        {
+          "path": "src/dev_agent/providers/normalize.py",
+          "size_bytes": 1354,
+          "sha256": "ca22eb6e73c935cb44a88b0017ffcf02189b0e81ead8fe6d134eb86ab47b7a13",
+          "path_class": "NORMAL_REPO",
+          "sensitivity": "normal",
+          "secret_scan": "clean"
+        },
+        {
+          "path": "src/dev_agent/providers/base.py",
+          "size_bytes": 5564,
+          "sha256": "37aa004dc5fbc50ec0edaf70135f4a2bccd98a35bc26867a17a5dc7c94ea7e99",
+          "path_class": "NORMAL_REPO",
+          "sensitivity": "normal",
+          "secret_scan": "clean"
+        }
+      ]
+    },
+    {
+      "task_id": "phase8-live-model-candidates-r7-20260916",
+      "decision": "ALLOW",
+      "manifest_sha256": "cf9e9ebf8e3f9a4f0ecb9e00d925e87d4a28854b843c53a357db960c66da15",
+      "files": [
+        {
+          "path": "src/dev_agent/resources/model_candidates.py",
+          "size_bytes": 3361,
+          "sha256": "a108ff31b00be70c5a1571bc6422c8367f396d1afb7f74d7d47df0322dd09d21",
+          "path_class": "NORMAL_REPO",
+          "sensitivity": "normal",
+          "secret_scan": "clean"
+        },
+        {
+          "path": "src/dev_agent/resources/model_catalog.py",
+          "size_bytes": 13124,
+          "sha256": "a5c3f333cf1b8097855b65fa1477ac1668c319176dd5f0864fd95441b60edfc1",
+          "path_class": "NORMAL_REPO",
+          "sensitivity": "normal",
+          "secret_scan": "clean"
+        },
+        {
+          "path": "tests/v2/test_model_catalog_expansion.py",
+          "size_bytes": 19761,
+          "sha256": "e46e1d9f6a7911995464297f9db939a0e076f6c27f1805edffee31ede554b8c7",
+          "path_class": "NORMAL_REPO",
+          "sensitivity": "normal",
+          "secret_scan": "clean"
+        }
+      ]
+    }
+  ],
+  "provider_request_sent": false,
+  "unknown_external_effect": false,
+  "credentials_recorded": false,
+  "raw_source_recorded": false,
+  "execution": "NOT_ATTEMPTED_AFTER_EXTERNAL_EGRESS_AUTHORIZATION_REJECTION",
+  "guardrails": [
+    "Host EgressManifest returned ALLOW for both exact payloads",
+    "No protected path, credential, token, raw source, or provider response was stored",
+    "No Provider request was sent and no UNKNOWN effect was created",
+    "The existing r7 Commander plan remains READY and is not replayed or widened"
+  ]
+}
