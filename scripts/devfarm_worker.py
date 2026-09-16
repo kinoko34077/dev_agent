@@ -165,6 +165,24 @@ def _workspace(root: Path, manifest: Mapping[str, Any]) -> Path:
     return workspace
 
 
+def _reset_failed_verification_workspace(workspace: Path) -> None:
+    """Return a failed verification worktree to its pinned base state.
+
+    Verification worktrees are disposable and may be reused by a bounded
+    rework attempt.  A failed test must not leave the applied proposal or
+    generated files looking like operator changes on the next attempt.
+    """
+
+    reset = _git_process(workspace, "reset", "--hard", "HEAD")
+    if reset.returncode != 0:
+        detail = reset.stderr.strip() or reset.stdout.strip() or "unknown Git reset error"
+        raise DevFarmError(f"failed verification worktree cleanup: {detail}")
+    cleaned = _git_process(workspace, "clean", "-fd", "--")
+    if cleaned.returncode != 0:
+        detail = cleaned.stderr.strip() or cleaned.stdout.strip() or "unknown Git clean error"
+        raise DevFarmError(f"failed verification worktree cleanup: {detail}")
+
+
 def _proposal_workspace(root: Path, manifest: Mapping[str, Any]) -> Path:
     """Return the read-only proposal source without requiring a worktree.
 
@@ -713,6 +731,8 @@ def apply_and_verify(
             )
 
     tests_passed = bool(verified) and all(item["passed"] for item in verified)
+    if trust_level == "TRUSTED_HOST_EXEC" and not tests_passed:
+        _reset_failed_verification_workspace(workspace)
     result["tests_run"] = list(manifest["test_commands"])
     result["tests_passed"] = tests_passed
     result["host_verified_tests"] = verified

@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+from scripts import devfarm_worker
 from scripts.devfarm import DevFarmError, validate_manifest
 from scripts.devfarm_worker import (
     DevFarmActivationPolicy,
@@ -299,6 +300,52 @@ def test_host_verification_rejects_dirty_existing_worktree(tmp_path):
     (workspace / "untracked.txt").write_text("dirty\n", encoding="utf-8")
     with pytest.raises(DevFarmError, match="dirty"):
         apply_and_verify(root, manifest_path)
+
+
+def test_failed_host_verification_cleans_worktree_for_bounded_reuse(tmp_path, monkeypatch):
+    root, manifest_path = _workspace(tmp_path, prepare=False)
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": False,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": _patch(),
+        "notes": "proposal ready",
+    }
+    run_worker(root, manifest_path, provider=_WorkerProvider(output))
+
+    original_run = devfarm_worker.HostVerificationRunner.run
+    calls = 0
+
+    def fail_once(self, *args, **kwargs):
+        nonlocal calls
+        calls += 1
+        result = original_run(self, *args, **kwargs)
+        if calls == 1:
+            result["returncode"] = 1
+            result["stderr"] = "bounded test failure"
+        return result
+
+    monkeypatch.setattr(devfarm_worker.HostVerificationRunner, "run", fail_once)
+
+    first = apply_and_verify(root, manifest_path, trust_level="TRUSTED_HOST_EXEC", operator_approved=True)
+    assert first["status"] == "failed"
+
+    workspace = root / ".devfarm/worktrees/worker-test-001"
+    assert subprocess.run(
+        ["git", "-c", f"safe.directory={workspace.as_posix()}", "status", "--porcelain"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout == ""
+
+    run_worker(root, manifest_path, provider=_WorkerProvider(output))
+    second = apply_and_verify(root, manifest_path, trust_level="TRUSTED_HOST_EXEC", operator_approved=True)
+    assert second["status"] == "completed"
+    assert second["tests_passed"] is True
 
 
 def test_worker_reads_only_approved_outbound_files_and_rejects_symlink_escape(tmp_path):
