@@ -9,6 +9,26 @@ from ..domain.protocol import ModelResponse, ProtocolError, ToolCall
 from .base import ProviderError
 
 
+def _is_safe_diagnostic_scalar(val: Any) -> bool:
+    if isinstance(val, bool):
+        return False
+    if isinstance(val, int):
+        return -1000000 <= val <= 1000000
+    if isinstance(val, str):
+        if not val or len(val) > 64:
+            return False
+        for char in val:
+            code = ord(char)
+            is_upper = 65 <= code <= 90
+            is_lower = 97 <= code <= 122
+            is_digit = 48 <= code <= 57
+            is_allowed_symbol = char in ('_', '.', ':', '-')
+            if not (is_upper or is_lower or is_digit or is_allowed_symbol):
+                return False
+        return True
+    return False
+
+
 def normalize_response(raw: ModelResponse | Mapping[str, Any], *, provider: str, default_model: str) -> ModelResponse:
     if isinstance(raw, ModelResponse):
         return raw
@@ -17,8 +37,22 @@ def normalize_response(raw: ModelResponse | Mapping[str, Any], *, provider: str,
     values = dict(raw)
     values.setdefault("provider", provider)
     values.setdefault("model", default_model)
-    if values.get("raw_error"):
-        raise ProviderError(f"provider raw response error: {values['raw_error']}")
+    raw_error = values.get("raw_error")
+    if raw_error:
+        diagnostic = None
+        if isinstance(raw_error, Mapping):
+            for key in ("status", "code", "http_status"):
+                candidate = raw_error.get(key)
+                if candidate is not None and _is_safe_diagnostic_scalar(candidate):
+                    diagnostic = str(candidate)
+                    break
+            if diagnostic is None:
+                diagnostic = "structured_error"
+        elif _is_safe_diagnostic_scalar(raw_error):
+            diagnostic = str(raw_error)
+        else:
+            diagnostic = "structured_error"
+        raise ProviderError(f"provider raw response error: {diagnostic}")
     try:
         values["tool_calls"] = [item.to_dict() if isinstance(item, ToolCall) else item for item in values.get("tool_calls", [])]
         response = ModelResponse.from_dict(values)
