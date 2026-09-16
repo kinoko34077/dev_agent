@@ -498,6 +498,37 @@ def test_worker_materializes_line_array_file_replacement_into_host_generated_pat
     assert proposed["worker_metrics"]["file_replacement_encoding"] == "lines"
 
 
+def test_worker_line_array_replacement_canonicalizes_terminal_blank_line(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": True,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": "",
+        "file_replacements": {
+            "tests/v2/test_target.py": [
+                "def test_target():",
+                "    assert True",
+                "    return None",
+                "",
+            ]
+        },
+        "notes": "line-array replacement with model-added terminal blank line",
+    }
+
+    proposed = run_worker(root, manifest_path, provider=_WorkerProvider(output))
+
+    assert proposed["status"] == "completed"
+    verified = _trusted_apply(root, manifest_path)
+
+    assert verified["status"] == "completed"
+    assert verified["tests_passed"] is True
+    assert verified["worker_metrics"]["result_accepted"] is True
+
+
 def test_worker_rejects_file_replacement_outside_outbound_scope(tmp_path):
     root, manifest_path = _workspace(tmp_path)
     output = {

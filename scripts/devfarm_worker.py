@@ -330,6 +330,13 @@ def _materialize_file_replacements(
                 raise DevFarmError(f"file replacement lines must be strings: {normalized_path}")
             if any("\r" in line or "\n" in line for line in replacement):
                 raise DevFarmError(f"file replacement lines must not contain newlines: {normalized_path}")
+            # Models commonly serialize the final newline as an extra empty
+            # line.  Canonicalize that transport artifact before generating a
+            # patch; git's whitespace=error must still reject real blank
+            # lines before EOF, but a single final newline is always valid.
+            replacement = list(replacement)
+            while replacement and replacement[-1] == "":
+                replacement.pop()
             replacement = "\n".join(replacement)
             if replacement:
                 replacement += "\n"
