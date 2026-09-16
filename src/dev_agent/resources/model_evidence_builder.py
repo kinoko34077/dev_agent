@@ -124,7 +124,7 @@ def build_capability_document(
 def _timestamp(value: str) -> datetime:
     parsed = datetime.fromisoformat(value)
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+        raise ModelCatalogError(f"timestamp must be timezone-aware: {value!r}")
     return parsed.astimezone(timezone.utc)
 
 
