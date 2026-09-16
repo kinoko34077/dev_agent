@@ -59,6 +59,8 @@ def diagnose_entries(
         elif result == "ELIGIBLE" and qualification is None:
             result = "QUALIFICATION_MISSING"
         elif result == "ELIGIBLE":
+            result = "RUNTIME_UNKNOWN"
+        elif result == "ELIGIBLE":
             result = "ELIGIBLE"
         row = diagnostic.to_dict()
         gate_reason = None
@@ -73,6 +75,8 @@ def diagnose_entries(
                 gate_reason = "billing_missing"
             elif qualification is None or row.get("qualification") == "MISSING":
                 gate_reason = "qualification_missing"
+            elif result == "RUNTIME_UNKNOWN":
+                gate_reason = "runtime_unknown"
             else:
                 gate_reason = str(result).lower()
         row.update(

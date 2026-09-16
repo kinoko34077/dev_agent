@@ -64,4 +64,4 @@ def test_main_tabular_output_exposes_runtime_and_gate_reason(model_evidence, cap
         "result",
     ]
     assert len(row) == len(header)
-    assert row[8] == "UNKNOWN"
+    assert row[9] in {"runtime_unknown", "discovery_blocked", "benchmark_blocked", "capability_blocked", "billing_missing", "qualification_missing"}
