@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "evidence_id": "phase8-planner-redacted-model-output-20260917",
+  "evidence_kind": "phase_a_redacted_l2_planner_probe",
+  "recorded_at": "2026-09-16T22:03:02.7697551Z",
+  "implementation_baseline": "b3630a2c910cdd1d420d6e9e4025c3720bc16e5d",
+  "request": {
+    "objective_class": "generic_public_python_maintenance",
+    "repository_context": "redacted",
+    "branch_context": "redacted",
+    "configured_pool": true,
+    "expand_discovered_models": true,
+    "execution_boundary": "host_process",
+    "required_intelligence_tier": "L2",
+    "no_charge_required": true,
+    "cost_ceiling": 0.0,
+    "allow_unknown_quota": true,
+    "max_output_tokens": 512,
+    "source_files": []
+  },
+  "result": {
+    "status": "failed",
+    "category": "model_output_invalid",
+    "adapter_error_observed_before_normalization": "PlanningAdapterError",
+    "response_contract": "invalid_json",
+    "provider_response_observed": true,
+    "proposal": "not_returned",
+    "host_validation": "not_run",
+    "reconciliation_required": false,
+    "provider_identity": "not retained by the redacted bounded projection",
+    "request_identity": "not retained by the pre-fix CLI invocation"
+  },
+  "safety": {
+    "same_request_retry": false,
+    "same_binding_retry": false,
+    "unknown_effect_replay": false,
+    "automatic_failover": false,
+    "l1_downgrade": false,
+    "raw_provider_response_recorded": false,
+    "raw_exception_recorded": false,
+    "credential_recorded": false,
+    "source_payload_recorded": false
+  },
+  "interpretation": "The redacted Host-process probe reached a qualified L2 provider response boundary, but the returned planning payload was not valid JSON. This is a model-output contract failure, not the earlier transport UNKNOWN observation. The request was proposal-only and ended before Host validation. The CLI normalization fix in b3630a2 makes this category explicit for subsequent bounded observations; it does not authorize replay or change routing policy.",
+  "gate_impact": {
+    "d9_dogfood": "unchanged_verified",
+    "phase8_live_activation": "not_verified",
+    "ar1_live_recovery": "not_demonstrated"
+  }
+}
