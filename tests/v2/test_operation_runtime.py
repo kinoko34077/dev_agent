@@ -75,6 +75,32 @@ def test_runtime_coordinator_serve_is_bounded_and_idle_light(tmp_path):
     assert result["last_task_id"] is None
 
 
+def test_runtime_coordinator_wakes_for_task_submitted_during_idle(tmp_path):
+    config = _config(tmp_path)
+    submitted = []
+    sleeps = []
+
+    def wait_for_next_cycle(delay):
+        sleeps.append(delay)
+        if not submitted:
+            submitted.append(
+                OperationService.submit(
+                    config,
+                    "run a durable task submitted while the coordinator is idle",
+                )
+            )
+
+    with RuntimeCoordinator.open(config, revision="test-revision", instance_id="runtime-1") as runtime:
+        result = runtime.serve(max_cycles=2, wait_fn=wait_for_next_cycle)
+
+    assert len(submitted) == 1
+    assert result["status"] == "CYCLE_LIMIT"
+    assert result["cycles"] == 2
+    assert result["last_task_id"] == submitted[0].task_id
+    assert sleeps == [0.01]
+    assert OperationService.read_status(config, submitted[0].task_id)["state"] == TaskStatus.COMPLETED.value
+
+
 def test_runtime_coordinator_restart_preserves_durable_waiting_state(tmp_path):
     from src.dev_agent.domain.protocol import Task
     from src.dev_agent.scheduler.queue import DurableQueue
