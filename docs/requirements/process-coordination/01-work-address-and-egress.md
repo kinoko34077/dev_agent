@@ -42,6 +42,10 @@
 - Egress metadata is bounded and secret-free. Provider/transport/policy/content
   failures remain distinguishable, and UNKNOWN external effects are reconciled
   rather than blindly retried.
+- Provider transport diagnostics may project only a finite category, last-known
+  stage, exception type, errno, and winerror. Diagnostic refinement never
+  changes retry, failover, or UNKNOWN/reconciliation authority, and raw
+  exception text and response bodies remain outside the projection.
 
 This requirement extends the existing Commander/Coordination and DevFarm
 boundaries; it does not create a second scheduler, approval system, retry engine,

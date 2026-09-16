@@ -5,14 +5,14 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Latest implementation baseline before this documentation sync | `cf31fa0233c58b9f71df0e3df8ead997586a61b7` (`test: stabilize coordination lease fixtures`) |
-| Latest evidence baseline before this documentation sync | `63ae668a556a7e8c42c88fce7a8acb89046649a0` (`evidence: record conservative planner admission block`) |
-| Implementation/evidence baseline | `cf31fa0233c58b9f71df0e3df8ead997586a61b7` (latest verified implementation/evidence before this documentation sync) |
+| Latest implementation baseline before this documentation sync | `c39287e2d0d8f00be807521f82cb6ca22fcfc7ff` (`feat: add bounded transport diagnostics`) |
+| Latest evidence baseline before this documentation sync | `a3ddef078c4c496cb2375270609f2f81016f67a5` (`evidence: record transport diagnostic taxonomy`) |
+| Implementation/evidence baseline | implementation `c39287e2d0d8f00be807521f82cb6ca22fcfc7ff`; evidence `a3ddef078c4c496cb2375270609f2f81016f67a5` |
 | Worktree | implementation and evidence commits pushed; documentation synchronization prepared |
-| Local regression | `1377 passed, 1 skipped` (`python -m pytest tests/v2 -q`, after diagnostic normalization fallback) |
+| Local regression | `1388 passed, 1 skipped` (`python -m pytest tests/v2 -q`, after bounded transport diagnostics) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for the pre-sync HEAD `cf31fa0233c58b9f71df0e3df8ead997586a61b7`: `v2-core` [run 35116779943](https://github.com/kinoko34077/dev_agent/actions/runs/35116779943) and `v2-provider-smoke` [run 35116780062](https://github.com/kinoko34077/dev_agent/actions/runs/35116780062). |
+| Exact-head CI | PASS for the pre-sync evidence HEAD `a3ddef078c4c496cb2375270609f2f81016f67a5`: `v2-core` [run 35125799506](https://github.com/kinoko34077/dev_agent/actions/runs/35125799506) and `v2-provider-smoke` [run 35125799520](https://github.com/kinoko34077/dev_agent/actions/runs/35125799520). |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
@@ -83,6 +83,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 - Worker/Artifact boundary refactor: latest Worker result projection loading and validation now live in `scripts.devfarm_artifacts`; Worker execution no longer owns that artifact path/parser responsibility. Result validation and all Host/authority boundaries remain unchanged. See [`devfarm-worker-artifact-refactor-20260915.json`](../spec/v2/evidence/devfarm-worker-artifact-refactor-20260915.json).
 - Worker Manifest boundary refactor: manifest loading, identity binding, and plan ownership containment now live in `scripts.devfarm_manifests`; Commander, integration, Self-Repair, and Supervisor share the same Host boundary. See [`devfarm-manifest-boundary-refactor-20260915.json`](../spec/v2/evidence/devfarm-manifest-boundary-refactor-20260915.json).
 - Host failure diagnostics: bounded `host_failure_category` and `host_failure_type` projections are retained in Worker metrics when the Host subprocess provides them; unrecognized categories and raw values are dropped. This improves classification without changing retry, failover, or reconciliation policy.
+- Transport diagnostic taxonomy: Provider adapters and the Host subprocess now preserve bounded `transport_failure_category`, `transport_stage`, exception type, errno, and winerror projections for DNS, connect, reset, TLS, and timeout observations. These fields contain no exception text or response body and do not change retry, failover, or UNKNOWN/reconciliation semantics. See [`transport-diagnostics-taxonomy-20260917.json`](../spec/v2/evidence/transport-diagnostics-taxonomy-20260917.json).
 - Network/authority operator boundary: standard Commander/Supervisor Worker dispatch, Planner, and Critic composition can route through the static Host one-shot process boundary; transport diagnostics preserve sandbox/local/provider categories, per-dispatch Egress Manifest metadata is durably retained without source content, and terminal Commander Plans can be explicitly superseded without erasing in-flight or host-verified work. A read-only Worker egress preflight reports the exact approved provider binding, revision, path digests, and ALLOW decision without contacting a Provider.
 - Host-owned Planner live boundary: the Host one-shot process re-admits discovered model evidence and passes the resolver into runtime resource composition, so a configured pool does not lose its exact L2 tier at the process boundary. A bounded normal Host-process D1 run succeeded; Codex/sandbox network denial remains separately classified and does not affect model/reliability metrics.
 - Configured Free Worker lanes: explicit OpenRouter and Cloudflare no-charge bindings can now compose as exact qualified L1 Worker resources even when dynamic Model Evidence is absent; stricter L2/L3 admission still requires current model evidence. The separate production-code Worker attempt through the OpenRouter free lane reached Host dispatch but closed as `reconciliation_required` before patch generation, so it is not D2 success. See [`d2-production-worker-reconciliation-20260915.json`](../spec/v2/evidence/d2-production-worker-reconciliation-20260915.json).
@@ -161,6 +162,7 @@ and the compact operational procedure is [`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_D
 - Phase 8 Stage 5 fresh live observation: [`phase8-multirole-live-attempt-r6-20260916.json`](../spec/v2/evidence/phase8-multirole-live-attempt-r6-20260916.json)
 - Phase 8 Stage 5 r7 Egress preflight: [`phase8-multirole-egress-preflight-r7-20260916.json`](../spec/v2/evidence/phase8-multirole-egress-preflight-r7-20260916.json)
 - Network, authority, egress, supersession, and Guardian operator boundary: [`network-authority-guardian-20260915.json`](../spec/v2/evidence/network-authority-guardian-20260915.json)
+- Bounded transport diagnostic taxonomy: [`transport-diagnostics-taxonomy-20260917.json`](../spec/v2/evidence/transport-diagnostics-taxonomy-20260917.json)
 - Bounded alternate Gemini qualification observation: [`gemini-worker-free-2-qualification-20260915.json`](../spec/v2/evidence/gemini-worker-free-2-qualification-20260915.json)
 - Bounded Gemini free-3 qualification observation: [`gemini-worker-free-3-qualification-20260915.json`](../spec/v2/evidence/gemini-worker-free-3-qualification-20260915.json)
 - Coordination work/egress/Guardian foundation: [`coordination-work-egress-foundation-20260914.json`](../spec/v2/evidence/coordination-work-egress-foundation-20260914.json)
