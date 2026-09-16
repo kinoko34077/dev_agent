@@ -1,0 +1,46 @@
+{
+  "evidence_id": "host-windows-path-boundary-20260916",
+  "observed_at": "2026-09-16T01:10:48Z",
+  "purpose": "Verify that Host coordination, egress, manifest, and verification path validators reject Windows drive paths instead of treating them as relative POSIX paths.",
+  "implementation_baseline": "f476be54fe32f63b081e05dc9b7ae3bafd76bf56",
+  "changed_boundaries": [
+    "src/dev_agent/coordination/protocol_helpers.py::validate_relative_path",
+    "src/dev_agent/security/egress.py::_path",
+    "scripts/devfarm_contracts.py::_path and parse_host_test_command",
+    "scripts/devfarm_verification.py::validate_host_test_targets"
+  ],
+  "rejected_examples": [
+    "C:/outside.py",
+    "C:\\outside.py",
+    "C:outside.py"
+  ],
+  "preserved_boundaries": [
+    "normal relative POSIX-style paths remain accepted",
+    "existing protected-path and EgressManifest decision semantics remain unchanged",
+    "no provider, network, scheduler, Guardian, approval, or integration authority changed",
+    "UNKNOWN/reconciliation behavior is unchanged"
+  ],
+  "verification": {
+    "focused_host_boundary_tests": "30 passed",
+    "related_devfarm_and_coordination_tests": "137 passed",
+    "full_v2_regression": "1372 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head_ci": {
+      "commit": "f476be54fe32f63b081e05dc9b7ae3bafd76bf56",
+      "v2_core": {
+        "run": "35042924942",
+        "kernel_3_10": "PASS",
+        "kernel_3_11": "PASS"
+      },
+      "v2_provider_smoke": {
+        "run": "35042924966",
+        "result": "PASS"
+      }
+    }
+  },
+  "secrets_recorded": false,
+  "raw_provider_response_recorded": false,
+  "task_scheduler_touched": false,
+  "official_runtime_mutated": false
+}
