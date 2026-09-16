@@ -101,6 +101,14 @@ DevFarmとCommanderが同じprotected responsibility policyを使う。Workerが
 qualified、sandboxedに見せる変更、secret scanを無効化する変更、integration proofを弱める
 変更を所有できない。
 
+Host policy composition may additionally project a path into one of three classes:
+`HARD_DENY` for secrets, runtime/recovery state, malformed or otherwise never-delegable
+paths; `AUTHORITY_SENSITIVE` for policy/authority code that may require elevated adoption
+review; and `NORMAL_REPO` for ordinary repository source. This classification is descriptive
+and does not itself grant read, write, egress, ownership, approval, or integration authority.
+Until a separate adoption policy is explicitly verified, the existing protected-path
+predicate remains fail-closed for both non-normal classes.
+
 ## I2 — Secret hygiene
 
 `.gitignore`は `.env` だけでなく `.env.*` を対象にする。ただし共有テンプレートが必要な
