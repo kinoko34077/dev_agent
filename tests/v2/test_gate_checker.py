@@ -24,7 +24,7 @@ def test_gate_status_separates_dogfood_production_and_phase8_preparation_tracks(
     tracks = status["development_tracks"]
 
     assert tracks["phase7_dogfood"]["gate_id"] == "D9_DOGFOOD"
-    assert tracks["phase7_dogfood"]["status"] == "NOT_READY"
+    assert tracks["phase7_dogfood"]["status"] == "VERIFIED"
     assert tracks["phase7_dogfood"]["execution_readiness"] == "READY_FOR_TRIAL"
     assert tracks["phase7_dogfood"]["production_deployment_dependency"] is False
     assert tracks["phase7_dogfood"]["exit_condition"] == "D9_DOGFOOD_VERIFIED_AFTER_REAL_REPAIR_AND_ROLLBACK"

@@ -10,7 +10,7 @@
   "current_phase": "phase6_operational",
   "development_tracks": {
     "phase7_dogfood": {
-      "status": "NOT_READY",
+      "status": "VERIFIED",
       "gate_id": "D9_DOGFOOD",
       "purpose": "Human-approved bounded self-repair in an isolated/local runtime without requiring OS service registration",
       "execution_readiness": "READY_FOR_TRIAL",
@@ -24,7 +24,8 @@
         "post-repair health",
         "verified local rollback"
       ],
-      "missing": ["one real self-repair execution and rollback evidence"],
+      "missing": [],
+      "verified_evidence": ["spec/v2/evidence/d9-dogfood-real-repair-20260916.json"],
       "authority": "Human approval plus existing Host integration and Recovery boundaries"
     },
     "phase7_production_deployment": {

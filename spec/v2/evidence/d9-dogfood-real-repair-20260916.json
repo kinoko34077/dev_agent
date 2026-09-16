@@ -1,0 +1,170 @@
+{
+  "schema_version": 1,
+  "evidence_id": "d9-dogfood-real-repair-20260916",
+  "observed_at": "2026-09-16",
+  "track": "D9_DOGFOOD",
+  "status": "VERIFIED",
+  "scope": "one bounded Human-approved local dogfood repair; production deployment remains a separate deferred track",
+  "issue": {
+    "kind": "real_bounded_production_issue",
+    "description": "static model-candidate diagnostics reported statically admitted rows as eligible without a runtime observation",
+    "risk": "low",
+    "path_class": "NORMAL_REPO",
+    "changed_paths": [
+      "scripts/diagnose_model_candidates.py",
+      "tests/v2/test_model_candidate_diagnostics.py"
+    ],
+    "external_side_effect": false
+  },
+  "planning": {
+    "observation_ref": ".devfarm/self-improvement/d9-diagnostic-runtime-observation-input-20260916.json",
+    "diagnosis_id": "diagnosis-7c8efbeafc7240cfbb83b9d4133a6f18",
+    "improvement_plan_id": "improvement-plan-bbf19a4793dd4b55889708df3422572a",
+    "improvement_plan_status": "PROPOSAL_ONLY",
+    "requires_human_approval": true
+  },
+  "worker": {
+    "provider_id": "gemini",
+    "provider_binding_id": "gemini:worker:free-3",
+    "model_id": "gemini-3.5-flash-lite",
+    "intelligence_tier": "L1",
+    "task_type": "bounded_bugfix",
+    "codex_direct_implementation_count": 0,
+    "worker_owned_task_count": 1,
+    "worker_integrated_task_count": 1,
+    "usage": {
+      "prompt_tokens": 10439,
+      "candidate_tokens": 735,
+      "model_calls": 1
+    }
+  },
+  "attempts": [
+    {
+      "attempt_id": "8f50393a3ffb4f6899826a6c2201e7dd",
+      "status": "FAILED_BEFORE_PROVIDER_RESULT",
+      "failure_category": "local_network_policy_denied",
+      "external_request_sent": false,
+      "patch_reached_host_verification": false,
+      "replayed": false
+    },
+    {
+      "attempt_id": "1e3f909b307c422f944a3e964406d233",
+      "status": "SUPERSEDED_AFTER_HOST_VERIFICATION_FAILURE",
+      "failure_category": "host_verification_failure",
+      "failure_scope": "bounded test-selection mismatch",
+      "replayed": false
+    },
+    {
+      "attempt_id": "1479e46c30ba4d50a60796f33c214804",
+      "status": "SUPERSEDED_AFTER_HOST_VERIFICATION_FAILURE",
+      "failure_category": "host_verification_failure",
+      "failure_scope": "bounded import/contract mismatch",
+      "replayed": false
+    },
+    {
+      "attempt_id": "b71efa61ecdb411b87e52e9d04b8df2d",
+      "status": "HOST_VERIFIED_AND_INTEGRATED",
+      "failure_category": null,
+      "patch_sha256": "b4b2e77a24ddf562e6d814bc0e7f2d7411e13767deaa12be70e87f2f6b7935d4",
+      "verification_ref": ".devfarm/results/d9-dogfood-diagnostic-runtime-20260916-r4/attempts/b71efa61ecdb411b87e52e9d04b8df2d/verification/0ee9aafc5a854db7aa6e9ee275a78fa7.json",
+      "verification_id": "0ee9aafc5a854db7aa6e9ee275a78fa7",
+      "manifest_ref": ".devfarm/results/d9-dogfood-diagnostic-runtime-20260916-r4/attempts/b71efa61ecdb411b87e52e9d04b8df2d/egress-manifest.json",
+      "verification_manifest_sha256": "2c18e93759d58971f414b5b3dc2c255d2bdc8887ab1a5ebdaab33f2f44c90cf8",
+      "verification": {
+        "independent": true,
+        "containment": "TRUSTED_HOST_EXEC",
+      "focused_tests": "14 passed",
+        "operator_approved": true
+      }
+    }
+  ],
+  "review": {
+    "decision_id": "review-64ab375c516e4827adfe47fc2bbab72a",
+    "decision": "APPROVE_INTEGRATION",
+    "reviewer": "codex_supervisor",
+    "authority": "Codex review only; Host integration remained authoritative"
+  },
+  "candidate": {
+    "candidate_id": "repair-candidate-5e7165b9ad574bc5a690400171b95b97",
+    "run_id": "d9-dogfood-diagnostic-runtime-20260916-r4",
+    "task_id": "d9-dogfood-diagnostic-runtime-20260916-r4",
+    "attempt_id": "b71efa61ecdb411b87e52e9d04b8df2d",
+    "base_revision": "763cf4b4d12ffcea4b7168f58ea15fb8f792eda2",
+    "patch_sha256": "b4b2e77a24ddf562e6d814bc0e7f2d7411e13767deaa12be70e87f2f6b7935d4",
+    "operation_type": "repair_integration"
+  },
+  "approval": {
+    "approval_id": "approval-d9-diagnostic-runtime-r4",
+    "call_id": "call-d9-diagnostic-runtime-r4",
+    "store_ref": ".dev_agent/d9-dogfood-approval-20260916.sqlite3",
+    "arguments_sha256": "e87822314a5f21589de876fb94dfd8efbef33b29374cfbc83d3d4368eb7e5b1e",
+    "human_approved": true,
+    "exact_candidate_binding": true,
+    "exact_attempt_binding": true,
+    "exact_patch_binding": true,
+    "exact_manifest_binding": true,
+    "exact_revision_binding": true,
+    "rollback_proof_binding": true,
+    "consumed_once": true,
+    "reused": false
+  },
+  "rollback_proof": {
+    "known_good_revision": "763cf4b4d12ffcea4b7168f58ea15fb8f792eda2",
+    "release_materialized": true,
+    "release_clean_verified": true,
+    "health_status": "passed",
+    "proof_digest": "f966ed856059d0dbb16135672ef67c7325f3913c9768de6bce1ed6e99393cda2"
+  },
+  "integration": {
+    "revision": "023147fd1b3cc092c84fb06910132893eedd737d",
+    "commit_message": "fix: distinguish static admission from runtime unknown",
+    "official_checkout_changed": true,
+    "host_integration": "existing integrate_approved_repair composition",
+    "remote_pushed": true
+  },
+  "runtime": {
+    "release_store": "RevisionPinnedRuntimeStore",
+    "ownership": "GuardianProcessExecutor with WindowsJobObjectOwnership",
+    "old_generation": {
+      "generation": 1,
+      "revision": "763cf4b4d12ffcea4b7168f58ea15fb8f792eda2",
+      "alive_before_roll": true,
+      "stopped_after_new_health": true
+    },
+    "repaired_generation": {
+      "generation": 2,
+      "revision": "023147fd1b3cc092c84fb06910132893eedd737d",
+      "started": true,
+      "health": "PASS",
+      "rolling_decision": "COMPLETED"
+    },
+    "rollback_generation": {
+      "generation": 3,
+      "revision": "763cf4b4d12ffcea4b7168f58ea15fb8f792eda2",
+      "started": true,
+      "health": "PASS",
+      "rolling_decision": "COMPLETED"
+    },
+    "managed_processes_after_cleanup": [],
+    "unknown_effect_replayed": false
+  },
+  "verification": {
+    "local_regression": "1374 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head_ci": {
+      "remote_head": "023147fd1b3cc092c84fb06910132893eedd737d",
+      "v2_core_run": 35066301212,
+      "kernel_3_10": "PASS",
+      "kernel_3_11": "PASS",
+      "provider_smoke_run": 35066301205,
+      "provider_smoke": "PASS"
+    }
+  },
+  "external_effect": "KNOWN_SUCCESS",
+  "raw_provider_response_recorded": false,
+  "raw_conversation_recorded": false,
+  "credentials_recorded": false,
+  "production_deployment": "DEFERRED_NOT_READY",
+  "gate_changed": "D9_DOGFOOD NOT_READY -> VERIFIED; D9_PRODUCTION_DEPLOYMENT unchanged"
+}
