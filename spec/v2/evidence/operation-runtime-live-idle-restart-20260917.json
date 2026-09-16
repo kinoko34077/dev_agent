@@ -1,0 +1,68 @@
+{
+  "evidence_id": "operation-runtime-live-idle-restart-20260917",
+  "status": "VERIFIED_LOCAL_PROCESS",
+  "work_addresses": ["G-3", "G-4"],
+  "scope": "local_foreground_operation_runtime",
+  "implementation_commit": "9b399b7102fdcf4346a7be519dad1ce5fdc6af0c",
+  "observed_at": "2026-09-16T22:53:41.374074+00:00",
+  "runtime": {
+    "entrypoint": "scripts/devfarm_runtime_coordinator.py",
+    "scheduler": "existing_operation_queue",
+    "process_authority": "operation_service_only",
+    "provider": "fake",
+    "model": "deterministic",
+    "external_network": "none",
+    "initial_generation": 3,
+    "initial_pid": 16008,
+    "initial_state": "READY",
+    "idle_to_work": {
+      "task_id": "d90c61ef-2107-4413-a596-f12c6a041eb3",
+      "submission": "durable Task submitted while the coordinator was idle",
+      "state": "completed",
+      "queue_state": "completed",
+      "claim_count": 1,
+      "execution_attempts": 1,
+      "provider_request": false
+    },
+    "controlled_restart": {
+      "stop": "durable OperationControl stop request; prior process exited",
+      "restarted_generation": 4,
+      "restarted_pid": 43708,
+      "revision_label": "c62652610709923f681709e1478bd956e20e5f4c",
+      "state": "READY",
+      "task_counts": {
+        "cancelled": 1,
+        "completed": 3
+      },
+      "duplicate_generation": false,
+      "durable_state_preserved": true
+    }
+  },
+  "verification": {
+    "focused": "python -m pytest tests/v2/test_operation_runtime.py tests/v2/test_operation.py -q => 46 passed",
+    "full": "python -m pytest tests/v2 -q => 1398 passed, 1 skipped",
+    "architecture": "python scripts/check_architecture.py => ARCHITECTURE_PASS",
+    "compileall": "python -m compileall -q src recovery scripts => PASS",
+    "exact_head_ci": {
+      "head": "9b399b7102fdcf4346a7be519dad1ce5fdc6af0c",
+      "v2_core": {
+        "run_id": 35160317471,
+        "kernel_3_10": "success",
+        "kernel_3_11": "success",
+        "result": "success"
+      },
+      "v2_provider_smoke": {
+        "run_id": 35160317529,
+        "result": "success"
+      }
+    }
+  },
+  "safety": {
+    "new_scheduler": false,
+    "new_state_store": false,
+    "provider_outbound": false,
+    "unknown_replay": false,
+    "os_registration": "DEFERRED_NOT_CONFIGURED"
+  },
+  "interpretation": "A real local foreground Coordinator accepted a durable Task after an idle cycle, completed it through the existing Operation queue, then exited through the durable stop boundary and restarted as the next fenced generation with durable state preserved. This verifies local idle-to-work and restart behavior only; it does not establish OS startup, Task Scheduler, Windows Service, deployed Guardian recovery, AR1, or Phase 8 live activation."
+}
