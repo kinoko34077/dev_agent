@@ -8,7 +8,8 @@ does not grant access to the protected responsibility.
 
 from __future__ import annotations
 
-from pathlib import PurePosixPath
+from enum import Enum
+from pathlib import PurePosixPath, PureWindowsPath
 from typing import Any
 
 
@@ -91,6 +92,22 @@ PROTECTED_DIRECTORY_PREFIXES = frozenset(
     }
 )
 
+# A protected path is not necessarily a secret.  Keep that distinction
+# explicit for callers that need to decide whether a change may be proposed in
+# an isolated worktree while still requiring elevated review before adoption.
+# The legacy ``is_protected_path`` predicate remains conservative and returns
+# True for both non-normal classes.
+HARD_DENY_DIRECTORY_PREFIXES = frozenset({"recovery", ".devfarm"})
+AUTHORITY_SENSITIVE_DIRECTORY_PREFIXES = frozenset(PROTECTED_DIRECTORY_PREFIXES - HARD_DENY_DIRECTORY_PREFIXES)
+
+
+class PathProtectionClass(str, Enum):
+    """Host policy classification for a repository-relative path."""
+
+    HARD_DENY = "HARD_DENY"
+    AUTHORITY_SENSITIVE = "AUTHORITY_SENSITIVE"
+    NORMAL_REPO = "NORMAL_REPO"
+
 PROTECTED_PART_NAMES = frozenset(
     {
         "credential",
@@ -122,42 +139,89 @@ def _normalized_parts(path: Any) -> tuple[str, ...] | None:
         path = str(path)
     normalized = str(path).replace("\\", "/")
     parsed = PurePosixPath(normalized)
-    if parsed.is_absolute() or any(part in {"", ".", ".."} for part in parsed.parts):
+    windows = PureWindowsPath(normalized)
+    if (
+        parsed.is_absolute()
+        or windows.is_absolute()
+        or windows.drive
+        or any(part in {"", ".", ".."} for part in parsed.parts)
+    ):
         # Callers validate safe relative paths separately.  Treating an
         # invalid path as protected is the safe default at this boundary.
         return None
     return parsed.parts
 
 
-def is_protected_path(path: Any) -> bool:
-    """Return whether *path* belongs to a protected authority responsibility."""
+def _under_prefix(normalized: str, prefix: str) -> bool:
+    return normalized == prefix or normalized.startswith(prefix + "/")
+
+
+def classify_path(path: Any) -> PathProtectionClass:
+    """Classify a path without granting read, write, or egress authority.
+
+    ``HARD_DENY`` is reserved for secrets, repository/runtime state, recovery
+    data, and malformed paths.  ``AUTHORITY_SENSITIVE`` identifies code that
+    can influence policy or authority but is not itself secret material.  The
+    latter remains protected by the legacy predicate until a separate Host
+    policy explicitly permits an isolated proposal/edit path.
+    """
 
     parts = _normalized_parts(path)
     if parts is None:
-        return True
+        return PathProtectionClass.HARD_DENY
     normalized = "/".join(parts)
-    if normalized in PROTECTED_AUTHORITY_PATHS:
-        return True
-    for prefix in PROTECTED_DIRECTORY_PREFIXES:
-        if normalized == prefix or normalized.startswith(prefix + "/"):
-            return True
     for part in parts:
         lowered = part.lower()
         if part == ".git" or lowered.startswith(".env") or lowered in PROTECTED_PART_NAMES:
-            return True
+            return PathProtectionClass.HARD_DENY
         if lowered in PROTECTED_SECRET_FILENAMES or any(lowered.endswith(suffix) for suffix in PROTECTED_SECRET_SUFFIXES):
-            return True
+            return PathProtectionClass.HARD_DENY
         stem = lowered.rsplit(".", 1)[0]
         if any(marker in stem for marker in ("credential", "private_key", "secret_token", "access_token", "api_key")):
-            return True
-    return False
+            return PathProtectionClass.HARD_DENY
+    if normalized in PROTECTED_AUTHORITY_PATHS:
+        return PathProtectionClass.AUTHORITY_SENSITIVE
+    if any(_under_prefix(normalized, prefix) for prefix in HARD_DENY_DIRECTORY_PREFIXES):
+        return PathProtectionClass.HARD_DENY
+    if any(_under_prefix(normalized, prefix) for prefix in AUTHORITY_SENSITIVE_DIRECTORY_PREFIXES):
+        return PathProtectionClass.AUTHORITY_SENSITIVE
+    return PathProtectionClass.NORMAL_REPO
+
+
+def is_hard_denied_path(path: Any) -> bool:
+    """Return whether a path is never delegated by the current policy."""
+
+    return classify_path(path) is PathProtectionClass.HARD_DENY
+
+
+def is_authority_sensitive_path(path: Any) -> bool:
+    """Return whether a path needs elevated adoption authority."""
+
+    return classify_path(path) is PathProtectionClass.AUTHORITY_SENSITIVE
+
+
+def is_protected_path(path: Any) -> bool:
+    """Return the legacy conservative protected-path decision.
+
+    This intentionally remains true for both hard-deny and authority-
+    sensitive paths so existing Worker/Egress callers do not gain authority
+    as a side effect of introducing the finer-grained classification.
+    """
+
+    return classify_path(path) is not PathProtectionClass.NORMAL_REPO
 
 
 __all__ = [
+    "AUTHORITY_SENSITIVE_DIRECTORY_PREFIXES",
+    "HARD_DENY_DIRECTORY_PREFIXES",
+    "PathProtectionClass",
     "PROTECTED_AUTHORITY_PATHS",
     "PROTECTED_DIRECTORY_PREFIXES",
     "PROTECTED_PART_NAMES",
     "PROTECTED_SECRET_FILENAMES",
     "PROTECTED_SECRET_SUFFIXES",
+    "classify_path",
+    "is_authority_sensitive_path",
+    "is_hard_denied_path",
     "is_protected_path",
 ]

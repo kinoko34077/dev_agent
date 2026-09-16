@@ -4,7 +4,13 @@ import pytest
 
 from src.dev_agent.policy import PathPolicy
 from src.dev_agent.security.audit import AuditRecorder
-from src.dev_agent.security.protected_paths import is_protected_path
+from src.dev_agent.security.protected_paths import (
+    PathProtectionClass,
+    classify_path,
+    is_authority_sensitive_path,
+    is_hard_denied_path,
+    is_protected_path,
+)
 from src.dev_agent.tools.registry import KNOWN_SIDE_EFFECT_LEVELS, ToolSpec
 
 pytestmark = pytest.mark.security
@@ -93,6 +99,35 @@ def test_protected_authority_policy_covers_coordination_and_repair_responsibilit
 def test_protected_authority_policy_rejects_path_forms_used_for_shadowing():
     assert is_protected_path("src/dev_agent/coordination/renamed_guardian.py")
     assert is_protected_path("src/dev_agent/coordination/new_repair_policy.py")
+
+
+def test_path_classification_separates_hard_deny_from_authority_sensitive():
+    assert classify_path(".env.local") is PathProtectionClass.HARD_DENY
+    assert classify_path("recovery/diagnose.py") is PathProtectionClass.HARD_DENY
+    assert classify_path("src/dev_agent/coordination/new_guardian.py") is PathProtectionClass.AUTHORITY_SENSITIVE
+    assert classify_path("src/dev_agent/resources/budget.py") is PathProtectionClass.AUTHORITY_SENSITIVE
+    assert classify_path("src/dev_agent/providers/normalize.py") is PathProtectionClass.NORMAL_REPO
+
+
+def test_path_classification_helpers_preserve_existing_protected_boolean():
+    for path in (
+        ".git/HEAD",
+        ".env.local",
+        "recovery/diagnose.py",
+        "src/dev_agent/coordination/protocol.py",
+        "src/dev_agent/resources/budget.py",
+    ):
+        assert is_protected_path(path) is True
+    assert is_protected_path("src/dev_agent/providers/normalize.py") is False
+    assert is_hard_denied_path(".env.local") is True
+    assert is_hard_denied_path("src/dev_agent/coordination/protocol.py") is False
+    assert is_authority_sensitive_path("src/dev_agent/coordination/protocol.py") is True
+    assert is_authority_sensitive_path("src/dev_agent/providers/normalize.py") is False
+
+
+def test_invalid_path_is_hard_denied():
+    assert classify_path("../outside.py") is PathProtectionClass.HARD_DENY
+    assert classify_path("C:/outside.py") is PathProtectionClass.HARD_DENY
 
 
 def test_tool_spec_rejects_unknown_side_effect_level():
