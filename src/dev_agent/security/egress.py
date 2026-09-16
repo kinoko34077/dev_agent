@@ -19,7 +19,7 @@ from typing import Any
 
 from ..domain.protocol import ModelRequest
 from .audit import AuditRecorder
-from .protected_paths import is_protected_path
+from .protected_paths import classify_path, is_protected_path
 
 
 class EgressValidationError(ValueError):
@@ -243,9 +243,16 @@ class EgressFileEntry:
     size_bytes: int
     sensitivity: str = "normal"
     secret_scan: str = "clean"
+    path_class: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "path", _path(self.path))
+        expected_path_class = classify_path(self.path).value
+        if self.path_class is not None:
+            supplied_path_class = _text(self.path_class, "path_class", max_chars=32)
+            if supplied_path_class != expected_path_class:
+                raise EgressValidationError("path_class does not match the central path policy")
+        object.__setattr__(self, "path_class", expected_path_class)
         if not isinstance(self.sha256, str) or _SHA256.fullmatch(self.sha256.lower()) is None:
             raise EgressValidationError("file sha256 must be a SHA-256 digest")
         object.__setattr__(self, "sha256", self.sha256.lower())
@@ -266,6 +273,7 @@ class EgressFileEntry:
             "size_bytes": self.size_bytes,
             "sensitivity": self.sensitivity,
             "secret_scan": self.secret_scan,
+            "path_class": self.path_class,
         }
 
     @classmethod
@@ -278,6 +286,7 @@ class EgressFileEntry:
             size_bytes=value.get("size_bytes"),
             sensitivity=value.get("sensitivity", "normal"),
             secret_scan=value.get("secret_scan", "clean"),
+            path_class=value.get("path_class"),
         )
 
 

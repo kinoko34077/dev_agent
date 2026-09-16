@@ -7,12 +7,14 @@ import pytest
 
 from src.dev_agent.security.egress import (
     EgressDecision,
+    EgressFileEntry,
     EgressValidationError,
     StandingEgressGrant,
     attach_model_request_egress,
     build_egress_manifest,
 )
 from src.dev_agent.domain.protocol import ModelRequest
+from src.dev_agent.security.protected_paths import PathProtectionClass
 
 
 def _grant() -> StandingEgressGrant:
@@ -39,6 +41,7 @@ def test_clean_source_gets_allow_manifest_without_content() -> None:
     assert manifest.files[0].sha256 == hashlib.sha256(payload).hexdigest()
     assert manifest.files[0].size_bytes == len(payload)
     assert manifest.files[0].secret_scan == "clean"
+    assert manifest.files[0].path_class == PathProtectionClass.NORMAL_REPO.value
     serialized = manifest.to_dict()
     assert "content" not in str(serialized).lower()
     assert "return 8" not in str(serialized)
@@ -56,7 +59,18 @@ def test_protected_path_is_denied_without_emitting_file_content() -> None:
 
     assert manifest.decision is EgressDecision.DENY
     assert "protected_path" in manifest.reasons
+    assert manifest.files[0].path_class == PathProtectionClass.HARD_DENY.value
     assert "secret-value" not in str(manifest.to_dict())
+
+
+def test_egress_file_entry_rejects_a_tampered_path_class() -> None:
+    with pytest.raises(EgressValidationError, match="path_class"):
+        EgressFileEntry(
+            path="src/example.py",
+            sha256=hashlib.sha256(b"pass\n").hexdigest(),
+            size_bytes=5,
+            path_class=PathProtectionClass.HARD_DENY.value,
+        )
 
 
 def test_secret_content_is_denied_by_host_scan() -> None:
