@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "planner_host_network_policy_denial",
+  "observed_at": "2026-09-16T03:51:20Z",
+  "status": "BLOCKED_EXTERNAL",
+  "implementation_baseline": "886f0cd430ab442f9d7b4457cce5958e54aad779",
+  "operation": {
+    "entry": "scripts/devfarm_planner_shadow.py",
+    "parent_task_id": "1b08b2ca-641b-4e5e-b5f8-57125621e92d",
+    "configured_pool": true,
+    "expand_discovered_models": true,
+    "required_tier": "L2",
+    "no_charge_required": true,
+    "allow_unknown_quota": true,
+    "execution_boundary": "host_process",
+    "timeout_seconds": 90
+  },
+  "result": {
+    "status": "blocked_external",
+    "category": "transport",
+    "reconciliation_required": true,
+    "transport_failure_category": "local_network_policy_denied",
+    "provider_request_result": "not_observed"
+  },
+  "safety": {
+    "same_binding_retry": false,
+    "provider_failover": false,
+    "automatic_l1_downgrade": false,
+    "unknown_external_effect_replayed": false,
+    "raw_provider_response_saved": false,
+    "credential_saved": false
+  },
+  "interpretation": "The Host dispatch boundary rejected the operation before a Provider result was observed. This is a local transport-policy observation, not Planner schema, model capability, or Worker reliability evidence. The bounded operation was not retried."
+}
