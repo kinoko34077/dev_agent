@@ -163,6 +163,12 @@ class DiscoveredModel:
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "provider_id", _text(self.provider_id, "provider_id"))
+        object.__setattr__(self, "provider_binding_id", _text(self.provider_binding_id, "provider_binding_id"))
+        object.__setattr__(self, "model_id", _text(self.model_id, "model_id"))
+        object.__setattr__(self, "source", _text(self.source, "source"))
+        object.__setattr__(self, "observed_at", _text(self.observed_at, "observed_at"))
+        object.__setattr__(self, "expires_at", _text(self.expires_at, "expires_at"))
         if not isinstance(self.metadata, Mapping):
             raise ValueError("metadata must be an object")
         object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
