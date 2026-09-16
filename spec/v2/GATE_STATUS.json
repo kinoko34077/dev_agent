@@ -64,7 +64,7 @@
         "independent Host Verification and deterministic integration",
         "exact-head CI for the benchmark revision"
       ],
-      "current_blocker": "live Provider multi-role integration has not produced a verified patch and integration revision"
+      "current_blocker": "a fresh single-root live Planner -> two non-overlapping Implementers -> independent Reviewer -> dependent continuation sequence is not complete; r15 has verified and integrated two Worker patches, but its Planner was blocked before Provider I/O and its independent Reviewer Shadow was not run"
     }
   },
   "phase6_foundation_status": "VERIFIED",
