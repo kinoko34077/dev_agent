@@ -219,8 +219,8 @@ class BenchmarkCatalog:
                     "confidence": score.confidence,
                     "task_fit": dict(score.task_fit),
                 }
-                for scores in sorted(self._scores_by_model.values(), key=lambda entries: entries[0].canonical_model_id)
-                for score in scores
+                for model_id in sorted(self._scores_by_model.keys())
+                for score in sorted(self._scores_by_model[model_id], key=lambda s: s.identity)
             ],
         }
 
