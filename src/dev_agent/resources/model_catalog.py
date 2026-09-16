@@ -237,7 +237,7 @@ class ModelCatalog:
         binding = _text(provider_binding_id, "provider_binding_id")
         return tuple(
             entry
-            for entry in self._entries_by_identity.values()
+            for entry in sorted(self._entries_by_identity.values(), key=lambda item: item.identity)
             if entry.provider_id == provider and entry.provider_binding_id == binding and entry.is_current(now=now)
         )
 
