@@ -5,13 +5,13 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Latest implementation baseline before this documentation/Gate sync | `cd4dca9` (`docs: record phase8 multi-role live boundary`) |
-| Implementation/evidence baseline | `cd4dca9` (Phase 8 live boundary evidence and the existing Host-generated bounded Worker patch fallback) |
-| Worktree | clean at the Gate-separation sync checkpoint |
+| Latest implementation baseline before this documentation sync | `4257223` (`docs: separate dogfood and production gates`) |
+| Implementation/evidence baseline | `4257223` (D9 Dogfood/Production gate split, Phase 8 preparation boundary, and existing Host-generated bounded Worker patch fallback) |
+| Worktree | clean at the documentation sync checkpoint |
 | Local regression | `1360 passed, 1 skipped` (`python -m pytest tests/v2 -q`, current working tree) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for implementation baseline `cd4dca9`: `v2-core` [run 35036553669](https://github.com/kinoko34077/dev_agent/actions/runs/35036553669) with kernel (3.10) and kernel (3.11); `v2-provider-smoke` [run 35036553660](https://github.com/kinoko34077/dev_agent/actions/runs/35036553660). |
+| Exact-head CI | PASS for implementation baseline `4257223`: `v2-core` [run 35038309035](https://github.com/kinoko34077/dev_agent/actions/runs/35038309035) with kernel (3.10) and kernel (3.11); `v2-provider-smoke` [run 35038309010](https://github.com/kinoko34077/dev_agent/actions/runs/35038309010). |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
