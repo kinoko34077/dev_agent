@@ -41,6 +41,26 @@ def test_runtime_coordinator_runs_existing_operation_boundary_once(tmp_path):
     assert health["task_counts"][TaskStatus.COMPLETED.value] == 1
 
 
+def test_runtime_coordinator_keeps_deterministic_local_resource_fresh_after_idle(tmp_path):
+    config = _config(tmp_path)
+
+    with RuntimeCoordinator.open(config, revision="test-revision", instance_id="runtime-1") as runtime:
+        runtime.operation.ledger.observe(
+            "fake:default",
+            available=1,
+            health="degraded",
+            confidence=0.0,
+            observed_at="2020-01-01T00:00:00+00:00",
+        )
+        task = OperationService.submit(config, "resume a local deterministic task after idle")
+
+        result = runtime.run_once()
+
+    assert result is not None
+    assert result.task_id == task.task_id
+    assert result.status is TaskStatus.COMPLETED
+
+
 def test_runtime_coordinator_serve_is_bounded_and_idle_light(tmp_path):
     config = _config(tmp_path)
     sleeps = []

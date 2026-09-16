@@ -498,6 +498,8 @@ def _inferred_tier(config: OperationConfig | OperationProviderBinding, *, qualif
 class OperationService:
     """Compose existing v2 components for the minimum operational commands."""
 
+    _DETERMINISTIC_LOCAL_REFRESH_INTERVAL_SECONDS = 60.0
+
     def __init__(self, config: OperationConfig, *, store: SQLiteStateStore, queue: DurableQueue, ledger: ResourceLedger, control: OperationControl, controller: Controller, worker: WorkerRunner, dispatcher: ProviderDispatcher, evaluation: EvaluationCoordinator, lifecycle: TaskLifecycleCoordinator, qualification_resolver: QualificationResolver | None = None, model_admission_resolver: ModelAdmissionResolver | None = None) -> None:
         self.config = config
         self.store = store
@@ -513,6 +515,7 @@ class OperationService:
         self._model_admission_resolver = model_admission_resolver
         self._closed = False
         self._runtime_prepared = False
+        self._last_deterministic_local_refresh_at: datetime | None = None
 
     @property
     def qualification_resolver(self) -> QualificationResolver:
@@ -1143,6 +1146,7 @@ class OperationService:
         scheduler = QuotaWakeScheduler(self.ledger, self.queue)
         coordinator = QuotaRequalificationCoordinator(self.ledger, scheduler)
         results: list[dict[str, Any]] = []
+        self._refresh_deterministic_local_resources(current)
         self._wake_reconciled_provider_tasks()
         self.release_planner_dependencies()
         for domain in self.ledger.due_unknown_quota_domains(now_epoch=current.timestamp()):
@@ -1169,6 +1173,48 @@ class OperationService:
                 )
                 results.append(result.to_dict())
         return results
+
+    def _refresh_deterministic_local_resources(self, now: datetime) -> None:
+        """Keep the no-network fake resource usable for a long-lived loop.
+
+        The Router deliberately rejects stale observations.  The deterministic
+        fake provider has no external liveness signal to probe, so an idle
+        Operation process would otherwise make its harmless local resource
+        unroutable after the observation TTL.  Refresh only an existing,
+        available fake row, preserve its degraded/healthy state and all
+        operator fields, and never refresh a quota-bearing or circuit-open
+        resource.  Real local and remote providers still require their normal
+        liveness observation path.
+        """
+
+        current = now if now.tzinfo is not None else now.replace(tzinfo=timezone.utc)
+        previous = self._last_deterministic_local_refresh_at
+        if previous is not None:
+            previous = previous if previous.tzinfo is not None else previous.replace(tzinfo=timezone.utc)
+            if (current - previous).total_seconds() < self._DETERMINISTIC_LOCAL_REFRESH_INTERVAL_SECONDS:
+                return
+        self._last_deterministic_local_refresh_at = current
+        for binding in self.config.provider_bindings:
+            if binding.provider_id != "fake":
+                continue
+            resource_id = binding.binding_id
+            try:
+                resource = self.ledger.get_resource(resource_id)
+            except KeyError:
+                continue
+            if resource.get("provider_id") != "fake" or resource.get("quota_domain") is not None:
+                continue
+            if resource.get("available", 0) <= 0 or resource.get("health") not in {"healthy", "degraded"}:
+                continue
+            circuit_open_until = resource.get("circuit_open_until", 0)
+            if isinstance(circuit_open_until, (int, float)) and circuit_open_until > current.timestamp():
+                continue
+            self.ledger.refresh_resource_observation(
+                resource_id,
+                health=resource["health"],
+                confidence=resource.get("confidence", 0.0),
+                observed_at=current.isoformat(),
+            )
 
     def prepare_runtime(self) -> None:
         """Prepare one foreground runtime without claiming a Task.
