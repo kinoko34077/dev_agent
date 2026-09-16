@@ -6,7 +6,11 @@ import pytest
 
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse, TaskType
 from src.dev_agent.intelligence.planner import PlanningValidationError, RootPlanningProposal
-from src.dev_agent.intelligence.planner_adapter import ModelPlanningAdapter, PlanningAdapterError
+from src.dev_agent.intelligence.planner_adapter import (
+    ModelPlanningAdapter,
+    PlanningAdapterError,
+    PlanningResponseError,
+)
 from src.dev_agent.operation import OperationConfig, OperationService
 from src.dev_agent.providers.base import ModelProvider, ProviderError
 from src.dev_agent.providers.dispatch import ProviderDispatcher, ProviderRegistry
@@ -284,6 +288,30 @@ def test_planner_shadow_reports_bounded_host_transport_category(monkeypatch, cap
     assert output["category"] == "reconciliation_required"
     assert output["reconciliation_required"] is True
     assert output["transport_failure_category"] == "sandbox_network_denied"
+
+
+def test_planner_shadow_classifies_invalid_model_output(monkeypatch, capsys):
+    monkeypatch.setattr(
+        planner_shadow.ModelEvidenceCatalog,
+        "load_default",
+        lambda: type("Evidence", (), {"resolver": object(), "catalog": object()})(),
+    )
+    monkeypatch.setattr(planner_shadow, "resolve_provider_pool", lambda **_kwargs: None)
+    monkeypatch.setattr(
+        planner_shadow,
+        "run_shadow",
+        lambda **_kwargs: (_ for _ in ()).throw(PlanningResponseError("planner response is not valid JSON")),
+    )
+
+    assert planner_shadow.main(["--objective", "diagnostic"]) == 2
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["status"] == "failed"
+    assert output["category"] == "model_output_invalid"
+    assert output["adapter_error"] == "PlanningResponseError"
+    assert output["provider_response_observed"] is True
+    assert output["reconciliation_required"] is False
+    assert output["response_contract"] == "invalid_json"
 
 
 def test_planner_shadow_cli_passes_bounded_output_ceiling(monkeypatch, capsys):

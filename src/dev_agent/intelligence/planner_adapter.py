@@ -27,6 +27,10 @@ class PlanningAdapterError(ValueError):
     """The provider response cannot be treated as a typed planning proposal."""
 
 
+class PlanningResponseError(PlanningAdapterError):
+    """The provider returned a response that failed the planning contract."""
+
+
 PLANNING_PROPOSAL_RESPONSE_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
@@ -179,15 +183,15 @@ class ModelPlanningAdapter:
         except EgressValidationError as exc:
             raise PlanningAdapterError(f"model request egress rejected: {exc}") from exc
         response = self.provider.request(request)
-        payload = self._response_payload(response)
         try:
+            payload = self._response_payload(response)
             proposal = RootPlanningProposal.from_dict(payload)
         except PlanningValidationError as exc:
-            raise PlanningAdapterError(str(exc)) from exc
+            raise PlanningResponseError(str(exc)) from exc
         if proposal.parent_task_id != parent_task_id.strip():
-            raise PlanningAdapterError("proposal parent_task_id does not match the requested parent")
+            raise PlanningResponseError("proposal parent_task_id does not match the requested parent")
         if len(proposal.children) > self._MAX_CHILDREN:
-            raise PlanningAdapterError("planning proposal exceeds the child limit")
+            raise PlanningResponseError("planning proposal exceeds the child limit")
         return proposal
 
     @classmethod
@@ -239,7 +243,12 @@ class ModelPlanningAdapter:
         try:
             return decode_json_object(response, role="planner", max_chars=cls._MAX_RESPONSE_CHARS)
         except StructuredResponseError as exc:
-            raise PlanningAdapterError(str(exc)) from exc
+            raise PlanningResponseError(str(exc)) from exc
 
 
-__all__ = ["ModelPlanningAdapter", "PLANNING_PROPOSAL_RESPONSE_SCHEMA", "PlanningAdapterError"]
+__all__ = [
+    "ModelPlanningAdapter",
+    "PLANNING_PROPOSAL_RESPONSE_SCHEMA",
+    "PlanningAdapterError",
+    "PlanningResponseError",
+]

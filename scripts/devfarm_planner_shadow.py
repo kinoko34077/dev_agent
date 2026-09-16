@@ -28,7 +28,7 @@ if str(ROOT) not in sys.path:
 
 from src.dev_agent.domain.protocol import RiskLevel, Task, TaskStatus, TaskType
 from src.dev_agent.intelligence.planner import RootPlanningValidator
-from src.dev_agent.intelligence.planner_adapter import ModelPlanningAdapter
+from src.dev_agent.intelligence.planner_adapter import ModelPlanningAdapter, PlanningResponseError
 from src.dev_agent.operation import OperationProviderBinding
 from src.dev_agent.providers.base import ProviderError, transport_failure_metadata
 from src.dev_agent.providers.dispatch import ProviderPoolExhausted
@@ -427,6 +427,17 @@ def main(argv: list[str] | None = None) -> int:
         code = 0 if output.get("status") == "live_shadow_validated" else 2
     except PlannerShadowInputError as exc:
         output = {"status": "invalid_input", "category": type(exc).__name__, "message": str(exc)}
+        code = 2
+    except PlanningResponseError as exc:
+        message = str(exc).lower()
+        output = {
+            "status": "failed",
+            "category": "model_output_invalid",
+            "adapter_error": type(exc).__name__,
+            "provider_response_observed": True,
+            "response_contract": "invalid_json" if "json" in message else "invalid_proposal",
+            "reconciliation_required": False,
+        }
         code = 2
     except (PlannerShadowBlocked, DispatchDenied, ProviderError) as exc:
         output = {
