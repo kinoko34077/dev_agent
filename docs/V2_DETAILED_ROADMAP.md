@@ -8,6 +8,20 @@
 
 ## 現行Work Addressプログラム
 
+### Gate分離
+
+`D9_DOGFOOD`と`D9_PRODUCTION_DEPLOYMENT`は別トラックとして判定する。
+前者はTask Scheduler/OS常駐を要求せず、Human approval、実在するbounded
+production repair、Host Verification、pinned local runtime、health、local rollback
+を要求する。後者はOS Guardian liveness、crash/reboot recovery、deployed rolling/
+rollbackを要求する。現在は両方とも完了扱いにせず、前者は実Self-Repair未実証、後者は
+Human指示によりTask Schedulerを保留した`DEFERRED_NOT_READY`である。
+
+Phase 8も`PREPARATION_ONLY`（Role/ownership、local deterministic composition）と
+`LIVE_ACTIVATION`（実Providerによる複数Implementerのpatch、review、integration、CI）を
+分離する。要求は[`02-dogfood-and-production-gates.md`](requirements/process-coordination/02-dogfood-and-production-gates.md)、
+decision rationaleは[`ADR-014`](../spec/v2/adr/ADR-014-dogfood-production-gate-separation.md)を参照する。
+
 Stage 4/5の現在の実装境界: Role Manifest/RoleInstance/Commander投影と、temporary-Git/fake-providerによる決定論的Stage 5構成（2 Implementer並列、独立Host Verification、proposal-only Reviewer、`CODE_INTEGRATED`依存解放、Host integration）は検証済みである。これはlive Providerを用いたPhase 8 runtime E2EやPhase 8 activationではなく、既存Commander/Orchestrator境界の局所的な準備証拠である。D9/Stage 1の未達条件を理由なく緩和しない。
 
 現在の開発順序は、既存のTask UUID・dependency・ownership・lease・Gate IDを置換せず、
@@ -15,11 +29,11 @@ Stage 4/5の現在の実装境界: Role Manifest/RoleInstance/Commander投影と
 別laneは依存がない場合だけ並列とする。実行権限は従来どおりCommander/Hostが持ち、
 Address自身はAuthorityではない。詳細な契約は[`CODEX_WORK_COORDINATION.md`](CODEX_WORK_COORDINATION.md)を参照する。
 
-- **Stage 1 — Phase 7 closeout / Guardian実運用化**: `1-A` OS liveness、`1-B` 実rolling、`1-C` 実rollback、`1-D` production approval persistence、`1-E` readiness evidence。現在は`1-A-1`/`1-A-2`のread-only診断と`1-D-1`の既存approval監査を優先し、OS登録・実mutationは未承認/未検証のまま保持する。
-- **Stage 2 — D9 Real Self-Repair**: `2-A` Observation/Diagnosis/Plan、`2-B` candidate、`2-C` Human approval付きreal mutation、`2-D` rollback drill、`2-E` closure。Stage 1のD9 readiness `READY`後だけ開始する。
+- **Stage 1 — Phase 7 closeout / Guardian実運用化**: `1-A`〜`1-C`はProduction Deployment track（OS liveness、deployed rolling、deployed rollback）、`1-D`は共有するproduction approval persistence、`1-E`はDogfood/Productionを分けたreadiness evidenceとする。Task Scheduler/OS登録は現在保留し、local pinned runtimeの証拠と混同しない。
+- **Stage 2 — D9 Real Self-Repair**: `2-A` Observation/Diagnosis/Plan、`2-B` candidate、`2-C` Human approval付きreal mutation、`2-D` local rollback drill、`2-E` closure。`D9_DOGFOOD`のready判定後に開始できるが、`D9_PRODUCTION_DEPLOYMENT`の完了やTask Scheduler登録を前提にしない。production deployment昇格は別Gateのまま保持する。
 - **Stage 3 — Autonomy Safety Model**: `3-A` path分類、`3-B` disposable worktree、`3-C` non-Git backup、`3-D` egress、`3-E` Codex policy、`3-F` safety regression。Stage 2完了後に安全モデルを更新する。
-- **Stage 4 — Phase 8 Multi-Role Foundation**: `4-A` Role Manifest、`4-B` role instance/ownership、`4-C` resource admission、`4-D` handoff、`4-E` Planner/Implementer/Reviewer role set。新Scheduler/StateStore/Budget/Agent frameworkは追加しない。
-- **Stage 5 — Multi-Role Runtime E2E**: `5-A` Planner、`5-B` 並列Implementer、`5-C` Reviewer、`5-D` failure/refinement、`5-E` Host integration。Stage 4のcontract成立後、実repositoryで2以上の非重複childを使う。
+- **Stage 4 — Phase 8 Multi-Role Foundation**: `4-A` Role Manifest、`4-B` role instance/ownership、`4-C` resource admission、`4-D` handoff、`4-E` Planner/Implementer/Reviewer role set。新Scheduler/StateStore/Budget/Agent frameworkは追加しない。現在は`PREPARATION_ONLY`。
+- **Stage 5 — Multi-Role Runtime E2E**: `5-A` Planner、`5-B` 並列Implementer、`5-C` Reviewer、`5-D` failure/refinement、`5-E` Host integration。Stage 4のcontract成立後、実repositoryで2以上の非重複childを使う。live Provider成功・integration revision・exact-head CIが揃うまで`LIVE_ACTIVATION`へ昇格しない。
 - **Stage 6 — AI Company benchmark**: `6-A` scenarios、`6-B` metrics/audit、`6-C` independent evaluator、`6-D` adversarial cases、`6-E` workflow promotion、`6-F` survival modes。Kernel correctnessやAuthorityをbenchmarkへ移さない。
 - **Stage 7 — Formal Operation / MCP API**: `7-A` Operation監査、`7-B` planning tools、`7-C` wire transport、`7-D` external-client E2E、`7-E` compatibility。既存Operation/Supervisor authorityへdelegateし、MCP独自Scheduler/Retry/Approvalは作らない。
 - **Stage 8 — UI Entry Readiness**: `8-A` read model、`8-B` control model、`8-C` state taxonomy、`8-D` update model、`8-E` redaction、`8-F` headless simulation、`8-G` contract freeze。ここまで完了するまでVirtual Office UIは開始しない。

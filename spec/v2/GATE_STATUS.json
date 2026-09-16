@@ -8,6 +8,54 @@
     "gate_role": "Gate status describes the acceptance scope; the CI provider is the source of truth for the run result and source revision."
   },
   "current_phase": "phase6_operational",
+  "development_tracks": {
+    "phase7_dogfood": {
+      "status": "NOT_READY",
+      "gate_id": "D9_DOGFOOD",
+      "purpose": "Human-approved bounded self-repair in an isolated/local runtime without requiring OS service registration",
+      "required": [
+        "real bounded production repair",
+        "Host Verification and durable approval binding",
+        "revision-pinned local runtime promotion",
+        "post-repair health",
+        "verified local rollback"
+      ],
+      "missing": ["one real self-repair execution and rollback evidence"],
+      "authority": "Human approval plus existing Host integration and Recovery boundaries"
+    },
+    "phase7_production_deployment": {
+      "status": "DEFERRED_NOT_READY",
+      "gate_id": "D9_PRODUCTION_DEPLOYMENT",
+      "purpose": "OS-owned Guardian liveness and deployed runtime recovery",
+      "required": [
+        "OS Guardian registration",
+        "crash/reboot recovery",
+        "deployed rolling replacement",
+        "deployed rollback"
+      ],
+      "deferred_by_human": true,
+      "task_scheduler": "DEFERRED",
+      "does_not_block": [
+        "D9_DOGFOOD preparation",
+        "Phase 8 local foundation",
+        "Phase 8 live benchmark preparation"
+      ]
+    },
+    "phase8_preparation": {
+      "status": "PREPARATION_ONLY",
+      "gate_id": "PHASE8_PREPARATION",
+      "verified_scope": [
+        "Role Manifest",
+        "Role Instance and ownership projection",
+        "deterministic two-Implementer local runtime",
+        "independent Host Verification",
+        "proposal-only Reviewer",
+        "CODE_INTEGRATED dependency release"
+      ],
+      "live_activation": "NOT_VERIFIED",
+      "current_blocker": "live Provider multi-role integration has not produced a verified patch and integration revision"
+    }
+  },
   "phase6_foundation_status": "VERIFIED",
   "phase6_operational_status": "IN_PROGRESS",
   "phase6_entry": "ALL_VERIFIED",

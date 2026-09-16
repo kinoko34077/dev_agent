@@ -60,3 +60,6 @@ network I/Oをdata modelの構築に含めない。
 
 実装状態と観測証拠は[`docs/CURRENT_STATE.md`](../../CURRENT_STATE.md)と
 `spec/v2/evidence/`、decision rationaleは`spec/v2/adr/`を参照する。
+
+D9のlocal dogfoodとOS/deployed production gateの分離は
+[`02-dogfood-and-production-gates.md`](02-dogfood-and-production-gates.md)に定義する。

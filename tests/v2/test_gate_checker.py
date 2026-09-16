@@ -19,6 +19,19 @@ def test_g6o1_freeze_companion_preserves_unverified_nonblocking_state():
     assert status["stages"]["G"]["G6O1"]["status"] == "BLOCKED"
 
 
+def test_gate_status_separates_dogfood_production_and_phase8_preparation_tracks():
+    status = load_status(Path("spec/v2/GATE_STATUS.json"))
+    tracks = status["development_tracks"]
+
+    assert tracks["phase7_dogfood"]["gate_id"] == "D9_DOGFOOD"
+    assert tracks["phase7_dogfood"]["status"] == "NOT_READY"
+    assert tracks["phase7_production_deployment"]["gate_id"] == "D9_PRODUCTION_DEPLOYMENT"
+    assert tracks["phase7_production_deployment"]["status"] == "DEFERRED_NOT_READY"
+    assert tracks["phase7_production_deployment"]["task_scheduler"] == "DEFERRED"
+    assert tracks["phase8_preparation"]["status"] == "PREPARATION_ONLY"
+    assert tracks["phase8_preparation"]["live_activation"] == "NOT_VERIFIED"
+
+
 def test_gate_checker_distinguishes_all_external_blockers():
     value = {"schema_version": 1, "stages": {"D": {"D1": {"status": "BLOCKED", "actionable": False, "blocker": "credential"}}}}
     assert check(value) == (2, ["D/D1: credential"])
