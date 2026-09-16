@@ -107,7 +107,7 @@ def build_capability_document(
         derived = {derive_capabilities(entry, min_long_context_tokens=min_long_context_tokens) for entry in entries}
         if len(derived) != 1:
             raise ModelCatalogError(f"conflicting derived capabilities: {identity!r}")
-        selected = max(entries, key=lambda entry: _timestamp(entry.observed_at))
+        selected = max(entries, key=lambda entry: (_timestamp(entry.observed_at), getattr(entry, "provider_binding_id", "")))
         records.append(
             {
                 "provider_id": identity[0],
