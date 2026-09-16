@@ -221,6 +221,7 @@ def test_classify_worker_failure_keeps_format_semantic_provider_and_security_dis
     assert classify_worker_failure("patch_format_failure") is FailureClass.FORMAT_PATCH
     assert classify_worker_failure("model_output_invalid") is FailureClass.FORMAT_PATCH
     assert classify_worker_failure("host_verification_failure") is FailureClass.SEMANTIC_TEST
+    assert classify_worker_failure("contract_shape_regression") is FailureClass.SEMANTIC_TEST
     assert classify_worker_failure("provider_unavailable") is FailureClass.PROVIDER_TRANSPORT
     assert classify_worker_failure("scope_violation") is FailureClass.SECURITY_EGRESS_AUTHORITY
 

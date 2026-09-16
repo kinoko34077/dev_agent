@@ -83,6 +83,7 @@ _SEMANTIC_FAILURES = frozenset(
     {
         "semantic_test",
         "test_failure",
+        "contract_shape_regression",
         "host_verification_failure",
     }
 )
