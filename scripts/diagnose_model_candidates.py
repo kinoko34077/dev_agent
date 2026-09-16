@@ -53,7 +53,8 @@ def diagnose_entries(
             entry.model_id,
             min_confidence="high",
         )
-        result = diagnostic.result
+        static_result = diagnostic.result
+        result = static_result
         if result == "ELIGIBLE" and billing is None:
             result = "BILLING_UNKNOWN"
         elif result == "ELIGIBLE" and qualification is None:
@@ -80,6 +81,7 @@ def diagnose_entries(
         row.update(
             {
                 "gate_reason": gate_reason,
+                "static_result": static_result,
                 "billing": "PASS" if billing is not None else "MISSING",
                 "qualification": "PASS" if qualification is not None else "MISSING",
                 # Static snapshots do not own live health/quota.  Do not imply
@@ -98,6 +100,7 @@ def summarize_entries(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
     """Return bounded aggregate counts without echoing model payloads."""
 
     result_counts: Counter[str] = Counter()
+    static_result_counts: Counter[str] = Counter()
     provider_counts: Counter[str] = Counter()
     row_count = 0
     for row in rows:
@@ -106,12 +109,18 @@ def summarize_entries(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
         row_count += 1
         provider = row.get("provider_id")
         result = row.get("result")
+        static_result = row.get("static_result")
         provider_counts[str(provider).strip() if provider is not None else "UNKNOWN"] += 1
         result_counts[str(result).strip() if result is not None else "UNKNOWN"] += 1
+        if static_result is not None:
+            static_result_counts[str(static_result).strip() or "UNKNOWN"] += 1
     return {
         "row_count": row_count,
         "eligible_count": result_counts.get("ELIGIBLE", 0),
+        "static_eligible_count": static_result_counts.get("ELIGIBLE", 0),
+        "runtime_unknown_count": result_counts.get("RUNTIME_UNKNOWN", 0),
         "result_counts": dict(sorted(result_counts.items())),
+        "static_result_counts": dict(sorted(static_result_counts.items())),
         "provider_counts": dict(sorted(provider_counts.items())),
     }
 

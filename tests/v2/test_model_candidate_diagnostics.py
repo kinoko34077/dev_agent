@@ -29,17 +29,41 @@ def test_diagnose_entries_rejects_limits_above_the_bounded_inventory_cap(model_e
 
 def test_summarize_entries_returns_only_bounded_aggregate_gate_counts():
     rows = [
-        {"provider_id": "gemini", "result": "ELIGIBLE"},
-        {"provider_id": "gemini", "result": "BENCHMARK_MISSING"},
-        {"provider_id": "cloudflare", "result": "ELIGIBLE"},
+        {"provider_id": "gemini", "static_result": "ELIGIBLE", "result": "ELIGIBLE"},
+        {"provider_id": "gemini", "static_result": "BENCHMARK_MISSING", "result": "BENCHMARK_MISSING"},
+        {"provider_id": "cloudflare", "static_result": "ELIGIBLE", "result": "ELIGIBLE"},
     ]
 
     assert summarize_entries(rows) == {
         "row_count": 3,
         "eligible_count": 2,
+        "static_eligible_count": 2,
+        "runtime_unknown_count": 0,
         "result_counts": {"BENCHMARK_MISSING": 1, "ELIGIBLE": 2},
+        "static_result_counts": {"BENCHMARK_MISSING": 1, "ELIGIBLE": 2},
         "provider_counts": {"cloudflare": 1, "gemini": 2},
     }
+
+
+def test_summarize_entries_separates_static_candidates_from_runtime_unknown():
+    summary = summarize_entries(
+        [
+            {
+                "provider_id": "gemini",
+                "static_result": "ELIGIBLE",
+                "result": "RUNTIME_UNKNOWN",
+            },
+            {
+                "provider_id": "gemini",
+                "static_result": "BENCHMARK_MISSING",
+                "result": "BENCHMARK_MISSING",
+            },
+        ]
+    )
+
+    assert summary["eligible_count"] == 0
+    assert summary["static_eligible_count"] == 1
+    assert summary["runtime_unknown_count"] == 1
 
 
 def test_main_tabular_output_exposes_runtime_and_gate_reason(model_evidence, capsys):
