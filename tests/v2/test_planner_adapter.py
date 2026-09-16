@@ -275,6 +275,35 @@ def test_model_planner_binds_response_contract_failure_to_fresh_request_id():
     assert raised.value.provider_response_observed is True
 
 
+def test_model_planner_binds_provider_failure_to_fresh_request_id():
+    parent_task_id = str(uuid4())
+
+    class _FailingProvider(_Provider):
+        def request(self, request: ModelRequest) -> ModelResponse:
+            self.requests.append(request)
+            raise ProviderError(
+                "transport detail must remain outside the adapter projection",
+                category="transport",
+                retryable=True,
+            )
+
+    provider = _FailingProvider(
+        ModelResponse(
+            provider="planner-test",
+            model="free-l2-test",
+            text_segments=["unused"],
+        )
+    )
+
+    with pytest.raises(ProviderError) as raised:
+        ModelPlanningAdapter(provider).propose(
+            parent_task_id=parent_task_id,
+            objective="bounded objective",
+        )
+
+    assert raised.value.request_id == provider.requests[0].request_id
+
+
 def test_typed_proposal_round_trip_rejects_untracked_fields():
     parent_task_id = str(uuid4())
     payload = _payload(parent_task_id)
@@ -287,12 +316,14 @@ def test_typed_proposal_round_trip_rejects_untracked_fields():
 
 
 def test_planner_shadow_reports_bounded_host_transport_category(monkeypatch, capsys):
+    request_id = str(uuid4())
     failure = ProviderError(
         "secret-shaped transport detail must not cross the projection",
         category="reconciliation_required",
         retryable=False,
     )
     failure.transport_failure_category = "sandbox_network_denied"
+    failure.request_id = request_id
     monkeypatch.setattr(
         planner_shadow.ModelEvidenceCatalog,
         "load_default",
@@ -314,6 +345,7 @@ def test_planner_shadow_reports_bounded_host_transport_category(monkeypatch, cap
     assert output["error_type"] == "ProviderError"
     assert "message" not in output
     assert "secret-shaped transport detail" not in json.dumps(output)
+    assert output["request_id"] == request_id
 
 
 def test_planner_shadow_classifies_invalid_model_output(monkeypatch, capsys):

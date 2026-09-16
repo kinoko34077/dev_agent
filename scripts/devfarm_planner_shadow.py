@@ -71,6 +71,17 @@ def validate_parent_task_id(value: object) -> str:
     return normalized
 
 
+def _bounded_request_id(value: object) -> str | None:
+    """Return only a canonical UUID for bounded failure correlation."""
+
+    if not isinstance(value, str):
+        return None
+    try:
+        return str(UUID(value))
+    except (ValueError, AttributeError, TypeError):
+        return None
+
+
 def _build_provider(*, binding: OperationProviderBinding):
     """Compatibility seam for isolated tests; runtime composition is shared."""
 
@@ -237,7 +248,7 @@ def run_shadow(
                 context_references=_shadow_context(repository=repository, branch=branch),
             )
         except ProviderPoolExhausted as exc:
-            return {
+            result = {
                 "status": "pool_exhausted",
                 "checked_at": datetime.now(timezone.utc).isoformat(),
                 "eligible_pool": [
@@ -254,6 +265,10 @@ def run_shadow(
                 "host_validation": "not_run",
                 "allow_unknown_quota": allow_unknown_quota,
             }
+            request_id = _bounded_request_id(getattr(exc, "request_id", None))
+            if request_id is not None:
+                result["request_id"] = request_id
+            return result
         except ProviderError as exc:
             if not exc.failover_safe or exc.requires_reconciliation:
                 raise
@@ -271,7 +286,7 @@ def run_shadow(
             ]
             if not attempts:
                 raise
-            return {
+            result = {
                 "status": "pool_exhausted",
                 "checked_at": datetime.now(timezone.utc).isoformat(),
                 "eligible_pool": [
@@ -288,6 +303,10 @@ def run_shadow(
                 "host_validation": "not_run",
                 "allow_unknown_quota": allow_unknown_quota,
             }
+            request_id = _bounded_request_id(getattr(exc, "request_id", None))
+            if request_id is not None:
+                result["request_id"] = request_id
+            return result
         parent = Task(
             task_id=parent_task_id,
             objective=objective,
@@ -439,12 +458,7 @@ def main(argv: list[str] | None = None) -> int:
             "response_contract": "invalid_json" if "json" in message else "invalid_proposal",
             "reconciliation_required": False,
         }
-        request_id = getattr(exc, "request_id", None)
-        if isinstance(request_id, str):
-            try:
-                request_id = str(UUID(request_id))
-            except (ValueError, AttributeError, TypeError):
-                request_id = None
+        request_id = _bounded_request_id(getattr(exc, "request_id", None))
         if request_id is not None:
             output["request_id"] = request_id
         code = 2
@@ -462,6 +476,9 @@ def main(argv: list[str] | None = None) -> int:
         if isinstance(transport_failure_category, str):
             output["transport_failure_category"] = transport_failure_category
         output.update(transport_failure_metadata(exc))
+        request_id = _bounded_request_id(getattr(exc, "request_id", None))
+        if request_id is not None:
+            output["request_id"] = request_id
         code = 2
     except Exception as exc:
         output = {"status": "failed", "category": type(exc).__name__, "message": str(exc)}

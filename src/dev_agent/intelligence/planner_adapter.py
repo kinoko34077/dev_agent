@@ -16,7 +16,7 @@ from typing import Any
 
 from ..domain.capabilities import CANONICAL_EXECUTION_CAPABILITIES
 from ..domain.protocol import ModelRequest, ModelResponse
-from ..providers.base import ModelProvider
+from ..providers.base import ModelProvider, ProviderError
 from ..security.egress import EgressValidationError, attach_model_request_egress
 from .capabilities import TASK_COMPETENCIES, TASK_POLICY_TRAITS
 from .planner import PlanningValidationError, RootPlanningProposal
@@ -193,7 +193,13 @@ class ModelPlanningAdapter:
             request, _egress_manifest = attach_model_request_egress(request)
         except EgressValidationError as exc:
             raise PlanningAdapterError(f"model request egress rejected: {exc}") from exc
-        response = self.provider.request(request)
+        try:
+            response = self.provider.request(request)
+        except ProviderError as exc:
+            # Keep the exact request identity available to the outer Host
+            # projection without copying provider message/body details.
+            exc.request_id = request.request_id
+            raise
         try:
             payload = self._response_payload(response)
             proposal = RootPlanningProposal.from_dict(payload)
