@@ -95,6 +95,8 @@
       "b4ac855d-4d4b-4f09-92b7-9340975e8c9c"
     ],
     "status_before_evidence_commit": "READY",
+    "status_after_evidence_commit": "INTEGRATED",
+    "integration_revision": "22811ae53212fb5c99ac9387879b4b92fc034961",
     "codex_source_implementation": false
   },
   "review_boundary": {
@@ -109,7 +111,7 @@
     "worker_originated_production_source_files": 2,
     "codex_direct_implementation_count": 0,
     "host_integration_used": true,
-    "root_completion": "pending_dependent_continuation_and_documentation_sync"
+    "root_completion": "completed_partial"
   },
   "safety": {
     "raw_provider_response_saved": false,
