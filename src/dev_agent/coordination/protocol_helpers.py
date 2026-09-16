@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from datetime import datetime
 import json
-from pathlib import PurePosixPath
+from pathlib import PurePosixPath, PureWindowsPath
 import re
 from typing import Any
 
@@ -41,8 +41,11 @@ def validate_relative_path(value: Any, name: str = "path") -> str:
         raise CoordinationValidationError(f"{name} must be a non-empty relative path")
     normalized = value.replace("\\", "/")
     pure = PurePosixPath(normalized)
+    windows = PureWindowsPath(normalized)
     if (
         pure.is_absolute()
+        or windows.is_absolute()
+        or windows.drive
         or normalized.startswith("/")
         or any(part in {"", ".", ".."} for part in pure.parts)
         or any(part.startswith("..") for part in pure.parts)

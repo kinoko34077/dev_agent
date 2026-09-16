@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 import subprocess
 import tempfile
 import threading
@@ -170,7 +170,14 @@ def validate_host_test_targets(workspace: Path, tokens: list[str]) -> None:
             continue
         target = token.split("::", 1)[0].replace("\\", "/")
         parsed = PurePosixPath(target)
-        if parsed.is_absolute() or any(part in {"", ".", ".."} for part in parsed.parts) or is_protected_path(target):
+        windows = PureWindowsPath(target)
+        if (
+            parsed.is_absolute()
+            or windows.is_absolute()
+            or windows.drive
+            or any(part in {"", ".", ".."} for part in parsed.parts)
+            or is_protected_path(target)
+        ):
             raise DevFarmError(f"host test target is outside the allowed worktree scope: {target}")
         current = workspace
         for part in parsed.parts:

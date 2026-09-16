@@ -27,6 +27,8 @@ def test_helpers_validate_bounded_identifiers_paths_and_timestamps() -> None:
     [
         (validate_identifier, "../outside"),
         (validate_relative_path, "../outside.json"),
+        (validate_relative_path, "C:/outside.json"),
+        (validate_relative_path, r"C:\outside.json"),
         (validate_timestamp, "not-a-timestamp"),
     ],
 )
@@ -40,4 +42,3 @@ def test_helpers_reject_nan_and_secret_shaped_values() -> None:
         ensure_json_safe({"value": math.nan}, "payload")
     with pytest.raises(CoordinationValidationError):
         ensure_secret_free({"api_key": "should-not-be-stored"}, "payload")
-

@@ -9,6 +9,7 @@ from scripts.devfarm_resource_pool import (
     make_binding,
     resolve_provider_pool,
 )
+from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_verification import validate_host_test_targets
 
 
@@ -111,3 +112,6 @@ def test_public_artifact_and_verification_boundaries_are_bounded(tmp_path):
     assert bounded == {"text": "ok", "truncated": False}
 
     validate_host_test_targets(tmp_path, ["python", "-m", "pytest", "tests/v2/test_target.py", "-q"])
+
+    with pytest.raises(DevFarmError, match="outside the allowed worktree scope"):
+        validate_host_test_targets(tmp_path, ["python", "-m", "pytest", "C:/outside/test_target.py", "-q"])

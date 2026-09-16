@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import PurePosixPath
+from pathlib import PurePosixPath, PureWindowsPath
 import re
 import shlex
 from typing import Any, Mapping
@@ -78,7 +78,13 @@ def _nonempty(value: Any, name: str) -> str:
 def _path(value: Any, name: str) -> str:
     candidate = _nonempty(value, name).replace("\\", "/")
     parsed = PurePosixPath(candidate)
-    if parsed.is_absolute() or any(part in {"", ".", ".."} for part in parsed.parts):
+    windows = PureWindowsPath(candidate)
+    if (
+        parsed.is_absolute()
+        or windows.is_absolute()
+        or windows.drive
+        or any(part in {"", ".", ".."} for part in parsed.parts)
+    ):
         raise DevFarmError(f"{name} must be a safe relative path")
     return str(parsed)
 
@@ -140,7 +146,8 @@ def parse_host_test_command(command: str) -> list[str]:
             raise DevFarmError(f"test_commands contain an unsafe option: {token}")
         target = token.split("::", 1)[0]
         parsed = PurePosixPath(target.replace("\\", "/"))
-        if parsed.is_absolute() or ".." in parsed.parts or not target:
+        windows = PureWindowsPath(target.replace("\\", "/"))
+        if parsed.is_absolute() or windows.is_absolute() or windows.drive or ".." in parsed.parts or not target:
             raise DevFarmError("test_commands paths must stay relative to the worker worktree")
         targets += 1
     if tokens[2] == "pytest" and targets == 0:

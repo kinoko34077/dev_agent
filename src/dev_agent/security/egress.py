@@ -13,7 +13,7 @@ from dataclasses import dataclass, replace
 from enum import Enum
 import hashlib
 import json
-from pathlib import PurePosixPath
+from pathlib import PurePosixPath, PureWindowsPath
 import re
 from typing import Any
 
@@ -92,7 +92,13 @@ def _identifier(value: Any, name: str) -> str:
 def _path(value: Any, name: str = "path") -> str:
     result = _text(value, name, max_chars=4096).replace("\\", "/")
     parsed = PurePosixPath(result)
-    if parsed.is_absolute() or any(part in {"", ".", ".."} for part in parsed.parts):
+    windows = PureWindowsPath(result)
+    if (
+        parsed.is_absolute()
+        or windows.is_absolute()
+        or windows.drive
+        or any(part in {"", ".", ".."} for part in parsed.parts)
+    ):
         raise EgressValidationError(f"{name} must be a safe relative path")
     return parsed.as_posix()
 

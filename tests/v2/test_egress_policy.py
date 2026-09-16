@@ -73,6 +73,16 @@ def test_egress_file_entry_rejects_a_tampered_path_class() -> None:
         )
 
 
+@pytest.mark.parametrize("path", ["C:/outside.py", r"C:\outside.py", "C:outside.py"])
+def test_egress_file_entry_rejects_windows_drive_paths(path: str) -> None:
+    with pytest.raises(EgressValidationError, match="relative path"):
+        EgressFileEntry(
+            path=path,
+            sha256=hashlib.sha256(b"pass\n").hexdigest(),
+            size_bytes=5,
+        )
+
+
 def test_secret_content_is_denied_by_host_scan() -> None:
     manifest = build_egress_manifest(
         task_id="task-1",
