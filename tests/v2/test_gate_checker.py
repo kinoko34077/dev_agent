@@ -25,11 +25,16 @@ def test_gate_status_separates_dogfood_production_and_phase8_preparation_tracks(
 
     assert tracks["phase7_dogfood"]["gate_id"] == "D9_DOGFOOD"
     assert tracks["phase7_dogfood"]["status"] == "NOT_READY"
+    assert tracks["phase7_dogfood"]["execution_readiness"] == "READY_FOR_TRIAL"
+    assert tracks["phase7_dogfood"]["production_deployment_dependency"] is False
+    assert tracks["phase7_dogfood"]["exit_condition"] == "D9_DOGFOOD_VERIFIED_AFTER_REAL_REPAIR_AND_ROLLBACK"
     assert tracks["phase7_production_deployment"]["gate_id"] == "D9_PRODUCTION_DEPLOYMENT"
     assert tracks["phase7_production_deployment"]["status"] == "DEFERRED_NOT_READY"
     assert tracks["phase7_production_deployment"]["task_scheduler"] == "DEFERRED"
+    assert "D9_DOGFOOD trial readiness and bounded local trial" in tracks["phase7_production_deployment"]["does_not_block"]
     assert tracks["phase8_preparation"]["status"] == "PREPARATION_ONLY"
     assert tracks["phase8_preparation"]["live_activation"] == "NOT_VERIFIED"
+    assert "D9_DOGFOOD=VERIFIED" in tracks["phase8_preparation"]["live_activation_requires"]
 
 
 def test_gate_checker_distinguishes_all_external_blockers():

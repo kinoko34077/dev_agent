@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "evidence_id": "d9-dogfood-trial-readiness-20260916",
+  "observed_at": "2026-09-16",
+  "purpose": "Non-mutating review of whether one bounded local D9 Dogfood trial may begin, without promoting the D9 exit Gate or the production-deployment track.",
+  "implementation_baseline": "9ca4a696d61655eb5743eaefd041e68754c855a3",
+  "readiness": {
+    "status": "READY_FOR_TRIAL",
+    "scope": "one bounded Human-approved local dogfood trial",
+    "gate_status": "D9_DOGFOOD=NOT_READY",
+    "exit_condition": "D9_DOGFOOD_VERIFIED_AFTER_REAL_REPAIR_AND_ROLLBACK",
+    "os_registration": "NOT_REQUIRED_FOR_DOGFOOD_TRIAL",
+    "production_deployment_dependency": false
+  },
+  "preconditions": {
+    "real_production_worker_path": {
+      "status": "PASS",
+      "scope": "existing production Worker integrations; not this trial's repair"
+    },
+    "host_egress": "PASS",
+    "independent_host_verification": "PASS",
+    "repair_candidate_policy": "PASS_PROPOSAL_ONLY",
+    "rollback_proof": "PASS_LOCAL_COMPOSITION_ONLY",
+    "durable_approval_binding": {
+      "status": "PASS_LOCAL_COMPOSITION_ONLY",
+      "exact_operation_binding": "PASS",
+      "consume_once": "PASS",
+      "live_trial_approval_consumed": false
+    },
+    "integrate_approved_repair_composition": "PASS_TEMPORARY_GIT_ONLY",
+    "revision_pinned_local_runtime": "PASS_LOCAL_COMPOSITION_ONLY",
+    "real_local_health_transition": "PASS_LOCAL_GUARDIAN_EVIDENCE",
+    "real_local_rollback_primitive": "PASS_LOCAL_GUARDIAN_EVIDENCE",
+    "unknown_no_blind_retry": "PASS_PRESERVED"
+  },
+  "missing_for_exit": [
+    "select one real bounded low-risk production issue",
+    "fresh F0 Observation, F1 Diagnosis, and F2 Improvement Plan",
+    "trial-specific Worker repair candidate and immutable Egress evidence",
+    "Human approval consumption bound to the exact candidate and operation",
+    "actual Host integration of the approved repair",
+    "post-repair pinned-runtime health",
+    "actual local rollback and post-rollback health"
+  ],
+  "tracks": {
+    "D9_PRODUCTION_DEPLOYMENT": {
+      "status": "DEFERRED_NOT_READY",
+      "task_scheduler": "DEFERRED",
+      "required_for_this_trial": false
+    },
+    "PHASE8_PREPARATION": {
+      "status": "PREPARATION_ONLY",
+      "live_activation": "NOT_VERIFIED",
+      "live_activation_requires": "D9_DOGFOOD=VERIFIED plus independent live benchmark evidence"
+    }
+  },
+  "verification": {
+    "local_regression": "1373 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head_ci_for_baseline": {
+      "remote_head": "9ca4a696d61655eb5743eaefd041e68754c855a3",
+      "v2_core": {
+        "run_id": 35056243038,
+        "kernel_3_10": "PASS",
+        "kernel_3_11": "PASS"
+      },
+      "v2_provider_smoke": {
+        "run_id": 35056242998,
+        "result": "PASS"
+      }
+    }
+  },
+  "external_effect": "NONE",
+  "gate_changed": false,
+  "repair_started": false,
+  "approval_consumed": false,
+  "official_checkout_changed": false,
+  "raw_provider_response_recorded": false,
+  "raw_conversation_recorded": false,
+  "credentials_recorded": false,
+  "references": [
+    "spec/v2/GATE_STATUS.json",
+    "docs/requirements/process-coordination/02-dogfood-and-production-gates.md",
+    "spec/v2/adr/ADR-014-dogfood-production-gate-separation.md",
+    "d9-gate-separation-20260916.json",
+    "d9-real-mutation-readiness-review-20260916-02.json",
+    "d9-production-approval-audit-20260916.json",
+    "guardian-real-rolling-rollback-20260916.json",
+    "phase8-live-production-worker-integration-20260916.json"
+  ]
+}

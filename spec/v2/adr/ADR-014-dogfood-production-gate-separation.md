@@ -23,15 +23,19 @@ Use two explicit tracks:
   replacement, and deployed rollback.
 
 The production track remains `DEFERRED_NOT_READY` while Task Scheduler is
-deferred. The dogfood track remains independently `NOT_READY` until a real
-repair and rollback evidence exists. Phase 8 preparation and live activation
-are also reported separately.
+deferred. The dogfood track exposes an additive `execution_readiness` state for
+one bounded local trial, but remains `NOT_READY` until a real repair and
+rollback evidence exists. `READY_FOR_TRIAL` is not a Gate promotion or an
+approval consumption. Phase 8 preparation and live activation are also
+reported separately; live activation requires the verified dogfood exit Gate in
+addition to its own live benchmark evidence.
 
 ## Consequences
 
-Local D9 preparation and Phase 8 benchmark preparation can proceed without
-claiming OS deployment readiness. No existing Gate is weakened, and no
-production or official-runtime mutation is implied by a dogfood result.
+Local D9 trial preparation and Phase 8 benchmark preparation can proceed
+without claiming OS deployment readiness. No existing Gate is weakened, and no
+production or official-runtime mutation is implied by execution readiness or a
+dogfood result.
 
 ## Rejected alternative
 

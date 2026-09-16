@@ -12,15 +12,17 @@
 ### Gate分離
 
 `D9_DOGFOOD`と`D9_PRODUCTION_DEPLOYMENT`は別トラックとして判定する。
-前者はTask Scheduler/OS常駐を要求せず、Human approval、実在するbounded
-production repair、Host Verification、pinned local runtime、health、local rollback
-を要求する。後者はOS Guardian liveness、crash/reboot recovery、deployed rolling/
-rollbackを要求する。現在は両方とも完了扱いにせず、前者は実Self-Repair未実証、後者は
-Human指示によりTask Schedulerを保留した`DEFERRED_NOT_READY`である。
+前者はTask Scheduler/OS常駐を要求せず、既存のlocal preconditionが揃った時点で
+`execution_readiness=READY_FOR_TRIAL`を示せる。ただしこれは一件限定のHuman-approved
+trialを開始できるという意味で、exit Gateの完了ではない。実在するbounded production
+repair、Host Verification、pinned local runtime、health、local rollbackまでを実証して
+初めて`D9_DOGFOOD=VERIFIED`となる。後者はOS Guardian liveness、crash/reboot recovery、
+deployed rolling/rollbackを要求する。現在は前者がtrial前提のみ`READY_FOR_TRIAL`、exit
+Gateは未検証、後者はHuman指示によりTask Schedulerを保留した`DEFERRED_NOT_READY`である。
 
 Phase 8も`PREPARATION_ONLY`（Role/ownership、local deterministic composition）と
-`LIVE_ACTIVATION`（実Providerによる複数Implementerのpatch、review、integration、CI）を
-分離する。要求は[`02-dogfood-and-production-gates.md`](requirements/process-coordination/02-dogfood-and-production-gates.md)、
+`LIVE_ACTIVATION`（実Providerによる複数Implementerのpatch、review、integration、CI、
+`D9_DOGFOOD=VERIFIED`）を分離する。要求は[`02-dogfood-and-production-gates.md`](requirements/process-coordination/02-dogfood-and-production-gates.md)、
 decision rationaleは[`ADR-014`](../spec/v2/adr/ADR-014-dogfood-production-gate-separation.md)を参照する。
 
 Stage 4/5の現在の実装境界: Role Manifest/RoleInstance/Commander投影と、temporary-Git/fake-providerによる決定論的Stage 5構成（2 Implementer並列、独立Host Verification、proposal-only Reviewer、`CODE_INTEGRATED`依存解放、Host integration）は検証済みである。live Gemini Workerによるproduction-code統合も2件検証済みだが、これはproduction Worker subgateの証拠であり、Plannerから2 Implementer、Reviewer、依存Taskまでを一つのlive rootで完走した証拠ではない。したがってlive Providerを用いたPhase 8 runtime E2EやPhase 8 activationではなく、既存Commander/Orchestrator境界の局所的な準備証拠として扱う。D9/Stage 1の未達条件を理由なく緩和しない。
@@ -31,7 +33,7 @@ Stage 4/5の現在の実装境界: Role Manifest/RoleInstance/Commander投影と
 Address自身はAuthorityではない。詳細な契約は[`CODEX_WORK_COORDINATION.md`](CODEX_WORK_COORDINATION.md)を参照する。
 
 - **Stage 1 — Phase 7 closeout / Guardian実運用化**: `1-A`〜`1-C`はProduction Deployment track（OS liveness、deployed rolling、deployed rollback）、`1-D`は共有するproduction approval persistence、`1-E`はDogfood/Productionを分けたreadiness evidenceとする。Task Scheduler/OS登録は現在保留し、local pinned runtimeの証拠と混同しない。
-- **Stage 2 — D9 Real Self-Repair**: `2-A` Observation/Diagnosis/Plan、`2-B` candidate、`2-C` Human approval付きreal mutation、`2-D` local rollback drill、`2-E` closure。`D9_DOGFOOD`のready判定後に開始できるが、`D9_PRODUCTION_DEPLOYMENT`の完了やTask Scheduler登録を前提にしない。production deployment昇格は別Gateのまま保持する。
+- **Stage 2 — D9 Real Self-Repair**: `2-A` Observation/Diagnosis/Plan、`2-B` candidate、`2-C` Human approval付きreal mutation、`2-D` local rollback drill、`2-E` closure。`execution_readiness=READY_FOR_TRIAL`を開始条件とし、実repair・health・rollback後に`D9_DOGFOOD`をexit Gateとして検証する。`D9_PRODUCTION_DEPLOYMENT`の完了やTask Scheduler登録を前提にしない。production deployment昇格は別Gateのまま保持する。
 - **Stage 3 — Autonomy Safety Model**: `3-A` path分類、`3-B` disposable worktree、`3-C` non-Git backup、`3-D` egress、`3-E` Codex policy、`3-F` safety regression。Stage 2完了後に安全モデルを更新する。
 - **Stage 4 — Phase 8 Multi-Role Foundation**: `4-A` Role Manifest、`4-B` role instance/ownership、`4-C` resource admission、`4-D` handoff、`4-E` Planner/Implementer/Reviewer role set。新Scheduler/StateStore/Budget/Agent frameworkは追加しない。現在は`PREPARATION_ONLY`。
 - **Stage 5 — Multi-Role Runtime E2E**: `5-A` Planner、`5-B` 並列Implementer、`5-C` Reviewer、`5-D` failure/refinement、`5-E` Host integration。Stage 4のcontract成立後、実repositoryで2以上の非重複childを使う。live Provider成功・integration revision・exact-head CIが揃うまで`LIVE_ACTIVATION`へ昇格しない。
@@ -39,9 +41,11 @@ Address自身はAuthorityではない。詳細な契約は[`CODEX_WORK_COORDINAT
 - **Stage 7 — Formal Operation / MCP API**: `7-A` Operation監査、`7-B` planning tools、`7-C` wire transport、`7-D` external-client E2E、`7-E` compatibility。既存Operation/Supervisor authorityへdelegateし、MCP独自Scheduler/Retry/Approvalは作らない。
 - **Stage 8 — UI Entry Readiness**: `8-A` read model、`8-B` control model、`8-C` state taxonomy、`8-D` update model、`8-E` redaction、`8-F` headless simulation、`8-G` contract freeze。ここまで完了するまでVirtual Office UIは開始しない。
 
-Stage 1の完了条件はOS Guardian登録/解除、crash/restart、実rolling/rollback、durable approval、
-exact-head CI、D9 readiness `READY`である。Stage 2は1件の実repairとrollback、Stage 4以降は
-既存のD9/Phase 8依存を満たした後に進める。未検証案をVerified capabilityへ昇格させず、
+Stage 1はProduction Deployment trackのOS登録/解除、crash/restart、実rolling/rollbackを
+定義するが、Task Scheduler保留中は`DEFERRED_NOT_READY`のまま進めない。Dogfood trackの
+実行前提は`READY_FOR_TRIAL`、exit条件は1件の実repair、local health、rollback、exact-head
+CIである。Phase 8の`PREPARATION_ONLY`は先行できるが、`LIVE_ACTIVATION`には
+`D9_DOGFOOD=VERIFIED`とlive benchmark evidenceを要求する。未検証案をVerified capabilityへ昇格させず、
 G6O1、paid provider、OpenAI/Claude API、Production auto-deploy、UI、unbounded loopは従来どおり対象外とする。
 
 ## 順序とGate

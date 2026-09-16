@@ -13,6 +13,10 @@
       "status": "NOT_READY",
       "gate_id": "D9_DOGFOOD",
       "purpose": "Human-approved bounded self-repair in an isolated/local runtime without requiring OS service registration",
+      "execution_readiness": "READY_FOR_TRIAL",
+      "execution_readiness_scope": "one bounded Human-approved local dogfood trial",
+      "production_deployment_dependency": false,
+      "exit_condition": "D9_DOGFOOD_VERIFIED_AFTER_REAL_REPAIR_AND_ROLLBACK",
       "required": [
         "real bounded production repair",
         "Host Verification and durable approval binding",
@@ -36,7 +40,7 @@
       "deferred_by_human": true,
       "task_scheduler": "DEFERRED",
       "does_not_block": [
-        "D9_DOGFOOD preparation",
+        "D9_DOGFOOD trial readiness and bounded local trial",
         "Phase 8 local foundation",
         "Phase 8 live benchmark preparation"
       ]
@@ -53,6 +57,12 @@
         "CODE_INTEGRATED dependency release"
       ],
       "live_activation": "NOT_VERIFIED",
+      "live_activation_requires": [
+        "D9_DOGFOOD=VERIFIED",
+        "real Provider multi-role benchmark evidence",
+        "independent Host Verification and deterministic integration",
+        "exact-head CI for the benchmark revision"
+      ],
       "current_blocker": "live Provider multi-role integration has not produced a verified patch and integration revision"
     }
   },
