@@ -5,14 +5,14 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Latest implementation baseline before this documentation sync | `4d1615748bbb995c0f82427ee8591ae4ca44d0d8` (`fix: remove unreachable model diagnostic branch`) |
-| Latest evidence baseline before this documentation sync | `d45d6f839bf29188fe7cc81e4bc440bf6195f57c` (`evidence: record worker transport failover block`) |
-| Implementation/evidence baseline | `d45d6f839bf29188fe7cc81e4bc440bf6195f57c` (latest verified implementation/evidence before this documentation sync) |
+| Latest implementation baseline before this documentation sync | `cf31fa0233c58b9f71df0e3df8ead997586a61b7` (`test: stabilize coordination lease fixtures`) |
+| Latest evidence baseline before this documentation sync | `63ae668a556a7e8c42c88fce7a8acb89046649a0` (`evidence: record conservative planner admission block`) |
+| Implementation/evidence baseline | `cf31fa0233c58b9f71df0e3df8ead997586a61b7` (latest verified implementation/evidence before this documentation sync) |
 | Worktree | implementation and evidence commits pushed; documentation synchronization prepared |
 | Local regression | `1377 passed, 1 skipped` (`python -m pytest tests/v2 -q`, after diagnostic normalization fallback) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for the pre-sync HEAD `d45d6f839bf29188fe7cc81e4bc440bf6195f57c`: `v2-core` [run 35089317495](https://github.com/kinoko34077/dev_agent/actions/runs/35089317495) and `v2-provider-smoke` [run 35089317515](https://github.com/kinoko34077/dev_agent/actions/runs/35089317515). |
+| Exact-head CI | PASS for the pre-sync HEAD `cf31fa0233c58b9f71df0e3df8ead997586a61b7`: `v2-core` [run 35116779943](https://github.com/kinoko34077/dev_agent/actions/runs/35116779943) and `v2-provider-smoke` [run 35116780062](https://github.com/kinoko34077/dev_agent/actions/runs/35116780062). |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
