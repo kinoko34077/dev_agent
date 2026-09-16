@@ -1,0 +1,64 @@
+{
+  "evidence_id": "operation-runtime-local-liveness-refresh-20260917",
+  "status": "VERIFIED_LOCAL",
+  "scope": "long_lived_local_operation_coordinator",
+  "implementation_commit": "babbab610f345510fca57df828d20969c9480355",
+  "change": {
+    "problem": "An idle foreground Operation coordinator allowed the deterministic fake resource observation to expire, so a later harmless local Task could be parked as no_route.",
+    "fix": "Existing Operation maintenance_tick refreshes only an already-registered fake resource that has no quota domain, is available and healthy/degraded, and is not circuit-open.",
+    "cadence_seconds": 60,
+    "authority": "The existing Operation queue, routing, retry, approval, and reconciliation boundaries remain authoritative."
+  },
+  "observed": {
+    "regression_test": "A stale 2020 observation was injected into fake:default before a new deterministic Task; the coordinator completed the Task after the maintenance refresh.",
+    "live_local_smoke": {
+      "coordinator_pid": 29140,
+      "peer_role": "agent",
+      "peer_instance_id": "operation-runtime",
+      "generation": 2,
+      "task_id": "0b56901f-6aa2-43be-848b-9afcded22688",
+      "provider": "fake",
+      "binding": "fake:default",
+      "model": "deterministic",
+      "state": "completed",
+      "attempts": 1,
+      "claim_count": 1,
+      "external_network": "none"
+    }
+  },
+  "verification": {
+    "focused": "python -m pytest tests/v2/test_operation_runtime.py -q => 7 passed",
+    "full": "python -m pytest tests/v2 -q => 1395 passed, 1 skipped",
+    "architecture": "python scripts/check_architecture.py => ARCHITECTURE_PASS",
+    "compileall": "python -m compileall -q src recovery scripts => PASS",
+    "git_diff_check": "PASS",
+    "exact_head_ci": {
+      "head": "babbab610f345510fca57df828d20969c9480355",
+      "v2_core": {
+        "run_id": 35133149255,
+        "result": "success",
+        "kernel_3_10": "success",
+        "kernel_3_11": "success",
+        "architecture": "success",
+        "compile": "success"
+      },
+      "v2_provider_smoke": {
+        "run_id": 35133149230,
+        "result": "success",
+        "provider_smoke": "success"
+      }
+    }
+  },
+  "safety": {
+    "remote_provider_request": false,
+    "unknown_external_effect_replay": false,
+    "new_scheduler": false,
+    "new_state_store": false,
+    "os_registration": "DEFERRED_NOT_CONFIGURED"
+  },
+  "limitations": [
+    "This proves the local foreground runtime can remain useful after idle; it is not OS startup, Task Scheduler, Windows Service, or deployed Guardian evidence.",
+    "Real Provider quota and liveness observations are not refreshed by this deterministic fake-only path.",
+    "AR1 live recovery and Phase 8 single-root live activation remain separate roadmap work."
+  ]
+}

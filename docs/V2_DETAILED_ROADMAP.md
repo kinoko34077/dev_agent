@@ -173,6 +173,7 @@ G6O1、paid provider、OpenAI/Claude API、Production auto-deploy、UI、unbound
 - `src/dev_agent/operation_runtime.py` の `RuntimeCoordinator` と `scripts/devfarm_runtime_coordinator.py` を、既存 `OperationService` の薄いforeground process boundaryとして実装した。Coordinatorはpeer identity/generation/heartbeatとlocal loopだけを持ち、`prepare_runtime()`、既存`maintenance_tick()`、durable Queue、`WorkerRunner.run_once()`へ委譲する。Task選択、dependency/quota/reconciliation wake、Provider routing、retry、approval、integration authorityは既存Operation/Host境界に残る。
 - `health`、`once`、`serve`を提供し、`serve`は既存のidle sleepを使って待機時の処理を軽量化する。stale generationは自身だけを停止し、current generationの共有stop要求を消去しない。restart時もwaiting/reconciliation Taskは既存SQLiteから復元する。
 - local foregroundの2周期fake-provider smoke、idle-light behavior、restart persistence、stale-generation fencing、bounded health projectionを検証済み。Evidenceは[`operation-runtime-coordinator-local-20260917.json`](../spec/v2/evidence/operation-runtime-coordinator-local-20260917.json)。OS startup、Task Scheduler/Windows Service登録、配備後Guardian recoveryは別Production Deployment trackとしてDeferredのまま保持する。
+- 長時間idle後の決定的local経路については、既存 `maintenance_tick()` が既存のfake/no-quota/available rowだけを60秒間隔で再観測する。実Providerのquota・liveness・UNKNOWN/reconciliationを緩めず、常駐Coordinatorが後から投入された無害なfake Taskを`no_route`へ誤駐車しないことを実processで確認した。Evidenceは[`operation-runtime-local-liveness-refresh-20260917.json`](../spec/v2/evidence/operation-runtime-local-liveness-refresh-20260917.json)。
 
 ### Bounded DevFarm responsibility refactor checkpoint
 
