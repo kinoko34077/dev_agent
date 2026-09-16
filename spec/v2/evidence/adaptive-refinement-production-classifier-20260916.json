@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "evidence_id": "adaptive-refinement-production-classifier-20260916",
+  "observed_at": "2026-09-16",
+  "evidence_kind": "live_worker_production_refinement_classifier",
+  "status": "VERIFIED_WORKER_PRODUCTION_INTEGRATION",
+  "scope": {
+    "work_address": "d9-refinement-category-20260916-r2",
+    "objective": "Map the observed contract-shape regression into the existing bounded SEMANTIC_TEST refinement class.",
+    "production_source": true,
+    "bounded": true,
+    "new_retry_loop": false,
+    "authority_changed": false,
+    "unknown_external_effect_replayed": false
+  },
+  "observation": {
+    "source_evidence": "spec/v2/evidence/phase8-live-production-source-contract-r18-20260916.json",
+    "failure_signature": "contract_shape_regression",
+    "observed_failure_class_before_fix": "unclassified",
+    "target_failure_class": "SEMANTIC_TEST",
+    "f0_observation": ".devfarm/self-improvement/d9-refinement-category-observation-20260916.json",
+    "f1_diagnosis": ".devfarm/self-improvement/d9-refinement-category-diagnosis-20260916.json",
+    "f2_improvement_plan": ".devfarm/self-improvement/d9-refinement-category-improvement-plan-20260916.json",
+    "plan_status": "PROPOSAL_ONLY",
+    "requires_human_approval": true
+  },
+  "worker": {
+    "run_id": "d9-refinement-category-20260916-r2",
+    "task_id": "d9-refinement-category-20260916-r2",
+    "attempt_id": "ae0a7e3b92ce454abe4dc607ea13a0a8",
+    "provider_id": "gemini",
+    "provider_binding_id": "gemini:worker:free-3",
+    "model_id": "gemini-3.5-flash-lite",
+    "intelligence_tier": "L1",
+    "changed_paths": [
+      "scripts/devfarm_refinement.py",
+      "tests/v2/test_devfarm_refinement.py"
+    ],
+    "base_revision": "0ac93db93bcd087df4e09c0a9b1b3e8dd573530f",
+    "patch_sha256": "5072f69475df06d1f70d0beb3d2a3725d60ad3848a59a349ba13aeb9aeb7aafb",
+    "attempt_count": 1,
+    "refinement_rounds": 0,
+    "reasoning_effort": "default",
+    "usage": {
+      "model_calls": 1,
+      "input_tokens": 10084,
+      "output_tokens": 600,
+      "elapsed_ms": 3484
+    }
+  },
+  "host_verification": {
+    "verification_id": "98576374e3c840568d361836fcd537e8",
+    "status": "PASS",
+    "independent_verification": true,
+    "trust_level": "TRUSTED_HOST_EXEC",
+    "result_accepted": true,
+    "tests": [
+      "python -m pytest -q tests/v2/test_devfarm_refinement.py",
+      "python -m pytest -q tests/v2/test_devfarm_supervisor.py"
+    ],
+    "passed_counts": [12, 26]
+  },
+  "review": {
+    "review_decision_id": "review-ccf512b7640d43d3af244c771ac4c60e",
+    "decision": "APPROVE_INTEGRATION",
+    "reviewer_role": "codex",
+    "integration_authority": "host",
+    "codex_direct_implementation_count": 0
+  },
+  "integration": {
+    "performed": true,
+    "authority": "deterministic_host_integration",
+    "integration_revision": "8e1b4de6e01a7a1d2e372f53ce43c3a32b215580",
+    "official_remote_push": true
+  },
+  "verification": {
+    "focused_tests": "38 passed",
+    "full_tests_v2": "1374 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head_ci": {
+      "head": "8e1b4de6e01a7a1d2e372f53ce43c3a32b215580",
+      "v2_core": {
+        "run_id": 35062772180,
+        "kernel_3_10": "PASS",
+        "kernel_3_11": "PASS"
+      },
+      "provider_smoke": {
+        "run_id": 35062772197,
+        "status": "PASS"
+      }
+    }
+  },
+  "safety": {
+    "host_verification_bypassed": false,
+    "approval_consumed": false,
+    "d9_real_mutation": false,
+    "runtime_promotion": false,
+    "rollback_performed": false,
+    "raw_provider_response_saved": false,
+    "raw_conversation_saved": false,
+    "credentials_saved": false,
+    "unknown_replayed": false
+  },
+  "interpretation": "This is a Worker-originated production-source classifier integration with bounded Host verification. It demonstrates a useful Adaptive Refinement implementation slice, but it is not an AR1 failure-recovery cycle and does not close D9_DOGFOOD."
+}
