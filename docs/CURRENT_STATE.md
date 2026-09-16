@@ -5,14 +5,14 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Latest implementation baseline before this documentation sync | `32bc97a19c20b4fd08b67a4bb9470a3b9b1661b6` (`docs: separate dogfood trial readiness from exit gate`) |
-| Latest evidence baseline before this documentation sync | `32bc97a19c20b4fd08b67a4bb9470a3b9b1661b6` (`docs: separate dogfood trial readiness from exit gate`) |
-| Implementation/evidence baseline | `32bc97a19c20b4fd08b67a4bb9470a3b9b1661b6` (latest verified repository baseline before this production diagnostic sync) |
+| Latest implementation baseline before this documentation sync | `635dbc75a7a37173d2729bd0602e74ad3109d6f6` (`fix: expose diagnostic runtime and gate columns`) |
+| Latest evidence baseline before this documentation sync | `635dbc75a7a37173d2729bd0602e74ad3109d6f6` (`fix: expose diagnostic runtime and gate columns`) |
+| Implementation/evidence baseline | `635dbc75a7a37173d2729bd0602e74ad3109d6f6` (latest verified repository baseline before this documentation sync) |
 | Worktree | clean at the documentation sync checkpoint |
 | Local regression | `1374 passed, 1 skipped` (`python -m pytest tests/v2 -q`, pre-sync production diagnostic fallback) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for the pre-sync HEAD `32bc97a19c20b4fd08b67a4bb9470a3b9b1661b6`: `v2-core` [run 35058372562](https://github.com/kinoko34077/dev_agent/actions/runs/35058372562) and `v2-provider-smoke` [run 35058372559](https://github.com/kinoko34077/dev_agent/actions/runs/35058372559). The current sync records a bounded production diagnostic fallback; CI for the resulting sync commit is required separately. |
+| Exact-head CI | PASS for the pre-sync HEAD `635dbc75a7a37173d2729bd0602e74ad3109d6f6`: `v2-core` [run 35060407288](https://github.com/kinoko34077/dev_agent/actions/runs/35060407288) and `v2-provider-smoke` [run 35060407292](https://github.com/kinoko34077/dev_agent/actions/runs/35060407292). |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
