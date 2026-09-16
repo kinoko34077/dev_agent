@@ -60,8 +60,6 @@ def diagnose_entries(
             result = "QUALIFICATION_MISSING"
         elif result == "ELIGIBLE":
             result = "RUNTIME_UNKNOWN"
-        elif result == "ELIGIBLE":
-            result = "ELIGIBLE"
         row = diagnostic.to_dict()
         gate_reason = None
         if result != "ELIGIBLE":
