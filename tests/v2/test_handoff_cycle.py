@@ -323,6 +323,18 @@ def test_one_cycle_without_compression_token_keeps_original_payload(monkeypatch)
 def test_one_cycle_fails_closed_when_compression_is_required_but_unavailable(monkeypatch):
     monkeypatch.delenv("COMPRESSION_API_TOKEN", raising=False)
 
+    def _missing_credential_manager(cls, **kwargs):
+        raise CompressionHttpError(
+            "compression API credential is not configured",
+            category="authentication",
+        )
+
+    monkeypatch.setattr(
+        HttpCompressionService,
+        "from_credential_manager",
+        classmethod(_missing_credential_manager),
+    )
+
     with pytest.raises(CompressionHttpError, match="compression service unavailable"):
         OneCycleDevelopmentLoop(
             _LongPlanner(),
