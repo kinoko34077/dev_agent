@@ -395,6 +395,7 @@ def main(argv: list[str] | None = None) -> int:
         help="where the selected concrete Provider call runs; live operation defaults to the Host process",
     )
     args = parser.parse_args(argv)
+    parent_task_id = args.parent_task_id or str(uuid4())
     try:
         # Normal live invocation always uses the reviewed static evidence
         # snapshot.  It is loaded here, never at module import time, and does
@@ -407,7 +408,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         output = run_shadow(
             objective=args.objective,
-            parent_task_id=args.parent_task_id or str(uuid4()),
+            parent_task_id=parent_task_id,
             provider_id=args.provider,
             binding_id=args.binding,
             model_id=args.model,
@@ -457,6 +458,7 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:
         output = {"status": "failed", "category": type(exc).__name__, "message": str(exc)}
         code = 2
+    output.setdefault("parent_task_id", parent_task_id)
     print(json.dumps(output, ensure_ascii=False, indent=2))
     return code
 

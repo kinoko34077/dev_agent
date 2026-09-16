@@ -291,6 +291,7 @@ def test_planner_shadow_reports_bounded_host_transport_category(monkeypatch, cap
 
 
 def test_planner_shadow_classifies_invalid_model_output(monkeypatch, capsys):
+    parent_task_id = str(uuid4())
     monkeypatch.setattr(
         planner_shadow.ModelEvidenceCatalog,
         "load_default",
@@ -303,7 +304,7 @@ def test_planner_shadow_classifies_invalid_model_output(monkeypatch, capsys):
         lambda **_kwargs: (_ for _ in ()).throw(PlanningResponseError("planner response is not valid JSON")),
     )
 
-    assert planner_shadow.main(["--objective", "diagnostic"]) == 2
+    assert planner_shadow.main(["--objective", "diagnostic", "--parent-task-id", parent_task_id]) == 2
 
     output = json.loads(capsys.readouterr().out)
     assert output["status"] == "failed"
@@ -312,6 +313,7 @@ def test_planner_shadow_classifies_invalid_model_output(monkeypatch, capsys):
     assert output["provider_response_observed"] is True
     assert output["reconciliation_required"] is False
     assert output["response_contract"] == "invalid_json"
+    assert output["parent_task_id"] == parent_task_id
 
 
 def test_planner_shadow_cli_passes_bounded_output_ceiling(monkeypatch, capsys):
