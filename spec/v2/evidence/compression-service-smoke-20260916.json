@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "compression_service_live_smoke",
+  "observed_at": "2026-09-16T03:59:54Z",
+  "status": "NOT_VERIFIED",
+  "implementation_baseline": "9322b35d5e8612ef66559813908659d77bcaed60",
+  "client": {
+    "factory": "HttpCompressionService.from_credential_manager",
+    "keyring_service": "kinotch-api",
+    "keyring_username": "compression",
+    "keyring_credential_present": true,
+    "keyring_credential_length": 64,
+    "environment_credential_present": false,
+    "raw_credential_saved": false
+  },
+  "request": {
+    "endpoint": "https://api.kinotch.workers.dev/v1/compress",
+    "profile": "semantic-dense-v1",
+    "payload_chars": 3001,
+    "request_count": 1,
+    "authorization_header_constructed": true
+  },
+  "response": {
+    "http_status": 403,
+    "failure_category": "authentication_failure",
+    "diagnostic_code": "http_forbidden",
+    "server_header": "cloudflare",
+    "cf_ray_present": true,
+    "x_request_id_present": false,
+    "raw_response_saved": false
+  },
+  "interpretation": "Credential Manager lookup and client composition succeeded in the permitted Host context, but the deployed Gateway rejected the caller credential with HTTP 403 before a compressed result was observed. This does not establish a downstream Gemini credential failure. The most likely remaining boundary is a mismatch between the locally stored caller token and the deployed Gateway COMPRESSION_API_TOKEN; server-side deployment/configuration remains outside this repository and was not changed."
+}
