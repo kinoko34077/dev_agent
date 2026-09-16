@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "evidence_id": "model-candidate-runtime-projection-20260917",
+  "evidence_kind": "static_model_candidate_runtime_projection",
+  "recorded_at": "2026-09-16T22:43:30.4790995Z",
+  "implementation_baseline": "2664d53286529859fb2dfc3936104a9a0afac137",
+  "entrypoint": "scripts/diagnose_model_candidates.py",
+  "command_profile": {
+    "scope": "full_bounded_model_evidence_inventory",
+    "summary_only": true,
+    "json": true,
+    "provider_requests": false,
+    "credentials_read": false,
+    "raw_model_payloads_recorded": false
+  },
+  "summary": {
+    "row_count": 1289,
+    "static_eligible_count": 127,
+    "runtime_unknown_count": 7,
+    "final_eligible_count": 0,
+    "result_counts": {
+      "BENCHMARK_MISSING": 876,
+      "BILLING_UNKNOWN": 115,
+      "CAPABILITY_MISSING": 42,
+      "QUALIFICATION_MISSING": 5,
+      "RUNTIME_UNAVAILABLE": 244,
+      "RUNTIME_UNKNOWN": 7
+    },
+    "static_result_counts": {
+      "BENCHMARK_MISSING": 876,
+      "CAPABILITY_MISSING": 42,
+      "ELIGIBLE": 127,
+      "RUNTIME_UNAVAILABLE": 244
+    }
+  },
+  "interpretation": "The diagnostic now separates static evidence candidates from final runtime eligibility. The previous eligible_count remains the final runtime projection and is zero here; it must not be read as saying that the 1289-row catalog contains no static candidates. Static eligibility is 127, while seven rows remain runtime-unknown and require live quota/health admission before routing.",
+  "gate_impact": {
+    "phase_a_transport": "unchanged_external_blocker",
+    "phase8_live_activation": "not_verified",
+    "d9_dogfood": "unchanged_verified"
+  }
+}

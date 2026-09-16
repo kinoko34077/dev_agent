@@ -5,15 +5,15 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Remote HEAD before this documentation sync | `19b7770f1d1950785aa661a5b7256521b83c0761` (`fix: retain planner shadow request identity`) |
-| Latest implementation baseline before this documentation sync | `19b7770f1d1950785aa661a5b7256521b83c0761` (`fix: retain planner shadow request identity`) |
-| Latest evidence baseline before this documentation sync | `fc292fb70bdddaa77917596590120393c9c35ded` (`docs: record redacted planner output failure`) |
-| Implementation/evidence baseline | implementation `19b7770f1d1950785aa661a5b7256521b83c0761`; previous evidence `fc292fb70bdddaa77917596590120393c9c35ded`; this sync records the bounded fresh Planner identity projection |
+| Remote HEAD before this documentation sync | `2664d53286529859fb2dfc3936104a9a0afac137` (`fix: separate static and runtime model eligibility`) |
+| Latest implementation baseline before this documentation sync | `2664d53286529859fb2dfc3936104a9a0afac137` (`fix: separate static and runtime model eligibility`) |
+| Latest evidence baseline before this documentation sync | `b449718c014d921115ecf337ecdbae2aaa4d7b84` (`docs: sync planner failure correlation`) |
+| Implementation/evidence baseline | implementation `2664d53286529859fb2dfc3936104a9a0afac137`; previous evidence `b449718c014d921115ecf337ecdbae2aaa4d7b84`; this sync records the static/runtime model eligibility projection |
 | Worktree | implementation commit pushed; evidence/documentation synchronization prepared |
-| Local regression | `1396 passed, 1 skipped` (`python -m pytest tests/v2 -q`, after Planner response-contract classification) |
+| Local regression | `1397 passed, 1 skipped` (`python -m pytest tests/v2 -q`, after static/runtime model eligibility projection) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for pre-sync implementation HEAD `b3630a2c910cdd1d420d6e9e4025c3720bc16e5d`: `v2-core` [run 35156215827](https://github.com/kinoko34077/dev_agent/actions/runs/35156215827) and `v2-provider-smoke` [run 35156215807](https://github.com/kinoko34077/dev_agent/actions/runs/35156215807). |
+| Exact-head CI | PASS for pre-sync implementation HEAD `2664d53286529859fb2dfc3936104a9a0afac137`: `v2-core` [run 35158947050](https://github.com/kinoko34077/dev_agent/actions/runs/35158947050) and `v2-provider-smoke` [run 35158947127](https://github.com/kinoko34077/dev_agent/actions/runs/35158947127). |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
@@ -26,6 +26,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 - Daily Supervisor path: Free L1 Worker dispatch, Host Verification, compact ReviewPacket, durable ReviewDecision, REWORK manifest, dependency release, and deterministic Host integration have existing D1/D2 evidence. A second, different bounded documentation slice was also Planner-originated, Worker-integrated, and recorded with zero Codex direct implementation in [`d2-dogfood-doc-note-20260914.json`](../spec/v2/evidence/d2-dogfood-doc-note-20260914.json).
 - Planner/model evidence boundary: strict JSON proposal handling, Host-only planning validation/bridge, explicit Model Catalog, alias, Benchmark, Capability, qualification, billing, privacy, quota, and health separation, plus bounded same-tier failover. UNKNOWN outcomes remain reconciliation-only and L1 is not an automatic Planner downgrade.
 - Model inventory operation: the read-only catalog refresh recorded 1,297 identities with bounded provider metadata, while `diagnose_model_candidates.py --all --summary --json` reports admission reasons without exposing secrets or raw provider responses. Discovery remains observation-only; exact downstream admission is unchanged. See [`model-catalog-refresh-20260915.json`](../spec/v2/evidence/model-catalog-refresh-20260915.json).
+- Model-candidate diagnostic projection: the current 1,289-row evidence inventory reports `static_eligible_count=127`, `runtime_unknown_count=7`, and final runtime `eligible_count=0`. The CLI now exposes separate static-result and runtime-result counters, so runtime quota/health uncertainty is not misread as an empty catalog. This is read-only local evidence and does not grant routing admission. See [`model-candidate-runtime-projection-20260917.json`](../spec/v2/evidence/model-candidate-runtime-projection-20260917.json).
 - Planner configured-pool composition: the explicit `--configured-pool --expand-discovered-models` path assembled four current no-charge L2 candidates from four configured Gemini project lanes (one `gemini-3.6-flash`, three `gemini-3.8-flash`) after the existing evidence and admission filters. The Codex-launched sandbox attempt remains a bounded `local_network_policy_denied` transport observation; no alternate or retry was used. A normal Host-process run then selected `gemini:worker:free-3` / `gemini-3.6-flash`, decoded strict JSON, and passed Host validation; see [`planner-host-dispatch-d1-20260915.json`](../spec/v2/evidence/planner-host-dispatch-d1-20260915.json).
 - Shared development pool composition: Planner and Reviewer Shadow now resolve explicit JSON/configured Provider pools through the same role-neutral Host boundary, while exact qualification, billing, capability, quota, health, and L2 admission remain downstream gates. Reviewer pool expansion remains proposal-only and does not grant review or integration authority. See [`devfarm-resource-pool-refactor-20260915.json`](../spec/v2/evidence/devfarm-resource-pool-refactor-20260915.json).
 - D1 live Planner evidence: a real Free L2 request selected `gemini:worker:free-3` / `gemini-3.6-flash`, decoded strict JSON, built one `RootPlanningProposal`, and passed Host validation through the qualified pool. See [`planner-l2-live-d1-20260914.json`](../spec/v2/evidence/planner-l2-live-d1-20260914.json).
@@ -169,6 +170,7 @@ and the compact operational procedure is [`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_D
 - Phase 8 Stage 5 r7 Egress preflight: [`phase8-multirole-egress-preflight-r7-20260916.json`](../spec/v2/evidence/phase8-multirole-egress-preflight-r7-20260916.json)
 - Network, authority, egress, supersession, and Guardian operator boundary: [`network-authority-guardian-20260915.json`](../spec/v2/evidence/network-authority-guardian-20260915.json)
 - Bounded transport diagnostic taxonomy: [`transport-diagnostics-taxonomy-20260917.json`](../spec/v2/evidence/transport-diagnostics-taxonomy-20260917.json)
+- Static/runtime model candidate projection: [`model-candidate-runtime-projection-20260917.json`](../spec/v2/evidence/model-candidate-runtime-projection-20260917.json)
 - Local Operation runtime coordinator: [`operation-runtime-coordinator-local-20260917.json`](../spec/v2/evidence/operation-runtime-coordinator-local-20260917.json)
 - Bounded alternate Gemini qualification observation: [`gemini-worker-free-2-qualification-20260915.json`](../spec/v2/evidence/gemini-worker-free-2-qualification-20260915.json)
 - Bounded Gemini free-3 qualification observation: [`gemini-worker-free-3-qualification-20260915.json`](../spec/v2/evidence/gemini-worker-free-3-qualification-20260915.json)
