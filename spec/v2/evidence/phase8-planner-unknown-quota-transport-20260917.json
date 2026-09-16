@@ -1,0 +1,36 @@
+{
+  "evidence_id": "phase8-planner-unknown-quota-transport-20260917",
+  "evidence_kind": "phase8_planner_bounded_transport_observation",
+  "observed_at": "2026-09-16T16:29:49.5339088Z",
+  "track": "PHASE8_STAGE5",
+  "base_revision": "d5d7edc5c18e6394933cbff057c7947afb7c3c81",
+  "request": {
+    "configured_pool": true,
+    "expand_discovered_models": true,
+    "execution_boundary": "host_process",
+    "required_intelligence_tier": "L2",
+    "no_charge_required": true,
+    "cost_ceiling": 0.0,
+    "allow_unknown_quota": true,
+    "admission_policy": "accepted UNKNOWN quota operating policy; one bounded admission per known quota domain and local cooldown"
+  },
+  "result": {
+    "status": "BLOCKED_EXTERNAL",
+    "category": "transport",
+    "transport_failure_category": "transport_unclassified",
+    "reconciliation_required": true,
+    "proposal": "not_returned",
+    "host_validation": "not_run",
+    "provider_identity": "not retained by the bounded CLI projection"
+  },
+  "safety": {
+    "same_binding_retry": false,
+    "unknown_effect_replay": false,
+    "automatic_failover": false,
+    "l1_downgrade": false,
+    "billing_or_quota_bypass": false,
+    "raw_provider_response_retained": false,
+    "secret_retained": false
+  },
+  "interpretation": "The explicit bounded UNKNOWN-quota mode reached the Host-owned provider boundary once, but the Host runtime returned an unclassified transport failure with reconciliation required. The result does not establish provider availability, Planner capability, AR1 recovery, or Phase 8 live activation. The ambiguous external outcome remains closed to retry and failover until reconciliation is possible."
+}
