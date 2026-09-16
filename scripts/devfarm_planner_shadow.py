@@ -435,10 +435,18 @@ def main(argv: list[str] | None = None) -> int:
             "status": "failed",
             "category": "model_output_invalid",
             "adapter_error": type(exc).__name__,
-            "provider_response_observed": True,
+            "provider_response_observed": getattr(exc, "provider_response_observed", False) is True,
             "response_contract": "invalid_json" if "json" in message else "invalid_proposal",
             "reconciliation_required": False,
         }
+        request_id = getattr(exc, "request_id", None)
+        if isinstance(request_id, str):
+            try:
+                request_id = str(UUID(request_id))
+            except (ValueError, AttributeError, TypeError):
+                request_id = None
+        if request_id is not None:
+            output["request_id"] = request_id
         code = 2
     except (PlannerShadowBlocked, DispatchDenied, ProviderError) as exc:
         output = {

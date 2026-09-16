@@ -248,8 +248,31 @@ def test_model_planner_rejects_narrative_or_wrong_parent_as_non_authoritative_ou
             structured_output=_payload(wrong_parent),
         )
     )
-    with pytest.raises(PlanningAdapterError, match="parent_task_id"):
+    with pytest.raises(PlanningResponseError, match="parent_task_id") as raised:
         ModelPlanningAdapter(provider).propose(parent_task_id=parent_task_id, objective="bounded objective")
+    assert raised.value.request_id == provider.requests[0].request_id
+    assert raised.value.provider_response_observed is True
+
+
+def test_model_planner_binds_response_contract_failure_to_fresh_request_id():
+    parent_task_id = str(uuid4())
+    provider = _Provider(
+        ModelResponse(
+            provider="planner-test",
+            model="free-l2-test",
+            text_segments=["not-json"],
+        )
+    )
+
+    with pytest.raises(PlanningResponseError) as raised:
+        ModelPlanningAdapter(provider).propose(
+            parent_task_id=parent_task_id,
+            objective="bounded objective",
+        )
+
+    request_id = getattr(raised.value, "request_id", None)
+    assert request_id == provider.requests[0].request_id
+    assert raised.value.provider_response_observed is True
 
 
 def test_typed_proposal_round_trip_rejects_untracked_fields():
@@ -301,7 +324,13 @@ def test_planner_shadow_classifies_invalid_model_output(monkeypatch, capsys):
     monkeypatch.setattr(
         planner_shadow,
         "run_shadow",
-        lambda **_kwargs: (_ for _ in ()).throw(PlanningResponseError("planner response is not valid JSON")),
+        lambda **_kwargs: (_ for _ in ()).throw(
+            PlanningResponseError(
+                "planner response is not valid JSON",
+                request_id="2e6f2d5c-8cf5-4b35-bc47-7c8f20ed6f04",
+                provider_response_observed=True,
+            )
+        ),
     )
 
     assert planner_shadow.main(["--objective", "diagnostic", "--parent-task-id", parent_task_id]) == 2
@@ -313,6 +342,7 @@ def test_planner_shadow_classifies_invalid_model_output(monkeypatch, capsys):
     assert output["provider_response_observed"] is True
     assert output["reconciliation_required"] is False
     assert output["response_contract"] == "invalid_json"
+    assert output["request_id"] == "2e6f2d5c-8cf5-4b35-bc47-7c8f20ed6f04"
     assert output["parent_task_id"] == parent_task_id
 
 

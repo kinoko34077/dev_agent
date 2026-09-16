@@ -30,6 +30,17 @@ class PlanningAdapterError(ValueError):
 class PlanningResponseError(PlanningAdapterError):
     """The provider returned a response that failed the planning contract."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        request_id: str | None = None,
+        provider_response_observed: bool = False,
+    ) -> None:
+        super().__init__(message)
+        self.request_id = request_id
+        self.provider_response_observed = provider_response_observed
+
 
 PLANNING_PROPOSAL_RESPONSE_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -186,12 +197,23 @@ class ModelPlanningAdapter:
         try:
             payload = self._response_payload(response)
             proposal = RootPlanningProposal.from_dict(payload)
+            if proposal.parent_task_id != parent_task_id.strip():
+                raise PlanningResponseError("proposal parent_task_id does not match the requested parent")
+            if len(proposal.children) > self._MAX_CHILDREN:
+                raise PlanningResponseError("planning proposal exceeds the child limit")
+        except PlanningResponseError as exc:
+            # Keep correlation to the exact request that produced the
+            # response, while leaving the response body and error text out of
+            # the bounded failure projection.
+            exc.request_id = request.request_id
+            exc.provider_response_observed = True
+            raise
         except PlanningValidationError as exc:
-            raise PlanningResponseError(str(exc)) from exc
-        if proposal.parent_task_id != parent_task_id.strip():
-            raise PlanningResponseError("proposal parent_task_id does not match the requested parent")
-        if len(proposal.children) > self._MAX_CHILDREN:
-            raise PlanningResponseError("planning proposal exceeds the child limit")
+            raise PlanningResponseError(
+                str(exc),
+                request_id=request.request_id,
+                provider_response_observed=True,
+            ) from exc
         return proposal
 
     @classmethod
