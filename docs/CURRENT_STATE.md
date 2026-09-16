@@ -5,14 +5,14 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Latest implementation baseline before this documentation sync | `65dc0fe465bc31bee6046ae496b9a23464aff34c` (`docs: align readiness and compression evidence links`) |
+| Latest implementation baseline before this documentation sync | `71d8928283bb158e6dc6112ae50447eddf65e303` (`docs: clarify local guardian status`) |
 | Latest evidence baseline before this documentation sync | `65dc0fe465bc31bee6046ae496b9a23464aff34c` (`docs: align readiness and compression evidence links`) |
 | Implementation/evidence baseline | `65dc0fe465bc31bee6046ae496b9a23464aff34c` (latest bounded Planner admission observation; runtime implementation remains at the prior verified source baseline) |
 | Worktree | clean at the documentation sync checkpoint |
 | Local regression | `1373 passed, 1 skipped` (`python -m pytest tests/v2 -q`, implementation baseline) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for evidence baseline `5dfa197699081ab3abb9e3cf5b69bdcec772d5ed`: `v2-core` [run 35054780039](https://github.com/kinoko34077/dev_agent/actions/runs/35054780039) and `v2-provider-smoke` [run 35054780006](https://github.com/kinoko34077/dev_agent/actions/runs/35054780006). The current sync adds only bounded evidence/documentation and does not alter runtime code. |
+| Exact-head CI | PASS for the pre-sync HEAD `71d8928283bb158e6dc6112ae50447eddf65e303`: `v2-core` [run 35056002958](https://github.com/kinoko34077/dev_agent/actions/runs/35056002958) and `v2-provider-smoke` [run 35056002885](https://github.com/kinoko34077/dev_agent/actions/runs/35056002885). The current sync adds only bounded documentation and does not alter runtime code. |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
