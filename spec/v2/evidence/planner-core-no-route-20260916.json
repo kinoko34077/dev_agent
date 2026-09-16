@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "planner_explicit_resource_admission",
+  "observed_at": "2026-09-16T04:26:35.6570243Z",
+  "implementation_baseline": "65dc0fe465bc31bee6046ae496b9a23464aff34c",
+  "operation": {
+    "entry": "scripts/devfarm_planner_shadow.py",
+    "provider": "gemini",
+    "binding": "gemini:core",
+    "model": "gemini-3.8-flash",
+    "required_tier": "L2",
+    "no_charge_required": true,
+    "quota_domain": "gemini-core-account",
+    "execution_boundary": "host_process",
+    "source_files": [],
+    "timeout_seconds": 90
+  },
+  "result": {
+    "status": "blocked_external",
+    "category": "no_route",
+    "reconciliation_required": false,
+    "provider_request_observed": false,
+    "host_validation": "not_run"
+  },
+  "safety": {
+    "same_binding_retry": false,
+    "alternate_unqualified_resource": false,
+    "automatic_l1_downgrade": false,
+    "unknown_replay": false,
+    "credential_recorded": false,
+    "raw_provider_response_recorded": false
+  },
+  "interpretation": "The explicitly requested qualified-looking core lane was not admitted by the current Host resource composition, so no Provider request was made. This is an admission/no-route observation, not a model-capability or Provider-availability result. The operation ended without retry or downgrade."
+}

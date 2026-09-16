@@ -64,6 +64,7 @@ G6O1、paid provider、OpenAI/Claude API、Production auto-deploy、UI、unbound
 - 完了Evidence: eligible pool、selection order、provider/binding/model、request/proposal digest、failure category、Host validation結果。既存成功Evidenceは[`planner-l2-live-d1-20260914.json`](../spec/v2/evidence/planner-l2-live-d1-20260914.json)。Configured poolのHost-owned process boundaryを通じた追加成功Evidenceは[`planner-host-dispatch-d1-20260915.json`](../spec/v2/evidence/planner-host-dispatch-d1-20260915.json)。Codex/sandbox内の`local_network_policy_denied`はProvider能力失敗へ算入せず、通常Host processの成功と分離する。Planner authorityは引き続きproposal-only。
 - 2026-09-16の追加Host-process observationはProvider結果観測前に`local_network_policy_denied`で拒否され、再試行せず外部transport blockerとして記録した。D1の既存成功Evidence、L2 admission、UNKNOWN/reconciliation境界は変更しない。Evidenceは[`planner-host-network-denial-20260916.json`](../spec/v2/evidence/planner-host-network-denial-20260916.json)。
 - その後の明示単一resource observationはProviderまで到達し、`provider_unavailable`で`pool_exhausted`となった。これはネットワーク拒否とは別のProvider availability failureであり、再試行やL1 downgradeは行っていない。Evidenceは[`planner-pinned-provider-unavailable-20260916.json`](../spec/v2/evidence/planner-pinned-provider-unavailable-20260916.json)。
+- `gemini:core` / `gemini-3.8-flash`の明示要求は、Provider I/O前の`no_route`で拒否された。現行Host admissionにeligible laneとして露出していないためであり、資格のない代替・L1 downgrade・再試行は行っていない。Evidenceは[`planner-core-no-route-20260916.json`](../spec/v2/evidence/planner-core-no-route-20260916.json)。
 - 制約: 自動連打・retry storm・Task作成・Commander書込みなし。
 
 ### D2 — Planner → Bridge → Commander → L1 Worker E2E
