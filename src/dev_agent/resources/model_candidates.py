@@ -56,7 +56,7 @@ def materialize_provider_bindings(
             for entry in catalog.entries_for_binding(binding.provider_id, base_binding_id, now=now)
             if entry.is_text_generation_candidate(min_input_token_limit=min_input_token_limit)
         )
-    ordered_models = tuple(sorted(models))
+    ordered_models = tuple(sorted(models))[:128]
     if not ordered_models:
         return ()
     if len(ordered_models) == 1 and ordered_models[0] == binding.model and binding.model_candidates is None:
