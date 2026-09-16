@@ -512,6 +512,7 @@ class OperationService:
         self._qualification_resolver = qualification_resolver or QualificationResolver()
         self._model_admission_resolver = model_admission_resolver
         self._closed = False
+        self._runtime_prepared = False
 
     @property
     def qualification_resolver(self) -> QualificationResolver:
@@ -1169,6 +1170,44 @@ class OperationService:
                 results.append(result.to_dict())
         return results
 
+    def prepare_runtime(self) -> None:
+        """Prepare one foreground runtime without claiming a Task.
+
+        Queue repair and expired-lease recovery are startup work owned by the
+        existing Operation boundary.  A thin process coordinator calls this
+        once and then uses :meth:`run_once`; it must not clear the durable stop
+        flag before every idle tick.
+        """
+
+        if self._closed:
+            raise OperationError("operation service is closed")
+        self.control.clear_stop()
+        self.restore_queue()
+        self.queue.reap_expired()
+        self._runtime_prepared = True
+
+    def run_once(
+        self,
+        *,
+        quota_probe: Callable[[str, str], Mapping[str, Any]] | None = None,
+    ) -> Task | None:
+        """Run one existing maintenance/claim boundary.
+
+        This is deliberately not a new scheduler.  It is the reusable unit
+        already exercised by ``start --once``: maintenance wakes only durable
+        eligible work, then the existing WorkerRunner claims at most one Task.
+        ``run_once`` never clears a stop signal after runtime preparation.
+        """
+
+        if self._closed:
+            raise OperationError("operation service is closed")
+        if not self._runtime_prepared:
+            self.prepare_runtime()
+        if self.control.stop_requested():
+            return None
+        self.maintenance_tick(probe=quota_probe)
+        return self.worker.run_once()
+
     def _wake_reconciled_provider_tasks(self) -> tuple[str, ...]:
         """Wake only tasks whose unknown provider result is now durable.
 
@@ -1264,19 +1303,15 @@ class OperationService:
         if self._closed:
             raise OperationError("operation service is closed")
         stop_event = stop_event or Event()
-        self.control.clear_stop()
-        self.restore_queue()
-        self.queue.reap_expired()
+        self.prepare_runtime()
         if once:
-            self.maintenance_tick(probe=quota_probe)
-            return self.worker.run_once()
+            return self.run_once(quota_probe=quota_probe)
         last_task_id = None
         last_error = None
         while not stop_event.is_set() and not self.control.stop_requested():
             result = None
             try:
-                self.maintenance_tick(probe=quota_probe)
-                result = self.worker.run_once()
+                result = self.run_once(quota_probe=quota_probe)
                 if result is not None:
                     last_task_id = result.task_id
                 last_error = None
