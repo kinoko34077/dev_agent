@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "evidence_id": "phase8-diagnostic-transport-failover-20260916",
+  "observed_at": "2026-09-16",
+  "evidence_kind": "bounded_production_worker_transport_failover",
+  "status": "BLOCKED_TRANSPORT",
+  "scope": {
+    "work_addresses": [
+      "5-D-1",
+      "5-D-2"
+    ],
+    "objective": "Remove the unreachable duplicate ELIGIBLE branch from the production model-candidate diagnostic CLI while preserving admission and routing authority.",
+    "production_source": true,
+    "bounded": true,
+    "unknown_external_effect_replayed": false,
+    "same_binding_retry": false,
+    "automatic_l1_downgrade": false
+  },
+  "worker_attempts": [
+    {
+      "run_id": "phase8-diagnostic-normalization-20260916",
+      "task_id": "phase8-diagnostic-normalization-20260916",
+      "attempt_id": "7ae642a151634d4c844ad31a2ad646af",
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-3",
+      "model_id": "gemini-3.5-flash-lite",
+      "intelligence_tier": "L1",
+      "status": "failed",
+      "failure_class": "PROVIDER_TRANSPORT",
+      "transport_failure_category": "local_network_policy_denied",
+      "provider_result_observed": false,
+      "patch_generated": false,
+      "host_verification": "not_run"
+    },
+    {
+      "run_id": "phase8-diagnostic-normalization-cloudflare-20260916",
+      "task_id": "phase8-diagnostic-normalization-cloudflare-20260916",
+      "attempt_id": "9a35264648694f1cb5a1dd7b69bd648d",
+      "provider_id": "cloudflare",
+      "provider_binding_id": "cloudflare",
+      "model_id": "@cf/meta/llama-3.1-8b-instruct",
+      "intelligence_tier": "L1",
+      "status": "failed",
+      "failure_class": "PROVIDER_TRANSPORT",
+      "transport_failure_category": "local_network_policy_denied",
+      "provider_result_observed": false,
+      "patch_generated": false,
+      "host_verification": "not_run"
+    }
+  ],
+  "host_decision": {
+    "classification": "PROVIDER_TRANSPORT",
+    "refinement_action": "not_selected",
+    "reason": "The primary and one qualified same-tier alternate were both rejected by the local Host outbound boundary before a Provider result; format/semantic refinement would not address this failure.",
+    "reconciliation_required": false,
+    "additional_provider_attempts": 0,
+    "codex_fallback": true,
+    "codex_fallback_reason": "transport_failure_no_active_qualified_worker"
+  },
+  "codex_fallback": {
+    "changed_paths": [
+      "scripts/diagnose_model_candidates.py"
+    ],
+    "change_summary": "Removed the unreachable duplicate ELIGIBLE branch; no routing or gate behavior changed.",
+    "implementation_revision": "4d1615748bbb995c0f82427ee8591ae4ca44d0d8",
+    "codex_direct_implementation_count": 1,
+    "focused_tests": "4 passed",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "duplicate_eligible_branch_count_after_change": 1
+  },
+  "safety": {
+    "raw_provider_response_saved": false,
+    "raw_prompt_saved": false,
+    "credentials_saved": false,
+    "unknown_effect_replayed": false,
+    "approval_bypassed": false,
+    "protected_path_changed": false
+  },
+  "interpretation": "Both bounded Worker routes were blocked by the same local outbound policy before Provider response. This is transport evidence, not a Worker quality failure and not an Adaptive Refinement FORMAT/SEMANTIC recovery cycle. The small production diagnostic cleanup was applied by Codex only after both qualified Worker routes were unavailable; the original Worker failures remain immutable plan evidence."
+}
