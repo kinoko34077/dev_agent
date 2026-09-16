@@ -243,6 +243,10 @@ class ProviderModelDiscovery:
         model_records = self._model_records(binding.provider_id, document)
         observed_at = current.isoformat()
         expires_at = (current + self._ttl).isoformat()
+        sorted_records = sorted(
+            model_records,
+            key=lambda item: (binding.provider_id, binding.provider_binding_id, item[0])
+        )
         return ModelDiscoveryResult(
             tuple(
                 DiscoveredModel(
@@ -254,7 +258,7 @@ class ProviderModelDiscovery:
                     expires_at=expires_at,
                     metadata=metadata,
                 )
-                for model_id, metadata in model_records
+                for model_id, metadata in sorted_records
             )
         )
 
