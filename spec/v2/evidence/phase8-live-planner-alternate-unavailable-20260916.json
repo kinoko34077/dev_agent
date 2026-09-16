@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "evidence_id": "phase8-live-planner-alternate-unavailable-20260916",
+  "evidence_kind": "phase8_live_planner_failover_observation",
+  "observed_at": "2026-09-16T10:48:38.492149Z",
+  "implementation_baseline": "64fa0b89f4c727f891c7bbcb19138f454263a5ca",
+  "operation": {
+    "entry": "scripts/devfarm_planner_shadow.py",
+    "provider": "gemini",
+    "binding": "gemini:worker:free-3",
+    "model": "gemini-3.8-flash",
+    "required_tier": "L2",
+    "no_charge_required": true,
+    "allow_unknown_quota": true,
+    "quota_domain": "gemini:project:982142111392",
+    "execution_boundary": "host_process",
+    "source_files": [],
+    "timeout_seconds": 45,
+    "max_output_tokens": 1200
+  },
+  "eligible_pool": [
+    {
+      "provider": "gemini",
+      "binding": "gemini:worker:free-3",
+      "model": "gemini-3.8-flash",
+      "quota_domain": "gemini:project:982142111392",
+      "intelligence_tier": "L2"
+    }
+  ],
+  "attempts": [
+    {
+      "provider": "gemini",
+      "binding": "gemini:worker:free-3",
+      "model": "gemini-3.8-flash",
+      "category": "provider_unavailable",
+      "failover_safe": true,
+      "reconciliation_required": false
+    }
+  ],
+  "result": {
+    "status": "pool_exhausted",
+    "proposal_accepted": false,
+    "host_validation": "not_run"
+  },
+  "safety": {
+    "same_model_retry": false,
+    "same_binding_immediate_retry": false,
+    "unknown_failover": false,
+    "automatic_l1_downgrade": false,
+    "raw_provider_response_recorded": false,
+    "credential_recorded": false,
+    "source_payload_recorded": false
+  },
+  "interpretation": "The explicit same-tier alternate model request reached the selected no-charge Gemini binding and returned a confirmed provider-unavailable result. The bounded pool was exhausted without a proposal; no same-model retry, UNKNOWN replay, downgrade, or Host validation occurred.",
+  "phase8_activation": "NOT_VERIFIED"
+}
