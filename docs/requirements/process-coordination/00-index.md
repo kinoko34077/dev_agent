@@ -15,6 +15,21 @@ authorityを置き換えない。
 - coordination stateはTask stateとfailure domain/lifecycleが異なるため、既定では
   別SQLiteに保存する。repoへcommitするsource SSOTにはしない。
 
+## Local Operation runtime boundary
+
+`src/dev_agent/operation_runtime.py` の `RuntimeCoordinator` は、既存の
+`OperationService` をforegroundで生かす薄いprocess boundaryである。peerの
+identity/generation/heartbeatとlocal loopだけを所有し、runtime準備、maintenance、
+durable Queue、Worker claimは既存Operationへ委譲する。Task Scheduler、Taskの
+依存解放、Provider routing、retry、approval、integrationを新設・複製しない。
+
+`scripts/devfarm_runtime_coordinator.py` の `health`、`once`、`serve` は、local
+dogfoodでのbounded実行と再起動確認に使う。待機中は既存のidle sleepを使い、
+reconciliation/quota/dependencyのwake条件は既存maintenance境界が処理する。stale
+generationは自分のloopだけを停止し、current generationの共有stop要求を消去しない。
+OS service/Task Scheduler登録と配備後livenessは別Production Deployment trackであり、
+このlocal boundaryのEvidenceからは昇格しない。
+
 ## Peer identity / presence
 
 Peer identityは`role`、`instance_id`、`generation`の組で表す。PIDは補助的な
@@ -44,9 +59,10 @@ Human Authority、security条件を上書きしない。
 `UNKNOWN`を冪等に記録し、`EXECUTING`を再実行しない。静的Host-bound
 `LaunchProfile`だけを使うGuardian process executor、graceful drain/checkpoint、
 revision-pinned release、rolling/rollback compositionはlocal/fake runtimeで検証済み
-である。一方、OS service、配備後crash recovery、production process運用、D9 real
-self-repairは完了扱いにしない。これらはCoordinationのdurable stateを利用する後続
-Gateであり、実装・fault test・evidenceが揃うまでproposal-onlyのD9境界を越えない。
+である。一方、OS service、配備後crash recovery、production process運用は完了扱いに
+しない。D9 Dogfoodの一件限定local real repairは別Evidenceでverifiedだが、
+automatic/unrestricted self-repairとProduction Deploymentは未解放である。これらは
+Coordinationのdurable stateを利用する後続Gateとして扱う。
 
 ## Size / privacy
 

@@ -1,8 +1,10 @@
 # Codex Daily Dogfood Runbook
 
 このRunbookは、既存のCommander・Supervisor・DevFarm・Free Workerを、通常の開発で
-繰り返し使うための短い操作手順である。新しいScheduler、daemon、Task state machine、
-retry frameworkは追加しない。Compression Serviceは固定payload最適化として明示的に
+繰り返し使うための短い操作手順である。新しいScheduler、Task state machine、retry
+frameworkは追加しない。Local Operation runtime coordinatorは既存Operation loopを
+foregroundで生かす薄いprocess boundaryであり、Task scheduling authorityを持つdaemon
+ではない。Compression Serviceは固定payload最適化として明示的に
 利用できるが、G6O1のbilling/evidenceへは接続しない。詳細な契約は
 [`CODEX_COMMANDER.md`](CODEX_COMMANDER.md)、[`CODEX_SUPERVISOR.md`](CODEX_SUPERVISOR.md)、
 [`DEVFARM.md`](DEVFARM.md)を正本とする。
@@ -33,6 +35,31 @@ Codexは次の順でpreflightし、決定可能なファイル・テスト・Wor
 
 未完了Planが同じ目的なら新Planを作らず、`status`で確認してから`resume`または`run`
 で再開する。Providerのunknown external effectを再送しない。
+
+## Local Operation runtime coordinator
+
+Codexのturnが終了しても、既存のdurable Operation stateをforeground processで軽く
+維持・再開したい場合は、薄いCoordinatorを使う。Coordinatorはpeer heartbeat、
+generation fencing、idle waitだけを担当し、Task claim、dependency/quota/reconciliation
+wake、Provider routing、retryは既存Operationへ委譲する。待機中のLLM呼出しやProvider再送は
+行わない。
+
+状態照会:
+
+```text
+python scripts/devfarm_runtime_coordinator.py health --data-dir .dev_agent
+```
+
+安全なbounded smoke:
+
+```text
+python scripts/devfarm_runtime_coordinator.py serve --data-dir .dev_agent \
+  --provider fake --model deterministic --max-cycles 2
+```
+
+通常のforeground運用では`serve`から`--max-cycles`と`--max-runtime-seconds`を外す。
+OS startup、Task Scheduler/Windows Service登録、配備後Guardian livenessは別のProduction
+Deployment trackであり、このCoordinatorのlocal Evidenceからは昇格しない。
 
 ## PlanとWorker
 

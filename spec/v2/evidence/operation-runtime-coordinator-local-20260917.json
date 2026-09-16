@@ -1,0 +1,35 @@
+{
+  "evidence_id": "operation-runtime-coordinator-local-20260917",
+  "status": "VERIFIED_LOCAL",
+  "scope": "local_foreground_operation_runtime",
+  "implementation_commit": "cf9139ad3dd45b4d448c6fc2edacdc579020518a",
+  "entrypoint": "scripts/devfarm_runtime_coordinator.py",
+  "observed": {
+    "operation_boundary": "existing OperationService.prepare_runtime, maintenance_tick, and WorkerRunner.run_once",
+    "presence": "durable agent/operation-runtime peer with generation and heartbeat",
+    "stale_generation": "stale peer self-stops without changing the current generation stop request",
+    "restart_state": "waiting/reconciliation state remains durable across coordinator restart",
+    "idle": "bounded two-cycle fake-provider serve completed without a Provider network request",
+    "health": "bounded peer and task-count projection excludes raw task payloads and credentials"
+  },
+  "smoke": {
+    "command": "python scripts/devfarm_runtime_coordinator.py serve --data-dir <temporary-directory> --provider fake --model deterministic --max-cycles 2",
+    "result": "CYCLE_LIMIT",
+    "cycles": 2,
+    "last_error": null
+  },
+  "tests": {
+    "focused": "44 coordinator/operation tests; 62 coordinator/operation/Guardian tests",
+    "full": "1394 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS"
+  },
+  "external_effect": "none",
+  "codex_direct_provider_outbound": false,
+  "unknown_replay": false,
+  "os_registration": "DEFERRED_NOT_CONFIGURED",
+  "limitations": [
+    "This verifies a local foreground process boundary, not OS startup or Task Scheduler registration.",
+    "AR1 live recovery and Phase 8 single-root live activation remain separate roadmap work."
+  ]
+}

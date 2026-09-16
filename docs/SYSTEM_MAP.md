@@ -20,7 +20,7 @@
 | Compression | `src/dev_agent/compression/` | 固定`semantic-dense-v1`のpayload-only HTTP client、digest/provenance、retention warning | Handoff / external service boundary | Control非圧縮、固定endpoint/token、G6O1非接続 | `tests/v2/test_compression.py`, `spec/v2/evidence/compression-service-connection-20260914.json` |
 | MCP adapter | `src/dev_agent/mcp/`, `scripts/devfarm_mcp.py` | bounded transport-neutral adapter、既存Supervisor操作の委譲 | Commander / Supervisor public API | MCP側にscheduler/budget/approval/integration authorityなし | `tests/v2/test_mcp_runtime.py`, `spec/v2/evidence/mcp-runtime-adapter-20260914.json` |
 | Recovery | `recovery/` | runtime-independent diagnose、backup、restore、rollback | durable artifacts / Git | external recovery authority | `tests/v2/test_recovery*.py` |
-| Operation | `src/dev_agent/operation.py`, `operation_bootstrap.py`, `operation_planning.py`, `cli.py`, `src/dev_agent/__main__.py` | `start`、`submit`、`status`、`stop`と既存componentのcomposition | existing runtime stack / state control | no CLI-owned state | `tests/v2/test_operation.py`, `test_operation_boundaries.py` |
+| Operation | `src/dev_agent/operation.py`, `operation_bootstrap.py`, `operation_planning.py`, `operation_runtime.py`, `cli.py`, `src/dev_agent/__main__.py`, `scripts/devfarm_runtime_coordinator.py` | `start`、`submit`、`status`、`stop`と既存componentのcomposition。薄いlocal runtime boundaryはpeer heartbeatと既存Operation 1周期を呼ぶ | existing runtime stack / state control / Process Coordination presence | no CLI-owned state、no second scheduler | `tests/v2/test_operation.py`, `test_operation_boundaries.py`, `test_operation_runtime.py` |
 | DevFarm | `scripts/devfarm*.py`（`devfarm_codex.py`を含む） | manifest、proposal、Codex AgentBackend attempt、Host Verification、metrics | ProviderFactory + Git artifacts | outbound scope、worktree、patch、no auto-integration | `tests/v2/test_devfarm_*.py` |
 | Commander | `scripts/devfarm_commander.py` | development-only parent Plan、DAG、dispatch、collect、verify | existing DevFarm only | ownership、bounded reassign | `tests/v2/test_devfarm_commander.py` |
 | Supervisor | `scripts/devfarm_supervisor.py`, `scripts/devfarm_supervisor_protocol.py` | bounded `advance` snapshot、blocking `run_until_intervention`、cadence、compact wake/review evidence、rework handoff | existing Commander + Handoff | no auto-integration、no second scheduler | `tests/v2/test_devfarm_supervisor.py`, `docs/CODEX_SUPERVISOR.md` |
@@ -45,6 +45,11 @@ only static Host-bound process profiles. The plane must not become a parallel
 Scheduler, Task state machine, Provider router, Budget authority, arbitrary
 command runner, or LLM process authority. Commander owns task-file ownership
 and rejects overlap across unfinished plans before a new plan is persisted.
+
+The local Operation runtime coordinator is only a process boundary around the
+existing Operation loop. It does not own Task scheduling, wake policy, retry,
+Provider calls, or approval; OS startup and deployed liveness remain a separate
+Production Deployment track.
 
 Host egress policy/manifest is a separate check at the existing DevFarm outbound
 boundary. It may inspect and hash explicitly scoped files, but it does not grant
