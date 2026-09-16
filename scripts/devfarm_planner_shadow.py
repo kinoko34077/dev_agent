@@ -172,6 +172,7 @@ def run_shadow(
     model_catalog=None,
     expand_discovered_models: bool = False,
     execution_boundary: str = "in_process",
+    max_output_tokens: int = 1_024,
 ) -> dict[str, object]:
     parent_task_id = validate_parent_task_id(parent_task_id)
     resolver = QualificationResolver()
@@ -225,7 +226,7 @@ def run_shadow(
         try:
             proposal = ModelPlanningAdapter(
                 planner_provider,
-                max_output_tokens=1_024,
+                max_output_tokens=max_output_tokens,
                 cost_ceiling=0.0,
                 allow_unknown_quota=allow_unknown_quota,
             ).propose(
@@ -360,6 +361,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--branch", default="v2/bootstrap")
     parser.add_argument("--timeout-seconds", type=float, default=30.0)
     parser.add_argument(
+        "--max-output-tokens",
+        type=int,
+        default=1_024,
+        help="bounded Planner response ceiling; increase only for larger validated proposals",
+    )
+    parser.add_argument(
         "--pool-json",
         help=(
             "explicit JSON array of non-secret OperationProviderBinding objects; "
@@ -415,6 +422,7 @@ def main(argv: list[str] | None = None) -> int:
             model_catalog=model_evidence.catalog,
             expand_discovered_models=args.expand_discovered_models,
             execution_boundary=args.execution_boundary,
+            max_output_tokens=args.max_output_tokens,
         )
         code = 0 if output.get("status") == "live_shadow_validated" else 2
     except PlannerShadowInputError as exc:

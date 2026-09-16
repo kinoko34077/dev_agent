@@ -286,6 +286,26 @@ def test_planner_shadow_reports_bounded_host_transport_category(monkeypatch, cap
     assert output["transport_failure_category"] == "sandbox_network_denied"
 
 
+def test_planner_shadow_cli_passes_bounded_output_ceiling(monkeypatch, capsys):
+    captured = {}
+    monkeypatch.setattr(
+        planner_shadow.ModelEvidenceCatalog,
+        "load_default",
+        lambda: type("Evidence", (), {"resolver": object(), "catalog": object()})(),
+    )
+    monkeypatch.setattr(planner_shadow, "resolve_provider_pool", lambda **_kwargs: None)
+
+    def capture_shadow(**kwargs):
+        captured.update(kwargs)
+        return {"status": "pool_exhausted"}
+
+    monkeypatch.setattr(planner_shadow, "run_shadow", capture_shadow)
+
+    assert planner_shadow.main(["--objective", "bounded", "--max-output-tokens", "4096"]) == 2
+    json.loads(capsys.readouterr().out)
+    assert captured["max_output_tokens"] == 4096
+
+
 def test_planner_output_is_only_a_proposal_until_operation_host_validation(tmp_path):
     config = OperationConfig(
         data_dir=tmp_path,
