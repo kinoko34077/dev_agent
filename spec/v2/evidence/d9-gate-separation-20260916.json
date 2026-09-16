@@ -1,0 +1,58 @@
+{
+  "evidence_id": "d9-gate-separation-20260916",
+  "observed_at": "2026-09-16T09:00:00+09:00",
+  "purpose": "Verify that local D9 dogfood and OS/deployed production readiness are reported as independent tracks without weakening existing safety boundaries.",
+  "implementation_baseline": "4257223893a10313af9c0aa5f2f62fa9f3980fdf",
+  "tracks": {
+    "D9_DOGFOOD": {
+      "status": "NOT_READY",
+      "missing": [
+        "one real bounded production self-repair execution",
+        "verified local pinned-runtime health and rollback evidence"
+      ],
+      "task_scheduler_required": false
+    },
+    "D9_PRODUCTION_DEPLOYMENT": {
+      "status": "DEFERRED_NOT_READY",
+      "task_scheduler": "DEFERRED",
+      "missing": [
+        "OS Guardian registration",
+        "deployed crash/reboot recovery",
+        "deployed rolling replacement and rollback"
+      ]
+    },
+    "PHASE8_PREPARATION": {
+      "status": "PREPARATION_ONLY",
+      "live_activation": "NOT_VERIFIED"
+    }
+  },
+  "checks": {
+    "gate_status_json": "PASS",
+    "focused_gate_tests": "8 passed",
+    "full_v2_regression": "1360 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "g6o1_existing_blocker": "PRESERVED",
+    "task_scheduler_touched": false,
+    "official_runtime_mutated": false,
+    "automatic_self_repair_enabled": false
+  },
+  "exact_head_ci_for_baseline": {
+    "v2_core": {
+      "run": "35038309035",
+      "kernel_3_10": "PASS",
+      "kernel_3_11": "PASS"
+    },
+    "v2_provider_smoke": {
+      "run": "35038309010",
+      "result": "PASS"
+    }
+  },
+  "references": [
+    "docs/requirements/process-coordination/02-dogfood-and-production-gates.md",
+    "spec/v2/adr/ADR-014-dogfood-production-gate-separation.md",
+    "tests/v2/test_gate_checker.py::test_gate_status_separates_dogfood_production_and_phase8_preparation_tracks"
+  ],
+  "secrets_recorded": false,
+  "raw_provider_response_recorded": false
+}
