@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "evidence_id": "phase8-planner-conservative-admission-20260916",
+  "evidence_kind": "phase8_planner_admission_observation",
+  "observed_at": "2026-09-16T11:28:47.6837617Z",
+  "implementation_baseline": "9c7573f077ae94a2655d14af74adbace8b0fdfd9",
+  "operation": {
+    "entrypoint": "scripts/devfarm_planner_shadow.py",
+    "objective_class": "fresh_phase8_stage5_root_planning",
+    "configured_pool": true,
+    "expand_discovered_models": true,
+    "allow_unknown_quota": false,
+    "required_tier": "L2",
+    "no_charge_required": true,
+    "execution_boundary": "host_process",
+    "provider_request_timeout_seconds": 90,
+    "raw_request_or_response_saved": false
+  },
+  "admission": {
+    "status": "NO_ROUTE",
+    "reason": "No current resource passed conservative L2 admission without the explicit unknown-quota opt-in.",
+    "provider_request_observed": false,
+    "host_validation": "not_run"
+  },
+  "safety": {
+    "same_binding_retry": false,
+    "provider_failover": false,
+    "automatic_l1_downgrade": false,
+    "unknown_external_effect_replayed": false,
+    "unknown_quota_or_billing_bypassed": false,
+    "credential_saved": false,
+    "raw_provider_response_saved": false
+  },
+  "interpretation": "The fresh Planner request stopped before Provider I/O because the normal Host admission path had no eligible route while unknown quota remained conservatively disallowed. This is an admission observation, not a Provider capability or availability result. No workaround, quota bypass, retry, or Gate promotion was performed."
+}
