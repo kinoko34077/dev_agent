@@ -1,0 +1,56 @@
+{
+  "evidence_id": "phase8-multirole-live-attempt-r6-20260916",
+  "observed_at": "2026-09-16T01:17:42Z",
+  "status": "LIVE_EXTERNAL_NOT_VERIFIED",
+  "scope": "Phase 8 Stage 5 two-Implementer production-code dispatch observation",
+  "run_id": "phase8-live-multirole-r6-20260916",
+  "implementation_baseline": "243b1b0689dc26761bb5c1fed44013e0350be6a0",
+  "worker_dispatch_count": 2,
+  "worker_owned_task_count": 2,
+  "codex_owned_task_count": 0,
+  "codex_direct_implementation_count": 0,
+  "integrated_task_count": 0,
+  "tasks": [
+    {
+      "task_id": "phase8-live-provider-normalize-r6-20260916",
+      "provider": "gemini",
+      "binding": "gemini:worker:free-3",
+      "model": "gemini-3.5-flash-lite",
+      "attempt_id": "529c4b78067d45dbbc3de1c6eb42c51a",
+      "provider_request_sent": false,
+      "failure_category": "egress_content_rejected",
+      "reason": "existing test fixture contained secret-shaped literal; Host Egress rejected before Provider dispatch",
+      "changed_files": []
+    },
+    {
+      "task_id": "phase8-live-model-candidates-r6-20260916",
+      "provider": "gemini",
+      "binding": "gemini:worker:free-3",
+      "model": "gemini-3.5-flash-lite",
+      "attempt_id": "91033a4479c9495cb63a9e31bdcdde0d",
+      "provider_request_sent": false,
+      "failure_category": "local_network_policy_denied",
+      "transport_failure_category": "local_network_policy_denied",
+      "host_failure_category": "transport",
+      "changed_files": []
+    }
+  ],
+  "guardrails": [
+    "No raw prompt, source content, credential, or provider response was saved",
+    "No UNKNOWN external effect was replayed",
+    "No automatic L1 downgrade or model carousel was used",
+    "The rejected plan was superseded; r7 is a distinct exact-manifest plan with a corrected egress file set",
+    "No official checkout or runtime was mutated"
+  ],
+  "verification": {
+    "plan_validation": "PASS",
+    "local_regression_before_attempt": "1372 passed, 1 skipped",
+    "architecture": "PASS",
+    "compileall": "PASS",
+    "review_or_host_verification": "NOT_REACHED",
+    "deterministic_integration": "NOT_PERFORMED"
+  },
+  "task_scheduler_touched": false,
+  "secrets_recorded": false,
+  "raw_provider_response_recorded": false
+}
