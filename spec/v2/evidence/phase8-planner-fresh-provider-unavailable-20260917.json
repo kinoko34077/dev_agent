@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "evidence_id": "phase8-planner-fresh-provider-unavailable-20260917",
+  "evidence_kind": "phase8_fresh_planner_provider_availability_observation",
+  "recorded_at": "2026-09-17T06:04:35.117900+00:00",
+  "scope": {
+    "track": "R9_PHASE8_LIVE_TRIAL",
+    "execution_boundary": "host_process",
+    "allow_unknown_quota": true,
+    "planner_admission": "qualified no-charge L2 under the accepted bounded UNKNOWN-quota policy",
+    "critic_admission": "separate Cloudflare L1 proposal-only pool",
+    "reused_unknown_operation": false,
+    "fresh_root_operations": 2
+  },
+  "operations": [
+    {
+      "parent_task_id": "1c2e3233-a2df-4594-aea5-dca463464bb2",
+      "request_id": "1e00fd9e-3fd6-49c6-98bc-b324bbe03eb8",
+      "provider": "gemini",
+      "binding": "gemini:worker:free-3",
+      "model": "gemini-3.6-flash",
+      "result": "provider_unavailable",
+      "provider_response_observed": false,
+      "failover_safe": true,
+      "reconciliation_required": false,
+      "host_validation": "not_run",
+      "critic_invoked": false
+    },
+    {
+      "parent_task_id": "d720b24f-0a40-4549-8bee-a593101690a6",
+      "request_id": "bfbe8c79-01e3-4e44-8d8e-73abc0d78186",
+      "provider": "gemini",
+      "binding": "gemini:worker:free-3",
+      "model": "gemini-3.8-flash",
+      "result": "provider_unavailable",
+      "provider_response_observed": false,
+      "failover_safe": true,
+      "reconciliation_required": false,
+      "host_validation": "not_run",
+      "critic_invoked": false
+    }
+  ],
+  "safety_semantics": {
+    "same_binding_model_retried": false,
+    "prior_unknown_replayed": false,
+    "automatic_l1_downgrade": false,
+    "unqualified_route_used": false,
+    "paid_route_used": false,
+    "raw_provider_response_stored": false,
+    "credential_stored": false,
+    "gate_promotion": false
+  },
+  "interpretation": "The current exact L2 admission and Host boundary were reached, but both fresh Gemini model attempts were unavailable before a response. The independent Critic was correctly not invoked because there was no observed response-contract failure. This is a confirmed external availability blocker, not AR1 recovery, a Planner proposal, or Phase 8 LIVE_ACTIVATION evidence. No further same-lane request is authorized by this evidence; continue with independent local work and use a newly qualified route only when available.",
+  "gate_impact": {
+    "d9_dogfood": "unchanged_verified",
+    "phase8_preparation": "unchanged_preparation_only",
+    "phase8_live_activation": "unchanged_not_verified",
+    "ar1_live_recovery": "not_demonstrated",
+    "d9_production_deployment": "unchanged_deferred_not_ready"
+  }
+}

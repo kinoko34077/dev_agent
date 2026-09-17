@@ -223,6 +223,11 @@ reconciliation, and `RuntimeCoordinator`.
 
 - [ ] Preflight a fresh root with current qualified, no-charge provider routes;
   do not reuse historical UNKNOWN operations or old attempts.
+- Current observation: the fresh Host-process L2 preflight reached qualified
+  admission, but two new `gemini:worker:free-3` model attempts returned
+  `provider_unavailable` before a response. This is recorded as an external
+  blocker; the R9 completion checkbox remains open and no prior UNKNOWN
+  operation is replayed.
 - [ ] Run live Planner, at least two non-overlapping Implementers, independent
   Reviewer, Host Verification, deterministic integration, dependent
   continuation, and exact-head CI.
