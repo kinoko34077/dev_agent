@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "evidence_id": "planner-critic-live-probe-20260917",
+  "evidence_kind": "planner_critic_live_route_observation",
+  "recorded_at": "2026-09-17T02:29:00Z",
+  "operation": {
+    "root_id": "c84f1a27-5b93-46de-8a10-2f7c6d1e9045",
+    "parent_task_id": "c84f1a27-5b93-46de-8a10-2f7c6d1e9045",
+    "planner_request_id": "f0d02f81-a9b4-4893-9a65-33e578a6af5c",
+    "execution_boundary": "host_process",
+    "allow_unknown_quota": true,
+    "fresh_identity": true
+  },
+  "admission": {
+    "planner": {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-3",
+      "model_id": "gemini-3.6-flash",
+      "required_tier": "L2",
+      "no_charge_required": true,
+      "qualified": true,
+      "quota_mode": "bounded_unknown_quota"
+    },
+    "planning_critic": {
+      "provider_id": "cloudflare",
+      "provider_binding_id": "cloudflare",
+      "model_id": "@cf/meta/llama-3.1-8b-instruct",
+      "required_tier": "L1",
+      "no_charge_required": true,
+      "qualified": true,
+      "distinct_from_planner": true,
+      "invoked": false
+    }
+  },
+  "result": {
+    "status": "blocked_external",
+    "category": "provider_decode",
+    "provider_response_contract": "not_observed_as_planner_model_output",
+    "host_validation": "not_run",
+    "proposal_returned": false,
+    "reconciliation_required": true,
+    "blind_replay": false,
+    "same_binding_retry": false,
+    "automatic_failover": false,
+    "l1_downgrade": false
+  },
+  "redaction": {
+    "raw_provider_response_stored": false,
+    "raw_exception_message_stored": false,
+    "credential_stored": false,
+    "source_payload_stored": false
+  },
+  "interpretation": "The fresh Host-process Planner route reached a provider-boundary decode failure. Because this was a ProviderError rather than an observed invalid_json or invalid_proposal response-contract failure, the independent Critic was correctly not invoked. The external outcome remains UNKNOWN and the operation must not be replayed.",
+  "gate_impact": {
+    "d9_dogfood": "unchanged_verified",
+    "phase8_preparation": "unchanged_preparation_only",
+    "phase8_live_activation": "unchanged_not_verified",
+    "ar1_live_recovery": "not_demonstrated",
+    "d9_production_deployment": "unchanged_deferred_not_ready"
+  }
+}
