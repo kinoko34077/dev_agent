@@ -179,6 +179,14 @@ def test_planning_critic_contract_failure_preserves_its_fresh_request_id():
     assert caught.value.request_id == provider.requests[0].request_id
 
 
+def test_planning_critic_is_available_through_lazy_intelligence_exports():
+    from src.dev_agent import intelligence
+
+    assert intelligence.ModelPlanningCriticAdapter is ModelPlanningCriticAdapter
+    assert intelligence.PLANNING_CRITIC_RESPONSE_SCHEMA is PLANNING_CRITIC_RESPONSE_SCHEMA
+    assert intelligence.PlanningCriticAdapterError is PlanningCriticAdapterError
+
+
 def test_planner_composition_uses_one_critic_action_then_host_validation():
     parent_task_id = str(uuid4())
     planner_provider = _Provider(
