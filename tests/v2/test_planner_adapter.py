@@ -21,10 +21,12 @@ from src.dev_agent.resources.qualification import QualificationResolver
 from src.dev_agent.resources.router import ResourceRouter
 import scripts.devfarm_planner_shadow as planner_shadow
 from scripts.devfarm_planner_shadow import (
+    PlannerShadowBlocked,
     PlannerShadowInputError,
     resolve_provider_pool,
     validate_parent_task_id,
 )
+from scripts.devfarm_resource_pool import ResourcePoolError
 
 
 class _Provider:
@@ -366,6 +368,61 @@ def test_planner_shadow_reports_bounded_host_transport_category(monkeypatch, cap
     assert "message" not in output
     assert "secret-shaped transport detail" not in json.dumps(output)
     assert output["request_id"] == request_id
+
+
+def test_planner_shadow_projects_admission_no_route_as_local_block(monkeypatch, capsys):
+    monkeypatch.setattr(
+        planner_shadow.ModelEvidenceCatalog,
+        "load_default",
+        lambda: type("Evidence", (), {"resolver": object(), "catalog": object()})(),
+    )
+    monkeypatch.setattr(planner_shadow, "resolve_provider_pool", lambda **_kwargs: None)
+    monkeypatch.setattr(
+        planner_shadow,
+        "run_shadow",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            PlannerShadowBlocked("private admission detail", category="no_route")
+        ),
+    )
+
+    assert planner_shadow.main(["--objective", "diagnostic"]) == 2
+
+    output = json.loads(capsys.readouterr().out)
+    assert output == {
+        "category": "no_route",
+        "error_type": "PlannerShadowBlocked",
+        "parent_task_id": output["parent_task_id"],
+        "reconciliation_required": False,
+        "status": "blocked_local",
+    }
+    assert "private admission detail" not in json.dumps(output)
+
+
+def test_planner_shadow_projects_pool_composition_without_external_reconciliation(monkeypatch, capsys):
+    secret_detail = "resource composition detail with credential-shaped content"
+    monkeypatch.setattr(
+        planner_shadow.ModelEvidenceCatalog,
+        "load_default",
+        lambda: type("Evidence", (), {"resolver": object(), "catalog": object()})(),
+    )
+    monkeypatch.setattr(planner_shadow, "resolve_provider_pool", lambda **_kwargs: None)
+    monkeypatch.setattr(
+        planner_shadow,
+        "run_shadow",
+        lambda **_kwargs: (_ for _ in ()).throw(ResourcePoolError(secret_detail)),
+    )
+
+    assert planner_shadow.main(["--objective", "diagnostic"]) == 2
+
+    output = json.loads(capsys.readouterr().out)
+    assert output == {
+        "category": "resource_pool_composition",
+        "error_type": "ResourcePoolError",
+        "parent_task_id": output["parent_task_id"],
+        "reconciliation_required": False,
+        "status": "blocked_local",
+    }
+    assert secret_detail not in json.dumps(output)
 
 
 def test_planner_shadow_classifies_invalid_model_output(monkeypatch, capsys):

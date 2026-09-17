@@ -60,6 +60,24 @@ from scripts.devfarm_host_dispatch import create_host_process_executor
 class PlannerShadowBlocked(RuntimeError):
     """The exact L2 shadow route is not currently admitted."""
 
+    _CATEGORIES = frozenset(
+        {
+            "no_route",
+            "planning_critic_no_route",
+            "resource_pool_admission",
+        }
+    )
+
+    def __init__(self, message: str, *, category: str = "no_route") -> None:
+        if category not in self._CATEGORIES:
+            raise ValueError("unsupported Planner shadow block category")
+        super().__init__(message)
+        self.category = category
+        # Admission/configuration stopped the request before Provider I/O.
+        # Keep this explicit so the outer projection cannot turn it into an
+        # UNKNOWN external effect.
+        self.requires_reconciliation = False
+
 
 class PlannerShadowInputError(ValueError):
     """The shadow command received an invalid local identity input."""
@@ -224,7 +242,10 @@ def admit_planner_pool(
             profile_resolver=profile_for,
         )
     except ResourcePoolError as exc:
-        raise PlannerShadowBlocked(str(exc)) from exc
+        raise PlannerShadowBlocked(
+            str(exc),
+            category="resource_pool_admission",
+        ) from exc
 
 
 def _shadow_context(*, repository: str, branch: str) -> dict[str, str]:
@@ -250,7 +271,8 @@ def _validate_independent_critic_admission(
 
     if not critic_admitted:
         raise PlannerShadowBlocked(
-            "no exact current high-confidence L1 planning critic resource is admitted"
+            "no exact current high-confidence L1 planning critic resource is admitted",
+            category="planning_critic_no_route",
         )
     planner_ids = {_admission_identity(binding) for binding, _qualification, _profile in planner_admitted}
     overlap = sorted(
@@ -330,7 +352,10 @@ def run_shadow(
         expand_discovered_models=expand_discovered_models,
     )
     if not admitted:
-        raise PlannerShadowBlocked("no exact current high-confidence L2 planner resource is admitted")
+        raise PlannerShadowBlocked(
+            "no exact current high-confidence L2 planner resource is admitted",
+            category="no_route",
+        )
     if planning_critic_provider is not None and planning_critic_pool is not None:
         raise PlannerShadowInputError(
             "planning_critic_provider and planning_critic_pool cannot be combined"
@@ -734,7 +759,31 @@ def main(argv: list[str] | None = None) -> int:
             output["request_id"] = request_id
         _add_planning_critic_observation(output, exc)
         code = 2
-    except (PlannerShadowBlocked, DispatchDenied, ProviderError) as exc:
+    except ResourcePoolError as exc:
+        # Resource composition is a local Host configuration/admission
+        # failure.  It occurs before a concrete Provider request and must not
+        # be projected as an external UNKNOWN outcome.
+        output = {
+            "status": "blocked_local",
+            "category": "resource_pool_composition",
+            "error_type": type(exc).__name__,
+            "reconciliation_required": False,
+        }
+        _add_planning_critic_observation(output, exc)
+        code = 2
+    except PlannerShadowBlocked as exc:
+        # No admitted route is also a local, pre-I/O condition.  Keep only
+        # the bounded category; the human-readable reason may contain
+        # configuration details and is intentionally not serialized.
+        output = {
+            "status": "blocked_local",
+            "category": exc.category,
+            "error_type": type(exc).__name__,
+            "reconciliation_required": False,
+        }
+        _add_planning_critic_observation(output, exc)
+        code = 2
+    except (DispatchDenied, ProviderError) as exc:
         output = {
             "status": "blocked_external",
             "category": getattr(exc, "host_failure_category", getattr(exc, "category", type(exc).__name__)),
