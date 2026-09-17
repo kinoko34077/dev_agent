@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "evidence_id": "planner-critic-observation-projection-20260917",
+  "evidence_kind": "planner_critic_bounded_observation_projection",
+  "recorded_at": "2026-09-17T02:42:55Z",
+  "implementation_baseline": {
+    "revision": "e84ed8d",
+    "message": "feat: expose planner critic observation"
+  },
+  "scope": {
+    "boundary": "Planner Shadow success projection for the optional independent planning Critic",
+    "change": "project whether a separately admitted Critic was configured and invoked, its fresh request UUID, and bounded dispatch outcomes",
+    "purpose": "make Planner cross-check use observable without exposing raw Provider material or granting authority"
+  },
+  "verified_behavior": {
+    "critic_configured_is_projected": true,
+    "critic_invocation_is_projected": true,
+    "critic_request_id_is_fresh_and_uuid_bounded": true,
+    "critic_dispatch_audits_are_bounded": true,
+    "successful_planner_skips_critic": true,
+    "transport_quota_security_unknown_path_unchanged": true,
+    "host_root_planning_validator_remains_authoritative": true,
+    "raw_provider_response_or_exception_stored": false,
+    "credential_stored": false,
+    "task_mutation": false,
+    "approval_consumption": false,
+    "git_mutation": false,
+    "gate_promotion": false
+  },
+  "verification": {
+    "focused": "11 Planner Critic adapter, composition, admission, export, failure projection, and observation projection tests passed",
+    "full_tests_v2": "1413 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head": "e84ed8d",
+    "ci": {
+      "v2-core": {
+        "run_id": 35175308497,
+        "conclusion": "success"
+      },
+      "v2-provider-smoke": {
+        "run_id": 35175308566,
+        "conclusion": "success"
+      }
+    }
+  },
+  "interpretation": "The Planner Shadow now makes bounded Critic use auditable for a validated success result, including the Critic's own fresh request identity. This is local contract observability; it does not claim a live Planner correction, AR1 recovery, Phase 8 single-root completion, or Gate transition.",
+  "live_context": {
+    "latest_fresh_probe": "planner-critic-live-probe-20260917",
+    "latest_fresh_probe_result": "provider_decode with reconciliation_required=true before Planner response-contract classification",
+    "critic_invoked_in_latest_probe": false,
+    "same_operation_replayed": false
+  },
+  "gate_impact": {
+    "d9_dogfood": "unchanged_verified",
+    "phase8_preparation": "unchanged_preparation_only",
+    "phase8_live_activation": "unchanged_not_verified",
+    "ar1_live_recovery": "not_demonstrated",
+    "d9_production_deployment": "unchanged_deferred_not_ready"
+  }
+}
