@@ -123,6 +123,57 @@ def _project_planning_critic_observation(
     }
 
 
+def _normalize_planning_critic_observation(value: object) -> dict[str, object] | None:
+    """Accept only the bounded Critic observation attached by ``run_shadow``."""
+
+    if not isinstance(value, dict):
+        return None
+    configured = value.get("configured")
+    invoked = value.get("invoked")
+    request_id = _bounded_request_id(value.get("request_id"))
+    audits = value.get("dispatch_audits")
+    if not isinstance(configured, bool) or not isinstance(invoked, bool):
+        return None
+    if not isinstance(audits, list):
+        return None
+    projected_audits: list[dict[str, object]] = []
+    for entry in audits:
+        if not isinstance(entry, dict):
+            return None
+        provider = entry.get("provider")
+        binding = entry.get("binding")
+        model = entry.get("model")
+        outcome = entry.get("outcome")
+        if not isinstance(provider, str) or not isinstance(outcome, str):
+            return None
+        projected_audits.append(
+            {
+                "provider": provider,
+                "binding": binding if isinstance(binding, str) else None,
+                "model": model if isinstance(model, str) else None,
+                "outcome": outcome,
+            }
+        )
+    if invoked != (request_id is not None):
+        return None
+    return {
+        "configured": configured,
+        "invoked": invoked,
+        "request_id": request_id,
+        "dispatch_audits": projected_audits,
+    }
+
+
+def _add_planning_critic_observation(output: dict[str, object], error: BaseException) -> None:
+    """Copy only a validated Critic observation into an outer CLI result."""
+
+    observation = _normalize_planning_critic_observation(
+        getattr(error, "planning_critic_observation", None)
+    )
+    if observation is not None:
+        output["planning_critic"] = observation
+
+
 def _build_provider(*, binding: OperationProviderBinding):
     """Compatibility seam for isolated tests; runtime composition is shared."""
 
@@ -410,9 +461,21 @@ def run_shadow(
             request_id = _bounded_request_id(getattr(exc, "request_id", None))
             if request_id is not None:
                 result["request_id"] = request_id
+            result["planning_critic"] = _project_planning_critic_observation(
+                critic_adapter,
+                critic_dispatcher if critic_dispatcher is not None else critic_provider,
+            )
             return result
         except ProviderError as exc:
             if not exc.failover_safe or exc.requires_reconciliation:
+                setattr(
+                    exc,
+                    "planning_critic_observation",
+                    _project_planning_critic_observation(
+                        critic_adapter,
+                        critic_dispatcher if critic_dispatcher is not None else critic_provider,
+                    ),
+                )
                 raise
             attempts = [
                 {
@@ -427,6 +490,14 @@ def run_shadow(
                 if entry.outcome != "succeeded"
             ]
             if not attempts:
+                setattr(
+                    exc,
+                    "planning_critic_observation",
+                    _project_planning_critic_observation(
+                        critic_adapter,
+                        critic_dispatcher if critic_dispatcher is not None else critic_provider,
+                    ),
+                )
                 raise
             result = {
                 "status": "pool_exhausted",
@@ -448,7 +519,25 @@ def run_shadow(
             request_id = _bounded_request_id(getattr(exc, "request_id", None))
             if request_id is not None:
                 result["request_id"] = request_id
+            result["planning_critic"] = _project_planning_critic_observation(
+                critic_adapter,
+                critic_dispatcher if critic_dispatcher is not None else critic_provider,
+            )
             return result
+        except Exception as exc:
+            # Preserve only the bounded Critic-use projection on every
+            # failure path.  The outer CLI can then distinguish an unused
+            # Critic from a fresh Critic attempt without exposing exception
+            # text or changing retry/reconciliation authority.
+            setattr(
+                exc,
+                "planning_critic_observation",
+                _project_planning_critic_observation(
+                    critic_adapter,
+                    critic_dispatcher if critic_dispatcher is not None else critic_provider,
+                ),
+            )
+            raise
         parent = Task(
             task_id=parent_task_id,
             objective=objective,
@@ -628,6 +717,7 @@ def main(argv: list[str] | None = None) -> int:
         request_id = _bounded_request_id(getattr(exc, "request_id", None))
         if request_id is not None:
             output["request_id"] = request_id
+        _add_planning_critic_observation(output, exc)
         code = 2
     except PlanningCriticAdapterError as exc:
         # A response-contract correction is still a bounded model-output
@@ -642,6 +732,7 @@ def main(argv: list[str] | None = None) -> int:
         request_id = _bounded_request_id(getattr(exc, "request_id", None))
         if request_id is not None:
             output["request_id"] = request_id
+        _add_planning_critic_observation(output, exc)
         code = 2
     except (PlannerShadowBlocked, DispatchDenied, ProviderError) as exc:
         output = {
@@ -660,6 +751,7 @@ def main(argv: list[str] | None = None) -> int:
         request_id = _bounded_request_id(getattr(exc, "request_id", None))
         if request_id is not None:
             output["request_id"] = request_id
+        _add_planning_critic_observation(output, exc)
         code = 2
     except Exception as exc:
         # An unexpected failure may have happened before or after the
@@ -672,6 +764,7 @@ def main(argv: list[str] | None = None) -> int:
             "error_type": type(exc).__name__,
             "reconciliation_required": True,
         }
+        _add_planning_critic_observation(output, exc)
         code = 2
     output.setdefault("parent_task_id", parent_task_id)
     print(json.dumps(output, ensure_ascii=False, indent=2))

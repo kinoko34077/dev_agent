@@ -435,3 +435,40 @@ def test_planner_shadow_projects_critic_failure_without_unbound_exception(monkey
     assert output["category"] == "model_output_invalid"
     assert output["request_id"] == request_id
     assert output["reconciliation_required"] is False
+
+
+def test_planner_shadow_projects_critic_observation_on_failure(monkeypatch, capsys):
+    critic_request_id = str(uuid4())
+    failure = PlanningCriticAdapterError("bounded critic response failure")
+    failure.request_id = critic_request_id
+    failure.planning_critic_observation = {
+        "configured": True,
+        "invoked": True,
+        "request_id": critic_request_id,
+        "dispatch_audits": [],
+    }
+
+    monkeypatch.setattr(
+        devfarm_planner_shadow.ModelEvidenceCatalog,
+        "load_default",
+        lambda: SimpleNamespace(resolver=None, catalog=None),
+    )
+    monkeypatch.setattr(
+        devfarm_planner_shadow,
+        "resolve_provider_pool",
+        lambda **_kwargs: None,
+    )
+    monkeypatch.setattr(devfarm_planner_shadow, "run_shadow", lambda **_kwargs: (_ for _ in ()).throw(failure))
+
+    code = devfarm_planner_shadow.main(
+        [
+            "--objective",
+            "bounded planner correction",
+            "--parent-task-id",
+            str(uuid4()),
+        ]
+    )
+
+    assert code == 2
+    output = __import__("json").loads(capsys.readouterr().out)
+    assert output["planning_critic"] == failure.planning_critic_observation
