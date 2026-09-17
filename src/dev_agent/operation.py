@@ -50,6 +50,7 @@ from .tools.runtime import ToolRuntime
 from .runtime.controller import Controller
 from .runtime.task_graph import TaskGraph, TaskGraphError
 from .intelligence.coordination import EvaluationCoordinator
+from .intelligence.convergence import ConvergenceMetadata
 from .intelligence.evaluator import EvaluationEvidence
 from .intelligence.escalation import EscalationContext
 from .intelligence.execution import EscalationExecutor
@@ -1080,9 +1081,31 @@ class OperationService:
             "selected_provider": provider_id,
             "selected_binding": selected_binding,
             "selected_model": selected_model,
+            "convergence": OperationService._convergence_projection(task),
             "last_event": OperationService._event_summary(last_event),
             "cancellation_requested": bool(task.metadata.get("cancellation_requested")),
         }
+
+    @staticmethod
+    def _convergence_projection(task: Task) -> dict[str, Any] | None:
+        """Expose only validated convergence metadata in the public status view.
+
+        Convergence is an annotation on an existing durable Task, not a new
+        wake/retry authority.  Invalid or legacy metadata is deliberately
+        omitted from the projection so status readers never receive raw
+        provider material or unbounded diagnostic values.
+        """
+
+        value = task.metadata.get("convergence")
+        if value is None:
+            return None
+        if not isinstance(value, Mapping):
+            return None
+        try:
+            metadata = ConvergenceMetadata.from_dict(value)
+        except (KeyError, TypeError, ValueError):
+            return None
+        return metadata.to_dict()
 
     @staticmethod
     def _event_summary(event: dict[str, Any] | None) -> dict[str, Any] | None:

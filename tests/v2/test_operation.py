@@ -3,7 +3,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from src.dev_agent.domain.protocol import ModelResponse, TaskStatus, TaskType
+from src.dev_agent.domain.protocol import ModelResponse, Task, TaskStatus, TaskType
+from src.dev_agent.intelligence.convergence import ConvergenceMetadata
 from src.dev_agent.operation import (
     OperationConfig,
     OperationProviderBinding,
@@ -187,6 +188,56 @@ def test_process_restart_preserves_waiting_reconciliation_in_operation_status(tm
     assert status["state"] == TaskStatus.WAITING_RECONCILIATION.value
     assert status["queue_state"] == "waiting"
     assert status["reconciliation"] is True
+
+
+def test_operation_status_projects_valid_convergence_metadata(tmp_path):
+    config = _config(tmp_path)
+    convergence = ConvergenceMetadata.fast_path(
+        current_model_identity="fake:default:deterministic",
+        validator_refs=("planner:schema",),
+    )
+    task = Task(
+        objective="expose bounded convergence state",
+        metadata={"convergence": convergence.to_dict()},
+    )
+    from src.dev_agent.scheduler.queue import DurableQueue
+    from src.dev_agent.state import SQLiteStateStore
+
+    with SQLiteStateStore(config.state_path) as store:
+        store.save_task(task)
+    with DurableQueue(config.queue_path) as queue:
+        queue.enqueue(task.task_id)
+
+    status = OperationService.read_status(config, task.task_id)
+
+    assert status["convergence"] == convergence.to_dict()
+    assert status["convergence"]["convergence_state"] == "FAST_PATH"
+
+
+def test_operation_status_omits_invalid_convergence_metadata_without_leaking_raw_data(tmp_path):
+    config = _config(tmp_path)
+    task = Task(
+        objective="reject untrusted convergence projection",
+        metadata={
+            "convergence": {
+                "convergence_state": "fast_path",
+                "raw_provider_response": "credential-like-value",
+            }
+        },
+    )
+    from src.dev_agent.scheduler.queue import DurableQueue
+    from src.dev_agent.state import SQLiteStateStore
+
+    with SQLiteStateStore(config.state_path) as store:
+        store.save_task(task)
+    with DurableQueue(config.queue_path) as queue:
+        queue.enqueue(task.task_id)
+
+    status = OperationService.read_status(config, task.task_id)
+
+    assert status["convergence"] is None
+    assert "raw_provider_response" not in json.dumps(status)
+    assert "credential-like-value" not in json.dumps(status)
 
 
 def test_stop_queued_task_is_cancelled_not_failed(tmp_path):

@@ -136,6 +136,130 @@ def test_runtime_coordinator_restart_preserves_durable_waiting_state(tmp_path):
     assert restarted_health["task_counts"][TaskStatus.WAITING_RECONCILIATION.value] == 1
 
 
+def test_runtime_coordinator_continues_ready_work_around_reconciliation_wait(tmp_path):
+    from src.dev_agent.domain.protocol import Task
+    from src.dev_agent.scheduler.queue import DurableQueue
+    from src.dev_agent.state import SQLiteStateStore
+
+    config = _config(tmp_path)
+    waiting = Task(
+        objective="keep an unknown external effect parked",
+        status=TaskStatus.WAITING_RECONCILIATION,
+    )
+    with SQLiteStateStore(config.state_path) as store:
+        store.save_task(waiting)
+        store.checkpoint(
+            task_id=waiting.task_id,
+            step_id="provider-step",
+            phase="waiting_reconciliation",
+            state={"provider_reconciliation": {"status": "unknown"}},
+        )
+    with DurableQueue(config.queue_path) as queue:
+        queue.enqueue(waiting.task_id, priority=10)
+    ready = OperationService.submit(config, "continue unrelated ready work", priority=0)
+
+    with RuntimeCoordinator.open(config, revision="test-revision", instance_id="runtime-1") as runtime:
+        first = runtime.run_once()
+        second = runtime.run_once()
+
+    assert first is not None and first.task_id == waiting.task_id
+    assert first.status is TaskStatus.WAITING_RECONCILIATION
+    assert second is not None and second.task_id == ready.task_id
+    assert second.status is TaskStatus.COMPLETED
+    waiting_status = OperationService.read_status(config, waiting.task_id)
+    assert waiting_status["state"] == TaskStatus.WAITING_RECONCILIATION.value
+    assert waiting_status["queue_state"] == "waiting"
+    assert waiting_status["reconciliation"] is True
+
+
+def test_runtime_coordinator_restarts_durable_phase8_plan_without_duplicate_attempts(tmp_path):
+    from src.dev_agent.domain.protocol import Task, TaskType
+    from src.dev_agent.intelligence.planner import (
+        ChildTaskProposal,
+        PlannerDependencyType,
+        RootPlanningProposal,
+    )
+    from src.dev_agent.scheduler.queue import DurableQueue
+    from src.dev_agent.state import SQLiteStateStore
+
+    config = _config(tmp_path)
+    root = Task(
+        objective="durable Phase 8 root",
+        status=TaskStatus.PLANNING,
+        task_type=TaskType.REASONING,
+    )
+    with SQLiteStateStore(config.state_path) as store:
+        store.save_task(root)
+    proposal = RootPlanningProposal(
+        parent_task_id=root.task_id,
+        proposal_id="phase8-durable-proposal",
+        rationale="two independent implementers followed by integrated continuation",
+        children=(
+            ChildTaskProposal(
+                child_key="implementer-a",
+                objective="complete independent implementation A",
+                task_type=TaskType.WORKER,
+                required_capabilities=("coding",),
+            ),
+            ChildTaskProposal(
+                child_key="implementer-b",
+                objective="complete independent implementation B",
+                task_type=TaskType.WORKER,
+                required_capabilities=("coding",),
+            ),
+            ChildTaskProposal(
+                child_key="dependent-continuation",
+                objective="continue after both implementations are integrated",
+                task_type=TaskType.DETERMINISTIC,
+                dependencies=("implementer-a", "implementer-b"),
+                dependency_types={
+                    "implementer-a": PlannerDependencyType.CODE_INTEGRATED,
+                    "implementer-b": PlannerDependencyType.CODE_INTEGRATED,
+                },
+            ),
+        ),
+    )
+
+    with RuntimeCoordinator.open(config, revision="phase8-test-revision", instance_id="runtime-1") as runtime:
+        children = runtime.operation.apply_planning_proposal(proposal)
+        assert [child.status for child in children] == [
+            TaskStatus.QUEUED,
+            TaskStatus.QUEUED,
+            TaskStatus.WAITING_DEPENDENCY,
+        ]
+        first = runtime.run_once()
+        second = runtime.run_once()
+        assert {first.task_id, second.task_id} == {
+            children[0].task_id,
+            children[1].task_id,
+        }
+        for child in children[:2]:
+            persisted = runtime.operation.store.load_task(child.task_id)
+            assert persisted is not None
+            persisted.metadata["integration_status"] = "INTEGRATED"
+            persisted.metadata["integration_revision"] = "a" * 40
+            runtime.operation.store.save_task(persisted)
+        released = runtime.operation.release_planner_dependencies(
+            proposal_id=proposal.proposal_id,
+        )
+        assert [task.task_id for task in released] == [children[2].task_id]
+
+    with RuntimeCoordinator.open(config, revision="phase8-test-revision", instance_id="runtime-1") as restarted:
+        reused = restarted.operation.apply_planning_proposal(proposal)
+        assert [task.task_id for task in reused] == [task.task_id for task in children]
+        continuation = restarted.run_once()
+        assert continuation is not None
+        assert continuation.task_id == children[2].task_id
+        assert continuation.status is TaskStatus.COMPLETED
+
+    for task in children:
+        status = OperationService.read_status(config, task.task_id)
+        assert status["claim_count"] == 1
+        assert status["execution_attempts"] == 1
+    with DurableQueue(config.queue_path) as queue:
+        assert queue.snapshot(children[2].task_id).state == "completed"
+
+
 def test_stale_runtime_generation_stops_itself_without_global_stop(tmp_path):
     config = _config(tmp_path)
     task = OperationService.submit(config, "do not let stale runtime claim this task")
