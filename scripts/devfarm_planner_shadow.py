@@ -89,6 +89,40 @@ def _bounded_request_id(value: object) -> str | None:
         return None
 
 
+def _project_planning_critic_observation(
+    adapter: ModelPlanningCriticAdapter | None,
+    dispatcher: object | None,
+) -> dict[str, object]:
+    """Project only bounded evidence about the optional planning Critic."""
+
+    request_id = _bounded_request_id(
+        getattr(adapter, "last_request_id", None) if adapter is not None else None
+    )
+    audits = getattr(dispatcher, "audits", ()) if dispatcher is not None else ()
+    projected_audits: list[dict[str, object]] = []
+    for entry in audits:
+        provider = getattr(entry, "provider_id", None)
+        binding = getattr(entry, "provider_binding_id", None)
+        model = getattr(entry, "model_id", None)
+        outcome = getattr(entry, "outcome", None)
+        if not isinstance(provider, str) or not isinstance(outcome, str):
+            continue
+        projected_audits.append(
+            {
+                "provider": provider,
+                "binding": binding if isinstance(binding, str) else None,
+                "model": model if isinstance(model, str) else None,
+                "outcome": outcome,
+            }
+        )
+    return {
+        "configured": adapter is not None,
+        "invoked": request_id is not None,
+        "request_id": request_id,
+        "dispatch_audits": projected_audits,
+    }
+
+
 def _build_provider(*, binding: OperationProviderBinding):
     """Compatibility seam for isolated tests; runtime composition is shared."""
 
@@ -472,6 +506,10 @@ def run_shadow(
                 }
                 for entry in dispatcher.audits
             ],
+            "planning_critic": _project_planning_critic_observation(
+                critic_adapter,
+                critic_dispatcher if critic_dispatcher is not None else critic_provider,
+            ),
             "proposal_sha256": proposal_digest,
             "proposal": proposal.to_dict(),
         }

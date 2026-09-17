@@ -345,6 +345,10 @@ class ModelPlanningCriticAdapter:
         self.max_output_tokens = max_output_tokens
         self.cost_ceiling = float(cost_ceiling)
         self.allow_unknown_quota = allow_unknown_quota
+        # The Host may project this bounded correlation for evidence.  It is
+        # reset for every correction so a successful Planner attempt can never
+        # inherit a stale Critic request identity.
+        self.last_request_id: str | None = None
 
     def correct(
         self,
@@ -357,6 +361,7 @@ class ModelPlanningCriticAdapter:
     ) -> RootPlanningProposal:
         """Return one corrected proposal after a model-output contract failure."""
 
+        self.last_request_id = None
         parent_task_id = self._parent_task_id(parent_task_id)
         objective = self._objective(objective)
         sensitivity = self._sensitivity(sensitivity)
@@ -418,6 +423,7 @@ class ModelPlanningCriticAdapter:
             request, _egress_manifest = attach_model_request_egress(request)
         except EgressValidationError as exc:
             raise PlanningCriticAdapterError(f"model request egress rejected: {exc}") from exc
+        self.last_request_id = request.request_id
         try:
             response = self.provider.request(request)
         except ProviderError as exc:
