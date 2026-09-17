@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "evidence_id": "planner-critic-cli-failure-projection-20260917",
+  "evidence_kind": "planner_critic_cli_failure_projection",
+  "recorded_at": "2026-09-17T02:24:00Z",
+  "implementation_baseline": {
+    "revision": "5a778d75ac04907a4aa06f591e0e94c0aa4c3f93",
+    "message": "fix: project planner critic failures safely"
+  },
+  "scope": {
+    "boundary": "Planner Shadow CLI response-contract failure projection",
+    "change": "bind the caught PlanningCriticAdapterError before projecting its bounded failure response",
+    "preserved_contract": "model-output-invalid Critic failures remain non-reconciling, proposal-only, and correlated only by a validated fresh request UUID"
+  },
+  "verified_behavior": {
+    "critic_failure_projects_bounded_json": true,
+    "critic_failure_preserves_request_id": true,
+    "critic_failure_requires_no_replay": true,
+    "critic_failure_requires_no_reconciliation": true,
+    "provider_response_or_exception_details_exposed": false,
+    "task_mutation": false,
+    "approval_consumption": false,
+    "gate_promotion": false
+  },
+  "verification": {
+    "focused": "10 Planner Critic adapter, composition, admission, export, and CLI projection tests passed",
+    "related": "46 Planner/Critic, Planner adapter, privacy, resource-pool, and Reviewer Shadow tests passed",
+    "full_tests_v2": "1412 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head": "5a778d75ac04907a4aa06f591e0e94c0aa4c3f93",
+    "ci": {
+      "v2-core": {
+        "run_id": 35173394795,
+        "conclusion": "success"
+      },
+      "v2-provider-smoke": {
+        "run_id": 35173394793,
+        "conclusion": "success"
+      }
+    }
+  },
+  "interpretation": "This is a bounded CLI regression fix. It does not claim a live Planner correction, AR1 recovery, Phase 8 single-root completion, or any new external Provider request.",
+  "gate_impact": {
+    "d9_dogfood": "unchanged_verified",
+    "phase8_preparation": "unchanged_preparation_only",
+    "phase8_live_activation": "unchanged_not_verified",
+    "ar1_live_recovery": "not_demonstrated",
+    "d9_production_deployment": "unchanged_deferred_not_ready"
+  }
+}
