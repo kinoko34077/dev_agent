@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "evidence_id": "planner-transport-request-correlation-20260917",
+  "evidence_kind": "phase_a_planner_transport_failure_correlation",
+  "recorded_at": "2026-09-17T00:00:00Z",
+  "implementation_baseline": {
+    "revision": "03e798a5243e2a059cdfa39c8a324264f2de412f",
+    "message": "fix: correlate planner transport failures"
+  },
+  "scope": {
+    "boundary": "Planner adapter and proposal-only Planner Shadow failure projection",
+    "covered_outcomes": [
+      "ProviderError transport failure",
+      "pool exhaustion",
+      "response-contract failure"
+    ],
+    "request_identity": "fresh UUID request_id is retained and projected only after UUID validation"
+  },
+  "verified_behavior": {
+    "provider_failure_correlated": true,
+    "pool_exhaustion_correlated": true,
+    "response_failure_correlated": true,
+    "raw_provider_response_projected": false,
+    "raw_exception_message_projected": false,
+    "credential_projected": false,
+    "source_payload_projected": false,
+    "transport_metadata_bounded": true
+  },
+  "safety_semantics": {
+    "same_request_retry": false,
+    "same_binding_retry": false,
+    "automatic_failover": false,
+    "unknown_external_effect_replayed": false,
+    "reconciliation_semantics_changed": false,
+    "host_validation_claimed": false,
+    "gate_promotion": false
+  },
+  "verification": {
+    "focused": "28 Planner adapter and transport semantics tests passed",
+    "full_tests_v2": "1400 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head": "03e798a5243e2a059cdfa39c8a324264f2de412f",
+    "ci": {
+      "v2-core": {
+        "run_id": 35164459185,
+        "conclusion": "success"
+      },
+      "v2-provider-smoke": {
+        "run_id": 35164459195,
+        "conclusion": "success"
+      }
+    }
+  },
+  "interpretation": "Planner ProviderError and bounded pool/response failures now retain the exact fresh request identity needed to correlate later reconciliation or diagnosis. The change is diagnostic only: it does not replay an UNKNOWN operation, change failover authority, send another Provider request, or establish a live Planner proposal.",
+  "gate_impact": {
+    "d9_dogfood": "unchanged_verified",
+    "phase8_preparation": "unchanged_preparation_only",
+    "phase8_live_activation": "not_verified",
+    "ar1_live_recovery": "not_demonstrated"
+  }
+}
