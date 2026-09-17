@@ -438,17 +438,24 @@ class ModelPlanningCriticAdapter:
                 )
             proposal = RootPlanningProposal.from_dict(payload.get("corrected_proposal"))
         except StructuredResponseError as exc:
-            raise PlanningCriticAdapterError(str(exc)) from exc
-        except PlanningCriticAdapterError:
+            error = PlanningCriticAdapterError(str(exc))
+            error.request_id = request.request_id
+            raise error from exc
+        except PlanningCriticAdapterError as exc:
+            exc.request_id = request.request_id
             raise
         except PlanningValidationError as exc:
-            raise PlanningCriticAdapterError(
+            error = PlanningCriticAdapterError(
                 f"planning critic corrected proposal is invalid: {exc}"
-            ) from exc
+            )
+            error.request_id = request.request_id
+            raise error from exc
         if proposal.parent_task_id != parent_task_id:
-            raise PlanningCriticAdapterError(
+            error = PlanningCriticAdapterError(
                 "planning critic corrected proposal parent_task_id does not match the requested parent"
             )
+            error.request_id = request.request_id
+            raise error
         return proposal
 
     @classmethod

@@ -158,6 +158,27 @@ def test_planning_critic_correlates_provider_failure_to_its_fresh_request():
     assert failure.request_id == provider.requests[0].request_id
 
 
+def test_planning_critic_contract_failure_preserves_its_fresh_request_id():
+    parent_task_id = str(uuid4())
+    provider = _Provider(
+        ModelResponse(
+            provider="independent-planning-critic",
+            model="free-l1-critic",
+            text_segments=["not-json"],
+        )
+    )
+
+    with pytest.raises(PlanningCriticAdapterError) as caught:
+        ModelPlanningCriticAdapter(provider).correct(
+            parent_task_id=parent_task_id,
+            objective="bounded objective",
+            planner_failure=_failure(),
+        )
+
+    assert len(provider.requests) == 1
+    assert caught.value.request_id == provider.requests[0].request_id
+
+
 def test_planner_composition_uses_one_critic_action_then_host_validation():
     parent_task_id = str(uuid4())
     planner_provider = _Provider(

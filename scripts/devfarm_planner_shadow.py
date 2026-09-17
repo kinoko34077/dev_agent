@@ -601,6 +601,9 @@ def main(argv: list[str] | None = None) -> int:
             "adapter_error": "PlanningCriticAdapterError",
             "reconciliation_required": False,
         }
+        request_id = _bounded_request_id(getattr(exc, "request_id", None))
+        if request_id is not None:
+            output["request_id"] = request_id
         code = 2
     except (PlannerShadowBlocked, DispatchDenied, ProviderError) as exc:
         output = {
