@@ -4,8 +4,8 @@
   "evidence_kind": "planner_independent_critic_contract",
   "recorded_at": "2026-09-17T01:19:43Z",
   "implementation_baseline": {
-    "revision": "b29019af7bc0bcad6010bb5964cc93c39667a1d2",
-    "message": "feat: add bounded planner critic correction"
+    "revision": "7b736b87ee30f0789e6ae2f4ef1ff182ea5f7d1f",
+    "message": "feat: connect independent planner critic pool"
   },
   "scope": {
     "boundary": "proposal-only Planner response correction through the existing Host admission and validation boundaries",
@@ -56,14 +56,14 @@
     "full_tests_v2": "1409 passed, 1 skipped",
     "architecture": "ARCHITECTURE_PASS",
     "compileall": "PASS",
-    "exact_head": "b29019af7bc0bcad6010bb5964cc93c39667a1d2",
+    "exact_head": "7b736b87ee30f0789e6ae2f4ef1ff182ea5f7d1f",
     "ci": {
       "v2-core": {
-        "run_id": 35169064413,
+        "run_id": 35170421811,
         "conclusion": "success"
       },
       "v2-provider-smoke": {
-        "run_id": 35169064391,
+        "run_id": 35170421817,
         "conclusion": "success"
       }
     }
