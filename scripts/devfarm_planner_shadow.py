@@ -481,7 +481,16 @@ def main(argv: list[str] | None = None) -> int:
             output["request_id"] = request_id
         code = 2
     except Exception as exc:
-        output = {"status": "failed", "category": type(exc).__name__, "message": str(exc)}
+        # An unexpected failure may have happened before or after the
+        # concrete Provider boundary.  Keep the outer projection fail-closed
+        # and require reconciliation rather than exposing exception text or
+        # guessing that the request was harmless.
+        output = {
+            "status": "failed",
+            "category": "planner_shadow_failure",
+            "error_type": type(exc).__name__,
+            "reconciliation_required": True,
+        }
         code = 2
     output.setdefault("parent_task_id", parent_task_id)
     print(json.dumps(output, ensure_ascii=False, indent=2))

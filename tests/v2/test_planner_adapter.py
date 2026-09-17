@@ -401,6 +401,27 @@ def test_planner_shadow_cli_passes_bounded_output_ceiling(monkeypatch, capsys):
     assert captured["max_output_tokens"] == 4096
 
 
+def test_planner_shadow_redacts_unexpected_failure_details(monkeypatch, capsys):
+    secret_detail = "unexpected secret-shaped planner failure"
+    monkeypatch.setattr(
+        planner_shadow.ModelEvidenceCatalog,
+        "load_default",
+        lambda: (_ for _ in ()).throw(RuntimeError(secret_detail)),
+    )
+
+    assert planner_shadow.main(["--objective", "diagnostic"]) == 2
+
+    output = json.loads(capsys.readouterr().out)
+    assert output == {
+        "category": "planner_shadow_failure",
+        "error_type": "RuntimeError",
+        "parent_task_id": output["parent_task_id"],
+        "reconciliation_required": True,
+        "status": "failed",
+    }
+    assert secret_detail not in json.dumps(output)
+
+
 def test_planner_output_is_only_a_proposal_until_operation_host_validation(tmp_path):
     config = OperationConfig(
         data_dir=tmp_path,
