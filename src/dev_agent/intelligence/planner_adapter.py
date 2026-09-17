@@ -9,10 +9,11 @@ adapter.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 import json
 import math
 from typing import Any
+from uuid import UUID
 
 from ..domain.capabilities import CANONICAL_EXECUTION_CAPABILITIES
 from ..domain.protocol import ModelRequest, ModelResponse
@@ -84,6 +85,16 @@ PLANNING_PROPOSAL_RESPONSE_SCHEMA: dict[str, Any] = {
                 },
             },
         },
+    },
+}
+
+
+PLANNING_CRITIC_RESPONSE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["corrected_proposal"],
+    "properties": {
+        "corrected_proposal": PLANNING_PROPOSAL_RESPONSE_SCHEMA,
     },
 }
 
@@ -290,9 +301,267 @@ class ModelPlanningAdapter:
             ) from exc
 
 
+class PlanningCriticAdapterError(PlanningAdapterError):
+    """The bounded independent planning correction cannot be accepted."""
+
+
+class ModelPlanningCriticAdapter:
+    """Request one independent, proposal-only correction for a bad plan response.
+
+    This adapter is deliberately narrower than ``ModelPlanningAdapter``.  It
+    can only be called for a response-contract failure that already observed a
+    provider response.  It emits one fresh request and returns a typed
+    proposal; the existing Host validator remains the authority that can
+    accept it.  Provider selection, quota admission, and external execution
+    remain outside this class.
+    """
+
+    _MAX_RESPONSE_CHARS = 64_000
+    _MAX_OBJECTIVE_CHARS = ModelPlanningAdapter._MAX_OBJECTIVE_CHARS
+    _MAX_REQUEST_ID_CHARS = 128
+
+    def __init__(
+        self,
+        provider: ModelProvider,
+        *,
+        max_output_tokens: int = 2_048,
+        cost_ceiling: float = 0.0,
+        allow_unknown_quota: bool = False,
+    ) -> None:
+        if not callable(getattr(provider, "request", None)):
+            raise TypeError("provider must expose request(ModelRequest)")
+        if isinstance(max_output_tokens, bool) or not isinstance(max_output_tokens, int) or not 0 < max_output_tokens <= 8_192:
+            raise ValueError("max_output_tokens must be between 1 and 8192")
+        if (
+            isinstance(cost_ceiling, bool)
+            or not isinstance(cost_ceiling, (int, float))
+            or not math.isfinite(float(cost_ceiling))
+            or cost_ceiling < 0
+        ):
+            raise ValueError("cost_ceiling must be a finite non-negative number")
+        if not isinstance(allow_unknown_quota, bool):
+            raise TypeError("allow_unknown_quota must be a boolean")
+        self.provider = provider
+        self.max_output_tokens = max_output_tokens
+        self.cost_ceiling = float(cost_ceiling)
+        self.allow_unknown_quota = allow_unknown_quota
+
+    def correct(
+        self,
+        *,
+        parent_task_id: str,
+        objective: str,
+        planner_failure: PlanningResponseError,
+        sensitivity: str = "normal",
+        context_references: Mapping[str, Any] | None = None,
+    ) -> RootPlanningProposal:
+        """Return one corrected proposal after a model-output contract failure."""
+
+        parent_task_id = self._parent_task_id(parent_task_id)
+        objective = self._objective(objective)
+        sensitivity = self._sensitivity(sensitivity)
+        if not isinstance(planner_failure, PlanningResponseError):
+            raise PlanningCriticAdapterError(
+                "planning critic requires a response-contract failure"
+            )
+        if planner_failure.provider_response_observed is not True:
+            raise PlanningCriticAdapterError(
+                "planning critic requires an observed provider response"
+            )
+        response_contract = planner_failure.response_contract
+        if response_contract not in PlanningResponseError._RESPONSE_CONTRACTS:
+            raise PlanningCriticAdapterError(
+                "planning critic requires an invalid_json or invalid_proposal response-contract failure"
+            )
+        references = ModelPlanningAdapter._references(context_references)
+        source_request_id = self._request_id(planner_failure.request_id)
+        content = self._prompt(
+            parent_task_id=parent_task_id,
+            objective=objective,
+            sensitivity=sensitivity,
+            response_contract=response_contract,
+            source_request_id=source_request_id,
+            references=references,
+        )
+        metadata: dict[str, Any] = {
+            "planning_mode": "proposal_only",
+            "planning_refinement": "independent_critic",
+            "authority": "host_validation_required",
+            "proposal_only": True,
+            "integration_authority": "host_and_codex",
+            "model_selection": "host_selected",
+            "task_fit": "planning",
+            "intelligence_routing": "bounded",
+            "allowed_intelligence_tiers": ["L1"],
+            "source_response_contract": response_contract,
+        }
+        if source_request_id is not None:
+            metadata["critic_of_request_id"] = source_request_id
+        if self.allow_unknown_quota:
+            # Reuse the existing bounded UNKNOWN quota admission.  This flag
+            # never creates quota headroom or changes billing/privacy policy.
+            metadata["allow_unknown_quota"] = True
+        try:
+            request = ModelRequest(
+                task_id=parent_task_id,
+                messages=[{"role": "user", "content": content}],
+                requested_capabilities=["text"],
+                response_schema=PLANNING_CRITIC_RESPONSE_SCHEMA,
+                max_output_tokens=self.max_output_tokens,
+                sensitivity=sensitivity,
+                cost_ceiling=self.cost_ceiling,
+                metadata=metadata,
+            )
+        except (TypeError, ValueError) as exc:
+            raise PlanningCriticAdapterError(f"invalid planning critic request: {exc}") from exc
+        try:
+            request, _egress_manifest = attach_model_request_egress(request)
+        except EgressValidationError as exc:
+            raise PlanningCriticAdapterError(f"model request egress rejected: {exc}") from exc
+        response = self.provider.request(request)
+        try:
+            payload = decode_json_object(
+                response,
+                role="planning critic",
+                max_chars=self._MAX_RESPONSE_CHARS,
+            )
+            unknown = set(payload) - {"corrected_proposal"}
+            if unknown:
+                raise PlanningCriticAdapterError(
+                    f"unknown planning critic response field: {sorted(unknown)[0]}"
+                )
+            proposal = RootPlanningProposal.from_dict(payload.get("corrected_proposal"))
+        except StructuredResponseError as exc:
+            raise PlanningCriticAdapterError(str(exc)) from exc
+        except PlanningCriticAdapterError:
+            raise
+        except PlanningValidationError as exc:
+            raise PlanningCriticAdapterError(
+                f"planning critic corrected proposal is invalid: {exc}"
+            ) from exc
+        if proposal.parent_task_id != parent_task_id:
+            raise PlanningCriticAdapterError(
+                "planning critic corrected proposal parent_task_id does not match the requested parent"
+            )
+        return proposal
+
+    @classmethod
+    def _parent_task_id(cls, value: Any) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise PlanningCriticAdapterError("parent_task_id must be a non-empty string")
+        return value.strip()
+
+    @classmethod
+    def _objective(cls, value: Any) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise PlanningCriticAdapterError("objective must be a non-empty string")
+        normalized = value.strip()
+        if len(normalized) > cls._MAX_OBJECTIVE_CHARS:
+            raise PlanningCriticAdapterError("objective exceeds the planning input limit")
+        return normalized
+
+    @staticmethod
+    def _sensitivity(value: Any) -> str:
+        if not isinstance(value, str) or value.strip().lower() not in _SENSITIVITIES:
+            raise PlanningCriticAdapterError("sensitivity is invalid")
+        return value.strip().lower()
+
+    @classmethod
+    def _request_id(cls, value: Any) -> str | None:
+        if not isinstance(value, str) or len(value) > cls._MAX_REQUEST_ID_CHARS:
+            return None
+        try:
+            return str(UUID(value))
+        except (TypeError, ValueError, AttributeError):
+            return None
+
+    @staticmethod
+    def _prompt(
+        *,
+        parent_task_id: str,
+        objective: str,
+        sensitivity: str,
+        response_contract: str,
+        source_request_id: str | None,
+        references: Mapping[str, Any],
+    ) -> str:
+        source_id = source_request_id or "not_available"
+        reference_text = json.dumps(
+            dict(references), ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        )
+        return (
+            "Act as an independent planning critic/normalizer. The previous Planner response was observed "
+            "but failed only its response contract. Produce exactly one raw JSON object with a single "
+            "`corrected_proposal` field containing a valid planning proposal. Do not emit Markdown fences, "
+            "explanatory prose, comments, findings, approval, integration decisions, authority changes, "
+            "budget changes, or policy relaxation. Preserve the requested parent_task_id and keep the "
+            "proposal bounded. The Host will run the corrected proposal through deterministic validation; "
+            "your output is proposal-only. Use this wrapper shape: "
+            "{\"corrected_proposal\":{\"parent_task_id\":\"...\",\"rationale\":\"...\","
+            "\"children\":[{\"child_key\":\"...\",\"objective\":\"...\","
+            "\"task_type\":\"worker\"}]}}.\n"
+            f"parent_task_id: {parent_task_id}\n"
+            f"sensitivity: {sensitivity}\n"
+            f"failed_response_contract: {response_contract}\n"
+            f"failed_planner_request_id: {source_id}\n"
+            f"objective:\n{objective}\n"
+            f"reference_context:\n{reference_text}"
+        )
+
+
+def propose_with_planning_critic(
+    planner: ModelPlanningAdapter,
+    critic: ModelPlanningCriticAdapter | None,
+    *,
+    parent_task_id: str,
+    objective: str,
+    sensitivity: str = "normal",
+    required_intelligence_tier: str | None = None,
+    context_references: Mapping[str, Any] | None = None,
+    host_validate: Callable[[RootPlanningProposal], Any] | None = None,
+) -> RootPlanningProposal:
+    """Compose one Planner request and at most one response-contract correction.
+
+    Transport, quota, security, and unknown-effect failures propagate without
+    invoking the Critic.  A corrected proposal is always offered to the
+    caller's existing Host validator before this function returns when one is
+    supplied; this helper never creates Tasks or mutates durable state.
+    """
+
+    if not isinstance(planner, ModelPlanningAdapter):
+        raise TypeError("planner must be ModelPlanningAdapter")
+    if critic is not None and not isinstance(critic, ModelPlanningCriticAdapter):
+        raise TypeError("critic must be ModelPlanningCriticAdapter or None")
+    try:
+        proposal = planner.propose(
+            parent_task_id=parent_task_id,
+            objective=objective,
+            sensitivity=sensitivity,
+            required_intelligence_tier=required_intelligence_tier,
+            context_references=context_references,
+        )
+    except PlanningResponseError as failure:
+        if critic is None:
+            raise
+        proposal = critic.correct(
+            parent_task_id=parent_task_id,
+            objective=objective,
+            sensitivity=sensitivity,
+            planner_failure=failure,
+            context_references=context_references,
+        )
+    if host_validate is not None:
+        host_validate(proposal)
+    return proposal
+
+
 __all__ = [
     "ModelPlanningAdapter",
+    "ModelPlanningCriticAdapter",
+    "PLANNING_CRITIC_RESPONSE_SCHEMA",
     "PLANNING_PROPOSAL_RESPONSE_SCHEMA",
     "PlanningAdapterError",
+    "PlanningCriticAdapterError",
     "PlanningResponseError",
+    "propose_with_planning_critic",
 ]

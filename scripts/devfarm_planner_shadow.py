@@ -28,7 +28,13 @@ if str(ROOT) not in sys.path:
 
 from src.dev_agent.domain.protocol import RiskLevel, Task, TaskStatus, TaskType
 from src.dev_agent.intelligence.planner import RootPlanningValidator
-from src.dev_agent.intelligence.planner_adapter import ModelPlanningAdapter, PlanningResponseError
+from src.dev_agent.intelligence.planner_adapter import (
+    ModelPlanningAdapter,
+    ModelPlanningCriticAdapter,
+    PlanningCriticAdapterError,
+    PlanningResponseError,
+    propose_with_planning_critic,
+)
 from src.dev_agent.operation import OperationProviderBinding
 from src.dev_agent.providers.base import ProviderError, transport_failure_metadata
 from src.dev_agent.providers.dispatch import ProviderPoolExhausted
@@ -184,6 +190,7 @@ def run_shadow(
     expand_discovered_models: bool = False,
     execution_boundary: str = "in_process",
     max_output_tokens: int = 1_024,
+    planning_critic_provider=None,
 ) -> dict[str, object]:
     parent_task_id = validate_parent_task_id(parent_task_id)
     resolver = QualificationResolver()
@@ -234,13 +241,36 @@ def run_shadow(
                     timeout_seconds=timeout_seconds,
                 ),
             )
-        try:
-            proposal = ModelPlanningAdapter(
-                planner_provider,
-                max_output_tokens=max_output_tokens,
+        critic_adapter = None
+        if planning_critic_provider is not None:
+            # The caller must provide a separately Host-selected and
+            # admission-bound Critic provider/dispatcher.  This hook composes
+            # the existing outbound boundary; it does not select arbitrary
+            # endpoints or create a second scheduler.
+            critic_provider = planning_critic_provider
+            if execution_boundary == "host_process":
+                critic_provider = route_through_host(
+                    critic_provider,
+                    create_host_process_executor(
+                        ROOT / ".devfarm" / "host-dispatch",
+                        timeout_seconds=timeout_seconds,
+                    ),
+                )
+            critic_adapter = ModelPlanningCriticAdapter(
+                critic_provider,
+                max_output_tokens=min(max_output_tokens, 2_048),
                 cost_ceiling=0.0,
                 allow_unknown_quota=allow_unknown_quota,
-            ).propose(
+            )
+        try:
+            proposal = propose_with_planning_critic(
+                ModelPlanningAdapter(
+                    planner_provider,
+                    max_output_tokens=max_output_tokens,
+                    cost_ceiling=0.0,
+                    allow_unknown_quota=allow_unknown_quota,
+                ),
+                critic_adapter,
                 parent_task_id=parent_task_id,
                 objective=objective,
                 sensitivity="normal",
@@ -462,6 +492,17 @@ def main(argv: list[str] | None = None) -> int:
         request_id = _bounded_request_id(getattr(exc, "request_id", None))
         if request_id is not None:
             output["request_id"] = request_id
+        code = 2
+    except PlanningCriticAdapterError:
+        # A response-contract correction is still a bounded model-output
+        # failure.  Do not project adapter details or turn it into an UNKNOWN
+        # external effect; the single Critic action has already ended.
+        output = {
+            "status": "failed",
+            "category": "model_output_invalid",
+            "adapter_error": "PlanningCriticAdapterError",
+            "reconciliation_required": False,
+        }
         code = 2
     except (PlannerShadowBlocked, DispatchDenied, ProviderError) as exc:
         output = {
