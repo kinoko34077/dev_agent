@@ -449,13 +449,14 @@ def main(argv: list[str] | None = None) -> int:
         output = {"status": "invalid_input", "category": type(exc).__name__, "message": str(exc)}
         code = 2
     except PlanningResponseError as exc:
-        message = str(exc).lower()
         output = {
             "status": "failed",
             "category": "model_output_invalid",
             "adapter_error": type(exc).__name__,
             "provider_response_observed": getattr(exc, "provider_response_observed", False) is True,
-            "response_contract": "invalid_json" if "json" in message else "invalid_proposal",
+            # Keep the response-contract classification structured at the
+            # adapter boundary; never infer it from exception text.
+            "response_contract": getattr(exc, "response_contract", None) or "invalid_proposal",
             "reconciliation_required": False,
         }
         request_id = _bounded_request_id(getattr(exc, "request_id", None))

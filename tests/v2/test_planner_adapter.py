@@ -273,6 +273,26 @@ def test_model_planner_binds_response_contract_failure_to_fresh_request_id():
     request_id = getattr(raised.value, "request_id", None)
     assert request_id == provider.requests[0].request_id
     assert raised.value.provider_response_observed is True
+    assert raised.value.response_contract == "invalid_json"
+
+
+def test_model_planner_marks_schema_failures_as_invalid_proposal():
+    parent_task_id = str(uuid4())
+    provider = _Provider(
+        ModelResponse(
+            provider="planner-test",
+            model="free-l2-test",
+            structured_output=_payload(str(uuid4())),
+        )
+    )
+
+    with pytest.raises(PlanningResponseError) as raised:
+        ModelPlanningAdapter(provider).propose(
+            parent_task_id=parent_task_id,
+            objective="bounded objective",
+        )
+
+    assert raised.value.response_contract == "invalid_proposal"
 
 
 def test_model_planner_binds_provider_failure_to_fresh_request_id():
@@ -364,6 +384,7 @@ def test_planner_shadow_classifies_invalid_model_output(monkeypatch, capsys):
                 "planner response is not valid JSON",
                 request_id="2e6f2d5c-8cf5-4b35-bc47-7c8f20ed6f04",
                 provider_response_observed=True,
+                response_contract="invalid_json",
             )
         ),
     )

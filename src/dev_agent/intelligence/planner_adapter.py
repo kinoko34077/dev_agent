@@ -30,16 +30,22 @@ class PlanningAdapterError(ValueError):
 class PlanningResponseError(PlanningAdapterError):
     """The provider returned a response that failed the planning contract."""
 
+    _RESPONSE_CONTRACTS = frozenset({"invalid_json", "invalid_proposal"})
+
     def __init__(
         self,
         message: str,
         *,
         request_id: str | None = None,
         provider_response_observed: bool = False,
+        response_contract: str | None = None,
     ) -> None:
         super().__init__(message)
+        if response_contract is not None and response_contract not in self._RESPONSE_CONTRACTS:
+            raise ValueError("response_contract must be invalid_json or invalid_proposal")
         self.request_id = request_id
         self.provider_response_observed = provider_response_observed
+        self.response_contract = response_contract
 
 
 PLANNING_PROPOSAL_RESPONSE_SCHEMA: dict[str, Any] = {
@@ -204,9 +210,15 @@ class ModelPlanningAdapter:
             payload = self._response_payload(response)
             proposal = RootPlanningProposal.from_dict(payload)
             if proposal.parent_task_id != parent_task_id.strip():
-                raise PlanningResponseError("proposal parent_task_id does not match the requested parent")
+                raise PlanningResponseError(
+                    "proposal parent_task_id does not match the requested parent",
+                    response_contract="invalid_proposal",
+                )
             if len(proposal.children) > self._MAX_CHILDREN:
-                raise PlanningResponseError("planning proposal exceeds the child limit")
+                raise PlanningResponseError(
+                    "planning proposal exceeds the child limit",
+                    response_contract="invalid_proposal",
+                )
         except PlanningResponseError as exc:
             # Keep correlation to the exact request that produced the
             # response, while leaving the response body and error text out of
@@ -219,6 +231,7 @@ class ModelPlanningAdapter:
                 str(exc),
                 request_id=request.request_id,
                 provider_response_observed=True,
+                response_contract="invalid_proposal",
             ) from exc
         return proposal
 
@@ -271,7 +284,10 @@ class ModelPlanningAdapter:
         try:
             return decode_json_object(response, role="planner", max_chars=cls._MAX_RESPONSE_CHARS)
         except StructuredResponseError as exc:
-            raise PlanningResponseError(str(exc)) from exc
+            raise PlanningResponseError(
+                str(exc),
+                response_contract="invalid_json",
+            ) from exc
 
 
 __all__ = [
