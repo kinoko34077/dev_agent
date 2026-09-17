@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "evidence_id": "planner-critic-public-boundary-20260917",
+  "evidence_kind": "planner_critic_lazy_public_boundary",
+  "recorded_at": "2026-09-17T01:55:46Z",
+  "implementation_baseline": {
+    "revision": "fafd41b2f58edd35306d3795e4e452356c199487",
+    "message": "feat: export planner critic boundary"
+  },
+  "scope": {
+    "boundary": "lazy package exports for the existing Planner Critic contract",
+    "change": "ModelPlanningCriticAdapter, its schema/error, response error, and composition helper are available through the existing intelligence lazy export boundary",
+    "eager_import_policy": "unchanged"
+  },
+  "verified_behavior": {
+    "planner_critic_exported_lazily": true,
+    "planner_critic_schema_exported_lazily": true,
+    "planner_critic_error_exported_lazily": true,
+    "composition_helper_exported_lazily": true,
+    "provider_call_added": false,
+    "authority_boundary_changed": false
+  },
+  "safety_semantics": {
+    "new_scheduler": false,
+    "new_retry_state_machine": false,
+    "task_mutation": false,
+    "approval_consumption": false,
+    "git_mutation": false,
+    "unknown_external_effect_replayed": false,
+    "gate_promotion": false
+  },
+  "verification": {
+    "focused": "9 Planner Critic adapter, independent pool, failure-correlation, and lazy-export tests passed",
+    "full_tests_v2": "1411 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head": "fafd41b2f58edd35306d3795e4e452356c199487",
+    "ci": {
+      "v2-core": {
+        "run_id": 35172314964,
+        "conclusion": "success"
+      },
+      "v2-provider-smoke": {
+        "run_id": 35172314974,
+        "conclusion": "success"
+      }
+    }
+  },
+  "interpretation": "The Planner Critic remains the same bounded proposal-only Host composition; this slice only exposes it through the existing lazy intelligence package boundary. No live Provider request, AR1 cycle, or Phase 8 Gate transition is claimed.",
+  "gate_impact": {
+    "d9_dogfood": "unchanged_verified",
+    "phase8_preparation": "unchanged_preparation_only",
+    "phase8_live_activation": "unchanged_not_verified",
+    "ar1_live_recovery": "not_demonstrated",
+    "d9_production_deployment": "unchanged_deferred_not_ready"
+  }
+}
