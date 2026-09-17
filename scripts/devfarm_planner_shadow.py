@@ -591,7 +591,7 @@ def main(argv: list[str] | None = None) -> int:
         if request_id is not None:
             output["request_id"] = request_id
         code = 2
-    except PlanningCriticAdapterError:
+    except PlanningCriticAdapterError as exc:
         # A response-contract correction is still a bounded model-output
         # failure.  Do not project adapter details or turn it into an UNKNOWN
         # external effect; the single Critic action has already ended.

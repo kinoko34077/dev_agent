@@ -327,3 +327,41 @@ def test_planner_shadow_uses_separate_admitted_critic_pool(monkeypatch):
     assert len(planner_provider.requests) == 1
     assert len(critic_provider.requests) == 1
     assert critic_provider.requests[0].metadata["planning_refinement"] == "independent_critic"
+
+
+def test_planner_shadow_projects_critic_failure_without_unbound_exception(monkeypatch, capsys):
+    request_id = str(uuid4())
+    failure = PlanningCriticAdapterError("bounded critic response failure")
+    failure.request_id = request_id
+
+    monkeypatch.setattr(
+        devfarm_planner_shadow.ModelEvidenceCatalog,
+        "load_default",
+        lambda: SimpleNamespace(resolver=None, catalog=None),
+    )
+    monkeypatch.setattr(
+        devfarm_planner_shadow,
+        "resolve_provider_pool",
+        lambda **_kwargs: None,
+    )
+
+    def fail_shadow(**_kwargs):
+        raise failure
+
+    monkeypatch.setattr(devfarm_planner_shadow, "run_shadow", fail_shadow)
+
+    code = devfarm_planner_shadow.main(
+        [
+            "--objective",
+            "bounded planner correction",
+            "--parent-task-id",
+            str(uuid4()),
+        ]
+    )
+
+    assert code == 2
+    output = __import__("json").loads(capsys.readouterr().out)
+    assert output["status"] == "failed"
+    assert output["category"] == "model_output_invalid"
+    assert output["request_id"] == request_id
+    assert output["reconciliation_required"] is False
