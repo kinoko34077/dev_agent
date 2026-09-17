@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "evidence_id": "planner-critic-failure-correlation-20260917",
+  "evidence_kind": "planner_critic_failure_request_correlation",
+  "recorded_at": "2026-09-17T01:40:57Z",
+  "implementation_baseline": {
+    "revision": "70001026e735e6ec4a90d7c480ffbc38312f5760",
+    "message": "fix: correlate planner critic failures"
+  },
+  "scope": {
+    "boundary": "bounded error projection for the independent proposal-only Planner Critic",
+    "change": "Critic response-contract and Provider failures retain only the Critic fresh request identity for Host correlation",
+    "prior_operation_replay": false
+  },
+  "verified_behavior": {
+    "critic_provider_failure_has_fresh_request_id": true,
+    "critic_response_contract_failure_has_fresh_request_id": true,
+    "shadow_projection_can_emit_validated_request_id": true,
+    "raw_response_projected": false,
+    "raw_exception_message_projected": false,
+    "credential_projected": false,
+    "source_payload_projected": false
+  },
+  "safety_semantics": {
+    "critic_call_limit_changed": false,
+    "provider_failover_changed": false,
+    "unknown_external_effect_replayed": false,
+    "task_mutation": false,
+    "approval_consumption": false,
+    "git_mutation": false,
+    "gate_promotion": false
+  },
+  "verification": {
+    "focused": "8 Planner Critic adapter, independent pool, and failure-correlation tests passed",
+    "full_tests_v2": "1410 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head": "70001026e735e6ec4a90d7c480ffbc38312f5760",
+    "ci": {
+      "v2-core": {
+        "run_id": 35171392077,
+        "conclusion": "success"
+      },
+      "v2-provider-smoke": {
+        "run_id": 35171392167,
+        "conclusion": "success"
+      }
+    }
+  },
+  "external_effect": {
+    "live_provider_request_added": false,
+    "unknown_replay": 0
+  },
+  "interpretation": "A failed independent Planner Critic can now be correlated to its own fresh request without retaining raw Provider material. This improves diagnosis only; it does not retry, fail over, reconcile, validate, integrate, approve, or promote a proposal.",
+  "gate_impact": {
+    "d9_dogfood": "unchanged_verified",
+    "phase8_preparation": "unchanged_preparation_only",
+    "phase8_live_activation": "unchanged_not_verified",
+    "ar1_live_recovery": "not_demonstrated",
+    "d9_production_deployment": "unchanged_deferred_not_ready"
+  }
+}
