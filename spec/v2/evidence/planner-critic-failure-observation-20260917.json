@@ -4,12 +4,12 @@
   "evidence_kind": "planner_critic_bounded_failure_observation",
   "recorded_at": "2026-09-17T03:07:33Z",
   "implementation_baseline": {
-    "revision": "5cb658a09e7af12013245ea255fca2a5a395d35b",
-    "message": "fix: project planner critic failures safely"
+    "revision": "03491b9a1af9d02d3a05ff9b3233edcc4f074596",
+    "message": "test: cover planner critic transport observation"
   },
   "scope": {
     "boundary": "Planner Shadow failure-result projection for the optional independent planning Critic",
-    "change": "preserve a normalized configured/invoked/request/audit observation on bounded failure paths without exposing raw Provider or exception material",
+    "change": "preserve a normalized configured/invoked/request/audit observation on bounded failure paths without exposing raw Provider or exception material, with a regression covering the real run_shadow transport-failure path",
     "purpose": "make failed Critic use auditable while keeping response-contract correction separate from transport, quota, security, and UNKNOWN handling"
   },
   "verified_behavior": {
@@ -28,18 +28,18 @@
     "gate_promotion": false
   },
   "verification": {
-    "focused": "12 Planner Critic adapter, composition, admission, export, CLI failure, and observation projection tests passed",
-    "full_tests_v2": "1414 passed, 1 skipped",
+    "focused": "13 Planner Critic adapter, composition, admission, export, CLI failure, and observation projection tests passed",
+    "full_tests_v2": "1415 passed, 1 skipped",
     "architecture": "ARCHITECTURE_PASS",
     "compileall": "PASS",
-    "exact_head": "5cb658a09e7af12013245ea255fca2a5a395d35b",
+    "exact_head": "03491b9a1af9d02d3a05ff9b3233edcc4f074596",
     "ci": {
       "v2-core": {
-        "run_id": 35176728825,
+        "run_id": 35177889333,
         "conclusion": "success"
       },
       "v2-provider-smoke": {
-        "run_id": 35176728819,
+        "run_id": 35177889366,
         "conclusion": "success"
       }
     }
