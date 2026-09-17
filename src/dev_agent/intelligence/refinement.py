@@ -18,6 +18,7 @@ from uuid import UUID, uuid4
 
 from ..coordination.protocol_helpers import ensure_json_safe, ensure_secret_free, validate_identifier, validate_text
 from ..domain.protocol import IntelligenceTier
+from .convergence import ConvergenceMetadata
 
 
 class FailureClass(str, Enum):
@@ -339,6 +340,7 @@ class RefinementPlan:
     next_tier: IntelligenceTier | None = None
     requires_reconciliation: bool = False
     reasons: tuple[str, ...] = field(default_factory=tuple)
+    convergence: ConvergenceMetadata | None = None
     plan_id: str = field(default_factory=lambda: str(uuid4()))
 
     def __post_init__(self) -> None:
@@ -364,6 +366,14 @@ class RefinementPlan:
             raise ValueError("reasons must contain at most 16 strings")
         reasons = tuple(validate_text(item, "reason", max_chars=256) for item in self.reasons)
         object.__setattr__(self, "reasons", tuple(dict.fromkeys(reasons)))
+        if self.convergence is not None:
+            if not isinstance(self.convergence, ConvergenceMetadata):
+                raise ValueError("convergence must be ConvergenceMetadata or None")
+            if self.convergence.refinement_round != self.refinement_round:
+                raise ValueError("convergence refinement_round must match plan")
+            expected_failure = self.failure_class.value if self.failure_class is not None else None
+            if self.convergence.failure_class != expected_failure:
+                raise ValueError("convergence failure_class must match plan")
         try:
             UUID(self.plan_id)
         except (TypeError, ValueError) as exc:
@@ -391,7 +401,7 @@ class RefinementPlan:
             raise ValueError("refinement plan exceeds its size bound")
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "task_id": self.task_id,
             "failure_class": self.failure_class.value if self.failure_class is not None else None,
             "action": self.action.value,
@@ -404,6 +414,9 @@ class RefinementPlan:
             "reasons": list(self.reasons),
             "plan_id": self.plan_id,
         }
+        if self.convergence is not None:
+            result["convergence"] = self.convergence.to_dict()
+        return result
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> "RefinementPlan":
@@ -412,6 +425,10 @@ class RefinementPlan:
         reasons = value.get("reasons", ())
         if isinstance(reasons, (str, bytes)) or not isinstance(reasons, Sequence):
             raise ValueError("reasons must be a sequence")
+        convergence_value = value.get("convergence")
+        convergence = None
+        if convergence_value is not None:
+            convergence = ConvergenceMetadata.from_dict(convergence_value)
         return cls(
             task_id=value.get("task_id"),
             failure_class=value.get("failure_class"),
@@ -423,6 +440,7 @@ class RefinementPlan:
             next_tier=value.get("next_tier"),
             requires_reconciliation=value.get("requires_reconciliation", False),
             reasons=tuple(reasons),
+            convergence=convergence,
             plan_id=value.get("plan_id"),
         )
 
@@ -578,6 +596,7 @@ class BoundedRefinementPolicy:
 
 __all__ = [
     "BoundedRefinementPolicy",
+    "ConvergenceMetadata",
     "CriticFinding",
     "FailureClass",
     "RefinementAction",
