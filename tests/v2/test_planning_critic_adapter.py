@@ -472,3 +472,77 @@ def test_planner_shadow_projects_critic_observation_on_failure(monkeypatch, caps
     assert code == 2
     output = __import__("json").loads(capsys.readouterr().out)
     assert output["planning_critic"] == failure.planning_critic_observation
+
+
+def test_planner_shadow_attaches_unused_critic_observation_to_transport_failure(monkeypatch):
+    parent_task_id = str(uuid4())
+    planner_binding = OperationProviderBinding(
+        provider_id="planner",
+        model="free-l2-planner",
+        provider_binding_id="planner-binding",
+        quota_domain="planner-quota",
+        api_key_env="PLANNER_KEY",
+    )
+    critic_binding = OperationProviderBinding(
+        provider_id="critic",
+        model="free-l1-critic",
+        provider_binding_id="critic-binding",
+        quota_domain="critic-quota",
+        api_key_env="CRITIC_KEY",
+    )
+    transport_failure = ProviderError("transport", category="transport")
+    planner_provider = _Provider(error=transport_failure)
+    critic_provider = _Provider(
+        ModelResponse(
+            provider="critic",
+            model="free-l1-critic",
+            structured_output={"corrected_proposal": _proposal(parent_task_id)},
+        )
+    )
+
+    def fake_admit(bindings, *, required_tier="L2", **_kwargs):
+        if required_tier == "L1":
+            return ((critic_binding, SimpleNamespace(intelligence_tier="L1"), SimpleNamespace()),)
+        return ((planner_binding, SimpleNamespace(intelligence_tier="L2"), SimpleNamespace()),)
+
+    @contextmanager
+    def fake_compose(admitted, *, resource_id_prefix, **_kwargs):
+        provider = planner_provider if resource_id_prefix == "planner-shadow" else critic_provider
+        provider.audits = []
+        yield SimpleNamespace(
+            ledger=SimpleNamespace(list_quota_observations=lambda **_query: []),
+            dispatcher=provider,
+            admitted=tuple(admitted),
+            directory=Path("."),
+        )
+
+    monkeypatch.setattr(devfarm_planner_shadow, "admit_planner_pool", fake_admit)
+    monkeypatch.setattr(devfarm_planner_shadow, "compose_resource_pool", fake_compose)
+
+    with pytest.raises(ProviderError) as caught:
+        devfarm_planner_shadow.run_shadow(
+            objective="split this bounded objective",
+            parent_task_id=parent_task_id,
+            provider_id="planner",
+            binding_id="planner-binding",
+            model_id="free-l2-planner",
+            api_key_env="PLANNER_KEY",
+            quota_domain="planner-quota",
+            timeout_seconds=1.0,
+            allow_unknown_quota=False,
+            repository="kinoko34077/dev_agent",
+            branch="v2/bootstrap",
+            provider_pool=(planner_binding,),
+            planning_critic_pool=(critic_binding,),
+            execution_boundary="in_process",
+        )
+
+    assert caught.value.requires_reconciliation is True
+    assert caught.value.planning_critic_observation == {
+        "configured": True,
+        "invoked": False,
+        "request_id": None,
+        "dispatch_audits": [],
+    }
+    assert planner_provider.requests
+    assert critic_provider.requests == []
