@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "evidence_id": "planner-critic-failure-observation-20260917",
+  "evidence_kind": "planner_critic_bounded_failure_observation",
+  "recorded_at": "2026-09-17T03:07:33Z",
+  "implementation_baseline": {
+    "revision": "5cb658a09e7af12013245ea255fca2a5a395d35b",
+    "message": "fix: project planner critic failures safely"
+  },
+  "scope": {
+    "boundary": "Planner Shadow failure-result projection for the optional independent planning Critic",
+    "change": "preserve a normalized configured/invoked/request/audit observation on bounded failure paths without exposing raw Provider or exception material",
+    "purpose": "make failed Critic use auditable while keeping response-contract correction separate from transport, quota, security, and UNKNOWN handling"
+  },
+  "verified_behavior": {
+    "failure_observation_is_projected": true,
+    "configured_is_boolean_bounded": true,
+    "invoked_is_boolean_bounded": true,
+    "invoked_request_id_is_fresh_uuid_bounded": true,
+    "dispatch_audits_are_normalized": true,
+    "provider_response_or_exception_details_exposed": false,
+    "transport_quota_security_unknown_enters_critic_correction": false,
+    "retry_or_failover_added": false,
+    "unknown_replay_added": false,
+    "task_mutation": false,
+    "approval_consumption": false,
+    "git_mutation": false,
+    "gate_promotion": false
+  },
+  "verification": {
+    "focused": "12 Planner Critic adapter, composition, admission, export, CLI failure, and observation projection tests passed",
+    "full_tests_v2": "1414 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head": "5cb658a09e7af12013245ea255fca2a5a395d35b",
+    "ci": {
+      "v2-core": {
+        "run_id": 35176728825,
+        "conclusion": "success"
+      },
+      "v2-provider-smoke": {
+        "run_id": 35176728819,
+        "conclusion": "success"
+      }
+    }
+  },
+  "interpretation": "This is bounded diagnostic observability for the Planner Critic failure path. It does not claim a live Planner correction, AR1 recovery, Phase 8 single-root completion, or Gate transition.",
+  "gate_impact": {
+    "d9_dogfood": "unchanged_verified",
+    "phase8_preparation": "unchanged_preparation_only",
+    "phase8_live_activation": "unchanged_not_verified",
+    "ar1_live_recovery": "not_demonstrated",
+    "d9_production_deployment": "unchanged_deferred_not_ready"
+  }
+}
