@@ -34,6 +34,7 @@ from src.dev_agent.intelligence.planner_adapter import (
     ModelPlanningCriticAdapter,
     PlanningCriticAdapterError,
     PlanningResponseError,
+    propose_with_planning_convergence,
     propose_with_planning_critic,
 )
 from src.dev_agent.operation import OperationProviderBinding
@@ -263,6 +264,30 @@ def _admission_identity(binding: OperationProviderBinding) -> tuple[str, str, st
     return (binding.provider_id, binding.binding_id, binding.model)
 
 
+def _set_convergence_identity(
+    provider: object,
+    *,
+    role: str,
+    admitted: tuple[tuple[OperationProviderBinding, object, object], ...],
+) -> None:
+    """Attach a bounded Host-selected pool identity to a routed adapter.
+
+    ``ProviderDispatcher`` intentionally exposes a role-neutral identity. The
+    convergence contract still needs to distinguish the Planner pool from an
+    independently admitted Critic pool, so use a digest of the exact
+    admission identities rather than guessing from a model name.
+    """
+
+    identities = sorted(_admission_identity(binding) for binding, _qualification, _profile in admitted)
+    encoded = json.dumps(
+        {"role": role, "admissions": identities},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    setattr(provider, "convergence_identity", f"{role}-pool:{hashlib.sha256(encoded).hexdigest()}")
+
+
 def _validate_independent_critic_admission(
     planner_admitted: tuple[tuple[OperationProviderBinding, object, object], ...],
     critic_admitted: tuple[tuple[OperationProviderBinding, object, object], ...],
@@ -404,6 +429,7 @@ def run_shadow(
                     timeout_seconds=timeout_seconds,
                 ),
             )
+        _set_convergence_identity(planner_provider, role="planner", admitted=admitted)
         critic_adapter = None
         critic_dispatcher = None
         critic_provider = None
@@ -443,6 +469,8 @@ def run_shadow(
                         timeout_seconds=timeout_seconds,
                     ),
                 )
+        if critic_provider is not None and critic_admitted is not None:
+            _set_convergence_identity(critic_provider, role="critic", admitted=critic_admitted)
         if critic_provider is not None:
             critic_adapter = ModelPlanningCriticAdapter(
                 critic_provider,
@@ -450,21 +478,66 @@ def run_shadow(
                 cost_ceiling=0.0,
                 allow_unknown_quota=allow_unknown_quota,
             )
+        parent = Task(
+            task_id=parent_task_id,
+            objective=objective,
+            status=TaskStatus.READY,
+            task_type=TaskType.REASONING,
+            risk=RiskLevel.NORMAL,
+            sensitivity="normal",
+        )
+        validated_children = None
+
+        def _host_validate(candidate):
+            nonlocal validated_children
+            validated_children = RootPlanningValidator.validate(parent, candidate)
+            return True
+
         try:
-            proposal = propose_with_planning_critic(
-                ModelPlanningAdapter(
-                    planner_provider,
-                    max_output_tokens=max_output_tokens,
-                    cost_ceiling=0.0,
-                    allow_unknown_quota=allow_unknown_quota,
-                ),
-                critic_adapter,
-                parent_task_id=parent_task_id,
-                objective=objective,
-                sensitivity="normal",
-                required_intelligence_tier="L2",
-                context_references=_shadow_context(repository=repository, branch=branch),
+            planner_adapter = ModelPlanningAdapter(
+                planner_provider,
+                max_output_tokens=max_output_tokens,
+                cost_ceiling=0.0,
+                allow_unknown_quota=allow_unknown_quota,
             )
+            if critic_adapter is None:
+                proposal = propose_with_planning_critic(
+                    planner_adapter,
+                    None,
+                    parent_task_id=parent_task_id,
+                    objective=objective,
+                    sensitivity="normal",
+                    required_intelligence_tier="L2",
+                    context_references=_shadow_context(repository=repository, branch=branch),
+                )
+                convergence = None
+            else:
+                convergence = propose_with_planning_convergence(
+                    planner_adapter,
+                    (critic_adapter,),
+                    parent_task_id=parent_task_id,
+                    objective=objective,
+                    sensitivity="normal",
+                    required_intelligence_tier="L2",
+                    context_references=_shadow_context(repository=repository, branch=branch),
+                    host_validate=_host_validate,
+                )
+                if not convergence.completed or convergence.proposal is None:
+                    result = {
+                        "status": "failed",
+                        "category": "model_output_invalid",
+                        "checked_at": datetime.now(timezone.utc).isoformat(),
+                        "host_validation": "failed",
+                        "reconciliation_required": False,
+                        "allow_unknown_quota": allow_unknown_quota,
+                        "convergence": convergence.to_dict(),
+                    }
+                    result["planning_critic"] = _project_planning_critic_observation(
+                        critic_adapter,
+                        critic_dispatcher if critic_dispatcher is not None else critic_provider,
+                    )
+                    return result
+                proposal = convergence.proposal
         except ProviderPoolExhausted as exc:
             result = {
                 "status": "pool_exhausted",
@@ -563,15 +636,7 @@ def run_shadow(
                 ),
             )
             raise
-        parent = Task(
-            task_id=parent_task_id,
-            objective=objective,
-            status=TaskStatus.READY,
-            task_type=TaskType.REASONING,
-            risk=RiskLevel.NORMAL,
-            sensitivity="normal",
-        )
-        accepted = RootPlanningValidator.validate(parent, proposal)
+        accepted = validated_children or RootPlanningValidator.validate(parent, proposal)
         quota_observations = [
             observation
             for binding, _qualification, _profile in admitted
@@ -624,6 +689,7 @@ def run_shadow(
                 critic_adapter,
                 critic_dispatcher if critic_dispatcher is not None else critic_provider,
             ),
+            "convergence": convergence.to_dict() if convergence is not None else None,
             "proposal_sha256": proposal_digest,
             "proposal": proposal.to_dict(),
         }

@@ -602,6 +602,9 @@ _IDENTITY_ALLOWED = re.compile(r"[^A-Za-z0-9_.:/@-]+")
 def _provider_identity(provider: Any) -> str:
     """Project provider/binding/model identity without credentials."""
 
+    explicit = getattr(provider, "convergence_identity", None)
+    if isinstance(explicit, str) and explicit.strip():
+        return _IDENTITY_ALLOWED.sub("_", explicit.strip().lower())[:512]
     values = []
     for name in ("provider_id", "provider_binding_id", "model_id", "model"):
         value = getattr(provider, name, None)
