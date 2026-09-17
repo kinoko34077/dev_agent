@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "evidence_id": "planner-shadow-bounded-convergence-20260917",
+  "evidence_kind": "planner_shadow_bounded_convergence",
+  "recorded_at": "2026-09-17T06:46:15.4581905Z",
+  "implementation_baseline": {
+    "revision": "416ce96d693d7c3be4b2658cf51c4a3614701ce1",
+    "message": "feat: connect planner shadow convergence path"
+  },
+  "scope": {
+    "boundary": "Existing Planner Shadow CLI composition with optional independently admitted L1 response-contract Critic",
+    "fast_path": "valid Planner response returns through Host RootPlanningValidator without a Critic call",
+    "refinement_path": "observed invalid_json/invalid_proposal response enters one bounded fresh Critic action and returns through Host validation",
+    "authority": "Host-selected admission and RootPlanningValidator remain authoritative"
+  },
+  "verified_behavior": {
+    "cli_fast_path_records_zero_refinement_rounds": true,
+    "cli_fast_path_skips_configured_critic": true,
+    "cli_invalid_response_uses_fresh_critic_request": true,
+    "cli_corrected_proposal_reaches_host_validation": true,
+    "convergence_attempts_are_bounded_and_projected": true,
+    "planner_and_critic_pool_identity_is_distinct": true,
+    "transport_quota_security_unknown_bypass_refinement": false,
+    "raw_provider_response_or_exception_stored": false,
+    "credential_stored": false,
+    "task_mutation": false,
+    "approval_consumption": false,
+    "git_mutation": false,
+    "gate_promotion": false
+  },
+  "verification": {
+    "focused": "python -m pytest tests/v2/test_planning_critic_adapter.py tests/v2/test_planning_convergence.py tests/v2/test_planner_adapter.py tests/v2/test_devfarm_resource_pool.py tests/v2/test_provider_transport_semantics.py -q => 56 passed",
+    "full_tests_v2": "python -m pytest tests/v2 -q => 1450 passed, 1 skipped",
+    "architecture": "python scripts/check_architecture.py => ARCHITECTURE_PASS",
+    "compileall": "python -m compileall -q src recovery scripts => PASS",
+    "remote_head_for_exact_ci": "e5a5f893591f21f638d7105ec4d735740134a803",
+    "exact_head_ci": "remote pre-sync HEAD has prior exact-head evidence; local implementation commit has not reached exact-head CI because push is pending explicit external approval"
+  },
+  "external_effect": {
+    "live_provider_request_added": false,
+    "unknown_external_effect_replayed": false,
+    "new_external_dispatch": false
+  },
+  "gate_impact": {
+    "d9_dogfood": "unchanged_verified",
+    "phase8_preparation": "unchanged_preparation_only",
+    "phase8_live_activation": "unchanged_not_verified",
+    "ar1_live_recovery": "not_demonstrated",
+    "d9_production_deployment": "unchanged_deferred_not_ready"
+  },
+  "interpretation": "The existing Planner Shadow now emits bounded R3 convergence metadata for configured independent Critic composition and proves the CLI fast path skips the Critic. This is local contract/composition evidence; it is not a live Planner correction, AR1 completion, Phase 8 single-root completion, or Gate promotion."
+}

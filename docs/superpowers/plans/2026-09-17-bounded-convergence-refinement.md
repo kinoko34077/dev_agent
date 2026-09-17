@@ -161,6 +161,12 @@ Reuse `ModelPlanningAdapter`, `ModelPlanningCriticAdapter`, and
   stop, changed-signature progress, transport exclusion, and identity reuse
   rejection.
 
+Implementation note: `416ce96` connects this R3 composition to the existing
+Planner Shadow CLI. The CLI records `FAST_PATH` for a valid Planner without a
+Critic request, and uses one independently admitted proposal-only Critic for a
+response-contract failure before returning to Host validation. Evidence is
+`spec/v2/evidence/planner-shadow-bounded-convergence-20260917.json`.
+
 ## R4 — Worker Convergence / AR1 Composition
 
 Reuse `scripts/devfarm_refinement.py`, existing `RefinementContext`,
