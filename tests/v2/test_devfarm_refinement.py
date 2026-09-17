@@ -8,6 +8,7 @@ from scripts.devfarm_refinement import (
     RefinementCompositionError,
     apply_refinement_action,
     build_refinement_packet,
+    build_reviewer_rework_packet,
     classify_worker_failure,
     plan_refinement,
     propose_critic,
@@ -19,8 +20,10 @@ from src.dev_agent.intelligence.refinement import (
     FailureClass,
     RefinementAction,
     RefinementContext,
+    RefinementPlan,
     RefinementProposal,
 )
+from src.dev_agent.intelligence.convergence import ConvergenceState
 
 
 class _Runner:
@@ -246,6 +249,102 @@ def test_plan_refinement_connects_host_category_to_existing_bounded_policy():
     assert plan.action is RefinementAction.CORRECT
     assert plan.failure_class is FailureClass.FORMAT_PATCH
     assert plan.refinement_round == 1
+
+
+def test_plan_refinement_records_format_failure_convergence_without_raw_evidence():
+    plan = plan_refinement(
+        _refinement_context(),
+        "patch_format_failure",
+        source_attempt_id="attempt-source",
+        current_model_identity="l1:worker-a",
+        validator_refs=("patch:parse",),
+        patch_category="unified_diff",
+        error_code="HUNK_APPLY_FAILED",
+    )
+
+    assert plan.convergence is not None
+    assert plan.convergence.convergence_state is ConvergenceState.REFINEMENT
+    assert plan.convergence.source_attempt_id == "attempt-source"
+    assert plan.convergence.failure_class == "format_patch"
+    assert plan.convergence.validator_refs == ("patch:parse",)
+    assert len(plan.convergence.failure_signature) == 64
+    assert "HUNK" not in plan.to_dict()["convergence"]["failure_signature"]
+
+
+def test_plan_refinement_records_semantic_failure_test_ids_and_round_trips():
+    plan = plan_refinement(
+        _refinement_context(),
+        "contract_shape_regression",
+        source_attempt_id="attempt-semantic",
+        current_model_identity="l1:worker-a",
+        test_ids=("tests/v2/test_contract.py::test_shape",),
+    )
+
+    restored = RefinementPlan.from_dict(plan.to_dict())
+    assert restored.convergence == plan.convergence
+    assert restored.convergence.failure_class == "semantic_test"
+    assert restored.convergence.validator_refs == ("worker:host_verification",)
+    assert len(restored.convergence.failure_signature) == 64
+
+
+def test_plan_refinement_keeps_external_failures_out_of_convergence_lane():
+    plan = plan_refinement(
+        _refinement_context(external_outcome_known=False),
+        "provider_unavailable",
+    )
+
+    assert plan.action is RefinementAction.RECONCILE
+    assert plan.convergence is None
+
+
+def test_reviewer_approve_is_a_fast_path_without_rework_packet():
+    runner = _Runner(_review_packet())
+
+    packet = build_reviewer_rework_packet(
+        runner,
+        "production-task-1",
+        {
+            "decision_id": "decision-approve",
+            "task_id": "production-task-1",
+            "attempt_id": "attempt-1",
+            "decision": "APPROVE_INTEGRATION",
+            "findings": [],
+            "evidence_refs": [],
+        },
+    )
+
+    assert packet is None
+    assert runner.calls == []
+
+
+def test_reviewer_rework_packet_is_reference_first_and_matches_current_attempt():
+    runner = _Runner(_review_packet())
+
+    packet = build_reviewer_rework_packet(
+        runner,
+        "production-task-1",
+        {
+            "decision_id": "decision-rework",
+            "task_id": "production-task-1",
+            "attempt_id": "attempt-1",
+            "decision": "REWORK",
+            "findings": ["the proposal does not satisfy the contract"],
+            "required_correction": "Align the implementation with the stated contract.",
+            "evidence_refs": [{"kind": "review", "path": ".devfarm/reviews/attempt-1.json"}],
+        },
+    )
+
+    assert packet is not None
+    assert packet["required_correction"].startswith("Align")
+    assert packet["review_findings_reference"] == {
+        "kind": "review_findings",
+        "decision_id": "decision-rework",
+        "task_id": "production-task-1",
+        "attempt_id": "attempt-1",
+        "finding_count": 1,
+        "evidence_refs": [{"kind": "review", "path": ".devfarm/reviews/attempt-1.json"}],
+    }
+    assert "findings" not in packet["review_findings_reference"]
 
 
 def test_plan_refinement_preserves_unknown_external_effect_boundary():

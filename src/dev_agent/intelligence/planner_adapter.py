@@ -9,9 +9,12 @@ adapter.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
+import hashlib
 import json
 import math
+import re
 from typing import Any
 from uuid import UUID
 
@@ -20,6 +23,12 @@ from ..domain.protocol import ModelRequest, ModelResponse
 from ..providers.base import ModelProvider, ProviderError
 from ..security.egress import EgressValidationError, attach_model_request_egress
 from .capabilities import TASK_COMPETENCIES, TASK_POLICY_TRAITS
+from .convergence import (
+    ConvergenceMetadata,
+    ConvergenceState,
+    ConvergenceStopReason,
+    FailureFingerprint,
+)
 from .planner import PlanningValidationError, RootPlanningProposal
 from .structured_response import StructuredResponseError, decode_json_object
 
@@ -133,6 +142,7 @@ class ModelPlanningAdapter:
         self.max_output_tokens = max_output_tokens
         self.cost_ceiling = float(cost_ceiling)
         self.allow_unknown_quota = allow_unknown_quota
+        self.last_request_id: str | None = None
 
     def propose(
         self,
@@ -145,6 +155,7 @@ class ModelPlanningAdapter:
     ) -> RootPlanningProposal:
         """Return one typed proposal; host validation remains a separate step."""
 
+        self.last_request_id = None
         if not isinstance(parent_task_id, str) or not parent_task_id.strip():
             raise PlanningAdapterError("parent_task_id must be a non-empty string")
         if not isinstance(objective, str) or not objective.strip():
@@ -210,6 +221,7 @@ class ModelPlanningAdapter:
             request, _egress_manifest = attach_model_request_egress(request)
         except EgressValidationError as exc:
             raise PlanningAdapterError(f"model request egress rejected: {exc}") from exc
+        self.last_request_id = request.request_id
         try:
             response = self.provider.request(request)
         except ProviderError as exc:
@@ -303,6 +315,23 @@ class ModelPlanningAdapter:
 
 class PlanningCriticAdapterError(PlanningAdapterError):
     """The bounded independent planning correction cannot be accepted."""
+
+    _RESPONSE_CONTRACTS = frozenset({"invalid_json", "invalid_proposal"})
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        request_id: str | None = None,
+        provider_response_observed: bool = False,
+        response_contract: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        if response_contract is not None and response_contract not in self._RESPONSE_CONTRACTS:
+            raise ValueError("response_contract must be invalid_json or invalid_proposal")
+        self.request_id = request_id
+        self.provider_response_observed = provider_response_observed
+        self.response_contract = response_contract
 
 
 class ModelPlanningCriticAdapter:
@@ -440,11 +469,17 @@ class ModelPlanningCriticAdapter:
             unknown = set(payload) - {"corrected_proposal"}
             if unknown:
                 raise PlanningCriticAdapterError(
-                    f"unknown planning critic response field: {sorted(unknown)[0]}"
+                    f"unknown planning critic response field: {sorted(unknown)[0]}",
+                    provider_response_observed=True,
+                    response_contract="invalid_proposal",
                 )
             proposal = RootPlanningProposal.from_dict(payload.get("corrected_proposal"))
         except StructuredResponseError as exc:
-            error = PlanningCriticAdapterError(str(exc))
+            error = PlanningCriticAdapterError(
+                str(exc),
+                provider_response_observed=True,
+                response_contract="invalid_json",
+            )
             error.request_id = request.request_id
             raise error from exc
         except PlanningCriticAdapterError as exc:
@@ -452,13 +487,17 @@ class ModelPlanningCriticAdapter:
             raise
         except PlanningValidationError as exc:
             error = PlanningCriticAdapterError(
-                f"planning critic corrected proposal is invalid: {exc}"
+                f"planning critic corrected proposal is invalid: {exc}",
+                provider_response_observed=True,
+                response_contract="invalid_proposal",
             )
             error.request_id = request.request_id
             raise error from exc
         if proposal.parent_task_id != parent_task_id:
             error = PlanningCriticAdapterError(
-                "planning critic corrected proposal parent_task_id does not match the requested parent"
+                "planning critic corrected proposal parent_task_id does not match the requested parent",
+                provider_response_observed=True,
+                response_contract="invalid_proposal",
             )
             error.request_id = request.request_id
             raise error
@@ -528,6 +567,415 @@ class ModelPlanningCriticAdapter:
         )
 
 
+@dataclass(frozen=True)
+class PlanningConvergenceResult:
+    """Bounded Planner result plus immutable attempt projections."""
+
+    proposal: RootPlanningProposal | None
+    attempts: tuple[ConvergenceMetadata, ...]
+    completed: bool
+    stop_reason: ConvergenceStopReason | None = None
+
+    @property
+    def refinement_rounds(self) -> int:
+        return max((item.refinement_round for item in self.attempts), default=0)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "proposal": self.proposal.to_dict() if self.proposal is not None else None,
+            "attempts": [item.to_dict() for item in self.attempts],
+            "completed": self.completed,
+            "refinement_rounds": self.refinement_rounds,
+            "stop_reason": self.stop_reason.value if self.stop_reason is not None else None,
+        }
+
+
+class PlanningConvergenceError(PlanningAdapterError):
+    """The Host-supplied bounded Planner convergence configuration is invalid."""
+
+
+_PLANNING_REFINEMENT_MAX_ROUNDS = 4
+_PLANNING_SAME_SIGNATURE_LIMIT = 2
+_IDENTITY_ALLOWED = re.compile(r"[^A-Za-z0-9_.:/@-]+")
+
+
+def _provider_identity(provider: Any) -> str:
+    """Project provider/binding/model identity without credentials."""
+
+    values = []
+    for name in ("provider_id", "provider_binding_id", "model_id", "model"):
+        value = getattr(provider, name, None)
+        if isinstance(value, str) and value.strip():
+            values.append(_IDENTITY_ALLOWED.sub("_", value.strip().lower())[:128])
+        else:
+            values.append("unknown")
+    return ":".join(values)
+
+
+def _attempt_identity(value: Any, fallback: str) -> str:
+    if isinstance(value, str) and value.strip():
+        candidate = _IDENTITY_ALLOWED.sub("_", value.strip().lower())[:256]
+        if candidate:
+            return candidate
+    return fallback
+
+
+def _planning_fingerprint(
+    *,
+    response_contract: str | None,
+    validator_ref: str,
+    error_code: str,
+) -> FailureFingerprint:
+    return FailureFingerprint.from_observation(
+        failure_class="format_patch",
+        validator_refs=(validator_ref,),
+        response_contract=response_contract or "invalid_proposal",
+        patch_category="planning_proposal",
+        error_code=error_code,
+    )
+
+
+def _planning_failure_for_next_round(
+    *,
+    request_id: str,
+    response_contract: str,
+) -> PlanningResponseError:
+    return PlanningResponseError(
+        "bounded planning response contract failure",
+        request_id=request_id,
+        provider_response_observed=True,
+        response_contract=response_contract,
+    )
+
+
+def _convergence_references(
+    base: Mapping[str, Any] | None,
+    fingerprint: FailureFingerprint,
+    previous_proposal: RootPlanningProposal | None,
+) -> dict[str, Any]:
+    references = dict(base or {})
+    references["convergence"] = {
+        "failure_class": fingerprint.failure_class,
+        "failure_signature": fingerprint.failure_signature,
+        "validator_refs": list(fingerprint.validator_refs),
+        "response_contract": fingerprint.response_contract,
+    }
+    if previous_proposal is not None:
+        encoded = json.dumps(
+            previous_proposal.to_dict(),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        references["previous_proposal_digest"] = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+    return references
+
+
+def _terminal_planning_result(
+    attempts: list[ConvergenceMetadata],
+    *,
+    source_attempt_id: str,
+    current_model_identity: str,
+    refinement_round: int,
+    fingerprint: FailureFingerprint,
+    stop_reason: ConvergenceStopReason,
+) -> PlanningConvergenceResult:
+    attempts.append(
+        ConvergenceMetadata(
+            refinement_round=refinement_round,
+            source_attempt_id=source_attempt_id,
+            fresh_attempt_id=None,
+            failure_class=fingerprint.failure_class,
+            failure_signature=fingerprint.failure_signature,
+            correction_actor=None,
+            previous_model_identity=None,
+            current_model_identity=current_model_identity,
+            validator_refs=fingerprint.validator_refs,
+            convergence_state=ConvergenceState.NON_CONVERGING,
+            stop_reason=stop_reason,
+        )
+    )
+    return PlanningConvergenceResult(
+        proposal=None,
+        attempts=tuple(attempts),
+        completed=False,
+        stop_reason=stop_reason,
+    )
+
+
+def propose_with_planning_convergence(
+    planner: ModelPlanningAdapter,
+    critics: Sequence[ModelPlanningCriticAdapter],
+    *,
+    parent_task_id: str,
+    objective: str,
+    sensitivity: str = "normal",
+    required_intelligence_tier: str | None = None,
+    context_references: Mapping[str, Any] | None = None,
+    host_validate: Callable[[RootPlanningProposal], Any] | None = None,
+    max_rounds: int = _PLANNING_REFINEMENT_MAX_ROUNDS,
+) -> PlanningConvergenceResult:
+    """Run one Planner plus a finite, identity-diverse Critic sequence.
+
+    Only response-contract failures with an observed Provider response enter
+    this composition.  Provider, transport, quota, security, and UNKNOWN
+    errors propagate to their existing outer authority instead of becoming
+    model-refinement attempts.
+    """
+
+    if not isinstance(planner, ModelPlanningAdapter):
+        raise TypeError("planner must be ModelPlanningAdapter")
+    if isinstance(critics, (str, bytes)) or not isinstance(critics, Sequence):
+        raise TypeError("critics must be a sequence of ModelPlanningCriticAdapter")
+    if (
+        isinstance(max_rounds, bool)
+        or not isinstance(max_rounds, int)
+        or not 1 <= max_rounds <= _PLANNING_REFINEMENT_MAX_ROUNDS
+    ):
+        raise ValueError("max_rounds must be between 1 and 4")
+    if any(not isinstance(critic, ModelPlanningCriticAdapter) for critic in critics):
+        raise TypeError("critics must contain ModelPlanningCriticAdapter values")
+
+    identities = [_provider_identity(planner.provider)] + [
+        _provider_identity(critic.provider) for critic in critics
+    ]
+    if len(set(identities)) != len(identities):
+        raise PlanningConvergenceError(
+            "Planner and Critic identity values must be distinct"
+        )
+
+    planner_identity = identities[0]
+    attempts: list[ConvergenceMetadata] = []
+    current_failure: PlanningResponseError | None = None
+    current_fingerprint: FailureFingerprint | None = None
+    current_attempt_id: str | None = None
+    previous_proposal: RootPlanningProposal | None = None
+    previous_model_identity = planner_identity
+    same_signature_count = 0
+
+    try:
+        proposal = planner.propose(
+            parent_task_id=parent_task_id,
+            objective=objective,
+            sensitivity=sensitivity,
+            required_intelligence_tier=required_intelligence_tier,
+            context_references=context_references,
+        )
+        if host_validate is not None and host_validate(proposal) is False:
+            raise PlanningValidationError("Host validation rejected proposal")
+    except PlanningResponseError as failure:
+        if not failure.provider_response_observed or failure.response_contract not in PlanningResponseError._RESPONSE_CONTRACTS:
+            raise
+        current_failure = failure
+        current_attempt_id = _attempt_identity(
+            failure.request_id or planner.last_request_id,
+            "planner-attempt-0",
+        )
+        current_fingerprint = _planning_fingerprint(
+            response_contract=failure.response_contract,
+            validator_ref="planning:response_contract",
+            error_code="MODEL_OUTPUT_INVALID",
+        )
+        same_signature_count = 1
+        attempts.append(
+            ConvergenceMetadata.from_validation(
+                passed=False,
+                refinement_round=0,
+                current_model_identity=planner_identity,
+                source_attempt_id=current_attempt_id,
+                failure=current_fingerprint,
+                validator_refs=current_fingerprint.validator_refs,
+            )
+        )
+    except PlanningValidationError:
+        current_attempt_id = _attempt_identity(
+            planner.last_request_id,
+            "planner-attempt-0",
+        )
+        current_failure = _planning_failure_for_next_round(
+            request_id=current_attempt_id,
+            response_contract="invalid_proposal",
+        )
+        current_fingerprint = _planning_fingerprint(
+            response_contract="invalid_proposal",
+            validator_ref="planning:host_validation",
+            error_code="HOST_VALIDATION_FAILED",
+        )
+        same_signature_count = 1
+        attempts.append(
+            ConvergenceMetadata.from_validation(
+                passed=False,
+                refinement_round=0,
+                current_model_identity=planner_identity,
+                source_attempt_id=current_attempt_id,
+                failure=current_fingerprint,
+                validator_refs=current_fingerprint.validator_refs,
+            )
+        )
+    else:
+        fast = ConvergenceMetadata.fast_path(
+            current_model_identity=planner_identity,
+            validator_refs=(
+                "planning:host_validation",
+            ) if host_validate is not None else ("planning:response",),
+        )
+        return PlanningConvergenceResult(
+            proposal=proposal,
+            attempts=(fast,),
+            completed=True,
+        )
+
+    for round_number, critic in enumerate(critics[:max_rounds], start=1):
+        if current_fingerprint is None or current_failure is None or current_attempt_id is None:
+            raise PlanningConvergenceError("internal planning convergence state is incomplete")
+        if same_signature_count >= _PLANNING_SAME_SIGNATURE_LIMIT:
+            return _terminal_planning_result(
+                attempts,
+                source_attempt_id=current_attempt_id,
+                current_model_identity=_provider_identity(critic.provider),
+                refinement_round=round_number - 1,
+                fingerprint=current_fingerprint,
+                stop_reason=ConvergenceStopReason.SAME_SIGNATURE_LIMIT,
+            )
+
+        critic_identity = _provider_identity(critic.provider)
+        try:
+            corrected = critic.correct(
+                parent_task_id=parent_task_id,
+                objective=objective,
+                sensitivity=sensitivity,
+                planner_failure=current_failure,
+                context_references=_convergence_references(
+                    context_references,
+                    current_fingerprint,
+                    previous_proposal,
+                ),
+            )
+            if host_validate is not None and host_validate(corrected) is False:
+                raise PlanningValidationError("Host validation rejected corrected proposal")
+        except PlanningCriticAdapterError as failure:
+            if not getattr(failure, "provider_response_observed", False):
+                raise
+            current_attempt_id = _attempt_identity(
+                getattr(failure, "request_id", None) or critic.last_request_id,
+                f"critic-attempt-{round_number}",
+            )
+            current_fingerprint = _planning_fingerprint(
+                response_contract=getattr(failure, "response_contract", None),
+                validator_ref="planning:response_contract",
+                error_code="MODEL_OUTPUT_INVALID",
+            )
+            current_failure = _planning_failure_for_next_round(
+                request_id=current_attempt_id,
+                response_contract=current_fingerprint.response_contract or "invalid_proposal",
+            )
+            same_signature_count = (
+                same_signature_count + 1
+                if attempts[-1].failure_signature == current_fingerprint.failure_signature
+                else 1
+            )
+            attempts.append(
+                ConvergenceMetadata.from_validation(
+                    passed=False,
+                    refinement_round=round_number,
+                    current_model_identity=critic_identity,
+                    source_attempt_id=current_attempt_id,
+                    failure=current_fingerprint,
+                    correction_actor="planning_critic",
+                    previous_model_identity=previous_model_identity,
+                    validator_refs=current_fingerprint.validator_refs,
+                )
+            )
+            previous_model_identity = critic_identity
+            previous_proposal = None
+            if same_signature_count >= _PLANNING_SAME_SIGNATURE_LIMIT:
+                return _terminal_planning_result(
+                    attempts,
+                    source_attempt_id=current_attempt_id,
+                    current_model_identity=critic_identity,
+                    refinement_round=round_number,
+                    fingerprint=current_fingerprint,
+                    stop_reason=ConvergenceStopReason.SAME_SIGNATURE_LIMIT,
+                )
+            continue
+        except PlanningValidationError:
+            previous_proposal = corrected
+            current_attempt_id = _attempt_identity(
+                critic.last_request_id,
+                f"critic-attempt-{round_number}",
+            )
+            current_fingerprint = _planning_fingerprint(
+                response_contract="invalid_proposal",
+                validator_ref="planning:host_validation",
+                error_code="HOST_VALIDATION_FAILED",
+            )
+            current_failure = _planning_failure_for_next_round(
+                request_id=current_attempt_id,
+                response_contract="invalid_proposal",
+            )
+            same_signature_count = (
+                same_signature_count + 1
+                if attempts[-1].failure_signature == current_fingerprint.failure_signature
+                else 1
+            )
+            attempts.append(
+                ConvergenceMetadata.from_validation(
+                    passed=False,
+                    refinement_round=round_number,
+                    current_model_identity=critic_identity,
+                    source_attempt_id=current_attempt_id,
+                    failure=current_fingerprint,
+                    correction_actor="host_validator",
+                    previous_model_identity=previous_model_identity,
+                    validator_refs=current_fingerprint.validator_refs,
+                )
+            )
+            previous_model_identity = critic_identity
+            if same_signature_count >= _PLANNING_SAME_SIGNATURE_LIMIT:
+                return _terminal_planning_result(
+                    attempts,
+                    source_attempt_id=current_attempt_id,
+                    current_model_identity=critic_identity,
+                    refinement_round=round_number,
+                    fingerprint=current_fingerprint,
+                    stop_reason=ConvergenceStopReason.SAME_SIGNATURE_LIMIT,
+                )
+            continue
+        else:
+            fresh_attempt_id = _attempt_identity(
+                critic.last_request_id,
+                f"critic-attempt-{round_number}",
+            )
+            completed = ConvergenceMetadata.from_validation(
+                passed=True,
+                refinement_round=round_number,
+                current_model_identity=critic_identity,
+                source_attempt_id=current_attempt_id,
+                fresh_attempt_id=fresh_attempt_id,
+                previous_model_identity=previous_model_identity,
+                validator_refs=(
+                    "planning:host_validation",
+                ) if host_validate is not None else ("planning:response",),
+            )
+            attempts.append(completed)
+            return PlanningConvergenceResult(
+                proposal=corrected,
+                attempts=tuple(attempts),
+                completed=True,
+            )
+
+    if current_fingerprint is None or current_attempt_id is None:
+        raise PlanningConvergenceError("planning convergence ended without an observation")
+    return _terminal_planning_result(
+        attempts,
+        source_attempt_id=current_attempt_id,
+        current_model_identity=previous_model_identity,
+        refinement_round=min(max_rounds, len(attempts)),
+        fingerprint=current_fingerprint,
+        stop_reason=ConvergenceStopReason.NON_CONVERGING,
+    )
+
+
 def propose_with_planning_critic(
     planner: ModelPlanningAdapter,
     critic: ModelPlanningCriticAdapter | None,
@@ -581,6 +1029,9 @@ __all__ = [
     "PLANNING_PROPOSAL_RESPONSE_SCHEMA",
     "PlanningAdapterError",
     "PlanningCriticAdapterError",
+    "PlanningConvergenceError",
+    "PlanningConvergenceResult",
     "PlanningResponseError",
+    "propose_with_planning_convergence",
     "propose_with_planning_critic",
 ]

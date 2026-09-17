@@ -99,13 +99,13 @@ Contract:
 
 Test-first steps:
 
-- [ ] Add failing tests for canonical ordering/deduplication and stable digest.
-- [ ] Add failing tests proving raw exception/secret text is rejected or never
+- [x] Add failing tests for canonical ordering/deduplication and stable digest.
+- [x] Add failing tests proving raw exception/secret text is rejected or never
   included in the digest.
-- [ ] Add failing tests for metadata round-trip, fresh-attempt identity, bounds,
+- [x] Add failing tests for metadata round-trip, fresh-attempt identity, bounds,
   invalid state, and same-vs-different signature comparison.
-- [ ] Implement the smallest pure contract and run the focused tests.
-- [ ] Add the optional existing-artifact integration and compatibility tests.
+- [x] Implement the smallest pure contract and run the focused tests.
+- [x] Add the optional existing-artifact integration and compatibility tests.
 
 ## R1 — Fast Path and Refinement Path
 
@@ -116,15 +116,15 @@ Files:
 
 Rules:
 
-- [ ] Represent a successful deterministic validation as a terminal fast-path
+- [x] Represent a successful deterministic validation as a terminal fast-path
   convergence record with `refinement_round=0`, no correction actor, and no
   extra call.
-- [ ] Represent a failed validation as a refinement record that requires a
+- [x] Represent a failed validation as a refinement record that requires a
   fresh attempt identity and exactly one Host-selected action.
-- [ ] Prove that a successful Planner skips Planning Critic and a successful
+- [x] Prove that a successful Planner skips Planning Critic and a successful
   Worker skips L1 Critic/Reviewer refinement calls until its existing review
   stage.
-- [ ] Prove that provider, security, authority, and UNKNOWN outcomes never
+- [x] Prove that provider, security, authority, and UNKNOWN outcomes never
   enter model refinement.
 
 ## R2 — Validation Ladder
@@ -132,14 +132,14 @@ Rules:
 Reuse existing validators and Host Verification; do not build a second test
 runner.
 
-- [ ] Add bounded validation-rung values V0 through V6 and a compact
+- [x] Add bounded validation-rung values V0 through V6 and a compact
   observation/result projection that references existing artifacts/tests.
-- [ ] Add deterministic ordering/short-circuit rules: V0 failure stops later
+- [x] Add deterministic ordering/short-circuit rules: V0 failure stops later
   rungs; correction restarts at V0; V4/V5 remain independent Host/Reviewer
   boundaries; V6 remains post-integration CI evidence.
-- [ ] Add tests for first-failure selection, correction restart, and no full-CI
+- [x] Add tests for first-failure selection, correction restart, and no full-CI
   invocation after a V0 failure.
-- [ ] Connect the projection to existing attempt/refinement artifacts without
+- [x] Connect the projection to existing attempt/refinement artifacts without
   moving authority into the projection.
 
 ## R3 — Planner Convergence
@@ -147,17 +147,17 @@ runner.
 Reuse `ModelPlanningAdapter`, `ModelPlanningCriticAdapter`, and
 `RootPlanningValidator`.
 
-- [ ] Add a Host-owned bounded planner convergence composition for only
+- [x] Add a Host-owned bounded planner convergence composition for only
   `invalid_json`/`invalid_proposal` responses already observed from a fresh
   provider request.
-- [ ] Enforce max four correction rounds, same signature at most twice in a
+- [x] Enforce max four correction rounds, same signature at most twice in a
   row, fresh Critic identity/session per round, and no raw conversation carryover.
-- [ ] Attach R0 metadata to each failed and fresh corrected attempt while
+- [x] Attach R0 metadata to each failed and fresh corrected attempt while
   retaining immutable failure artifacts.
-- [ ] Stop with a bounded `NON_CONVERGING` projection after diversity/escalation
+- [x] Stop with a bounded `NON_CONVERGING` projection after diversity/escalation
   limits; do not automatically alter quota, billing, privacy, or UNKNOWN
   semantics.
-- [ ] Test fast-path zero calls, one corrected proposal, repeated signature
+- [x] Test fast-path zero calls, one corrected proposal, repeated signature
   stop, changed-signature progress, transport exclusion, and identity reuse
   rejection.
 
@@ -166,35 +166,35 @@ Reuse `ModelPlanningAdapter`, `ModelPlanningCriticAdapter`, and
 Reuse `scripts/devfarm_refinement.py`, existing `RefinementContext`,
 `BoundedRefinementPolicy`, `rework_handoff`, and `reassign`.
 
-- [ ] Attach R0 metadata to existing Worker failure/refinement projections.
-- [ ] Ensure FORMAT/PATCH uses deterministic correction first where available,
+- [x] Attach R0 metadata to existing Worker failure/refinement projections.
+- [x] Ensure FORMAT/PATCH uses deterministic correction first where available,
   otherwise one Critic/Worker fresh attempt; SEMANTIC/TEST uses bounded Critic
   findings and fresh Worker rework.
-- [ ] Preserve one-axis model/reasoning changes, bounded attempts, and zero
+- [x] Preserve one-axis model/reasoning changes, bounded attempts, and zero
   Codex direct implementation for Worker-owned work.
-- [ ] Add focused tests proving immutable failed attempts, fresh identities,
+- [x] Add focused tests proving immutable failed attempts, fresh identities,
   no Critic on success, no refinement for external/security/UNKNOWN failures,
   and correct fingerprint reuse detection.
 
 ## R5 — Reviewer Feedback Loop
 
-- [ ] Project independent Reviewer `REWORK` findings into the existing
+- [x] Project independent Reviewer `REWORK` findings into the existing
   reference-first refinement packet.
-- [ ] Create a fresh Worker attempt and return through Host Verification before
+- [x] Create a fresh Worker attempt and return through Host Verification before
   reviewer re-evaluation.
-- [ ] Prove Reviewer remains proposal-only: no Git mutation, integration,
+- [x] Prove Reviewer remains proposal-only: no Git mutation, integration,
   approval consumption, ownership, or Gate promotion.
-- [ ] Add a bounded regression for APPROVE fast path and REWORK one-action path.
+- [x] Add a bounded regression for APPROVE fast path and REWORK one-action path.
 
 ## R6 — Convergence Ratchet and Finite Stop
 
-- [ ] Add a pure comparator for failure count, validation rung, signature
+- [x] Add a pure comparator for failure count, validation rung, signature
   resolution, and changed-failure progress.
-- [ ] Emit `PROGRESS`, `NO_PROGRESS`, `STUCK`, and `NON_CONVERGING` using the
+- [x] Emit `PROGRESS`, `NO_PROGRESS`, `STUCK`, and `NON_CONVERGING` using the
   configured finite budget: four rounds, same signature twice, one diversity
   change, one tier escalation, one final Codex diagnostic proposal.
-- [ ] Keep tier/reasoning escalation Host-selected and one-axis only.
-- [ ] Test that no unbounded loop is introduced and that stop reasons survive
+- [x] Keep tier/reasoning escalation Host-selected and one-axis only.
+- [x] Test that no unbounded loop is introduced and that stop reasons survive
   serialization/restart through existing durable artifacts.
 
 ## R7 — External Failure Non-Blocking Runtime

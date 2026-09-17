@@ -14,6 +14,8 @@ from typing import Any, Protocol
 
 from src.dev_agent.intelligence.critic_adapter import ModelCriticAdapter
 from src.dev_agent.providers.host_dispatch import route_through_host
+from src.dev_agent.coordination.protocol_helpers import ensure_json_safe, ensure_secret_free
+from scripts.devfarm_review_protocol import normalize_review_decision
 from src.dev_agent.intelligence.refinement import (
     BoundedRefinementPolicy,
     RefinementAction,
@@ -22,6 +24,7 @@ from src.dev_agent.intelligence.refinement import (
     RefinementProposal,
     RefinementPlan,
 )
+from src.dev_agent.intelligence.convergence import ConvergenceMetadata, FailureFingerprint
 
 
 class RefinementCompositionError(ValueError):
@@ -170,6 +173,15 @@ def classify_worker_failure(
 def plan_refinement(
     context: RefinementContext,
     failure_category: str,
+    *,
+    source_attempt_id: str | None = None,
+    current_model_identity: str = "host-policy",
+    previous_model_identity: str | None = None,
+    validator_refs: tuple[str, ...] = (),
+    test_ids: tuple[str, ...] = (),
+    response_contract: str | None = None,
+    patch_category: str | None = None,
+    error_code: str | None = None,
 ) -> RefinementPlan:
     """Plan one bounded next action from a Host failure category.
 
@@ -185,7 +197,45 @@ def plan_refinement(
         failure_category,
         external_outcome_known=context.external_outcome_known,
     )
-    return BoundedRefinementPolicy().plan(replace(context, failure_class=failure))
+    plan = BoundedRefinementPolicy().plan(replace(context, failure_class=failure))
+    # FORMAT/PATCH and SEMANTIC/TEST are the model-convergence lane.  External
+    # effects, authority, and provider failures remain on their existing
+    # reconciliation/failover boundaries and must not be represented as model
+    # refinement work.
+    if failure not in {FailureClass.FORMAT_PATCH, FailureClass.SEMANTIC_TEST}:
+        return plan
+
+    default_validator = (
+        "worker:patch_validation"
+        if failure is FailureClass.FORMAT_PATCH
+        else "worker:host_verification"
+    )
+    fingerprint = FailureFingerprint.from_observation(
+        failure_class=failure.value,
+        validator_refs=validator_refs or (default_validator,),
+        response_contract=response_contract,
+        test_ids=test_ids,
+        patch_category=patch_category or (
+            "patch_output" if failure is FailureClass.FORMAT_PATCH else "semantic_contract"
+        ),
+        error_code=error_code or (
+            "PATCH_VALIDATION_FAILED"
+            if failure is FailureClass.FORMAT_PATCH
+            else "HOST_VERIFICATION_FAILED"
+        ),
+    )
+    attempt_id = source_attempt_id or f"attempt-{context.attempt}-{context.task_id}"
+    convergence = ConvergenceMetadata.from_validation(
+        passed=False,
+        refinement_round=plan.refinement_round,
+        current_model_identity=current_model_identity,
+        source_attempt_id=attempt_id,
+        failure=fingerprint,
+        correction_actor="host_policy",
+        previous_model_identity=previous_model_identity,
+        validator_refs=fingerprint.validator_refs,
+    )
+    return replace(plan, convergence=convergence)
 
 
 def _failure_class(value: FailureClass | str) -> str:
@@ -253,6 +303,63 @@ def build_refinement_packet(
     if patch_sha256 is not None:
         result["patch_sha256"] = patch_sha256
     return result
+
+
+def build_reviewer_rework_packet(
+    runner: ReviewPacketSource,
+    task_id: str,
+    review_decision: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Project one durable Reviewer decision into a bounded rework packet.
+
+    ``APPROVE_INTEGRATION`` is a fast-path projection and returns ``None``;
+    this helper never creates an integration decision.  Only ``REWORK`` is
+    converted, and the packet carries the durable decision identity and
+    evidence references rather than copying reviewer prose into a Worker
+    request.  The caller still has to pass the packet through the existing
+    ``RefinementPlan`` and ``apply_refinement_action`` Host boundaries.
+    """
+
+    try:
+        normalized = normalize_review_decision(review_decision)
+        ensure_json_safe(normalized, "review decision")
+        ensure_secret_free(normalized, "review decision")
+    except (TypeError, ValueError) as exc:
+        raise RefinementCompositionError("review decision is not a safe bounded object") from exc
+
+    decision = normalized["decision"]
+    if decision == "APPROVE_INTEGRATION":
+        return None
+    if decision != "REWORK":
+        raise RefinementCompositionError("only a durable REWORK decision can create a rework packet")
+
+    if normalized["task_id"] != task_id:
+        raise RefinementCompositionError("review decision task_id does not match task_id")
+    packet = build_refinement_packet(
+        runner,
+        task_id,
+        failure_class=FailureClass.SEMANTIC_TEST,
+        failure_summary="independent Reviewer requested bounded rework",
+    )
+    if packet["attempt_id"] != normalized["attempt_id"]:
+        raise RefinementCompositionError("review decision attempt_id does not match the current attempt")
+    required_correction = normalized.get("required_correction")
+    if not isinstance(required_correction, str) or not required_correction.strip():
+        raise RefinementCompositionError("REWORK decision requires required_correction")
+    required_correction = _bounded_summary(required_correction)
+    ensure_secret_free({"required_correction": required_correction}, "review correction")
+    packet["required_correction"] = required_correction
+    packet["review_findings_reference"] = {
+        "kind": "review_findings",
+        "decision_id": normalized["decision_id"],
+        "task_id": normalized["task_id"],
+        "attempt_id": normalized["attempt_id"],
+        "finding_count": len(normalized["findings"]),
+        "evidence_refs": list(normalized["evidence_refs"]),
+    }
+    ensure_json_safe(packet, "reviewer rework packet")
+    ensure_secret_free(packet, "reviewer rework packet")
+    return packet
 
 
 def propose_critic(
@@ -460,6 +567,7 @@ __all__ = [
     "apply_refinement_action",
     "ReviewPacketSource",
     "build_refinement_packet",
+    "build_reviewer_rework_packet",
     "classify_worker_failure",
     "plan_refinement",
     "propose_critic",

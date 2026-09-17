@@ -44,11 +44,32 @@ class ConvergenceStopReason(str, Enum):
     VALIDATION_FAILED = "VALIDATION_FAILED"
 
 
-_TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$")
+class ValidationRung(str, Enum):
+    """Ordered validation stages for one immutable attempt."""
+
+    V0 = "V0"
+    V1 = "V1"
+    V2 = "V2"
+    V3 = "V3"
+    V4 = "V4"
+    V5 = "V5"
+    V6 = "V6"
+
+
+_TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:/@-]{0,255}$")
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
 _MAX_REFS = 64
 _MAX_ROUND = 64
 _MAX_CONVERGENCE_BYTES = 32 * 1024
+_VALIDATION_ORDER = (
+    ValidationRung.V0,
+    ValidationRung.V1,
+    ValidationRung.V2,
+    ValidationRung.V3,
+    ValidationRung.V4,
+    ValidationRung.V5,
+    ValidationRung.V6,
+)
 
 
 def _raw_value(value: Any) -> Any:
@@ -288,7 +309,12 @@ class ConvergenceMetadata:
             raise ValueError("convergence metadata exceeds its size bound")
 
     @classmethod
-    def fast_path(cls, *, current_model_identity: str) -> "ConvergenceMetadata":
+    def fast_path(
+        cls,
+        *,
+        current_model_identity: str,
+        validator_refs: Sequence[Any] = (),
+    ) -> "ConvergenceMetadata":
         return cls(
             refinement_round=0,
             source_attempt_id=None,
@@ -298,9 +324,50 @@ class ConvergenceMetadata:
             correction_actor=None,
             previous_model_identity=None,
             current_model_identity=current_model_identity,
-            validator_refs=(),
+            validator_refs=tuple(validator_refs),
             convergence_state=ConvergenceState.FAST_PATH,
             stop_reason=ConvergenceStopReason.FAST_PATH,
+        )
+
+    @classmethod
+    def from_validation(
+        cls,
+        *,
+        passed: bool,
+        refinement_round: int,
+        current_model_identity: str,
+        validator_refs: Sequence[Any] = (),
+        source_attempt_id: str | None = None,
+        fresh_attempt_id: str | None = None,
+        failure: FailureFingerprint | None = None,
+        correction_actor: str | None = None,
+        previous_model_identity: str | None = None,
+    ) -> "ConvergenceMetadata":
+        """Project one validation result onto the fast/refinement paths."""
+
+        if not isinstance(passed, bool):
+            raise ValueError("passed must be a boolean")
+        if passed and failure is not None:
+            raise ValueError("a passing validation cannot carry a failure")
+        if not passed and not isinstance(failure, FailureFingerprint):
+            raise ValueError("a failed validation requires a FailureFingerprint")
+        if passed and refinement_round == 0:
+            return cls.fast_path(
+                current_model_identity=current_model_identity,
+                validator_refs=validator_refs,
+            )
+        return cls(
+            refinement_round=refinement_round,
+            source_attempt_id=source_attempt_id,
+            fresh_attempt_id=fresh_attempt_id,
+            failure_class=failure.failure_class if failure is not None else None,
+            failure_signature=failure.failure_signature if failure is not None else None,
+            correction_actor=correction_actor,
+            previous_model_identity=previous_model_identity,
+            current_model_identity=current_model_identity,
+            validator_refs=tuple(validator_refs),
+            convergence_state=ConvergenceState.REFINEMENT if not passed else ConvergenceState.COMPLETED,
+            stop_reason=None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -372,10 +439,373 @@ def same_failure_signature(left: Any, right: Any) -> bool:
     return _signature_value(left, "left") == _signature_value(right, "right")
 
 
+@dataclass(frozen=True)
+class ValidationObservation:
+    """One bounded result from the ordered validation ladder."""
+
+    rung: ValidationRung
+    passed: bool
+    validator_refs: tuple[str, ...] = field(default_factory=tuple)
+    failure: FailureFingerprint | None = None
+
+    def __post_init__(self) -> None:
+        try:
+            rung = self.rung if isinstance(self.rung, ValidationRung) else ValidationRung(self.rung)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("rung is unsupported") from exc
+        if not isinstance(self.passed, bool):
+            raise ValueError("passed must be a boolean")
+        refs = _token_sequence(self.validator_refs, "validator_refs")
+        if self.passed and self.failure is not None:
+            raise ValueError("a passing validation cannot carry a failure")
+        if not self.passed and not isinstance(self.failure, FailureFingerprint):
+            raise ValueError("a failed validation requires a FailureFingerprint")
+        object.__setattr__(self, "rung", rung)
+        object.__setattr__(self, "validator_refs", refs)
+        encoded = self.to_dict()
+        ensure_json_safe(encoded, "validation observation")
+        ensure_secret_free(encoded, "validation observation")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "rung": self.rung.value,
+            "passed": self.passed,
+            "validator_refs": list(self.validator_refs),
+            "failure": self.failure.to_dict() if self.failure is not None else None,
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "ValidationObservation":
+        if not isinstance(value, Mapping):
+            raise ValueError("validation observation must be an object")
+        allowed = {"rung", "passed", "validator_refs", "failure"}
+        unknown = set(value) - allowed
+        if unknown:
+            raise ValueError(f"unknown validation observation field: {sorted(unknown)[0]}")
+        failure_value = value.get("failure")
+        failure = None if failure_value is None else FailureFingerprint.from_dict(failure_value)
+        return cls(
+            rung=value.get("rung"),
+            passed=value.get("passed"),
+            validator_refs=value.get("validator_refs", ()),
+            failure=failure,
+        )
+
+
+@dataclass(frozen=True)
+class ValidationLadder:
+    """Prefix of V0..V6; a failure short-circuits all later rungs."""
+
+    observations: tuple[ValidationObservation, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if isinstance(self.observations, (str, bytes)) or not isinstance(self.observations, Sequence):
+            raise ValueError("observations must be a sequence")
+        observations = tuple(self.observations)
+        if len(observations) > len(_VALIDATION_ORDER) or any(
+            not isinstance(item, ValidationObservation) for item in observations
+        ):
+            raise ValueError("observations must be an ordered validation prefix")
+        for index, observation in enumerate(observations):
+            if observation.rung is not _VALIDATION_ORDER[index]:
+                raise ValueError("validation observations must start at V0 and remain ordered")
+            if not observation.passed and index != len(observations) - 1:
+                raise ValueError("validation failure must be the final observed rung")
+        object.__setattr__(self, "observations", observations)
+        encoded = self.to_dict()
+        ensure_json_safe(encoded, "validation ladder")
+        ensure_secret_free(encoded, "validation ladder")
+
+    @property
+    def first_failure(self) -> ValidationObservation | None:
+        if self.observations and not self.observations[-1].passed:
+            return self.observations[-1]
+        return None
+
+    @property
+    def next_rung(self) -> ValidationRung | None:
+        if self.first_failure is not None:
+            return ValidationRung.V0
+        if len(self.observations) == len(_VALIDATION_ORDER):
+            return None
+        return _VALIDATION_ORDER[len(self.observations)]
+
+    def record(self, observation: ValidationObservation) -> "ValidationLadder":
+        if not isinstance(observation, ValidationObservation):
+            raise TypeError("observation must be ValidationObservation")
+        if self.first_failure is not None:
+            raise ValueError("a failed ladder must restart at V0 for a fresh attempt")
+        return ValidationLadder(observations=(*self.observations, observation))
+
+    def restart_after_correction(self) -> "ValidationLadder":
+        if self.first_failure is None:
+            raise ValueError("only a failed ladder can restart after correction")
+        return ValidationLadder()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"observations": [item.to_dict() for item in self.observations]}
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "ValidationLadder":
+        if not isinstance(value, Mapping):
+            raise ValueError("validation ladder must be an object")
+        allowed = {"observations"}
+        unknown = set(value) - allowed
+        if unknown:
+            raise ValueError(f"unknown validation ladder field: {sorted(unknown)[0]}")
+        observations = value.get("observations", ())
+        if isinstance(observations, (str, bytes)) or not isinstance(observations, Sequence):
+            raise ValueError("observations must be a sequence")
+        return cls(observations=tuple(ValidationObservation.from_dict(item) for item in observations))
+
+
+@dataclass(frozen=True)
+class ConvergenceObservation:
+    """Sanitized state used to compare two adjacent refinement attempts."""
+
+    failure_count: int
+    validation_rung: ValidationRung | None
+    failure_signature: str | None
+    refinement_round: int
+
+    def __post_init__(self) -> None:
+        for name, value, maximum in (
+            ("failure_count", self.failure_count, 64),
+            ("refinement_round", self.refinement_round, _MAX_ROUND),
+        ):
+            if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= maximum:
+                raise ValueError(f"{name} must be an integer between 0 and {maximum}")
+        rung = self.validation_rung
+        if rung is not None:
+            try:
+                rung = rung if isinstance(rung, ValidationRung) else ValidationRung(rung)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("validation_rung is unsupported") from exc
+        signature = _optional_digest(self.failure_signature, "failure_signature")
+        if self.failure_count == 0 and signature is not None:
+            raise ValueError("zero failures cannot carry a failure signature")
+        if self.failure_count > 0 and signature is None:
+            raise ValueError("a failed observation requires a failure signature")
+        object.__setattr__(self, "validation_rung", rung)
+        object.__setattr__(self, "failure_signature", signature)
+        encoded = self.to_dict()
+        ensure_json_safe(encoded, "convergence observation")
+        ensure_secret_free(encoded, "convergence observation")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "failure_count": self.failure_count,
+            "validation_rung": self.validation_rung.value if self.validation_rung is not None else None,
+            "failure_signature": self.failure_signature,
+            "refinement_round": self.refinement_round,
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "ConvergenceObservation":
+        if not isinstance(value, Mapping):
+            raise ValueError("convergence observation must be an object")
+        allowed = {"failure_count", "validation_rung", "failure_signature", "refinement_round"}
+        unknown = set(value) - allowed
+        if unknown:
+            raise ValueError(f"unknown convergence observation field: {sorted(unknown)[0]}")
+        return cls(
+            failure_count=value.get("failure_count"),
+            validation_rung=value.get("validation_rung"),
+            failure_signature=value.get("failure_signature"),
+            refinement_round=value.get("refinement_round"),
+        )
+
+
+@dataclass(frozen=True)
+class ConvergenceAssessment:
+    """Bounded, serializable comparison result for adjacent attempts."""
+
+    previous: ConvergenceObservation
+    current: ConvergenceObservation
+    state: ConvergenceState
+    failure_count_delta: int
+    validation_advanced: bool
+    signature_resolved: bool
+    failure_changed: bool
+    reasons: tuple[str, ...]
+    stop_reason: ConvergenceStopReason | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.previous, ConvergenceObservation) or not isinstance(self.current, ConvergenceObservation):
+            raise ValueError("assessment observations must be ConvergenceObservation values")
+        try:
+            state = self.state if isinstance(self.state, ConvergenceState) else ConvergenceState(self.state)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("assessment state is unsupported") from exc
+        if isinstance(self.failure_count_delta, bool) or not isinstance(self.failure_count_delta, int):
+            raise ValueError("failure_count_delta must be an integer")
+        for name, value in (
+            ("validation_advanced", self.validation_advanced),
+            ("signature_resolved", self.signature_resolved),
+            ("failure_changed", self.failure_changed),
+        ):
+            if not isinstance(value, bool):
+                raise ValueError(f"{name} must be a boolean")
+        reasons = _token_sequence(self.reasons, "reasons")
+        if state is ConvergenceState.NON_CONVERGING and self.stop_reason is None:
+            raise ValueError("NON_CONVERGING assessment requires stop_reason")
+        if state is not ConvergenceState.NON_CONVERGING and self.stop_reason is not None:
+            raise ValueError("stop_reason is only valid for NON_CONVERGING assessment")
+        try:
+            stop_reason = (
+                self.stop_reason
+                if self.stop_reason is None or isinstance(self.stop_reason, ConvergenceStopReason)
+                else ConvergenceStopReason(self.stop_reason)
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError("assessment stop_reason is unsupported") from exc
+        object.__setattr__(self, "state", state)
+        object.__setattr__(self, "reasons", reasons)
+        object.__setattr__(self, "stop_reason", stop_reason)
+        encoded = self.to_dict()
+        ensure_json_safe(encoded, "convergence assessment")
+        ensure_secret_free(encoded, "convergence assessment")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "previous": self.previous.to_dict(),
+            "current": self.current.to_dict(),
+            "state": self.state.value,
+            "failure_count_delta": self.failure_count_delta,
+            "validation_advanced": self.validation_advanced,
+            "signature_resolved": self.signature_resolved,
+            "failure_changed": self.failure_changed,
+            "reasons": list(self.reasons),
+            "stop_reason": self.stop_reason.value if self.stop_reason is not None else None,
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "ConvergenceAssessment":
+        if not isinstance(value, Mapping):
+            raise ValueError("convergence assessment must be an object")
+        allowed = {
+            "previous",
+            "current",
+            "state",
+            "failure_count_delta",
+            "validation_advanced",
+            "signature_resolved",
+            "failure_changed",
+            "reasons",
+            "stop_reason",
+        }
+        unknown = set(value) - allowed
+        if unknown:
+            raise ValueError(f"unknown convergence assessment field: {sorted(unknown)[0]}")
+        reasons = value.get("reasons", ())
+        if isinstance(reasons, (str, bytes)) or not isinstance(reasons, Sequence):
+            raise ValueError("assessment reasons must be a sequence")
+        return cls(
+            previous=ConvergenceObservation.from_dict(value.get("previous")),
+            current=ConvergenceObservation.from_dict(value.get("current")),
+            state=value.get("state"),
+            failure_count_delta=value.get("failure_count_delta"),
+            validation_advanced=value.get("validation_advanced"),
+            signature_resolved=value.get("signature_resolved"),
+            failure_changed=value.get("failure_changed"),
+            reasons=tuple(reasons),
+            stop_reason=value.get("stop_reason"),
+        )
+
+
+def _validation_position(rung: ValidationRung | None) -> int:
+    return -1 if rung is None else _VALIDATION_ORDER.index(rung)
+
+
+def assess_convergence(
+    previous: ConvergenceObservation,
+    current: ConvergenceObservation,
+    *,
+    same_signature_count: int = 1,
+    same_signature_limit: int = 2,
+    max_refinement_rounds: int = 4,
+) -> ConvergenceAssessment:
+    """Compare adjacent attempts without dispatching or owning persistence."""
+
+    if not isinstance(previous, ConvergenceObservation) or not isinstance(current, ConvergenceObservation):
+        raise TypeError("previous and current must be ConvergenceObservation values")
+    for name, value, minimum in (
+        ("same_signature_count", same_signature_count, 1),
+        ("same_signature_limit", same_signature_limit, 1),
+        ("max_refinement_rounds", max_refinement_rounds, 1),
+    ):
+        if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
+            raise ValueError(f"{name} must be an integer >= {minimum}")
+    if same_signature_count > same_signature_limit:
+        raise ValueError("same_signature_count cannot exceed same_signature_limit")
+    if max_refinement_rounds > _MAX_ROUND:
+        raise ValueError("max_refinement_rounds exceeds the convergence bound")
+
+    failure_count_delta = current.failure_count - previous.failure_count
+    validation_advanced = _validation_position(current.validation_rung) > _validation_position(previous.validation_rung)
+    signature_resolved = previous.failure_signature is not None and current.failure_signature is None
+    failure_changed = (
+        previous.failure_signature is not None
+        and current.failure_signature is not None
+        and previous.failure_signature != current.failure_signature
+    )
+    same_signature = (
+        previous.failure_signature is not None
+        and previous.failure_signature == current.failure_signature
+    )
+    reasons: list[str] = []
+    if failure_count_delta < 0:
+        reasons.append("failure_count_reduced")
+    if validation_advanced:
+        reasons.append("validation_rung_advanced")
+    if signature_resolved:
+        reasons.append("failure_signature_resolved")
+    if failure_changed:
+        reasons.append("failure_signature_changed")
+
+    if reasons:
+        state = ConvergenceState.PROGRESS
+        stop_reason = None
+    elif current.refinement_round >= max_refinement_rounds:
+        state = ConvergenceState.NON_CONVERGING
+        stop_reason = ConvergenceStopReason.BUDGET_EXHAUSTED
+        reasons.append("refinement_budget_exhausted")
+    elif same_signature and same_signature_count >= same_signature_limit:
+        state = ConvergenceState.NON_CONVERGING
+        stop_reason = ConvergenceStopReason.SAME_SIGNATURE_LIMIT
+        reasons.append("same_failure_signature_limit")
+    elif same_signature:
+        state = ConvergenceState.STUCK
+        stop_reason = None
+        reasons.append("same_failure_signature")
+    else:
+        state = ConvergenceState.NO_PROGRESS
+        stop_reason = None
+        reasons.append("no_bounded_progress")
+
+    return ConvergenceAssessment(
+        previous=previous,
+        current=current,
+        state=state,
+        failure_count_delta=failure_count_delta,
+        validation_advanced=validation_advanced,
+        signature_resolved=signature_resolved,
+        failure_changed=failure_changed,
+        reasons=tuple(reasons),
+        stop_reason=stop_reason,
+    )
+
+
 __all__ = [
+    "ConvergenceAssessment",
     "ConvergenceMetadata",
+    "ConvergenceObservation",
     "ConvergenceState",
     "ConvergenceStopReason",
     "FailureFingerprint",
+    "ValidationLadder",
+    "ValidationObservation",
+    "ValidationRung",
+    "assess_convergence",
     "same_failure_signature",
 ]

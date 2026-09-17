@@ -8,8 +8,14 @@ from src.dev_agent.intelligence.convergence import (
     ConvergenceMetadata,
     ConvergenceState,
     ConvergenceStopReason,
+    ConvergenceAssessment,
+    ConvergenceObservation,
     FailureFingerprint,
     same_failure_signature,
+    ValidationLadder,
+    ValidationObservation,
+    ValidationRung,
+    assess_convergence,
 )
 from src.dev_agent.intelligence.refinement import (
     BoundedRefinementPolicy,
@@ -112,6 +118,73 @@ def test_fast_path_metadata_is_zero_round_and_has_no_failure_or_extra_work():
     assert metadata.to_dict()["correction_actor"] is None
 
 
+def test_validation_success_projects_fast_path_without_refinement():
+    metadata = ConvergenceMetadata.from_validation(
+        passed=True,
+        refinement_round=0,
+        current_model_identity="gemini:free-3:model-a",
+        validator_refs=("schema:planner", "tests/v2/test_planner.py::test_shape"),
+    )
+
+    assert metadata.convergence_state is ConvergenceState.FAST_PATH
+    assert metadata.stop_reason is ConvergenceStopReason.FAST_PATH
+    assert metadata.refinement_round == 0
+    assert metadata.failure_signature is None
+
+
+def test_failed_validation_projects_refinement_and_requires_a_fresh_path():
+    fingerprint = _fingerprint()
+    metadata = ConvergenceMetadata.from_validation(
+        passed=False,
+        refinement_round=1,
+        current_model_identity="gemini:free-3:model-a",
+        source_attempt_id="attempt-source",
+        failure=fingerprint,
+        correction_actor="l1_critic",
+    )
+
+    assert metadata.convergence_state is ConvergenceState.REFINEMENT
+    assert metadata.failure_signature == fingerprint.failure_signature
+    assert metadata.fresh_attempt_id is None
+
+
+def test_validation_ladder_short_circuits_at_first_failure_and_restarts_at_v0():
+    fingerprint = _fingerprint(error_code="MALFORMED_PATCH")
+    ladder = ValidationLadder().record(
+        ValidationObservation(ValidationRung.V0, passed=True, validator_refs=("json:parse",))
+    )
+    failed = ladder.record(
+        ValidationObservation(
+            ValidationRung.V1,
+            passed=False,
+            validator_refs=("patch:apply",),
+            failure=fingerprint,
+        )
+    )
+
+    assert failed.first_failure is not None
+    assert failed.first_failure.rung is ValidationRung.V1
+    assert failed.next_rung is ValidationRung.V0
+    assert failed.restart_after_correction() == ValidationLadder()
+    with pytest.raises(ValueError, match="fresh attempt"):
+        failed.record(ValidationObservation(ValidationRung.V2, passed=True))
+
+
+def test_validation_ladder_requires_an_ordered_prefix_and_round_trips():
+    with pytest.raises(ValueError, match="start at V0"):
+        ValidationLadder(
+            observations=(ValidationObservation(ValidationRung.V1, passed=True),)
+        )
+    ladder = ValidationLadder(
+        observations=(
+            ValidationObservation(ValidationRung.V0, passed=True),
+            ValidationObservation(ValidationRung.V1, passed=True),
+        )
+    )
+    assert ValidationLadder.from_dict(ladder.to_dict()) == ladder
+    assert ladder.next_rung is ValidationRung.V2
+
+
 def test_refinement_metadata_binds_source_to_a_distinct_fresh_attempt():
     fingerprint = _fingerprint()
     source_attempt = str(uuid4())
@@ -185,3 +258,63 @@ def test_existing_refinement_plan_can_carry_convergence_metadata():
 
     assert type(enriched.from_dict(enriched.to_dict()).convergence) is ConvergenceMetadata
     assert enriched.from_dict(enriched.to_dict()) == enriched
+
+
+def _observation(*, failure_count: int, rung: ValidationRung, signature=None, round=1):
+    return ConvergenceObservation(
+        failure_count=failure_count,
+        validation_rung=rung,
+        failure_signature=signature,
+        refinement_round=round,
+    )
+
+
+def test_convergence_assessment_marks_lower_failure_count_and_later_rung_as_progress():
+    previous = _observation(failure_count=2, rung=ValidationRung.V1, signature=_fingerprint().failure_signature)
+    current = _observation(failure_count=1, rung=ValidationRung.V2, signature=_fingerprint(error_code="OTHER").failure_signature)
+
+    assessment = assess_convergence(previous, current)
+
+    assert isinstance(assessment, ConvergenceAssessment)
+    assert assessment.state is ConvergenceState.PROGRESS
+    assert assessment.failure_count_delta == -1
+    assert assessment.validation_advanced is True
+    assert assessment.failure_changed is True
+    assert assessment.stop_reason is None
+
+
+def test_convergence_assessment_marks_signature_resolution_as_progress():
+    previous = _observation(failure_count=1, rung=ValidationRung.V2, signature=_fingerprint().failure_signature)
+    current = _observation(failure_count=0, rung=ValidationRung.V6, signature=None)
+
+    assessment = assess_convergence(previous, current)
+
+    assert assessment.state is ConvergenceState.PROGRESS
+    assert assessment.signature_resolved is True
+
+
+def test_convergence_assessment_distinguishes_no_progress_stuck_and_budget_stop():
+    signature = _fingerprint().failure_signature
+    previous = _observation(failure_count=1, rung=ValidationRung.V1, signature=signature, round=1)
+    same = _observation(failure_count=1, rung=ValidationRung.V1, signature=signature, round=2)
+
+    stuck = assess_convergence(previous, same, same_signature_count=1)
+    exhausted = assess_convergence(previous, same, same_signature_count=2)
+    budget = assess_convergence(previous, same, same_signature_count=1, max_refinement_rounds=2)
+
+    assert stuck.state is ConvergenceState.STUCK
+    assert stuck.stop_reason is None
+    assert exhausted.state is ConvergenceState.NON_CONVERGING
+    assert exhausted.stop_reason is ConvergenceStopReason.SAME_SIGNATURE_LIMIT
+    assert budget.state is ConvergenceState.NON_CONVERGING
+    assert budget.stop_reason is ConvergenceStopReason.BUDGET_EXHAUSTED
+
+
+def test_convergence_assessment_round_trips_as_bounded_evidence():
+    signature = _fingerprint().failure_signature
+    assessment = assess_convergence(
+        _observation(failure_count=1, rung=ValidationRung.V1, signature=signature),
+        _observation(failure_count=1, rung=ValidationRung.V2, signature=signature, round=2),
+    )
+
+    assert ConvergenceAssessment.from_dict(assessment.to_dict()) == assessment
