@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "evidence_id": "phase8-planner-alternate-provider-unavailable-20260917",
+  "evidence_kind": "phase8_fresh_planner_alternate_provider_observation",
+  "recorded_at": "2026-09-17T02:49:56Z",
+  "scope": {
+    "purpose": "bounded Phase 8 Planner transport/availability diagnosis after the prior unknown operation",
+    "fresh_operations": 2,
+    "reused_unknown_operation": false,
+    "execution_boundary": "host_process",
+    "allow_unknown_quota": true,
+    "planning_critic_pool": "separately admitted Cloudflare L1; proposal-only"
+  },
+  "operations": [
+    {
+      "root_id": "eab0b7b7-0de4-4b22-ac5f-bf2baade5a52",
+      "request_id": "3dfbe55b-a18f-4940-acc2-42bab0ffd339",
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-4",
+      "model_id": "gemini-3.8-flash",
+      "quota_domain": "gemini:project:497456937770",
+      "result": "provider_unavailable",
+      "failover_safe": true,
+      "reconciliation_required": false,
+      "provider_response_observed": false,
+      "critic_invoked": false
+    },
+    {
+      "root_id": "4d5aeda1-f955-4c6f-8fcb-5072cfb7bd3f",
+      "request_id": "1b24ac7e-6b7e-4148-8404-8340d1b39202",
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-5",
+      "model_id": "gemini-3.8-flash",
+      "quota_domain": "gemini:project:691705059831",
+      "result": "provider_unavailable",
+      "failover_safe": true,
+      "reconciliation_required": false,
+      "provider_response_observed": false,
+      "critic_invoked": false
+    }
+  ],
+  "safety_semantics": {
+    "same_binding_retried": false,
+    "unknown_operation_replayed": false,
+    "automatic_l1_downgrade": false,
+    "unqualified_route_used": false,
+    "paid_route_used": false,
+    "raw_provider_response_stored": false,
+    "credential_stored": false,
+    "gate_promotion": false
+  },
+  "interpretation": "Two fresh same-tier alternate Gemini bindings were admitted under the existing bounded UNKNOWN-quota policy but each returned confirmed provider_unavailable before a Planner response. These are failover-safe availability observations, not model-output failures; the independent Planner Critic was correctly not invoked. No prior UNKNOWN operation was replayed and no live Planner proposal was obtained.",
+  "gate_impact": {
+    "d9_dogfood": "unchanged_verified",
+    "phase8_preparation": "unchanged_preparation_only",
+    "phase8_live_activation": "unchanged_not_verified",
+    "ar1_live_recovery": "not_demonstrated",
+    "d9_production_deployment": "unchanged_deferred_not_ready"
+  }
+}
