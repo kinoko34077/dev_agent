@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "evidence_id": "planner-shadow-unexpected-failure-redaction-20260917",
+  "evidence_kind": "phase_a_planner_shadow_unexpected_failure_projection",
+  "recorded_at": "2026-09-17T00:15:00Z",
+  "implementation_baseline": {
+    "revision": "73473ef00c5c0957bf2d05b9a923483f1eb8fea5",
+    "message": "fix: redact unexpected planner shadow failures"
+  },
+  "scope": {
+    "boundary": "proposal-only Planner Shadow outer exception fallback",
+    "covered_outcome": "unexpected non-Provider exception",
+    "projection": [
+      "status",
+      "bounded category",
+      "exception type",
+      "reconciliation_required",
+      "parent task identity"
+    ]
+  },
+  "verified_behavior": {
+    "raw_exception_message_projected": false,
+    "exception_type_projected": true,
+    "reconciliation_required_fail_closed": true,
+    "fresh_provider_request_created": false,
+    "provider_response_projected": false,
+    "credential_projected": false,
+    "source_payload_projected": false
+  },
+  "safety_semantics": {
+    "same_request_retry": false,
+    "same_binding_retry": false,
+    "automatic_failover": false,
+    "unknown_external_effect_replayed": false,
+    "host_validation_claimed": false,
+    "gate_promotion": false
+  },
+  "verification": {
+    "focused": "29 Planner adapter and transport semantics tests passed",
+    "full_tests_v2": "1401 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head": "73473ef00c5c0957bf2d05b9a923483f1eb8fea5",
+    "ci": {
+      "v2-core": {
+        "run_id": 35165926656,
+        "conclusion": "success"
+      },
+      "v2-provider-smoke": {
+        "run_id": 35165926677,
+        "conclusion": "success"
+      }
+    }
+  },
+  "interpretation": "Unexpected Planner Shadow failures are now projected without raw exception text and conservatively require reconciliation because the outer fallback cannot prove whether a Provider boundary was crossed. This is a redaction and fail-closed diagnostic change only; it does not add retry, failover, scheduling, or planning authority.",
+  "gate_impact": {
+    "d9_dogfood": "unchanged_verified",
+    "phase8_preparation": "unchanged_preparation_only",
+    "phase8_live_activation": "not_verified",
+    "ar1_live_recovery": "not_demonstrated"
+  }
+}
