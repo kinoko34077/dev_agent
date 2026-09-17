@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "evidence_id": "planner-shadow-local-admission-diagnostics-20260917",
+  "evidence_kind": "planner_shadow_pre_provider_failure_projection",
+  "recorded_at": "2026-09-17T06:25:29.8247302Z",
+  "implementation_baseline": {
+    "revision": "2cb6639",
+    "message": "fix: classify planner admission failures locally"
+  },
+  "scope": {
+    "planner_shadow": "pre-provider admission and resource-pool composition",
+    "failure_categories": [
+      "no_route",
+      "planning_critic_no_route",
+      "resource_pool_admission",
+      "resource_pool_composition"
+    ],
+    "external_execution": "not invoked"
+  },
+  "verified_behavior": {
+    "admission_no_route_status": "blocked_local",
+    "admission_no_route_reconciliation_required": false,
+    "resource_pool_composition_status": "blocked_local",
+    "resource_pool_composition_reconciliation_required": false,
+    "raw_exception_message_projected": false,
+    "provider_request_started": false,
+    "unknown_external_effect_invented": false
+  },
+  "safety_semantics": {
+    "provider_retry_changed": false,
+    "provider_failover_changed": false,
+    "unknown_replay_allowed": false,
+    "quota_policy_changed": false,
+    "billing_policy_changed": false,
+    "new_scheduler": false,
+    "new_state_store": false,
+    "new_retry_state_machine": false,
+    "gate_promotion": false
+  },
+  "verification": {
+    "focused": "python -m pytest tests/v2/test_planner_adapter.py tests/v2/test_planning_critic_adapter.py tests/v2/test_devfarm_resource_pool.py tests/v2/test_devfarm_shared_boundaries.py tests/v2/test_provider_transport_semantics.py tests/v2/test_host_provider_dispatch.py tests/v2/test_openai_compatible_http.py -q => 81 passed",
+    "full_tests_v2": "python -m pytest tests/v2 -q => 1449 passed, 1 skipped",
+    "architecture": "python scripts/check_architecture.py => ARCHITECTURE_PASS",
+    "compileall": "python -m compileall -q src recovery scripts => PASS",
+    "local_commit": "2cb6639",
+    "exact_head_ci": "not run for local commit; remote exact-head evidence remains on e5a5f893591f21f638d7105ec4d735740134a803"
+  },
+  "gate_impact": {
+    "d9_dogfood": "unchanged_verified",
+    "phase8_preparation": "unchanged_preparation_only",
+    "phase8_live_activation": "unchanged_not_verified",
+    "ar1_live_recovery": "not_demonstrated",
+    "d9_production_deployment": "unchanged_deferred_not_ready"
+  },
+  "interpretation": "Provider transport taxonomy remains the diagnostic layer for failures after Provider invocation. Admission and resource-pool failures now remain local pre-provider blocks and cannot be mistaken for external UNKNOWN outcomes. This is diagnostics evidence only; it does not prove a fresh live Planner proposal or Phase 8 LIVE_ACTIVATION."
+}

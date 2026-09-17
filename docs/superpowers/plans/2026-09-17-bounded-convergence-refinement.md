@@ -228,6 +228,10 @@ reconciliation, and `RuntimeCoordinator`.
   `provider_unavailable` before a response. This is recorded as an external
   blocker; the R9 completion checkbox remains open and no prior UNKNOWN
   operation is replayed.
+- Local diagnostics follow-up: Provider-preflight `no_route` and resource-pool
+  composition failures now project as bounded `blocked_local` results with
+  `reconciliation_required=false`; this does not change the live
+  `provider_unavailable` blocker or authorize a retry.
 - [ ] Run live Planner, at least two non-overlapping Implementers, independent
   Reviewer, Host Verification, deterministic integration, dependent
   continuation, and exact-head CI.
