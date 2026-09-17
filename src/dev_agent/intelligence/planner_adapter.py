@@ -418,7 +418,13 @@ class ModelPlanningCriticAdapter:
             request, _egress_manifest = attach_model_request_egress(request)
         except EgressValidationError as exc:
             raise PlanningCriticAdapterError(f"model request egress rejected: {exc}") from exc
-        response = self.provider.request(request)
+        try:
+            response = self.provider.request(request)
+        except ProviderError as exc:
+            # Keep the independent Critic failure correlated to its own fresh
+            # request without exposing provider response or exception text.
+            exc.request_id = request.request_id
+            raise
         try:
             payload = decode_json_object(
                 response,

@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "evidence_id": "planner-independent-critic-contract-20260917",
+  "evidence_kind": "planner_independent_critic_contract",
+  "recorded_at": "2026-09-17T01:19:43Z",
+  "implementation_baseline": {
+    "revision": "b29019af7bc0bcad6010bb5964cc93c39667a1d2",
+    "message": "feat: add bounded planner critic correction"
+  },
+  "scope": {
+    "boundary": "proposal-only Planner response correction through the existing Host admission and validation boundaries",
+    "planner_failure_triggers": [
+      "invalid_json",
+      "invalid_proposal"
+    ],
+    "critic_route": "explicitly supplied independently admitted L1 Provider pool",
+    "cli_options": [
+      "--planning-critic-pool-json",
+      "--planning-critic-configured-pool"
+    ],
+    "change": "A response-contract failure may invoke one independent planning Critic, whose corrected proposal is returned to the existing RootPlanningValidator"
+  },
+  "verified_behavior": {
+    "initial_planner_request_remains_strict": true,
+    "successful_initial_planner_skips_critic": true,
+    "critic_max_calls_per_planner_failure": 1,
+    "critic_output_is_corrected_proposal_only": true,
+    "critic_is_l1_admission_bound": true,
+    "critic_identity_must_be_distinct_from_planner": true,
+    "host_root_planning_validation_remains_authoritative": true,
+    "critic_provider_failures_keep_fresh_request_correlation": true,
+    "raw_planner_response_forwarded_to_critic": false,
+    "raw_provider_exception_projected": false,
+    "credential_projected": false,
+    "source_payload_projected": false
+  },
+  "failure_boundaries": {
+    "model_output_invalid": "one bounded independent Critic correction may be selected",
+    "transport": "propagates without Critic invocation",
+    "quota": "existing admission semantics remain unchanged",
+    "security_egress_authority": "remains Host/Human-owned and is not retried by Critic",
+    "unknown_external_effect": "remains reconciliation-only and is not replayed"
+  },
+  "safety_semantics": {
+    "new_scheduler": false,
+    "new_retry_state_machine": false,
+    "task_mutation": false,
+    "approval_consumption": false,
+    "git_mutation": false,
+    "provider_failover_changed": false,
+    "unknown_external_effect_replayed": false,
+    "gate_promotion": false
+  },
+  "verification": {
+    "focused": "7 Planner Critic adapter, independent pool, and request-correlation tests passed",
+    "full_tests_v2": "1409 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head": "b29019af7bc0bcad6010bb5964cc93c39667a1d2",
+    "ci": {
+      "v2-core": {
+        "run_id": 35169064413,
+        "conclusion": "success"
+      },
+      "v2-provider-smoke": {
+        "run_id": 35169064391,
+        "conclusion": "success"
+      }
+    }
+  },
+  "external_effect": {
+    "live_provider_request_added": false,
+    "live_provider_probe_run": false,
+    "unknown_replay": 0
+  },
+  "interpretation": "The existing Planner shadow can now be explicitly composed with a separately admitted L1 planning Critic for one observed response-contract failure. The Critic remains proposal-only and cannot validate, integrate, approve, mutate, or promote a Gate. This is contract and local composition evidence; it is not live Planner recovery, AR1 completion, or Phase 8 LIVE_ACTIVATION evidence.",
+  "gate_impact": {
+    "d9_dogfood": "unchanged_verified",
+    "phase8_preparation": "unchanged_preparation_only",
+    "phase8_live_activation": "unchanged_not_verified",
+    "ar1_live_recovery": "not_demonstrated",
+    "d9_production_deployment": "unchanged_deferred_not_ready"
+  }
+}

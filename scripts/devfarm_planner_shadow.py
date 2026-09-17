@@ -15,6 +15,7 @@ headroom or turn a paid/unknown billing profile into a free route.
 from __future__ import annotations
 
 import argparse
+from contextlib import ExitStack
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -117,6 +118,7 @@ def admit_planner_pool(
     bindings: tuple[OperationProviderBinding, ...] | list[OperationProviderBinding],
     *,
     resolver: QualificationResolver,
+    required_tier: str = "L2",
     model_admission_resolver: ModelAdmissionResolver | None = None,
     model_catalog=None,
     expand_discovered_models: bool = False,
@@ -128,7 +130,7 @@ def admit_planner_pool(
         return admit_resource_pool(
             bindings,
             resolver=resolver,
-            required_tier="L2",
+            required_tier=required_tier,
             no_charge_required=True,
             model_admission_resolver=model_admission_resolver,
             model_catalog=model_catalog,
@@ -147,6 +149,34 @@ def _shadow_context(*, repository: str, branch: str) -> dict[str, str]:
         "source": "live_planner_shadow",
         "authority": "host_validation_required",
     }
+
+
+def _admission_identity(binding: OperationProviderBinding) -> tuple[str, str, str]:
+    """Return the exact identity used to prevent Planner/Critic reuse."""
+
+    return (binding.provider_id, binding.binding_id, binding.model)
+
+
+def _validate_independent_critic_admission(
+    planner_admitted: tuple[tuple[OperationProviderBinding, object, object], ...],
+    critic_admitted: tuple[tuple[OperationProviderBinding, object, object], ...],
+) -> None:
+    """Require a separately admitted route for the independent Critic."""
+
+    if not critic_admitted:
+        raise PlannerShadowBlocked(
+            "no exact current high-confidence L1 planning critic resource is admitted"
+        )
+    planner_ids = {_admission_identity(binding) for binding, _qualification, _profile in planner_admitted}
+    overlap = sorted(
+        _admission_identity(binding)
+        for binding, _qualification, _profile in critic_admitted
+        if _admission_identity(binding) in planner_ids
+    )
+    if overlap:
+        raise PlannerShadowInputError(
+            "planning critic pool must use a distinct provider/binding/model identity"
+        )
 
 
 def resolve_provider_pool(
@@ -191,6 +221,9 @@ def run_shadow(
     execution_boundary: str = "in_process",
     max_output_tokens: int = 1_024,
     planning_critic_provider=None,
+    planning_critic_pool: tuple[OperationProviderBinding, ...]
+    | list[OperationProviderBinding]
+    | None = None,
 ) -> dict[str, object]:
     parent_task_id = validate_parent_task_id(parent_task_id)
     resolver = QualificationResolver()
@@ -213,6 +246,23 @@ def run_shadow(
     )
     if not admitted:
         raise PlannerShadowBlocked("no exact current high-confidence L2 planner resource is admitted")
+    if planning_critic_provider is not None and planning_critic_pool is not None:
+        raise PlannerShadowInputError(
+            "planning_critic_provider and planning_critic_pool cannot be combined"
+        )
+    critic_admitted = None
+    if planning_critic_pool is not None:
+        if not isinstance(planning_critic_pool, (tuple, list)) or not planning_critic_pool:
+            raise PlannerShadowInputError("planning_critic_pool must be a non-empty binding collection")
+        critic_admitted = admit_planner_pool(
+            tuple(planning_critic_pool),
+            resolver=resolver,
+            required_tier="L1",
+            model_admission_resolver=model_admission_resolver,
+            model_catalog=model_catalog,
+            expand_discovered_models=expand_discovered_models,
+        )
+        _validate_independent_critic_admission(admitted, critic_admitted)
     if execution_boundary not in {"in_process", "host_process"}:
         raise PlannerShadowInputError("execution_boundary must be in_process or host_process")
 
@@ -222,14 +272,17 @@ def run_shadow(
             return None if admission is None else admission.intelligence_tier
         return getattr(qualification, "intelligence_tier", None)
 
-    with compose_resource_pool(
-        admitted,
-        resolver=resolver,
-        model_admission_resolver=model_admission_resolver,
-        resource_id_prefix="planner-shadow",
-        provider_builder=_build_provider,
-        router_factory=ResourceRouter,
-    ) as resource_pool:
+    with ExitStack() as pool_stack:
+        resource_pool = pool_stack.enter_context(
+            compose_resource_pool(
+                admitted,
+                resolver=resolver,
+                model_admission_resolver=model_admission_resolver,
+                resource_id_prefix="planner-shadow",
+                provider_builder=_build_provider,
+                router_factory=ResourceRouter,
+            )
+        )
         ledger = resource_pool.ledger
         dispatcher = resource_pool.dispatcher
         planner_provider = dispatcher
@@ -242,6 +295,20 @@ def run_shadow(
                 ),
             )
         critic_adapter = None
+        critic_dispatcher = None
+        critic_provider = None
+        if critic_admitted is not None:
+            critic_resource_pool = pool_stack.enter_context(
+                compose_resource_pool(
+                    critic_admitted,
+                    resolver=resolver,
+                    model_admission_resolver=model_admission_resolver,
+                    resource_id_prefix="planner-critic",
+                    provider_builder=_build_provider,
+                    router_factory=ResourceRouter,
+                )
+            )
+            critic_dispatcher = critic_resource_pool.dispatcher
         if planning_critic_provider is not None:
             # The caller must provide a separately Host-selected and
             # admission-bound Critic provider/dispatcher.  This hook composes
@@ -256,6 +323,17 @@ def run_shadow(
                         timeout_seconds=timeout_seconds,
                     ),
                 )
+        elif critic_dispatcher is not None:
+            critic_provider = critic_dispatcher
+            if execution_boundary == "host_process":
+                critic_provider = route_through_host(
+                    critic_provider,
+                    create_host_process_executor(
+                        ROOT / ".devfarm" / "host-dispatch",
+                        timeout_seconds=timeout_seconds,
+                    ),
+                )
+        if critic_provider is not None:
             critic_adapter = ModelPlanningCriticAdapter(
                 critic_provider,
                 max_output_tokens=min(max_output_tokens, 2_048),
@@ -428,6 +506,21 @@ def main(argv: list[str] | None = None) -> int:
         help="explicitly use configured non-secret Provider bindings as the Planner pool",
     )
     parser.add_argument(
+        "--planning-critic-pool-json",
+        help=(
+            "explicit JSON array of non-secret, independently admitted L1 bindings for the "
+            "response-contract Critic; it must not overlap the Planner identity"
+        ),
+    )
+    parser.add_argument(
+        "--planning-critic-configured-pool",
+        action="store_true",
+        help=(
+            "explicitly use configured non-secret Provider bindings as an independent L1 "
+            "planning-Critic pool"
+        ),
+    )
+    parser.add_argument(
         "--allow-unknown-quota",
         action="store_true",
         help="explicitly use the bounded local admission path when provider quota telemetry is absent",
@@ -455,6 +548,10 @@ def main(argv: list[str] | None = None) -> int:
             pool_json=args.pool_json,
             use_configured_pool=args.configured_pool,
         )
+        planning_critic_pool = resolve_provider_pool(
+            pool_json=args.planning_critic_pool_json,
+            use_configured_pool=args.planning_critic_configured_pool,
+        )
         output = run_shadow(
             objective=args.objective,
             parent_task_id=parent_task_id,
@@ -473,6 +570,7 @@ def main(argv: list[str] | None = None) -> int:
             expand_discovered_models=args.expand_discovered_models,
             execution_boundary=args.execution_boundary,
             max_output_tokens=args.max_output_tokens,
+            planning_critic_pool=planning_critic_pool,
         )
         code = 0 if output.get("status") == "live_shadow_validated" else 2
     except PlannerShadowInputError as exc:

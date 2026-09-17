@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
+from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -15,6 +18,8 @@ from src.dev_agent.intelligence.planner_adapter import (
     propose_with_planning_critic,
 )
 from src.dev_agent.providers.base import ProviderError
+from src.dev_agent.operation import OperationProviderBinding
+from scripts import devfarm_planner_shadow
 
 
 class _Provider:
@@ -137,6 +142,22 @@ def test_planning_critic_requires_model_output_failure_and_does_not_accept_trans
     assert provider.requests == []
 
 
+def test_planning_critic_correlates_provider_failure_to_its_fresh_request():
+    parent_task_id = str(uuid4())
+    failure = ProviderError("transport", category="transport")
+    provider = _Provider(error=failure)
+
+    with pytest.raises(ProviderError):
+        ModelPlanningCriticAdapter(provider).correct(
+            parent_task_id=parent_task_id,
+            objective="bounded objective",
+            planner_failure=_failure(),
+        )
+
+    assert len(provider.requests) == 1
+    assert failure.request_id == provider.requests[0].request_id
+
+
 def test_planner_composition_uses_one_critic_action_then_host_validation():
     parent_task_id = str(uuid4())
     planner_provider = _Provider(
@@ -200,3 +221,80 @@ def test_planner_composition_does_not_invoke_critic_for_provider_failure():
         )
 
     assert critic_provider.requests == []
+
+
+def test_planner_shadow_uses_separate_admitted_critic_pool(monkeypatch):
+    parent_task_id = str(uuid4())
+    planner_binding = OperationProviderBinding(
+        provider_id="planner",
+        model="free-l2-planner",
+        provider_binding_id="planner-binding",
+        quota_domain="planner-quota",
+        api_key_env="PLANNER_KEY",
+    )
+    critic_binding = OperationProviderBinding(
+        provider_id="critic",
+        model="free-l1-critic",
+        provider_binding_id="critic-binding",
+        quota_domain="critic-quota",
+        api_key_env="CRITIC_KEY",
+    )
+
+    planner_provider = _Provider(
+        ModelResponse(
+            provider="planner",
+            model="free-l2-planner",
+            text_segments=["not-json"],
+        )
+    )
+    critic_provider = _Provider(
+        ModelResponse(
+            provider="critic",
+            model="free-l1-critic",
+            structured_output={"corrected_proposal": _proposal(parent_task_id)},
+        )
+    )
+    admitted_tiers: list[str] = []
+
+    def fake_admit(bindings, *, required_tier="L2", **_kwargs):
+        admitted_tiers.append(required_tier)
+        if required_tier == "L1":
+            return ((critic_binding, SimpleNamespace(intelligence_tier="L1"), SimpleNamespace()),)
+        return ((planner_binding, SimpleNamespace(intelligence_tier="L2"), SimpleNamespace()),)
+
+    @contextmanager
+    def fake_compose(admitted, *, resource_id_prefix, **_kwargs):
+        provider = planner_provider if resource_id_prefix == "planner-shadow" else critic_provider
+        provider.audits = []
+        yield SimpleNamespace(
+            ledger=SimpleNamespace(list_quota_observations=lambda **_query: []),
+            dispatcher=provider,
+            admitted=tuple(admitted),
+            directory=Path("."),
+        )
+
+    monkeypatch.setattr(devfarm_planner_shadow, "admit_planner_pool", fake_admit)
+    monkeypatch.setattr(devfarm_planner_shadow, "compose_resource_pool", fake_compose)
+
+    result = devfarm_planner_shadow.run_shadow(
+        objective="split this bounded objective",
+        parent_task_id=parent_task_id,
+        provider_id="planner",
+        binding_id="planner-binding",
+        model_id="free-l2-planner",
+        api_key_env="PLANNER_KEY",
+        quota_domain="planner-quota",
+        timeout_seconds=1.0,
+        allow_unknown_quota=False,
+        repository="kinoko34077/dev_agent",
+        branch="v2/bootstrap",
+        provider_pool=(planner_binding,),
+        planning_critic_pool=(critic_binding,),
+        execution_boundary="in_process",
+    )
+
+    assert result["status"] == "live_shadow_validated"
+    assert admitted_tiers == ["L2", "L1"]
+    assert len(planner_provider.requests) == 1
+    assert len(critic_provider.requests) == 1
+    assert critic_provider.requests[0].metadata["planning_refinement"] == "independent_critic"
