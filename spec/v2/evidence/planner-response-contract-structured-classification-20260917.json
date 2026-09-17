@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "evidence_id": "planner-response-contract-structured-classification-20260917",
+  "evidence_kind": "phase_a_planner_response_contract_projection",
+  "recorded_at": "2026-09-17T00:38:56Z",
+  "implementation_baseline": {
+    "revision": "e66f3e349ffd504470b3161bf2c6c7d5cebd3244",
+    "message": "fix: structure planner response failure classification"
+  },
+  "scope": {
+    "boundary": "proposal-only Planner adapter and Planner Shadow failure projection",
+    "response_contracts": [
+      "invalid_json",
+      "invalid_proposal"
+    ],
+    "change": "response-contract classification is carried as a bounded adapter attribute rather than inferred from exception text"
+  },
+  "verified_behavior": {
+    "invalid_json_is_structured": true,
+    "invalid_proposal_is_structured": true,
+    "request_id_correlation_preserved": true,
+    "raw_response_projected": false,
+    "raw_exception_message_used_for_classification": false,
+    "credential_projected": false,
+    "source_payload_projected": false
+  },
+  "safety_semantics": {
+    "provider_request_added": false,
+    "same_request_retry": false,
+    "automatic_failover": false,
+    "unknown_external_effect_replayed": false,
+    "host_validation_claimed": false,
+    "task_mutation": false,
+    "gate_promotion": false
+  },
+  "verification": {
+    "focused": "38 Planner adapter, Provider transport, and Host dispatch tests passed",
+    "full_tests_v2": "1402 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head": "e66f3e349ffd504470b3161bf2c6c7d5cebd3244",
+    "ci": {
+      "v2-core": {
+        "run_id": 35167346895,
+        "conclusion": "success"
+      },
+      "v2-provider-smoke": {
+        "run_id": 35167346923,
+        "conclusion": "success"
+      }
+    }
+  },
+  "interpretation": "The Planner adapter now exposes a bounded response-contract classification directly to the Host projection. This removes diagnostic dependence on exception wording while preserving proposal-only behavior, no retry/failover changes, and fail-closed external-effect semantics.",
+  "gate_impact": {
+    "d9_dogfood": "unchanged_verified",
+    "phase8_preparation": "unchanged_preparation_only",
+    "phase8_live_activation": "not_verified",
+    "ar1_live_recovery": "not_demonstrated"
+  }
+}
