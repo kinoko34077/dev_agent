@@ -202,21 +202,21 @@ Reuse `scripts/devfarm_refinement.py`, existing `RefinementContext`,
 Reuse `OperationService`, `DurableQueue`, maintenance, dependency wake,
 reconciliation, and `RuntimeCoordinator`.
 
-- [ ] Add only the missing convergence projection needed to distinguish a
+- [x] Add only the missing convergence projection needed to distinguish a
   refinement stop from `WAITING_RECONCILIATION`.
-- [ ] Test that one UNKNOWN/external task remains durable while unrelated READY
+- [x] Test that one UNKNOWN/external task remains durable while unrelated READY
   work continues, and that only durable reconciliation wakes the original task.
-- [ ] Prove no UNKNOWN request is replayed and no external failure is counted
+- [x] Prove no UNKNOWN request is replayed and no external failure is counted
   as model convergence failure.
 
 ## R8 — Durable Phase 8 Root
 
-- [ ] Connect the existing Phase 8 fresh-root composition to durable task/attempt
+- [x] Connect the existing Phase 8 fresh-root composition to durable task/attempt
   metadata and RuntimeCoordinator entry points, without creating another
   scheduler or state machine.
-- [ ] Preserve Planner → Implementer A/B → Host Verification → Reviewer → Host
+- [x] Preserve Planner → Implementer A/B → Host Verification → Reviewer → Host
   integration → `CODE_INTEGRATED` continuation and all ownership/lease checks.
-- [ ] Add a headless/local regression that survives coordinator restart without
+- [x] Add a headless/local regression that survives coordinator restart without
   duplicate task or attempt dispatch.
 
 ## R9 — Zero-Human Live Trial and Evidence
@@ -248,11 +248,11 @@ reconciliation, and `RuntimeCoordinator`.
 
 ## Verification and Delivery for Each Code Slice
 
-- [ ] Run focused tests first and capture the output.
-- [ ] Run `python scripts/check_architecture.py`.
-- [ ] Run `python -m compileall -q src recovery scripts`.
-- [ ] Run `python -m pytest tests/v2 -q`.
-- [ ] Inspect the diff and update only the owning Current State/traceability or
+- [x] Run focused tests first and capture the output.
+- [x] Run `python scripts/check_architecture.py`.
+- [x] Run `python -m compileall -q src recovery scripts`.
+- [x] Run `python -m pytest tests/v2 -q`.
+- [x] Inspect the diff and update only the owning Current State/traceability or
   evidence documents when implementation evidence changes.
 - [ ] Commit the verified slice and push `v2/bootstrap` to `origin`.
 - [ ] Confirm exact-head CI for kernel 3.10, kernel 3.11, and provider-smoke.

@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "evidence_id": "bounded-convergence-runtime-r7-r8-20260917",
+  "evidence_kind": "bounded_convergence_runtime_projection",
+  "recorded_at": "2026-09-17T05:51:55.1791197Z",
+  "implementation_baseline": {
+    "revision": "f0a2468bfddaa9e47a602663f2e00348bab2a2fe",
+    "message": "feat: project convergence through durable runtime"
+  },
+  "scope": {
+    "r7": "validated convergence projection and non-blocking reconciliation wait",
+    "r8": "durable Phase 8 task graph via existing OperationService and RuntimeCoordinator",
+    "provider": "fake deterministic local verification only"
+  },
+  "verified_behavior": {
+    "valid_convergence_projection": true,
+    "invalid_projection_omitted": true,
+    "waiting_reconciliation_remains_durable": true,
+    "unrelated_ready_work_continues": true,
+    "deterministic_child_ids": true,
+    "two_independent_implementers": true,
+    "code_integrated_dependency_release": true,
+    "proposal_reapply_after_restart_is_idempotent": true,
+    "duplicate_task_dispatch": false,
+    "duplicate_attempt_dispatch": false
+  },
+  "safety_semantics": {
+    "new_scheduler": false,
+    "new_state_store": false,
+    "new_retry_state_machine": false,
+    "unknown_external_effect_replayed": false,
+    "external_provider_called": false,
+    "raw_provider_material_persisted": false,
+    "gate_promotion": false
+  },
+  "verification": {
+    "focused": "python -m pytest tests/v2/test_operation.py tests/v2/test_operation_runtime.py tests/v2/test_planning_critic_adapter.py tests/v2/test_planning_convergence.py tests/v2/test_convergence.py tests/v2/test_planner_privacy_boundaries.py -q => 75 passed",
+    "full_tests_v2": "python -m pytest tests/v2 -q => 1447 passed, 1 skipped",
+    "architecture": "python scripts/check_architecture.py => ARCHITECTURE_PASS",
+    "compileall": "python -m compileall -q src recovery scripts => PASS",
+    "local_commit": "f0a2468bfddaa9e47a602663f2e00348bab2a2fe",
+    "exact_head_ci": "not run for local commit; remote CI evidence remains on e5a5f893591f21f638d7105ec4d735740134a803"
+  },
+  "gate_impact": {
+    "d9_dogfood": "unchanged_verified",
+    "phase8_preparation": "unchanged_preparation_only",
+    "phase8_live_activation": "unchanged_not_verified",
+    "ar1_live_recovery": "not_demonstrated",
+    "d9_production_deployment": "unchanged_deferred_not_ready"
+  },
+  "interpretation": "R7/R8 local durable behavior only; this does not claim live AR1, a fresh live Phase 8 root, live Reviewer execution, or Phase 8 LIVE_ACTIVATION."
+}
