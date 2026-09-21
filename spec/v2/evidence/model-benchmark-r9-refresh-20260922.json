@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "tier_thresholds": {
+    "L1": 0,
+    "L2": 30,
+    "L3": 60
+  },
+  "entries": [
+    {
+      "canonical_model_id": "google/gemini-2.5-pro",
+      "benchmark": "artificial_analysis_intelligence_index",
+      "benchmark_version": "openrouter-benchmarks-v1",
+      "model_version": "google/gemini-2.5-pro",
+      "source": "openrouter.api.v1.benchmarks:artificial-analysis",
+      "observed_at": "2026-09-21T15:11:37.180121+00:00",
+      "expires_at": "2026-09-28T15:11:37.180121+00:00",
+      "raw_score": 16.1,
+      "normalized_score": 16.1,
+      "confidence": "medium",
+      "task_fit": {
+        "planning": 1.6,
+        "coding": 33.3
+      }
+    },
+    {
+      "canonical_model_id": "google/gemini-3.1-flash-lite-preview",
+      "benchmark": "artificial_analysis_intelligence_index",
+      "benchmark_version": "openrouter-benchmarks-v1",
+      "model_version": "google/gemini-3.1-flash-lite-preview-20260303",
+      "source": "openrouter.api.v1.benchmarks:artificial-analysis",
+      "observed_at": "2026-09-21T15:11:37.180121+00:00",
+      "expires_at": "2026-09-28T15:11:37.180121+00:00",
+      "raw_score": 15.6,
+      "normalized_score": 15.6,
+      "confidence": "medium",
+      "task_fit": {
+        "planning": 1.6,
+        "coding": 34.7
+      }
+    },
+    {
+      "canonical_model_id": "google/gemini-3.1-pro-preview",
+      "benchmark": "artificial_analysis_intelligence_index",
+      "benchmark_version": "openrouter-benchmarks-v1",
+      "model_version": "google/gemini-3.1-pro-preview-20260219",
+      "source": "openrouter.api.v1.benchmarks:artificial-analysis",
+      "observed_at": "2026-09-21T15:11:37.180121+00:00",
+      "expires_at": "2026-09-28T15:11:37.180121+00:00",
+      "raw_score": 29.7,
+      "normalized_score": 29.7,
+      "confidence": "medium",
+      "task_fit": {
+        "planning": 8.2,
+        "coding": 68.8
+      }
+    },
+    {
+      "canonical_model_id": "google/gemini-3.5-flash",
+      "benchmark": "artificial_analysis_intelligence_index",
+      "benchmark_version": "openrouter-benchmarks-v1",
+      "model_version": "google/gemini-3.5-flash-20260519",
+      "source": "openrouter.api.v1.benchmarks:artificial-analysis",
+      "observed_at": "2026-09-21T15:11:37.180121+00:00",
+      "expires_at": "2026-09-28T15:11:37.180121+00:00",
+      "raw_score": 32.6,
+      "normalized_score": 32.6,
+      "confidence": "medium",
+      "task_fit": {
+        "planning": 26.0,
+        "coding": 70.1
+      }
+    },
+    {
+      "canonical_model_id": "google/gemini-3.5-flash-lite",
+      "benchmark": "artificial_analysis_intelligence_index",
+      "benchmark_version": "openrouter-benchmarks-v1",
+      "model_version": "google/gemini-3.5-flash-lite-20260721",
+      "source": "openrouter.api.v1.benchmarks:artificial-analysis",
+      "observed_at": "2026-09-21T15:11:37.180121+00:00",
+      "expires_at": "2026-09-28T15:11:37.180121+00:00",
+      "raw_score": 22.2,
+      "normalized_score": 22.2,
+      "confidence": "medium",
+      "task_fit": {
+        "planning": 14.3,
+        "coding": 49.3
+      }
+    },
+    {
+      "canonical_model_id": "google/gemini-3.6-flash",
+      "benchmark": "artificial_analysis_intelligence_index",
+      "benchmark_version": "openrouter-benchmarks-v1",
+      "model_version": "google/gemini-3.6-flash-20260721",
+      "source": "openrouter.api.v1.benchmarks:artificial-analysis",
+      "observed_at": "2026-09-21T15:11:37.180121+00:00",
+      "expires_at": "2026-09-28T15:11:37.180121+00:00",
+      "raw_score": 34.0,
+      "normalized_score": 34.0,
+      "confidence": "medium",
+      "task_fit": {
+        "planning": 29.0,
+        "coding": 69.2
+      }
+    },
+    {
+      "canonical_model_id": "google/gemini-3.7-flash",
+      "benchmark": "artificial_analysis_intelligence_index",
+      "benchmark_version": "openrouter-benchmarks-v1",
+      "model_version": "google/gemini-3.7-flash-20260813",
+      "source": "openrouter.api.v1.benchmarks:artificial-analysis",
+      "observed_at": "2026-09-21T15:11:37.180121+00:00",
+      "expires_at": "2026-09-28T15:11:37.180121+00:00",
+      "raw_score": 39.1,
+      "normalized_score": 39.1,
+      "confidence": "medium",
+      "task_fit": {
+        "planning": 35.2,
+        "coding": 76.1
+      }
+    },
+    {
+      "canonical_model_id": "google/gemini-3.8-flash",
+      "benchmark": "artificial_analysis_intelligence_index",
+      "benchmark_version": "openrouter-benchmarks-v1",
+      "model_version": "google/gemini-3.8-flash-20260902",
+      "source": "openrouter.api.v1.benchmarks:artificial-analysis",
+      "observed_at": "2026-09-21T15:11:37.180121+00:00",
+      "expires_at": "2026-09-28T15:11:37.180121+00:00",
+      "raw_score": 40.9,
+      "normalized_score": 40.9,
+      "confidence": "medium",
+      "task_fit": {
+        "planning": 40.2,
+        "coding": 76.3
+      }
+    }
+  ]
+}

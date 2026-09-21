@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "bindings": [
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-2",
+      "api_key_env": "GEMINI_API_KEY_2"
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-3",
+      "api_key_env": "GEMINI_API_KEY_3"
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-4",
+      "api_key_env": "GEMINI_API_KEY_4"
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-5",
+      "api_key_env": "GEMINI_API_KEY_5"
+    }
+  ]
+}

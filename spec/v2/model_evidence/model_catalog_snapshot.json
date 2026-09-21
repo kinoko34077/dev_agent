@@ -2658,8 +2658,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "antigravity-preview-05-2026",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Antigravity Agent Preview",
         "version": "0.1",
@@ -2667,7 +2667,25 @@
           "generateContent",
           "countTokens"
         ],
-        "input_token_limit": 131072,
+        "input_token_limit": 1048576,
+        "output_token_limit": 65536
+      }
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-2",
+      "model_id": "antigravity-preview-09-2026",
+      "source": "gemini.models.list",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
+      "metadata": {
+        "display_name": "Antigravity Agent Preview",
+        "version": "0.1",
+        "supported_generation_methods": [
+          "generateContent",
+          "countTokens"
+        ],
+        "input_token_limit": 1048576,
         "output_token_limit": 65536
       }
     },
@@ -2676,8 +2694,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "aqa",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Model that performs Attributed Question Answering.",
         "version": "001",
@@ -2693,8 +2711,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "deep-research-max-preview-04-2026",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Deep Research Max Preview (Apr-21-2026)",
         "version": "deepthink-exp-05-20",
@@ -2712,8 +2730,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "deep-research-preview-04-2026",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Deep Research Preview (Apr-21-2026)",
         "version": "deepthink-exp-05-20",
@@ -2731,8 +2749,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "deep-research-pro-preview-12-2025",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Deep Research Pro Preview (Dec-12-2025)",
         "version": "deepthink-exp-05-20",
@@ -2750,8 +2768,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-2.5-computer-use-preview-10-2025",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Computer Use Preview 10-2025",
         "version": "Gemini 2.5 Computer Use Preview 10-2025",
@@ -2769,8 +2787,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-2.5-flash",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Flash",
         "version": "001",
@@ -2790,8 +2808,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-2.5-flash-image",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Nano Banana",
         "version": "2.0",
@@ -2809,8 +2827,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-2.5-flash-lite",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Flash-Lite",
         "version": "001",
@@ -2830,8 +2848,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-2.5-flash-native-audio-latest",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Flash Native Audio Latest",
         "version": "Gemini 2.5 Flash Native Audio Latest",
@@ -2849,8 +2867,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-2.5-flash-native-audio-preview-09-2025",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Flash Native Audio Preview 09-2025",
         "version": "gemini-2.5-flash-preview-native-audio-dialog-2025-05-19",
@@ -2868,8 +2886,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-2.5-flash-native-audio-preview-12-2025",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Flash Native Audio Preview 12-2025",
         "version": "12-2025",
@@ -2887,8 +2905,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-2.5-flash-preview-tts",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Flash Preview TTS",
         "version": "gemini-2.5-flash-exp-tts-2025-05-19",
@@ -2905,8 +2923,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-2.5-pro",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Pro",
         "version": "2.5",
@@ -2926,8 +2944,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-2.5-pro-preview-tts",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Pro Preview TTS",
         "version": "gemini-2.5-pro-preview-tts-2025-05-19",
@@ -2945,8 +2963,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-3-flash-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini 3 Flash Preview",
         "version": "3-flash-preview-12-2025",
@@ -2966,8 +2984,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-3-pro-image",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Nano Banana Pro",
         "version": "3.0",
@@ -2986,8 +3004,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-3-pro-image-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Nano Banana Pro",
         "version": "3.0",
@@ -3006,8 +3024,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-3.1-flash-image",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Nano Banana 2",
         "version": "3.0",
@@ -3026,8 +3044,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-3.1-flash-image-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Nano Banana 2",
         "version": "3.0",
@@ -3046,8 +3064,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-3.1-flash-lite",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini 3.1 Flash Lite",
         "version": "3.1-flash-lite-05-2026",
@@ -3067,8 +3085,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-3.1-flash-lite-image",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Nano Banana 2 Lite",
         "version": "3.0",
@@ -3087,8 +3105,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-3.1-flash-lite-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini 3.1 Flash Lite Preview",
         "version": "3.1-flash-lite-preview-03-2026",
@@ -3108,8 +3126,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-3.1-flash-live-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini 3.1 Flash Live Preview",
         "version": "3.1-flash-live-03-2026",
@@ -3125,8 +3143,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-3.1-flash-tts-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini 3.1 Flash TTS Preview",
         "version": "3.1-flash-tts-preview",
@@ -3145,8 +3163,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-3.1-pro-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini 3.1 Pro Preview",
         "version": "3.1-pro-preview-01-2026",
@@ -3166,8 +3184,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-3.1-pro-preview-customtools",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini 3.1 Pro Preview Custom Tools",
         "version": "3.1-pro-preview-01-2026",
@@ -3187,8 +3205,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-3.5-flash",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini 3.5 Flash",
         "version": "3.5-flash-05-2026",
@@ -3208,8 +3226,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-3.5-flash-lite",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini 3.5 Flash Lite",
         "version": "3.5-flash-lite-07-2026",
@@ -3229,8 +3247,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-3.5-live-translate-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini 3.5 Live Translate Preview",
         "version": "3.5-live-translate-06-2026",
@@ -3246,8 +3264,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-3.5-transcribe",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini 3.5 Transcribe",
         "version": "3.5-transcribe-08-2026",
@@ -3265,8 +3283,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-3.5-transcribe-live",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini 3.5 Transcribe Live",
         "version": "3.5-transcribe-live-08-2026",
@@ -3282,8 +3300,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-3.6-flash",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini 3.6 Flash",
         "version": "3.6-flash-07-2026",
@@ -3303,8 +3321,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-3.7-flash",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini 3.7 Flash",
         "version": "3.7-flash-08-2026",
@@ -3324,8 +3342,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-3.8-flash",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini 3.8 Flash",
         "version": "3.0",
@@ -3343,10 +3361,45 @@
     {
       "provider_id": "gemini",
       "provider_binding_id": "gemini:worker:free-2",
+      "model_id": "gemini-3.8-live",
+      "source": "gemini.models.list",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
+      "metadata": {
+        "display_name": "Gemini 3.8 Live",
+        "version": "3.1-flash-live-03-2026",
+        "supported_generation_methods": [
+          "bidiGenerateContent"
+        ],
+        "input_token_limit": 131072,
+        "output_token_limit": 65536
+      }
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-2",
+      "model_id": "gemini-3.8-live-extended-thinking",
+      "source": "gemini.models.list",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
+      "metadata": {
+        "display_name": "Gemini 3.8 Live Extended Thinking",
+        "version": "3.1-flash-live-03-2026",
+        "supported_generation_methods": [
+          "bidiGenerateContent"
+        ],
+        "input_token_limit": 131072,
+        "output_token_limit": 65536,
+        "thinking_supported": true
+      }
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-embedding-001",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini Embedding 001",
         "version": "001",
@@ -3365,8 +3418,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-embedding-2",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini Embedding 2",
         "version": "2",
@@ -3385,8 +3438,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-embedding-2-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini Embedding 2 Preview",
         "version": "2",
@@ -3405,8 +3458,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-flash-latest",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini Flash Latest",
         "version": "Gemini Flash Latest",
@@ -3426,8 +3479,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-flash-lite-latest",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini Flash-Lite Latest",
         "version": "Gemini Flash-Lite Latest",
@@ -3447,8 +3500,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-omni-1.1-flash",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini Omni 1.1 Flash",
         "version": "001",
@@ -3466,8 +3519,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-omni-flash-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini Omni Flash Preview",
         "version": "001",
@@ -3485,8 +3538,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-pro-latest",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini Pro Latest",
         "version": "Gemini Pro Latest",
@@ -3506,8 +3559,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-robotics-er-2-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini Robotics-ER 2 Preview",
         "version": "2-preview",
@@ -3527,8 +3580,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemini-robotics-er-2-streaming-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemini Robotics-ER 2 Streaming Preview",
         "version": "2-streaming-preview",
@@ -3544,8 +3597,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemma-4-26b-a4b-it",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemma 4 26B A4B IT",
         "version": "001",
@@ -3563,8 +3616,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "gemma-4-31b-it",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Gemma 4 31B IT",
         "version": "001",
@@ -3582,8 +3635,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "lyria-3-clip-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Lyria 3 Clip Preview",
         "version": "lyria-3-clip-preview",
@@ -3600,8 +3653,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "lyria-3-pro-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Lyria 3 Pro Preview",
         "version": "lyria-3-pro-preview",
@@ -3618,8 +3671,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "lyria-3.5",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Lyria 3.5",
         "version": "3.5",
@@ -3636,8 +3689,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "lyria-realtime-exp",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Lyria Realtime Experimental",
         "version": "lyria-realtime-exp",
@@ -3653,8 +3706,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "nano-banana-pro-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Nano Banana Pro",
         "version": "3.0",
@@ -3673,8 +3726,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "veo-3.1-fast-generate-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Veo 3.1 fast",
         "version": "3.1",
@@ -3690,8 +3743,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "veo-3.1-generate-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Veo 3.1",
         "version": "3.1",
@@ -3707,8 +3760,8 @@
       "provider_binding_id": "gemini:worker:free-2",
       "model_id": "veo-3.1-lite-generate-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:54.956228+00:00",
-      "expires_at": "2026-09-20T21:47:54.956228+00:00",
+      "observed_at": "2026-09-21T15:09:42.043275+00:00",
+      "expires_at": "2026-09-28T15:09:42.043275+00:00",
       "metadata": {
         "display_name": "Veo 3.1 lite",
         "version": "3.1",
@@ -3724,8 +3777,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "antigravity-preview-05-2026",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Antigravity Agent Preview",
         "version": "0.1",
@@ -3733,7 +3786,25 @@
           "generateContent",
           "countTokens"
         ],
-        "input_token_limit": 131072,
+        "input_token_limit": 1048576,
+        "output_token_limit": 65536
+      }
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-3",
+      "model_id": "antigravity-preview-09-2026",
+      "source": "gemini.models.list",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
+      "metadata": {
+        "display_name": "Antigravity Agent Preview",
+        "version": "0.1",
+        "supported_generation_methods": [
+          "generateContent",
+          "countTokens"
+        ],
+        "input_token_limit": 1048576,
         "output_token_limit": 65536
       }
     },
@@ -3742,8 +3813,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "aqa",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Model that performs Attributed Question Answering.",
         "version": "001",
@@ -3759,8 +3830,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "deep-research-max-preview-04-2026",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Deep Research Max Preview (Apr-21-2026)",
         "version": "deepthink-exp-05-20",
@@ -3778,8 +3849,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "deep-research-preview-04-2026",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Deep Research Preview (Apr-21-2026)",
         "version": "deepthink-exp-05-20",
@@ -3797,8 +3868,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "deep-research-pro-preview-12-2025",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Deep Research Pro Preview (Dec-12-2025)",
         "version": "deepthink-exp-05-20",
@@ -3816,8 +3887,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-2.5-computer-use-preview-10-2025",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Computer Use Preview 10-2025",
         "version": "Gemini 2.5 Computer Use Preview 10-2025",
@@ -3835,8 +3906,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-2.5-flash",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Flash",
         "version": "001",
@@ -3856,8 +3927,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-2.5-flash-image",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Nano Banana",
         "version": "2.0",
@@ -3875,8 +3946,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-2.5-flash-lite",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Flash-Lite",
         "version": "001",
@@ -3896,8 +3967,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-2.5-flash-native-audio-latest",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Flash Native Audio Latest",
         "version": "Gemini 2.5 Flash Native Audio Latest",
@@ -3915,8 +3986,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-2.5-flash-native-audio-preview-09-2025",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Flash Native Audio Preview 09-2025",
         "version": "gemini-2.5-flash-preview-native-audio-dialog-2025-05-19",
@@ -3934,8 +4005,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-2.5-flash-native-audio-preview-12-2025",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Flash Native Audio Preview 12-2025",
         "version": "12-2025",
@@ -3953,8 +4024,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-2.5-flash-preview-tts",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Flash Preview TTS",
         "version": "gemini-2.5-flash-exp-tts-2025-05-19",
@@ -3971,8 +4042,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-2.5-pro",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Pro",
         "version": "2.5",
@@ -3992,8 +4063,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-2.5-pro-preview-tts",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Pro Preview TTS",
         "version": "gemini-2.5-pro-preview-tts-2025-05-19",
@@ -4011,8 +4082,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-3-flash-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini 3 Flash Preview",
         "version": "3-flash-preview-12-2025",
@@ -4032,8 +4103,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-3-pro-image",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Nano Banana Pro",
         "version": "3.0",
@@ -4052,8 +4123,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-3-pro-image-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Nano Banana Pro",
         "version": "3.0",
@@ -4072,8 +4143,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-3.1-flash-image",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Nano Banana 2",
         "version": "3.0",
@@ -4092,8 +4163,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-3.1-flash-image-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Nano Banana 2",
         "version": "3.0",
@@ -4112,8 +4183,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-3.1-flash-lite",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini 3.1 Flash Lite",
         "version": "3.1-flash-lite-05-2026",
@@ -4133,8 +4204,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-3.1-flash-lite-image",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Nano Banana 2 Lite",
         "version": "3.0",
@@ -4153,8 +4224,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-3.1-flash-lite-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini 3.1 Flash Lite Preview",
         "version": "3.1-flash-lite-preview-03-2026",
@@ -4174,8 +4245,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-3.1-flash-live-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini 3.1 Flash Live Preview",
         "version": "3.1-flash-live-03-2026",
@@ -4191,8 +4262,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-3.1-flash-tts-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini 3.1 Flash TTS Preview",
         "version": "3.1-flash-tts-preview",
@@ -4211,8 +4282,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-3.1-pro-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini 3.1 Pro Preview",
         "version": "3.1-pro-preview-01-2026",
@@ -4232,8 +4303,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-3.1-pro-preview-customtools",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini 3.1 Pro Preview Custom Tools",
         "version": "3.1-pro-preview-01-2026",
@@ -4253,8 +4324,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-3.5-flash",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini 3.5 Flash",
         "version": "3.5-flash-05-2026",
@@ -4274,8 +4345,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-3.5-flash-lite",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini 3.5 Flash Lite",
         "version": "3.5-flash-lite-07-2026",
@@ -4295,8 +4366,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-3.5-live-translate-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini 3.5 Live Translate Preview",
         "version": "3.5-live-translate-06-2026",
@@ -4312,8 +4383,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-3.5-transcribe",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini 3.5 Transcribe",
         "version": "3.5-transcribe-08-2026",
@@ -4331,8 +4402,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-3.5-transcribe-live",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini 3.5 Transcribe Live",
         "version": "3.5-transcribe-live-08-2026",
@@ -4348,8 +4419,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-3.6-flash",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini 3.6 Flash",
         "version": "3.6-flash-07-2026",
@@ -4369,8 +4440,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-3.7-flash",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini 3.7 Flash",
         "version": "3.7-flash-08-2026",
@@ -4390,8 +4461,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-3.8-flash",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini 3.8 Flash",
         "version": "3.0",
@@ -4409,10 +4480,45 @@
     {
       "provider_id": "gemini",
       "provider_binding_id": "gemini:worker:free-3",
+      "model_id": "gemini-3.8-live",
+      "source": "gemini.models.list",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
+      "metadata": {
+        "display_name": "Gemini 3.8 Live",
+        "version": "3.1-flash-live-03-2026",
+        "supported_generation_methods": [
+          "bidiGenerateContent"
+        ],
+        "input_token_limit": 131072,
+        "output_token_limit": 65536
+      }
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-3",
+      "model_id": "gemini-3.8-live-extended-thinking",
+      "source": "gemini.models.list",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
+      "metadata": {
+        "display_name": "Gemini 3.8 Live Extended Thinking",
+        "version": "3.1-flash-live-03-2026",
+        "supported_generation_methods": [
+          "bidiGenerateContent"
+        ],
+        "input_token_limit": 131072,
+        "output_token_limit": 65536,
+        "thinking_supported": true
+      }
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-embedding-001",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini Embedding 001",
         "version": "001",
@@ -4431,8 +4537,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-embedding-2",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini Embedding 2",
         "version": "2",
@@ -4451,8 +4557,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-embedding-2-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini Embedding 2 Preview",
         "version": "2",
@@ -4471,8 +4577,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-flash-latest",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini Flash Latest",
         "version": "Gemini Flash Latest",
@@ -4492,8 +4598,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-flash-lite-latest",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini Flash-Lite Latest",
         "version": "Gemini Flash-Lite Latest",
@@ -4513,8 +4619,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-omni-1.1-flash",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini Omni 1.1 Flash",
         "version": "001",
@@ -4532,8 +4638,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-omni-flash-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini Omni Flash Preview",
         "version": "001",
@@ -4551,8 +4657,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-pro-latest",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini Pro Latest",
         "version": "Gemini Pro Latest",
@@ -4572,8 +4678,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-robotics-er-2-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini Robotics-ER 2 Preview",
         "version": "2-preview",
@@ -4593,8 +4699,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemini-robotics-er-2-streaming-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemini Robotics-ER 2 Streaming Preview",
         "version": "2-streaming-preview",
@@ -4610,8 +4716,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemma-4-26b-a4b-it",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemma 4 26B A4B IT",
         "version": "001",
@@ -4629,8 +4735,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "gemma-4-31b-it",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Gemma 4 31B IT",
         "version": "001",
@@ -4648,8 +4754,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "lyria-3-clip-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Lyria 3 Clip Preview",
         "version": "lyria-3-clip-preview",
@@ -4666,8 +4772,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "lyria-3-pro-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Lyria 3 Pro Preview",
         "version": "lyria-3-pro-preview",
@@ -4684,8 +4790,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "lyria-3.5",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Lyria 3.5",
         "version": "3.5",
@@ -4702,8 +4808,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "lyria-realtime-exp",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Lyria Realtime Experimental",
         "version": "lyria-realtime-exp",
@@ -4719,8 +4825,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "nano-banana-pro-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Nano Banana Pro",
         "version": "3.0",
@@ -4739,8 +4845,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "veo-3.1-fast-generate-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Veo 3.1 fast",
         "version": "3.1",
@@ -4756,8 +4862,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "veo-3.1-generate-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Veo 3.1",
         "version": "3.1",
@@ -4773,8 +4879,8 @@
       "provider_binding_id": "gemini:worker:free-3",
       "model_id": "veo-3.1-lite-generate-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.118446+00:00",
-      "expires_at": "2026-09-20T21:47:55.118446+00:00",
+      "observed_at": "2026-09-21T15:09:42.260687+00:00",
+      "expires_at": "2026-09-28T15:09:42.260687+00:00",
       "metadata": {
         "display_name": "Veo 3.1 lite",
         "version": "3.1",
@@ -4790,8 +4896,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "antigravity-preview-05-2026",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Antigravity Agent Preview",
         "version": "0.1",
@@ -4799,7 +4905,25 @@
           "generateContent",
           "countTokens"
         ],
-        "input_token_limit": 131072,
+        "input_token_limit": 1048576,
+        "output_token_limit": 65536
+      }
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-4",
+      "model_id": "antigravity-preview-09-2026",
+      "source": "gemini.models.list",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
+      "metadata": {
+        "display_name": "Antigravity Agent Preview",
+        "version": "0.1",
+        "supported_generation_methods": [
+          "generateContent",
+          "countTokens"
+        ],
+        "input_token_limit": 1048576,
         "output_token_limit": 65536
       }
     },
@@ -4808,8 +4932,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "aqa",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Model that performs Attributed Question Answering.",
         "version": "001",
@@ -4825,8 +4949,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "deep-research-max-preview-04-2026",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Deep Research Max Preview (Apr-21-2026)",
         "version": "deepthink-exp-05-20",
@@ -4844,8 +4968,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "deep-research-preview-04-2026",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Deep Research Preview (Apr-21-2026)",
         "version": "deepthink-exp-05-20",
@@ -4863,8 +4987,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "deep-research-pro-preview-12-2025",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Deep Research Pro Preview (Dec-12-2025)",
         "version": "deepthink-exp-05-20",
@@ -4882,8 +5006,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-2.5-computer-use-preview-10-2025",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Computer Use Preview 10-2025",
         "version": "Gemini 2.5 Computer Use Preview 10-2025",
@@ -4901,8 +5025,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-2.5-flash",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Flash",
         "version": "001",
@@ -4922,8 +5046,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-2.5-flash-image",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Nano Banana",
         "version": "2.0",
@@ -4941,8 +5065,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-2.5-flash-lite",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Flash-Lite",
         "version": "001",
@@ -4962,8 +5086,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-2.5-flash-native-audio-latest",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Flash Native Audio Latest",
         "version": "Gemini 2.5 Flash Native Audio Latest",
@@ -4981,8 +5105,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-2.5-flash-native-audio-preview-09-2025",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Flash Native Audio Preview 09-2025",
         "version": "gemini-2.5-flash-preview-native-audio-dialog-2025-05-19",
@@ -5000,8 +5124,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-2.5-flash-native-audio-preview-12-2025",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Flash Native Audio Preview 12-2025",
         "version": "12-2025",
@@ -5019,8 +5143,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-2.5-flash-preview-tts",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Flash Preview TTS",
         "version": "gemini-2.5-flash-exp-tts-2025-05-19",
@@ -5037,8 +5161,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-2.5-pro",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Pro",
         "version": "2.5",
@@ -5058,8 +5182,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-2.5-pro-preview-tts",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Pro Preview TTS",
         "version": "gemini-2.5-pro-preview-tts-2025-05-19",
@@ -5077,8 +5201,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-3-flash-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini 3 Flash Preview",
         "version": "3-flash-preview-12-2025",
@@ -5098,8 +5222,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-3-pro-image",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Nano Banana Pro",
         "version": "3.0",
@@ -5118,8 +5242,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-3-pro-image-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Nano Banana Pro",
         "version": "3.0",
@@ -5138,8 +5262,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-3.1-flash-image",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Nano Banana 2",
         "version": "3.0",
@@ -5158,8 +5282,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-3.1-flash-image-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Nano Banana 2",
         "version": "3.0",
@@ -5178,8 +5302,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-3.1-flash-lite",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini 3.1 Flash Lite",
         "version": "3.1-flash-lite-05-2026",
@@ -5199,8 +5323,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-3.1-flash-lite-image",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Nano Banana 2 Lite",
         "version": "3.0",
@@ -5219,8 +5343,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-3.1-flash-lite-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini 3.1 Flash Lite Preview",
         "version": "3.1-flash-lite-preview-03-2026",
@@ -5240,8 +5364,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-3.1-flash-live-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini 3.1 Flash Live Preview",
         "version": "3.1-flash-live-03-2026",
@@ -5257,8 +5381,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-3.1-flash-tts-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini 3.1 Flash TTS Preview",
         "version": "3.1-flash-tts-preview",
@@ -5277,8 +5401,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-3.1-pro-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini 3.1 Pro Preview",
         "version": "3.1-pro-preview-01-2026",
@@ -5298,8 +5422,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-3.1-pro-preview-customtools",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini 3.1 Pro Preview Custom Tools",
         "version": "3.1-pro-preview-01-2026",
@@ -5319,8 +5443,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-3.5-flash",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini 3.5 Flash",
         "version": "3.5-flash-05-2026",
@@ -5340,8 +5464,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-3.5-flash-lite",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini 3.5 Flash Lite",
         "version": "3.5-flash-lite-07-2026",
@@ -5361,8 +5485,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-3.5-live-translate-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini 3.5 Live Translate Preview",
         "version": "3.5-live-translate-06-2026",
@@ -5378,8 +5502,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-3.5-transcribe",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini 3.5 Transcribe",
         "version": "3.5-transcribe-08-2026",
@@ -5397,8 +5521,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-3.5-transcribe-live",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini 3.5 Transcribe Live",
         "version": "3.5-transcribe-live-08-2026",
@@ -5414,8 +5538,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-3.6-flash",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini 3.6 Flash",
         "version": "3.6-flash-07-2026",
@@ -5435,8 +5559,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-3.7-flash",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini 3.7 Flash",
         "version": "3.7-flash-08-2026",
@@ -5456,8 +5580,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-3.8-flash",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini 3.8 Flash",
         "version": "3.0",
@@ -5475,10 +5599,45 @@
     {
       "provider_id": "gemini",
       "provider_binding_id": "gemini:worker:free-4",
+      "model_id": "gemini-3.8-live",
+      "source": "gemini.models.list",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
+      "metadata": {
+        "display_name": "Gemini 3.8 Live",
+        "version": "3.1-flash-live-03-2026",
+        "supported_generation_methods": [
+          "bidiGenerateContent"
+        ],
+        "input_token_limit": 131072,
+        "output_token_limit": 65536
+      }
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-4",
+      "model_id": "gemini-3.8-live-extended-thinking",
+      "source": "gemini.models.list",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
+      "metadata": {
+        "display_name": "Gemini 3.8 Live Extended Thinking",
+        "version": "3.1-flash-live-03-2026",
+        "supported_generation_methods": [
+          "bidiGenerateContent"
+        ],
+        "input_token_limit": 131072,
+        "output_token_limit": 65536,
+        "thinking_supported": true
+      }
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-embedding-001",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini Embedding 001",
         "version": "001",
@@ -5497,8 +5656,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-embedding-2",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini Embedding 2",
         "version": "2",
@@ -5517,8 +5676,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-embedding-2-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini Embedding 2 Preview",
         "version": "2",
@@ -5537,8 +5696,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-flash-latest",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini Flash Latest",
         "version": "Gemini Flash Latest",
@@ -5558,8 +5717,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-flash-lite-latest",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini Flash-Lite Latest",
         "version": "Gemini Flash-Lite Latest",
@@ -5579,8 +5738,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-omni-1.1-flash",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini Omni 1.1 Flash",
         "version": "001",
@@ -5598,8 +5757,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-omni-flash-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini Omni Flash Preview",
         "version": "001",
@@ -5617,8 +5776,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-pro-latest",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini Pro Latest",
         "version": "Gemini Pro Latest",
@@ -5638,8 +5797,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-robotics-er-2-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini Robotics-ER 2 Preview",
         "version": "2-preview",
@@ -5659,8 +5818,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemini-robotics-er-2-streaming-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemini Robotics-ER 2 Streaming Preview",
         "version": "2-streaming-preview",
@@ -5676,8 +5835,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemma-4-26b-a4b-it",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemma 4 26B A4B IT",
         "version": "001",
@@ -5695,8 +5854,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "gemma-4-31b-it",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Gemma 4 31B IT",
         "version": "001",
@@ -5714,8 +5873,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "lyria-3-clip-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Lyria 3 Clip Preview",
         "version": "lyria-3-clip-preview",
@@ -5732,8 +5891,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "lyria-3-pro-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Lyria 3 Pro Preview",
         "version": "lyria-3-pro-preview",
@@ -5750,8 +5909,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "lyria-3.5",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Lyria 3.5",
         "version": "3.5",
@@ -5768,8 +5927,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "lyria-realtime-exp",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Lyria Realtime Experimental",
         "version": "lyria-realtime-exp",
@@ -5785,8 +5944,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "nano-banana-pro-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Nano Banana Pro",
         "version": "3.0",
@@ -5805,8 +5964,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "veo-3.1-fast-generate-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Veo 3.1 fast",
         "version": "3.1",
@@ -5822,8 +5981,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "veo-3.1-generate-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Veo 3.1",
         "version": "3.1",
@@ -5839,8 +5998,8 @@
       "provider_binding_id": "gemini:worker:free-4",
       "model_id": "veo-3.1-lite-generate-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.274792+00:00",
-      "expires_at": "2026-09-20T21:47:55.274792+00:00",
+      "observed_at": "2026-09-21T15:09:42.476051+00:00",
+      "expires_at": "2026-09-28T15:09:42.476051+00:00",
       "metadata": {
         "display_name": "Veo 3.1 lite",
         "version": "3.1",
@@ -5856,8 +6015,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "antigravity-preview-05-2026",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Antigravity Agent Preview",
         "version": "0.1",
@@ -5865,7 +6024,25 @@
           "generateContent",
           "countTokens"
         ],
-        "input_token_limit": 131072,
+        "input_token_limit": 1048576,
+        "output_token_limit": 65536
+      }
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-5",
+      "model_id": "antigravity-preview-09-2026",
+      "source": "gemini.models.list",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
+      "metadata": {
+        "display_name": "Antigravity Agent Preview",
+        "version": "0.1",
+        "supported_generation_methods": [
+          "generateContent",
+          "countTokens"
+        ],
+        "input_token_limit": 1048576,
         "output_token_limit": 65536
       }
     },
@@ -5874,8 +6051,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "aqa",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Model that performs Attributed Question Answering.",
         "version": "001",
@@ -5891,8 +6068,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "deep-research-max-preview-04-2026",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Deep Research Max Preview (Apr-21-2026)",
         "version": "deepthink-exp-05-20",
@@ -5910,8 +6087,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "deep-research-preview-04-2026",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Deep Research Preview (Apr-21-2026)",
         "version": "deepthink-exp-05-20",
@@ -5929,8 +6106,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "deep-research-pro-preview-12-2025",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Deep Research Pro Preview (Dec-12-2025)",
         "version": "deepthink-exp-05-20",
@@ -5948,8 +6125,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-2.5-computer-use-preview-10-2025",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Computer Use Preview 10-2025",
         "version": "Gemini 2.5 Computer Use Preview 10-2025",
@@ -5967,8 +6144,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-2.5-flash",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Flash",
         "version": "001",
@@ -5988,8 +6165,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-2.5-flash-image",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Nano Banana",
         "version": "2.0",
@@ -6007,8 +6184,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-2.5-flash-lite",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Flash-Lite",
         "version": "001",
@@ -6028,8 +6205,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-2.5-flash-native-audio-latest",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Flash Native Audio Latest",
         "version": "Gemini 2.5 Flash Native Audio Latest",
@@ -6047,8 +6224,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-2.5-flash-native-audio-preview-09-2025",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Flash Native Audio Preview 09-2025",
         "version": "gemini-2.5-flash-preview-native-audio-dialog-2025-05-19",
@@ -6066,8 +6243,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-2.5-flash-native-audio-preview-12-2025",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Flash Native Audio Preview 12-2025",
         "version": "12-2025",
@@ -6085,8 +6262,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-2.5-flash-preview-tts",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Flash Preview TTS",
         "version": "gemini-2.5-flash-exp-tts-2025-05-19",
@@ -6103,8 +6280,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-2.5-pro",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Pro",
         "version": "2.5",
@@ -6124,8 +6301,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-2.5-pro-preview-tts",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini 2.5 Pro Preview TTS",
         "version": "gemini-2.5-pro-preview-tts-2025-05-19",
@@ -6143,8 +6320,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-3-flash-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini 3 Flash Preview",
         "version": "3-flash-preview-12-2025",
@@ -6164,8 +6341,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-3-pro-image",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Nano Banana Pro",
         "version": "3.0",
@@ -6184,8 +6361,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-3-pro-image-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Nano Banana Pro",
         "version": "3.0",
@@ -6204,8 +6381,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-3.1-flash-image",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Nano Banana 2",
         "version": "3.0",
@@ -6224,8 +6401,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-3.1-flash-image-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Nano Banana 2",
         "version": "3.0",
@@ -6244,8 +6421,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-3.1-flash-lite",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini 3.1 Flash Lite",
         "version": "3.1-flash-lite-05-2026",
@@ -6265,8 +6442,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-3.1-flash-lite-image",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Nano Banana 2 Lite",
         "version": "3.0",
@@ -6285,8 +6462,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-3.1-flash-lite-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini 3.1 Flash Lite Preview",
         "version": "3.1-flash-lite-preview-03-2026",
@@ -6306,8 +6483,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-3.1-flash-live-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini 3.1 Flash Live Preview",
         "version": "3.1-flash-live-03-2026",
@@ -6323,8 +6500,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-3.1-flash-tts-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini 3.1 Flash TTS Preview",
         "version": "3.1-flash-tts-preview",
@@ -6343,8 +6520,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-3.1-pro-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini 3.1 Pro Preview",
         "version": "3.1-pro-preview-01-2026",
@@ -6364,8 +6541,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-3.1-pro-preview-customtools",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini 3.1 Pro Preview Custom Tools",
         "version": "3.1-pro-preview-01-2026",
@@ -6385,8 +6562,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-3.5-flash",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini 3.5 Flash",
         "version": "3.5-flash-05-2026",
@@ -6406,8 +6583,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-3.5-flash-lite",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini 3.5 Flash Lite",
         "version": "3.5-flash-lite-07-2026",
@@ -6427,8 +6604,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-3.5-live-translate-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini 3.5 Live Translate Preview",
         "version": "3.5-live-translate-06-2026",
@@ -6444,8 +6621,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-3.5-transcribe",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini 3.5 Transcribe",
         "version": "3.5-transcribe-08-2026",
@@ -6463,8 +6640,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-3.5-transcribe-live",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini 3.5 Transcribe Live",
         "version": "3.5-transcribe-live-08-2026",
@@ -6480,8 +6657,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-3.6-flash",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini 3.6 Flash",
         "version": "3.6-flash-07-2026",
@@ -6501,8 +6678,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-3.7-flash",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini 3.7 Flash",
         "version": "3.7-flash-08-2026",
@@ -6522,8 +6699,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-3.8-flash",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini 3.8 Flash",
         "version": "3.0",
@@ -6541,10 +6718,45 @@
     {
       "provider_id": "gemini",
       "provider_binding_id": "gemini:worker:free-5",
+      "model_id": "gemini-3.8-live",
+      "source": "gemini.models.list",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
+      "metadata": {
+        "display_name": "Gemini 3.8 Live",
+        "version": "3.1-flash-live-03-2026",
+        "supported_generation_methods": [
+          "bidiGenerateContent"
+        ],
+        "input_token_limit": 131072,
+        "output_token_limit": 65536
+      }
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-5",
+      "model_id": "gemini-3.8-live-extended-thinking",
+      "source": "gemini.models.list",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
+      "metadata": {
+        "display_name": "Gemini 3.8 Live Extended Thinking",
+        "version": "3.1-flash-live-03-2026",
+        "supported_generation_methods": [
+          "bidiGenerateContent"
+        ],
+        "input_token_limit": 131072,
+        "output_token_limit": 65536,
+        "thinking_supported": true
+      }
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-embedding-001",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini Embedding 001",
         "version": "001",
@@ -6563,8 +6775,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-embedding-2",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini Embedding 2",
         "version": "2",
@@ -6583,8 +6795,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-embedding-2-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini Embedding 2 Preview",
         "version": "2",
@@ -6603,8 +6815,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-flash-latest",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini Flash Latest",
         "version": "Gemini Flash Latest",
@@ -6624,8 +6836,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-flash-lite-latest",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini Flash-Lite Latest",
         "version": "Gemini Flash-Lite Latest",
@@ -6645,8 +6857,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-omni-1.1-flash",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini Omni 1.1 Flash",
         "version": "001",
@@ -6664,8 +6876,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-omni-flash-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini Omni Flash Preview",
         "version": "001",
@@ -6683,8 +6895,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-pro-latest",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini Pro Latest",
         "version": "Gemini Pro Latest",
@@ -6704,8 +6916,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-robotics-er-2-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini Robotics-ER 2 Preview",
         "version": "2-preview",
@@ -6725,8 +6937,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemini-robotics-er-2-streaming-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemini Robotics-ER 2 Streaming Preview",
         "version": "2-streaming-preview",
@@ -6742,8 +6954,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemma-4-26b-a4b-it",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemma 4 26B A4B IT",
         "version": "001",
@@ -6761,8 +6973,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "gemma-4-31b-it",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Gemma 4 31B IT",
         "version": "001",
@@ -6780,8 +6992,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "lyria-3-clip-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Lyria 3 Clip Preview",
         "version": "lyria-3-clip-preview",
@@ -6798,8 +7010,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "lyria-3-pro-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Lyria 3 Pro Preview",
         "version": "lyria-3-pro-preview",
@@ -6816,8 +7028,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "lyria-3.5",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Lyria 3.5",
         "version": "3.5",
@@ -6834,8 +7046,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "lyria-realtime-exp",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Lyria Realtime Experimental",
         "version": "lyria-realtime-exp",
@@ -6851,8 +7063,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "nano-banana-pro-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Nano Banana Pro",
         "version": "3.0",
@@ -6871,8 +7083,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "veo-3.1-fast-generate-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Veo 3.1 fast",
         "version": "3.1",
@@ -6888,8 +7100,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "veo-3.1-generate-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Veo 3.1",
         "version": "3.1",
@@ -6905,8 +7117,8 @@
       "provider_binding_id": "gemini:worker:free-5",
       "model_id": "veo-3.1-lite-generate-preview",
       "source": "gemini.models.list",
-      "observed_at": "2026-09-13T21:47:55.504877+00:00",
-      "expires_at": "2026-09-20T21:47:55.504877+00:00",
+      "observed_at": "2026-09-21T15:09:42.657406+00:00",
+      "expires_at": "2026-09-28T15:09:42.657406+00:00",
       "metadata": {
         "display_name": "Veo 3.1 lite",
         "version": "3.1",
@@ -25625,8 +25837,20 @@
   ],
   "refreshed_bindings": [
     {
-      "provider_id": "openrouter",
-      "provider_binding_id": "openrouter:account"
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-2"
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-3"
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-4"
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-5"
     }
   ],
   "discovery_failures": []

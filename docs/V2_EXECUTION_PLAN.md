@@ -8,6 +8,8 @@ Phase 7後半の安全な拡張と開発運用移管。既存のKernel、Resourc
 
 進行表示は、歴史的なPhase 6 operational gateと混同しないよう、`spec/v2/GATE_STATUS.json`の`development_tracks`を併用する。現在は`D9_DOGFOOD=VERIFIED`、`D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`、`PHASE8_PREPARATION=PREPARATION_ONLY`である。Dogfoodは一件のbounded local trialに限るexit Gateであり、Production DeploymentのOS常駐・配備後recoveryを含まない。
 
+2026-09-22 checkpoint: read-only model evidence refresh recovered 232 current catalog rows (32 static-eligible, 5 runtime-unknown in the static diagnostic). Four exact qualified/no-charge L2 identities entered a fresh bounded Host-process Planner pool; three distinct quota domains returned confirmed `provider_unavailable` and the pool was exhausted before a proposal. The separate Critic was not invoked, no root/child plan was created, and Phase 8 remains `PREPARATION_ONLY` / `LIVE_ACTIVATION=NOT_VERIFIED`. The prior UNKNOWN request was not replayed. Evidence: [`model-evidence-refresh-r9-planner-blocker-20260922.json`](../spec/v2/evidence/model-evidence-refresh-r9-planner-blocker-20260922.json). Resume R9 only on a new eligible route and fresh request identity; natural FORMAT/PATCH or SEMANTIC/TEST failure may use AR1, but AR1 is not a precondition to R9.
+
 ## Implementation frontier
 
 - Group Dのsession identity、bounded artifact reference、reconciliation replay、明示的Backend discovery authority。

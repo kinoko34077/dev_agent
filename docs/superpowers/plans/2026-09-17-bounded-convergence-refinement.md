@@ -227,9 +227,20 @@ reconciliation, and `RuntimeCoordinator`.
 
 ## R9 — Zero-Human Live Trial and Evidence
 
+- 2026-09-22 update: current model evidence was refreshed from read-only
+  discovery (232 current catalog rows; 32 static-eligible, 5 runtime-unknown in
+  the static diagnostic). Four exact qualified/no-charge L2 identities entered
+  a fresh bounded Host-process pool; three distinct quota domains returned
+  confirmed `provider_unavailable`, so no Planner proposal, child Task, Critic
+  invocation, Worker, Reviewer, or integration followed. The earlier UNKNOWN
+  operation was not replayed. See
+  `spec/v2/evidence/model-evidence-refresh-r9-planner-blocker-20260922.json`.
+  R9 remains open; resume with a newly eligible route and fresh request
+  identity. AR1 remains conditional on a natural FORMAT/PATCH or SEMANTIC/TEST
+  failure and is not a precondition for R9.
 - [ ] Preflight a fresh root with current qualified, no-charge provider routes;
   do not reuse historical UNKNOWN operations or old attempts.
-- Current observation: the fresh Host-process L2 preflight reached qualified
+- 2026-09-17 historical observation: the fresh Host-process L2 preflight reached qualified
   admission, but two new `gemini:worker:free-3` model attempts returned
   `provider_unavailable` before a response. This is recorded as an external
   blocker; the R9 completion checkbox remains open and no prior UNKNOWN

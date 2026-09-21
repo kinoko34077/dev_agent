@@ -1,0 +1,182 @@
+{
+  "schema_version": 1,
+  "evidence_id": "model-evidence-refresh-r9-planner-blocker-20260922",
+  "recorded_at_utc": "2026-09-21T15:47:15Z",
+  "branch": "v2/bootstrap",
+  "base_revision": "76076c2d916c4e436eb07247da4319aeab720932",
+  "result": "R9_BLOCKED_EXTERNAL",
+  "model_evidence_refresh": {
+    "pre_refresh_observation": {
+      "stored_catalog_entries": 1289,
+      "current_catalog_rows": 0,
+      "interpretation": "The current-only catalog view filtered expired observations; zero current rows did not mean that the stored catalog was empty."
+    },
+    "discovery": {
+      "operation": "read_only_model_list_refresh",
+      "bindings": [
+        "gemini:worker:free-2",
+        "gemini:worker:free-3",
+        "gemini:worker:free-4",
+        "gemini:worker:free-5"
+      ],
+      "entries": 232,
+      "entries_per_binding": 58,
+      "failures": 0,
+      "raw_candidate_ref": "model-catalog-r9-refresh-20260922.json"
+    },
+    "benchmark_refresh": {
+      "operation": "read_only_benchmark_snapshot_refresh",
+      "entries": 8,
+      "raw_candidate_ref": "model-benchmark-r9-refresh-20260922.json"
+    },
+    "canonical_snapshot_counts_after_merge": {
+      "catalog_stored": 1301,
+      "catalog_current": 232,
+      "aliases": 960,
+      "benchmarks": 73,
+      "capabilities": 446
+    },
+    "no_authority_promotion": true,
+    "qualification_or_billing_policy_changed": false,
+    "raw_credentials_or_provider_responses_saved": false,
+    "bindings_document_ref": "model-discovery-bindings-r9-20260922.json"
+  },
+  "canonical_snapshot_sha256": {
+    "model_catalog_snapshot.json": "7c57e4e12cc03d4763ba3fea950aa26782d29d52ae7b693a40757729d67d9378",
+    "model_benchmark_snapshot.json": "db84cb9971bdd3b8ea98cc48a47c81a74bd212fe9450635aad0801d6c73988a9",
+    "model_capability_snapshot.json": "7be1b8deb21bc076a8bcfde5c75dc248c003f8258be294fdeac0df8712766259",
+    "model_alias_catalog.json": "4ae1a4f71785a2d5840939d8567116d6bf4efafd4c0cdda745f21a0a8c7763b0"
+  },
+  "candidate_sha256": {
+    "model-discovery-bindings-r9-20260922.json": "a7a1b4421cd0d089bfcdca082dc8834907e05895a93733c296cdf1b8f31be1a5",
+    "model-catalog-r9-refresh-20260922.json": "0ae23d7ebfdbced831b22c9ed484a96c7be70e64ef4c130945167a335cdb9d3e",
+    "model-benchmark-r9-refresh-20260922.json": "95022b5fdc0fad896a870b55d5e7fea625e1a4e6703af2e92a02c85d193a730f"
+  },
+  "static_diagnostic": {
+    "current_rows": 232,
+    "static_eligible_count": 32,
+    "runtime_unknown_count": 5,
+    "final_eligible_count": 0,
+    "result_counts": {
+      "BENCHMARK_MISSING": 36,
+      "BILLING_UNKNOWN": 22,
+      "QUALIFICATION_MISSING": 5,
+      "RUNTIME_UNAVAILABLE": 164,
+      "RUNTIME_UNKNOWN": 5
+    },
+    "interpretation": "The CLI does not own runtime admission. eligible_count=0 is not evidence that no static L2 candidate exists."
+  },
+  "current_no_charge_high_confidence_l2_candidates": [
+    {
+      "provider": "gemini",
+      "binding": "gemini:worker:free-3",
+      "model": "gemini-3.6-flash",
+      "catalog_expires_at": "2026-09-28T15:09:42.260687+00:00"
+    },
+    {
+      "provider": "gemini",
+      "binding": "gemini:worker:free-3",
+      "model": "gemini-3.8-flash",
+      "catalog_expires_at": "2026-09-28T15:09:42.260687+00:00"
+    },
+    {
+      "provider": "gemini",
+      "binding": "gemini:worker:free-4",
+      "model": "gemini-3.8-flash",
+      "catalog_expires_at": "2026-09-28T15:09:42.476051+00:00"
+    },
+    {
+      "provider": "gemini",
+      "binding": "gemini:worker:free-5",
+      "model": "gemini-3.8-flash",
+      "catalog_expires_at": "2026-09-28T15:09:42.657406+00:00"
+    }
+  ],
+  "planner_observations": [
+    {
+      "parent_task_id": "f557ddd2-2312-44fe-9334-631e225b5afb",
+      "status": "blocked_local",
+      "category": "resource_pool_composition",
+      "reconciliation_required": false,
+      "provider_io": false,
+      "finding": "The configured Critic pool mixed catalog-backed Gemini L1 entries with legacy L1 entries; the existing composition boundary rejected the mixed pool.",
+      "resolution": "A read-only preflight of the distinct OpenRouter and Cloudflare L1 pool passed."
+    },
+    {
+      "parent_task_id": "f22d70bf-db49-4d98-9f76-df33bc51e511",
+      "request_id": "96f71efc-71bf-4465-aebe-80485b50965d",
+      "status": "pool_exhausted",
+      "provider_attempt_count": 3,
+      "allow_unknown_quota": true,
+      "cost_ceiling": 0.0,
+      "no_charge_required": true,
+      "execution_boundary": "host_process",
+      "eligible_l2_pool_count": 4,
+      "attempts": [
+        {
+          "binding": "gemini:worker:free-3::model::gemini-3.6-flash::cf27b68ecf38",
+          "model": "gemini-3.6-flash",
+          "quota_domain": "gemini:project:982142111392",
+          "category": "provider_unavailable",
+          "failover_safe": true,
+          "reconciliation_required": false
+        },
+        {
+          "binding": "gemini:worker:free-4::model::gemini-3.8-flash::319034f3e25d",
+          "model": "gemini-3.8-flash",
+          "quota_domain": "gemini:project:497456937770",
+          "category": "provider_unavailable",
+          "failover_safe": true,
+          "reconciliation_required": false
+        },
+        {
+          "binding": "gemini:worker:free-5::model::gemini-3.8-flash::319034f3e25d",
+          "model": "gemini-3.8-flash",
+          "quota_domain": "gemini:project:691705059831",
+          "category": "provider_unavailable",
+          "failover_safe": true,
+          "reconciliation_required": false
+        }
+      ],
+      "unattempted_candidate": {
+        "binding": "gemini:worker:free-3",
+        "model": "gemini-3.8-flash",
+        "reason": "It shares the quota domain already attempted by free-3 in this bounded dispatch; it was not retried."
+      },
+      "planning_critic": {
+        "configured": true,
+        "invoked": false
+      },
+      "host_validation": "not_run",
+      "proposal_returned": false,
+      "commander_plan_created": false,
+      "worker_attempts": 0,
+      "reviewer_run": false,
+      "integration_performed": false,
+      "reconciliation_required": false,
+      "unknown_replay": false,
+      "automatic_l1_downgrade": false
+    }
+  ],
+  "verification": {
+    "focused_tests": {
+      "command": "python -m pytest tests/v2/test_model_catalog_expansion.py tests/v2/test_model_catalog_admission.py tests/v2/test_model_candidate_diagnostics.py tests/v2/test_devfarm_resource_pool.py tests/v2/test_planner_adapter.py tests/v2/test_planning_convergence.py tests/v2/test_planning_critic_adapter.py -q",
+      "result": "85 passed"
+    },
+    "full_tests_v2": "1450 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "exact_head_ci_before_sync": {
+      "head": "76076c2d916c4e436eb07247da4319aeab720932",
+      "kernel_3_10": "success",
+      "kernel_3_11": "success",
+      "provider_smoke": "success",
+      "v2_core_run_id": 35192521567,
+      "provider_smoke_run_id": 35192521528
+    }
+  },
+  "gate_status_changed": false,
+  "phase8_live_activation": "NOT_VERIFIED",
+  "d9_dogfood": "VERIFIED",
+  "d9_production_deployment": "DEFERRED_NOT_READY"
+}

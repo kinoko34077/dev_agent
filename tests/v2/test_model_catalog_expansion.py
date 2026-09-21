@@ -421,7 +421,7 @@ def test_planner_shadow_rechecks_expanded_binding_against_credential_evidence(mo
         cost_minor=0,
         price_currency="JPY",
         no_charge_guaranteed=True,
-        expires_at="2026-09-21T00:00:00+00:00",
+        expires_at="2099-01-01T00:00:00+00:00",
         billing_mode="free_fixed",
         overage_policy="hard_stop",
         allowance_amount=None,
