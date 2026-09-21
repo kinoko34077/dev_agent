@@ -280,9 +280,11 @@ reconciliation, and `RuntimeCoordinator`.
 - [x] Run `python -m pytest tests/v2 -q`.
 - [x] Inspect the diff and update only the owning Current State/traceability or
   evidence documents when implementation evidence changes.
-- [ ] Commit the verified slice and push `v2/bootstrap` to `origin`.
-- [ ] Confirm exact-head CI for kernel 3.10, kernel 3.11, and provider-smoke.
-- [ ] Report the pre-push commit separately from the post-push remote HEAD;
+- [x] Commit the verified evidence slice (`a6e1e1e`) and push `v2/bootstrap`
+  to `origin`.
+- [x] Confirm exact-head CI for kernel 3.10, kernel 3.11, and provider-smoke
+  on `a6e1e1e`; all three passed.
+- [x] Report the pre-push commit separately from the post-push remote HEAD;
   never write the documentation-sync commit's own SHA into itself.
 
 ## Deferred Lane

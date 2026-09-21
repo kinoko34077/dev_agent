@@ -5,15 +5,15 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Remote HEAD before this evidence/documentation sync | `76076c2d916c4e436eb07247da4319aeab720932` (`docs: record planner convergence cli evidence`) |
+| Remote HEAD before this documentation sync | `a6e1e1eea2b7689d13e3c4f67d30b41213e29767` (`docs: refresh R9 evidence and record planner blocker`) |
 | Latest implementation baseline before this documentation sync | `416ce96` (`feat: connect planner shadow convergence path`) |
-| Latest evidence baseline before this sync | `76076c2d916c4e436eb07247da4319aeab720932` (`docs: record planner convergence cli evidence`) |
-| Implementation/evidence baseline | implementation `416ce96`; prior remote evidence `76076c2d916c4e436eb07247da4319aeab720932`; this sync records the 2026-09-22 model evidence refresh and fresh R9 Planner blocker |
-| Worktree | model snapshots, an expiry-bound test fixture, R9 evidence, and documentation synchronization are being prepared; push is authorized and pending verification |
+| Latest evidence baseline before this sync | `a6e1e1eea2b7689d13e3c4f67d30b41213e29767` (`docs: refresh R9 evidence and record planner blocker`) |
+| Implementation/evidence baseline | implementation `416ce96`; latest remote evidence `a6e1e1eea2b7689d13e3c4f67d30b41213e29767`; this sync records exact-head CI completion and closes delivery tracking for the R9 evidence refresh slice |
+| Worktree | pre-sync changes are limited to this post-push Current State/plan synchronization; model refresh, expiry-fixture correction, and R9 evidence were committed and pushed |
 | Local regression | `1450 passed, 1 skipped` (`python -m pytest tests/v2 -q`, after current evidence refresh and expiry-bound fixture correction) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for pre-sync remote HEAD `76076c2d916c4e436eb07247da4319aeab720932` (`kernel 3.10`, `kernel 3.11`, `provider-smoke`); exact-head CI for this evidence/documentation sync is pending push. |
+| Exact-head CI | PASS for immediately preceding remote HEAD `a6e1e1eea2b7689d13e3c4f67d30b41213e29767`: `kernel 3.10`, `kernel 3.11`, and `provider-smoke`. |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
