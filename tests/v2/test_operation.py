@@ -924,6 +924,29 @@ def test_configured_provider_pool_includes_explicit_local_ollama_binding(monkeyp
     assert local.credential_id is None
 
 
+def test_configured_provider_pool_projects_explicit_local_ollama_critic_binding(monkeypatch, tmp_path):
+    monkeypatch.setenv("DEV_AGENT_ENABLE_CONFIGURED_POOL", "1")
+    monkeypatch.setenv("OLLAMA_MODEL", "qwen3.5:9b")
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+    monkeypatch.setenv("OLLAMA_TIMEOUT_SECONDS", "180")
+    monkeypatch.setenv("OLLAMA_CRITIC_MODEL", "qwen3:8b")
+    monkeypatch.setenv("OLLAMA_CRITIC_INTELLIGENCE_TIER", "L1")
+
+    config = OperationConfig.from_environment(data_dir=tmp_path)
+
+    bindings = {binding.binding_id: binding for binding in config.provider_bindings}
+    critic = bindings["ollama"]
+    assert critic.provider_id == "ollama"
+    assert critic.model == "qwen3:8b"
+    assert critic.base_url == "http://127.0.0.1:11434"
+    assert critic.timeout_seconds == 180.0
+    assert critic.keep_alive == "10m"
+    assert critic.think is False
+    assert critic.intelligence_tier == "L1"
+    assert critic.quota_domain is None
+    assert critic.credential_id is None
+
+
 def test_configured_provider_pool_public_boundary_reads_only_non_secret_binding_metadata():
     values = {
         "GEMINI_API_KEY_3": "secret-value",

@@ -274,6 +274,20 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
                 intelligence_tier=env("OLLAMA_INTELLIGENCE_TIER"),
             )
         )
+    ollama_critic_model = env("OLLAMA_CRITIC_MODEL")
+    if ollama_critic_model:
+        bindings.append(
+            OperationProviderBinding(
+                provider_id="ollama",
+                model=ollama_critic_model,
+                provider_binding_id="ollama",
+                base_url=env("OLLAMA_CRITIC_BASE_URL") or env("OLLAMA_BASE_URL") or "http://127.0.0.1:11434",
+                timeout_seconds=float(env("OLLAMA_CRITIC_TIMEOUT_SECONDS") or env("OLLAMA_TIMEOUT_SECONDS") or 30.0),
+                keep_alive=env("OLLAMA_CRITIC_KEEP_ALIVE") or env("OLLAMA_KEEP_ALIVE") or "10m",
+                think=False,
+                intelligence_tier=env("OLLAMA_CRITIC_INTELLIGENCE_TIER") or "L1",
+            )
+        )
     ollama_model = env("OLLAMA_CLOUD_MODEL")
     if env("OLLAMA_API_KEY") and ollama_model:
         bindings.append(
