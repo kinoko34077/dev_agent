@@ -1,0 +1,88 @@
+{
+  "evidence_id": "ollama-local-fresh-root-rebind-20260923",
+  "evidence_kind": "ollama_local_fresh_root_convergence_observation",
+  "observed_at": "2026-09-23",
+  "implementation_revision": "73d92bdc31ac82f5418b46b6fb06b1f4ff4c848d",
+  "track": "R10_PREP",
+  "root": {
+    "root_id": "ollama-local-fresh-73d92bd-20260923",
+    "planner_parent_task_id": "d5f44b60-081b-4de6-8c0a-0a2c14dcd0ef",
+    "planner_request_id": "c5b94925-aed7-4a0a-95b6-da48087077fd",
+    "planner_model": "qwen3.5:9b",
+    "planner_tier": "L1_LOCAL_TRIAL",
+    "planner_host_validation": "PASS",
+    "proposal_id": "e226f375-4dba-4d0f-8dfc-b535829e514e",
+    "child_count": 2,
+    "ownership": "non_overlapping",
+    "task_mutation": false
+  },
+  "worker_a": {
+    "task_id": "ollama-local-fresh-73d92bd-worker-a",
+    "allowed_file": "src/dev_agent/providers/ollama/__init__.py",
+    "primary_model": "qwen3.5:9b",
+    "qwen_attempts": [
+      {"attempt_id": "985f24111cea4fc89ee30826cc108b45", "failure_signature": "e37193bd6809d5fe7aa74311f2c8f84d111dc308351bb50bcb6751a14945509", "failure": "invalid_json", "progress": false},
+      {"attempt_id": "0cea28bd127c43ebbb0fd239fc9af1cd", "failure_signature": "77d9450c492eca4465f04c13c83f47c18969843e49d90a406418360f9276a789", "failure": "embedded_newline", "progress": true},
+      {"attempt_id": "161fee69fd1049558526df203324ec03", "failure": "host_verification_syntax_failure", "progress": true},
+      {"attempt_id": "1b5cd8a0cc5c4dacae91dfa05f93870c", "failure_signature": "e37193bd6809d5fe7aa74311f2c8f84d111dc308351bb50bcb6751a14945509", "failure": "invalid_json_recurrence", "progress": false}
+    ],
+    "fallback": {
+      "model": "gemma4:12b",
+      "attempt_id": "62002d75d33341dc94211c0c481e3bd8",
+      "source_attempt_id": "1b5cd8a0cc5c4dacae91dfa05f93870c",
+      "source_failure_signature": "e37193bd6809d5fe7aa74311f2c8f84d111dc308351bb50bcb6751a14945509",
+      "repair_directive_hash": "8199d8b8045e57283de354ea24001dd94eb158cc8693b79ade10ace30da98db9",
+      "directive_rebound": true,
+      "failure": "allowed_path_violation"
+    },
+    "host_verification": "FAIL",
+    "verification_failure": "unterminated triple-quoted module docstring",
+    "review": "not_reached",
+    "integration": "not_reached"
+  },
+  "worker_b": {
+    "task_id": "ollama-local-fresh-73d92bd-worker-b",
+    "allowed_file": "src/dev_agent/providers/fake/__init__.py",
+    "qwen_attempts": [
+      {"attempt_id": "f8220d2c81d74cbd9924bb514a046a1d", "failure_signature": "e37193bd6809d5fe7aa74311f2c8f84d111dc308351bb50bcb6751a14945509", "failure": "invalid_json", "progress": false},
+      {"attempt_id": "ddd2f217e1744705b5459183d9070adb", "failure_signature": "e37193bd6809d5fe7aa74311f2c8f84d111dc308351bb50bcb6751a14945509", "failure": "same_signature_recurrence", "progress": false}
+    ],
+    "fallback": {
+      "model": "gemma4:12b",
+      "attempt_id": "6f7ea666137947b4a5bd278e0bb9a398",
+      "source_attempt_id": "ddd2f217e1744705b5459183d9070adb",
+      "source_failure_signature": "e37193bd6809d5fe7aa74311f2c8f84d111dc308351bb50bcb6751a14945509",
+      "repair_directive_hash": "8199d8b8045e57283de354ea24001dd94eb158cc8693b79ade10ace30da98db9",
+      "directive_rebound": true,
+      "failure": "host_verification_syntax_failure"
+    },
+    "host_verification": "FAIL",
+    "verification_failure": "unmatched closing bracket",
+    "review": "not_reached",
+    "integration": "not_reached"
+  },
+  "convergence": {
+    "latest_directive_rebind": "VERIFIED_BY_EXECUTION",
+    "cycle_or_recurrence_observed": true,
+    "same_signature_blind_retry": false,
+    "provider_failure_repair_mixing": false,
+    "unknown_external_effect_replayed": 0,
+    "third_model_attempted": false,
+    "codex_direct_implementation": 0
+  },
+  "dependent_continuation": "not_released",
+  "models": {
+    "primary": "qwen3.5:9b",
+    "fallback": "gemma4:12b",
+    "qwen3_5_4b_auto_routing": false,
+    "loaded_after_trial": [],
+    "unload": "PASS"
+  },
+  "status": "PARTIAL_BLOCKED",
+  "formal_gate_impact": {
+    "D9_DOGFOOD": "VERIFIED_unchanged",
+    "PHASE8_PREPARATION": "PREPARATION_ONLY_unchanged",
+    "PHASE8_LIVE_ACTIVATION": "NOT_VERIFIED_unchanged"
+  },
+  "interpretation": "The fresh local root produced a live qwen3.5:9b Planner proposal with Host validation PASS and two non-overlapping child concepts. Worker A progressed through response-contract validation to Host Verification, then failed syntax verification; Worker B required qwen correction and Gemma fallback, reached Host Verification, and failed syntax verification. No Worker patch passed Host Verification, so Reviewer, deterministic integration, and CODE_INTEGRATED continuation were not run. Latest repair state was rebound to each fallback attempt; no UNKNOWN replay or third model was used."
+}

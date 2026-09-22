@@ -5,15 +5,15 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Remote HEAD before this documentation sync | `9288628` (`feat: strengthen local worker convergence handoff`) |
-| Latest implementation baseline before this documentation sync | `9288628` (`feat: strengthen local worker convergence handoff`) |
-| Latest evidence baseline before this sync | `ollama-local-concrete-convergence-20260923.json` is added by this sync |
-| Implementation/evidence baseline | implementation `9288628`; local qwen3.5:9b primary and gemma4:12b fallback now use Host-derived concrete FailureSpec/RepairDirective handoff, while qwen3.5:4b remains inactive for automatic routing |
-| Worktree | documentation/evidence synchronization in progress; implementation commit `9288628` is already pushed |
-| Local regression | `1490 passed, 1 skipped` (`python -m pytest tests/v2 -q`) |
+| Remote HEAD before this documentation sync | `73d92bd` (`feat: harden local weak-model convergence`) |
+| Latest implementation baseline before this documentation sync | `73d92bd` (`feat: harden local weak-model convergence`) |
+| Latest evidence baseline before this sync | `ollama-local-fresh-root-rebind-20260923.json` is added by this sync |
+| Implementation/evidence baseline | implementation `73d92bd`; local qwen3.5:9b primary and gemma4:12b fallback now use latest Host-derived FailureSpec/RepairDirective rebind, recurrence detection, and minimal file-replacement output, while qwen3.5:4b remains inactive for automatic routing |
+| Worktree | documentation/evidence synchronization in progress; implementation commit `73d92bd` is already pushed |
+| Local regression | `1496 passed, 1 skipped` (`python -m pytest tests/v2 -q`) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for `92886284a4d3c6e421bd4a353989c840c6621475`: `v2-core` (Python 3.10/3.11) and `v2-provider-smoke` (`v2 tests` workflow). |
+| Exact-head CI | PASS for `73d92bdc31ac82f5418b46b6fb06b1f4ff4c848d`: `v2-core` (Python 3.10/3.11) and `v2-provider-smoke` (`v2 tests` workflow). |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
@@ -25,6 +25,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 - Group D boundary: `client_session_key`, provider `external_session_id`, bounded artifact references, replay/reconciliation projection, and explicit `BackendDiscoveryAuthority` with identity/fingerprint checks. `CodexExecBackend` has no formal post-restart discovery mechanism; absent or mismatched explicit authority closes to `UNKNOWN` and does not guess from artifacts or thread IDs. See [`codex-session-restart-discovery-20260914.json`](../spec/v2/evidence/codex-session-restart-discovery-20260914.json).
 - Daily Supervisor path: Free L1 Worker dispatch, Host Verification, compact ReviewPacket, durable ReviewDecision, REWORK manifest, dependency release, and deterministic Host integration have existing D1/D2 evidence. A second, different bounded documentation slice was also Planner-originated, Worker-integrated, and recorded with zero Codex direct implementation in [`d2-dogfood-doc-note-20260914.json`](../spec/v2/evidence/d2-dogfood-doc-note-20260914.json).
 - Planner/model evidence boundary: strict JSON proposal handling, Host-only planning validation/bridge, explicit Model Catalog, alias, Benchmark, Capability, qualification, billing, privacy, quota, and health separation, plus bounded same-tier failover. UNKNOWN outcomes remain reconciliation-only and L1 is not an automatic Planner downgrade.
+- Local weak-model convergence: fresh root `ollama-local-fresh-73d92bd-20260923` produced a qwen3.5:9b Planner proposal and Host planning validation PASS, then exercised qwen correction, latest Directive rebind, recurrence detection, Gemma4 fallback, and independent Host Verification. Both Worker scopes failed Host verification on generated syntax, so Reviewer/integration/dependent continuation were not reached. Evidence: [`ollama-local-fresh-root-rebind-20260923.json`](../spec/v2/evidence/ollama-local-fresh-root-rebind-20260923.json). `OLLAMA_LOCAL_E2E=PARTIAL_BLOCKED`; formal Phase 8 remains unchanged.
 - Model inventory operation: the read-only catalog refresh recorded 1,297 identities with bounded provider metadata, while `diagnose_model_candidates.py --all --summary --json` reports admission reasons without exposing secrets or raw provider responses. Discovery remains observation-only; exact downstream admission is unchanged. See [`model-catalog-refresh-20260915.json`](../spec/v2/evidence/model-catalog-refresh-20260915.json).
 - Model-candidate diagnostic projection: the 2026-09-17 snapshot (1,289 stored rows) reported `static_eligible_count=127`, `runtime_unknown_count=7`, and final runtime `eligible_count=0`. The CLI exposes separate static-result and runtime-result counters, so runtime quota/health uncertainty is not misread as an empty catalog. The 2026-09-22 refresh is recorded separately below; neither observation grants routing admission. See [`model-candidate-runtime-projection-20260917.json`](../spec/v2/evidence/model-candidate-runtime-projection-20260917.json).
 - Planner configured-pool composition: the 2026-09-15 `--configured-pool --expand-discovered-models` observation assembled four then-current no-charge L2 candidates from four Gemini project lanes (one `gemini-3.6-flash`, three `gemini-3.8-flash`) after existing evidence and admission filters. The Codex-launched sandbox attempt remains a bounded `local_network_policy_denied` transport observation; no alternate or retry was used. A normal Host-process run then selected `gemini:worker:free-3` / `gemini-3.6-flash`, decoded strict JSON, and passed Host validation; see [`planner-host-dispatch-d1-20260915.json`](../spec/v2/evidence/planner-host-dispatch-d1-20260915.json).
