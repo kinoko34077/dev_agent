@@ -924,6 +924,33 @@ def test_configured_provider_pool_includes_explicit_local_ollama_binding(monkeyp
     assert local.credential_id is None
 
 
+def test_configured_provider_pool_exposes_preferred_local_model_and_fallback_candidates(monkeypatch, tmp_path):
+    monkeypatch.setenv("DEV_AGENT_ENABLE_CONFIGURED_POOL", "1")
+    monkeypatch.delenv("OLLAMA_MODEL", raising=False)
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+
+    config = OperationConfig.from_environment(data_dir=tmp_path)
+
+    local = [binding for binding in config.provider_bindings if binding.provider_id == "ollama"]
+    assert [binding.model for binding in local[:3]] == ["qwen3.5:4b", "qwen3.5:9b", "gemma4:12b"]
+    assert [binding.binding_id for binding in local[:3]] == [
+        "ollama:local:qwen3.5-4b",
+        "ollama:local:qwen3.5-9b",
+        "ollama:local:gemma4-12b",
+    ]
+    assert all(binding.quota_domain is None and binding.credential_id is None for binding in local[:3])
+
+
+def test_configured_provider_pool_keeps_explicit_local_model_and_adds_safe_fallbacks(monkeypatch, tmp_path):
+    monkeypatch.setenv("DEV_AGENT_ENABLE_CONFIGURED_POOL", "1")
+    monkeypatch.setenv("OLLAMA_MODEL", "qwen3.5:9b")
+
+    config = OperationConfig.from_environment(data_dir=tmp_path)
+
+    local = [binding for binding in config.provider_bindings if binding.provider_id == "ollama"]
+    assert [binding.model for binding in local[:3]] == ["qwen3.5:9b", "qwen3.5:4b", "gemma4:12b"]
+
+
 def test_configured_provider_pool_projects_explicit_local_ollama_critic_binding(monkeypatch, tmp_path):
     monkeypatch.setenv("DEV_AGENT_ENABLE_CONFIGURED_POOL", "1")
     monkeypatch.setenv("OLLAMA_MODEL", "qwen3.5:9b")

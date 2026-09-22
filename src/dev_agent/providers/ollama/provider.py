@@ -63,7 +63,14 @@ class OllamaProvider(ModelProvider):
                 self.model_manager.acquire(self.model, keep_alive=self.keep_alive)
                 acquired = True
             except OllamaLifecycleError as exc:
-                raise ProviderError("ollama model lifecycle failed", category="transport", retryable=True) from exc
+                # Lifecycle admission happens before /api/chat.  No external
+                # model request can have crossed the boundary, so a missing
+                # model, failed preload, or local daemon timeout may safely
+                # move to another already-admitted local binding.  Once chat
+                # starts, transport remains reconciliation-required below.
+                if exc.category in {"model_missing", "load_failure", "timeout", "transport", "provider_decode"}:
+                    raise ProviderError("ollama model lifecycle unavailable", category="provider_unavailable", retryable=True, failover_safe=True) from exc
+                raise ProviderError("ollama model lifecycle state failure", category="provider_decode", retryable=False) from exc
         try:
             try:
                 with urlopen_no_redirect(http_request, timeout=self.timeout_seconds) as response:

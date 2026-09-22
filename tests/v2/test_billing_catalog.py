@@ -124,3 +124,21 @@ def test_gemini_additional_binding_profiles_are_allowance_backed_not_fixed_free(
     assert profile is not None
     assert profile.billing_mode == "recurring_allowance"
     assert profile.allowance_period == "daily"
+
+
+@pytest.mark.parametrize(
+    ("binding_id", "model_id"),
+    (
+        ("ollama:local:qwen3.5-4b", "qwen3.5:4b"),
+        ("ollama:local:qwen3.5-9b", "qwen3.5:9b"),
+        ("ollama:local:gemma4-12b", "gemma4:12b"),
+    ),
+)
+def test_local_ollama_candidates_have_exact_zero_cost_catalog_profiles(binding_id, model_id):
+    profile = profile_for("ollama", binding_id, model_id)
+
+    assert profile is not None
+    assert profile.cost_minor == 0
+    assert profile.price_currency == "JPY"
+    assert profile.quota_required is False
+    assert profile.no_charge_guaranteed is True

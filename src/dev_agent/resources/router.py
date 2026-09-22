@@ -451,11 +451,21 @@ class ResourceRouter:
             # Minimize exposure first, then maximize known quota headroom,
             # then prefer free/low-cost, healthy, fast, lightly loaded resources.
             quota_rank = -quota_ratio if quota_ratio is not None else 0.0
+            raw_routing_priority = resource["metadata"].get("routing_priority")
+            routing_priority = (
+                float(raw_routing_priority)
+                if isinstance(raw_routing_priority, (int, float))
+                and not isinstance(raw_routing_priority, bool)
+                and math.isfinite(float(raw_routing_priority))
+                and float(raw_routing_priority) >= 0
+                else 10**18
+            )
             candidates.append((
                 _SENSITIVITY[resource["sensitivity"]],
                 -(task_fit_score if task_fit_score is not None else 0.0),
                 quota_rank,
                 resource["cost_minor"] if resource["cost_minor"] is not None else 10**18,
+                routing_priority,
                 failure_rank,
                 latency_rank,
                 inflight_rank,

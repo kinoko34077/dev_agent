@@ -18,7 +18,7 @@ from tempfile import TemporaryDirectory
 from typing import Any
 
 from scripts.devfarm_errors import DevFarmError
-from src.dev_agent.operation import OperationProviderBinding, configured_provider_pool_from_environment
+from src.dev_agent.operation import OperationProviderBinding, configured_provider_pool_from_environment, ollama_local_routing_priority
 from src.dev_agent.providers.base import ModelProvider
 from src.dev_agent.providers.dispatch import ProviderDispatcher, ProviderRegistry
 from src.dev_agent.providers.factory import ProviderDefinition, ProviderFactory
@@ -357,6 +357,7 @@ def compose_resource_pool(
                 )
                 concrete.append(builder(binding=binding))
                 resource_id = f"{resource_id_prefix}:{binding.binding_id}"
+                routing_priority = ollama_local_routing_priority(binding.model) if binding.provider_id == "ollama" else None
                 ledger.register_resource(
                     resource_id,
                     provider_id=binding.provider_id,
@@ -384,6 +385,7 @@ def compose_resource_pool(
                         "allowance_amount": profile.allowance_amount,
                         "allowance_currency": profile.allowance_currency,
                         "allowance_period": profile.allowance_period,
+                        **({"routing_priority": routing_priority} if routing_priority is not None else {}),
                     },
                 )
                 ledger.observe(resource_id, available=1, health="healthy", concurrency_limit=1)

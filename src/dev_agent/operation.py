@@ -77,6 +77,26 @@ _CONFIGURED_GEMINI_PROJECTS = {
     "4": "497456937770",
     "5": "691705059831",
 }
+OLLAMA_DEFAULT_MODEL = "qwen3.5:4b"
+OLLAMA_FALLBACK_MODELS = ("qwen3.5:9b", "gemma4:12b")
+
+
+def ollama_local_routing_priority(model: str) -> int | None:
+    """Return the operator-owned local model preference, if applicable.
+
+    This is only a deterministic preference among already-admitted local
+    resources.  It does not grant billing, capability, or intelligence-tier
+    admission.
+    """
+
+    if not isinstance(model, str):
+        return None
+    priorities = {
+        OLLAMA_DEFAULT_MODEL: 0,
+        "qwen3.5:9b": 10,
+        "gemma4:12b": 20,
+    }
+    return priorities.get(model.strip())
 
 
 def _default_binding_id(provider_id: str, model: str) -> str:
@@ -260,18 +280,27 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
             )
         )
     ollama_model = env("OLLAMA_MODEL")
-    if ollama_model:
-        local_binding = ollama_model.replace(":", "-").replace("/", "-")
+    configured_models = env("OLLAMA_MODELS")
+    local_models: list[str] = []
+    for candidate in (
+        ollama_model,
+        *(configured_models.split(",") if configured_models else ()),
+        *((OLLAMA_DEFAULT_MODEL, *OLLAMA_FALLBACK_MODELS) if not ollama_model else (OLLAMA_DEFAULT_MODEL, "gemma4:12b")),
+    ):
+        if isinstance(candidate, str) and candidate.strip() and candidate.strip() not in local_models:
+            local_models.append(candidate.strip())
+    for local_model in local_models:
+        local_binding = local_model.replace(":", "-").replace("/", "-")
         bindings.append(
             OperationProviderBinding(
                 provider_id="ollama",
-                model=ollama_model,
+                model=local_model,
                 provider_binding_id=f"ollama:local:{local_binding}",
                 base_url=env("OLLAMA_BASE_URL") or "http://127.0.0.1:11434",
                 timeout_seconds=float(env("OLLAMA_TIMEOUT_SECONDS") or 30.0),
                 keep_alive=env("OLLAMA_KEEP_ALIVE") or "10m",
                 think=False,
-                intelligence_tier=env("OLLAMA_INTELLIGENCE_TIER"),
+                intelligence_tier=env("OLLAMA_INTELLIGENCE_TIER") if local_model == (ollama_model or OLLAMA_DEFAULT_MODEL) else None,
             )
         )
     ollama_critic_model = env("OLLAMA_CRITIC_MODEL")
@@ -947,6 +976,10 @@ class OperationService:
             "provider_binding_id": binding_id,
             "model_id": model_id,
         }
+        if config.provider_id == "ollama":
+            routing_priority = ollama_local_routing_priority(model_id)
+            if routing_priority is not None:
+                resource_metadata["routing_priority"] = routing_priority
         resource_sensitivity, privacy_profile = _operation_resource_sensitivity(config.provider_id)
         resource_metadata["privacy_profile"] = privacy_profile
         # Real provider resources must be checked against the protected,

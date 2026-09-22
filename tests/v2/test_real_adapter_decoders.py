@@ -10,6 +10,7 @@ from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.gemini import GeminiHttpProvider
 from src.dev_agent.providers.gemini.decoder import decode_generate_content
 from src.dev_agent.providers.ollama.provider import OllamaProvider
+from src.dev_agent.providers.ollama.lifecycle import OllamaLifecycleError
 import src.dev_agent.providers.gemini.provider as gemini_provider_module
 
 
@@ -65,6 +66,34 @@ def test_ollama_response_records_explicit_zero_local_cost(monkeypatch):
     monkeypatch.setattr("src.dev_agent.providers.ollama.provider.urlopen_no_redirect", lambda request, timeout: Response())
     response = OllamaProvider(model="local-test").request(ModelRequest(task_id=_id(), messages=[{"role": "user", "content": "x"}]))
     assert response.usage["cost_minor"] == 0
+
+
+def test_ollama_preflight_lifecycle_failure_is_safe_for_local_failover():
+    class MissingModelManager:
+        def acquire(self, *_args, **_kwargs):
+            raise OllamaLifecycleError("model missing", category="model_missing")
+
+    provider = OllamaProvider(model="qwen3.5:4b", model_manager=MissingModelManager())
+    with pytest.raises(ProviderError) as caught:
+        provider.request(ModelRequest(task_id=_id(), messages=[{"role": "user", "content": "x"}]))
+
+    assert caught.value.category == "provider_unavailable"
+    assert caught.value.failover_safe is True
+    assert caught.value.requires_reconciliation is False
+
+
+def test_ollama_post_boundary_transport_failure_still_requires_reconciliation(monkeypatch):
+    monkeypatch.setattr(
+        "src.dev_agent.providers.ollama.provider.urlopen_no_redirect",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(URLError("connection reset")),
+    )
+    provider = OllamaProvider(model="qwen3.5:4b")
+
+    with pytest.raises(ProviderError) as caught:
+        provider.request(ModelRequest(task_id=_id(), messages=[{"role": "user", "content": "x"}]))
+
+    assert caught.value.category == "transport"
+    assert caught.value.requires_reconciliation is True
 
 
 def test_gemini_http_provider_fails_closed_without_key(monkeypatch):
