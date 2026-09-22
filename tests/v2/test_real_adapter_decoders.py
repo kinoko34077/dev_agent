@@ -39,6 +39,17 @@ def test_ollama_payload_preserves_normalized_tool_result_identity():
     assert json.loads(tool_message["content"])["call_id"] == request.tool_results[0].call_id
 
 
+def test_ollama_payload_requests_json_mode_for_structured_output():
+    provider = OllamaProvider(model="local-test", keep_alive="10m", think=False)
+    request = ModelRequest(
+        task_id=_id(),
+        messages=[{"role": "user", "content": "return an object"}],
+        response_schema={"type": "object"},
+    )
+
+    assert provider._payload(request)["format"] == {"type": "object"}
+
+
 def test_ollama_response_records_explicit_zero_local_cost(monkeypatch):
     class Response:
         def __enter__(self):

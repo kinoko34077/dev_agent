@@ -465,6 +465,41 @@ def _prompt(
 _provider = build_worker_provider
 
 
+# Ollama supports host-supplied JSON-schema output mode.  Keep this schema
+# deliberately bounded to the existing Worker result contract; patch scope,
+# file ownership, and acceptance remain Host responsibilities.
+_OLLAMA_WORKER_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "status": {
+            "type": "string",
+            "enum": ["completed", "failed", "blocked_external", "pending", "running"],
+        },
+        "changed_files": {
+            "type": "array",
+            "items": {"type": "string"},
+            "minItems": 1,
+        },
+        "tests_run": {"type": "array", "items": {"type": "string"}},
+        "tests_passed": {"type": "boolean"},
+        "known_issues": {"type": "array", "items": {"type": "string"}},
+        "assumptions": {"type": "array", "items": {"type": "string"}},
+        "patch": {"type": "string", "maxLength": 0},
+        "file_replacements": {"type": "object", "minProperties": 1},
+        "notes": {"type": "string"},
+    },
+    "required": [
+        "status",
+        "changed_files",
+        "tests_run",
+        "tests_passed",
+        "patch",
+        "file_replacements",
+    ],
+    "additionalProperties": True,
+}
+
+
 def inspect_worker_egress(
     root: str | Path,
     manifest_path: str | Path,
@@ -866,15 +901,29 @@ def run_worker(
     # worktree until a valid proposal reaches apply_and_verify().
     workspace = _proposal_workspace(root, manifest)
     inputs, egress_manifest = _input_context_with_manifest(workspace, manifest, destination=provider_id)
+    messages = [
+        {"role": "system", "content": "Return the bounded development-worker result as JSON only."},
+    ]
+    if provider_id == "ollama":
+        messages.append(
+            {
+                "role": "system",
+                "content": (
+                    "For this local Ollama trial, always use file_replacements with a complete "
+                    "replacement for one supplied file and keep patch as an empty string. "
+                    "Do not emit a unified diff."
+                ),
+            }
+        )
+    messages.append(
+        {"role": "user", "content": _prompt(manifest, inputs, egress_manifest=egress_manifest)}
+    )
     request = ModelRequest(
         # DevFarm task ids are intentionally readable and are validated by the
         # manifest contract.  ModelRequest has a stricter UUID task identity;
         # keep both identities without weakening either contract.
         task_id=_request_task_id(manifest),
-        messages=[
-            {"role": "system", "content": "Return the bounded development-worker result as JSON only."},
-            {"role": "user", "content": _prompt(manifest, inputs, egress_manifest=egress_manifest)},
-        ],
+        messages=messages,
         requested_capabilities=["text"],
         metadata={
             "devfarm_task_id": manifest["task_id"],
@@ -883,6 +932,11 @@ def run_worker(
             "allowed_intelligence_tiers": [worker_tier],
             **({"allow_unknown_quota": True} if _eligibility.billing_admitted else {}),
         },
+        response_schema=(
+            _OLLAMA_WORKER_RESPONSE_SCHEMA
+            if provider_id == "ollama"
+            else None
+        ),
         max_output_tokens=4096,
     )
     dispatch = host_dispatch or HostProviderDispatch(provider)

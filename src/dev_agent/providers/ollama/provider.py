@@ -41,6 +41,12 @@ class OllamaProvider(ModelProvider):
             "tools": [{"type": "function", "function": definition} for definition in request.tool_definitions],
             "keep_alive": self.keep_alive,
         }
+        if request.response_schema is not None:
+            # Ollama accepts a JSON schema in ``format``.  Keep the schema
+            # host-owned: the adapter only forwards the already validated
+            # request contract and never lets the model choose its own output
+            # format or validation authority.
+            payload["format"] = request.response_schema
         if self.think is not None:
             payload["think"] = self.think
         return payload

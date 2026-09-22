@@ -22,6 +22,7 @@ from src.dev_agent.security.egress import EgressDecision
 from src.dev_agent.domain.protocol import ModelResponse
 from src.dev_agent.providers.cloudflare import CloudflareWorkersAIHttpProvider
 from src.dev_agent.providers.gemini import GeminiHttpProvider
+from src.dev_agent.providers.ollama.provider import OllamaProvider
 from src.dev_agent.providers.openrouter import OpenRouterHttpProvider
 from tests.v2.devfarm_test_support import _RawWorkerProvider, _WorkerProvider, _workspace, _patch
 
@@ -224,6 +225,54 @@ def test_run_worker_marks_host_admitted_free_request_for_bounded_unknown_quota_b
     assert request.metadata["intelligence_routing"] == "bounded"
     assert request.metadata["allowed_intelligence_tiers"] == ["L1"]
     assert request.metadata["allow_unknown_quota"] is True
+    assert request.response_schema is None
+
+
+def test_run_worker_requests_bounded_json_schema_for_local_ollama(tmp_path, monkeypatch):
+    root, manifest_path = _workspace(tmp_path, prepare=False)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["approved_provider_ids"] = ["ollama"]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": False,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": _patch(),
+        "notes": "local structured output",
+    }
+    provider = OllamaProvider(model="qwen3.5:9b", base_url="http://127.0.0.1:11434")
+    provider.provider_binding_id = "ollama:local:qwen3.5-9b"
+    provider.intelligence_tier = "L1"
+    requests = []
+
+    def capture(request):
+        requests.append(request)
+        return ModelResponse(
+            provider="ollama",
+            model="qwen3.5:9b",
+            text_segments=[json.dumps(output)],
+        )
+
+    monkeypatch.setattr(provider, "request", capture)
+    result = run_worker(root, manifest_path, provider=provider, local_trial=True)
+
+    assert result["status"] == "completed"
+    assert requests[0].response_schema["type"] == "object"
+    assert requests[0].response_schema["properties"]["status"]["enum"] == [
+        "completed",
+        "failed",
+        "blocked_external",
+        "pending",
+        "running",
+    ]
+    assert requests[0].response_schema["properties"]["patch"]["maxLength"] == 0
+    assert requests[0].response_schema["properties"]["file_replacements"]["minProperties"] == 1
+    assert "file_replacements" in requests[0].response_schema["required"]
+    assert "always use file_replacements" in requests[0].messages[1]["content"]
+    assert requests[0].messages[2]["role"] == "user"
 
 
 def test_worker_prompt_makes_patch_and_test_claim_boundaries_explicit(tmp_path):
