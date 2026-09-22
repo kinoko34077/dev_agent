@@ -5,15 +5,15 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Remote HEAD before this documentation sync | `a6e1e1eea2b7689d13e3c4f67d30b41213e29767` (`docs: refresh R9 evidence and record planner blocker`) |
-| Latest implementation baseline before this documentation sync | `416ce96` (`feat: connect planner shadow convergence path`) |
-| Latest evidence baseline before this sync | `a6e1e1eea2b7689d13e3c4f67d30b41213e29767` (`docs: refresh R9 evidence and record planner blocker`) |
-| Implementation/evidence baseline | implementation `416ce96`; latest remote evidence `a6e1e1eea2b7689d13e3c4f67d30b41213e29767`; this sync records exact-head CI completion and closes delivery tracking for the R9 evidence refresh slice |
-| Worktree | pre-sync changes are limited to this post-push Current State/plan synchronization; model refresh, expiry-fixture correction, and R9 evidence were committed and pushed |
-| Local regression | `1450 passed, 1 skipped` (`python -m pytest tests/v2 -q`, after current evidence refresh and expiry-bound fixture correction) |
+| Remote HEAD before this documentation sync | `eb8d014` (`feat: constrain local Ollama worker output`) |
+| Latest implementation baseline before this documentation sync | `eb8d014` (`feat: constrain local Ollama worker output`) |
+| Latest evidence baseline before this sync | `eb8d014` (`feat: constrain local Ollama worker output`) |
+| Implementation/evidence baseline | implementation `eb8d014`; this sync records the bounded local Worker output-contract trial and preserves its partial blocker without changing a Gate |
+| Worktree | post-push documentation/evidence synchronization is pending; implementation and tests for local Ollama JSON mode are already pushed |
+| Local regression | `1466 passed, 1 skipped` (`python -m pytest tests/v2 -q`, after the local Ollama output-contract change) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for immediately preceding remote HEAD `a6e1e1eea2b7689d13e3c4f67d30b41213e29767`: `kernel 3.10`, `kernel 3.11`, and `provider-smoke`. |
+| Exact-head CI | PASS for `eb8d014375bcf82994349c2b0980126044e0e5f7`: `v2-core` and `v2-provider-smoke` (`v2 tests` workflow). |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
@@ -154,11 +154,13 @@ state. Detailed requirements and decisions stay in their owning documents.
 - Model discovery and benchmark evidence are observation inputs, not routing grants. Exact current qualification, capability, billing, privacy, quota, health, and binding admission remain required.
 - 2026-09-22 R9 refresh: read-only discovery refreshed four Gemini bindings (232 current catalog entries) and the benchmark snapshot. Current diagnostic reports 32 static-eligible rows, 5 runtime-unknown rows, and final eligible 0 because the diagnostic does not own runtime admission; this is not an empty candidate pool. Four exact no-charge, qualified L2 identities entered a fresh bounded Host-process pool; three distinct quota domains returned confirmed `provider_unavailable`, yielding `pool_exhausted`. The independent Critic was configured but not invoked, and no Planner proposal/Commander Plan/Worker/Reviewer/integration was created. No prior UNKNOWN replay or L1 downgrade occurred. See [`model-evidence-refresh-r9-planner-blocker-20260922.json`](../spec/v2/evidence/model-evidence-refresh-r9-planner-blocker-20260922.json).
 - 2026-09-22 Ollama local runtime: exact `qwen3.5:9b` was installed through the explicitly authorized pull and verified through the loopback HTTP lifecycle manager. Cold load, cold/warm inference, `keep_alive=10m`, and unload were observed; the model was not promoted beyond the explicit `L1_LOCAL_TRIAL` tier. The fresh local Worker roots exercised bounded output failures, patch/application failures, Host Verification, proposal-only Reviewer Shadow, and final Codex/Host REWORK, but no local patch reached deterministic integration within the finite attempt budget. This is `OLLAMA_LOCAL_E2E=PARTIAL_BLOCKED`, not Phase 8 activation evidence. The Host child timeout propagation fix is recorded in the current implementation slice. See [`ollama-local-lifecycle-e2e-20260922.json`](../spec/v2/evidence/ollama-local-lifecycle-e2e-20260922.json).
+- 2026-09-22 Ollama Planner convergence: a fresh `qwen3.5:9b` L1 local Planner response-contract failure was corrected once by a distinct `qwen3:8b` L1 proposal-only Critic, and the corrected proposal passed the existing Host planning validator with two bounded child entries. A separate fresh request reached the same-signature limit and stopped as `NON_CONVERGING`; neither observation mutated Tasks/Git or replayed an UNKNOWN effect. This verifies the explicit local Critic binding and bounded Planner convergence only; it does not close the Worker/integration chain or Phase 8 LIVE_ACTIVATION. See [`ollama-local-planner-convergence-20260922.json`](../spec/v2/evidence/ollama-local-planner-convergence-20260922.json).
+- 2026-09-22 Ollama Worker output contract: the local Ollama adapter now forwards Host-owned JSON schema through `/api/chat`, and local Worker requests use a bounded file-replacement contract while remote Worker requests remain schema-free. A fresh local root then recorded qwen3.5 output-contract failures, one bounded same-tier reassignment to qwen3:8b, a qwen3 transport HTTP 400, and a sibling egress rejection; all attempts stopped before Host Verification/integration and were superseded without replay. This is `OLLAMA_LOCAL_E2E=PARTIAL_BLOCKED` and AR1 partial evidence, not Phase 8 activation. See [`ollama-local-worker-convergence-20260922.json`](../spec/v2/evidence/ollama-local-worker-convergence-20260922.json).
 - The active `v2/bootstrap` GitHub ruleset requires `kernel (3.10)`, `kernel (3.11)`, and `provider-smoke`, and prevents deletion/non-fast-forward updates. The current authenticated direct-push identity is a configured bypass actor, so remote push acceptance does not replace exact-head CI evidence. No local artifact promotes a Gate.
 
 ## Immediate next target
 
-1. Complete the local Ollama lifecycle slice verification and return to a fresh R9 L2 route when a newly observed qualified route is available. The local trial is explicitly L1-only and blocked before integration; do not promote Phase 8 or replay any UNKNOWN operation.
+1. Treat the OllAMA local Worker convergence result as partial/blocked, keep its qwen3.5/qwen3 failures as immutable evidence, and return to a fresh R9 L2 route when a newly observed qualified route is available. The local trial is explicitly L1-only and blocked before integration; do not promote Phase 8 or replay any UNKNOWN operation.
 2. R9 fresh-root live trial: the latest bounded L2 pool attempt exhausted three distinct quota domains with confirmed `provider_unavailable` before a proposal. Resume only with a newly observed eligible route/new request identity, then complete Planner, two non-overlapping Implementers, independent Reviewer proposal, dependent continuation, Host integration, and exact-head CI.
 3. `AR1` live recovery remains open and is only consumed by a natural FORMAT/PATCH or SEMANTIC/TEST failure: classify, select one bounded action, create a fresh Worker attempt, verify, review, and integrate. A first-pass success must remain a success and must not be manufactured into AR1.
 4. Use the local foreground Operation runtime coordinator for durable waiting/reconciliation/dependency wake and restart-safe continuation. This is not OS liveness and not a second Scheduler.
@@ -177,6 +179,8 @@ and the compact operational procedure is [`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_D
 - Planner Critic bounded observation projection: [`planner-critic-observation-projection-20260917.json`](../spec/v2/evidence/planner-critic-observation-projection-20260917.json)
 - Planner Critic bounded failure observation projection: [`planner-critic-failure-observation-20260917.json`](../spec/v2/evidence/planner-critic-failure-observation-20260917.json)
 - Ollama local lifecycle and bounded E2E observation: [`ollama-local-lifecycle-e2e-20260922.json`](../spec/v2/evidence/ollama-local-lifecycle-e2e-20260922.json)
+- Ollama local Planner bounded convergence: [`ollama-local-planner-convergence-20260922.json`](../spec/v2/evidence/ollama-local-planner-convergence-20260922.json)
+- Ollama local Worker bounded convergence: [`ollama-local-worker-convergence-20260922.json`](../spec/v2/evidence/ollama-local-worker-convergence-20260922.json)
 - Bounded convergence R7/R8 runtime evidence: [`bounded-convergence-runtime-r7-r8-20260917.json`](../spec/v2/evidence/bounded-convergence-runtime-r7-r8-20260917.json)
 - R9 model evidence refresh and fresh Planner availability blocker: [`model-evidence-refresh-r9-planner-blocker-20260922.json`](../spec/v2/evidence/model-evidence-refresh-r9-planner-blocker-20260922.json)
 - R9 fresh L2 Planner availability blocker: [`phase8-planner-fresh-provider-unavailable-20260917.json`](../spec/v2/evidence/phase8-planner-fresh-provider-unavailable-20260917.json)

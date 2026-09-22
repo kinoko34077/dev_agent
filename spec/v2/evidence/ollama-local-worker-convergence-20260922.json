@@ -1,0 +1,83 @@
+{
+  "evidence_id": "ollama-local-worker-convergence-20260922",
+  "evidence_kind": "ollama_local_worker_bounded_convergence",
+  "observed_at": "2026-09-22",
+  "track": "OLLAMA_LOCAL_E2E",
+  "implementation_baseline": "eb8d014",
+  "root_id": "ollama-local-fresh-1f0582a330f7",
+  "model_path": {
+    "initial_provider": "ollama",
+    "initial_binding": "ollama:local:qwen3.5-9b",
+    "initial_model": "qwen3.5:9b",
+    "alternate_provider": "ollama",
+    "alternate_binding": "ollama",
+    "alternate_model": "qwen3:8b",
+    "tier": "L1_LOCAL_TRIAL"
+  },
+  "tasks": [
+    {
+      "task_id": "ollama-local-fresh-1f0582a330f7-metrics",
+      "ownership": ["src/dev_agent/providers/dispatcher.py"],
+      "attempts": [
+        {
+          "attempt_id": "b7914f37189c4d3ab662c3608e6c9dab",
+          "model": "qwen3.5:9b",
+          "failure_class": "FORMAT_PATCH",
+          "failure_category": "model_output_invalid",
+          "host_verification": "not_started"
+        },
+        {
+          "attempt_id": "b13b70607d484d63b2f9473136807e01",
+          "model": "qwen3:8b",
+          "failure_class": "PROVIDER_TRANSPORT",
+          "failure_category": "transport_unclassified",
+          "transport_exception_type": "HTTPError",
+          "transport_stage": "unknown",
+          "provider_http_status": 400,
+          "host_verification": "not_started"
+        }
+      ]
+    },
+    {
+      "task_id": "ollama-local-fresh-1f0582a330f7-normalize",
+      "ownership": ["src/dev_agent/providers/ollama/__init__.py"],
+      "attempts": [
+        {
+          "attempt_id": "c3e472416eb647f98c625f14d8b9ae20",
+          "model": "qwen3.5:9b",
+          "failure_class": "SECURITY_EGRESS_AUTHORITY",
+          "failure_category": "worker_outbound_secret_candidate",
+          "host_verification": "not_started"
+        },
+        {
+          "attempt_id": "e9054fd337bf4958a19ec808523f5405",
+          "model": "qwen3:8b",
+          "failure_class": "SECURITY_EGRESS_AUTHORITY",
+          "failure_category": "worker_outbound_secret_candidate",
+          "host_verification": "not_started"
+        }
+      ]
+    }
+  ],
+  "convergence": {
+    "status": "PARTIAL_BLOCKED",
+    "refinement_rounds": 1,
+    "bounded_action": "REASSIGN_SAME_TIER",
+    "attempted": 4,
+    "integrated": 0,
+    "host_verified": 0,
+    "reviewed": 0,
+    "codex_direct_implementation": 0,
+    "dependent_continuation": "not_released",
+    "unknown_replay": 0,
+    "plan_status": "SUPERSEDED"
+  },
+  "safety": {
+    "same_attempt_overwritten": false,
+    "host_verification_bypassed": false,
+    "secret_scan_bypassed": false,
+    "unknown_external_effect_replayed": false,
+    "phase8_gate_promoted": false
+  },
+  "interpretation": "The fresh local Worker root exercised one bounded same-tier reassign after qwen3.5:9b output-contract failure. The alternate qwen3:8b path then produced a bounded HTTP 400 transport failure for one task and remained egress-rejected for the sibling. No patch reached Host Verification or integration. This is AR1/local convergence partial evidence, not a completed local E2E or Phase 8 LIVE_ACTIVATION evidence."
+}

@@ -1,0 +1,60 @@
+{
+  "evidence_id": "ollama-local-planner-convergence-20260922",
+  "evidence_kind": "ollama_local_planner_bounded_convergence",
+  "observed_at": "2026-09-22",
+  "track": "OLLAMA_LOCAL_E2E",
+  "implementation_revision": "eb8d014",
+  "runtime": {
+    "provider": "ollama",
+    "planner_binding": "ollama:local:qwen3.5-9b",
+    "planner_model": "qwen3.5:9b",
+    "planner_tier": "L1_LOCAL_TRIAL",
+    "critic_binding": "ollama",
+    "critic_model": "qwen3:8b",
+    "critic_tier": "L1",
+    "base_url": "http://127.0.0.1:11434",
+    "loopback_only": true,
+    "keep_alive": "10m",
+    "timeout_seconds": 180
+  },
+  "successful_bounded_correction": {
+    "parent_task_id": "9c6771e2-c3d1-5b7a-b4be-51ae982c8fdc",
+    "planner_request_id": "not_retained_in_evidence_projection",
+    "critic_request_id": "9aedd43d-6a5a-4eff-8012-37188b98d2ec",
+    "initial_failure_class": "FORMAT_PATCH",
+    "initial_response_contract": "invalid_proposal",
+    "critic_invoked": true,
+    "correction_actor": "independent_l1_planning_critic",
+    "refinement_rounds": 1,
+    "host_validation": "PASS",
+    "proposal_status": "live_shadow_validated",
+    "child_count": 2,
+    "child_keys": ["task_1", "task_2"],
+    "task_mutation": false,
+    "git_mutation": false,
+    "integration": false,
+    "unknown_replay": 0
+  },
+  "non_converging_observation": {
+    "parent_task_id": "a0aab3a4-3d2a-58fb-b39f-7cd9c5aa0b81",
+    "initial_failure_class": "FORMAT_PATCH",
+    "repeated_failure_signature": "same_bounded_response_contract_signature",
+    "refinement_rounds": 1,
+    "stop_reason": "SAME_SIGNATURE_LIMIT",
+    "convergence_state": "NON_CONVERGING",
+    "task_mutation": false,
+    "git_mutation": false,
+    "integration": false,
+    "unknown_replay": 0
+  },
+  "safety": {
+    "critic_proposal_only": true,
+    "planner_and_critic_identity_separated": true,
+    "raw_provider_response_retained": false,
+    "raw_exception_retained": false,
+    "credentials_retained": false,
+    "phase8_gate_promoted": false,
+    "d9_gate_changed": false
+  },
+  "interpretation": "A real local qwen3.5:9b Planner response-contract failure was corrected once by an independently admitted qwen3:8b proposal-only Critic and then passed the existing Host RootPlanningValidator. A separate fresh request reached the bounded same-signature stop. This verifies bounded Planner convergence observability and the explicit local Critic binding; it does not verify Worker integration, AR1, Phase 8 LIVE_ACTIVATION, or automatic retry beyond the bounded action."
+}
