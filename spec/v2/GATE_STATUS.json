@@ -64,7 +64,7 @@
         "independent Host Verification and deterministic integration",
         "exact-head CI for the benchmark revision"
       ],
-      "current_blocker": "a fresh single-root live Planner -> two non-overlapping Implementers -> independent Reviewer -> dependent continuation sequence is not complete. On 2026-09-22, current model evidence was refreshed (232 current catalog rows; four exact qualified/no-charge L2 identities entered the bounded pool), but three distinct quota domains returned confirmed provider_unavailable before a Planner proposal; no Critic was invoked and no child task was created. The prior UNKNOWN operation was not replayed. Resume with a newly eligible route and fresh request identity; keep PREPARATION_ONLY and LIVE_ACTIVATION=NOT_VERIFIED until the complete single-root evidence and exact-head CI exist."
+      "current_blocker": "a fresh single-root live Planner -> two non-overlapping Implementers -> independent Reviewer -> dependent continuation sequence is not complete. Remote R9 remains blocked by the 2026-09-22 confirmed provider_unavailable pool exhaustion. The explicit non-Gate Ollama local route now validates fresh Planner proposals, but the 2026-09-23 Worker trial stopped after qwen3.5:9b repeated an invalid-JSON signature following concrete correction and gemma4:12b failed one fresh fallback attempt; no patch reached Host Verification or integration. No third model, UNKNOWN replay, quota bypass, or L1-to-formal-L2 promotion occurred. Resume with a newly eligible remote route or a new bounded local trial identity; keep PREPARATION_ONLY and LIVE_ACTIVATION=NOT_VERIFIED until the complete single-root evidence and exact-head CI exist."
     }
   },
   "phase6_foundation_status": "VERIFIED",

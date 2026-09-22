@@ -1,0 +1,67 @@
+{
+  "evidence_id": "ollama-local-concrete-convergence-20260923",
+  "evidence_kind": "ollama_local_worker_convergence_observation",
+  "observed_at": "2026-09-23",
+  "track": "OLLAMA_LOCAL_E2E",
+  "implementation_revision": "9288628",
+  "runtime": {
+    "provider": "ollama",
+    "primary": {
+      "binding": "ollama:local:qwen3.5-9b",
+      "model": "qwen3.5:9b",
+      "tier": "L1_LOCAL_TRIAL"
+    },
+    "fallback": {
+      "binding": "ollama:local:gemma4-12b",
+      "model": "gemma4:12b",
+      "tier": "L1_LOCAL_TRIAL"
+    },
+    "base_url": "http://127.0.0.1:11434",
+    "loopback_only": true,
+    "keep_alive": "10m",
+    "timeout_seconds": 180,
+    "qwen_loaded_after_trial": false,
+    "gemma_loaded_after_trial": false
+  },
+  "planner": {
+    "fresh_roots": 5,
+    "validated_proposals": 5,
+    "critic_invocations": 0,
+    "task_mutation": false,
+    "integration": false,
+    "latest_root": "1b47e8b0-6f4d-4e91-8b2e-7e369a474f31",
+    "result": "live_shadow_validated_fast_path"
+  },
+  "worker_convergence": {
+    "fresh_root": "r9e-normalize-error-20260923",
+    "task_scope": ["src/dev_agent/providers/normalize.py"],
+    "qwen_attempts": 2,
+    "qwen_failure_class": "FORMAT_PATCH",
+    "qwen_failure_signature": "e37193bd6809d5fe7aa74311f2c8f84d111dc308351bb50bcb6751a14945509",
+    "qwen_progress": "no_progress_after_concrete_json_directive",
+    "gemma_attempts": 1,
+    "gemma_failure_class": "FORMAT_PATCH",
+    "gemma_failure_signature": "bea0150fcf6b4ae5d91fa4c2dd624cb30fa73453bde3f2a4d1d2299a093939105",
+    "fallback_used": true,
+    "fallback_reason": "qwen repeated the same response-contract failure after a fresh concrete correction",
+    "patches_produced": 0,
+    "host_verification": "not_reached",
+    "review": "not_reached",
+    "integration": "not_reached",
+    "dependent_continuation": "not_released"
+  },
+  "concrete_failure_handling": {
+    "host_failure_spec": true,
+    "format_failure_directive": true,
+    "repair_state_preserved_across_fallback": true,
+    "progress_based_assessment": true,
+    "same_signature_blind_retry": false,
+    "unknown_external_effect_replay": 0,
+    "raw_provider_response_retained": false,
+    "raw_exception_retained": false,
+    "secrets_retained": false
+  },
+  "status": "PARTIAL_BLOCKED",
+  "formal_phase8_gate_impact": "unchanged",
+  "interpretation": "Planner local shadow validation is live and the Host now emits bounded concrete repair facts. The qwen3.5:9b Worker repeated an invalid JSON contract after one concrete fresh correction, so the task was bounded-fallbacked once to gemma4:12b. Gemma4 also failed the output contract. No patch reached Host Verification or integration; no third model or UNKNOWN replay was attempted."
+}
