@@ -24,10 +24,12 @@ from ..providers.base import ModelProvider, ProviderError
 from ..security.egress import EgressValidationError, attach_model_request_egress
 from .capabilities import TASK_COMPETENCIES, TASK_POLICY_TRAITS
 from .convergence import (
+    ConcreteFailureSpec,
     ConvergenceMetadata,
     ConvergenceState,
     ConvergenceStopReason,
     FailureFingerprint,
+    RepairDirective,
 )
 from .planner import PlanningValidationError, RootPlanningProposal
 from .structured_response import StructuredResponseError, decode_json_object
@@ -49,6 +51,7 @@ class PlanningResponseError(PlanningAdapterError):
         request_id: str | None = None,
         provider_response_observed: bool = False,
         response_contract: str | None = None,
+        failure_spec: ConcreteFailureSpec | None = None,
     ) -> None:
         super().__init__(message)
         if response_contract is not None and response_contract not in self._RESPONSE_CONTRACTS:
@@ -56,6 +59,48 @@ class PlanningResponseError(PlanningAdapterError):
         self.request_id = request_id
         self.provider_response_observed = provider_response_observed
         self.response_contract = response_contract
+        self.failure_spec = failure_spec
+
+
+def _planning_failure_spec(message: str, *, response_contract: str) -> ConcreteFailureSpec:
+    normalized = message.casefold()
+    if "suggested_owner" in normalized:
+        location = "children[].suggested_owner"
+        observed = "descriptive owner value"
+        expected = '"worker" or "codex"'
+        correction = 'Use exactly "worker" or "codex" for suggested_owner.'
+        acceptance = ("every suggested_owner is worker or codex",)
+    elif "parent_task_id" in normalized:
+        location = "parent_task_id"
+        observed = "parent identity mismatch"
+        expected = "the requested parent_task_id"
+        correction = "Set parent_task_id exactly to the requested parent_task_id."
+        acceptance = ("parent_task_id matches the request",)
+    elif "dependencies" in normalized:
+        location = "children[].dependencies"
+        observed = "invalid dependency shape"
+        expected = "an array, or an empty array"
+        correction = "Use dependencies: [] when there are no dependencies; never use null."
+        acceptance = ("dependencies is an array for every child",)
+    else:
+        location = "planning_proposal"
+        observed = response_contract
+        expected = "one proposal matching the planning schema"
+        correction = "Return only a JSON planning proposal matching the exact supplied schema."
+        acceptance = ("Host planning validation passes",)
+    return ConcreteFailureSpec(
+        failure_class="FORMAT_PATCH",
+        stage="planner_output_validation",
+        location=location,
+        observed=observed,
+        expected=expected,
+        problem="the Planner response failed deterministic response validation",
+        required_correction=correction,
+        must_preserve=("requested parent_task_id", "root objective"),
+        forbidden_changes=("changing authority", "adding approval or integration decisions"),
+        acceptance_checks=acceptance,
+        validator_refs=("planner:response_contract",),
+    )
 
 
 PLANNING_PROPOSAL_RESPONSE_SCHEMA: dict[str, Any] = {
@@ -236,11 +281,19 @@ class ModelPlanningAdapter:
                 raise PlanningResponseError(
                     "proposal parent_task_id does not match the requested parent",
                     response_contract="invalid_proposal",
+                    failure_spec=_planning_failure_spec(
+                        "proposal parent_task_id does not match the requested parent",
+                        response_contract="invalid_proposal",
+                    ),
                 )
             if len(proposal.children) > self._MAX_CHILDREN:
                 raise PlanningResponseError(
                     "planning proposal exceeds the child limit",
                     response_contract="invalid_proposal",
+                    failure_spec=_planning_failure_spec(
+                        "planning proposal exceeds the child limit",
+                        response_contract="invalid_proposal",
+                    ),
                 )
         except PlanningResponseError as exc:
             # Keep correlation to the exact request that produced the
@@ -255,6 +308,7 @@ class ModelPlanningAdapter:
                 request_id=request.request_id,
                 provider_response_observed=True,
                 response_contract="invalid_proposal",
+                failure_spec=_planning_failure_spec(str(exc), response_contract="invalid_proposal"),
             ) from exc
         return proposal
 
@@ -310,6 +364,7 @@ class ModelPlanningAdapter:
             raise PlanningResponseError(
                 str(exc),
                 response_contract="invalid_json",
+                failure_spec=_planning_failure_spec(str(exc), response_contract="invalid_json"),
             ) from exc
 
 
@@ -416,6 +471,7 @@ class ModelPlanningCriticAdapter:
             response_contract=response_contract,
             source_request_id=source_request_id,
             references=references,
+            failure_spec=planner_failure.failure_spec,
         )
         metadata: dict[str, Any] = {
             "planning_mode": "proposal_only",
@@ -542,11 +598,22 @@ class ModelPlanningCriticAdapter:
         response_contract: str,
         source_request_id: str | None,
         references: Mapping[str, Any],
+        failure_spec: ConcreteFailureSpec | None = None,
     ) -> str:
         source_id = source_request_id or "not_available"
         reference_text = json.dumps(
             dict(references), ensure_ascii=False, sort_keys=True, separators=(",", ":")
         )
+        repair_text = ""
+        if failure_spec is not None:
+            directive = RepairDirective.from_failure_spec(failure_spec)
+            repair_text = (
+                "CONCRETE FAILURE SPEC (Host-derived):\n"
+                f"{json.dumps(failure_spec.to_dict(), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n"
+                "REPAIR DIRECTIVE:\n"
+                f"{json.dumps(directive.to_dict(), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n"
+                "Correct only the specified invalid fields and preserve valid objective/dependency data.\n"
+            )
         return (
             "Act as an independent planning critic/normalizer. The previous Planner response was observed "
             "but failed only its response contract. Produce exactly one raw JSON object with a single "
@@ -562,6 +629,7 @@ class ModelPlanningCriticAdapter:
             f"sensitivity: {sensitivity}\n"
             f"failed_response_contract: {response_contract}\n"
             f"failed_planner_request_id: {source_id}\n"
+            f"{repair_text}"
             f"objective:\n{objective}\n"
             f"reference_context:\n{reference_text}"
         )

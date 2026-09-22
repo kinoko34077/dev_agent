@@ -241,29 +241,50 @@ class CriticFinding:
     location: str
     problem: str
     required_correction: str
+    must_preserve: tuple[str, ...] = field(default_factory=tuple)
+    forbidden_changes: tuple[str, ...] = field(default_factory=tuple)
+    acceptance_checks: tuple[str, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "location", validate_text(self.location, "location", max_chars=512))
         object.__setattr__(self, "problem", validate_text(self.problem, "problem", max_chars=2_000))
         object.__setattr__(self, "required_correction", validate_text(self.required_correction, "required_correction", max_chars=2_000))
+        for name in ("must_preserve", "forbidden_changes", "acceptance_checks"):
+            value = getattr(self, name)
+            if isinstance(value, (str, bytes)) or not isinstance(value, Sequence) or len(value) > 32:
+                raise ValueError(f"{name} must be a bounded sequence")
+            normalized = tuple(validate_text(item, f"{name}[]", max_chars=1_024) for item in value)
+            if len(set(normalized)) != len(normalized):
+                raise ValueError(f"{name} must not contain duplicates")
+            object.__setattr__(self, name, normalized)
         ensure_secret_free(self.to_dict(), "critic finding")
         ensure_json_safe(self.to_dict(), "critic finding")
 
-    def to_dict(self) -> dict[str, str]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "location": self.location,
             "problem": self.problem,
             "required_correction": self.required_correction,
+            "must_preserve": list(self.must_preserve),
+            "forbidden_changes": list(self.forbidden_changes),
+            "acceptance_checks": list(self.acceptance_checks),
         }
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> "CriticFinding":
         if not isinstance(value, Mapping):
             raise ValueError("critic finding must be an object")
+        allowed = {"location", "problem", "required_correction", "must_preserve", "forbidden_changes", "acceptance_checks"}
+        unknown = set(value) - allowed
+        if unknown:
+            raise ValueError(f"unknown critic finding field: {sorted(unknown)[0]}")
         return cls(
             location=value.get("location"),
             problem=value.get("problem"),
             required_correction=value.get("required_correction"),
+            must_preserve=tuple(value.get("must_preserve", ())),
+            forbidden_changes=tuple(value.get("forbidden_changes", ())),
+            acceptance_checks=tuple(value.get("acceptance_checks", ())),
         )
 
 

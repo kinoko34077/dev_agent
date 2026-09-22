@@ -70,6 +70,15 @@ _VALIDATION_ORDER = (
     ValidationRung.V5,
     ValidationRung.V6,
 )
+_MAX_FAILURE_SPEC_CHARS = 2_000
+_MAX_FAILURE_SPEC_ITEMS = 32
+_NON_ACTIONABLE_DIRECTIVES = frozenset({
+    "improve",
+    "fix",
+    "fix appropriately",
+    "handle the error",
+    "make it work",
+})
 
 
 def _raw_value(value: Any) -> Any:
@@ -211,6 +220,195 @@ class FailureFingerprint:
         return fingerprint
 
 
+def _bounded_failure_text(value: Any, name: str) -> str:
+    ensure_secret_free({"value": value}, name)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{name} must be non-empty text")
+    normalized = value.strip()
+    if len(normalized) > _MAX_FAILURE_SPEC_CHARS:
+        raise ValueError(f"{name} exceeds its input limit")
+    if "\x00" in normalized:
+        raise ValueError(f"{name} must not contain NUL bytes")
+    return normalized
+
+
+def _bounded_failure_items(value: Any, name: str) -> tuple[str, ...]:
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
+        raise ValueError(f"{name} must be a sequence")
+    if len(value) > _MAX_FAILURE_SPEC_ITEMS:
+        raise ValueError(f"{name} contains too many items")
+    result = tuple(_bounded_failure_text(item, f"{name}[]") for item in value)
+    if len(set(result)) != len(result):
+        raise ValueError(f"{name} must not contain duplicates")
+    return result
+
+
+@dataclass(frozen=True)
+class ConcreteFailureSpec:
+    """Host-derived, bounded facts that make one failure actionable."""
+
+    failure_class: str
+    stage: str
+    location: str
+    observed: str
+    expected: str
+    problem: str
+    required_correction: str
+    must_preserve: tuple[str, ...] = field(default_factory=tuple)
+    forbidden_changes: tuple[str, ...] = field(default_factory=tuple)
+    acceptance_checks: tuple[str, ...] = field(default_factory=tuple)
+    validator_refs: tuple[str, ...] = field(default_factory=tuple)
+    failure_signature: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        failure_class = _token(self.failure_class, "failure_class")
+        stage = _token(self.stage, "stage")
+        location = _bounded_failure_text(self.location, "location")
+        observed = _bounded_failure_text(self.observed, "observed")
+        expected = _bounded_failure_text(self.expected, "expected")
+        problem = _bounded_failure_text(self.problem, "problem")
+        required_correction = _bounded_failure_text(self.required_correction, "required_correction")
+        must_preserve = _bounded_failure_items(self.must_preserve, "must_preserve")
+        forbidden_changes = _bounded_failure_items(self.forbidden_changes, "forbidden_changes")
+        acceptance_checks = _bounded_failure_items(self.acceptance_checks, "acceptance_checks")
+        validator_refs = _token_sequence(self.validator_refs, "validator_refs")
+        object.__setattr__(self, "failure_class", failure_class)
+        object.__setattr__(self, "stage", stage)
+        object.__setattr__(self, "location", location)
+        object.__setattr__(self, "observed", observed)
+        object.__setattr__(self, "expected", expected)
+        object.__setattr__(self, "problem", problem)
+        object.__setattr__(self, "required_correction", required_correction)
+        object.__setattr__(self, "must_preserve", must_preserve)
+        object.__setattr__(self, "forbidden_changes", forbidden_changes)
+        object.__setattr__(self, "acceptance_checks", acceptance_checks)
+        object.__setattr__(self, "validator_refs", validator_refs)
+        encoded = json.dumps(self._canonical_payload(), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        object.__setattr__(self, "failure_signature", hashlib.sha256(encoded.encode("utf-8")).hexdigest())
+        ensure_json_safe(self.to_dict(), "concrete failure spec")
+        ensure_secret_free(self.to_dict(), "concrete failure spec")
+
+    def _canonical_payload(self) -> dict[str, Any]:
+        return {
+            "failure_class": self.failure_class,
+            "stage": self.stage,
+            "location": self.location,
+            "observed": self.observed,
+            "expected": self.expected,
+            "problem": self.problem,
+            "required_correction": self.required_correction,
+            "must_preserve": list(self.must_preserve),
+            "forbidden_changes": list(self.forbidden_changes),
+            "acceptance_checks": list(self.acceptance_checks),
+            "validator_refs": list(self.validator_refs),
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        return {**self._canonical_payload(), "failure_signature": self.failure_signature}
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "ConcreteFailureSpec":
+        if not isinstance(value, Mapping):
+            raise ValueError("concrete failure spec must be an object")
+        allowed = {
+            "failure_class", "stage", "location", "observed", "expected", "problem",
+            "required_correction", "must_preserve", "forbidden_changes", "acceptance_checks",
+            "validator_refs", "failure_signature",
+        }
+        unknown = set(value) - allowed
+        if unknown:
+            raise ValueError(f"unknown concrete failure spec field: {sorted(unknown)[0]}")
+        spec = cls(
+            failure_class=value.get("failure_class"),
+            stage=value.get("stage"),
+            location=value.get("location"),
+            observed=value.get("observed"),
+            expected=value.get("expected"),
+            problem=value.get("problem"),
+            required_correction=value.get("required_correction"),
+            must_preserve=tuple(value.get("must_preserve", ())),
+            forbidden_changes=tuple(value.get("forbidden_changes", ())),
+            acceptance_checks=tuple(value.get("acceptance_checks", ())),
+            validator_refs=tuple(value.get("validator_refs", ())),
+        )
+        supplied = _optional_digest(value.get("failure_signature"), "failure_signature")
+        if supplied != spec.failure_signature:
+            raise ValueError("failure_signature does not match concrete failure spec")
+        return spec
+
+
+@dataclass(frozen=True)
+class RepairDirective:
+    """A concrete, bounded instruction derived from a Host failure spec."""
+
+    repair_target: str
+    previous_problem: str
+    required_action: str
+    must_preserve: tuple[str, ...] = field(default_factory=tuple)
+    forbidden: tuple[str, ...] = field(default_factory=tuple)
+    completion_condition: tuple[str, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        target = _bounded_failure_text(self.repair_target, "repair_target")
+        previous_problem = _bounded_failure_text(self.previous_problem, "previous_problem")
+        required_action = _bounded_failure_text(self.required_action, "required_action")
+        if required_action.casefold() in _NON_ACTIONABLE_DIRECTIVES:
+            raise ValueError("required_action must be actionable")
+        preserve = _bounded_failure_items(self.must_preserve, "must_preserve")
+        forbidden = _bounded_failure_items(self.forbidden, "forbidden")
+        completion = _bounded_failure_items(self.completion_condition, "completion_condition")
+        if not completion:
+            raise ValueError("completion_condition must not be empty")
+        object.__setattr__(self, "repair_target", target)
+        object.__setattr__(self, "previous_problem", previous_problem)
+        object.__setattr__(self, "required_action", required_action)
+        object.__setattr__(self, "must_preserve", preserve)
+        object.__setattr__(self, "forbidden", forbidden)
+        object.__setattr__(self, "completion_condition", completion)
+        ensure_json_safe(self.to_dict(), "repair directive")
+        ensure_secret_free(self.to_dict(), "repair directive")
+
+    @classmethod
+    def from_failure_spec(cls, spec: ConcreteFailureSpec) -> "RepairDirective":
+        if not isinstance(spec, ConcreteFailureSpec):
+            raise TypeError("spec must be ConcreteFailureSpec")
+        return cls(
+            repair_target=spec.location,
+            previous_problem=spec.problem,
+            required_action=spec.required_correction,
+            must_preserve=spec.must_preserve,
+            forbidden=spec.forbidden_changes,
+            completion_condition=spec.acceptance_checks,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "repair_target": self.repair_target,
+            "previous_problem": self.previous_problem,
+            "required_action": self.required_action,
+            "must_preserve": list(self.must_preserve),
+            "forbidden": list(self.forbidden),
+            "completion_condition": list(self.completion_condition),
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "RepairDirective":
+        if not isinstance(value, Mapping):
+            raise ValueError("repair directive must be an object")
+        allowed = {"repair_target", "previous_problem", "required_action", "must_preserve", "forbidden", "completion_condition"}
+        unknown = set(value) - allowed
+        if unknown:
+            raise ValueError(f"unknown repair directive field: {sorted(unknown)[0]}")
+        return cls(
+            repair_target=value.get("repair_target"),
+            previous_problem=value.get("previous_problem"),
+            required_action=value.get("required_action"),
+            must_preserve=tuple(value.get("must_preserve", ())),
+            forbidden=tuple(value.get("forbidden", ())),
+            completion_condition=tuple(value.get("completion_condition", ())),
+        )
+
+
 @dataclass(frozen=True)
 class ConvergenceMetadata:
     """Attempt-scoped convergence metadata carried by existing artifacts."""
@@ -226,6 +424,8 @@ class ConvergenceMetadata:
     validator_refs: tuple[str, ...]
     convergence_state: ConvergenceState
     stop_reason: ConvergenceStopReason | None = None
+    failure_spec: ConcreteFailureSpec | None = None
+    repair_directive: RepairDirective | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -271,6 +471,14 @@ class ConvergenceMetadata:
             )
         except (TypeError, ValueError) as exc:
             raise ValueError("stop_reason is unsupported") from exc
+        if self.failure_spec is not None and not isinstance(self.failure_spec, ConcreteFailureSpec):
+            raise ValueError("failure_spec must be ConcreteFailureSpec or None")
+        if self.repair_directive is not None and not isinstance(self.repair_directive, RepairDirective):
+            raise ValueError("repair_directive must be RepairDirective or None")
+        if self.repair_directive is not None and self.failure_spec is None:
+            raise ValueError("repair_directive requires failure_spec")
+        if self.failure_spec is not None and failure_signature != self.failure_spec.failure_signature:
+            raise ValueError("failure_spec signature must match failure_signature")
 
         if state is ConvergenceState.FAST_PATH:
             if (
@@ -281,6 +489,8 @@ class ConvergenceMetadata:
                 or failure_signature is not None
                 or correction_actor is not None
                 or stop_reason is not ConvergenceStopReason.FAST_PATH
+                or self.failure_spec is not None
+                or self.repair_directive is not None
             ):
                 raise ValueError("FAST_PATH metadata must describe a zero-round success")
         if state is ConvergenceState.REFINEMENT:
@@ -383,6 +593,8 @@ class ConvergenceMetadata:
             "validator_refs": list(self.validator_refs),
             "convergence_state": self.convergence_state.value,
             "stop_reason": self.stop_reason.value if self.stop_reason is not None else None,
+            "failure_spec": self.failure_spec.to_dict() if self.failure_spec is not None else None,
+            "repair_directive": self.repair_directive.to_dict() if self.repair_directive is not None else None,
         }
 
     @classmethod
@@ -401,6 +613,8 @@ class ConvergenceMetadata:
             "validator_refs",
             "convergence_state",
             "stop_reason",
+            "failure_spec",
+            "repair_directive",
         }
         unknown = set(value) - allowed
         if unknown:
@@ -417,6 +631,16 @@ class ConvergenceMetadata:
             validator_refs=value.get("validator_refs", ()),
             convergence_state=value.get("convergence_state"),
             stop_reason=value.get("stop_reason"),
+            failure_spec=(
+                None
+                if value.get("failure_spec") is None
+                else ConcreteFailureSpec.from_dict(value.get("failure_spec"))
+            ),
+            repair_directive=(
+                None
+                if value.get("repair_directive") is None
+                else RepairDirective.from_dict(value.get("repair_directive"))
+            ),
         )
 
 
@@ -797,12 +1021,14 @@ def assess_convergence(
 
 
 __all__ = [
+    "ConcreteFailureSpec",
     "ConvergenceAssessment",
     "ConvergenceMetadata",
     "ConvergenceObservation",
     "ConvergenceState",
     "ConvergenceStopReason",
     "FailureFingerprint",
+    "RepairDirective",
     "ValidationLadder",
     "ValidationObservation",
     "ValidationRung",

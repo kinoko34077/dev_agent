@@ -71,3 +71,39 @@ def test_local_ollama_prompt_uses_only_the_complete_replacement_contract() -> No
     assert "known_issues, and assumptions MUST all be JSON arrays" in prompt
     assert "Do not use files, diff, reason, or commit_message" in prompt
     assert "The host will validate the replacement" in prompt
+
+
+def test_rework_prompt_puts_concrete_repair_directive_before_general_contract() -> None:
+    manifest = {
+        "task_id": "task-rework-1",
+        "task_type": "implementation",
+        "objective": "make a narrow change",
+        "base_revision": "abc123",
+        "allowed_files": ["src/example.py"],
+        "forbidden_files": [".env"],
+        "external_provider_allowed": True,
+        "approved_provider_ids": ["ollama"],
+        "outbound_files": ["src/example.py"],
+        "requirements": ["preserve behavior"],
+        "acceptance": ["focused test passes"],
+        "test_commands": ["python -m pytest tests/v2/test_example.py -q"],
+        "output_contract": {"format": "json"},
+        "rework_handoff": {
+            "payload_reference": {
+                "repair_directive": {
+                    "repair_target": "known_issues",
+                    "previous_problem": "known_issues was a string",
+                    "required_action": "Return known_issues as a JSON array; use [] when empty.",
+                    "must_preserve": ["task objective"],
+                    "forbidden": ["changing file_replacements path"],
+                    "completion_condition": ["known_issues is an array"],
+                }
+            }
+        },
+    }
+
+    prompt = build_worker_prompt(manifest, "INPUT FILES", local_ollama=True)
+
+    assert "THIS IS A REPAIR ATTEMPT" in prompt
+    assert "known_issues was a string" in prompt
+    assert prompt.index("THIS IS A REPAIR ATTEMPT") < prompt.index("file_replacements is REQUIRED")

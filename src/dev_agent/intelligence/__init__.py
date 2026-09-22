@@ -90,6 +90,8 @@ _LAZY_EXPORTS = {
     "ConvergenceState": (".convergence", "ConvergenceState"),
     "ConvergenceStopReason": (".convergence", "ConvergenceStopReason"),
     "FailureFingerprint": (".convergence", "FailureFingerprint"),
+    "ConcreteFailureSpec": (".convergence", "ConcreteFailureSpec"),
+    "RepairDirective": (".convergence", "RepairDirective"),
     "same_failure_signature": (".convergence", "same_failure_signature"),
     "ValidationLadder": (".convergence", "ValidationLadder"),
     "ValidationObservation": (".convergence", "ValidationObservation"),

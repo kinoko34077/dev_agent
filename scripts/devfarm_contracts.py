@@ -16,6 +16,7 @@ from typing import Any, Mapping
 
 from scripts.devfarm_errors import DevFarmError
 from src.dev_agent.security.protected_paths import PROTECTED_AUTHORITY_PATHS, is_protected_path
+from src.dev_agent.intelligence.convergence import ConcreteFailureSpec, RepairDirective
 
 
 def sha256_text(value: str) -> str:
@@ -511,6 +512,12 @@ def validate_result(value: Mapping[str, Any], *, manifest: Mapping[str, Any]) ->
         "known_issues": _strings(value["known_issues"], "known_issues"),
         "assumptions": _strings(value["assumptions"], "assumptions"),
     }
+    for field_name, parser in (("failure_spec", ConcreteFailureSpec.from_dict), ("repair_directive", RepairDirective.from_dict)):
+        if field_name in value and value[field_name] is not None:
+            try:
+                normalized[field_name] = parser(value[field_name]).to_dict()
+            except (TypeError, ValueError) as exc:
+                raise DevFarmError(f"{field_name} is invalid") from exc
     attempt_id = value.get("attempt_id")
     if attempt_id is not None:
         attempt_id = _nonempty(attempt_id, "attempt_id")

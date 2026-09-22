@@ -598,12 +598,16 @@ class CodexSupervisedCommanderRun:
         failure_evidence_reference: Mapping[str, Any] | ExternalTextReference,
         review_findings_reference: Mapping[str, Any] | ExternalTextReference | None,
         required_correction: str,
+        failure_spec: Mapping[str, Any] | Any | None = None,
+        repair_directive: Mapping[str, Any] | Any | None = None,
     ) -> HandoffEnvelope:
         return rework_request(
             task_reference={"run_id": self.run_id, "task_id": task_id},
             failure_evidence_reference=failure_evidence_reference,
             review_findings_reference=review_findings_reference,
             required_correction=required_correction,
+            failure_spec=failure_spec,
+            repair_directive=repair_directive,
         )
 
     def reassign(

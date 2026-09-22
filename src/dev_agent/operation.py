@@ -77,8 +77,8 @@ _CONFIGURED_GEMINI_PROJECTS = {
     "4": "497456937770",
     "5": "691705059831",
 }
-OLLAMA_DEFAULT_MODEL = "qwen3.5:4b"
-OLLAMA_FALLBACK_MODELS = ("qwen3.5:9b", "gemma4:12b")
+OLLAMA_DEFAULT_MODEL = "qwen3.5:9b"
+OLLAMA_FALLBACK_MODELS = ("gemma4:12b",)
 
 
 def ollama_local_routing_priority(model: str) -> int | None:
@@ -93,8 +93,7 @@ def ollama_local_routing_priority(model: str) -> int | None:
         return None
     priorities = {
         OLLAMA_DEFAULT_MODEL: 0,
-        "qwen3.5:9b": 10,
-        "gemma4:12b": 20,
+        "gemma4:12b": 10,
     }
     return priorities.get(model.strip())
 
@@ -285,7 +284,8 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
     for candidate in (
         ollama_model,
         *(configured_models.split(",") if configured_models else ()),
-        *((OLLAMA_DEFAULT_MODEL, *OLLAMA_FALLBACK_MODELS) if not ollama_model else (OLLAMA_DEFAULT_MODEL, "gemma4:12b")),
+        OLLAMA_DEFAULT_MODEL,
+        *OLLAMA_FALLBACK_MODELS,
     ):
         if isinstance(candidate, str) and candidate.strip() and candidate.strip() not in local_models:
             local_models.append(candidate.strip())

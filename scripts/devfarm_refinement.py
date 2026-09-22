@@ -24,7 +24,12 @@ from src.dev_agent.intelligence.refinement import (
     RefinementProposal,
     RefinementPlan,
 )
-from src.dev_agent.intelligence.convergence import ConvergenceMetadata, FailureFingerprint
+from src.dev_agent.intelligence.convergence import (
+    ConcreteFailureSpec,
+    ConvergenceMetadata,
+    FailureFingerprint,
+    RepairDirective,
+)
 
 
 class RefinementCompositionError(ValueError):
@@ -254,12 +259,111 @@ def _bounded_summary(value: str) -> str:
     return normalized
 
 
+def build_concrete_failure_spec(
+    reason: str,
+    *,
+    manifest: Mapping[str, Any] | None = None,
+    validator_ref: str = "worker:output_contract",
+) -> ConcreteFailureSpec:
+    """Convert known deterministic Worker findings into safe repair facts.
+
+    The input reason is a Host validator detail and is deliberately not copied
+    into the resulting artifact.  Unknown details receive a generic bounded
+    projection rather than leaking raw model output into the next attempt.
+    """
+
+    if not isinstance(reason, str) or not reason.strip():
+        raise RefinementCompositionError("failure reason must be non-empty text")
+    normalized = reason.casefold()
+    allowed_files = tuple(
+        item.strip()
+        for item in ((manifest or {}).get("allowed_files", ()) if isinstance(manifest, Mapping) else ())
+        if isinstance(item, str) and item.strip()
+    )
+    preserve = ("task objective", "supplied file scope")
+    forbidden = ("unrelated files", "new output fields")
+    if "known_issues" in normalized and ("list" in normalized or "array" in normalized):
+        spec = ConcreteFailureSpec(
+            failure_class="FORMAT_PATCH",
+            stage="worker_output_validation",
+            location="known_issues",
+            observed="scalar",
+            expected="array<string>",
+            problem="known_issues must be a JSON array",
+            required_correction="Return known_issues as a JSON array; use [] when empty.",
+            must_preserve=preserve,
+            forbidden_changes=forbidden,
+            acceptance_checks=("known_issues is an array", "every known issue is a string"),
+            validator_refs=(validator_ref,),
+        )
+    elif "outside manifest allowed_files" in normalized or "outside manifest allowed files" in normalized:
+        allowed = ", ".join(allowed_files) if allowed_files else "the supplied allowed_files"
+        spec = ConcreteFailureSpec(
+            failure_class="FORMAT_PATCH",
+            stage="worker_output_validation",
+            location="file_replacements",
+            observed="path outside allowed_files",
+            expected="one supplied outbound file path",
+            problem="file_replacements contains a path outside the manifest scope",
+            required_correction=f"Use exactly one supplied outbound path from: {allowed}.",
+            must_preserve=preserve,
+            forbidden_changes=("adding a new path", "changing ownership scope"),
+            acceptance_checks=("every replacement key is in allowed_files", "every replacement key is in outbound_files"),
+            validator_refs=(validator_ref,),
+        )
+    elif "must not contain newlines" in normalized or "embedded newline" in normalized:
+        spec = ConcreteFailureSpec(
+            failure_class="FORMAT_PATCH",
+            stage="worker_output_validation",
+            location="file_replacements",
+            observed="line-array element contains a newline",
+            expected="one source line per array element",
+            problem="a replacement line contains an embedded newline",
+            required_correction="Each array element must represent one source line; split multiline content and ensure no element contains LF or CR.",
+            must_preserve=preserve,
+            forbidden_changes=("switching to a unified diff", "changing unrelated content"),
+            acceptance_checks=("each replacement line contains no LF or CR",),
+            validator_refs=(validator_ref,),
+        )
+    elif "file_replacements must be an object" in normalized:
+        spec = ConcreteFailureSpec(
+            failure_class="FORMAT_PATCH",
+            stage="worker_output_validation",
+            location="file_replacements",
+            observed="non-object",
+            expected="object mapping one supplied path to complete content",
+            problem="file_replacements must be a JSON object",
+            required_correction="Return file_replacements as an object keyed only by the supplied file path.",
+            must_preserve=preserve,
+            forbidden_changes=("using an array as the top-level replacement",),
+            acceptance_checks=("file_replacements is an object",),
+            validator_refs=(validator_ref,),
+        )
+    else:
+        spec = ConcreteFailureSpec(
+            failure_class="FORMAT_PATCH",
+            stage="worker_output_validation",
+            location="worker_output",
+            observed="deterministic validator rejection",
+            expected="bounded Worker result satisfying the output contract",
+            problem="the Worker output failed deterministic validation",
+            required_correction="Return a fresh JSON result satisfying every listed output-contract requirement.",
+            must_preserve=preserve,
+            forbidden_changes=forbidden,
+            acceptance_checks=("output passes the Host Worker validator",),
+            validator_refs=(validator_ref,),
+        )
+    return spec
+
+
 def build_refinement_packet(
     runner: ReviewPacketSource,
     task_id: str,
     *,
     failure_class: FailureClass | str,
     failure_summary: str,
+    failure_spec: ConcreteFailureSpec | Mapping[str, Any] | None = None,
+    repair_directive: RepairDirective | Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build one bounded Critic packet through the public Supervisor API.
 
@@ -302,6 +406,20 @@ def build_refinement_packet(
     patch_sha256 = review_packet.get("patch_sha256")
     if patch_sha256 is not None:
         result["patch_sha256"] = patch_sha256
+    spec_value = failure_spec if failure_spec is not None else review_packet.get("failure_spec")
+    if spec_value is not None:
+        spec = spec_value if isinstance(spec_value, ConcreteFailureSpec) else ConcreteFailureSpec.from_dict(spec_value)
+        result["failure_spec"] = spec.to_dict()
+        directive_value = repair_directive if repair_directive is not None else review_packet.get("repair_directive")
+        directive = (
+            RepairDirective.from_failure_spec(spec)
+            if directive_value is None
+            else directive_value if isinstance(directive_value, RepairDirective)
+            else RepairDirective.from_dict(directive_value)
+        )
+        result["repair_directive"] = directive.to_dict()
+    elif repair_directive is not None:
+        raise RefinementCompositionError("repair_directive requires failure_spec")
     return result
 
 
@@ -369,6 +487,8 @@ def propose_critic(
     *,
     failure_class: FailureClass | str,
     failure_summary: str,
+    failure_spec: ConcreteFailureSpec | Mapping[str, Any] | None = None,
+    repair_directive: RepairDirective | Mapping[str, Any] | None = None,
     max_output_tokens: int = 512,
     execution_boundary: str = "in_process",
     host_executor: Any | None = None,
@@ -380,6 +500,8 @@ def propose_critic(
         task_id,
         failure_class=failure_class,
         failure_summary=failure_summary,
+        failure_spec=failure_spec,
+        repair_directive=repair_directive,
     )
     if execution_boundary not in {"in_process", "host_process"}:
         raise RefinementCompositionError("execution_boundary must be in_process or host_process")
@@ -428,7 +550,15 @@ def _critic_correction(
     if not proposal.findings:
         raise RefinementCompositionError("critic proposal must contain a finding")
     correction = "\n".join(
-        f"{finding.location}: {finding.required_correction}" for finding in proposal.findings
+        "\n".join(
+            (
+                f"{finding.location}: {finding.required_correction}",
+                f"must preserve: {', '.join(finding.must_preserve) or 'none'}",
+                f"forbidden: {', '.join(finding.forbidden_changes) or 'none'}",
+                f"acceptance: {', '.join(finding.acceptance_checks) or 'host validation'}",
+            )
+        )
+        for finding in proposal.findings
     )
     return _bounded_summary(correction), {
         "kind": "refinement_proposal",
@@ -446,6 +576,8 @@ def apply_refinement_action(
     review_findings_reference: Mapping[str, Any] | Any | None = None,
     required_correction: str | None = None,
     critic_proposal: RefinementProposal | None = None,
+    failure_spec: ConcreteFailureSpec | Mapping[str, Any] | None = None,
+    repair_directive: RepairDirective | Mapping[str, Any] | None = None,
     assignment: Mapping[str, Any] | None = None,
 ) -> RefinementActionResult:
     """Execute at most one existing Host action for a refinement plan.
@@ -479,6 +611,8 @@ def apply_refinement_action(
             failure_evidence_reference=failure_evidence_reference,
             review_findings_reference=review_findings_reference,
             required_correction=correction,
+            failure_spec=failure_spec,
+            repair_directive=repair_directive,
         )
         runner.reassign(
             plan.task_id,
@@ -508,6 +642,8 @@ def apply_refinement_action(
             failure_evidence_reference=failure_evidence_reference,
             review_findings_reference=review_findings_reference or critic_reference,
             required_correction=correction,
+            failure_spec=failure_spec,
+            repair_directive=repair_directive,
         )
         runner.reassign(
             plan.task_id,
@@ -567,6 +703,7 @@ __all__ = [
     "apply_refinement_action",
     "ReviewPacketSource",
     "build_refinement_packet",
+    "build_concrete_failure_spec",
     "build_reviewer_rework_packet",
     "classify_worker_failure",
     "plan_refinement",

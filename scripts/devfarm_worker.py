@@ -60,6 +60,8 @@ from scripts.devfarm_artifacts import (
     write_verification_record as shared_write_verification_record,
 )
 from scripts.devfarm_worker_prompt import build_worker_prompt
+from scripts.devfarm_refinement import build_concrete_failure_spec
+from src.dev_agent.intelligence.convergence import RepairDirective
 from scripts.devfarm_worker_input import (
     MAX_INPUT_FILE_BYTES as SHARED_MAX_INPUT_FILE_BYTES,
     build_worker_input_context,
@@ -620,6 +622,7 @@ def _record_failed_model_output(
     egress_manifest: EgressManifest | None = None,
 ) -> dict[str, Any]:
     selected_attempt = _attempt_id(attempt_id)
+    failure_spec = build_concrete_failure_spec(reason, manifest=manifest)
     result = {
         "status": "failed",
         "attempt_id": selected_attempt,
@@ -631,7 +634,12 @@ def _record_failed_model_output(
         "proposed_test_commands": [],
         "host_verified_tests": [],
         "worker_metrics": dict(worker_metrics or {}),
+        # This is a bounded deterministic Host-validator reason, not raw model
+        # output.  Preserve it for existing failure artifacts while the
+        # structured FailureSpec carries the sanitized repair facts.
         "known_issues": [reason],
+        "failure_spec": failure_spec.to_dict(),
+        "repair_directive": RepairDirective.from_failure_spec(failure_spec).to_dict(),
         "assumptions": ["The model proposal failed deterministic validation; no patch was accepted."],
     }
     write_result(root, result, manifest=manifest)
@@ -984,7 +992,12 @@ def run_worker(
             "proposed_test_commands": [],
             "host_verified_tests": [],
             "worker_metrics": metrics,
-            "known_issues": [str(exc)],
+        "known_issues": ["provider request failed before a patch was produced"],
+        "failure_spec": build_concrete_failure_spec(
+            "provider request failed before a patch was produced",
+            manifest=manifest,
+            validator_ref="worker:provider_boundary",
+        ).to_dict(),
             "assumptions": ["The worker provider was unavailable; no patch was produced."],
         }
         write_result(root, result, manifest=manifest)
@@ -1119,7 +1132,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path.cwd())
     parser.add_argument("--manifest", type=Path, required=True)
-    parser.add_argument("--provider", choices=("cloudflare", "gemini", "openrouter"))
+    parser.add_argument("--provider", choices=("cloudflare", "gemini", "openrouter", "ollama"))
     parser.add_argument("--model")
     parser.add_argument("--provider-binding-id")
     parser.add_argument("--timeout-seconds", type=float, default=30.0)

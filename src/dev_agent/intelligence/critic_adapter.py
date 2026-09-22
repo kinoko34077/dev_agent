@@ -24,6 +24,7 @@ from ..domain.protocol import ModelRequest, ModelResponse
 from ..providers.base import ModelProvider
 from ..security.egress import EgressValidationError, attach_model_request_egress
 from .refinement import CriticFinding, RefinementProposal
+from .convergence import ConcreteFailureSpec, RepairDirective
 from .structured_response import StructuredResponseError, decode_json_object
 
 
@@ -44,11 +45,14 @@ CRITIC_PROPOSAL_RESPONSE_SCHEMA: dict[str, Any] = {
             "items": {
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["location", "problem", "required_correction"],
-                "properties": {
-                    "location": {"type": "string"},
-                    "problem": {"type": "string"},
-                    "required_correction": {"type": "string"},
+                    "required": ["location", "problem", "required_correction"],
+                    "properties": {
+                        "location": {"type": "string"},
+                        "problem": {"type": "string"},
+                        "required_correction": {"type": "string"},
+                        "must_preserve": {"type": "array", "maxItems": 32, "items": {"type": "string"}},
+                        "forbidden_changes": {"type": "array", "maxItems": 32, "items": {"type": "string"}},
+                        "acceptance_checks": {"type": "array", "maxItems": 32, "items": {"type": "string"}},
                 },
             },
         },
@@ -66,6 +70,8 @@ _PACKET_KEYS = frozenset(
         "patch_sha256",
         "evidence_refs",
         "acceptance",
+        "failure_spec",
+        "repair_directive",
     }
 )
 _FORBIDDEN_KEYS = frozenset(
@@ -173,10 +179,12 @@ class ModelCriticAdapter:
             "This is a proposal-only correction critique: do not make an integration decision, "
             "change authority, approve a result, or request a policy relaxation. "
             "Keep task_id and attempt_id exactly equal to the packet. "
-            "Return concise findings with location, problem, and required_correction, plus only "
+            "Return concise findings with location, problem, required_correction, must_preserve, "
+            "forbidden_changes, and acceptance_checks, plus only "
             "bounded evidence references. Do not invent file contents or unreferenced evidence. "
             "Use this shape: {\"task_id\":\"...\",\"attempt_id\":\"...\",\"findings\":[{"
-            "\"location\":\"...\",\"problem\":\"...\",\"required_correction\":\"...\"}],"
+            "\"location\":\"...\",\"problem\":\"...\",\"required_correction\":\"...\","
+            "\"must_preserve\":[],\"forbidden_changes\":[],\"acceptance_checks\":[]}],"
             "\"evidence_refs\":[]}\n"
             "bounded_failure_packet:\n"
             f"{json.dumps(normalized, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}"
@@ -271,6 +279,24 @@ class ModelCriticAdapter:
             "evidence_refs": list(evidence_refs),
             "acceptance": list(acceptance),
         }
+        if value.get("failure_spec") is not None:
+            try:
+                spec = ConcreteFailureSpec.from_dict(value["failure_spec"])
+            except (TypeError, ValueError) as exc:
+                raise CriticAdapterError(f"failure_spec is invalid: {exc}") from exc
+            normalized["failure_spec"] = spec.to_dict()
+            directive_value = value.get("repair_directive")
+            try:
+                directive = (
+                    RepairDirective.from_failure_spec(spec)
+                    if directive_value is None
+                    else RepairDirective.from_dict(directive_value)
+                )
+            except (TypeError, ValueError) as exc:
+                raise CriticAdapterError(f"repair_directive is invalid: {exc}") from exc
+            normalized["repair_directive"] = directive.to_dict()
+        elif value.get("repair_directive") is not None:
+            raise CriticAdapterError("repair_directive requires failure_spec")
         if patch_sha256 is not None:
             normalized["patch_sha256"] = patch_sha256
         try:

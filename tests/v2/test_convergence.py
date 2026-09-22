@@ -5,6 +5,7 @@ import pytest
 
 from src.dev_agent.domain.protocol import IntelligenceTier
 from src.dev_agent.intelligence.convergence import (
+    ConcreteFailureSpec,
     ConvergenceMetadata,
     ConvergenceState,
     ConvergenceStopReason,
@@ -15,6 +16,7 @@ from src.dev_agent.intelligence.convergence import (
     ValidationLadder,
     ValidationObservation,
     ValidationRung,
+    RepairDirective,
     assess_convergence,
 )
 from src.dev_agent.intelligence.refinement import (
@@ -105,6 +107,49 @@ def test_failure_fingerprint_round_trip_rejects_digest_tampering():
     tampered = {**fingerprint.to_dict(), "failure_signature": "0" * 64}
     with pytest.raises(ValueError, match="failure_signature"):
         FailureFingerprint.from_dict(tampered)
+
+
+def test_concrete_failure_spec_and_repair_directive_are_bounded_and_round_trip():
+    spec = ConcreteFailureSpec(
+        failure_class="FORMAT_PATCH",
+        stage="worker_output_validation",
+        location="known_issues",
+        observed="string",
+        expected="array<string>",
+        problem="known_issues must be a JSON array",
+        required_correction="Return known_issues as an array; use [] when empty.",
+        must_preserve=("task objective",),
+        forbidden_changes=("changing file_replacements path",),
+        acceptance_checks=("known_issues is an array",),
+        validator_refs=("worker:output_contract",),
+    )
+    directive = RepairDirective.from_failure_spec(spec)
+
+    assert spec.failure_class == "format_patch"
+    assert len(spec.failure_signature) == 64
+    assert ConcreteFailureSpec.from_dict(spec.to_dict()) == spec
+    assert RepairDirective.from_dict(directive.to_dict()) == directive
+    assert directive.required_action == spec.required_correction
+
+
+def test_concrete_failure_spec_rejects_secret_and_vague_repair_directive():
+    with pytest.raises(ValueError, match="secret"):
+        ConcreteFailureSpec(
+            failure_class="FORMAT_PATCH",
+            stage="worker_output_validation",
+            location="known_issues",
+            observed="api_key=AIzaSyA123456789",
+            expected="array<string>",
+            problem="secret-shaped value",
+            required_correction="Return an array of strings.",
+        )
+    with pytest.raises(ValueError, match="actionable"):
+        RepairDirective(
+            repair_target="known_issues",
+            previous_problem="wrong shape",
+            required_action="improve",
+            completion_condition=("known_issues is an array",),
+        )
 
 
 def test_fast_path_metadata_is_zero_round_and_has_no_failure_or_extra_work():

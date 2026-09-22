@@ -294,6 +294,8 @@ def rework_request(
     failure_evidence_reference: Mapping[str, Any] | ExternalTextReference,
     review_findings_reference: Mapping[str, Any] | ExternalTextReference | None = None,
     required_correction: str,
+    failure_spec: Mapping[str, Any] | Any | None = None,
+    repair_directive: Mapping[str, Any] | Any | None = None,
     exclusions: Sequence[str] = (),
     subject: str = "Worker成果の再作業",
     instruction: str = "元のTaskを再送せず、失敗証拠とレビュー差分だけを確認して修正すること",
@@ -313,6 +315,12 @@ def rework_request(
     }
     if review_findings_reference is not None:
         references["review_findings"] = _reference_mapping(review_findings_reference, "review_findings_reference")
+    if failure_spec is not None:
+        value = failure_spec.to_dict() if callable(getattr(failure_spec, "to_dict", None)) else failure_spec
+        references["failure_spec"] = _reference_mapping(value, "failure_spec")
+    if repair_directive is not None:
+        value = repair_directive.to_dict() if callable(getattr(repair_directive, "to_dict", None)) else repair_directive
+        references["repair_directive"] = _reference_mapping(value, "repair_directive")
     return _envelope(
         kind=HandoffKind.REPAIR_REQUEST.value,
         subject=subject,

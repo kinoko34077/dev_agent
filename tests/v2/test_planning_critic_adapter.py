@@ -228,6 +228,9 @@ def test_planner_composition_uses_one_critic_action_then_host_validation():
     assert len(planner_provider.requests) == 1
     assert len(critic_provider.requests) == 1
     assert len(validated) == 1
+    critic_prompt = critic_provider.requests[0].messages[0]["content"]
+    assert "CONCRETE FAILURE SPEC" in critic_prompt
+    assert "REPAIR DIRECTIVE" in critic_prompt
 
 
 def test_planner_composition_does_not_invoke_critic_for_provider_failure():

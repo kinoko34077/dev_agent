@@ -46,11 +46,11 @@ def test_router_exposes_provider_binding_and_model_from_resource_metadata(tmp_pa
     assert selection.model_id == "mistral-small-latest"
 
 
-def test_router_prefers_explicit_local_model_priority_before_resource_id(tmp_path):
+def test_router_prefers_qwen9_local_model_priority_before_resource_id(tmp_path):
     ledger = ResourceLedger(tmp_path / "local-priority.sqlite3")
     for resource_id, binding, model, priority in (
         ("ollama-gemma", "ollama:local:gemma4-12b", "gemma4:12b", 20),
-        ("ollama-qwen4", "ollama:local:qwen3.5-4b", "qwen3.5:4b", 0),
+        ("ollama-qwen9", "ollama:local:qwen3.5-9b", "qwen3.5:9b", 0),
     ):
         ledger.register_resource(
             resource_id,
@@ -71,7 +71,35 @@ def test_router_prefers_explicit_local_model_priority_before_resource_id(tmp_pat
 
     selection = ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}))
 
-    assert selection.resource_id == "ollama-qwen4"
+    assert selection.resource_id == "ollama-qwen9"
+
+
+def test_router_does_not_treat_inactive_qwen4_as_preferred_local_model(tmp_path):
+    ledger = ResourceLedger(tmp_path / "inactive-local-priority.sqlite3")
+    for resource_id, binding, model, priority in (
+        ("ollama-qwen4", "ollama:local:qwen3.5-4b", "qwen3.5:4b", None),
+        ("ollama-gemma", "ollama:local:gemma4-12b", "gemma4:12b", 10),
+        ("ollama-qwen9", "ollama:local:qwen3.5-9b", "qwen3.5:9b", 0),
+    ):
+        metadata = {"provider_binding_id": binding, "model_id": model}
+        if priority is not None:
+            metadata["routing_priority"] = priority
+        ledger.register_resource(
+            resource_id,
+            provider_id="ollama",
+            provider_binding_id=binding,
+            native_unit="request",
+            capacity=1,
+            capabilities=["text"],
+            sensitivity="normal",
+            cost_minor=0,
+            metadata=metadata,
+        )
+        ledger.observe(resource_id, available=1, health="healthy")
+
+    selection = ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}))
+
+    assert selection.resource_id == "ollama-qwen9"
 
 
 def test_router_excludes_open_circuit_and_reports_no_route(tmp_path):

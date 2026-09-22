@@ -8,6 +8,7 @@ from scripts.devfarm_refinement import (
     RefinementCompositionError,
     apply_refinement_action,
     build_refinement_packet,
+    build_concrete_failure_spec,
     build_reviewer_rework_packet,
     classify_worker_failure,
     plan_refinement,
@@ -24,6 +25,7 @@ from src.dev_agent.intelligence.refinement import (
     RefinementProposal,
 )
 from src.dev_agent.intelligence.convergence import ConvergenceState
+from src.dev_agent.intelligence.convergence import ConcreteFailureSpec, RepairDirective
 
 
 class _Runner:
@@ -160,6 +162,41 @@ def test_build_refinement_packet_uses_public_review_packet_and_allowlists_eviden
     assert "patch" not in packet
     assert "stdout" not in packet
     assert "verification_summary" not in packet
+
+
+def test_build_concrete_failure_spec_turns_worker_contract_facts_into_directive():
+    spec = build_concrete_failure_spec(
+        "file replacement lines must not contain newlines: src/example.py",
+        manifest={"allowed_files": ["src/example.py"]},
+    )
+
+    assert isinstance(spec, ConcreteFailureSpec)
+    assert spec.location == "file_replacements"
+    assert "one source line" in spec.required_correction
+    assert spec.failure_signature
+    assert RepairDirective.from_failure_spec(spec).completion_condition
+
+
+def test_refinement_packet_carries_concrete_failure_spec_without_raw_output():
+    runner = _Runner(_review_packet())
+    spec = build_concrete_failure_spec(
+        "known_issues must be a list",
+        manifest={"allowed_files": ["src/dev_agent/coordination/work.py"]},
+    )
+
+    packet = build_refinement_packet(
+        runner,
+        "production-task-1",
+        failure_class=FailureClass.FORMAT_PATCH,
+        failure_summary=spec.problem,
+        failure_spec=spec,
+        repair_directive=RepairDirective.from_failure_spec(spec),
+    )
+
+    assert packet["failure_spec"]["location"] == "known_issues"
+    assert packet["repair_directive"]["repair_target"] == "known_issues"
+    assert "raw_output" not in packet
+    assert "stdout" not in packet
 
 
 def test_propose_critic_composes_public_packet_with_host_selected_l1_provider():

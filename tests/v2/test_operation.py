@@ -932,13 +932,12 @@ def test_configured_provider_pool_exposes_preferred_local_model_and_fallback_can
     config = OperationConfig.from_environment(data_dir=tmp_path)
 
     local = [binding for binding in config.provider_bindings if binding.provider_id == "ollama"]
-    assert [binding.model for binding in local[:3]] == ["qwen3.5:4b", "qwen3.5:9b", "gemma4:12b"]
+    assert [binding.model for binding in local[:2]] == ["qwen3.5:9b", "gemma4:12b"]
     assert [binding.binding_id for binding in local[:3]] == [
-        "ollama:local:qwen3.5-4b",
         "ollama:local:qwen3.5-9b",
         "ollama:local:gemma4-12b",
     ]
-    assert all(binding.quota_domain is None and binding.credential_id is None for binding in local[:3])
+    assert all(binding.quota_domain is None and binding.credential_id is None for binding in local[:2])
 
 
 def test_configured_provider_pool_keeps_explicit_local_model_and_adds_safe_fallbacks(monkeypatch, tmp_path):
@@ -948,7 +947,17 @@ def test_configured_provider_pool_keeps_explicit_local_model_and_adds_safe_fallb
     config = OperationConfig.from_environment(data_dir=tmp_path)
 
     local = [binding for binding in config.provider_bindings if binding.provider_id == "ollama"]
-    assert [binding.model for binding in local[:3]] == ["qwen3.5:9b", "qwen3.5:4b", "gemma4:12b"]
+    assert [binding.model for binding in local[:2]] == ["qwen3.5:9b", "gemma4:12b"]
+
+
+def test_configured_provider_pool_keeps_explicit_qwen4_without_making_it_default(monkeypatch, tmp_path):
+    monkeypatch.setenv("DEV_AGENT_ENABLE_CONFIGURED_POOL", "1")
+    monkeypatch.setenv("OLLAMA_MODEL", "qwen3.5:4b")
+
+    config = OperationConfig.from_environment(data_dir=tmp_path)
+
+    local = [binding for binding in config.provider_bindings if binding.provider_id == "ollama"]
+    assert [binding.model for binding in local[:3]] == ["qwen3.5:4b", "qwen3.5:9b", "gemma4:12b"]
 
 
 def test_configured_provider_pool_projects_explicit_local_ollama_critic_binding(monkeypatch, tmp_path):
