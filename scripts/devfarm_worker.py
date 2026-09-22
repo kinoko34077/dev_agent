@@ -474,26 +474,12 @@ def _prompt(
 _provider = build_worker_provider
 
 
-# Ollama supports host-supplied JSON-schema output mode.  Keep this schema
-# deliberately bounded to the existing Worker result contract; patch scope,
-# file ownership, and acceptance remain Host responsibilities.
+# Ollama supports host-supplied JSON-schema output mode.  Keep the local model
+# contract minimal: the model proposes only file content, while status,
+# changed paths, tests, and verification facts remain Host-owned.
 _OLLAMA_WORKER_RESPONSE_SCHEMA = {
     "type": "object",
     "properties": {
-        "status": {
-            "type": "string",
-            "enum": ["completed", "failed", "blocked_external", "pending", "running"],
-        },
-        "changed_files": {
-            "type": "array",
-            "items": {"type": "string"},
-            "minItems": 1,
-        },
-        "tests_run": {"type": "array", "items": {"type": "string"}},
-        "tests_passed": {"type": "boolean"},
-        "known_issues": {"type": "array", "items": {"type": "string"}},
-        "assumptions": {"type": "array", "items": {"type": "string"}},
-        "patch": {"type": "string", "maxLength": 0},
         "file_replacements": {
             "type": "object",
             "minProperties": 1,
@@ -509,18 +495,8 @@ _OLLAMA_WORKER_RESPONSE_SCHEMA = {
         },
         "notes": {"type": "string"},
     },
-    "required": [
-        "status",
-        "changed_files",
-        "tests_run",
-        "tests_passed",
-        "known_issues",
-        "assumptions",
-        "patch",
-        "file_replacements",
-        "notes",
-    ],
-    "additionalProperties": True,
+    "required": ["file_replacements"],
+    "additionalProperties": False,
 }
 
 
@@ -939,9 +915,9 @@ def run_worker(
             {
                 "role": "system",
                 "content": (
-                    "For this local Ollama trial, always use file_replacements with a complete "
-                    "replacement for one supplied file and keep patch as an empty string. "
-                    "Do not emit a unified diff."
+                    "For this local Ollama trial, the only required output key is "
+                    "file_replacements. Use a complete replacement for one supplied file. "
+                    "Do not emit status metadata or a unified diff; the Host derives those facts."
                 ),
             }
         )
@@ -1063,6 +1039,11 @@ def run_worker(
         if not isinstance(patch, str):
             raise DevFarmError("worker patch must be a string")
         replacement_value = output.get("file_replacements")
+        if provider_id == "ollama":
+            if not isinstance(replacement_value, Mapping) or not replacement_value:
+                raise DevFarmError("local Ollama worker must provide non-empty file_replacements")
+            if patch:
+                raise DevFarmError("local Ollama worker must not provide a unified patch")
         host_generated_paths: list[str] = []
         host_generated_encoding: str | None = None
         if replacement_value is not None:
@@ -1089,7 +1070,13 @@ def run_worker(
         if patch_normalizations:
             output = {**output, "patch": patch, "patch_normalizations": patch_normalizations}
         actual_changed_files = validate_patch(patch, manifest=manifest)
-        status = _normalize_model_status(output.get("status"))
+        status = "completed" if provider_id == "ollama" else _normalize_model_status(output.get("status"))
+        if provider_id == "ollama":
+            # Local minimal-contract output has no model-owned status or
+            # metadata.  The Host derives its proposal projection only from
+            # the validated replacement and never creates source content.
+            status = "completed" if actual_changed_files else "failed"
+            metrics["host_derived_result"] = True
         if status == "completed" and not actual_changed_files:
             raise DevFarmError("completed worker proposal must include a non-empty patch")
         model_claims = {
@@ -1108,20 +1095,36 @@ def run_worker(
             metrics["host_generated_patch"] = "file_replacements"
             metrics["host_generated_patch_paths"] = list(host_generated_paths)
             metrics["file_replacement_encoding"] = host_generated_encoding
-        result = {
-            "status": status,
-            "attempt_id": attempt_id,
-            "base_revision": manifest["base_revision"],
-            "changed_files": actual_changed_files,
-            "tests_run": [],
-            "tests_passed": False,
-            "model_claims": model_claims,
-            "proposed_test_commands": output.get("tests_run", []),
-            "host_verified_tests": [],
-            "worker_metrics": metrics,
-            "known_issues": output.get("known_issues"),
-            "assumptions": output.get("assumptions"),
-        }
+        if provider_id == "ollama":
+            result = {
+                "status": status,
+                "attempt_id": attempt_id,
+                "base_revision": manifest["base_revision"],
+                "changed_files": actual_changed_files,
+                "tests_run": [],
+                "tests_passed": False,
+                "model_claims": {"file_replacements_used": bool(host_generated_paths)},
+                "proposed_test_commands": [],
+                "host_verified_tests": [],
+                "worker_metrics": metrics,
+                "known_issues": [],
+                "assumptions": [],
+            }
+        else:
+            result = {
+                "status": status,
+                "attempt_id": attempt_id,
+                "base_revision": manifest["base_revision"],
+                "changed_files": actual_changed_files,
+                "tests_run": [],
+                "tests_passed": False,
+                "model_claims": model_claims,
+                "proposed_test_commands": output.get("tests_run", []),
+                "host_verified_tests": [],
+                "worker_metrics": metrics,
+                "known_issues": output.get("known_issues"),
+                "assumptions": output.get("assumptions"),
+            }
         normalized = validate_result(result, manifest=manifest)
     except DevFarmError as exc:
         return _record_failed_model_output(

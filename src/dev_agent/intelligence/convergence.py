@@ -38,6 +38,7 @@ class ConvergenceStopReason(str, Enum):
     FAST_PATH = "FAST_PATH"
     BUDGET_EXHAUSTED = "BUDGET_EXHAUSTED"
     SAME_SIGNATURE_LIMIT = "SAME_SIGNATURE_LIMIT"
+    RECURRENT_CYCLE = "RECURRENT_CYCLE"
     NON_CONVERGING = "NON_CONVERGING"
     EXTERNAL_RECONCILIATION = "EXTERNAL_RECONCILIATION"
     AUTHORITY_REQUIRED = "AUTHORITY_REQUIRED"
@@ -368,6 +369,28 @@ class RepairDirective:
         ensure_json_safe(self.to_dict(), "repair directive")
         ensure_secret_free(self.to_dict(), "repair directive")
 
+    @property
+    def directive_hash(self) -> str:
+        """Return a deterministic identity for this bounded correction."""
+
+        encoded = json.dumps(
+            self._canonical_payload(),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
+
+    def _canonical_payload(self) -> dict[str, Any]:
+        return {
+            "repair_target": self.repair_target,
+            "previous_problem": self.previous_problem,
+            "required_action": self.required_action,
+            "must_preserve": list(self.must_preserve),
+            "forbidden": list(self.forbidden),
+            "completion_condition": list(self.completion_condition),
+        }
+
     @classmethod
     def from_failure_spec(cls, spec: ConcreteFailureSpec) -> "RepairDirective":
         if not isinstance(spec, ConcreteFailureSpec):
@@ -382,24 +405,20 @@ class RepairDirective:
         )
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "repair_target": self.repair_target,
-            "previous_problem": self.previous_problem,
-            "required_action": self.required_action,
-            "must_preserve": list(self.must_preserve),
-            "forbidden": list(self.forbidden),
-            "completion_condition": list(self.completion_condition),
-        }
+        return {**self._canonical_payload(), "directive_hash": self.directive_hash}
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> "RepairDirective":
         if not isinstance(value, Mapping):
             raise ValueError("repair directive must be an object")
-        allowed = {"repair_target", "previous_problem", "required_action", "must_preserve", "forbidden", "completion_condition"}
+        allowed = {
+            "repair_target", "previous_problem", "required_action", "must_preserve",
+            "forbidden", "completion_condition", "directive_hash",
+        }
         unknown = set(value) - allowed
         if unknown:
             raise ValueError(f"unknown repair directive field: {sorted(unknown)[0]}")
-        return cls(
+        directive = cls(
             repair_target=value.get("repair_target"),
             previous_problem=value.get("previous_problem"),
             required_action=value.get("required_action"),
@@ -407,6 +426,10 @@ class RepairDirective:
             forbidden=tuple(value.get("forbidden", ())),
             completion_condition=tuple(value.get("completion_condition", ())),
         )
+        supplied = _optional_digest(value.get("directive_hash"), "directive_hash")
+        if supplied is not None and supplied != directive.directive_hash:
+            raise ValueError("directive_hash does not match repair directive")
+        return directive
 
 
 @dataclass(frozen=True)
@@ -948,6 +971,7 @@ def assess_convergence(
     same_signature_count: int = 1,
     same_signature_limit: int = 2,
     max_refinement_rounds: int = 4,
+    history: Sequence[ConvergenceObservation] = (),
 ) -> ConvergenceAssessment:
     """Compare adjacent attempts without dispatching or owning persistence."""
 
@@ -964,6 +988,12 @@ def assess_convergence(
         raise ValueError("same_signature_count cannot exceed same_signature_limit")
     if max_refinement_rounds > _MAX_ROUND:
         raise ValueError("max_refinement_rounds exceeds the convergence bound")
+    if isinstance(history, (str, bytes)) or not isinstance(history, Sequence):
+        raise TypeError("history must be a sequence of ConvergenceObservation values")
+    if len(history) > 4:
+        raise ValueError("history is limited to the most recent four observations")
+    if any(not isinstance(item, ConvergenceObservation) for item in history):
+        raise TypeError("history must contain ConvergenceObservation values")
 
     failure_count_delta = current.failure_count - previous.failure_count
     validation_advanced = _validation_position(current.validation_rung) > _validation_position(previous.validation_rung)
@@ -984,12 +1014,28 @@ def assess_convergence(
         reasons.append("validation_rung_advanced")
     if signature_resolved:
         reasons.append("failure_signature_resolved")
-    if failure_changed:
-        reasons.append("failure_signature_changed")
+    observations = (*history, previous, current)
+    signatures = tuple(
+        item.failure_signature for item in observations if item.failure_signature is not None
+    )
+    recurrent_cycle = False
+    for period in (2, 3):
+        if len(signatures) < period + 1:
+            continue
+        window_length = min(len(signatures), period * 2)
+        window = signatures[-window_length:]
+        if all(window[index] == window[index - period] for index in range(period, len(window))):
+            recurrent_cycle = True
+            break
 
-    if reasons:
+    bounded_progress = bool(reasons)
+    if bounded_progress:
         state = ConvergenceState.PROGRESS
         stop_reason = None
+    elif recurrent_cycle:
+        state = ConvergenceState.NON_CONVERGING
+        stop_reason = ConvergenceStopReason.RECURRENT_CYCLE
+        reasons.append("recurrent_failure_cycle")
     elif current.refinement_round >= max_refinement_rounds:
         state = ConvergenceState.NON_CONVERGING
         stop_reason = ConvergenceStopReason.BUDGET_EXHAUSTED
@@ -1005,7 +1051,8 @@ def assess_convergence(
     else:
         state = ConvergenceState.NO_PROGRESS
         stop_reason = None
-        reasons.append("no_bounded_progress")
+        if not recurrent_cycle:
+            reasons.append("no_bounded_progress")
 
     return ConvergenceAssessment(
         previous=previous,

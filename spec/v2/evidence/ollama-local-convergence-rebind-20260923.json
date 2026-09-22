@@ -1,0 +1,63 @@
+{
+  "evidence_type": "ollama_local_convergence_contract",
+  "status": "IMPLEMENTED_VERIFIED",
+  "scope": "R10_PREP / WEAK_MODEL_CONVERGENCE_PREP",
+  "primary_model": "qwen3.5:9b",
+  "fallback_model": "gemma4:12b",
+  "inactive_model": "qwen3.5:4b",
+  "latest_repair_rebind": {
+    "status": "VERIFIED",
+    "fresh_fallback_handoff": true,
+    "latest_failure_spec_and_directive_required": true,
+    "directive_hash": true,
+    "historical_constraints_separated": true,
+    "provider_or_unknown_failures_enter_repair_lane": false
+  },
+  "cycle_detection": {
+    "status": "VERIFIED",
+    "bounded_history_observations": 4,
+    "a_b_a_is_progress": false,
+    "a_b_a_stop": "RECURRENT_CYCLE",
+    "signature_change_alone_is_progress": false
+  },
+  "local_worker_contract": {
+    "status": "VERIFIED",
+    "model_required_fields": ["file_replacements"],
+    "model_optional_fields": ["notes"],
+    "host_derived_fields": [
+      "status",
+      "changed_files",
+      "tests_run",
+      "tests_passed",
+      "known_issues",
+      "assumptions"
+    ],
+    "host_source_rewrite": false
+  },
+  "structured_validator_errors": {
+    "status": "VERIFIED",
+    "fields": [
+      "error_code",
+      "location",
+      "observed",
+      "expected",
+      "required_correction",
+      "validator_ref"
+    ],
+    "string_compatibility_fallback": true
+  },
+  "validation": {
+    "focused": "51 passed",
+    "full_tests_v2": "1495 passed, 1 skipped; one timing-dependent saturation test failed once and passed in isolation",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS"
+  },
+  "external_effect": "none",
+  "gate_impact": {
+    "phase8_preparation": "PREPARATION_ONLY",
+    "phase8_live_activation": "NOT_VERIFIED",
+    "ollama_local_e2e": "PARTIAL_BLOCKED",
+    "d9_production_deployment": "DEFERRED_NOT_READY"
+  }
+}

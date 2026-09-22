@@ -63,14 +63,15 @@ def test_local_ollama_prompt_uses_only_the_complete_replacement_contract() -> No
     )
 
     assert "file_replacements is REQUIRED" in prompt
-    assert "patch MUST be an empty string" in prompt
+    assert "Do not emit" in prompt
+    assert "patch" in prompt
     assert "complete line 1" in prompt
     assert "The host joins" in prompt
     assert "adds one final newline" in prompt
     assert "MUST NOT contain a newline character" in prompt
-    assert "known_issues, and assumptions MUST all be JSON arrays" in prompt
-    assert "Do not use files, diff, reason, or commit_message" in prompt
-    assert "The host will validate the replacement" in prompt
+    assert "the Host derives those facts" in prompt
+    assert "Do not emit status, changed_files, tests" in prompt
+    assert "The Host will validate the replacement" in prompt
 
 
 def test_rework_prompt_puts_concrete_repair_directive_before_general_contract() -> None:
@@ -97,7 +98,12 @@ def test_rework_prompt_puts_concrete_repair_directive_before_general_contract() 
                     "must_preserve": ["task objective"],
                     "forbidden": ["changing file_replacements path"],
                     "completion_condition": ["known_issues is an array"],
-                }
+                },
+                "repair_context": {
+                    "historical_constraints": {
+                        "resolved_must_not_regress": ["embedded newline remains forbidden"]
+                    }
+                },
             }
         },
     }
@@ -106,4 +112,7 @@ def test_rework_prompt_puts_concrete_repair_directive_before_general_contract() 
 
     assert "THIS IS A REPAIR ATTEMPT" in prompt
     assert "known_issues was a string" in prompt
+    assert "CURRENT REQUIRED CORRECTION" in prompt
+    assert "DO NOT REGRESS" in prompt
+    assert "embedded newline remains forbidden" in prompt
     assert prompt.index("THIS IS A REPAIR ATTEMPT") < prompt.index("file_replacements is REQUIRED")

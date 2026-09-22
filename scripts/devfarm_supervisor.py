@@ -600,6 +600,7 @@ class CodexSupervisedCommanderRun:
         required_correction: str,
         failure_spec: Mapping[str, Any] | Any | None = None,
         repair_directive: Mapping[str, Any] | Any | None = None,
+        repair_context: Mapping[str, Any] | None = None,
     ) -> HandoffEnvelope:
         return rework_request(
             task_reference={"run_id": self.run_id, "task_id": task_id},
@@ -608,6 +609,7 @@ class CodexSupervisedCommanderRun:
             required_correction=required_correction,
             failure_spec=failure_spec,
             repair_directive=repair_directive,
+            repair_context=repair_context,
         )
 
     def reassign(

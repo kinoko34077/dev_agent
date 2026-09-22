@@ -296,6 +296,7 @@ def rework_request(
     required_correction: str,
     failure_spec: Mapping[str, Any] | Any | None = None,
     repair_directive: Mapping[str, Any] | Any | None = None,
+    repair_context: Mapping[str, Any] | None = None,
     exclusions: Sequence[str] = (),
     subject: str = "Worker成果の再作業",
     instruction: str = "元のTaskを再送せず、失敗証拠とレビュー差分だけを確認して修正すること",
@@ -321,6 +322,8 @@ def rework_request(
     if repair_directive is not None:
         value = repair_directive.to_dict() if callable(getattr(repair_directive, "to_dict", None)) else repair_directive
         references["repair_directive"] = _reference_mapping(value, "repair_directive")
+    if repair_context is not None:
+        references["repair_context"] = _reference_mapping(repair_context, "repair_context")
     return _envelope(
         kind=HandoffKind.REPAIR_REQUEST.value,
         subject=subject,

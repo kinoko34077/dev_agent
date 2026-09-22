@@ -8,7 +8,7 @@ source; those authorities remain with the existing Host/Commander boundaries.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any, Protocol
 
@@ -259,8 +259,124 @@ def _bounded_summary(value: str) -> str:
     return normalized
 
 
+_REPAIR_FAILURE_CLASSES = frozenset({FailureClass.FORMAT_PATCH, FailureClass.SEMANTIC_TEST})
+
+
+def _repair_context_for_handoff(
+    plan: RefinementPlan,
+    *,
+    failure_evidence_reference: Mapping[str, Any] | Any | None,
+    failure_spec: ConcreteFailureSpec | Mapping[str, Any] | None,
+    repair_directive: RepairDirective | Mapping[str, Any] | None,
+    source_attempt_id: str | None = None,
+    unresolved_constraints: Sequence[str] = (),
+    resolved_constraints: Sequence[str] = (),
+) -> tuple[ConcreteFailureSpec, RepairDirective, dict[str, Any]] | None:
+    """Bind the latest model failure to a fresh rework handoff.
+
+    Provider/runtime failures deliberately stay outside this path.  The
+    returned context is bounded audit data, not authority to mutate source.
+    """
+
+    supplied = failure_spec is not None or repair_directive is not None
+    if not supplied:
+        return None
+    if plan.failure_class not in _REPAIR_FAILURE_CLASSES:
+        raise RefinementCompositionError(
+            "repair state is only valid for FORMAT_PATCH or SEMANTIC_TEST"
+        )
+    if not isinstance(failure_evidence_reference, Mapping) or not failure_evidence_reference:
+        raise RefinementCompositionError("repair state requires failure evidence reference")
+    if failure_spec is None:
+        raise RefinementCompositionError("repair_directive requires failure_spec")
+    spec = failure_spec if isinstance(failure_spec, ConcreteFailureSpec) else ConcreteFailureSpec.from_dict(failure_spec)
+    directive = (
+        repair_directive
+        if isinstance(repair_directive, RepairDirective)
+        else RepairDirective.from_dict(repair_directive)
+        if repair_directive is not None
+        else RepairDirective.from_failure_spec(spec)
+    )
+    if source_attempt_id is None and isinstance(failure_evidence_reference, Mapping):
+        candidate = failure_evidence_reference.get("attempt_id")
+        if isinstance(candidate, str) and candidate.strip():
+            source_attempt_id = candidate.strip()
+    def bounded_constraints(value: Sequence[str], name: str) -> list[str]:
+        if isinstance(value, (str, bytes)):
+            raise RefinementCompositionError(f"{name} must be a sequence")
+        items = [item.strip() for item in value if isinstance(item, str) and item.strip()]
+        if len(items) > 32 or any(len(item) > 512 for item in items):
+            raise RefinementCompositionError(f"{name} is too large")
+        return list(dict.fromkeys(items))
+
+    unresolved = bounded_constraints(unresolved_constraints, "unresolved_constraints")
+    resolved = bounded_constraints(resolved_constraints, "resolved_constraints")
+    context = {
+        "source_attempt_id": source_attempt_id,
+        "source_failure_signature": spec.failure_signature,
+        "latest_failure_spec": spec.to_dict(),
+        "latest_repair_directive": directive.to_dict(),
+        "repair_directive_hash": directive.directive_hash,
+        "current_repair": directive.to_dict(),
+        "historical_constraints": {
+            "unresolved": unresolved,
+            "resolved_must_not_regress": resolved,
+        },
+        "directive_rebound": True,
+    }
+    ensure_json_safe(context, "repair handoff context")
+    ensure_secret_free(context, "repair handoff context")
+    return spec, directive, context
+
+
+def build_concrete_failure_spec_from_error(
+    error: Mapping[str, Any],
+    *,
+    validator_ref: str = "worker:output_contract",
+) -> ConcreteFailureSpec:
+    """Build a FailureSpec from a bounded structured Host validator error.
+
+    This is an additive input path.  Existing string-based validators remain
+    compatible, while new validators can avoid substring matching and retain
+    exact bounded location/observed/expected facts.
+    """
+
+    if not isinstance(error, Mapping):
+        raise RefinementCompositionError("structured validator error must be an object")
+    allowed = {
+        "error_code", "failure_class", "stage", "location", "observed", "expected",
+        "problem", "required_correction", "must_preserve", "forbidden_changes",
+        "acceptance_checks", "validator_ref",
+    }
+    unknown = set(error) - allowed
+    if unknown:
+        raise RefinementCompositionError(f"structured validator error has unknown field: {sorted(unknown)[0]}")
+    error_code = error.get("error_code")
+    if not isinstance(error_code, str) or not error_code.strip():
+        raise RefinementCompositionError("structured validator error requires error_code")
+    selected_validator = error.get("validator_ref", validator_ref)
+    if not isinstance(selected_validator, str) or not selected_validator.strip():
+        raise RefinementCompositionError("structured validator error requires validator_ref")
+    try:
+        return ConcreteFailureSpec(
+            failure_class=error.get("failure_class", "FORMAT_PATCH"),
+            stage=error.get("stage", "worker_output_validation"),
+            location=error.get("location", "worker_output"),
+            observed=error.get("observed", "deterministic validator rejection"),
+            expected=error.get("expected", "bounded Worker output"),
+            problem=error.get("problem", "the Worker output failed deterministic validation"),
+            required_correction=error.get("required_correction"),
+            must_preserve=tuple(error.get("must_preserve", ())),
+            forbidden_changes=tuple(error.get("forbidden_changes", ())),
+            acceptance_checks=tuple(error.get("acceptance_checks", ())),
+            validator_refs=(selected_validator, error_code),
+        )
+    except (TypeError, ValueError) as exc:
+        raise RefinementCompositionError("structured validator error is not bounded") from exc
+
+
 def build_concrete_failure_spec(
-    reason: str,
+    reason: str | Mapping[str, Any],
     *,
     manifest: Mapping[str, Any] | None = None,
     validator_ref: str = "worker:output_contract",
@@ -272,6 +388,8 @@ def build_concrete_failure_spec(
     projection rather than leaking raw model output into the next attempt.
     """
 
+    if isinstance(reason, Mapping):
+        return build_concrete_failure_spec_from_error(reason, validator_ref=validator_ref)
     if not isinstance(reason, str) or not reason.strip():
         raise RefinementCompositionError("failure reason must be non-empty text")
     normalized = reason.casefold()
@@ -626,6 +744,9 @@ def apply_refinement_action(
     critic_proposal: RefinementProposal | None = None,
     failure_spec: ConcreteFailureSpec | Mapping[str, Any] | None = None,
     repair_directive: RepairDirective | Mapping[str, Any] | None = None,
+    source_attempt_id: str | None = None,
+    unresolved_constraints: Sequence[str] = (),
+    resolved_constraints: Sequence[str] = (),
     assignment: Mapping[str, Any] | None = None,
 ) -> RefinementActionResult:
     """Execute at most one existing Host action for a refinement plan.
@@ -661,6 +782,19 @@ def apply_refinement_action(
             required_correction=correction,
             failure_spec=failure_spec,
             repair_directive=repair_directive,
+            repair_context=(
+                _repair_context_for_handoff(
+                    plan,
+                    failure_evidence_reference=failure_evidence_reference,
+                    failure_spec=failure_spec,
+                    repair_directive=repair_directive,
+                    source_attempt_id=source_attempt_id,
+                    unresolved_constraints=unresolved_constraints,
+                    resolved_constraints=resolved_constraints,
+                )[2]
+                if failure_spec is not None or repair_directive is not None
+                else None
+            ),
         )
         runner.reassign(
             plan.task_id,
@@ -692,6 +826,19 @@ def apply_refinement_action(
             required_correction=correction,
             failure_spec=failure_spec,
             repair_directive=repair_directive,
+            repair_context=(
+                _repair_context_for_handoff(
+                    plan,
+                    failure_evidence_reference=failure_evidence_reference,
+                    failure_spec=failure_spec,
+                    repair_directive=repair_directive,
+                    source_attempt_id=source_attempt_id,
+                    unresolved_constraints=unresolved_constraints,
+                    resolved_constraints=resolved_constraints,
+                )[2]
+                if failure_spec is not None or repair_directive is not None
+                else None
+            ),
         )
         runner.reassign(
             plan.task_id,
@@ -711,6 +858,44 @@ def apply_refinement_action(
         )
 
     if action is RefinementAction.REASSIGN_SAME_TIER:
+        repair_context = _repair_context_for_handoff(
+            plan,
+            failure_evidence_reference=failure_evidence_reference,
+            failure_spec=failure_spec,
+            repair_directive=repair_directive,
+            source_attempt_id=source_attempt_id,
+            unresolved_constraints=unresolved_constraints,
+            resolved_constraints=resolved_constraints,
+        )
+        if repair_context is not None:
+            latest_spec, latest_directive, context = repair_context
+            if not callable(getattr(runner, "rework_handoff", None)):
+                raise RefinementCompositionError("runner must expose rework_handoff()")
+            handoff = runner.rework_handoff(
+                plan.task_id,
+                failure_evidence_reference=failure_evidence_reference,
+                review_findings_reference=review_findings_reference,
+                required_correction=latest_directive.required_action,
+                failure_spec=latest_spec,
+                repair_directive=latest_directive,
+                repair_context=context,
+            )
+            runner.reassign(
+                plan.task_id,
+                provider_id=provider_id,
+                model_id=model_id,
+                provider_binding_id=binding_id,
+                rework_handoff=handoff,
+            )
+            return RefinementActionResult(
+                plan_id=plan.plan_id,
+                task_id=plan.task_id,
+                action=action,
+                status="REASSIGNED_WITH_REPAIR_HANDOFF",
+                executed=True,
+                handoff_created=True,
+                reason=plan.reasons[0] if plan.reasons else None,
+            )
         runner.reassign(
             plan.task_id,
             provider_id=provider_id,
@@ -752,6 +937,7 @@ __all__ = [
     "ReviewPacketSource",
     "build_refinement_packet",
     "build_concrete_failure_spec",
+    "build_concrete_failure_spec_from_error",
     "build_reviewer_rework_packet",
     "classify_worker_failure",
     "plan_refinement",

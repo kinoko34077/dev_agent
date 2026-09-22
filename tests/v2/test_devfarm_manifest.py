@@ -253,14 +253,8 @@ def test_run_worker_requests_bounded_json_schema_for_local_ollama(tmp_path, monk
     manifest["approved_provider_ids"] = ["ollama"]
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     output = {
-        "status": "completed",
-        "changed_files": ["tests/v2/test_target.py"],
-        "tests_run": [],
-        "tests_passed": False,
-        "known_issues": [],
-        "assumptions": [],
-        "patch": _patch(),
-        "notes": "local structured output",
+        "file_replacements": {"tests/v2/test_target.py": ["def test_target():", "    assert True", "    return None"]},
+        "notes": "local minimal structured output",
     }
     provider = OllamaProvider(model="qwen3.5:9b", base_url="http://127.0.0.1:11434")
     provider.provider_binding_id = "ollama:local:qwen3.5-9b"
@@ -280,21 +274,14 @@ def test_run_worker_requests_bounded_json_schema_for_local_ollama(tmp_path, monk
 
     assert result["status"] == "completed"
     assert requests[0].response_schema["type"] == "object"
-    assert requests[0].response_schema["properties"]["status"]["enum"] == [
-        "completed",
-        "failed",
-        "blocked_external",
-        "pending",
-        "running",
-    ]
-    assert requests[0].response_schema["properties"]["patch"]["maxLength"] == 0
     assert requests[0].max_output_tokens == 8192
+    assert set(requests[0].response_schema["properties"]) == {"file_replacements", "notes"}
     assert requests[0].response_schema["properties"]["file_replacements"]["minProperties"] == 1
     replacement_schema = requests[0].response_schema["properties"]["file_replacements"]["additionalProperties"]
     assert replacement_schema["oneOf"][1]["items"]["pattern"] == "^[^\\r\\n]*$"
-    assert "file_replacements" in requests[0].response_schema["required"]
-    assert "assumptions" in requests[0].response_schema["required"]
-    assert "always use file_replacements" in requests[0].messages[1]["content"]
+    assert requests[0].response_schema["required"] == ["file_replacements"]
+    assert requests[0].response_schema["additionalProperties"] is False
+    assert "only required output key is file_replacements" in requests[0].messages[1]["content"]
     assert requests[0].messages[2]["role"] == "user"
 
 

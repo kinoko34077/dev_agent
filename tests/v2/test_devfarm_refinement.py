@@ -9,6 +9,7 @@ from scripts.devfarm_refinement import (
     apply_refinement_action,
     build_refinement_packet,
     build_concrete_failure_spec,
+    build_concrete_failure_spec_from_error,
     build_reviewer_rework_packet,
     classify_worker_failure,
     plan_refinement,
@@ -211,6 +212,31 @@ def test_build_concrete_failure_spec_describes_missing_json_object():
     assert "response parses as one JSON object" in spec.acceptance_checks
 
 
+def test_structured_validator_error_builds_exact_bounded_failure_spec():
+    spec = build_concrete_failure_spec_from_error(
+        {
+            "error_code": "WORKER_FILE_REPLACEMENT_EMBEDDED_NEWLINE",
+            "location": "file_replacements.src/example.py[18]",
+            "observed": "string containing LF",
+            "expected": "one line without CR/LF",
+            "problem": "a replacement line contains an embedded newline",
+            "required_correction": "Split the content into one source line per array element.",
+            "acceptance_checks": ("each replacement line contains no LF or CR",),
+        }
+    )
+
+    assert spec.location == "file_replacements.src/example.py[18]"
+    assert spec.validator_refs == ("worker:output_contract", "worker_file_replacement_embedded_newline")
+    assert spec.to_dict()["observed"] == "string containing LF"
+    assert build_concrete_failure_spec({
+        "error_code": "WORKER_FILE_REPLACEMENT_EMBEDDED_NEWLINE",
+        "location": "file_replacements.src/example.py[18]",
+        "observed": "string containing LF",
+        "expected": "one line without CR/LF",
+        "problem": "a replacement line contains an embedded newline",
+        "required_correction": "Split the content into one source line per array element.",
+        "acceptance_checks": ("each replacement line contains no LF or CR",),
+    }).failure_signature == spec.failure_signature
 def test_refinement_packet_carries_concrete_failure_spec_without_raw_output():
     runner = _Runner(_review_packet())
     spec = build_concrete_failure_spec(
@@ -492,3 +518,70 @@ def test_apply_refinement_action_uses_one_l1_critic_proposal_for_rework_only():
     assert len(runner.reassign_calls) == 1
     assert runner.handoff_calls[0]["review_findings_reference"]["kind"] == "refinement_proposal"
     assert "Persist the marker" in runner.handoff_calls[0]["required_correction"]
+
+
+def test_reassign_same_tier_rebinds_latest_failure_and_directive_for_fallback():
+    runner = _ActionRunner()
+    plan = RefinementPlan(
+        plan_id="00000000-0000-4000-8000-000000000001",
+        task_id="production-task-1",
+        action=RefinementAction.REASSIGN_SAME_TIER,
+        failure_class=FailureClass.FORMAT_PATCH,
+        attempt=4,
+        refinement_round=3,
+        reasons=("recurrent_failure_cycle",),
+        next_binding_id="gemma-local",
+    )
+    spec = build_concrete_failure_spec("worker response JSON is invalid: extra data")
+    directive = RepairDirective.from_failure_spec(spec)
+
+    result = apply_refinement_action(
+        runner,
+        plan,
+        failure_evidence_reference={"kind": "verification", "path": ".devfarm/failure-3.json", "attempt_id": "attempt-3"},
+        failure_spec=spec,
+        repair_directive=directive,
+        unresolved_constraints=("response must be one JSON object",),
+        resolved_constraints=("embedded newline",),
+        assignment={
+            "provider_id": "ollama",
+            "model_id": "gemma4:12b",
+            "provider_binding_id": plan.next_binding_id,
+        },
+    )
+
+    assert result.status == "REASSIGNED_WITH_REPAIR_HANDOFF"
+    assert result.handoff_created is True
+    assert len(runner.handoff_calls) == 1
+    assert len(runner.reassign_calls) == 1
+    handoff = runner.handoff_calls[0]
+    context = handoff["repair_context"]
+    assert context["source_attempt_id"] == "attempt-3"
+    assert context["source_failure_signature"] == spec.failure_signature
+    assert context["repair_directive_hash"] == directive.directive_hash
+    assert context["directive_rebound"] is True
+    assert context["current_repair"]["repair_target"] == "worker_output"
+    assert context["historical_constraints"]["resolved_must_not_regress"] == ["embedded newline"]
+    assert runner.reassign_calls[0]["rework_handoff"] == {"kind": "repair_request", "task_id": "production-task-1"}
+
+
+def test_reassign_same_tier_does_not_create_repair_handoff_for_provider_failure():
+    runner = _ActionRunner()
+    plan = plan_refinement(
+        _refinement_context(external_outcome_known=True),
+        "provider_unavailable",
+    )
+
+    result = apply_refinement_action(
+        runner,
+        plan,
+        assignment={
+            "provider_id": "ollama",
+            "model_id": "gemma4:12b",
+            "provider_binding_id": plan.next_binding_id,
+        },
+    )
+
+    assert result.action is RefinementAction.REASSIGN_SAME_TIER
+    assert result.handoff_created is False
+    assert runner.handoff_calls == []

@@ -130,6 +130,25 @@ def test_concrete_failure_spec_and_repair_directive_are_bounded_and_round_trip()
     assert ConcreteFailureSpec.from_dict(spec.to_dict()) == spec
     assert RepairDirective.from_dict(directive.to_dict()) == directive
     assert directive.required_action == spec.required_correction
+    assert len(directive.directive_hash) == 64
+    assert RepairDirective.from_dict(directive.to_dict()).directive_hash == directive.directive_hash
+
+
+def test_repair_directive_hash_rejects_tampering():
+    spec = ConcreteFailureSpec(
+        failure_class="FORMAT_PATCH",
+        stage="worker_output_validation",
+        location="known_issues",
+        observed="string",
+        expected="array<string>",
+        problem="known_issues must be a JSON array",
+        required_correction="Return known_issues as an array; use [] when empty.",
+        acceptance_checks=("known_issues is an array",),
+    )
+    directive = RepairDirective.from_failure_spec(spec)
+    tampered = {**directive.to_dict(), "required_action": "Return an object instead."}
+    with pytest.raises(ValueError, match="directive_hash"):
+        RepairDirective.from_dict(tampered)
 
 
 def test_concrete_failure_spec_rejects_secret_and_vague_repair_directive():
@@ -353,6 +372,33 @@ def test_convergence_assessment_distinguishes_no_progress_stuck_and_budget_stop(
     assert exhausted.stop_reason is ConvergenceStopReason.SAME_SIGNATURE_LIMIT
     assert budget.state is ConvergenceState.NON_CONVERGING
     assert budget.stop_reason is ConvergenceStopReason.BUDGET_EXHAUSTED
+
+
+def test_convergence_assessment_does_not_treat_signature_change_alone_as_progress():
+    first_signature = _fingerprint(error_code="FIRST").failure_signature
+    second_signature = _fingerprint(error_code="SECOND").failure_signature
+    previous = _observation(failure_count=1, rung=ValidationRung.V1, signature=first_signature, round=1)
+    current = _observation(failure_count=1, rung=ValidationRung.V1, signature=second_signature, round=2)
+
+    assessment = assess_convergence(previous, current)
+
+    assert assessment.failure_changed is True
+    assert assessment.state is ConvergenceState.NO_PROGRESS
+    assert "failure_signature_changed" not in assessment.reasons
+
+
+def test_convergence_assessment_marks_a_b_a_as_recurrent_cycle():
+    signature_a = _fingerprint(error_code="CYCLE_A").failure_signature
+    signature_b = _fingerprint(error_code="CYCLE_B").failure_signature
+    first = _observation(failure_count=1, rung=ValidationRung.V1, signature=signature_a, round=1)
+    second = _observation(failure_count=1, rung=ValidationRung.V1, signature=signature_b, round=2)
+    current = _observation(failure_count=1, rung=ValidationRung.V1, signature=signature_a, round=3)
+
+    assessment = assess_convergence(second, current, history=(first,))
+
+    assert assessment.state is ConvergenceState.NON_CONVERGING
+    assert assessment.stop_reason is ConvergenceStopReason.RECURRENT_CYCLE
+    assert "recurrent_failure_cycle" in assessment.reasons
 
 
 def test_convergence_assessment_round_trips_as_bounded_evidence():
