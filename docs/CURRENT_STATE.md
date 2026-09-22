@@ -5,12 +5,12 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Remote HEAD before this documentation sync | `b7ef1e6` (`docs: record Ollama worker convergence attempt`) |
-| Latest implementation baseline before this documentation sync | `d598eb5` (`fix: tighten local Ollama worker output contract`) |
-| Latest evidence baseline before this sync | `b7ef1e6` (`docs: record Ollama worker convergence attempt`) |
-| Implementation/evidence baseline | implementation `d598eb5`; this sync records the final bounded local Worker micro-root and preserves its partial blocker without changing a Gate |
-| Worktree | post-push documentation/evidence synchronization is pending; the local Ollama output-contract implementation is pushed and exact-head CI is green |
-| Local regression | `1467 passed, 1 skipped` (`python -m pytest tests/v2 -q`, after the local Ollama output-contract refinement) |
+| Remote HEAD before this documentation sync | `dcd112c` (`feat: add preferred local Ollama fallback pool`) |
+| Latest implementation baseline before this documentation sync | `dcd112c` (`feat: add preferred local Ollama fallback pool`) |
+| Latest evidence baseline before this sync | `55dc117` (`docs: close local Ollama worker trial`) |
+| Implementation/evidence baseline | implementation `dcd112c`; this sync records qwen3.5:4b as the preferred local candidate and gemma4:12b/qwen3.5:9b as exact fallback candidates without changing a Gate |
+| Worktree | post-push evidence/documentation synchronization is pending; the model-pool implementation is pushed and local regression is green |
+| Local regression | `1475 passed, 1 skipped` (`python -m pytest tests/v2 -q`, after the local Ollama model-pool change) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
 | Exact-head CI | PASS for `d598eb58f7f937e221dbe7f20cf44e84d20649c0`: `v2-core` and `v2-provider-smoke` (`v2 tests` workflow). |
@@ -158,11 +158,12 @@ state. Detailed requirements and decisions stay in their owning documents.
 - 2026-09-22 Ollama Worker output contract: the local Ollama adapter now forwards Host-owned JSON schema through `/api/chat`, and local Worker requests use a bounded file-replacement contract while remote Worker requests remain schema-free. A fresh local root then recorded qwen3.5 output-contract failures, one bounded same-tier reassignment to qwen3:8b, a qwen3 transport HTTP 400, and a sibling egress rejection; all attempts stopped before Host Verification/integration and were superseded without replay. This is `OLLAMA_LOCAL_E2E=PARTIAL_BLOCKED` and AR1 partial evidence, not Phase 8 activation. See [`ollama-local-worker-convergence-20260922.json`](../spec/v2/evidence/ollama-local-worker-convergence-20260922.json).
 - 2026-09-22 Ollama Worker line-array convergence: after a bounded prompt refinement, a fresh qwen3.5:9b root still produced one embedded-newline line-array violation and one `file_replacements` path-scope violation. Host deterministic validation rejected both; no Host Verification, Reviewer, integration, or dependent continuation occurred, and the plan was superseded without replay. This remains `OLLAMA_LOCAL_E2E=PARTIAL_BLOCKED`; the model is not promoted beyond `L1_LOCAL_TRIAL`, and Phase 8 is unchanged. See [`ollama-local-worker-linearray-convergence-20260922.json`](../spec/v2/evidence/ollama-local-worker-linearray-convergence-20260922.json).
 - 2026-09-22 Ollama Worker micro-root closeout: a final one-attempt root using two very small, non-overlapping production modules still failed deterministic output validation (`known_issues` scalar and disallowed `notes` path). The root was superseded without replay; no Host Verification, Reviewer, integration, or dependent continuation occurred. `OLLAMA_LOCAL_E2E` remains `PARTIAL_BLOCKED`, qwen3.5 remains `L1_LOCAL_TRIAL`, and Phase 8 is unchanged. See [`ollama-local-worker-micro-root-20260922.json`](../spec/v2/evidence/ollama-local-worker-micro-root-20260922.json).
+- 2026-09-23 Ollama local model pool: `qwen3.5:4b` and the canonical registry tag `gemma4:12b` are installed and exposed as exact local bindings `ollama:local:qwen3.5-4b` and `ollama:local:gemma4-12b`; `qwen3.5:9b` remains the middle fallback. With no explicit `OLLAMA_MODEL`, qwen4 is the preferred route; an explicit model remains first while the other approved local candidates remain available. Sequential loopback load, plain inference, structured JSON inference, and unload passed for qwen4 and gemma4. Pre-chat lifecycle failure is failover-safe; post-chat transport remains reconciliation-required. All local models remain `L1_LOCAL_TRIAL`, and Phase 8/D9 Production Deployment Gates are unchanged. Evidence: [`ollama-local-model-pool-20260923.json`](../spec/v2/evidence/ollama-local-model-pool-20260923.json).
 - The active `v2/bootstrap` GitHub ruleset requires `kernel (3.10)`, `kernel (3.11)`, and `provider-smoke`, and prevents deletion/non-fast-forward updates. The current authenticated direct-push identity is a configured bypass actor, so remote push acceptance does not replace exact-head CI evidence. No local artifact promotes a Gate.
 
 ## Immediate next target
 
-1. Treat the OllAMA local Worker convergence result as partial/blocked, keep its qwen3.5/qwen3 failures as immutable evidence, and return to a fresh R9 L2 route when a newly observed qualified route is available. The local trial is explicitly L1-only and blocked before integration; do not promote Phase 8 or replay any UNKNOWN operation.
+1. Use the verified qwen3.5:4b local binding as the preferred local route, with qwen3.5:9b and gemma4:12b as exact local fallbacks when the model is unavailable before chat dispatch. Keep the local Worker convergence result partial/blocked, keep its qwen3.5/qwen3 failures as immutable evidence, and do not promote Phase 8 or replay any UNKNOWN operation.
 2. R9 fresh-root live trial: the latest bounded L2 pool attempt exhausted three distinct quota domains with confirmed `provider_unavailable` before a proposal. Resume only with a newly observed eligible route/new request identity, then complete Planner, two non-overlapping Implementers, independent Reviewer proposal, dependent continuation, Host integration, and exact-head CI.
 3. `AR1` live recovery remains open and is only consumed by a natural FORMAT/PATCH or SEMANTIC/TEST failure: classify, select one bounded action, create a fresh Worker attempt, verify, review, and integrate. A first-pass success must remain a success and must not be manufactured into AR1.
 4. Use the local foreground Operation runtime coordinator for durable waiting/reconciliation/dependency wake and restart-safe continuation. This is not OS liveness and not a second Scheduler.
@@ -185,6 +186,7 @@ and the compact operational procedure is [`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_D
 - Ollama local Worker bounded convergence: [`ollama-local-worker-convergence-20260922.json`](../spec/v2/evidence/ollama-local-worker-convergence-20260922.json)
 - Ollama local Worker line-array convergence: [`ollama-local-worker-linearray-convergence-20260922.json`](../spec/v2/evidence/ollama-local-worker-linearray-convergence-20260922.json)
 - Ollama local Worker micro-root closeout: [`ollama-local-worker-micro-root-20260922.json`](../spec/v2/evidence/ollama-local-worker-micro-root-20260922.json)
+- Ollama local qwen4/gemma4 model-pool and lifecycle evidence: [`ollama-local-model-pool-20260923.json`](../spec/v2/evidence/ollama-local-model-pool-20260923.json)
 - Bounded convergence R7/R8 runtime evidence: [`bounded-convergence-runtime-r7-r8-20260917.json`](../spec/v2/evidence/bounded-convergence-runtime-r7-r8-20260917.json)
 - R9 model evidence refresh and fresh Planner availability blocker: [`model-evidence-refresh-r9-planner-blocker-20260922.json`](../spec/v2/evidence/model-evidence-refresh-r9-planner-blocker-20260922.json)
 - R9 fresh L2 Planner availability blocker: [`phase8-planner-fresh-provider-unavailable-20260917.json`](../spec/v2/evidence/phase8-planner-fresh-provider-unavailable-20260917.json)

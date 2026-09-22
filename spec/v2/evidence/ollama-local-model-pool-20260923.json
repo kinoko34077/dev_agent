@@ -1,0 +1,101 @@
+{
+  "evidence_id": "ollama-local-model-pool-20260923",
+  "evidence_kind": "ollama_local_model_inventory_lifecycle_and_pool",
+  "observed_at": "2026-09-23",
+  "implementation_revision": "dcd112c",
+  "track": "OLLAMA_LOCAL_E2E",
+  "runtime": {
+    "provider": "ollama",
+    "version": "0.33.3",
+    "base_url": "http://127.0.0.1:11434",
+    "loopback_only": true,
+    "keep_alive": "10m",
+    "loaded_before": [],
+    "loaded_after": []
+  },
+  "installed_models": [
+    {
+      "binding": "ollama:local:qwen3.5-4b",
+      "tag": "qwen3.5:4b",
+      "digest": "2a654d98e6fba55d452b7043684e9b57a947e393bbffa62485a7aac05ee4eefd",
+      "size_bytes": 3389983735,
+      "preferred_default": true,
+      "tier": "L1_LOCAL_TRIAL",
+      "formal_phase8_l2_qualification": "not_claimed"
+    },
+    {
+      "binding": "ollama:local:qwen3.5-9b",
+      "tag": "qwen3.5:9b",
+      "digest": "6488c96fa5faab64bb65cbd30d4289e20e6130ef535a93ef9a49f42eda893ea7",
+      "size_bytes": 6594474711,
+      "preferred_default": false,
+      "tier": "L1_LOCAL_TRIAL",
+      "formal_phase8_l2_qualification": "not_claimed"
+    },
+    {
+      "binding": "ollama:local:gemma4-12b",
+      "tag": "gemma4:12b",
+      "digest": "4eb23ef187e2c5462566d6a1d3bbbc2f1346d0b4327cbb66d58fffbcc9b2b05c",
+      "size_bytes": 7556508396,
+      "preferred_default": false,
+      "tier": "L1_LOCAL_TRIAL",
+      "formal_phase8_l2_qualification": "not_claimed"
+    }
+  ],
+  "configured_pool": {
+    "default_order": [
+      "ollama:local:qwen3.5-4b",
+      "ollama:local:qwen3.5-9b",
+      "ollama:local:gemma4-12b"
+    ],
+    "explicit_model_preserves_fallbacks": true,
+    "billing": "exact trusted zero-cost local catalog rows",
+    "quota_required": false,
+    "credentials": "none"
+  },
+  "lifecycle_observations": [
+    {
+      "tag": "qwen3.5:4b",
+      "load_seconds": 26.52,
+      "loaded_size_bytes": 3128038521,
+      "loaded_size_vram_bytes": 3128038521,
+      "cold_inference_seconds": 0.537,
+      "warm_inference_seconds": 0.224,
+      "structured_inference_seconds": 0.651,
+      "unload_seconds": 0.342,
+      "plain_response": "stop_with_bounded_text",
+      "structured_response": "stop_with_bounded_text",
+      "cost_minor": 0,
+      "loaded_after": []
+    },
+    {
+      "tag": "gemma4:12b",
+      "load_seconds": 68.014,
+      "loaded_size_bytes": 8063046122,
+      "loaded_size_vram_bytes": 8063046122,
+      "cold_inference_seconds": 36.429,
+      "warm_inference_seconds": 0.262,
+      "structured_inference_seconds": 0.627,
+      "unload_seconds": 0.334,
+      "plain_response": "stop_with_bounded_text",
+      "structured_response": "stop_with_bounded_text",
+      "cost_minor": 0,
+      "loaded_after": []
+    }
+  ],
+  "switching": {
+    "qwen4_preferred": true,
+    "fallback_order": ["qwen3.5:9b", "gemma4:12b"],
+    "pre_chat_lifecycle_failure": "provider_unavailable_and_failover_safe",
+    "post_chat_transport_failure": "reconciliation_required_no_blind_failover",
+    "agent_direct_unload": false
+  },
+  "safety": {
+    "remote_provider_required": false,
+    "paid_provider_used": false,
+    "unknown_external_effect_replayed": false,
+    "formal_gate_promoted": false,
+    "secrets_retained": false
+  },
+  "interpretation": "qwen3.5:4b and gemma4:12b are installed, exposed as exact local configured-pool candidates, and each passed sequential load, plain inference, structured JSON inference, and unload. The registry tag for the requested gemma4-12b name is gemma4:12b; the dev_agent binding remains normalized as ollama:local:gemma4-12b. Local models remain L1_LOCAL_TRIAL and this evidence does not promote Phase 8 LIVE_ACTIVATION."
+}
