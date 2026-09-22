@@ -456,10 +456,16 @@ def _prompt(
     inputs: str,
     *,
     egress_manifest: EgressManifest | None = None,
+    local_ollama: bool = False,
 ) -> str:
     """Backward-compatible Worker prompt entrypoint."""
 
-    return build_worker_prompt(manifest, inputs, egress_manifest=egress_manifest)
+    return build_worker_prompt(
+        manifest,
+        inputs,
+        egress_manifest=egress_manifest,
+        local_ollama=local_ollama,
+    )
 
 
 _provider = build_worker_provider
@@ -916,7 +922,15 @@ def run_worker(
             }
         )
     messages.append(
-        {"role": "user", "content": _prompt(manifest, inputs, egress_manifest=egress_manifest)}
+        {
+            "role": "user",
+            "content": _prompt(
+                manifest,
+                inputs,
+                egress_manifest=egress_manifest,
+                local_ollama=provider_id == "ollama",
+            ),
+        }
     )
     request = ModelRequest(
         # DevFarm task ids are intentionally readable and are validated by the

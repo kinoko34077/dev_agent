@@ -37,3 +37,37 @@ def test_worker_prompt_is_bounded_to_manifest_and_host_egress_projection() -> No
     assert "For an existing file, copy this exact diff shape" in prompt
     assert "file_replacements" in prompt
     assert "The host will create the unified diff" in prompt
+
+
+def test_local_ollama_prompt_uses_only_the_complete_replacement_contract() -> None:
+    manifest = {
+        "task_id": "task-local-1",
+        "task_type": "implementation",
+        "objective": "format one existing module without changing behavior",
+        "base_revision": "abc123",
+        "allowed_files": ["src/example.py"],
+        "forbidden_files": [".env"],
+        "external_provider_allowed": True,
+        "approved_provider_ids": ["ollama"],
+        "outbound_files": ["src/example.py"],
+        "requirements": ["preserve behavior"],
+        "acceptance": ["focused test passes"],
+        "test_commands": ["python -m compileall -q src/example.py"],
+        "output_contract": {"format": "json"},
+    }
+
+    prompt = build_worker_prompt(
+        manifest,
+        "--- BEGIN FILE src/example.py ---\nvalue = 1\n--- END FILE ---",
+        local_ollama=True,
+    )
+
+    assert "file_replacements is REQUIRED" in prompt
+    assert "patch MUST be an empty string" in prompt
+    assert "complete line 1" in prompt
+    assert "The host joins" in prompt
+    assert "adds one final newline" in prompt
+    assert "MUST NOT contain a newline character" in prompt
+    assert "known_issues, and assumptions MUST all be JSON arrays" in prompt
+    assert "Do not use files, diff, reason, or commit_message" in prompt
+    assert "The host will validate the replacement" in prompt
