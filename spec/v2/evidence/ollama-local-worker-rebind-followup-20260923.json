@@ -1,0 +1,105 @@
+{
+  "evidence_id": "ollama-local-worker-rebind-followup-20260923",
+  "evidence_kind": "ollama_local_worker_recovery_observation",
+  "observed_at": "2026-09-23",
+  "implementation_revision": "73d92bdc31ac82f5418b46b6fb06b1f4ff4c848d",
+  "track": "R10_PREP",
+  "root": {
+    "root_id": "ollama-local-worker-rebind-followup-20260923",
+    "base_revision": "f5978beb56e06adb2f3e8a9033c1ebfb942a4bb9",
+    "planner_executed": false,
+    "ownership": "non_overlapping",
+    "task_mutation": false
+  },
+  "worker_a": {
+    "task_id": "ollama-local-fresh-docstring-a-20260923",
+    "allowed_file": "src/dev_agent/providers/ollama/__init__.py",
+    "attempts": [
+      {
+        "model": "qwen3.5:9b",
+        "attempt_id": "d7186deecf6c413eb25da1c04e448c9a",
+        "failure": "invalid_json",
+        "failure_signature": "e37193bd6809d5fe7aa74311f2c8f84d111dc308351bb50bcb6751a14945509",
+        "progress": false
+      },
+      {
+        "model": "qwen3.5:9b",
+        "attempt_id": "cfade7ab768a44289043f3a5921fc9ef",
+        "failure": "allowed_path_violation",
+        "failure_signature": "19a6728d975095817e006c21d92d8a1623aceffad4535c9d26ea60f247678c95",
+        "progress": true,
+        "latest_directive_hash": "9d8bdebe82cdc67128638964224281ef3c3004fdcd8a201a85a1ed968e1ca9f0"
+      },
+      {
+        "model": "qwen3.5:9b",
+        "attempt_id": "015c2c6a8dc4489ab9d029541da523db",
+        "failure": "invalid_json_recurrence",
+        "failure_signature": "e37193bd6809d5fe7aa74311f2c8f84d111dc308351bb50bcb6751a14945509",
+        "progress": false
+      },
+      {
+        "model": "gemma4:12b",
+        "attempt_id": "e4e346455d674122b8e00630b78c3318",
+        "source_attempt_id": "015c2c6a8dc4489ab9d029541da523db",
+        "source_failure_signature": "e37193bd6809d5fe7aa74311f2c8f84d111dc308351bb50bcb6751a14945509",
+        "repair_directive_hash": "8199d8b8045e57283de354ea24001dd94eb158cc8693b79ade10ace30da98db9",
+        "directive_rebound": true,
+        "result": "file_replacement_generated"
+      }
+    ],
+    "host_verification": "PASS",
+    "verification_id": "0eefe07a739147c5a7bc00e8ab4aef01",
+    "tests": [
+      "python -m compileall src/dev_agent/providers/ollama",
+      "python -m pytest tests/v2/test_provider_exports.py -q"
+    ],
+    "tests_passed": true,
+    "review": "not_run",
+    "integration": "not_run"
+  },
+  "worker_b": {
+    "task_id": "ollama-local-fresh-docstring-b-20260923",
+    "allowed_file": "src/dev_agent/providers/fake/__init__.py",
+    "attempts": [
+      {
+        "model": "qwen3.5:9b",
+        "attempt_id": "32e26cf820dc4dffab2c6378cd4de448",
+        "request_id": "b78a16fb-422e-49e4-b7fc-42266508d94a",
+        "result": "reconciliation_required",
+        "provider_failure_category": "reconciliation_required",
+        "transport_failure_category": "read_timeout",
+        "transport_stage": "response_wait",
+        "transport_exception_type": "TimeoutError",
+        "host_failure_category": "transport",
+        "blind_replay": false,
+        "gemma_fallback": "not_allowed"
+      }
+    ],
+    "host_verification": "not_reached",
+    "review": "not_reached",
+    "integration": "not_reached"
+  },
+  "convergence": {
+    "latest_repair_rebind": "VERIFIED_BY_EXECUTION",
+    "cycle_or_recurrence_observed": true,
+    "same_signature_blind_retry": false,
+    "transport_repair_mixing": false,
+    "unknown_external_effect_replayed": 0,
+    "third_model_attempted": false,
+    "codex_direct_implementation": 0
+  },
+  "models": {
+    "primary": "qwen3.5:9b",
+    "fallback": "gemma4:12b",
+    "qwen3_5_4b_auto_routing": false,
+    "loaded_after_trial": [],
+    "unload": "PASS"
+  },
+  "status": "PARTIAL_BLOCKED",
+  "formal_gate_impact": {
+    "D9_DOGFOOD": "VERIFIED_unchanged",
+    "PHASE8_PREPARATION": "PREPARATION_ONLY_unchanged",
+    "PHASE8_LIVE_ACTIVATION": "NOT_VERIFIED_unchanged"
+  },
+  "interpretation": "A qwen3.5:9b output-contract recurrence was handled by a fresh Gemma4 attempt with the latest directive rebound, and that replacement passed independent Host Verification. The non-overlapping B task then reached a read_timeout during response_wait; its external outcome is reconciliation-required, so it was not replayed or sent to Gemma4. The evidence does not establish a single-root Planner-to-integration completion."
+}
