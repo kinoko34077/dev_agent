@@ -1,0 +1,72 @@
+{
+  "evidence_id": "ollama-local-r10-tiny-worker-20260923",
+  "evidence_kind": "ollama_local_tiny_worker_convergence_observation",
+  "observed_at": "2026-09-23",
+  "track": "R10_PREPARATION",
+  "implementation_revision": "0676734",
+  "root": {
+    "parent_task_id": "8a47f2a1-2d31-4f2c-9b5e-6c7d8e9f0a12",
+    "planner_proposal_id": "952709e9-6d97-4a16-a800-d0bd4b45a8e4",
+    "planner_model": "qwen3.5:9b",
+    "planner_tier": "L1_LOCAL_TRIAL",
+    "planner_host_validation": "PASS",
+    "child_count": 2,
+    "ownership": "non_overlapping",
+    "task_mutation": false
+  },
+  "worker_task": {
+    "task_id": "ollama-local-r10-vercel-20260923",
+    "allowed_file": "src/dev_agent/providers/vercel/provider.py",
+    "primary_model": "qwen3.5:9b",
+    "fallback_model": "gemma4:12b",
+    "qwen_attempts": [
+      {
+        "attempt_id": "6db7663f34ab4a7c83f6f2ef4a41412d",
+        "failure_class": "FORMAT_PATCH",
+        "failure_signature": "e37193bd6809d5fe7aa74311f2c8f84d111dc308351bb50bcb6751a14945509",
+        "progress": false
+      },
+      {
+        "attempt_id": "5e42baf4e14b43d484e205d4a778ce24",
+        "failure_class": "FORMAT_PATCH",
+        "failure_signature": "77d9450c492eca4465f04c13c83f47c18969843e49d90a4064183660f9276a789",
+        "progress": true
+      },
+      {
+        "attempt_id": "44388cefe78d412cafed8bec15b2b416",
+        "failure_class": "FORMAT_PATCH",
+        "failure_signature": "e37193bd6809d5fe7aa74311f2c8f84d111dc308351bb50bcb6751a14945509",
+        "progress": false,
+        "stop_reason": "same_signature_recurred_after_concrete_correction"
+      }
+    ],
+    "fallback_attempt": {
+      "attempt_id": "ba9becb2506c4098b329d61a719beb64",
+      "model": "gemma4:12b",
+      "failure_class": "FORMAT_PATCH",
+      "failure_signature": "e37193bd6809d5fe7aa74311f2c8f84d111dc308351bb50bcb6751a14945509",
+      "failure_detail_category": "extra_json_data",
+      "stop_reason": "fallback_output_contract_failed"
+    },
+    "patches_produced": 0,
+    "host_verification": "not_reached",
+    "review": "not_reached",
+    "integration": "not_reached",
+    "dependent_continuation": "not_released"
+  },
+  "safety": {
+    "concrete_failure_spec": true,
+    "repair_directive_passed_to_fresh_attempt": true,
+    "same_attempt_overwritten": false,
+    "unknown_external_effect_replayed": 0,
+    "third_model_attempted": false,
+    "codex_direct_implementation": 0,
+    "host_verification_bypassed": false,
+    "models_unloaded_after_trial": true,
+    "raw_provider_response_retained": false,
+    "secrets_retained": false
+  },
+  "status": "PARTIAL_BLOCKED",
+  "formal_phase8_gate_impact": "unchanged",
+  "interpretation": "The fresh Planner proposal passed Host validation and produced two non-overlapping child concepts. The tiny Worker task demonstrated progress-sensitive refinement once, then a repeated invalid-JSON signature on Qwen and one bounded Gemma fallback failure. No patch was accepted, verified, reviewed, integrated, or released; the trial is evidence for R10 preparation, not Phase 8 LIVE_ACTIVATION."
+}
