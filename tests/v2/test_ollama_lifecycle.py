@@ -77,6 +77,7 @@ def test_ensure_loaded_is_idempotent_and_posts_bounded_keep_alive(monkeypatch):
         "options": {"num_predict": 1},
         "think": False,
     }
+    assert calls[2][3] == 2.0
     assert sum(call[0] == "POST" for call in calls) == 1
 
 

@@ -98,6 +98,7 @@ def dispatch_plan(
     host_dispatches: Mapping[str, Any] | None = None,
     orchestrator: DevFarmOrchestrator | None = None,
     dispatch_timeout_seconds: int | float = 300.0,
+    local_trial: bool = False,
 ) -> dict[str, Any]:
     """Dispatch all currently READY worker tasks through existing proposals."""
 
@@ -106,6 +107,8 @@ def dispatch_plan(
         raise DevFarmError("dispatch_timeout_seconds must be numeric")
     if dispatch_timeout_seconds <= 0:
         raise DevFarmError("dispatch_timeout_seconds must be positive")
+    if not isinstance(local_trial, bool):
+        raise DevFarmError("local_trial must be a boolean")
     store = CommanderPlanStore(root_path)
     plan = refresh_plan(store.load(run_id))
     # The plan baseline is a durable reference, not a lock on the mutable
@@ -148,6 +151,7 @@ def dispatch_plan(
             manifest_path,
             provider,
             host_dispatch=(host_dispatches or {}).get(task["task_id"]),
+            local_trial=local_trial,
         )
         for task, manifest_path, provider in ready
     ]

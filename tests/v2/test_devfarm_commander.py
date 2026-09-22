@@ -1806,3 +1806,55 @@ def test_dispatch_cli_preserves_assigned_provider_binding(tmp_path, monkeypatch)
     assert result == {"status": "captured"}
     assert provider_calls == [("gemini", "gemini-3.5-flash-lite", 17.0, "gemini:worker")]
     assert dispatch_calls[0][2]["providers"]["binding-dispatch-task"] is not None
+
+
+def test_dispatch_plan_explicit_local_trial_reaches_worker_assignment(tmp_path):
+    root, targets, revision = _repo(tmp_path)
+    write_manifest(root, {
+        "task_id": "local-trial-task",
+        "task_type": "worker",
+        "objective": "Make one bounded local-trial change.",
+        "base_revision": revision,
+        "allowed_files": [targets[0]],
+        "read_files": [targets[0]],
+        "forbidden_files": [],
+        "external_provider_allowed": True,
+        "approved_provider_ids": ["ollama"],
+        "outbound_files": [targets[0]],
+        "requirements": ["Keep the change bounded."],
+        "acceptance": ["The worker returns a patch."],
+        "test_commands": ["python -m pytest tests/v2/test_devfarm_commander.py -q"],
+        "max_attempts": 1,
+        "output_contract": {"files": ["result.json", "patch.diff", "tests.json", "notes.md"]},
+    })
+    create_plan(root, {
+        "run_id": "local-trial-dispatch-run",
+        "objective": "Dispatch one explicit local trial.",
+        "base_revision": revision,
+        "tasks": [
+            {
+                "task_id": "local-trial-task",
+                "owner": "worker",
+                "manifest_path": ".devfarm/tasks/local-trial-task.json",
+                "ownership": [targets[0]],
+                "assignment": {"provider_id": "ollama", "model_id": "qwen3.5:9b"},
+            }
+        ],
+    })
+
+    captured = []
+
+    class _Capture:
+        def propose(self, _root, assignments):
+            captured.extend(assignments)
+            return [{
+                "status": "completed",
+                "attempt_id": "local-trial-attempt",
+                "base_revision": revision,
+                "changed_files": [targets[0]],
+            }]
+
+    provider = _WorkerProvider({"status": "completed", "changed_files": [targets[0]], "tests_run": [], "tests_passed": True, "known_issues": [], "assumptions": [], "patch": _patch(targets[0]), "notes": "ready"})
+    dispatch_plan(root, "local-trial-dispatch-run", providers={"local-trial-task": provider}, orchestrator=_Capture(), local_trial=True)
+    assert len(captured) == 1
+    assert captured[0].local_trial is True

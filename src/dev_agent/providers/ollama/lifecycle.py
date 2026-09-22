@@ -110,7 +110,13 @@ class OllamaModelManager:
         except Exception as exc:
             raise OllamaLifecycleError("ollama lifecycle request failed", category="transport") from exc
 
-    def _start_streaming_generation(self, model: str, keep_alive: str | int | float) -> None:
+    def _start_streaming_generation(
+        self,
+        model: str,
+        keep_alive: str | int | float,
+        *,
+        timeout_seconds: float,
+    ) -> None:
         """Start a bounded load without waiting for the full generation.
 
         Some thinking-capable local models materialize successfully but do not
@@ -137,7 +143,7 @@ class OllamaModelManager:
             method="POST",
         )
         try:
-            with urlopen_no_redirect(request, timeout=self.timeout_seconds) as response:
+            with urlopen_no_redirect(request, timeout=timeout_seconds) as response:
                 line = response.readline(64 * 1024)
                 if not line:
                     raise OllamaLifecycleError("ollama preload returned no response", category="load_failure")
@@ -179,7 +185,11 @@ class OllamaModelManager:
             raise OllamaLifecycleError("ollama model is not installed", category="model_missing")
         loaded = next((item for item in self.list_loaded() if item.name == model), None)
         if loaded is None:
-            self._start_streaming_generation(model, keep_alive)
+            self._start_streaming_generation(
+                model,
+                keep_alive,
+                timeout_seconds=deadline_seconds,
+            )
             self._wait_for_loaded(model, loaded=True, deadline_seconds=deadline_seconds)
             loaded = next((item for item in self.list_loaded() if item.name == model), None)
         if loaded is None:

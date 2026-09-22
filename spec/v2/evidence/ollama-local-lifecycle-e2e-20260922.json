@@ -1,0 +1,79 @@
+{
+  "evidence_id": "ollama-local-lifecycle-e2e-20260922",
+  "evidence_kind": "ollama_local_runtime_and_e2e_observation",
+  "observed_at": "2026-09-22",
+  "track": "OLLAMA_LOCAL_E2E",
+  "model": {
+    "provider": "ollama",
+    "binding": "ollama:local:qwen3.5-9b",
+    "tag": "qwen3.5:9b",
+    "digest_prefix": "6488c96fa5fa",
+    "installed": true,
+    "exact_pull_authorized_and_performed": true,
+    "installed_size_bytes": 6594474711,
+    "capabilities_observed": ["completion", "vision", "tools", "thinking"],
+    "tier": "L1_LOCAL_TRIAL",
+    "formal_phase8_l2_qualification": "not_claimed"
+  },
+  "runtime": {
+    "ollama_version": "0.33.3",
+    "base_url": "http://127.0.0.1:11434",
+    "loopback_only": true,
+    "keep_alive": "10m",
+    "timeout_seconds": 180.0,
+    "loaded_before": {
+      "model": "qwen3.5:9b",
+      "size_bytes": 5490081790,
+      "size_vram_bytes": 5490081790,
+      "processor": "100% GPU",
+      "context": 4096
+    },
+    "cold_load_seconds": 39.86,
+    "cold_inference_seconds": 1.187,
+    "warm_inference_seconds": 0.203,
+    "unload_requested": true,
+    "loaded_after": [],
+    "model_manager": "bounded HTTP lifecycle; no persistent local state"
+  },
+  "local_e2e": {
+    "status": "PARTIAL_BLOCKED",
+    "formal_phase8_gate_impact": "unchanged",
+    "root_ids": [
+      "ollama-local-e2e-8424fca3e9d6",
+      "ollama-local-e2e-516ab67ecb0e",
+      "ollama-local-e2e-0d2f212bb3d4"
+    ],
+    "planner": "not a live L2 Planner; local trial used an explicit L1 local binding",
+    "implementers": {
+      "attempted": 5,
+      "integrated": 0,
+      "rework": 2,
+      "codex_direct": 0,
+      "host_verified_attempts": 1
+    },
+    "reviewer": {
+      "shadow_attempted": true,
+      "proposal_only": true,
+      "result": "one APPROVE_INTEGRATION proposal; final Host/Codex review found a semantic defect and issued REWORK"
+    },
+    "dependent_continuation": "not released",
+    "failure_categories": [
+      "model_output_invalid",
+      "patch_apply_failure",
+      "read_timeout",
+      "reconciliation_required",
+      "bounded_rework_exhausted"
+    ],
+    "unknown_replay": 0,
+    "interpretation": "Lifecycle load/inference/unload succeeded. The qwen local Worker chain did not reach deterministic integration within the bounded attempts, so this is not Phase 8 LIVE_ACTIVATION evidence."
+  },
+  "safety": {
+    "remote_provider_required": false,
+    "paid_provider_used": false,
+    "agent_direct_unload": false,
+    "host_verification_bypassed": false,
+    "unknown_external_effect_replayed": false,
+    "formal_gate_promoted": false,
+    "secrets_retained": false
+  }
+}

@@ -75,8 +75,9 @@ def test_reviewer_proposal_only_does_not_require_codex_decision(monkeypatch):
     )
 
     class FakeAdapter:
-        def __init__(self, _provider, *, allow_unknown_quota):
+        def __init__(self, _provider, *, allow_unknown_quota, intelligence_tier):
             assert allow_unknown_quota is True
+            assert intelligence_tier == "L2"
 
         def propose(self, value):
             assert value == packet

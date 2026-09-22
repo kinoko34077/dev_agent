@@ -285,6 +285,7 @@ class ModelReviewAdapter:
         *,
         max_output_tokens: int = 1_024,
         allow_unknown_quota: bool = False,
+        intelligence_tier: str = "L2",
     ) -> None:
         if not callable(getattr(provider, "request", None)):
             raise TypeError("provider must expose request(ModelRequest)")
@@ -292,9 +293,12 @@ class ModelReviewAdapter:
             raise ValueError("max_output_tokens must be between 1 and 8192")
         if not isinstance(allow_unknown_quota, bool):
             raise TypeError("allow_unknown_quota must be a boolean")
+        if intelligence_tier not in {"L0", "L1", "L2", "L3"}:
+            raise ValueError("intelligence_tier must be one of L0, L1, L2, or L3")
         self.provider = provider
         self.max_output_tokens = max_output_tokens
         self.allow_unknown_quota = allow_unknown_quota
+        self.intelligence_tier = intelligence_tier
 
     def propose(self, packet: Mapping[str, Any]) -> ReviewProposal:
         normalized = self._packet(packet)
@@ -322,7 +326,7 @@ class ModelReviewAdapter:
             "integration_authority": "codex_and_host",
             "proposal_only": True,
             "intelligence_routing": "bounded",
-            "allowed_intelligence_tiers": ["L2"],
+            "allowed_intelligence_tiers": [self.intelligence_tier],
         }
         if self.allow_unknown_quota:
             metadata["allow_unknown_quota"] = True

@@ -907,6 +907,7 @@ def test_configured_provider_pool_includes_explicit_local_ollama_binding(monkeyp
     monkeypatch.setenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
     monkeypatch.setenv("OLLAMA_KEEP_ALIVE", "10m")
     monkeypatch.setenv("OLLAMA_INTELLIGENCE_TIER", "L1")
+    monkeypatch.setenv("OLLAMA_TIMEOUT_SECONDS", "180")
 
     config = OperationConfig.from_environment(data_dir=tmp_path)
 
@@ -916,6 +917,7 @@ def test_configured_provider_pool_includes_explicit_local_ollama_binding(monkeyp
     assert local.model == "qwen3.5:9b"
     assert local.base_url == "http://127.0.0.1:11434"
     assert local.keep_alive == "10m"
+    assert local.timeout_seconds == 180.0
     assert local.think is False
     assert local.intelligence_tier == "L1"
     assert local.quota_domain is None

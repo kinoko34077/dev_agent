@@ -129,6 +129,7 @@ def _request_reviewer_proposal(
     model_admission_resolver,
     timeout_seconds: float,
     allow_unknown_quota: bool,
+    intelligence_tier: str,
     execution_boundary: str,
 ):
     if execution_boundary not in {"in_process", "host_process"}:
@@ -151,6 +152,7 @@ def _request_reviewer_proposal(
         proposal = ModelReviewAdapter(
             reviewer_provider,
             allow_unknown_quota=allow_unknown_quota,
+            intelligence_tier=intelligence_tier,
         ).propose(packet)
         selected = next(
             (entry for entry in reversed(resource_pool.dispatcher.audits) if entry.outcome == "succeeded"),
@@ -241,6 +243,7 @@ def run_shadow(
         model_admission_resolver=admission_resolver,
         timeout_seconds=timeout_seconds,
         allow_unknown_quota=allow_unknown_quota,
+        intelligence_tier=required_tier,
         execution_boundary=execution_boundary,
     )
     comparison = compare_review_proposal(proposal, codex_decision["decision"], packet)
@@ -330,6 +333,7 @@ def run_proposal_only(
         model_admission_resolver=admission_resolver,
         timeout_seconds=timeout_seconds,
         allow_unknown_quota=allow_unknown_quota,
+        intelligence_tier=required_tier,
         execution_boundary=execution_boundary,
     )
     proposal_digest = hashlib.sha256(

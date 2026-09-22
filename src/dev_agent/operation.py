@@ -268,6 +268,7 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
                 model=ollama_model,
                 provider_binding_id=f"ollama:local:{local_binding}",
                 base_url=env("OLLAMA_BASE_URL") or "http://127.0.0.1:11434",
+                timeout_seconds=float(env("OLLAMA_TIMEOUT_SECONDS") or 30.0),
                 keep_alive=env("OLLAMA_KEEP_ALIVE") or "10m",
                 think=False,
                 intelligence_tier=env("OLLAMA_INTELLIGENCE_TIER"),

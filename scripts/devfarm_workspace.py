@@ -96,7 +96,8 @@ def prepare_worktree(
         or any(char in revision for char in "\r\n")
     ):
         raise DevFarmError("revision must be a safe Git revision")
-    worktree = init_farm(repository) / "worktrees" / task_id
+    farm = init_farm(repository)
+    worktree = farm / "worktrees" / task_id
     if worktree.exists():
         raise FileExistsError(worktree)
     command = [
@@ -113,7 +114,106 @@ def prepare_worktree(
         command.append(revision.strip())
     result = subprocess.run(command, cwd=repository, capture_output=True, text=True, check=False)
     if result.returncode != 0:
-        raise RuntimeError(result.stderr.strip() or "git worktree add failed")
+        stderr = result.stderr.strip()
+        # Host verification only needs an isolated tree at the exact base
+        # revision.  Some managed Windows execution identities can read the
+        # repository but cannot create a branch ref lock under .git/refs.
+        # Keep the normal named-branch path first, then use Git's detached
+        # worktree mode for this narrow environmental failure.  Do not hide
+        # unrelated branch or repository errors.
+        permission_limited_branch = (
+            "cannot lock ref" in stderr.lower()
+            and "permission denied" in stderr.lower()
+        )
+        if not permission_limited_branch:
+            raise RuntimeError(stderr or "git worktree add failed")
+        detached_command = [
+            "git",
+            "-c",
+            f"safe.directory={repository.as_posix()}",
+            "worktree",
+            "add",
+            "--detach",
+            str(worktree),
+        ]
+        if revision:
+            detached_command.append(revision.strip())
+        detached_result = subprocess.run(
+            detached_command,
+            cwd=repository,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if detached_result.returncode != 0:
+            detached_stderr = detached_result.stderr.strip()
+            clone_permission_limited = (
+                "could not create directory of '.git/worktrees" in detached_stderr.lower()
+                and "permission denied" in detached_stderr.lower()
+            )
+            if not clone_permission_limited:
+                raise RuntimeError(detached_stderr or "git detached worktree add failed")
+            bundle_path = (farm / "status" / f"git-base-{uuid4().hex}.bundle").resolve()
+            bundle_command = [
+                "git",
+                "-c",
+                f"safe.directory={repository.as_posix()}",
+                "bundle",
+                "create",
+                str(bundle_path),
+                "HEAD",
+            ]
+            bundle_result = subprocess.run(
+                bundle_command,
+                cwd=repository,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if bundle_result.returncode != 0:
+                raise RuntimeError(bundle_result.stderr.strip() or "git base bundle creation failed")
+            clone_command = [
+                "git",
+                "clone",
+                "--no-checkout",
+                str(bundle_path),
+                str(worktree),
+            ]
+            try:
+                clone_result = subprocess.run(
+                    clone_command,
+                    cwd=repository,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                if clone_result.returncode != 0:
+                    raise RuntimeError(clone_result.stderr.strip() or "git isolated clone failed")
+                checkout_command = [
+                    "git",
+                    "-c",
+                    f"safe.directory={worktree.as_posix()}",
+                    "-C",
+                    str(worktree),
+                    "checkout",
+                    "--detach",
+                ]
+                if revision:
+                    checkout_command.append(revision.strip())
+                checkout_result = subprocess.run(
+                    checkout_command,
+                    cwd=repository,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                if checkout_result.returncode != 0:
+                    raise RuntimeError(checkout_result.stderr.strip() or "git isolated clone checkout failed")
+            finally:
+                try:
+                    bundle_path.unlink()
+                except FileNotFoundError:
+                    pass
     return worktree
 
 
