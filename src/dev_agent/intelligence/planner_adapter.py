@@ -64,7 +64,19 @@ class PlanningResponseError(PlanningAdapterError):
 
 def _planning_failure_spec(message: str, *, response_contract: str) -> ConcreteFailureSpec:
     normalized = message.casefold()
-    if "suggested_owner" in normalized:
+    if "task_type" in normalized:
+        location = "children[].task_type"
+        observed = "unsupported task type"
+        expected = "a task type accepted by the Host planner contract"
+        correction = "Use the exact task_type enum from the supplied schema; use worker for implementation work."
+        acceptance = ("every child task_type is accepted by Host validation",)
+    elif "required_capabilities" in normalized:
+        location = "children[].required_capabilities"
+        observed = "unsupported capability value"
+        expected = "only capabilities listed in the supplied schema"
+        correction = "Remove unsupported capability values and use only the exact supplied capability enum."
+        acceptance = ("every required capability is in the supplied enum",)
+    elif "suggested_owner" in normalized:
         location = "children[].suggested_owner"
         observed = "descriptive owner value"
         expected = '"worker" or "codex"'

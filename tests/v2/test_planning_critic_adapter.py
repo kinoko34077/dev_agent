@@ -103,6 +103,31 @@ def test_planning_critic_returns_corrected_proposal_with_fresh_proposal_only_req
     assert "split this bounded objective" in request.messages[0]["content"]
 
 
+def test_planner_contract_failure_carries_concrete_task_type_repair_spec():
+    parent_task_id = str(uuid4())
+    provider = _Provider(
+        ModelResponse(
+            provider="planner-role-provider",
+            model="local-planner",
+            structured_output={
+                "parent_task_id": parent_task_id,
+                "rationale": "bounded split",
+                "children": [{"child_key": "one", "objective": "implement", "task_type": "coding"}],
+            },
+        )
+    )
+
+    with pytest.raises(PlanningResponseError) as caught:
+        ModelPlanningAdapter(provider).propose(
+            parent_task_id=parent_task_id,
+            objective="bounded objective",
+        )
+
+    assert caught.value.failure_spec is not None
+    assert caught.value.failure_spec.location == "children[].task_type"
+    assert "exact task_type enum" in caught.value.failure_spec.required_correction
+
+
 def test_planning_critic_rejects_authority_fields_and_parent_mismatch():
     parent_task_id = str(uuid4())
     provider = _Provider(
