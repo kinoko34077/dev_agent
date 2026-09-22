@@ -146,6 +146,9 @@ _TRUSTED_RESOURCE_CATALOG: dict[tuple[str, str, str], TrustedResourceProfile] = 
     ("ollama", "ollama", "qwen3:8b"): TrustedResourceProfile(
         "ollama", "ollama", "qwen3:8b", 0, "JPY", False, None, billing_mode="free_fixed"
     ),
+    ("ollama", "ollama:local:qwen3.5-9b", "qwen3.5:9b"): TrustedResourceProfile(
+        "ollama", "ollama:local:qwen3.5-9b", "qwen3.5:9b", 0, "JPY", False, None, billing_mode="free_fixed"
+    ),
 }
 
 for _slot in ("2", "3", "4", "5"):

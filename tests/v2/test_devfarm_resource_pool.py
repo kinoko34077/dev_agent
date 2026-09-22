@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 
-from scripts.devfarm_resource_pool import ResourcePoolError, compose_resource_pool
+from scripts.devfarm_resource_pool import ResourcePoolError, admit_resource_pool, build_provider, compose_resource_pool
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.operation import OperationProviderBinding
 from src.dev_agent.resources.billing_catalog import profile_for
@@ -47,6 +47,76 @@ def _binding() -> OperationProviderBinding:
         api_key_env="OPENROUTER_API_KEY",
         quota_domain="openrouter:account",
     )
+
+
+def test_resource_pool_provider_preserves_host_owned_ollama_runtime_settings(monkeypatch):
+    captured = {}
+
+    def fake_create(_factory, definition):
+        captured["definition"] = definition
+        return object()
+
+    monkeypatch.setattr("scripts.devfarm_resource_pool.ProviderFactory.create", fake_create)
+    binding = OperationProviderBinding(
+        provider_id="ollama",
+        provider_binding_id="ollama:local:qwen3.5-9b",
+        model="qwen3.5:9b",
+        base_url="http://127.0.0.1:11434",
+        keep_alive="10m",
+        think=False,
+    )
+
+    build_provider(binding=binding)
+
+    definition = captured["definition"]
+    assert definition.keep_alive == "10m"
+    assert definition.think is False
+
+
+def test_local_ollama_admission_does_not_require_cloud_quota_or_qualification():
+    binding = OperationProviderBinding(
+        provider_id="ollama",
+        provider_binding_id="ollama:local:qwen3.5-9b",
+        model="qwen3.5:9b",
+        base_url="http://127.0.0.1:11434",
+        intelligence_tier="L1",
+    )
+
+    admitted = admit_resource_pool(
+        (binding,),
+        resolver=_QualificationResolver("L2"),
+        required_tier="L1",
+        model_admission_resolver=_missing_model_evidence_resolver(),
+    )
+
+    assert len(admitted) == 1
+    assert admitted[0][0].quota_domain is None
+    assert admitted[0][2].no_charge_guaranteed is True
+
+
+def test_local_ollama_composition_projects_local_privacy_and_no_qualification():
+    binding = OperationProviderBinding(
+        provider_id="ollama",
+        provider_binding_id="ollama:local:qwen3.5-9b",
+        model="qwen3.5:9b",
+        base_url="http://127.0.0.1:11434",
+        intelligence_tier="L1",
+    )
+    qualification = SimpleNamespace(intelligence_tier="L1", routing_capabilities=frozenset({"text"}))
+    profile = profile_for("ollama", binding.binding_id, binding.model)
+
+    with compose_resource_pool(
+        ((binding, qualification, profile),),
+        resolver=_QualificationResolver("L1"),
+        model_admission_resolver=_missing_model_evidence_resolver(),
+        provider_builder=lambda *, binding: _Provider(),
+    ) as runtime:
+        resource = runtime.ledger.get_resource("devfarm-shadow:ollama:local:qwen3.5-9b")
+
+    assert resource is not None
+    assert resource["metadata"]["privacy_profile"] == "local_only"
+    assert resource["metadata"]["qualification_required"] is False
+    assert resource["quota_domain"] is None
 
 
 def _missing_model_evidence_resolver() -> ModelAdmissionResolver:

@@ -170,6 +170,7 @@ class WorkerAssignment:
     manifest_path: Path
     provider: ModelProvider
     host_dispatch: Any | None = None
+    local_trial: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.manifest_path, Path):
@@ -178,6 +179,8 @@ class WorkerAssignment:
             raise TypeError("provider must implement ModelProvider")
         if self.host_dispatch is not None and not callable(getattr(self.host_dispatch, "request", None)):
             raise TypeError("host_dispatch must expose request(ModelRequest)")
+        if not isinstance(self.local_trial, bool):
+            raise TypeError("local_trial must be a boolean")
 
 
 @dataclass(frozen=True)
@@ -241,6 +244,7 @@ class DevFarmOrchestrator:
                     assignment.manifest_path,
                     provider=assignment.provider,
                     host_dispatch=assignment.host_dispatch,
+                    local_trial=assignment.local_trial,
                 )
             except Exception as exc:
                 # run_worker normally records its own bounded result artifact.

@@ -5,6 +5,7 @@ import pytest
 from scripts.devfarm import DevFarmError
 from scripts.devfarm_worker_admission import validate_worker_provider
 from scripts.devfarm_provider_runtime import build_assigned_providers
+from src.dev_agent.providers.ollama import OllamaProvider
 
 
 def test_build_assigned_providers_materializes_only_resumable_worker_tasks() -> None:
@@ -53,3 +54,22 @@ def test_build_assigned_providers_materializes_only_resumable_worker_tasks() -> 
 def test_validate_worker_provider_rejects_an_unidentified_injected_instance() -> None:
     with pytest.raises(DevFarmError, match="provider must expose a non-empty provider_id"):
         validate_worker_provider(object())
+
+
+def test_validate_worker_provider_allows_explicit_local_trial_only() -> None:
+    provider = OllamaProvider(model="qwen3.5:9b", base_url="http://127.0.0.1:11434", think=False)
+    provider.provider_binding_id = "ollama:local:qwen3.5-9b"
+    provider.model_id = "qwen3.5:9b"
+    provider.intelligence_tier = "L1"
+
+    with pytest.raises(DevFarmError, match="not eligible"):
+        validate_worker_provider(provider)
+
+    provider_id, model_id, binding_id, tier, eligibility = validate_worker_provider(provider, allow_local=True)
+    assert (provider_id, model_id, binding_id, tier) == (
+        "ollama",
+        "qwen3.5:9b",
+        "ollama:local:qwen3.5-9b",
+        "L1",
+    )
+    assert eligibility.reason == "local_trial"

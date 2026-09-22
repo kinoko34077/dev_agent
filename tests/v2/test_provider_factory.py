@@ -80,6 +80,13 @@ def test_provider_factory_constructs_gemini_and_ollama_without_resolving_credent
     assert isinstance(ProviderFactory().create(ProviderDefinition(provider_id="ollama", model="qwen3:8b")), OllamaProvider)
 
 
+def test_provider_factory_passes_host_owned_ollama_thinking_setting():
+    provider = ProviderFactory().create(
+        ProviderDefinition(provider_id="ollama", model="qwen3.5:9b", think=False)
+    )
+    assert provider.think is False
+
+
 def test_provider_factory_constructs_cloud_bindings_with_distinct_identities():
     ollama_cloud = ProviderFactory().create(
         ProviderDefinition(

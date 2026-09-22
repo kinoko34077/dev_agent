@@ -119,6 +119,8 @@ class OperationProviderBinding:
     project_id: str | None = None
     base_url: str | None = None
     timeout_seconds: float = 30.0
+    keep_alive: str | int | float | None = None
+    think: bool | None = None
     # A credential/project binding may explicitly describe more than one
     # model.  The default remains the historical singleton shape; candidate
     # materialization is opt-in and keeps the qualification identity separate.
@@ -144,6 +146,14 @@ class OperationProviderBinding:
             raise ValueError("intelligence_tier must be one of L0, L1, L2, or L3")
         if isinstance(self.timeout_seconds, bool) or not isinstance(self.timeout_seconds, (int, float)) or not math.isfinite(float(self.timeout_seconds)) or self.timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
+        if isinstance(self.keep_alive, bool) or (self.keep_alive is not None and not isinstance(self.keep_alive, (str, int, float))):
+            raise ValueError("keep_alive must be a duration string or finite number")
+        if isinstance(self.keep_alive, str) and not self.keep_alive.strip():
+            raise ValueError("keep_alive must not be empty")
+        if isinstance(self.keep_alive, (int, float)) and not math.isfinite(float(self.keep_alive)):
+            raise ValueError("keep_alive must be finite")
+        if self.think is not None and not isinstance(self.think, bool):
+            raise ValueError("think must be a boolean or None")
         candidates = self.model_candidates
         if candidates is not None:
             if isinstance(candidates, str) or not isinstance(candidates, (list, tuple)) or not candidates:
@@ -169,6 +179,7 @@ class OperationProviderBinding:
         object.__setattr__(self, "model_candidates", candidates)
         object.__setattr__(self, "qualification_binding_id", qualification_binding)
         object.__setattr__(self, "base_url", base_url)
+        object.__setattr__(self, "think", self.think)
 
     @property
     def binding_id(self) -> str:
@@ -248,6 +259,20 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
                 project_id=cloudflare_account_id,
             )
         )
+    ollama_model = env("OLLAMA_MODEL")
+    if ollama_model:
+        local_binding = ollama_model.replace(":", "-").replace("/", "-")
+        bindings.append(
+            OperationProviderBinding(
+                provider_id="ollama",
+                model=ollama_model,
+                provider_binding_id=f"ollama:local:{local_binding}",
+                base_url=env("OLLAMA_BASE_URL") or "http://127.0.0.1:11434",
+                keep_alive=env("OLLAMA_KEEP_ALIVE") or "10m",
+                think=False,
+                intelligence_tier=env("OLLAMA_INTELLIGENCE_TIER"),
+            )
+        )
     ollama_model = env("OLLAMA_CLOUD_MODEL")
     if env("OLLAMA_API_KEY") and ollama_model:
         bindings.append(
@@ -308,6 +333,8 @@ class OperationConfig:
     data_dir: Path = field(default_factory=lambda: Path(".dev_agent"))
     provider_id: str = "fake"
     model: str = "deterministic"
+    keep_alive: str | int | float | None = None
+    think: bool | None = None
     provider_binding_id: str | None = None
     quota_domain: str | None = None
     intelligence_tier: str | None = None
@@ -336,6 +363,14 @@ class OperationConfig:
             raise ValueError("model must be a non-empty string")
         if not worker_id:
             raise ValueError("worker_id must be a non-empty string")
+        if isinstance(self.keep_alive, bool) or (self.keep_alive is not None and not isinstance(self.keep_alive, (str, int, float))):
+            raise ValueError("keep_alive must be a duration string or finite number")
+        if isinstance(self.keep_alive, str) and not self.keep_alive.strip():
+            raise ValueError("keep_alive must not be empty")
+        if isinstance(self.keep_alive, (int, float)) and not math.isfinite(float(self.keep_alive)):
+            raise ValueError("keep_alive must be finite")
+        if self.think is not None and not isinstance(self.think, bool):
+            raise ValueError("think must be a boolean or None")
         if tier is not None and tier not in {"L0", "L1", "L2", "L3"}:
             raise ValueError("intelligence_tier must be one of L0, L1, L2, or L3")
         provider_pool = self.provider_pool
@@ -367,6 +402,8 @@ class OperationConfig:
         object.__setattr__(self, "data_dir", data_dir)
         object.__setattr__(self, "provider_id", provider_id)
         object.__setattr__(self, "model", model)
+        object.__setattr__(self, "keep_alive", self.keep_alive)
+        object.__setattr__(self, "think", self.think)
         object.__setattr__(self, "provider_binding_id", binding)
         object.__setattr__(self, "quota_domain", quota_domain)
         object.__setattr__(self, "intelligence_tier", tier)
@@ -408,11 +445,13 @@ class OperationConfig:
                 provider_binding_id=self.provider_binding_id,
                 quota_domain=self.quota_domain,
                 intelligence_tier=self.intelligence_tier,
+                keep_alive=self.keep_alive,
+                think=self.think,
             ),
         )
 
     @classmethod
-    def from_environment(cls, *, data_dir: str | Path | None = None, provider_id: str | None = None, model: str | None = None, provider_binding_id: str | None = None, quota_domain: str | None = None, intelligence_tier: str | None = None, provider_pool: str | list[Mapping[str, Any]] | tuple[OperationProviderBinding, ...] | None = None, model_evidence_directory: str | Path | None = None, worker_id: str | None = None, lease_seconds: float | None = None, idle_sleep_seconds: float | None = None) -> "OperationConfig":
+    def from_environment(cls, *, data_dir: str | Path | None = None, provider_id: str | None = None, model: str | None = None, provider_binding_id: str | None = None, quota_domain: str | None = None, intelligence_tier: str | None = None, provider_pool: str | list[Mapping[str, Any]] | tuple[OperationProviderBinding, ...] | None = None, model_evidence_directory: str | Path | None = None, worker_id: str | None = None, lease_seconds: float | None = None, idle_sleep_seconds: float | None = None, keep_alive: str | int | float | None = None) -> "OperationConfig":
         def env(name: str) -> str | None:
             value = os.environ.get(name)
             return value.strip() if isinstance(value, str) and value.strip() else None
@@ -435,6 +474,7 @@ class OperationConfig:
             data_dir=Path(data_dir or env("DEV_AGENT_DATA_DIR") or ".dev_agent"),
             provider_id=provider_id or env("DEV_AGENT_PROVIDER") or "fake",
             model=model or env("DEV_AGENT_MODEL") or "deterministic",
+            keep_alive=keep_alive if keep_alive is not None else env("OLLAMA_KEEP_ALIVE"),
             provider_binding_id=provider_binding_id or env("DEV_AGENT_PROVIDER_BINDING_ID"),
             quota_domain=quota_domain or env("DEV_AGENT_QUOTA_DOMAIN"),
             intelligence_tier=intelligence_tier or env("DEV_AGENT_INTELLIGENCE_TIER"),
@@ -791,6 +831,8 @@ class OperationService:
             project_id=getattr(config, "project_id", None),
             base_url=getattr(config, "base_url", None),
             timeout_seconds=getattr(config, "timeout_seconds", 30.0),
+            keep_alive=getattr(config, "keep_alive", None),
+            think=getattr(config, "think", None),
             intelligence_tier=_inferred_tier(config, qualification_resolver=qualification_resolver),
         )
         return ProviderFactory().create(definition)

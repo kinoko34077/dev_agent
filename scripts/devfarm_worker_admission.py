@@ -186,6 +186,8 @@ class DevFarmActivationPolicy:
 
 def validate_worker_provider(
     provider: ModelProvider,
+    *,
+    allow_local: bool = False,
 ) -> tuple[str, str, str, str | None, DevFarmWorkerEligibility]:
     """Validate one injected Provider against Host admission authority.
 
@@ -215,6 +217,29 @@ def validate_worker_provider(
         validate_provider_instance_authority(provider)
     except ValueError as exc:
         raise DevFarmError(f"worker provider failed authority validation: {exc}") from exc
+    if _is_local_provider(normalized_provider):
+        if allow_local is not True:
+            raise DevFarmError(
+                "worker provider is not eligible for external development work: "
+                f"{normalized_provider}/{normalized_binding}/{normalized_model} (local_trial_required)"
+            )
+        if normalized_tier is None:
+            raise DevFarmError("local Worker trial requires an explicit intelligence tier")
+        eligibility = DevFarmWorkerEligibility(
+            normalized_provider,
+            normalized_model,
+            normalized_binding,
+            normalized_tier,
+            True,
+            True,
+            None,
+            True,
+            "local_runtime",
+            None,
+            True,
+            "local_trial",
+        )
+        return normalized_provider, normalized_model, normalized_binding, normalized_tier, eligibility
     eligibility = DevFarmActivationPolicy().eligibility_for(
         normalized_provider,
         normalized_model,

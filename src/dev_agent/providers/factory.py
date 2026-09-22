@@ -29,6 +29,8 @@ class ProviderDefinition:
     api_key_env: str | None = None
     project_id: str | None = None
     intelligence_tier: str | IntelligenceTier | None = None
+    keep_alive: str | int | float | None = None
+    think: bool | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.provider_id, str) or not self.provider_id.strip():
@@ -47,6 +49,14 @@ class ProviderDefinition:
             object.__setattr__(self, "intelligence_tier", tier.strip())
         if isinstance(self.timeout_seconds, bool) or not isinstance(self.timeout_seconds, (int, float)) or not math.isfinite(float(self.timeout_seconds)) or self.timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
+        if isinstance(self.keep_alive, bool) or (self.keep_alive is not None and not isinstance(self.keep_alive, (str, int, float))):
+            raise ValueError("keep_alive must be a duration string or finite number")
+        if isinstance(self.keep_alive, str) and not self.keep_alive.strip():
+            raise ValueError("keep_alive must not be empty")
+        if isinstance(self.keep_alive, (int, float)) and not math.isfinite(float(self.keep_alive)):
+            raise ValueError("keep_alive must be finite")
+        if self.think is not None and not isinstance(self.think, bool):
+            raise ValueError("think must be a boolean or None")
         object.__setattr__(self, "provider_id", self.provider_id.strip())
         object.__setattr__(self, "model", self.model.strip())
         if self.base_url is not None:
@@ -88,6 +98,16 @@ class ProviderFactory:
         }
         if definition.base_url is not None:
             arguments["base_url"] = definition.base_url
+        if definition.provider_id == "ollama":
+            from .ollama.lifecycle import OllamaModelManager
+
+            arguments["keep_alive"] = definition.keep_alive
+            arguments["think"] = definition.think
+            arguments["model_manager"] = OllamaModelManager(
+                base_url=definition.base_url or "http://127.0.0.1:11434",
+                timeout_seconds=definition.timeout_seconds,
+                think=definition.think,
+            )
         provider = provider_type(**arguments)
         # These are non-secret identity labels.  Adapters continue to resolve
         # credentials only from their own external environment or secret store.

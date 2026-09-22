@@ -30,6 +30,15 @@ from src.dev_agent.resources.router import ResourceRouter
 from src.dev_agent.resources.qualification import QualificationResolver
 from src.dev_agent.resources.model_admission import ModelAdmissionResolver
 from src.dev_agent.resources.ledger import ResourceLedger
+from src.dev_agent.resources.provider_policy import privacy_profile, requires_qualification
+
+
+@dataclass(frozen=True)
+class _LocalQualification:
+    """Conservative local capability projection for one explicit binding."""
+
+    intelligence_tier: str | None
+    routing_capabilities: frozenset[str]
 
 
 class ResourcePoolError(DevFarmError):
@@ -122,6 +131,8 @@ def build_provider(*, binding: OperationProviderBinding) -> ModelProvider:
             project_id=binding.project_id,
             base_url=binding.base_url,
             timeout_seconds=binding.timeout_seconds,
+            keep_alive=binding.keep_alive,
+            think=binding.think,
             intelligence_tier=binding.intelligence_tier,
         )
     )
@@ -193,6 +204,28 @@ def admit_resource_pool(
 
     admitted: list[tuple[OperationProviderBinding, Any, Any]] = []
     for binding in candidate_bindings:
+        if privacy_profile(binding.provider_id) == "local_only":
+            profile = profile_lookup(
+                binding.provider_id,
+                binding.credential_binding_id,
+                binding.model,
+            )
+            if profile is None or (no_charge_required and not profile.no_charge_guaranteed):
+                continue
+            effective_tier = binding.intelligence_tier or profile.intelligence_tier
+            if effective_tier != required_tier:
+                continue
+            local_capabilities = frozenset({"text"})
+            if not requested_capabilities.issubset(local_capabilities):
+                continue
+            admitted.append(
+                (
+                    binding,
+                    _LocalQualification(effective_tier, local_capabilities),
+                    profile,
+                )
+            )
+            continue
         qualification_kwargs: dict[str, Any] = {"min_confidence": "high"}
         if now is not None:
             qualification_kwargs["now"] = now
@@ -341,8 +374,8 @@ def compose_resource_pool(
                         "qualification_binding_id": binding.credential_binding_id,
                         "model_id": binding.model,
                         "intelligence_tier": effective_tier,
-                        "privacy_profile": "remote_cloud",
-                        "qualification_required": True,
+                        "privacy_profile": privacy_profile(binding.provider_id),
+                        "qualification_required": requires_qualification(binding.provider_id),
                         "billing_authority": "trusted_catalog",
                         "billing_mode": profile.billing_mode,
                         "overage_policy": profile.overage_policy,

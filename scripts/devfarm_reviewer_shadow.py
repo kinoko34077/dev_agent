@@ -88,6 +88,7 @@ def _admit_reviewer_resources(
     api_key_env: str,
     quota_domain: str,
     timeout_seconds: float,
+    required_tier: str = "L2",
     model_admission_resolver=None,
     model_catalog=None,
     expand_discovered_models: bool = False,
@@ -108,14 +109,14 @@ def _admit_reviewer_resources(
     admitted = admit_resource_pool(
         bindings,
         resolver=resolver,
-        required_tier="L2",
+        required_tier=required_tier,
         no_charge_required=True,
         model_admission_resolver=admission_resolver,
         model_catalog=catalog,
         expand_discovered_models=expand_discovered_models,
     )
     if not admitted:
-        raise ReviewAdapterError("exact current high-confidence L2 reviewer resource is not admitted")
+        raise ReviewAdapterError(f"exact current {required_tier} reviewer resource is not admitted")
     return resolver, admission_resolver, admitted
 
 
@@ -184,6 +185,7 @@ def run_shadow(
     quota_domain: str,
     timeout_seconds: float,
     allow_unknown_quota: bool,
+    required_tier: str = "L2",
     execution_boundary: str = "in_process",
     provider_pool: tuple[OperationProviderBinding, ...] | list[OperationProviderBinding] | None = None,
     model_admission_resolver=None,
@@ -216,18 +218,21 @@ def run_shadow(
     if not decisions:
         raise ReviewAdapterError("durable Codex ReviewDecision is not available")
     codex_decision = decisions[-1]
-    resolver, admission_resolver, admitted = _admit_reviewer_resources(
-        provider_pool=provider_pool,
-        provider_id=provider_id,
-        binding_id=binding_id,
-        model_id=model_id,
-        api_key_env=api_key_env,
-        quota_domain=quota_domain,
-        timeout_seconds=timeout_seconds,
-        model_admission_resolver=model_admission_resolver,
-        model_catalog=model_catalog,
-        expand_discovered_models=expand_discovered_models,
-    )
+    admission_kwargs = {
+        "provider_pool": provider_pool,
+        "provider_id": provider_id,
+        "binding_id": binding_id,
+        "model_id": model_id,
+        "api_key_env": api_key_env,
+        "quota_domain": quota_domain,
+        "timeout_seconds": timeout_seconds,
+        "model_admission_resolver": model_admission_resolver,
+        "model_catalog": model_catalog,
+        "expand_discovered_models": expand_discovered_models,
+    }
+    if required_tier != "L2":
+        admission_kwargs["required_tier"] = required_tier
+    resolver, admission_resolver, admitted = _admit_reviewer_resources(**admission_kwargs)
     proposal, selected, audits = _request_reviewer_proposal(
         root=root,
         packet=packet,
@@ -254,7 +259,7 @@ def run_shadow(
         "packet_sha256": packet_digest,
         "reviewer": {
             **(selected or {"provider": None, "binding": None, "model": None}),
-            "intelligence_tier": "L2",
+            "intelligence_tier": required_tier,
         },
         "proposal_sha256": proposal_digest,
         "proposal": proposal.to_dict(),
@@ -282,6 +287,7 @@ def run_proposal_only(
     quota_domain: str,
     timeout_seconds: float,
     allow_unknown_quota: bool,
+    required_tier: str = "L2",
     execution_boundary: str = "in_process",
     provider_pool: tuple[OperationProviderBinding, ...] | list[OperationProviderBinding] | None = None,
     model_admission_resolver=None,
@@ -301,18 +307,21 @@ def run_proposal_only(
     attempt_id = packet.get("attempt_id")
     if not isinstance(attempt_id, str) or not attempt_id.strip():
         raise ReviewAdapterError("ReviewPacket has no attempt identity")
-    resolver, admission_resolver, admitted = _admit_reviewer_resources(
-        provider_pool=provider_pool,
-        provider_id=provider_id,
-        binding_id=binding_id,
-        model_id=model_id,
-        api_key_env=api_key_env,
-        quota_domain=quota_domain,
-        timeout_seconds=timeout_seconds,
-        model_admission_resolver=model_admission_resolver,
-        model_catalog=model_catalog,
-        expand_discovered_models=expand_discovered_models,
-    )
+    admission_kwargs = {
+        "provider_pool": provider_pool,
+        "provider_id": provider_id,
+        "binding_id": binding_id,
+        "model_id": model_id,
+        "api_key_env": api_key_env,
+        "quota_domain": quota_domain,
+        "timeout_seconds": timeout_seconds,
+        "model_admission_resolver": model_admission_resolver,
+        "model_catalog": model_catalog,
+        "expand_discovered_models": expand_discovered_models,
+    }
+    if required_tier != "L2":
+        admission_kwargs["required_tier"] = required_tier
+    resolver, admission_resolver, admitted = _admit_reviewer_resources(**admission_kwargs)
     proposal, selected, audits = _request_reviewer_proposal(
         root=root,
         packet=packet,
@@ -338,7 +347,7 @@ def run_proposal_only(
         "packet_sha256": packet_digest,
         "reviewer": {
             **(selected or {"provider": None, "binding": None, "model": None}),
-            "intelligence_tier": "L2",
+            "intelligence_tier": required_tier,
         },
         "proposal_sha256": proposal_digest,
         "proposal": proposal.to_dict(),

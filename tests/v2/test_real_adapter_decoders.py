@@ -28,10 +28,12 @@ def test_gemini_rest_malformed_response_is_classified():
 
 
 def test_ollama_payload_preserves_normalized_tool_result_identity():
-    provider = OllamaProvider(model="local-test")
+    provider = OllamaProvider(model="local-test", keep_alive="10m", think=False)
     request = ModelRequest(task_id=_id(), messages=[{"role": "user", "content": "x"}], tool_results=[ToolResult(call_id=_id(), tool_name="echo", structured_result={"value": "ok"})])
     payload = provider._payload(request)
     assert payload["options"]["num_predict"] == request.max_output_tokens
+    assert payload["keep_alive"] == "10m"
+    assert payload["think"] is False
     tool_message = payload["messages"][-1]
     assert tool_message["tool_name"] == "echo"
     assert json.loads(tool_message["content"])["call_id"] == request.tool_results[0].call_id

@@ -346,6 +346,7 @@ def run_shadow(
     allow_unknown_quota: bool,
     repository: str,
     branch: str,
+    required_tier: str = "L2",
     provider_pool: tuple[OperationProviderBinding, ...] | list[OperationProviderBinding] | None = None,
     model_admission_resolver: ModelAdmissionResolver | None = None,
     model_catalog=None,
@@ -372,13 +373,14 @@ def run_shadow(
     admitted = admit_planner_pool(
         bindings,
         resolver=resolver,
+        required_tier=required_tier,
         model_admission_resolver=model_admission_resolver,
         model_catalog=model_catalog,
         expand_discovered_models=expand_discovered_models,
     )
     if not admitted:
         raise PlannerShadowBlocked(
-            "no exact current high-confidence L2 planner resource is admitted",
+            f"no exact current {required_tier} planner resource is admitted",
             category="no_route",
         )
     if planning_critic_provider is not None and planning_critic_pool is not None:
@@ -507,7 +509,7 @@ def run_shadow(
                     parent_task_id=parent_task_id,
                     objective=objective,
                     sensitivity="normal",
-                    required_intelligence_tier="L2",
+                    required_intelligence_tier=required_tier,
                     context_references=_shadow_context(repository=repository, branch=branch),
                 )
                 convergence = None
@@ -518,7 +520,7 @@ def run_shadow(
                     parent_task_id=parent_task_id,
                     objective=objective,
                     sensitivity="normal",
-                    required_intelligence_tier="L2",
+                    required_intelligence_tier=required_tier,
                     context_references=_shadow_context(repository=repository, branch=branch),
                     host_validate=_host_validate,
                 )
@@ -656,14 +658,18 @@ def run_shadow(
             "provider": selected_provider,
             "binding": selected_binding,
             "model": selected_model,
-            "intelligence_tier": "L2",
-            "qualification_confidence": "high",
+            "intelligence_tier": required_tier,
+            "qualification_confidence": "local_trial" if any(binding.provider_id == "ollama" for binding, _qualification, _profile in admitted) else "high",
             "parent_task_id": parent_task_id,
             "proposal_id": proposal.proposal_id,
             "child_count": len(accepted),
             "child_keys": [child.child_key for child in accepted],
             "child_owners": [child.suggested_owner for child in accepted],
-            "quota_status": "unknown_not_reported" if not quota_observations else "observed",
+            "quota_status": (
+                "not_required"
+                if not any(binding.quota_domain for binding, _qualification, _profile in admitted)
+                else ("unknown_not_reported" if not quota_observations else "observed")
+            ),
             "allow_unknown_quota": allow_unknown_quota,
             "host_validation": "passed",
             "eligible_pool": [
@@ -704,6 +710,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--quota-domain", default="gemini-core-account")
     parser.add_argument("--repository", default="kinoko34077/dev_agent")
     parser.add_argument("--branch", default="v2/bootstrap")
+    parser.add_argument(
+        "--required-tier",
+        choices=("L1", "L2", "L3"),
+        default="L2",
+        help="Host-selected intelligence tier; local trials must opt into their measured/conservative tier",
+    )
     parser.add_argument("--timeout-seconds", type=float, default=30.0)
     parser.add_argument(
         "--max-output-tokens",
@@ -782,6 +794,7 @@ def main(argv: list[str] | None = None) -> int:
             allow_unknown_quota=args.allow_unknown_quota,
             repository=args.repository,
             branch=args.branch,
+            required_tier=args.required_tier,
             provider_pool=provider_pool,
             model_admission_resolver=model_admission_resolver,
             model_catalog=model_evidence.catalog,

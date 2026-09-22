@@ -830,10 +830,14 @@ def _request_task_id(manifest: Mapping[str, Any]) -> str:
     return str(uuid5(NAMESPACE_URL, f"dev_agent.devfarm/{manifest['task_id']}"))
 
 
-def _validate_worker_provider(provider: ModelProvider) -> tuple[str, str, str, str | None, DevFarmWorkerEligibility]:
+def _validate_worker_provider(
+    provider: ModelProvider,
+    *,
+    allow_local: bool = False,
+) -> tuple[str, str, str, str | None, DevFarmWorkerEligibility]:
     """Backward-compatible alias for Host-owned admission validation."""
 
-    return shared_validate_worker_provider(provider)
+    return shared_validate_worker_provider(provider, allow_local=allow_local)
 
 
 def run_worker(
@@ -842,13 +846,17 @@ def run_worker(
     *,
     provider: ModelProvider,
     host_dispatch: HostProviderDispatch | None = None,
+    local_trial: bool = False,
 ) -> dict[str, Any]:
     root = Path(root).resolve()
     manifest = validate_manifest(read_json(Path(manifest_path)))
     attempt_id = _attempt_id()
     if not manifest["external_provider_allowed"]:
         raise DevFarmError("external provider execution is not approved by manifest")
-    provider_id, model_id, _binding_id, _tier, _eligibility = _validate_worker_provider(provider)
+    provider_id, model_id, _binding_id, _tier, _eligibility = _validate_worker_provider(
+        provider,
+        allow_local=local_trial,
+    )
     worker_tier = _tier or _eligibility.intelligence_tier
     if not isinstance(worker_tier, str) or not worker_tier.strip():
         raise DevFarmError("worker provider has no Host-admitted intelligence tier")

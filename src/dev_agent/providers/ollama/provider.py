@@ -5,19 +5,26 @@ from __future__ import annotations
 import json
 from urllib.error import HTTPError, URLError
 from urllib.request import Request
+from typing import TYPE_CHECKING
 
 from ...domain.protocol import ModelRequest, ModelResponse, ToolCall
 from ..base import ModelProvider, ProviderError, TransportStage, annotate_transport_failure
 from ..openai_compatible.http import REDIRECT_STATUS_CODES, _read_bounded, urlopen_no_redirect
 
+if TYPE_CHECKING:
+    from .lifecycle import OllamaModelManager
+
 
 class OllamaProvider(ModelProvider):
     provider_id = "ollama"
 
-    def __init__(self, *, model: str, base_url: str = "http://127.0.0.1:11434", timeout_seconds: float = 30.0) -> None:
+    def __init__(self, *, model: str, base_url: str = "http://127.0.0.1:11434", timeout_seconds: float = 30.0, keep_alive: str | int | float | None = "10m", think: bool | None = None, model_manager: "OllamaModelManager | None" = None) -> None:
         self.model = model
         self.base_url = base_url.rstrip("/")
         self.timeout_seconds = timeout_seconds
+        self.keep_alive = keep_alive
+        self.think = think
+        self.model_manager = model_manager
 
     def _payload(self, request: ModelRequest) -> dict:
         messages = list(request.messages)
@@ -26,39 +33,52 @@ class OllamaProvider(ModelProvider):
         # ``num_predict`` is Ollama's runtime output bound.  Keeping this
         # mapping here (rather than relying on model defaults) makes the
         # kernel's finite execution limits effective for a real local model.
-        return {
+        payload = {
             "model": self.model,
             "messages": messages,
             "stream": False,
             "options": {"num_predict": request.max_output_tokens},
             "tools": [{"type": "function", "function": definition} for definition in request.tool_definitions],
+            "keep_alive": self.keep_alive,
         }
+        if self.think is not None:
+            payload["think"] = self.think
+        return payload
 
     def request(self, request: ModelRequest) -> ModelResponse:
         body = json.dumps(self._payload(request), ensure_ascii=False).encode("utf-8")
         http_request = Request(f"{self.base_url}/api/chat", data=body, headers={"Content-Type": "application/json"}, method="POST")
         transport_stage = TransportStage.RESPONSE_WAIT
+        acquired = False
+        if self.model_manager is not None:
+            from .lifecycle import OllamaLifecycleError
+
+            try:
+                self.model_manager.acquire(self.model, keep_alive=self.keep_alive)
+                acquired = True
+            except OllamaLifecycleError as exc:
+                raise ProviderError("ollama model lifecycle failed", category="transport", retryable=True) from exc
         try:
-            with urlopen_no_redirect(http_request, timeout=self.timeout_seconds) as response:
-                transport_stage = TransportStage.RESPONSE_READ
-                raw = json.loads(_read_bounded(response).decode("utf-8"))
-        except HTTPError as exc:
-            if exc.code in REDIRECT_STATUS_CODES:
-                raise ProviderError(
-                    f"ollama endpoint attempted an HTTP {exc.code} redirect; "
-                    "redirects are not permitted and the request destination "
-                    "was not followed",
-                    category="provider_http",
-                    retryable=False,
-                    http_status=exc.code,
-                ) from exc
-            raise ProviderError(f"ollama transport failed: HTTP {exc.code}", category="transport", retryable=True) from exc
-        except (URLError, OSError) as exc:
-            failure = ProviderError(f"ollama transport failed: {exc}", category="transport", retryable=True)
-            raise annotate_transport_failure(failure, stage=transport_stage, cause=exc) from exc
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise ProviderError("ollama response decode failed", category="provider_decode", retryable=False) from exc
-        try:
+            try:
+                with urlopen_no_redirect(http_request, timeout=self.timeout_seconds) as response:
+                    transport_stage = TransportStage.RESPONSE_READ
+                    raw = json.loads(_read_bounded(response).decode("utf-8"))
+            except HTTPError as exc:
+                if exc.code in REDIRECT_STATUS_CODES:
+                    raise ProviderError(
+                        f"ollama endpoint attempted an HTTP {exc.code} redirect; "
+                        "redirects are not permitted and the request destination "
+                        "was not followed",
+                        category="provider_http",
+                        retryable=False,
+                        http_status=exc.code,
+                    ) from exc
+                raise ProviderError(f"ollama transport failed: HTTP {exc.code}", category="transport", retryable=True) from exc
+            except (URLError, OSError) as exc:
+                failure = ProviderError(f"ollama transport failed: {exc}", category="transport", retryable=True)
+                raise annotate_transport_failure(failure, stage=transport_stage, cause=exc) from exc
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                raise ProviderError("ollama response decode failed", category="provider_decode", retryable=False) from exc
             message = raw["message"]
             calls = []
             for item in message.get("tool_calls", []):
@@ -74,3 +94,6 @@ class OllamaProvider(ModelProvider):
             return ModelResponse(provider=self.provider_id, model=raw.get("model", self.model), finish_reason=raw.get("done_reason", "stop"), text_segments=[text] if text else [], tool_calls=calls, usage=usage)
         except (KeyError, TypeError, ValueError) as exc:
             raise ProviderError(f"ollama response decode failed: {exc}", category="provider_decode", retryable=False) from exc
+        finally:
+            if acquired:
+                self.model_manager.release(self.model)
