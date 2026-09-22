@@ -14,6 +14,7 @@ from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_worker_admission import DevFarmActivationPolicy
 from src.dev_agent.providers.base import ModelProvider
 from src.dev_agent.providers.factory import ProviderDefinition, ProviderFactory
+from src.dev_agent.resources.provider_policy import is_local_provider
 
 
 ProviderBuilder = Callable[[str, str, float, str | None], ModelProvider]
@@ -24,16 +25,29 @@ def build_worker_provider(
     model: str,
     timeout_seconds: float,
     provider_binding_id: str | None = None,
+    *,
+    allow_local: bool = False,
 ) -> ModelProvider:
     """Construct one already-admitted development Provider identity."""
 
     policy = DevFarmActivationPolicy()
-    policy.ensure_active(name, model, provider_binding_id=provider_binding_id)
-    binding_id, intelligence_tier = policy.binding_for(
-        name,
-        model,
-        provider_binding_id=provider_binding_id,
-    )
+    if is_local_provider(name):
+        if allow_local is not True:
+            policy.ensure_active(name, model, provider_binding_id=provider_binding_id)
+        binding_id = provider_binding_id
+        if not isinstance(binding_id, str) or not binding_id.strip():
+            raise DevFarmError("local Worker trial requires an explicit provider binding")
+        # Local trial is deliberately admitted as L1 only.  This is an
+        # execution permission for the bounded local E2E, not a formal L2
+        # qualification or Phase 8 Gate grant.
+        intelligence_tier = "L1"
+    else:
+        policy.ensure_active(name, model, provider_binding_id=provider_binding_id)
+        binding_id, intelligence_tier = policy.binding_for(
+            name,
+            model,
+            provider_binding_id=provider_binding_id,
+        )
     try:
         return ProviderFactory().create(
             ProviderDefinition(

@@ -282,7 +282,27 @@ def build_concrete_failure_spec(
     )
     preserve = ("task objective", "supplied file scope")
     forbidden = ("unrelated files", "new output fields")
-    if "known_issues" in normalized and ("list" in normalized or "array" in normalized):
+    if (
+        "worker response json is invalid" in normalized
+        or "invalid json" in normalized
+        or "did not contain a json object" in normalized
+        or "does not contain a json object" in normalized
+        or "must contain a json object" in normalized
+    ):
+        spec = ConcreteFailureSpec(
+            failure_class="FORMAT_PATCH",
+            stage="worker_output_validation",
+            location="worker_output",
+            observed="invalid JSON object",
+            expected="one JSON object matching the Host Worker response schema",
+            problem="the Worker response could not be decoded as one JSON object",
+            required_correction="Return exactly one valid JSON object with no Markdown or prose. Escape every quote, backslash, and newline inside JSON strings; do not emit trailing commas or raw line breaks inside strings.",
+            must_preserve=preserve,
+            forbidden_changes=("Markdown fences", "prose outside the JSON object", "raw newlines inside JSON strings", "unrelated files"),
+            acceptance_checks=("response parses as one JSON object", "response satisfies the Host Worker schema", "file_replacements contains only supplied paths"),
+            validator_refs=(validator_ref,),
+        )
+    elif "known_issues" in normalized and ("list" in normalized or "array" in normalized):
         spec = ConcreteFailureSpec(
             failure_class="FORMAT_PATCH",
             stage="worker_output_validation",
@@ -294,6 +314,34 @@ def build_concrete_failure_spec(
             must_preserve=preserve,
             forbidden_changes=forbidden,
             acceptance_checks=("known_issues is an array", "every known issue is a string"),
+            validator_refs=(validator_ref,),
+        )
+    elif "assumptions" in normalized and ("list" in normalized or "array" in normalized):
+        spec = ConcreteFailureSpec(
+            failure_class="FORMAT_PATCH",
+            stage="worker_output_validation",
+            location="assumptions",
+            observed="scalar",
+            expected="array<string>",
+            problem="assumptions must be a JSON array",
+            required_correction="Return assumptions as a JSON array; use [] when there are no assumptions.",
+            must_preserve=preserve,
+            forbidden_changes=forbidden,
+            acceptance_checks=("assumptions is an array", "every assumption is a string"),
+            validator_refs=(validator_ref,),
+        )
+    elif "file replacement lines must be strings" in normalized:
+        spec = ConcreteFailureSpec(
+            failure_class="FORMAT_PATCH",
+            stage="worker_output_validation",
+            location="file_replacements",
+            observed="replacement line is not a string",
+            expected="array<string> with one complete source line per item",
+            problem="every file replacement line must be a JSON string",
+            required_correction="Return file_replacements as an object whose value is an array of complete source-line strings; do not emit objects, numbers, or null items.",
+            must_preserve=preserve,
+            forbidden_changes=("using non-string line items", "switching to a unified diff", "changing unrelated content"),
+            acceptance_checks=("every replacement line is a string", "each replacement line contains no LF or CR"),
             validator_refs=(validator_ref,),
         )
     elif "outside manifest allowed_files" in normalized or "outside manifest allowed files" in normalized:

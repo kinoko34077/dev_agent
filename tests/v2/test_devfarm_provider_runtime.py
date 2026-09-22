@@ -4,7 +4,7 @@ import pytest
 
 from scripts.devfarm import DevFarmError
 from scripts.devfarm_worker_admission import validate_worker_provider
-from scripts.devfarm_provider_runtime import build_assigned_providers
+from scripts.devfarm_provider_runtime import build_assigned_providers, build_worker_provider
 from src.dev_agent.providers.ollama import OllamaProvider
 
 
@@ -73,3 +73,21 @@ def test_validate_worker_provider_allows_explicit_local_trial_only() -> None:
         "L1",
     )
     assert eligibility.reason == "local_trial"
+
+
+def test_build_worker_provider_requires_explicit_local_trial_opt_in() -> None:
+    binding = "ollama:local:qwen3.5-9b"
+    with pytest.raises(DevFarmError, match="not active"):
+        build_worker_provider("ollama", "qwen3.5:9b", 30.0, binding)
+
+    provider = build_worker_provider(
+        "ollama",
+        "qwen3.5:9b",
+        30.0,
+        binding,
+        allow_local=True,
+    )
+    assert provider.provider_id == "ollama"
+    assert provider.model_id == "qwen3.5:9b"
+    assert provider.provider_binding_id == binding
+    assert provider.intelligence_tier == "L1"

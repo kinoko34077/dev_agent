@@ -300,7 +300,11 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
                 timeout_seconds=float(env("OLLAMA_TIMEOUT_SECONDS") or 30.0),
                 keep_alive=env("OLLAMA_KEEP_ALIVE") or "10m",
                 think=False,
-                intelligence_tier=env("OLLAMA_INTELLIGENCE_TIER") if local_model == (ollama_model or OLLAMA_DEFAULT_MODEL) else None,
+                # An explicit local-trial tier is a conservative Host
+                # execution label for every configured local candidate.  It
+                # does not qualify the model for remote L2 routing; leaving
+                # the value unset preserves the normal non-admitted state.
+                intelligence_tier=env("OLLAMA_INTELLIGENCE_TIER"),
             )
         )
     ollama_critic_model = env("OLLAMA_CRITIC_MODEL")

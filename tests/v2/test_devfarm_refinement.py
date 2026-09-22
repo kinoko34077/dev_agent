@@ -177,6 +177,40 @@ def test_build_concrete_failure_spec_turns_worker_contract_facts_into_directive(
     assert RepairDirective.from_failure_spec(spec).completion_condition
 
 
+def test_build_concrete_failure_spec_describes_assumptions_array_mismatch():
+    spec = build_concrete_failure_spec("assumptions must be a list")
+
+    assert spec.location == "assumptions"
+    assert spec.expected == "array<string>"
+    assert "use []" in spec.required_correction
+    assert "assumptions is an array" in spec.acceptance_checks
+
+
+def test_build_concrete_failure_spec_describes_non_string_replacement_line():
+    spec = build_concrete_failure_spec("file replacement lines must be strings: src/example.py")
+
+    assert spec.location == "file_replacements"
+    assert spec.observed == "replacement line is not a string"
+    assert "every replacement line is a string" in spec.acceptance_checks
+
+
+def test_build_concrete_failure_spec_describes_invalid_json_contract():
+    spec = build_concrete_failure_spec("worker response JSON is invalid: malformed")
+
+    assert spec.location == "worker_output"
+    assert spec.observed == "invalid JSON object"
+    assert "exactly one valid JSON object" in spec.required_correction
+    assert "raw newlines inside JSON strings" in spec.forbidden_changes
+
+
+def test_build_concrete_failure_spec_describes_missing_json_object():
+    spec = build_concrete_failure_spec("worker response did not contain a JSON object")
+
+    assert spec.location == "worker_output"
+    assert spec.observed == "invalid JSON object"
+    assert "response parses as one JSON object" in spec.acceptance_checks
+
+
 def test_refinement_packet_carries_concrete_failure_spec_without_raw_output():
     runner = _Runner(_review_packet())
     spec = build_concrete_failure_spec(

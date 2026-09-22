@@ -940,6 +940,17 @@ def test_configured_provider_pool_exposes_preferred_local_model_and_fallback_can
     assert all(binding.quota_domain is None and binding.credential_id is None for binding in local[:2])
 
 
+def test_configured_local_trial_tier_projects_to_all_local_candidates(monkeypatch, tmp_path):
+    monkeypatch.setenv("DEV_AGENT_ENABLE_CONFIGURED_POOL", "1")
+    monkeypatch.delenv("OLLAMA_MODEL", raising=False)
+    monkeypatch.setenv("OLLAMA_INTELLIGENCE_TIER", "L1")
+
+    config = OperationConfig.from_environment(data_dir=tmp_path)
+
+    local = [binding for binding in config.provider_bindings if binding.provider_id == "ollama"]
+    assert [binding.intelligence_tier for binding in local[:2]] == ["L1", "L1"]
+
+
 def test_configured_provider_pool_keeps_explicit_local_model_and_adds_safe_fallbacks(monkeypatch, tmp_path):
     monkeypatch.setenv("DEV_AGENT_ENABLE_CONFIGURED_POOL", "1")
     monkeypatch.setenv("OLLAMA_MODEL", "qwen3.5:9b")

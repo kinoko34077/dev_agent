@@ -20,6 +20,7 @@ from scripts.devfarm_worker import (
 )
 from src.dev_agent.security.egress import EgressDecision
 from src.dev_agent.domain.protocol import ModelResponse
+from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.cloudflare import CloudflareWorkersAIHttpProvider
 from src.dev_agent.providers.gemini import GeminiHttpProvider
 from src.dev_agent.providers.ollama.provider import OllamaProvider
@@ -35,6 +36,12 @@ class _MismatchedResponseProvider(_WorkerProvider):
             model="gemini-3.5-flash-lite",
             text_segments=[json.dumps(self.output)],
         )
+
+
+class _ReconciliationProvider(_WorkerProvider):
+    def request(self, request):
+        self.request_count += 1
+        raise ProviderError("response outcome is unknown", category="transport", retryable=True)
 
 
 class _CapturingWorkerProvider(_WorkerProvider):
@@ -203,6 +210,18 @@ def test_run_worker_rejects_response_identity_mismatch(tmp_path):
     assert "identity mismatch" in result["known_issues"][0]
 
 
+def test_run_worker_does_not_turn_reconciliation_failure_into_model_repair_spec(tmp_path):
+    root, manifest_path = _workspace(tmp_path, prepare=False)
+
+    result = run_worker(root, manifest_path, provider=_ReconciliationProvider({}))
+
+    assert result["status"] == "failed"
+    assert result["worker_metrics"]["provider_failure_category"] == "transport"
+    assert result["worker_metrics"]["reconciliation_required"] is True
+    assert "failure_spec" not in result
+    assert "repair_directive" not in result
+
+
 def test_run_worker_marks_host_admitted_free_request_for_bounded_unknown_quota_bootstrap(tmp_path):
     root, manifest_path = _workspace(tmp_path, prepare=False)
     output = {
@@ -269,8 +288,12 @@ def test_run_worker_requests_bounded_json_schema_for_local_ollama(tmp_path, monk
         "running",
     ]
     assert requests[0].response_schema["properties"]["patch"]["maxLength"] == 0
+    assert requests[0].max_output_tokens == 8192
     assert requests[0].response_schema["properties"]["file_replacements"]["minProperties"] == 1
+    replacement_schema = requests[0].response_schema["properties"]["file_replacements"]["additionalProperties"]
+    assert replacement_schema["oneOf"][1]["items"]["pattern"] == "^[^\\r\\n]*$"
     assert "file_replacements" in requests[0].response_schema["required"]
+    assert "assumptions" in requests[0].response_schema["required"]
     assert "always use file_replacements" in requests[0].messages[1]["content"]
     assert requests[0].messages[2]["role"] == "user"
 

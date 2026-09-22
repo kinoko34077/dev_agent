@@ -82,6 +82,7 @@ from scripts.devfarm_verification import (
 
 MAX_INPUT_FILE_BYTES = SHARED_MAX_INPUT_FILE_BYTES
 MAX_OUTPUT_TEXT_CHARS = 32 * 1024
+LOCAL_OLLAMA_MAX_OUTPUT_TOKENS = 8_192
 MAX_VERIFICATION_WALL_CLOCK_SECONDS = 10 * 60
 
 # Local compatibility name; cross-script imports use the public path-policy
@@ -493,7 +494,19 @@ _OLLAMA_WORKER_RESPONSE_SCHEMA = {
         "known_issues": {"type": "array", "items": {"type": "string"}},
         "assumptions": {"type": "array", "items": {"type": "string"}},
         "patch": {"type": "string", "maxLength": 0},
-        "file_replacements": {"type": "object", "minProperties": 1},
+        "file_replacements": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": {
+                "oneOf": [
+                    {"type": "string"},
+                    {
+                        "type": "array",
+                        "items": {"type": "string", "pattern": "^[^\\r\\n]*$"},
+                    },
+                ]
+            },
+        },
         "notes": {"type": "string"},
     },
     "required": [
@@ -501,8 +514,11 @@ _OLLAMA_WORKER_RESPONSE_SCHEMA = {
         "changed_files",
         "tests_run",
         "tests_passed",
+        "known_issues",
+        "assumptions",
         "patch",
         "file_replacements",
+        "notes",
     ],
     "additionalProperties": True,
 }
@@ -959,7 +975,7 @@ def run_worker(
             if provider_id == "ollama"
             else None
         ),
-        max_output_tokens=4096,
+        max_output_tokens=(LOCAL_OLLAMA_MAX_OUTPUT_TOKENS if provider_id == "ollama" else 4096),
     )
     dispatch = host_dispatch or HostProviderDispatch(provider)
     if dispatch.provider_identity["provider_id"] not in {provider_id, "resource-router"}:
@@ -976,11 +992,16 @@ def run_worker(
         # transport category is still preserved when the Host boundary
         # provides one.
         metrics["provider_failure_category"] = exc.category
+        metrics["failover_safe"] = exc.failover_safe
+        metrics["reconciliation_required"] = exc.requires_reconciliation
         metrics["transport_failure_category"] = (
             dispatch.last_transport_category.value if dispatch.last_transport_category is not None else None
         )
         metrics.update(safe_host_failure_metadata(exc))
         status = "blocked_external" if exc.category == "authentication" else "failed"
+        # Provider boundary failures are not model-output failures.  In
+        # particular, transport/reconciliation outcomes must not be turned
+        # into FORMAT_PATCH repair instructions or fed back to a model.
         result = {
             "status": status,
             "attempt_id": attempt_id,
@@ -991,13 +1012,8 @@ def run_worker(
             "model_claims": {},
             "proposed_test_commands": [],
             "host_verified_tests": [],
-            "worker_metrics": metrics,
+        "worker_metrics": metrics,
         "known_issues": ["provider request failed before a patch was produced"],
-        "failure_spec": build_concrete_failure_spec(
-            "provider request failed before a patch was produced",
-            manifest=manifest,
-            validator_ref="worker:provider_boundary",
-        ).to_dict(),
             "assumptions": ["The worker provider was unavailable; no patch was produced."],
         }
         write_result(root, result, manifest=manifest)
@@ -1137,6 +1153,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--provider-binding-id")
     parser.add_argument("--timeout-seconds", type=float, default=30.0)
     parser.add_argument(
+        "--local-trial",
+        action="store_true",
+        help="allow the explicitly configured local provider for a non-Gate trial",
+    )
+    parser.add_argument(
         "--egress-dry-run",
         action="store_true",
         help="inspect exact Host egress admission without contacting a provider",
@@ -1177,7 +1198,13 @@ def main(argv: list[str] | None = None) -> int:
         else:
             if args.provider is None or not args.model:
                 parser.error("--provider and --model are required unless --apply-and-verify is used")
-            provider = _provider(args.provider, args.model, args.timeout_seconds, args.provider_binding_id)
+            provider = _provider(
+                args.provider,
+                args.model,
+                args.timeout_seconds,
+                args.provider_binding_id,
+                allow_local=args.local_trial,
+            )
             executor = None
             if args.execution_boundary == "host_process":
                 from scripts.devfarm_host_dispatch import create_host_process_executor
@@ -1196,6 +1223,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.manifest,
                 provider=provider,
                 host_dispatch=host_dispatch,
+                local_trial=args.local_trial,
             )
     except (DevFarmError, ProviderError) as exc:
         parser.error(str(exc))
