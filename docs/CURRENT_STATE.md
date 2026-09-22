@@ -5,15 +5,15 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Remote HEAD before this documentation sync | `dcd112c` (`feat: add preferred local Ollama fallback pool`) |
+| Remote HEAD before this documentation sync | `ba1008b` (`docs: record Ollama local model pool evidence`) |
 | Latest implementation baseline before this documentation sync | `dcd112c` (`feat: add preferred local Ollama fallback pool`) |
-| Latest evidence baseline before this sync | `55dc117` (`docs: close local Ollama worker trial`) |
-| Implementation/evidence baseline | implementation `dcd112c`; this sync records qwen3.5:4b as the preferred local candidate and gemma4:12b/qwen3.5:9b as exact fallback candidates without changing a Gate |
-| Worktree | post-push evidence/documentation synchronization is pending; the model-pool implementation is pushed and local regression is green |
+| Latest evidence baseline before this sync | `ba1008b` (`docs: record Ollama local model pool evidence`) |
+| Implementation/evidence baseline | implementation `dcd112c`; evidence `ba1008b` records qwen3.5:4b as the preferred local candidate and gemma4:12b/qwen3.5:9b as exact fallback candidates without changing a Gate |
+| Worktree | clean after the model-pool implementation and evidence push; this documentation sync records the exact-head result without recursively naming its own SHA |
 | Local regression | `1475 passed, 1 skipped` (`python -m pytest tests/v2 -q`, after the local Ollama model-pool change) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | PASS for `d598eb58f7f937e221dbe7f20cf44e84d20649c0`: `v2-core` and `v2-provider-smoke` (`v2 tests` workflow). |
+| Exact-head CI | PASS for `ba1008b726ac0744e2c4a3ebab9df701ebfe64f7`: `v2-core` and `v2-provider-smoke` (`v2 tests` workflow). |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
