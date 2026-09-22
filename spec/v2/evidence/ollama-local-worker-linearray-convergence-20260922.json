@@ -1,0 +1,66 @@
+{
+  "evidence_id": "ollama-local-worker-linearray-convergence-20260922",
+  "evidence_kind": "ollama_local_worker_output_contract_convergence",
+  "observed_at": "2026-09-22",
+  "track": "OLLAMA_LOCAL_E2E",
+  "implementation_baseline": "d598eb5",
+  "root_id": "ollama-local-converge-20260922",
+  "model_path": {
+    "provider": "ollama",
+    "binding": "ollama:local:qwen3.5-9b",
+    "model": "qwen3.5:9b",
+    "tier": "L1_LOCAL_TRIAL",
+    "execution_boundary": "in_process_host_trial",
+    "keep_alive": "10m",
+    "loopback_only": true
+  },
+  "tasks": [
+    {
+      "task_id": "ollama-local-converge-a",
+      "ownership": ["src/dev_agent/providers/ollama/__init__.py"],
+      "attempts": [
+        {
+          "attempt_id": "71136c7aefbb45ca9779156ad3ddb79e",
+          "failure_class": "FORMAT_PATCH",
+          "failure_category": "model_output_invalid",
+          "bounded_finding": "file replacement line array contained embedded newline characters",
+          "host_verification": "not_started"
+        }
+      ]
+    },
+    {
+      "task_id": "ollama-local-converge-b",
+      "ownership": ["src/dev_agent/resources/survival.py"],
+      "attempts": [
+        {
+          "attempt_id": "940da7f57d9448289a6354c9ea2d8e6a",
+          "failure_class": "FORMAT_PATCH",
+          "failure_category": "model_output_invalid",
+          "bounded_finding": "file replacement object contained a path outside the manifest allowed files",
+          "host_verification": "not_started"
+        }
+      ]
+    }
+  ],
+  "convergence": {
+    "status": "PARTIAL_BLOCKED",
+    "bounded_prompt_refinement": true,
+    "refinement_rounds": 1,
+    "attempted": 2,
+    "integrated": 0,
+    "host_verified": 0,
+    "reviewed": 0,
+    "codex_direct_implementation": 0,
+    "dependent_continuation": "not_released",
+    "unknown_replay": 0,
+    "plan_status": "SUPERSEDED"
+  },
+  "safety": {
+    "same_attempt_overwritten": false,
+    "host_verification_bypassed": false,
+    "secret_scan_bypassed": false,
+    "unknown_external_effect_replayed": false,
+    "phase8_gate_promoted": false
+  },
+  "interpretation": "A fresh local Worker root reached qwen3.5:9b twice through the Host-owned loopback provider. After a prompt refinement that explicitly required literal line arrays and JSON arrays for list fields, both Worker responses still failed deterministic output validation. The immutable failures were closed without another blind retry; no patch reached Host Verification, Reviewer, integration, or dependent continuation. This is bounded local output-contract evidence, not completed local E2E or Phase 8 LIVE_ACTIVATION evidence."
+}
