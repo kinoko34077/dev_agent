@@ -1,0 +1,54 @@
+{
+  "evidence_id": "ollama-local-worker-micro-root-20260922",
+  "evidence_kind": "ollama_local_worker_micro_root",
+  "observed_at": "2026-09-22",
+  "track": "OLLAMA_LOCAL_E2E",
+  "implementation_baseline": "b7ef1e6",
+  "root_id": "ollama-local-micro-20260922",
+  "runtime": {
+    "provider": "ollama",
+    "binding": "ollama:local:qwen3.5-9b",
+    "model": "qwen3.5:9b",
+    "tier": "L1_LOCAL_TRIAL",
+    "loopback_only": true,
+    "keep_alive": "10m",
+    "execution_boundary": "in_process_host_trial"
+  },
+  "tasks": [
+    {
+      "task_id": "ollama-local-micro-a",
+      "ownership": ["src/dev_agent/providers/dispatcher.py"],
+      "attempt_id": "eec120c69e3148419d46f64d2be63bba",
+      "failure_class": "FORMAT_PATCH",
+      "failure_category": "model_output_invalid",
+      "bounded_finding": "known_issues was emitted as a scalar instead of a JSON array",
+      "host_verification": "not_started"
+    },
+    {
+      "task_id": "ollama-local-micro-b",
+      "ownership": ["src/dev_agent/providers/cloudflare/__init__.py"],
+      "attempt_id": "dc711d88f81e43489f645ebfce06befe",
+      "failure_class": "FORMAT_PATCH",
+      "failure_category": "model_output_invalid",
+      "bounded_finding": "file_replacements contained the disallowed path notes",
+      "host_verification": "not_started"
+    }
+  ],
+  "result": {
+    "status": "PARTIAL_BLOCKED",
+    "attempted": 2,
+    "integrated": 0,
+    "host_verified": 0,
+    "reviewed": 0,
+    "dependent_continuation": "not_released",
+    "codex_direct_implementation": 0,
+    "unknown_replay": 0,
+    "plan_status": "SUPERSEDED"
+  },
+  "safety": {
+    "same_attempt_overwritten": false,
+    "host_verification_bypassed": false,
+    "phase8_gate_promoted": false
+  },
+  "interpretation": "A final bounded micro-root on two very small production modules still failed at deterministic Worker output validation. The loopback qwen3.5:9b runtime and lifecycle were available, but the Worker contract did not converge; the local Worker lane is therefore closed as PARTIAL_BLOCKED for this slice. This does not promote the model to L2, does not provide Host Verification or integration evidence, and does not change Phase 8."
+}

@@ -5,10 +5,10 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Remote HEAD before this documentation sync | `d598eb5` (`fix: tighten local Ollama worker output contract`) |
+| Remote HEAD before this documentation sync | `b7ef1e6` (`docs: record Ollama worker convergence attempt`) |
 | Latest implementation baseline before this documentation sync | `d598eb5` (`fix: tighten local Ollama worker output contract`) |
-| Latest evidence baseline before this sync | `d598eb5` (`fix: tighten local Ollama worker output contract`) |
-| Implementation/evidence baseline | implementation `d598eb5`; this sync records the bounded line-array convergence trial and preserves its partial blocker without changing a Gate |
+| Latest evidence baseline before this sync | `b7ef1e6` (`docs: record Ollama worker convergence attempt`) |
+| Implementation/evidence baseline | implementation `d598eb5`; this sync records the final bounded local Worker micro-root and preserves its partial blocker without changing a Gate |
 | Worktree | post-push documentation/evidence synchronization is pending; the local Ollama output-contract implementation is pushed and exact-head CI is green |
 | Local regression | `1467 passed, 1 skipped` (`python -m pytest tests/v2 -q`, after the local Ollama output-contract refinement) |
 | Architecture | `ARCHITECTURE_PASS` |
@@ -157,6 +157,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 - 2026-09-22 Ollama Planner convergence: a fresh `qwen3.5:9b` L1 local Planner response-contract failure was corrected once by a distinct `qwen3:8b` L1 proposal-only Critic, and the corrected proposal passed the existing Host planning validator with two bounded child entries. A separate fresh request reached the same-signature limit and stopped as `NON_CONVERGING`; neither observation mutated Tasks/Git or replayed an UNKNOWN effect. This verifies the explicit local Critic binding and bounded Planner convergence only; it does not close the Worker/integration chain or Phase 8 LIVE_ACTIVATION. See [`ollama-local-planner-convergence-20260922.json`](../spec/v2/evidence/ollama-local-planner-convergence-20260922.json).
 - 2026-09-22 Ollama Worker output contract: the local Ollama adapter now forwards Host-owned JSON schema through `/api/chat`, and local Worker requests use a bounded file-replacement contract while remote Worker requests remain schema-free. A fresh local root then recorded qwen3.5 output-contract failures, one bounded same-tier reassignment to qwen3:8b, a qwen3 transport HTTP 400, and a sibling egress rejection; all attempts stopped before Host Verification/integration and were superseded without replay. This is `OLLAMA_LOCAL_E2E=PARTIAL_BLOCKED` and AR1 partial evidence, not Phase 8 activation. See [`ollama-local-worker-convergence-20260922.json`](../spec/v2/evidence/ollama-local-worker-convergence-20260922.json).
 - 2026-09-22 Ollama Worker line-array convergence: after a bounded prompt refinement, a fresh qwen3.5:9b root still produced one embedded-newline line-array violation and one `file_replacements` path-scope violation. Host deterministic validation rejected both; no Host Verification, Reviewer, integration, or dependent continuation occurred, and the plan was superseded without replay. This remains `OLLAMA_LOCAL_E2E=PARTIAL_BLOCKED`; the model is not promoted beyond `L1_LOCAL_TRIAL`, and Phase 8 is unchanged. See [`ollama-local-worker-linearray-convergence-20260922.json`](../spec/v2/evidence/ollama-local-worker-linearray-convergence-20260922.json).
+- 2026-09-22 Ollama Worker micro-root closeout: a final one-attempt root using two very small, non-overlapping production modules still failed deterministic output validation (`known_issues` scalar and disallowed `notes` path). The root was superseded without replay; no Host Verification, Reviewer, integration, or dependent continuation occurred. `OLLAMA_LOCAL_E2E` remains `PARTIAL_BLOCKED`, qwen3.5 remains `L1_LOCAL_TRIAL`, and Phase 8 is unchanged. See [`ollama-local-worker-micro-root-20260922.json`](../spec/v2/evidence/ollama-local-worker-micro-root-20260922.json).
 - The active `v2/bootstrap` GitHub ruleset requires `kernel (3.10)`, `kernel (3.11)`, and `provider-smoke`, and prevents deletion/non-fast-forward updates. The current authenticated direct-push identity is a configured bypass actor, so remote push acceptance does not replace exact-head CI evidence. No local artifact promotes a Gate.
 
 ## Immediate next target
@@ -183,6 +184,7 @@ and the compact operational procedure is [`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_D
 - Ollama local Planner bounded convergence: [`ollama-local-planner-convergence-20260922.json`](../spec/v2/evidence/ollama-local-planner-convergence-20260922.json)
 - Ollama local Worker bounded convergence: [`ollama-local-worker-convergence-20260922.json`](../spec/v2/evidence/ollama-local-worker-convergence-20260922.json)
 - Ollama local Worker line-array convergence: [`ollama-local-worker-linearray-convergence-20260922.json`](../spec/v2/evidence/ollama-local-worker-linearray-convergence-20260922.json)
+- Ollama local Worker micro-root closeout: [`ollama-local-worker-micro-root-20260922.json`](../spec/v2/evidence/ollama-local-worker-micro-root-20260922.json)
 - Bounded convergence R7/R8 runtime evidence: [`bounded-convergence-runtime-r7-r8-20260917.json`](../spec/v2/evidence/bounded-convergence-runtime-r7-r8-20260917.json)
 - R9 model evidence refresh and fresh Planner availability blocker: [`model-evidence-refresh-r9-planner-blocker-20260922.json`](../spec/v2/evidence/model-evidence-refresh-r9-planner-blocker-20260922.json)
 - R9 fresh L2 Planner availability blocker: [`phase8-planner-fresh-provider-unavailable-20260917.json`](../spec/v2/evidence/phase8-planner-fresh-provider-unavailable-20260917.json)
