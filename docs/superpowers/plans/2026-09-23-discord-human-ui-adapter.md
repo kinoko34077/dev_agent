@@ -55,7 +55,7 @@ def test_env_example_contains_placeholders_without_real_identifiers():
     assert "DISCORD_APPLICATION_ID=" in content
     assert "DISCORD_PUBLIC_KEY=" in content
     assert "DISCORD_BOT_TOKEN=" in content
-    assert "1552123238543523910" not in content
+    assert "123456789012345678" not in content
     assert "be400902" not in content
 
 

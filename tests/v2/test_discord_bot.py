@@ -23,7 +23,7 @@ def _env_file(tmp_path: Path, *, token: str = "token-value") -> Path:
     path.write_text(
         "\n".join(
             (
-                "DISCORD_APPLICATION_ID=1552123238543523910",
+                "DISCORD_APPLICATION_ID=123456789012345678",
                 "DISCORD_PUBLIC_KEY=" + "a" * 64,
                 f"DISCORD_BOT_TOKEN={token}",
                 "DISCORD_ALLOWED_USER_ID=42",
@@ -39,7 +39,7 @@ def _env_file(tmp_path: Path, *, token: str = "token-value") -> Path:
 def test_discord_config_reads_env_file_and_never_exposes_token_in_repr(tmp_path):
     config = DiscordBotConfig.from_environment(env_path=_env_file(tmp_path))
 
-    assert config.application_id == "1552123238543523910"
+    assert config.application_id == "123456789012345678"
     assert config.allowed_user_ids == frozenset({"42"})
     assert "token-value" not in repr(config)
     assert config.public_summary()["bot_token"] == "<redacted>"
