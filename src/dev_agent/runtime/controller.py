@@ -475,7 +475,7 @@ class Controller:
         task = self.store.load_task(task_id)
         if task is None:
             raise RuntimeFailure(f"task not found: {task_id}")
-        if task.status in {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED}:
+        if task.status in {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED, TaskStatus.WAITING_HUMAN}:
             return task
         checkpoint = self.store.load_latest_checkpoint(task_id)
         if checkpoint and approval_id:

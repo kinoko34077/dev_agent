@@ -25,6 +25,7 @@ from .operation_planning import (
 )
 
 from .domain.protocol import ModelRequest, RiskLevel, Task, TaskStatus, TaskType
+from .human import HumanInteractionPort, SQLiteHumanInteractionPort
 from .providers.dispatch import ProviderDispatcher
 from .providers.factory import ProviderDefinition, ProviderFactory
 from .providers.fake import FakeProvider
@@ -589,7 +590,7 @@ class OperationService:
 
     _DETERMINISTIC_LOCAL_REFRESH_INTERVAL_SECONDS = 60.0
 
-    def __init__(self, config: OperationConfig, *, store: SQLiteStateStore, queue: DurableQueue, ledger: ResourceLedger, control: OperationControl, controller: Controller, worker: WorkerRunner, dispatcher: ProviderDispatcher, evaluation: EvaluationCoordinator, lifecycle: TaskLifecycleCoordinator, qualification_resolver: QualificationResolver | None = None, model_admission_resolver: ModelAdmissionResolver | None = None) -> None:
+    def __init__(self, config: OperationConfig, *, store: SQLiteStateStore, queue: DurableQueue, ledger: ResourceLedger, control: OperationControl, controller: Controller, worker: WorkerRunner, dispatcher: ProviderDispatcher, evaluation: EvaluationCoordinator, lifecycle: TaskLifecycleCoordinator, qualification_resolver: QualificationResolver | None = None, model_admission_resolver: ModelAdmissionResolver | None = None, human_interaction_port: HumanInteractionPort | None = None) -> None:
         self.config = config
         self.store = store
         self.queue = queue
@@ -602,6 +603,7 @@ class OperationService:
         self._lifecycle = lifecycle
         self._qualification_resolver = qualification_resolver or QualificationResolver()
         self._model_admission_resolver = model_admission_resolver
+        self._human_interaction_port = human_interaction_port or SQLiteHumanInteractionPort(store)
         self._closed = False
         self._runtime_prepared = False
         self._last_deterministic_local_refresh_at: datetime | None = None
@@ -615,6 +617,18 @@ class OperationService:
     def model_admission_resolver(self) -> ModelAdmissionResolver | None:
         """Return the optional explicitly composed model-evidence view."""
         return self._model_admission_resolver
+
+    @property
+    def human_interaction_port(self) -> HumanInteractionPort:
+        """Return the current Human transport without granting it authority."""
+        return self._human_interaction_port
+
+    def bind_human_interaction_port(self, port: HumanInteractionPort) -> None:
+        """Bind an operator-selected Human transport before serving."""
+        required = ("request_human", "poll_response", "consume_response", "record_response")
+        if any(not callable(getattr(port, name, None)) for name in required):
+            raise TypeError("Human interaction port does not implement the bounded contract")
+        self._human_interaction_port = port
 
     @classmethod
     def open(cls, config: OperationConfig | None = None) -> "OperationService":
@@ -1264,6 +1278,7 @@ class OperationService:
         coordinator = QuotaRequalificationCoordinator(self.ledger, scheduler)
         results: list[dict[str, Any]] = []
         self._refresh_deterministic_local_resources(current)
+        self._wake_human_tasks()
         self._wake_reconciled_provider_tasks()
         self.release_planner_dependencies()
         for domain in self.ledger.due_unknown_quota_domains(now_epoch=current.timestamp()):
@@ -1290,6 +1305,34 @@ class OperationService:
                 )
                 results.append(result.to_dict())
         return results
+
+    def _wake_human_tasks(self) -> tuple[str, ...]:
+        """Wake only tasks with an exact durable Human response."""
+        woken: list[str] = []
+        for request in self.store.list_pending_human_requests():
+            task = self.store.load_task(request.task_id)
+            if task is None or task.status is not TaskStatus.WAITING_HUMAN:
+                continue
+            try:
+                response = self._human_interaction_port.poll_response(request.request_id)
+            except Exception:
+                # A transport observation failure must not stop unrelated
+                # queue work.  The request remains durable and is polled on a
+                # later maintenance cycle.
+                continue
+            if response is None:
+                continue
+            try:
+                self._lifecycle.consume_human_response(task.task_id, request.request_id)
+            except (KeyError, ValueError):
+                continue
+            try:
+                item = self.queue.snapshot(task.task_id)
+            except KeyError:
+                continue
+            if item.state == "waiting" and self.queue.wake_waiting_task(task.task_id):
+                woken.append(task.task_id)
+        return tuple(woken)
 
     def _refresh_deterministic_local_resources(self, now: datetime) -> None:
         """Keep the no-network fake resource usable for a long-lived loop.

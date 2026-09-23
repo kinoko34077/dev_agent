@@ -119,6 +119,29 @@ class CoreStateRepository:
         )
         return response
 
+    def consume_human_response_and_transition(self, request_id: str, *, task: Task, event: Event) -> HumanResponse:
+        """Consume one response and publish its fresh Task continuation atomically."""
+        row = self.connection.execute(
+            "SELECT status, response_payload, task_id FROM human_requests WHERE request_id = ?",
+            (request_id,),
+        ).fetchone()
+        if row is None:
+            raise KeyError(request_id)
+        if row["task_id"] != task.task_id:
+            raise ValueError("human response does not belong to task")
+        if row["status"] == "consumed":
+            raise ValueError(f"human response already consumed: {request_id}")
+        if row["status"] != "answered" or row["response_payload"] is None:
+            raise ValueError(f"human response is not available: {request_id}")
+        response = HumanResponse.from_dict(json.loads(row["response_payload"]))
+        self.connection.execute(
+            "UPDATE human_requests SET status='consumed', consumed_at=CURRENT_TIMESTAMP WHERE request_id=? AND status='answered'",
+            (request_id,),
+        )
+        self.save_task(task)
+        self.append_event(event)
+        return response
+
     def get_idempotent(self, key: str) -> ToolResult | None:
         row = self.connection.execute("SELECT result_payload FROM idempotency WHERE idempotency_key = ?", (key,)).fetchone()
         return ToolResult.from_dict(json.loads(row["result_payload"])) if row else None
@@ -134,6 +157,7 @@ class CoreStateRepository:
         checkpoint: dict[str, Any] | None = None,
         events: list[Event] | None = None,
         tool_result: ToolResult | None = None,
+        human_request: HumanRequest | None = None,
     ) -> None:
         """Insert all core records for an already-open transaction."""
         if task is not None:
@@ -149,6 +173,8 @@ class CoreStateRepository:
             )
         if tool_result is not None:
             self.save_tool_result(tool_result)
+        if human_request is not None:
+            self.save_human_request(human_request)
         for event in events or []:
             self.append_event(event)
 

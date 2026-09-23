@@ -19,6 +19,9 @@ class HumanInteractionPort(Protocol):
     def consume_response(self, request_id: str) -> HumanResponse:
         ...
 
+    def record_response(self, response: HumanResponse) -> None:
+        ...
+
 
 class SQLiteHumanInteractionPort:
     """Default durable port backed by the existing SQLite StateStore."""
@@ -37,6 +40,9 @@ class SQLiteHumanInteractionPort:
 
     def consume_response(self, request_id: str) -> HumanResponse:
         return self._store.consume_human_response(request_id)
+
+    def record_response(self, response: HumanResponse) -> None:
+        self._store.save_human_response(response)
 
 
 __all__ = ["HumanInteractionPort", "SQLiteHumanInteractionPort"]

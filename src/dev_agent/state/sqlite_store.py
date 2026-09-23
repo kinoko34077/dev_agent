@@ -339,7 +339,7 @@ class SQLiteStateStore:
         return self._effects.list_provider_audits(task_id=task_id, request_id=request_id)
 
     @_serialized
-    def commit_transition(self, *, task: Task | None = None, step: Step | None = None, checkpoint: dict[str, Any] | None = None, event: Event | None = None, events: list[Event] | None = None, tool_result: ToolResult | None = None, lease_proof: Any | None = None) -> None:
+    def commit_transition(self, *, task: Task | None = None, step: Step | None = None, checkpoint: dict[str, Any] | None = None, event: Event | None = None, events: list[Event] | None = None, tool_result: ToolResult | None = None, human_request: HumanRequest | None = None, lease_proof: Any | None = None) -> None:
         """Atomically persist the records belonging to one runtime transition."""
         try:
             self.connection.execute("BEGIN IMMEDIATE")
@@ -400,6 +400,7 @@ class SQLiteStateStore:
                 checkpoint=checkpoint,
                 events=transition_events,
                 tool_result=tool_result,
+                human_request=human_request,
             )
             self.connection.commit()
         except Exception:
@@ -411,6 +412,19 @@ class SQLiteStateStore:
         # override ``checkpoint`` without weakening that transaction.
         if checkpoint is not None and type(self).checkpoint is not SQLiteStateStore.checkpoint:
             self.checkpoint(task_id=checkpoint["task_id"], step_id=checkpoint["step_id"], phase=checkpoint["phase"], state=checkpoint.get("state", {}))
+
+    @_serialized
+    def commit_human_response_transition(self, request_id: str, *, task: Task, event: Event, lease_proof: Any | None = None) -> HumanResponse:
+        try:
+            self.connection.execute("BEGIN IMMEDIATE")
+            if lease_proof is not None:
+                assert_active_lease(self.connection, lease_proof)
+            response = self._core.consume_human_response_and_transition(request_id, task=task, event=event)
+            self.connection.commit()
+            return response
+        except BaseException:
+            self.connection.rollback()
+            raise
 
     @_serialized
     def reconcile_effect_intent(self, key: str, *, status: str, actor: str, source: str, external_id: str | None = None, evidence: dict[str, Any] | None = None, result: ToolResult | None = None) -> None:

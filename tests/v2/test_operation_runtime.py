@@ -172,6 +172,56 @@ def test_runtime_coordinator_continues_ready_work_around_reconciliation_wait(tmp
     assert waiting_status["reconciliation"] is True
 
 
+def test_runtime_coordinator_wakes_exact_human_response_and_keeps_unrelated_work_running(tmp_path):
+    from src.dev_agent.domain.protocol import Task
+    from src.dev_agent.human import HumanRequest, HumanResponse
+    from src.dev_agent.scheduler.queue import DurableQueue
+    from src.dev_agent.state import SQLiteStateStore
+
+    config = _config(tmp_path)
+    waiting = Task(objective="wait for operator", status=TaskStatus.WAITING_HUMAN)
+    request = HumanRequest(
+        request_id="runtime-human-request",
+        root_id=waiting.root_task_id,
+        task_id=waiting.task_id,
+        attempt_id="runtime-human-attempt",
+        reason="bounded operator decision",
+        question="Continue?",
+        context={"scope": "local"},
+        allowed_answers=("allow", "deny"),
+        response_shape={"decision": "allow|deny"},
+    )
+    with SQLiteStateStore(config.state_path) as store:
+        store.save_task(waiting)
+        store.save_human_request(request)
+    with DurableQueue(config.queue_path) as queue:
+        queue.enqueue(waiting.task_id, priority=10)
+    ready = OperationService.submit(config, "continue unrelated work", priority=0)
+
+    with RuntimeCoordinator.open(config, revision="human-test-revision", instance_id="runtime-1") as runtime:
+        first = runtime.run_once()
+        second = runtime.run_once()
+        assert first is not None and first.task_id == waiting.task_id
+        assert first.status is TaskStatus.WAITING_HUMAN
+        assert second is not None and second.task_id == ready.task_id
+
+        with SQLiteStateStore(config.state_path) as store:
+            store.save_human_response(
+                HumanResponse(
+                    request_id=request.request_id,
+                    responder="human:operator",
+                    response={"decision": "allow"},
+                    decision="allow",
+                    received_at="2026-09-23T00:00:00+00:00",
+                )
+            )
+        resumed = runtime.run_once()
+
+    assert resumed is not None and resumed.task_id == waiting.task_id
+    assert resumed.status is TaskStatus.COMPLETED
+    assert OperationService.read_status(config, waiting.task_id)["state"] == TaskStatus.COMPLETED.value
+
+
 def test_runtime_coordinator_restarts_durable_phase8_plan_without_duplicate_attempts(tmp_path):
     from src.dev_agent.domain.protocol import Task, TaskType
     from src.dev_agent.intelligence.planner import (

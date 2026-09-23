@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from uuid import NAMESPACE_URL, uuid5
 
 from ..domain.protocol import Event, Task, TaskStatus
+from ..human import HumanRequest, HumanResponse
 from .evaluator import EvaluatorDecision
 from .loop import EvaluationDispatchCycle, EvaluationDispatchStatus
 
@@ -169,6 +170,63 @@ class TaskLifecycleCoordinator:
             lease_proof=lease_proof,
         )
 
+    def park_for_human(self, task_id: str, request: HumanRequest, *, lease_proof=None) -> TaskLifecycleTransition:
+        """Persist one exact Human question while leaving other Tasks runnable."""
+        if not isinstance(request, HumanRequest):
+            raise TypeError("request must be HumanRequest")
+        task = self._load_task(task_id)
+        if request.task_id != task.task_id:
+            raise ValueError("human request task_id does not match task")
+        event = Event(
+            event_id=str(uuid5(NAMESPACE_URL, f"dev-agent/human/{request.request_id}/requested")),
+            event_type="task.waiting_human",
+            task_id=task.task_id,
+            provider=self._actor,
+            payload={
+                "source": "human_interaction",
+                "request_id": request.request_id,
+                "required_authority": request.required_authority,
+                "reason": request.reason,
+            },
+        )
+        if self._has_event(event.event_id):
+            return TaskLifecycleTransition(task=task, event=event, replayed=True)
+        self._ensure_transition_allowed(task.status, TaskStatus.WAITING_HUMAN)
+        task.status = TaskStatus.WAITING_HUMAN
+        self._store.commit_transition(task=task, event=event, human_request=request, lease_proof=lease_proof)
+        return TaskLifecycleTransition(task=task, event=event)
+
+    def consume_human_response(self, task_id: str, request_id: str, *, lease_proof=None) -> tuple[TaskLifecycleTransition, HumanResponse]:
+        """Consume an exact response and publish a fresh READY continuation."""
+        task = self._load_task(task_id)
+        if task.status is not TaskStatus.WAITING_HUMAN:
+            if self._store.get_human_response(request_id) is not None:
+                raise ValueError(f"human response already consumed: {request_id}")
+            raise ValueError("task is not waiting for a Human response")
+        request = self._store.get_human_request(request_id)
+        if request is None:
+            raise KeyError(request_id)
+        if request.task_id != task.task_id:
+            raise ValueError("human response does not belong to task")
+        event = Event(
+            event_id=str(uuid5(NAMESPACE_URL, f"dev-agent/human/{request_id}/consumed")),
+            event_type="task.human_response_consumed",
+            task_id=task.task_id,
+            provider=self._actor,
+            payload={"source": "human_interaction", "request_id": request_id},
+        )
+        if self._has_event(event.event_id):
+            response = self._store.get_human_response(request_id)
+            if response is None:
+                raise ValueError(f"human response is unavailable: {request_id}")
+            return TaskLifecycleTransition(task=task, event=event, replayed=True), response
+        self._ensure_transition_allowed(task.status, TaskStatus.READY)
+        task.status = TaskStatus.READY
+        task.metadata["human_response_request_id"] = request_id
+        task.metadata["fresh_continuation"] = True
+        response = self._store.commit_human_response_transition(request_id, task=task, event=event, lease_proof=lease_proof)
+        return TaskLifecycleTransition(task=task, event=event), response
+
     def _transition(
         self,
         task: Task,
@@ -217,6 +275,11 @@ class TaskLifecycleCoordinator:
             TaskStatus.WAITING_APPROVAL,
         }:
             raise ValueError("reconciliation must be resolved before execution resumes")
+        if current is TaskStatus.WAITING_HUMAN and target not in {
+            TaskStatus.WAITING_HUMAN,
+            TaskStatus.READY,
+        }:
+            raise ValueError("Human response must be consumed before execution resumes")
 
 
 __all__ = ["TaskLifecycleCoordinator", "TaskLifecycleTransition"]

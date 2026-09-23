@@ -23,6 +23,14 @@ from .runtime import (
     McpRuntimeAdapter,
     McpUnknownOutcome,
 )
+from .human import (
+    CodexExpertProposal,
+    CodexMcpEnvelope,
+    CodexMcpExpertAdapter,
+    CodexMcpHumanAdapter,
+    CodexMcpProtocolError,
+    McpJsonLineTransport,
+)
 
 __all__ = [
     "MCP_TOOL_SPECS",
@@ -39,4 +47,10 @@ __all__ = [
     "McpRejected",
     "McpRuntimeAdapter",
     "McpUnknownOutcome",
+    "CodexExpertProposal",
+    "CodexMcpEnvelope",
+    "CodexMcpExpertAdapter",
+    "CodexMcpHumanAdapter",
+    "CodexMcpProtocolError",
+    "McpJsonLineTransport",
 ]

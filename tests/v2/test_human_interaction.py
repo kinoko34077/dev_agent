@@ -4,6 +4,7 @@ import pytest
 
 from src.dev_agent.domain.protocol import Task, TaskStatus
 from src.dev_agent.human import HumanRequest, HumanResponse, SQLiteHumanInteractionPort
+from src.dev_agent.intelligence.lifecycle import TaskLifecycleCoordinator
 from src.dev_agent.scheduler.queue import DurableQueue
 from src.dev_agent.scheduler.worker import WorkerRunner
 from src.dev_agent.state.sqlite_store import SQLiteStateStore
@@ -141,3 +142,42 @@ def test_waiting_human_is_deferred_without_blocking_other_ready_work(tmp_path):
         second = runner.run_once()
         assert second.status is TaskStatus.COMPLETED
         assert queue.snapshot(ready.task_id).state == "completed"
+
+
+def test_lifecycle_parks_and_resumes_exact_human_request(tmp_path):
+    path = tmp_path / "human-lifecycle.sqlite3"
+    request = HumanRequest(
+        request_id="human-request-lifecycle",
+        root_id="root-lifecycle",
+        task_id="11111111-1111-4111-8111-111111111111",
+        attempt_id="attempt-lifecycle",
+        reason="protected path requires a decision",
+        question="May the protected path change be proposed?",
+        context={"path": "spec/v2/GATE_STATUS.json"},
+        allowed_answers=("allow", "deny"),
+        response_shape={"decision": "allow|deny"},
+    )
+    task = Task(objective="protected decision", status=TaskStatus.RUNNING, task_id=request.task_id)
+
+    with SQLiteStateStore(path) as store:
+        store.save_task(task)
+        lifecycle = TaskLifecycleCoordinator(store)
+        parked = lifecycle.park_for_human(task.task_id, request)
+        assert parked.task.status is TaskStatus.WAITING_HUMAN
+        assert store.get_human_request(request.request_id) == request
+
+        response = HumanResponse(
+            request_id=request.request_id,
+            responder="human:operator",
+            response={"decision": "deny"},
+            decision="deny",
+            received_at="2026-09-23T00:00:00+00:00",
+        )
+        store.save_human_response(response)
+        resumed, consumed = lifecycle.consume_human_response(task.task_id, request.request_id)
+
+        assert resumed.task.status is TaskStatus.READY
+        assert consumed == response
+        assert store.load_task(task.task_id).status is TaskStatus.READY
+        with pytest.raises(ValueError, match="already consumed"):
+            lifecycle.consume_human_response(task.task_id, request.request_id)
