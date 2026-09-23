@@ -73,6 +73,27 @@ class ConversationMessage:
             self.source,
         )
 
+    def to_dict(self) -> dict[str, str | None]:
+        return {
+            "message_id": self.message_id,
+            "binding_key": self.binding_key,
+            "guild_id": self.guild_id,
+            "channel_id": self.channel_id,
+            "thread_id": self.thread_id,
+            "created_at": self.created_at,
+            "received_at": self.received_at,
+            "speaker_role": self.speaker_role,
+            "speaker_id": self.speaker_id,
+            "speaker_name": self.speaker_name,
+            "direction": self.direction,
+            "content": self.content,
+            "reply_to_message_id": self.reply_to_message_id,
+            "message_kind": self.message_kind,
+            "root_id": self.root_id,
+            "run_id": self.run_id,
+            "source": self.source,
+        }
+
     @classmethod
     def from_row(cls, row: Any) -> "ConversationMessage":
         return cls(

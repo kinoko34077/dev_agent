@@ -30,5 +30,16 @@ class ConversationLog:
     ) -> tuple[ConversationMessage, ...]:
         return tuple(self._store.list_discord_conversation_messages(binding_key, limit=limit, max_chars=max_chars))
 
+    def list_archive_candidates(self, *, cutoff: str, per_channel_limit: int) -> tuple[ConversationMessage, ...]:
+        return tuple(
+            self._store.list_discord_conversation_archive_candidates(
+                cutoff=cutoff,
+                per_channel_limit=per_channel_limit,
+            )
+        )
+
+    def delete(self, message_ids: list[str]) -> int:
+        return self._store.delete_discord_conversation_messages(message_ids)
+
 
 __all__ = ["ConversationLog", "ConversationMessage"]

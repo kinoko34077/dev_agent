@@ -211,6 +211,45 @@ class CoreStateRepository:
                 break
         return result
 
+    def list_discord_conversation_archive_candidates(
+        self,
+        *,
+        cutoff: str,
+        per_channel_limit: int,
+    ) -> list[ConversationMessage]:
+        if not isinstance(cutoff, str) or not cutoff.strip():
+            raise ValueError("cutoff must be non-empty text")
+        if isinstance(per_channel_limit, bool) or not isinstance(per_channel_limit, int) or per_channel_limit < 1:
+            raise ValueError("per_channel_limit must be positive")
+        rows = self.connection.execute(
+            """SELECT message_id, binding_key, guild_id, channel_id, thread_id,
+                      created_at, received_at, speaker_role, speaker_id,
+                      speaker_name, direction, content, reply_to_message_id,
+                      message_kind, root_id, run_id, source
+                 FROM (
+                    SELECT discord_conversation_messages.*,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY binding_key
+                               ORDER BY created_at ASC, received_at ASC, message_id ASC
+                           ) AS row_number
+                      FROM discord_conversation_messages
+                 )
+                WHERE created_at < ? OR row_number > ?
+                ORDER BY created_at ASC, received_at ASC, message_id ASC""",
+            (cutoff, per_channel_limit),
+        ).fetchall()
+        return [ConversationMessage.from_row(row) for row in rows]
+
+    def delete_discord_conversation_messages(self, message_ids: list[str]) -> int:
+        if not isinstance(message_ids, list) or not all(isinstance(item, str) and item.strip() for item in message_ids):
+            raise ValueError("message_ids must be a non-empty list of identifiers")
+        placeholders = ",".join("?" for _ in message_ids)
+        cursor = self.connection.execute(
+            f"DELETE FROM discord_conversation_messages WHERE message_id IN ({placeholders})",
+            tuple(message_ids),
+        )
+        return cursor.rowcount
+
     def list_pending_human_requests(self) -> list[HumanRequest]:
         rows = self.connection.execute(
             "SELECT request_payload FROM human_requests WHERE status IN ('pending', 'answered') ORDER BY requested_at, request_id"

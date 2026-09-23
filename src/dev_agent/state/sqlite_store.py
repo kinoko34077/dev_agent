@@ -272,6 +272,24 @@ class SQLiteStateStore:
         )
 
     @_serialized
+    def list_discord_conversation_archive_candidates(
+        self,
+        *,
+        cutoff: str,
+        per_channel_limit: int,
+    ) -> list[ConversationMessage]:
+        return self._core.list_discord_conversation_archive_candidates(
+            cutoff=cutoff,
+            per_channel_limit=per_channel_limit,
+        )
+
+    @_serialized
+    def delete_discord_conversation_messages(self, message_ids: list[str]) -> int:
+        deleted = self._core.delete_discord_conversation_messages(message_ids)
+        self.connection.commit()
+        return deleted
+
+    @_serialized
     def list_pending_human_requests(self) -> list[HumanRequest]:
         return self._core.list_pending_human_requests()
 
