@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import subprocess
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -22,6 +25,9 @@ def test_launcher_is_repo_relative_and_does_not_register_os_startup():
 
 
 def test_launcher_runs_from_another_working_directory_and_preserves_runtime_boundary(tmp_path):
+    if os.name != "nt":
+        pytest.skip("Windows BAT invocation is Windows-specific")
+
     working_directory = tmp_path / "operator cwd with spaces"
     data_directory = tmp_path / "runtime state with spaces"
     working_directory.mkdir()
