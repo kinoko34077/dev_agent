@@ -8,13 +8,14 @@
   "configuration": {
     "application_id": "ignored_local_env_only",
     "public_key": "ignored_local_env_only",
-    "bot_token": "not_present",
+    "bot_token": "configured_in_ignored_local_env",
     "token_logged_or_persisted": false,
-    "optional_discord_dependency": "not_installed_in_verification_environment"
+    "optional_discord_dependency": "discord.py 2.7.1 installed for live smoke"
   },
   "phase_a": {
-    "gateway_connection": "NOT_VERIFIED_EXTERNAL",
-    "message_content_intent": "operator_portal_setup_required",
+    "gateway_connection": "BLOCKED_PORTAL_PRIVILEGED_INTENT",
+    "discord_login": "reached_without_token_error",
+    "message_content_intent": "NOT_ENABLED_IN_DEVELOPER_PORTAL",
     "echo_and_lazy_configuration_tests": "PASS",
     "bot_authored_message_filter": "PASS"
   },
@@ -64,8 +65,8 @@
     "PHASE8_LIVE_ACTIVATION": "NOT_VERIFIED"
   },
   "limitations": [
-    "No Bot Token was supplied, so Gateway, real message, button, restart-delivery, and offline-delivery evidence remain external setup work.",
-    "discord.py remains an optional dependency and was not installed for core verification.",
+    "The Bot Token is configured only in the ignored local .env; Discord login reached the Gateway boundary, but the Portal must enable Message Content Intent before live message handling can proceed.",
+    "Real message, button, restart-delivery, and offline-delivery evidence remain pending Portal enablement and a live server interaction.",
     "This evidence does not promote a formal Gate or replace the existing Operation/Coordination/Human authority."
   ],
   "test_refs": [
