@@ -5,7 +5,11 @@ from types import SimpleNamespace
 from src.dev_agent.discord.auth import DiscordAuthorizer
 from src.dev_agent.discord.binding import DiscordBindingKey
 from src.dev_agent.discord.conversation_log import ConversationLog, ConversationMessage
-from src.dev_agent.discord.context import build_bounded_context, sync_history_once
+from src.dev_agent.discord.context import (
+    build_bounded_context,
+    conversation_message_from_discord,
+    sync_history_once,
+)
 from src.dev_agent.state.sqlite_store import SQLiteStateStore
 
 
@@ -87,3 +91,51 @@ def test_history_sync_is_idempotent_and_filters_unauthorized_human(tmp_path) -> 
         assert sync_history_once(messages, log, key, authorizer=authorizer, bot_user_id="99", current_message_id="9999") == 1
         assert sync_history_once(messages, log, key, authorizer=authorizer, bot_user_id="99", current_message_id="9999") == 0
         assert [item.content for item in log.list_context("10|20|30")] == ["yes"]
+
+
+def test_conversation_message_preserves_numeric_discord_reply_reference() -> None:
+    key = DiscordBindingKey("10", "20", "30")
+    message = SimpleNamespace(
+        id=1201,
+        author=SimpleNamespace(id=42, bot=False, name="Human"),
+        created_at=None,
+        reference=SimpleNamespace(message_id=1100),
+    )
+
+    row = conversation_message_from_discord(
+        message,
+        binding_key=key,
+        message_kind="NOTE",
+        message_id="1201",
+        content="その返信の件も",
+        direction="inbound",
+    )
+
+    assert row.reply_to_message_id == "1100"
+
+
+def test_history_sync_preserves_reply_reference_without_replaying_history(tmp_path) -> None:
+    key = DiscordBindingKey("10", "20", "30")
+    authorizer = DiscordAuthorizer(allowed_user_ids={"42"})
+    message = SimpleNamespace(
+        id=1301,
+        author=SimpleNamespace(id=42, bot=False, name="Human"),
+        content="その返信の件も",
+        webhook_id=None,
+        reference=SimpleNamespace(message_id=1200),
+    )
+
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        log = ConversationLog(store)
+        assert sync_history_once(
+            [message],
+            log,
+            key,
+            authorizer=authorizer,
+            bot_user_id="99",
+            current_message_id="9999",
+        ) == 1
+
+        row = log.list_context("10|20|30")[0]
+
+    assert row.reply_to_message_id == "1200"

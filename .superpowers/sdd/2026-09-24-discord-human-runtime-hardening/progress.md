@@ -5,3 +5,5 @@ Pre-flight: tasks share the existing Discord outbound ConversationLog and Core O
 Ruling: execute in the current `v2/bootstrap` checkout because the user explicitly requested implementation and push on that branch; no main/master branch is involved. Cost if wrong: concurrent edits would need reconciliation.
 
 Task 1: complete — production `task.completed` payload shape is now covered by `test_final_response_accepts_production_task_completed_text_payload`; focused outbound suite passed 8/8.
+
+Task 2: complete — numeric Discord reply references now survive inbound/history conversion, and HumanResponse acknowledgements are recorded as outbound conversation rows; Discord bot/history/outbound focused suites passed 29/29.

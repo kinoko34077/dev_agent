@@ -1,6 +1,7 @@
 import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -490,6 +491,7 @@ def test_human_request_reply_is_correlated_before_normal_ingress(tmp_path):
     )
     with SQLiteStateStore(state_path) as store:
         bindings = SQLiteDiscordBindingStore(store)
+        conversation_log = ConversationLog(store)
         key = DiscordBindingKey("10", "20", "")
         bindings.bind(key, root_id="root-1", run_id="task-1")
         human = DiscordHumanAdapter(
@@ -505,6 +507,7 @@ def test_human_request_reply_is_correlated_before_normal_ingress(tmp_path):
             bindings=bindings,
             authorizer=DiscordAuthorizer(allowed_user_ids={"42"}),
             human=human,
+            conversation_log=conversation_log,
         )
         bot.process_commands = lambda _message: asyncio.sleep(0)
         handler = bot.on_message
@@ -527,6 +530,7 @@ def test_human_request_reply_is_correlated_before_normal_ingress(tmp_path):
 
             async def send(self, content):
                 self.sent.append(content)
+                return SimpleNamespace(id=703, author=SimpleNamespace(id=99, bot=True, name="dev_agent"))
 
         class _Reference:
             message_id = 700
@@ -546,6 +550,9 @@ def test_human_request_reply_is_correlated_before_normal_ingress(tmp_path):
 
         assert message.channel.sent == ["回答を受け付けました。"]
         assert store.get_human_response(request.request_id).decision == "A"
+        rows = conversation_log.list_context("10|20|")
+        assert rows[-1].content == "回答を受け付けました。"
+        assert rows[-1].reply_to_message_id == "702"
 
 
 def test_scope_commands_persist_scope_for_the_current_channel(tmp_path):

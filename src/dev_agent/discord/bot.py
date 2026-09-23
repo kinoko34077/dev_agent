@@ -364,7 +364,25 @@ def build_bot(
                             direction="inbound",
                         )
                     )
-                await sender.send(message.channel, "回答を受け付けました。")
+                acknowledgement = "回答を受け付けました。"
+                sent_message = await sender.send(message.channel, acknowledgement)
+                sent_id = str(getattr(sent_message, "id", ""))
+                if conversation_log is not None and sent_id.isdecimal():
+                    conversation_log.append(
+                        conversation_message_from_discord(
+                            sent_message,
+                            binding_key=DiscordBindingKey(
+                                projected_message.guild_id,
+                                projected_message.channel_id,
+                                projected_message.thread_id,
+                            ),
+                            message_kind="HUMAN_RESPONSE_ACK",
+                            message_id=sent_id,
+                            content=acknowledgement,
+                            direction="outbound",
+                            reply_to_message_id=projected_message.message_id,
+                        )
+                    )
                 return
         try:
             event = ingress.accept(projected_message)

@@ -19,6 +19,15 @@ def _iso(value: Any) -> str:
     return value.isoformat() if hasattr(value, "isoformat") else datetime.now(timezone.utc).isoformat()
 
 
+def _reply_reference_id(message: Any) -> str | None:
+    """Return only a bounded Discord message-reference ID."""
+
+    reference = getattr(message, "reference", None)
+    candidate = getattr(reference, "message_id", None) if reference is not None else None
+    value = str(candidate) if candidate is not None else ""
+    return value if value.isdecimal() and len(value) <= 32 else None
+
+
 def build_bounded_context(
     log: ConversationLog,
     binding_key: DiscordBindingKey,
@@ -56,6 +65,7 @@ def conversation_message_from_discord(
     direction: str,
     root_id: str | None = None,
     run_id: str | None = None,
+    reply_to_message_id: str | None = None,
 ) -> ConversationMessage:
     """Create one sanitized log row from an already-authorized Discord event."""
 
@@ -75,7 +85,11 @@ def conversation_message_from_discord(
         speaker_name=str(getattr(author, "name", "dev_agent" if direction == "outbound" else "Human"))[:64],
         direction=direction,
         content=content,
-        reply_to_message_id=None,
+        reply_to_message_id=(
+            reply_to_message_id
+            if isinstance(reply_to_message_id, str) and reply_to_message_id.isdecimal() and len(reply_to_message_id) <= 32
+            else _reply_reference_id(message)
+        ),
         message_kind=message_kind,
         root_id=root_id,
         run_id=run_id,
@@ -142,7 +156,7 @@ def sync_history_once(
             speaker_name=str(getattr(author, "name", author_id))[:64] or author_id,
             direction=direction,
             content=content,
-            reply_to_message_id=None,
+            reply_to_message_id=_reply_reference_id(item),
             message_kind="HISTORY_SYNC",
             root_id=None,
             run_id=None,
