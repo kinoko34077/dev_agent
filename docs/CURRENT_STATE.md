@@ -5,11 +5,11 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Remote HEAD before this documentation sync | `336be5437f1025e11320739d2387f9246beff9db` (`feat: add discord outbound state projections`) |
+| Remote HEAD before this documentation sync | `04ef70023a1bc70429dc2c2d0e739d7d55df6082` (`docs: record discord outbound projection`) |
 | Latest implementation baseline before this documentation sync | `336be5437f1025e11320739d2387f9246beff9db` (`feat: add discord outbound state projections`) |
-| Latest evidence baseline before this sync | `discord-outbound-projection-20260923.json` is added by this sync |
+| Latest evidence baseline before this sync | `discord-outbound-projection-20260923.json` |
 | Implementation/evidence baseline | `336be54` composes the standard Discord runner with the existing SQLite StateStore, Operation ingress/status, Human/Approval adapters, Process Coordination, and a read-only progress/HumanRequest outbound projection while keeping RuntimeCoordinator as execution owner. Unauthorized and duplicate messages remain silent; formal Gates remain unchanged. |
-| Worktree | documentation/evidence synchronization in progress; implementation commit `336be54` is already pushed |
+| Worktree | documentation-only follow-up synchronization in progress; implementation commit `336be54` and prior evidence sync are already pushed |
 | Local regression | `1549 passed, 1 skipped` (`python -m pytest tests/v2 -q`) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |

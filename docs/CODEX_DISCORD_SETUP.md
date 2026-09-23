@@ -48,8 +48,26 @@ Start the Phase A/early Phase B adapter:
 python scripts/run_discord_bot.py
 ```
 
-The current MVP echoes human messages as `受信: ...`, ignores Bot-authored
-messages, and exposes `/dir` and `/file` only as bounded repository-relative
-scope/reference commands. A live Gateway result requires the external Portal,
-server installation, intent, permission, and token setup above; local tests do
-not claim that external evidence.
+The current MVP echoes accepted human messages as `受信: ...`, ignores
+Bot-authored messages, and exposes `/dir` and `/file` only as bounded
+repository-relative scope/reference commands. The standard runner also starts
+the read-only outbound projection after Gateway readiness; it observes existing
+Core state for progress and pending HumanRequest delivery without owning Tasks,
+the queue, retry policy, or Approval authority.
+
+## Live message smoke order
+
+The runner does not backfill Discord history. Use this order:
+
+1. Start `python scripts/run_discord_bot.py` and keep it running.
+2. Wait for `Discord Human UI bot ready`.
+3. From the authorized Human Discord client, send a **new** message.
+4. Confirm the echo, Core ingress/binding result, and any bounded outbound
+   projection in the same channel or thread.
+
+Posting a message before starting or restarting the runner does not test the
+Gateway ingress path. A real interactive client is required for live message,
+progress, HumanRequest, and button evidence; local tests and Gateway login do
+not claim that external E2E. Approval-button delivery additionally requires an
+explicit Core-owned approval view/submit boundary; the Discord adapter never
+creates approval authority itself.
