@@ -9,6 +9,7 @@ metadata as the idempotency boundary.
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 import hashlib
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
@@ -21,7 +22,8 @@ from .binding import (
     InMemoryDiscordBindingStore,
     SQLiteDiscordBindingStore,
 )
-from .renderer import render_human_request, render_progress
+from .conversation_log import ConversationLog, ConversationMessage
+from .renderer import render_final_response, render_human_request, render_progress
 
 
 SendCallback = Callable[[DiscordBinding, str, Any | None], Awaitable[Any] | Any]
@@ -41,6 +43,11 @@ def _message_id(value: Any) -> str:
 def _progress_delivery_key(root_id: str, marker: str) -> str:
     digest = hashlib.sha256(marker.encode("utf-8", errors="replace")).hexdigest()[:32]
     return f"progress:{root_id}:{digest}"
+
+
+def _final_delivery_key(task_id: str, marker: str) -> str:
+    digest = hashlib.sha256(marker.encode("utf-8", errors="replace")).hexdigest()[:32]
+    return f"final:{task_id}:{digest}"
 
 
 def _event_stage(status: str, event: Mapping[str, Any] | None) -> tuple[str, str | None]:
@@ -85,6 +92,7 @@ class DiscordOutboundPublisher:
         send: SendCallback,
         approval_view_factory: ApprovalViewFactory | None = None,
         human_request_view_factory: HumanRequestViewFactory | None = None,
+        conversation_log: ConversationLog | None = None,
     ) -> None:
         required_store = (
             "list_pending_human_requests",
@@ -102,11 +110,14 @@ class DiscordOutboundPublisher:
             raise TypeError("approval_view_factory must be callable")
         if human_request_view_factory is not None and not callable(human_request_view_factory):
             raise TypeError("human_request_view_factory must be callable")
+        if conversation_log is not None and not isinstance(conversation_log, ConversationLog):
+            raise TypeError("conversation_log must implement the ConversationLog boundary")
         self._store = store
         self._bindings = bindings
         self._send = send
         self._approval_view_factory = approval_view_factory
         self._human_request_view_factory = human_request_view_factory
+        self._conversation_log = conversation_log
         self._last_error_category: str | None = None
 
     @property
@@ -137,6 +148,28 @@ class DiscordOutboundPublisher:
             result = await result
         message_id = _message_id(result)
         self._bindings.record_delivery(delivery_key, message_id)
+        if self._conversation_log is not None:
+            self._conversation_log.append(
+                ConversationMessage(
+                    message_id=message_id,
+                    binding_key="|".join((binding.key.guild_id, binding.key.channel_id, binding.key.thread_id)),
+                    guild_id=binding.key.guild_id,
+                    channel_id=binding.key.channel_id,
+                    thread_id=binding.key.thread_id,
+                    created_at=datetime.now(timezone.utc).isoformat(),
+                    received_at=datetime.now(timezone.utc).isoformat(),
+                    speaker_role="assistant",
+                    speaker_id="dev_agent",
+                    speaker_name="dev_agent",
+                    direction="outbound",
+                    content=content,
+                    reply_to_message_id=None,
+                    message_kind=delivery_key.split(":", 1)[0].upper(),
+                    root_id=binding.root_id,
+                    run_id=binding.run_id,
+                    source="discord",
+                )
+            )
         return True
 
     def _binding_for_task(self, task_id: str) -> DiscordBinding | None:
@@ -203,6 +236,30 @@ class DiscordOutboundPublisher:
                 published += 1
         return published
 
+    async def publish_final_responses(self) -> int:
+        published = 0
+        for binding in self._bindings.list_bindings():
+            latest = self._latest_for_binding(binding)
+            if latest is None:
+                continue
+            task, event = latest
+            if not isinstance(event, Mapping) or event.get("event_type") != "task.completed":
+                continue
+            payload = event.get("payload")
+            segments = payload.get("text_segments") if isinstance(payload, Mapping) else None
+            if not isinstance(segments, str) and not isinstance(segments, (list, tuple)):
+                continue
+            if isinstance(segments, str) and not segments.strip():
+                continue
+            if isinstance(segments, (list, tuple)) and not any(isinstance(item, str) and item.strip() for item in segments):
+                continue
+            content = render_final_response(segments)
+            event_id = event.get("event_id")
+            marker = event_id if isinstance(event_id, str) and event_id else task.updated_at
+            if await self._send_once(binding, _final_delivery_key(task.task_id, marker), content):
+                published += 1
+        return published
+
     async def publish_approvals(self) -> int:
         if self._approval_view_factory is None:
             return 0
@@ -232,10 +289,12 @@ class DiscordOutboundPublisher:
         human_requests = await self.publish_human_requests()
         approvals = await self.publish_approvals()
         progress = await self.publish_progress()
+        final_responses = await self.publish_final_responses()
         return {
             "human_requests": human_requests,
             "approvals": approvals,
             "progress": progress,
+            "final_responses": final_responses,
         }
 
     async def serve(

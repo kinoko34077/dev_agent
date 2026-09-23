@@ -4,6 +4,7 @@ import asyncio
 from uuid import uuid4
 
 from src.dev_agent.discord.binding import DiscordBindingKey, SQLiteDiscordBindingStore
+from src.dev_agent.discord.conversation_log import ConversationLog
 from src.dev_agent.discord.outbound import DiscordOutboundPublisher
 from src.dev_agent.domain.protocol import Event, Task, TaskStatus
 from src.dev_agent.human import HumanRequest
@@ -115,6 +116,45 @@ def test_latest_progress_is_projected_without_replaying_older_events(tmp_path):
         assert second["progress"] == 0
         assert len(sent) == 1
         assert "完了" in sent[0]
+
+
+def test_final_response_is_projected_once_and_recorded_after_send(tmp_path):
+    sent: list[str] = []
+
+    async def send(_binding, content, view=None):
+        sent.append(content)
+        return str(950 + len(sent))
+
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        task = Task(objective="final response")
+        task.status = TaskStatus.COMPLETED
+        store.save_task(task)
+        bindings, _key = _binding(store, task)
+        store.append_event(
+            Event(
+                event_id=str(uuid4()),
+                event_type="task.completed",
+                task_id=task.task_id,
+                payload={"text_segments": ["READMEを確認しました。", "問題ありません。"]},
+            )
+        )
+        publisher = DiscordOutboundPublisher(
+            store,
+            bindings,
+            send=send,
+            conversation_log=ConversationLog(store),
+        )
+
+        first = asyncio.run(publisher.publish_once())
+        second = asyncio.run(publisher.publish_once())
+
+        assert first["final_responses"] == 1
+        assert second["final_responses"] == 0
+        assert sent[-1] == "READMEを確認しました。\n問題ありません。"
+        rows = ConversationLog(store).list_context("10|20|30")
+        assert rows[-1].message_id == "952"
+        assert rows[-1].direction == "outbound"
+        assert rows[-1].content == sent[-1]
 
 
 def test_approval_projection_requires_an_explicit_core_submit_boundary(tmp_path):

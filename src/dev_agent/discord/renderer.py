@@ -97,4 +97,17 @@ def render_read_projection(projection: Mapping[str, object]) -> str:
     return _bounded("現在の状態\n\n" + "\n".join(f"- {line}" for line in lines))
 
 
-__all__ = ["render_echo", "render_human_request", "render_ingress_ack", "render_progress", "render_read_projection"]
+def render_final_response(text_segments: object) -> str:
+    """Render a bounded natural-language completion projection."""
+
+    if isinstance(text_segments, str):
+        values = [text_segments]
+    elif isinstance(text_segments, (list, tuple)):
+        values = [item for item in text_segments if isinstance(item, str) and item.strip()]
+    else:
+        values = []
+    text = "\n".join(_safe_text(item, maximum=800) for item in values).strip()
+    return _bounded(text or "作業が完了しました。")
+
+
+__all__ = ["render_echo", "render_final_response", "render_human_request", "render_ingress_ack", "render_progress", "render_read_projection"]

@@ -531,6 +531,7 @@ def run_from_environment(*, env_path: str | Path | None = None, workspace: str |
                 authorizer=authorizer,
                 submit=composition.human.receive_response,
             ),
+            conversation_log=ConversationLog(composition.store),
         )
         bot._dev_agent_discord_composition = composition
         bot._dev_agent_discord_human = composition.human
