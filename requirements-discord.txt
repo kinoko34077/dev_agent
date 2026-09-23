@@ -1,0 +1,2 @@
+# Optional Discord Human UI adapter dependency. Core dev_agent tests do not require it.
+discord.py>=2.3,<3
