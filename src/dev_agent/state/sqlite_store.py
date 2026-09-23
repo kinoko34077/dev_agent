@@ -14,7 +14,7 @@ from typing import Any
 from .._sqlite import connect
 from ..domain.protocol import Event, Step, Task, TaskStatus, ToolResult
 from ..human import HumanRequest, HumanResponse
-from ..discord.conversation_log import ConversationMessage
+from .conversation import ConversationMessage
 from ..persistence.lease import assert_active_lease
 from .core_repository import CoreStateRepository
 from .effects_repository import EffectAuditRepository

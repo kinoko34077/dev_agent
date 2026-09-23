@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "evidence_id": "discord-conversation-runtime-20260924",
+  "scope": "NON_GATE_DISCORD_CONVERSATION_RUNTIME",
+  "status": "LOCAL_BOUNDARY_VERIFIED",
+  "verified_at": "2026-09-24",
+  "implementation_commits": [
+    "d7cdb6d feat: archive durable discord conversation logs",
+    "67a5a3d feat: connect safe discord intent and waits"
+  ],
+  "durable_wait": {
+    "queue_boundary": "existing DurableQueue.defer_queued_until and wake_due",
+    "runtime_wake": "existing OperationService.maintenance_tick user_delay wake",
+    "max_seconds": 3600,
+    "worker_lease_held_during_wait": false,
+    "wake_is_idempotent": true,
+    "live_wall_clock_smoke": "NOT_VERIFIED"
+  },
+  "conversation_log": {
+    "store": "existing SQLiteStateStore",
+    "separate_from_task_state": true,
+    "inbound_deduplication": "message_id",
+    "outbound_recorded_after_send_id": true,
+    "bounded_sanitized_content": true,
+    "history_is_context_only": true,
+    "archive": "JSONL gzip plus fsync/hash/count manifest; rows removed only after verification",
+    "archive_failure_retains_rows": true,
+    "read_only_archive_search": true
+  },
+  "intent": {
+    "proposal_layer": ["CHAT", "NEW_REQUEST", "FOLLOW_UP", "READ_QUERY", "WAIT"],
+    "explicit_commands_remain_authoritative": true,
+    "chat_creates_task": false,
+    "wait_uses_existing_operation_boundary": true,
+    "malformed_proposal_falls_back_to_deterministic_routing": true,
+    "approval_cancel_interrupt_authority_from_plain_text": false
+  },
+  "verification": {
+    "focused_wait_intent_composition": "PASS",
+    "archive_tests": "PASS",
+    "full_discord_suite": "PASS",
+    "full_tests_v2": "1610 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "credential_scan": "known Discord token fragments absent from tracked files; local .env remains untracked",
+    "exact_head_ci": "PENDING_PUSH",
+    "live_discord_client": "NOT_VERIFIED"
+  },
+  "formal_gates": {
+    "D9_DOGFOOD": "VERIFIED",
+    "D9_PRODUCTION_DEPLOYMENT": "DEFERRED_NOT_READY",
+    "PHASE8_PREPARATION": "PREPARATION_ONLY",
+    "PHASE8_LIVE_ACTIVATION": "NOT_VERIFIED"
+  },
+  "security": {
+    "tokens_or_credentials_recorded": false,
+    "raw_discord_history_recorded": false,
+    "new_scheduler": false,
+    "new_state_store": false,
+    "new_discord_task_authority": false
+  }
+}
