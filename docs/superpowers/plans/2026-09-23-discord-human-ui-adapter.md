@@ -10,6 +10,10 @@
 
 **Spec:** `dev_agent Discord Human UI Adapter 実装指示書` supplied in the user request; existing `docs/requirements/multi-free-provider/05-agent-backend-codex-mcp-and-authority.md` and `src/dev_agent/human/` contracts remain authoritative.
 
+**Status (2026-09-23):** Tasks 1–4 are implemented and locally verified. Task 5
+is being synchronized with local Evidence. Gateway/token/Portal setup and live
+Discord E2E remain external prerequisites; formal D9/Phase 8 Gates are unchanged.
+
 ## Global Constraints
 
 - Never commit `DISCORD_BOT_TOKEN`, `.env`, credentials, raw Discord messages, or raw provider output.
@@ -161,4 +165,3 @@ Do not add `.env`.
 - [ ] **Step 2: Run full `tests/v2`, Architecture, compileall, JSON/diff/secret checks.**
 - [ ] **Step 3: Push and confirm exact-head CI.**
 - [ ] **Step 4: Do not claim live Discord Gateway, Button E2E, restart/offline delivery, or Phase 8 Gate promotion until a Bot Token, Message Content Intent, server install, and real event evidence exist.**
-

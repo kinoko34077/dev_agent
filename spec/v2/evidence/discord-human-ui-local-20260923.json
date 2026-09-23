@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "evidence_id": "discord-human-ui-local-20260923",
+  "scope": "NON_GATE_DISCORD_HUMAN_UI",
+  "status": "LOCAL_COMPOSITION_VERIFIED",
+  "verified_at": "2026-09-23",
+  "implementation_commit": "403fc79f6c5570c929bc6e1518f2be67c643753f",
+  "configuration": {
+    "application_id": "ignored_local_env_only",
+    "public_key": "ignored_local_env_only",
+    "bot_token": "not_present",
+    "token_logged_or_persisted": false,
+    "optional_discord_dependency": "not_installed_in_verification_environment"
+  },
+  "phase_a": {
+    "gateway_connection": "NOT_VERIFIED_EXTERNAL",
+    "message_content_intent": "operator_portal_setup_required",
+    "echo_and_lazy_configuration_tests": "PASS",
+    "bot_authored_message_filter": "PASS"
+  },
+  "phase_b_local": {
+    "bounded_renderer": "PASS",
+    "dir_file_scope": "PASS",
+    "numeric_identity_authorization": "PASS",
+    "approval_delegate": "PASS",
+    "progress_projection": "PASS"
+  },
+  "durable_boundary": {
+    "state_schema_version": 8,
+    "binding": "channel_thread_to_root_run_pointer_only",
+    "message_idempotency": "restart_persistent",
+    "delivery_metadata": "restart_persistent",
+    "raw_discord_content_persisted": false,
+    "task_state_copied_to_discord_tables": false
+  },
+  "human_authority": {
+    "port": "existing HumanInteractionPort",
+    "request_storage": "existing SQLite human_requests",
+    "response_correlation": "exact request_id",
+    "consume_once": true,
+    "discord_actor": "discord:<numeric_user_id>",
+    "codex_expert_as_human": false,
+    "approval_semantics": "delegated_to_existing_authority"
+  },
+  "core_boundary": {
+    "new_request": "injected existing Operation callback",
+    "intervention": "injected existing Process Coordination callback",
+    "read_query": "injected status projection callback",
+    "discord_owned_scheduler": false,
+    "discord_owned_task_state": false,
+    "discord_owned_retry_engine": false
+  },
+  "verification": {
+    "focused": "44 passed",
+    "full_tests_v2": "1539 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "codex_direct_implementation": 0
+  },
+  "formal_gates": {
+    "D9_DOGFOOD": "VERIFIED",
+    "D9_PRODUCTION_DEPLOYMENT": "DEFERRED_NOT_READY",
+    "PHASE8_PREPARATION": "PREPARATION_ONLY",
+    "PHASE8_LIVE_ACTIVATION": "NOT_VERIFIED"
+  },
+  "limitations": [
+    "No Bot Token was supplied, so Gateway, real message, button, restart-delivery, and offline-delivery evidence remain external setup work.",
+    "discord.py remains an optional dependency and was not installed for core verification.",
+    "This evidence does not promote a formal Gate or replace the existing Operation/Coordination/Human authority."
+  ],
+  "test_refs": [
+    "tests/v2/test_discord_config.py",
+    "tests/v2/test_discord_adapter.py",
+    "tests/v2/test_discord_bot.py",
+    "tests/v2/test_discord_core_adapter.py",
+    "tests/v2/test_discord_durable_flow.py",
+    "tests/v2/test_human_interaction.py",
+    "tests/v2/test_codex_human_mcp.py",
+    "tests/v2/test_recovery_sqlite.py"
+  ]
+}

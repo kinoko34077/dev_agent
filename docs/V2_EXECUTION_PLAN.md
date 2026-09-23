@@ -24,6 +24,8 @@ Phase 7後半の安全な拡張と開発運用移管。既存のKernel、Resourc
 
 2026-09-23 operational runtime checkpoint: the existing `RuntimeCoordinator` now has a durable `WAITING_HUMAN` continuation path through the existing SQLite StateStore, while unrelated READY work continues. The bounded Codex JSON-lines adapters separate `HUMAN_REQUIRED` Human Proxy responses from `PROPOSAL_ONLY` Expert Assist proposals; a Codex response is never converted into Human approval. Existing pinned-release/rolling/rollback primitives are composed by `SelfUpdateService` with trusted-ref and preflight checks, durable failed-candidate suppression, and LKG rollback. `start-dev-agent.bat` is a thin foreground launcher only. Evidence: [`operational-human-assist-self-update-local-20260923.json`](../spec/v2/evidence/operational-human-assist-self-update-local-20260923.json). This is local operational evidence and does not change D9 Production Deployment or Phase 8 Gate values; external Codex MCP E2E and OS startup remain deferred.
 
+2026-09-23 Discord Human UI checkpoint: the optional thin adapter now has local configuration/echo/command/rendering tests, durable SQLite channel/thread pointers, restart-safe message idempotency/delivery metadata, exact HumanInteractionPort response correlation, proposal-only Approval delegation, and callback-only projection into existing Operation/Process Coordination boundaries. The ignored local `.env` contains the supplied application metadata but no Bot Token; Portal intent/server installation and live Gateway evidence remain external. This slice does not alter D9/Phase 8 Gates. Evidence: [`discord-human-ui-local-20260923.json`](../spec/v2/evidence/discord-human-ui-local-20260923.json).
+
 The operational slice is a bounded continuation of the existing roadmap, not a new phase: resume R9 fresh-root live execution next, use AR1 only for a naturally observed eligible Worker failure, and keep Stage 6/7/8 work behind the existing Phase 8 activation conditions.
 
 ## Implementation frontier
@@ -77,7 +79,7 @@ Code、local regression、Host Verification、Git integration、remote push、ex
 
 ## External / frozen
 
-G6O1-SIM/LIVE、real paid-provider qualification、OpenAI API、Claude API、OS-level sandbox evidence、Production auto-deploy、unbounded autonomous loop、Discord、Virtual Office UIはHumanの明示再開まで着手しない。G6O1は`DEFERRED_FROZEN` / `NOT VERIFIED` / `roadmap_blocking=false`として扱い、原要求を削除・昇格しない。Compression ServiceはHumanの明示指示で凍結解除されたが、固定profileのpayload最適化に限り、G6O1-SIM/LIVEの検証・billing authorityへ接続しない。
+G6O1-SIM/LIVE、real paid-provider qualification、OpenAI API、Claude API、OS-level sandbox evidence、Production auto-deploy、unbounded autonomous loop、Discord live Gateway/Portal operation、Virtual Office UIは正式Gate候補へ進めない。Discordの薄いlocal UI adapterだけはHuman指示で再開した非Gate sliceであり、Bot Token/Portal setupとlive E2Eは未完了のまま保持する。G6O1は`DEFERRED_FROZEN` / `NOT VERIFIED` / `roadmap_blocking=false`として扱い、原要求を削除・昇格しない。Compression ServiceはHumanの明示指示で凍結解除されたが、固定profileのpayload最適化に限り、G6O1-SIM/LIVEの検証・billing authorityへ接続しない。
 
 ## Development rules
 
