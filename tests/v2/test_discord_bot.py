@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -103,3 +104,115 @@ def test_approval_view_keeps_optional_dependency_lazy(monkeypatch):
             authorizer=DiscordAuthorizer(allowed_user_ids={"42"}),
             submit=lambda *_args: None,
         )
+
+
+def test_unauthorized_message_is_silent_and_never_reaches_core(tmp_path):
+    pytest.importorskip("discord")
+    config = DiscordBotConfig.from_environment(env_path=_env_file(tmp_path))
+    routed = []
+    bot = build_bot(
+        config,
+        workspace=tmp_path,
+        on_event=lambda event: routed.append(event),
+    )
+    handler = bot.on_message
+
+    class _Author:
+        id = 99
+        bot = False
+
+    class _Guild:
+        id = 10
+
+    class _Channel:
+        id = 20
+
+        def __init__(self):
+            self.sent = []
+
+        async def send(self, content):
+            self.sent.append(content)
+
+    class _Message:
+        id = 901
+        author = _Author()
+        guild = _Guild()
+        content = "このファイル確認して"
+
+        def __init__(self):
+            self.channel = _Channel()
+
+    message = _Message()
+    asyncio.run(handler(message))
+
+    assert message.channel.sent == []
+    assert routed == []
+
+
+def test_authorized_read_query_renders_projection_instead_of_echo(tmp_path):
+    pytest.importorskip("discord")
+    config = DiscordBotConfig.from_environment(env_path=_env_file(tmp_path))
+    bot = build_bot(
+        config,
+        workspace=tmp_path,
+        on_event=lambda _event: {"current_action": "Host Verification"},
+    )
+    async def _ignore_commands(_message):
+        return None
+
+    bot.process_commands = _ignore_commands
+    handler = bot.on_message
+
+    class _Author:
+        id = 42
+        bot = False
+
+    class _Guild:
+        id = 10
+
+    class _Channel:
+        id = 20
+
+        def __init__(self):
+            self.sent = []
+
+        async def send(self, content):
+            self.sent.append(content)
+
+    class _Message:
+        id = 902
+        author = _Author()
+        guild = _Guild()
+        content = "今何してる"
+
+        def __init__(self):
+            self.channel = _Channel()
+
+    message = _Message()
+    asyncio.run(handler(message))
+
+    assert message.channel.sent == ["処理: Host Verification"]
+
+
+def test_environment_runner_injects_durable_core_composition(tmp_path, monkeypatch):
+    from src.dev_agent.discord import bot as discord_bot
+
+    config_path = _env_file(tmp_path)
+    captured = {}
+
+    class _Bot:
+        def run(self, token):
+            captured["token"] = token
+
+    def _build(config, **kwargs):
+        captured["config"] = config
+        captured["kwargs"] = kwargs
+        return _Bot()
+
+    monkeypatch.setattr(discord_bot, "build_bot", _build)
+    discord_bot.run_from_environment(env_path=config_path, workspace=tmp_path)
+
+    assert captured["token"] == "token-value"
+    assert captured["kwargs"]["bindings"].__class__.__name__ == "SQLiteDiscordBindingStore"
+    assert callable(captured["kwargs"]["on_event"])
+    assert captured["kwargs"]["authorizer"].is_user_allowed("42") is True

@@ -10,11 +10,13 @@ from pathlib import Path
 import re
 from typing import Any, Mapping
 
-from .adapter import DiscordIngressAdapter, DiscordMessage, DiscordScope
+from .adapter import DiscordIngressAdapter, DiscordMessage, DiscordMessageKind, DiscordScope
 from .approval import DiscordApprovalAdapter
 from .auth import DiscordAuthorizer
 from .binding import InMemoryDiscordBindingStore, SQLiteDiscordBindingStore
-from .renderer import render_echo, render_progress
+from .composition import DiscordRuntimeComposition
+from .renderer import render_echo, render_progress, render_read_projection
+from ..operation import OperationConfig
 
 
 class DiscordConfigurationError(ValueError):
@@ -186,6 +188,7 @@ def build_bot(
     *,
     workspace: str | Path,
     bindings: InMemoryDiscordBindingStore | SQLiteDiscordBindingStore | None = None,
+    authorizer: DiscordAuthorizer | None = None,
     on_event=None,
 ) -> Any:
     """Build the Gateway bot; no Discord connection starts until ``run``."""
@@ -193,11 +196,13 @@ def build_bot(
     if not isinstance(config, DiscordBotConfig):
         raise TypeError("config must be DiscordBotConfig")
     discord, commands = _discord_modules()
-    authorizer = DiscordAuthorizer(
+    authorizer = authorizer or DiscordAuthorizer(
         allowed_user_ids=config.allowed_user_ids,
         allowed_guild_ids=config.allowed_guild_ids,
         allowed_channel_ids=config.allowed_channel_ids,
     )
+    if not isinstance(authorizer, DiscordAuthorizer):
+        raise TypeError("authorizer must be DiscordAuthorizer")
     bindings = bindings or InMemoryDiscordBindingStore()
     if not isinstance(bindings, (InMemoryDiscordBindingStore, SQLiteDiscordBindingStore)):
         raise TypeError("bindings must implement the Discord binding contract")
@@ -225,11 +230,18 @@ def build_bot(
             # Discord itself supplied malformed/unusable metadata; do not echo
             # or route it into the Core boundary.
             return
-        if event is not None and on_event is not None:
+        if event is None:
+            # Unauthorized and duplicate messages are deliberately silent.
+            return
+        result = None
+        if on_event is not None:
             result = on_event(event)
             if inspect.isawaitable(result):
-                await result
-        await message.channel.send(render_echo(message.content))
+                result = await result
+        if event.kind is DiscordMessageKind.READ_QUERY and isinstance(result, Mapping):
+            await message.channel.send(render_read_projection(result))
+        else:
+            await message.channel.send(render_echo(message.content))
         await bot.process_commands(message)
 
     @bot.tree.command(name="dir", description="作業対象ディレクトリを指定します")
@@ -266,8 +278,26 @@ def build_bot(
 def run_from_environment(*, env_path: str | Path | None = None, workspace: str | Path | None = None) -> None:
     root = Path(__file__).resolve().parents[3]
     config = DiscordBotConfig.from_environment(env_path=env_path or root / ".env")
-    bot = build_bot(config, workspace=workspace or root)
-    bot.run(config.bot_token)
+    workspace_path = Path(workspace or root).resolve()
+    data_dir = os.environ.get("DEV_AGENT_DATA_DIR") or str(workspace_path / ".dev_agent")
+    operation_config = OperationConfig.from_environment(data_dir=data_dir)
+    authorizer = DiscordAuthorizer(
+        allowed_user_ids=config.allowed_user_ids,
+        allowed_guild_ids=config.allowed_guild_ids,
+        allowed_channel_ids=config.allowed_channel_ids,
+    )
+    with DiscordRuntimeComposition.open(operation_config, authorizer=authorizer) as composition:
+        bot = build_bot(
+            config,
+            workspace=workspace_path,
+            bindings=composition.bindings,
+            authorizer=authorizer,
+            on_event=composition.core.handle,
+        )
+        bot._dev_agent_discord_composition = composition
+        bot._dev_agent_discord_human = composition.human
+        bot._dev_agent_discord_approval_factory = composition.build_approval_adapter
+        bot.run(config.bot_token)
 
 
 def main(argv: list[str] | None = None) -> int:

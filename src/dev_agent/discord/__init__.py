@@ -17,6 +17,7 @@ from .binding import DiscordBinding, DiscordBindingKey, InMemoryDiscordBindingSt
 from .human import DiscordHumanAdapter
 from .approval import DiscordApprovalAdapter
 from .core import DiscordCoreAdapter
+from .composition import DiscordRuntimeComposition
 
 __all__ = [
     "DiscordAuthorizer",
@@ -32,5 +33,6 @@ __all__ = [
     "DiscordHumanAdapter",
     "DiscordApprovalAdapter",
     "DiscordCoreAdapter",
+    "DiscordRuntimeComposition",
     "classify_message",
 ]
