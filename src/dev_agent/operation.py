@@ -1077,6 +1077,61 @@ class OperationService:
             store.close()
 
     @staticmethod
+    def submit_delayed(
+        config: OperationConfig | None,
+        objective: str,
+        delay_seconds: int,
+        *,
+        wait_reason: str = "user_delay",
+        priority: int = 0,
+        sensitivity: str = "normal",
+        task_type: TaskType | str = TaskType.REASONING,
+        risk: RiskLevel | str = RiskLevel.NORMAL,
+        required_capabilities: list[str] | None = None,
+        inputs: Mapping[str, Any] | None = None,
+        constraints: Mapping[str, Any] | None = None,
+    ) -> Task:
+        """Submit one Task into the existing durable time-wait boundary."""
+
+        config = config or OperationConfig.from_environment()
+        if not isinstance(objective, str) or not objective.strip():
+            raise ValueError("objective must be a non-empty string")
+        if isinstance(delay_seconds, bool) or not isinstance(delay_seconds, int) or not 1 <= delay_seconds <= 3_600:
+            raise ValueError("delay_seconds must be between 1 and 3600")
+        if not isinstance(wait_reason, str) or not wait_reason.strip() or len(wait_reason.strip()) > 128:
+            raise ValueError("wait_reason must be bounded non-empty text")
+        if isinstance(priority, bool) or not isinstance(priority, int):
+            raise ValueError("priority must be an integer")
+        classify_task_capabilities(required_capabilities or [])
+        store = SQLiteStateStore(config.state_path)
+        queue = DurableQueue(config.queue_path)
+        try:
+            now = datetime.now(timezone.utc)
+            wake_at = now.timestamp() + delay_seconds
+            task = Task(
+                objective=objective.strip(),
+                sensitivity=sensitivity,
+                task_type=task_type,
+                risk=risk,
+                required_capabilities=list(required_capabilities or []),
+                inputs=dict(inputs or {}),
+                constraints=dict(constraints or {}),
+                status=TaskStatus.WAITING_DEPENDENCY,
+                metadata={
+                    "wait_reason": wait_reason.strip(),
+                    "wait_until_epoch": wake_at,
+                    "requested_duration_seconds": delay_seconds,
+                },
+            )
+            store.save_task(task)
+            queue.enqueue(task.task_id, priority=priority, max_attempts=task.limits.max_retries + 1)
+            queue.defer_queued_until(task.task_id, wake_at=wake_at, reason=wait_reason.strip())
+            return task
+        finally:
+            queue.close()
+            store.close()
+
+    @staticmethod
     def submit_child(config: OperationConfig | None, parent_task_id: str, objective: str, *, priority: int = 0, sensitivity: str | None = None, task_type: TaskType | str = TaskType.WORKER, risk: RiskLevel | str = RiskLevel.NORMAL, required_capabilities: list[str] | None = None, inputs: Mapping[str, Any] | None = None, constraints: Mapping[str, Any] | None = None) -> Task:
         """Create an explicitly classified child without a language classifier.
 
@@ -1282,6 +1337,9 @@ class OperationService:
         results: list[dict[str, Any]] = []
         self._refresh_deterministic_local_resources(current)
         self._wake_human_tasks()
+        # User-requested waits share the existing durable queue wake boundary;
+        # RuntimeCoordinator remains the only maintenance loop.
+        self.queue.wake_due(now=current, reason="user_delay")
         self._wake_reconciled_provider_tasks()
         self._wake_interrupted_parents()
         self.release_planner_dependencies()

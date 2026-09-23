@@ -167,7 +167,7 @@ class DiscordOutboundPublisher:
                     message_kind=delivery_key.split(":", 1)[0].upper(),
                     root_id=binding.root_id,
                     run_id=binding.run_id,
-                    source="discord",
+                    source="outbound_projection",
                 )
             )
         return True

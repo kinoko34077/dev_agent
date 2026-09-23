@@ -18,6 +18,7 @@ from src.dev_agent.scheduler.queue import DurableQueue
 def test_parse_user_delay_accepts_bounded_japanese_and_english_requests() -> None:
     assert parse_user_delay("20秒待ってから返事して") == 20
     assert parse_user_delay("wait 10 seconds before replying") == 10
+    assert parse_user_delay("1分後に続けて") == 60
 
 
 @pytest.mark.parametrize(
@@ -64,3 +65,17 @@ def test_user_delay_request_is_bounded_and_immutable() -> None:
     request = UserDelayRequest(seconds=20, source="20秒")
     with pytest.raises((AttributeError, TypeError)):
         request.seconds = 21  # type: ignore[misc]
+
+
+def test_queued_user_delay_wakes_once_without_a_worker_lease(tmp_path) -> None:
+    import uuid
+
+    queue = DurableQueue(tmp_path / "queue.sqlite3")
+    task_id = str(uuid.uuid4())
+    queue.enqueue(task_id)
+    item = queue.defer_queued_until(task_id, wake_at=200.0, reason=USER_DELAY_REASON)
+    assert item.state == "waiting"
+    assert queue.wake_due(now=199.9, reason=USER_DELAY_REASON) == 0
+    assert queue.wake_due(now=200.0, reason=USER_DELAY_REASON) == 1
+    assert queue.wake_due(now=201.0, reason=USER_DELAY_REASON) == 0
+    queue.close()

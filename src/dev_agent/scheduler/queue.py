@@ -383,6 +383,39 @@ class DurableQueue:
                 raise StaleLease(task_id)
             return self.snapshot(task_id)
 
+    def defer_queued_until(
+        self,
+        task_id: str,
+        *,
+        wake_at: datetime | float | int,
+        reason: str,
+    ) -> QueueItem:
+        """Park an unclaimed queued task until a named durable wake boundary.
+
+        This is the enqueue-side counterpart to :meth:`defer_until`.  It is
+        intentionally limited to an item that has not been leased, so a
+        Discord/user wait cannot steal or mutate an active Worker lease.
+        """
+
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("reason must be a non-empty string")
+        wake_epoch = _epoch(wake_at)
+        if not math.isfinite(wake_epoch):
+            raise ValueError("wake_at must be finite")
+        with self._lock:
+            cursor = self.connection.execute(
+                """UPDATE queue_items
+                   SET state='waiting', run_at=?, wake_at=?, wake_reason=?,
+                       lease_owner=NULL, lease_until=NULL, lease_token=NULL,
+                       attempts=0, state_version=state_version+1
+                   WHERE task_id=? AND state='queued'""",
+                (wake_epoch, wake_epoch, reason.strip(), task_id),
+            )
+            self.connection.commit()
+            if cursor.rowcount != 1:
+                raise ValueError(f"task is not queued: {task_id}")
+            return self.snapshot(task_id)
+
     def wake(self, task_id: str, *, run_at: datetime | float | int | None = None) -> QueueItem:
         """Explicitly make a parked task claimable again."""
         with self._lock:

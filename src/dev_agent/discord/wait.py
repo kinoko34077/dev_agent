@@ -15,8 +15,12 @@ from ..scheduler.queue import DurableQueue
 USER_DELAY_REASON: Final[str] = "user_delay"
 DEFAULT_MAX_DELAY_SECONDS: Final[int] = 3600
 
-_DURATION_RE = re.compile(r"(?<!\d)(?P<seconds>\d{1,4})\s*(?P<unit>秒|seconds?|secs?|s)(?![a-z])", re.IGNORECASE)
-_WAIT_MARKERS = ("待って", "待機", "経過", "wait", "after")
+_DURATION_RE = re.compile(
+    r"(?<!\d)(?P<amount>\d{1,4})\s*"
+    r"(?P<unit>秒|分|seconds?|secs?|s|minutes?|mins?|m)(?![a-z])",
+    re.IGNORECASE,
+)
+_WAIT_MARKERS = ("待って", "待機", "経過", "後", "wait", "after")
 
 
 @dataclass(frozen=True)
@@ -48,7 +52,10 @@ def parse_user_delay(text: str, *, max_seconds: int = DEFAULT_MAX_DELAY_SECONDS)
     match = _DURATION_RE.search(normalized)
     if match is None:
         return None
-    seconds = int(match.group("seconds"))
+    amount = int(match.group("amount"))
+    unit = match.group("unit").casefold()
+    multiplier = 60 if unit in {"分", "minute", "minutes", "min", "mins", "m"} else 1
+    seconds = amount * multiplier
     if seconds <= 0 or seconds > max_seconds:
         return None
     return seconds

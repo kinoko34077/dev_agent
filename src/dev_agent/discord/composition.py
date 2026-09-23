@@ -24,6 +24,7 @@ from .auth import DiscordAuthorizer
 from .binding import SQLiteDiscordBindingStore
 from .core import DiscordCoreAdapter
 from .human import DiscordHumanAdapter
+from .intent import IntentProposal
 
 
 _COORDINATION_SUBJECT_LIMIT = 3_500
@@ -91,6 +92,7 @@ class DiscordRuntimeComposition:
         self.core = DiscordCoreAdapter(
             submit_request=self.submit_request,
             submit_coordination=self.submit_coordination,
+            submit_wait=self.submit_wait,
             read_status=self.read_status,
         )
 
@@ -197,6 +199,30 @@ class DiscordRuntimeComposition:
         task = OperationService.submit(
             self.config,
             content,
+            inputs=self._structured_inputs(event),
+        )
+        self.bindings.bind(
+            event.binding_key,
+            root_id=task.root_task_id or task.task_id,
+            run_id=task.task_id,
+        )
+        return task
+
+    def submit_wait(self, content: str, event: DiscordIngressEvent, proposal: IntentProposal):
+        """Create a durable user-delay Task through Operation only."""
+
+        if not isinstance(proposal, IntentProposal) or proposal.delay_seconds is None:
+            raise ValueError("WAIT requires a bounded delay proposal")
+        binding = self.bindings.lookup(event.binding_key)
+        if binding is not None and self.binding_is_active(event.binding_key):
+            # An active run already owns its execution boundary.  Preserve the
+            # request as ordinary coordination rather than creating a second
+            # timer or mutating an active Worker lease.
+            return self.submit_coordination("NOTE", content, event)
+        task = OperationService.submit_delayed(
+            self.config,
+            content,
+            proposal.delay_seconds,
             inputs=self._structured_inputs(event),
         )
         self.bindings.bind(

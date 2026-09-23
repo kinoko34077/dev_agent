@@ -74,6 +74,51 @@ def test_unbound_ingress_keeps_plain_text_as_new_request():
     assert event.kind is DiscordMessageKind.NEW_REQUEST
 
 
+def test_plain_text_intent_proposal_routes_chat_without_creating_a_task():
+    adapter = DiscordIngressAdapter(
+        authorizer=DiscordAuthorizer(allowed_user_ids={"42"}),
+        bindings=InMemoryDiscordBindingStore(),
+    )
+
+    event = adapter.accept(_message("ありがとう"))
+
+    assert event is not None
+    assert event.kind is DiscordMessageKind.CHAT
+    assert event.intent_proposal is not None
+
+
+def test_plain_text_wait_carries_bounded_delay_proposal():
+    adapter = DiscordIngressAdapter(
+        authorizer=DiscordAuthorizer(allowed_user_ids={"42"}),
+        bindings=InMemoryDiscordBindingStore(),
+    )
+
+    event = adapter.accept(_message("20秒待ってから返事して"))
+
+    assert event is not None
+    assert event.kind is DiscordMessageKind.WAIT
+    assert event.intent_proposal is not None
+    assert event.intent_proposal.delay_seconds == 20
+
+
+def test_active_plain_text_follow_up_stays_note_with_intent_metadata():
+    store = InMemoryDiscordBindingStore()
+    key = DiscordBindingKey(guild_id="10", channel_id="20", thread_id="30")
+    store.bind(key, root_id="root-1", run_id="run-1")
+    adapter = DiscordIngressAdapter(
+        authorizer=DiscordAuthorizer(allowed_user_ids={"42"}),
+        bindings=store,
+        binding_is_active=lambda candidate: candidate == key,
+    )
+
+    event = adapter.accept(_message("さっきのREADMEにも追記して"))
+
+    assert event is not None
+    assert event.kind is DiscordMessageKind.NOTE
+    assert event.intent_proposal is not None
+    assert event.intent_proposal.kind.value == "FOLLOW_UP"
+
+
 def test_ingress_ignores_bot_messages_and_duplicate_message_ids():
     adapter = DiscordIngressAdapter(
         authorizer=DiscordAuthorizer(allowed_user_ids={"42"}),

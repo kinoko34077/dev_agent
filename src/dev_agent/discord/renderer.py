@@ -45,11 +45,13 @@ def render_ingress_ack(kind: str) -> str:
     """Render a short acknowledgement for an accepted ingress event."""
 
     labels = {
+        "CHAT": "了解しました。",
         "NEW_REQUEST": "受信しました。\n作業を開始します。",
         "NOTE": "追加指示を受け付けました。\n次の安全な区切りから反映します。",
         "PARALLEL": "並行作業を受け付けました。\n既存の作業とは分けて進めます。",
         "INTERRUPT": "割り込みを受け付けました。\n安全な区切りで切り替えます。",
         "CANCEL": "停止依頼を受け付けました。\n対象Taskだけを停止します。",
+        "WAIT": "待機を受け付けました。\n指定時刻以降に作業を再開します。",
     }
     return labels.get(str(kind).upper(), render_echo(""))
 

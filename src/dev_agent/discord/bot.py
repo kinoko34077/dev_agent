@@ -390,6 +390,7 @@ def build_bot(
             DiscordMessageKind.NEW_REQUEST,
             DiscordMessageKind.PARALLEL,
             DiscordMessageKind.NOTE,
+            DiscordMessageKind.WAIT,
         }:
             try:
                 if conversation_log is not None:

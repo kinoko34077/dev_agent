@@ -10,6 +10,7 @@ from src.dev_agent.discord.auth import DiscordAuthorizer
 from src.dev_agent.discord.binding import DiscordBindingKey
 from src.dev_agent.discord.composition import DiscordRuntimeComposition
 from src.dev_agent.discord.history import DiscordHistoryMessage
+from src.dev_agent.discord.intent import IntentKind, IntentProposal
 from src.dev_agent.domain.protocol import Task, TaskStatus
 from src.dev_agent.operation import OperationConfig, OperationService
 from src.dev_agent.operation_runtime import RuntimeCoordinator
@@ -58,6 +59,27 @@ def test_standard_composition_submits_durable_operation_and_binds_pointer(tmp_pa
         assert binding.root_id == task.root_task_id
         assert binding.run_id == task.task_id
         assert composition.store.load_task(task.task_id).objective == "小さな確認作業"
+
+
+def test_standard_composition_submits_user_wait_without_claiming_a_worker(tmp_path):
+    config = OperationConfig(data_dir=tmp_path / "agent")
+    event = _event("20秒待ってから返事して", DiscordMessageKind.WAIT, "1001")
+    event = DiscordIngressEvent(
+        message=event.message,
+        kind=event.kind,
+        binding_key=event.binding_key,
+        intent_proposal=IntentProposal(IntentKind.WAIT, event.message.content, 20),
+    )
+    with DiscordRuntimeComposition.open(
+        config,
+        authorizer=DiscordAuthorizer(allowed_user_ids={"42"}),
+    ) as composition:
+        task = composition.core.handle(event)
+
+        assert task.status is TaskStatus.WAITING_DEPENDENCY
+        with DurableQueue(config.queue_path) as queue:
+            assert queue.snapshot(task.task_id).state == "waiting"
+        assert composition.store.load_task(task.task_id).metadata["wait_reason"] == "user_delay"
 
 
 def test_standard_composition_reads_existing_operation_without_submitting_task(tmp_path):

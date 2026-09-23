@@ -47,6 +47,35 @@ def test_read_query_is_projection_and_does_not_submit_a_task():
     assert requests == []
 
 
+def test_chat_is_a_non_task_projection():
+    adapter = DiscordCoreAdapter()
+
+    assert adapter.handle(_event("ありがとう", DiscordMessageKind.CHAT)) == {
+        "state": "CHAT",
+        "text": "了解しました。",
+    }
+
+
+def test_wait_uses_the_durable_wait_boundary_and_proposal():
+    from src.dev_agent.discord.intent import IntentKind, IntentProposal
+
+    calls = []
+    event = _event("20秒待って", DiscordMessageKind.WAIT)
+    event = DiscordIngressEvent(
+        message=event.message,
+        kind=event.kind,
+        binding_key=event.binding_key,
+        intent_proposal=IntentProposal(IntentKind.WAIT, event.message.content, 20),
+    )
+    adapter = DiscordCoreAdapter(
+        submit_wait=lambda content, received, proposal: calls.append((content, received, proposal)) or "waiting",
+    )
+
+    assert adapter.handle(event) == "waiting"
+    assert calls[0][0] == "20秒待って"
+    assert calls[0][2].delay_seconds == 20
+
+
 def test_intervention_modes_share_existing_coordination_callback():
     calls: list[tuple[str, str, DiscordIngressEvent]] = []
     adapter = DiscordCoreAdapter(

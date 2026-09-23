@@ -13,15 +13,18 @@ from ..security.protected_paths import PathProtectionClass, classify_path
 from .auth import DiscordAuthorizer
 from .binding import DiscordBindingKey, InMemoryDiscordBindingStore, SQLiteDiscordBindingStore
 from .history import DiscordHistoryMessage
+from .intent import IntentKind, IntentProposal, resolve_plain_text
 
 
 class DiscordMessageKind(str, Enum):
+    CHAT = "CHAT"
     NEW_REQUEST = "NEW_REQUEST"
     READ_QUERY = "READ_QUERY"
     NOTE = "NOTE"
     PARALLEL = "PARALLEL"
     INTERRUPT = "INTERRUPT"
     CANCEL = "CANCEL"
+    WAIT = "WAIT"
 
 
 def classify_message(content: str, *, active_run: bool = False) -> DiscordMessageKind:
@@ -92,12 +95,15 @@ class DiscordIngressEvent:
     kind: DiscordMessageKind
     binding_key: DiscordBindingKey
     history_context: tuple[DiscordHistoryMessage, ...] = ()
+    intent_proposal: IntentProposal | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.history_context, tuple):
             object.__setattr__(self, "history_context", tuple(self.history_context))
         if not all(isinstance(item, DiscordHistoryMessage) for item in self.history_context):
             raise TypeError("history_context must contain DiscordHistoryMessage values")
+        if self.intent_proposal is not None and not isinstance(self.intent_proposal, IntentProposal):
+            raise TypeError("intent_proposal must be an IntentProposal or None")
 
 
 class DiscordScope:
@@ -137,6 +143,7 @@ class DiscordIngressAdapter:
         authorizer: DiscordAuthorizer,
         bindings: InMemoryDiscordBindingStore | SQLiteDiscordBindingStore,
         binding_is_active: Callable[[DiscordBindingKey], bool] | None = None,
+        intent_resolver: Callable[..., IntentProposal] | None = resolve_plain_text,
     ) -> None:
         if not isinstance(authorizer, DiscordAuthorizer):
             raise TypeError("authorizer must be DiscordAuthorizer")
@@ -147,6 +154,7 @@ class DiscordIngressAdapter:
         self._authorizer = authorizer
         self._bindings = bindings
         self._binding_is_active = binding_is_active
+        self._intent_resolver = intent_resolver
 
     def accept(self, message: DiscordMessage) -> DiscordIngressEvent | None:
         if not isinstance(message, DiscordMessage) or message.author_is_bot:
@@ -156,9 +164,37 @@ class DiscordIngressAdapter:
         key = DiscordBindingKey(message.guild_id, message.channel_id, message.thread_id)
         active = bool(self._binding_is_active(key)) if self._binding_is_active and self._bindings.lookup(key) is not None else False
         kind = classify_message(message.content, active_run=active)
+        proposal = None
+        if self._intent_resolver is not None and kind in {
+            DiscordMessageKind.NEW_REQUEST,
+            DiscordMessageKind.NOTE,
+        }:
+            try:
+                proposal = self._intent_resolver(
+                    message.content,
+                    active_run=active,
+                    has_binding=self._bindings.lookup(key) is not None,
+                )
+            except (TypeError, ValueError):
+                # The proposal layer is advisory.  Existing deterministic
+                # command/context routing remains the fail-closed fallback.
+                proposal = None
+            if proposal is not None:
+                kind = {
+                    IntentKind.CHAT: DiscordMessageKind.CHAT,
+                    IntentKind.NEW_REQUEST: DiscordMessageKind.NEW_REQUEST,
+                    IntentKind.FOLLOW_UP: DiscordMessageKind.NOTE,
+                    IntentKind.READ_QUERY: DiscordMessageKind.READ_QUERY,
+                    IntentKind.WAIT: DiscordMessageKind.WAIT,
+                }[proposal.kind]
         if not self._bindings.mark_message_seen(message.message_id, binding_key=key, kind=kind.value):
             return None
-        return DiscordIngressEvent(message=message, kind=kind, binding_key=key)
+        return DiscordIngressEvent(
+            message=message,
+            kind=kind,
+            binding_key=key,
+            intent_proposal=proposal,
+        )
 
 
 __all__ = [

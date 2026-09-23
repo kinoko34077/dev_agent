@@ -43,6 +43,19 @@ def test_submit_is_durable_and_status_reads_queue_and_events(tmp_path):
     assert status["claim_streak"] == 0
 
 
+def test_submit_delayed_uses_existing_durable_wait_boundary(tmp_path):
+    config = _config(tmp_path)
+
+    task = OperationService.submit_delayed(config, "reply after twenty seconds", 20)
+    status = OperationService.read_status(config, task.task_id)
+
+    assert task.status is TaskStatus.WAITING_DEPENDENCY
+    assert status["state"] == TaskStatus.WAITING_DEPENDENCY.value
+    assert status["queue_state"] == "waiting"
+    assert task.metadata["wait_reason"] == "user_delay"
+    assert task.metadata["requested_duration_seconds"] == 20
+
+
 def test_status_separates_queue_claims_from_logical_execution_attempts(tmp_path):
     config = _config(tmp_path)
     task = OperationService.submit(config, "keep claim and execution counters distinct")
