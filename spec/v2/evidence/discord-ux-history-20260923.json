@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "evidence_id": "discord-ux-history-20260923",
+  "scope": "NON_GATE_DISCORD_UX_HISTORY",
+  "status": "LOCAL_BOUNDARY_VERIFIED",
+  "verified_at": "2026-09-23",
+  "implementation_commit": "1cbf10440820aa304822d085e9f0ae1ecfaa75e2",
+  "delivery": {
+    "single_human_facing_sender": true,
+    "default_typing_delay_seconds": 2.0,
+    "per_channel_or_thread_serialization": true,
+    "progress_projection": "existing latest-only durable delivery projection",
+    "non_droppable_projections": ["human_request", "approval", "error"]
+  },
+  "rendering": {
+    "long_human_echo": "replaced with bounded acknowledgement",
+    "status": "section heading and bullet fields",
+    "human_request": "reason/question/options without internal request id",
+    "raw_human_content_repeated": false
+  },
+  "history_context": {
+    "source": "same Discord channel or thread only",
+    "max_messages": 20,
+    "max_characters": 8000,
+    "roles": ["authorized_human", "dev_agent_bot"],
+    "current_message_excluded": true,
+    "unrelated_bots_and_webhooks_excluded": true,
+    "secret_redaction": true,
+    "task_input": "bounded inputs.discord_context.messages",
+    "replayed_into_ingress_or_mailbox": false,
+    "discord_history_persisted_as_ssot": false
+  },
+  "routing": {
+    "new_request_history_collection": true,
+    "parallel_request_history_collection": true,
+    "note_history_replay": false,
+    "human_request_reply_precedence": true,
+    "core_prompt_construction_in_discord": false
+  },
+  "verification": {
+    "focused_discord_slice": "46 passed, then 11 composition tests including WAITING_HUMAN NOTE",
+    "full_tests_v2": "1577 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS",
+    "tracked_discord_token_pattern": false,
+    "exact_head_ci": {
+      "revision": "1cbf10440820aa304822d085e9f0ae1ecfaa75e2",
+      "kernel_3.10": "PASS",
+      "kernel_3.11": "PASS",
+      "provider_smoke": "PASS",
+      "v2_core_run_id": 35869301594,
+      "provider_smoke_run_id": 35869303251
+    }
+  },
+  "live": {
+    "runner_after_implementation_gateway": "PASS",
+    "runner_after_implementation_ready": "PASS by bounded log observation",
+    "authorized_human_message_metadata": "OBSERVED in same-day predecessor trace; only bounded id/length/hash metadata retained",
+    "ordinary_message_e2e_for_this_commit": "NOT_VERIFIED",
+    "typing_visual": "NOT_VERIFIED without interactive client observation",
+    "active_waiting_note": "NOT_VERIFIED",
+    "history_context_against_real_discord_message": "NOT_VERIFIED",
+    "human_request_round_trip": "NOT_VERIFIED",
+    "approval_button_round_trip": "NOT_VERIFIED",
+    "restart_offline_delivery": "NOT_VERIFIED"
+  },
+  "security": {
+    "token_in_source": false,
+    "token_in_evidence": false,
+    "token_in_logs": false,
+    "raw_discord_history_persisted": false,
+    "discord_owned_scheduler": false,
+    "discord_owned_task_state": false
+  },
+  "formal_gates": {
+    "D9_DOGFOOD": "VERIFIED",
+    "D9_PRODUCTION_DEPLOYMENT": "DEFERRED_NOT_READY",
+    "PHASE8_PREPARATION": "PREPARATION_ONLY",
+    "PHASE8_LIVE_ACTIVATION": "NOT_VERIFIED"
+  },
+  "test_refs": [
+    "tests/v2/test_discord_delivery.py",
+    "tests/v2/test_discord_history.py",
+    "tests/v2/test_discord_adapter.py",
+    "tests/v2/test_discord_bot.py",
+    "tests/v2/test_discord_composition.py",
+    "tests/v2/test_discord_outbound.py"
+  ]
+}

@@ -48,21 +48,30 @@ Start the Phase A/early Phase B adapter:
 python scripts/run_discord_bot.py
 ```
 
-The adapter echoes accepted human messages as `受信: ...`, ignores Bot-authored
-messages, and exposes `/dir` and `/file` as bounded repository-relative scope
-commands. Scope is persisted in the existing Core SQLite StateStore and is
-passed to the next Operation or child Operation as structured input. Plain text
-sent while a bound run is non-terminal becomes a NOTE; explicit `/parallel`,
-`/interrupt`, and `/cancel` retain their Core meanings. The standard runner
-also starts the read-only outbound projection after Gateway readiness; it
-observes existing Core state for progress and pending HumanRequest delivery
-without owning Tasks, the queue, retry policy, or Approval authority.
+The adapter acknowledges accepted human messages with short bounded text rather
+than repeating the full message. Human-facing sends use one UI boundary with a
+default two-second typing indicator and per-channel/thread serialization; this
+is not a Task queue. The adapter ignores Bot-authored messages and exposes
+`/dir` and `/file` as bounded repository-relative scope commands. Scope is
+persisted in the existing Core SQLite StateStore and is passed to the next
+Operation or child Operation as structured input. Plain text sent while a
+bound run is non-terminal becomes a NOTE; explicit `/parallel`, `/interrupt`,
+and `/cancel` retain their Core meanings. The standard runner also starts the
+read-only outbound projection after Gateway readiness; it observes existing
+Core state for progress and pending HumanRequest delivery without owning Tasks,
+the queue, retry policy, or Approval authority.
+
+For a new request or bounded parallel request, the adapter may attach up to 20
+sanitized messages (8,000 characters total) from the same channel/thread as
+`inputs["discord_context"]`. Only the authorized Human and this Bot are
+included, the current message is excluded, and the history is context only: it
+is never replayed into ingress, the mailbox, or an Approval/HumanResponse.
 
 Replies to a delivered HumanRequest are correlated by the Discord reply
 reference before ordinary ingress. Finite answers can use buttons and free-text
-requests use the same exact HumanInteractionPort request identity. A standard
-runner Approval view/submit callback is intentionally not fabricated: it still
-requires an explicit Core-owned Approval boundary.
+requests use the same exact HumanInteractionPort request identity. Approval
+buttons, when projected, delegate to the existing Core-owned Approval
+reference; Discord does not create approval authority.
 
 ## Live message smoke order
 
