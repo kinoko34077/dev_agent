@@ -5,15 +5,15 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Remote HEAD before this implementation slice | `abe10682261ae4737f355709a3a15a7a07f18d8a` (`docs: record discord runtime ci`) |
-| Latest local implementation baseline | `79823e0` (`feat: connect discord wait and archive maintenance`) |
+| Remote HEAD after this implementation slice | `39b2831a353091a108247a9dcc39739167ff19ad` (`docs: sync discord conversation runtime hardening`) |
+| Latest implementation baseline | `79823e0` (`feat: connect discord wait and archive maintenance`) |
 | Latest evidence baseline | `discord-conversation-runtime-20260924.json` |
 | Implementation/evidence baseline | `67a5a3d` adds safe proposal-only plain-text intent routing, a durable bounded user wait through the existing Operation/Queue maintenance boundary, and preserves the existing SQLite conversation log/archive boundary. |
-| Worktree | this hardening slice is pending final verification and push |
+| Worktree | clean after final verification and push |
 | Local regression | `1615 passed, 1 skipped` (`python -m pytest tests/v2 -q`) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | Previous remote HEAD `cf33aa29432b51a5478756c643aed759abeb3467` remains green; this hardening slice requires a new exact-head CI run after push. |
+| Exact-head CI | `39b2831` is green: v2-core run `35906850410`, provider-smoke run `35906850310`; v2-core contains the kernel 3.10/3.11 matrix. |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
