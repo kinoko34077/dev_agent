@@ -1,0 +1,138 @@
+{
+  "evidence_id": "ollama-local-timeout-convergence-20260923",
+  "evidence_kind": "ollama_local_worker_timeout_and_convergence_observation",
+  "observed_at": "2026-09-23",
+  "implementation_revision": "704a156702a00393a9957576b1c2ce10aa5cb861",
+  "track": "R10_PREP",
+  "root": {
+    "root_id": "ollama-local-timeout-convergence-20260923",
+    "base_revision": "0fd85df97040231ce807199dda27e75942f9d700",
+    "fresh_request_identities": true,
+    "planner_executed": false,
+    "ownership": "non_overlapping",
+    "task_mutation": false
+  },
+  "host_timeout_fix": {
+    "observed_problem": "HostProcessExecutor timeout was not propagated to the static child Ollama binding; the child could fall back to OLLAMA_TIMEOUT_SECONDS=30 after model load.",
+    "change": "For provider_id=ollama only, the static child receives the existing Host-owned subprocess timeout as OLLAMA_TIMEOUT_SECONDS.",
+    "unknown_operation_replayed": false,
+    "focused_test": "test_host_process_executor_propagates_ollama_timeout_to_static_host_runtime",
+    "focused_result": "PASS"
+  },
+  "worker_a": {
+    "task_id": "ollama-local-timeout-a-20260923",
+    "allowed_file": "src/dev_agent/providers/ollama/__init__.py",
+    "attempts": [
+      {
+        "model": "qwen3.5:9b",
+        "attempt_id": "0fffac3cb1894de981d9f80b420b996d",
+        "result": "format_patch_failure",
+        "failure_signature": "77d9450c492eca4465f04c13c83f47c18969843e49d90a406418360f9276a789",
+        "failure": "embedded_newline_in_line_array",
+        "elapsed_ms": 49106
+      },
+      {
+        "model": "qwen3.5:9b",
+        "attempt_id": "4949785374fd45a2a469d883abb1784c",
+        "result": "format_patch_failure",
+        "failure_signature": "e37193bd6809d5fe7aa74311f2c8f84d111dc308351bb50bcb6751a14945509c",
+        "failure": "invalid_json",
+        "progress": false,
+        "elapsed_ms": 5572
+      },
+      {
+        "model": "gemma4:12b",
+        "attempt_id": "f859227f62684d12a664b2775354e9ec",
+        "source_attempt_id": "4949785374fd45a2a469d883abb1784c",
+        "source_failure_signature": "e37193bd6809d5fe7aa74311f2c8f84d111dc308351bb50bcb6751a14945509c",
+        "directive_rebound": true,
+        "result": "file_replacement_generated",
+        "elapsed_ms": 57963
+      }
+    ],
+    "host_verification": "PASS",
+    "verification_id": "42a9395d55ac4bc7849795df14e6b271",
+    "focused_tests": [
+      "python -m compileall src/dev_agent/providers/ollama",
+      "python -m pytest tests/v2/test_provider_exports.py -q"
+    ],
+    "review": "not_run",
+    "integration": "not_run"
+  },
+  "worker_b": {
+    "task_id": "ollama-local-timeout-b-20260923",
+    "allowed_file": "src/dev_agent/providers/fake/__init__.py",
+    "attempts": [
+      {
+        "model": "qwen3.5:9b",
+        "attempt_id": "5a3380e458004023838599cdec44d2b2",
+        "result": "format_patch_failure",
+        "failure_signature": "e37193bd6809d5fe7aa74311f2c8f84d111dc308351bb50bcb6751a14945509c",
+        "failure": "invalid_json",
+        "elapsed_ms": 45582
+      },
+      {
+        "model": "qwen3.5:9b",
+        "attempt_id": "5392a0faf1564c7085e887306316e268",
+        "result": "format_patch_failure",
+        "failure_signature": "e37193bd6809d5fe7aa74311f2c8f84d111dc308351bb50bcb6751a14945509c",
+        "failure": "same_signature_recurrence",
+        "progress": false,
+        "elapsed_ms": 41208
+      },
+      {
+        "model": "gemma4:12b",
+        "attempt_id": "df940c8fe7eb4d8494ad713e3ada24ee",
+        "source_attempt_id": "5392a0faf1564c7085e887306316e268",
+        "source_failure_signature": "e37193bd6809d5fe7aa74311f2c8f84d111dc308351bb50bcb6751a14945509c",
+        "directive_rebound": true,
+        "result": "host_verification_failure",
+        "failure": "semantic_export_contract_then_syntax_error",
+        "verification_id": "b4fb92feeab64f6eb23f3b542cf41aee",
+        "elapsed_ms": 56719
+      },
+      {
+        "model": "gemma4:12b",
+        "attempt_id": "2d97d9b9db8341189fa1a77b12ea63ba",
+        "source_attempt_id": "df940c8fe7eb4d8494ad713e3ada24ee",
+        "source_failure_signature": "host-test:test_provider_exports:fake-provider-import",
+        "directive_rebound": true,
+        "result": "host_verification_failure",
+        "failure": "syntax_error_unmatched_bracket",
+        "verification_id": "d09d4cc121f7450eadb035829bde4ace",
+        "elapsed_ms": 8858
+      }
+    ],
+    "host_verification": "FAILED",
+    "review": "not_run",
+    "integration": "not_run",
+    "dependent_continuation": "not_released"
+  },
+  "convergence": {
+    "latest_directive_rebind": "VERIFIED_BY_EXECUTION",
+    "same_signature_recurrence": true,
+    "transport_repair_mixing": false,
+    "unknown_external_effect_replayed": 0,
+    "third_model_attempted": false,
+    "codex_direct_implementation": 0,
+    "models_unloaded_after_trial": true
+  },
+  "tests": {
+    "focused": "94 passed",
+    "full_tests_v2": "1497 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compile": "PASS",
+    "exact_head_ci": {
+      "kernel_3_10": "PASS",
+      "kernel_3_11": "PASS",
+      "provider_smoke": "PASS"
+    }
+  },
+  "status": "PARTIAL_BLOCKED",
+  "formal_gate_impact": {
+    "D9_DOGFOOD": "VERIFIED_unchanged",
+    "PHASE8_PREPARATION": "PREPARATION_ONLY_unchanged",
+    "PHASE8_LIVE_ACTIVATION": "NOT_VERIFIED_unchanged"
+  },
+  "interpretation": "Propagating the existing Host timeout removed the prior local child-timeout ambiguity: the new qwen request failures were deterministic model-output failures rather than the prior read-timeout observation. Worker A reached independent Host Verification through a fresh Gemma fallback. Worker B reached two bounded Gemma corrections but remained syntactically invalid, so Reviewer, deterministic integration, and CODE_INTEGRATED continuation were not reached. This is R10_PREP/local convergence evidence only, not formal Phase 8 activation."
+}
