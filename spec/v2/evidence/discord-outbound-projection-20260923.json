@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "evidence_id": "discord-outbound-projection-20260923",
+  "scope": "NON_GATE_DISCORD_OUTBOUND_PROJECTION",
+  "status": "LOCAL_OUTBOUND_PROJECTION_VERIFIED",
+  "verified_at": "2026-09-23",
+  "implementation_commit": "336be5437f1025e11320739d2387f9246beff9db",
+  "composition": {
+    "publisher": "DiscordOutboundPublisher",
+    "runtime_owner": "existing RuntimeCoordinator remains the only Task and queue execution owner",
+    "state_source": "existing SQLiteStateStore and existing Discord pointer/delivery metadata",
+    "progress": "bounded latest task/event projection with durable delivery-key deduplication",
+    "human_request": "pending existing HumanRequest records are rendered to the bound channel/thread with request-id delivery deduplication",
+    "approval": "approval projection is available only through an explicitly injected Core-owned view boundary; the standard runner does not invent or consume approval authority"
+  },
+  "delivery": {
+    "gateway_start": "standard runner starts one read-only projection loop after on_ready",
+    "retry_boundary": "a transient observation/send exception does not terminate the projection loop; the next bounded pass observes again",
+    "idempotency": "existing Discord delivery metadata is the durable boundary",
+    "raw_discord_content_persisted": false,
+    "raw_provider_or_secret_data_persisted": false,
+    "discord_owned_scheduler": false,
+    "discord_owned_task_state": false
+  },
+  "verification": {
+    "focused_discord_slice": "22 passed",
+    "full_tests_v2": "1549 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "credential_pattern_scan": "no supplied Bot Token/application credential pattern found outside ignored environment files",
+    "gateway_login": "prior local smoke PASS for Gateway login, on_ready, and application-command synchronization",
+    "ordinary_message_e2e": "NOT_VERIFIED; an interactive Discord client was unavailable, and no historical-message backfill exists",
+    "progress_live_delivery": "NOT_VERIFIED against a real Discord channel",
+    "human_request_live_delivery": "NOT_VERIFIED against a real Discord channel",
+    "approval_button_live_delivery": "NOT_VERIFIED; standard runner has no explicit Core-owned approval view/submit callback",
+    "codex_direct_implementation": 0,
+    "exact_head_ci": {
+      "revision": "336be5437f1025e11320739d2387f9246beff9db",
+      "v2_core_run_id": 35824028665,
+      "kernel_3.10": "PASS",
+      "kernel_3.11": "PASS",
+      "provider_smoke_run_id": 35824028670,
+      "provider_smoke": "PASS"
+    }
+  },
+  "formal_gates": {
+    "D9_DOGFOOD": "VERIFIED",
+    "D9_PRODUCTION_DEPLOYMENT": "DEFERRED_NOT_READY",
+    "PHASE8_PREPARATION": "PREPARATION_ONLY",
+    "PHASE8_LIVE_ACTIVATION": "NOT_VERIFIED"
+  },
+  "limitations": [
+    "The runner must be online before a Human sends a new Discord message; this implementation does not infer live ingress from message history.",
+    "The outbound publisher is a projection only and does not claim Tasks, wake queues, retry work, approve, or integrate mutations.",
+    "No formal Gate is promoted by this local evidence."
+  ],
+  "test_refs": [
+    "tests/v2/test_discord_outbound.py",
+    "tests/v2/test_discord_bot.py",
+    "tests/v2/test_discord_composition.py",
+    "tests/v2/test_discord_durable_flow.py"
+  ]
+}
