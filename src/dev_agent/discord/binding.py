@@ -75,6 +75,17 @@ class InMemoryDiscordBindingStore:
             raise ValueError("key must be DiscordBindingKey")
         return self._bindings.get(key)
 
+    def list_bindings(self) -> list[DiscordBinding]:
+        return list(self._bindings.values())
+
+    def find_for_task(self, task_id: str) -> DiscordBinding | None:
+        if not isinstance(task_id, str) or not task_id.strip():
+            raise ValueError("task_id must be a non-empty string")
+        for binding in self._bindings.values():
+            if task_id in {binding.root_id, binding.run_id}:
+                return binding
+        return None
+
     def mark_message_seen(self, message_id: str, *, binding_key: DiscordBindingKey | None = None, kind: str = "", received_at: str | None = None) -> bool:
         message_id = _discord_id(message_id, "message_id")
         if message_id in self._messages:
@@ -96,9 +107,11 @@ class SQLiteDiscordBindingStore:
         required = (
             "save_discord_binding",
             "get_discord_binding",
+            "list_discord_bindings",
             "mark_discord_message_seen",
             "record_discord_delivery",
             "has_discord_delivery",
+            "has_any_discord_delivery",
         )
         if any(not callable(getattr(store, name, None)) for name in required):
             raise TypeError("store does not implement the Discord persistence contract")
@@ -133,6 +146,24 @@ class SQLiteDiscordBindingStore:
             run_id=row["run_id"],
         )
 
+    def list_bindings(self) -> list[DiscordBinding]:
+        return [
+            DiscordBinding(
+                key=DiscordBindingKey(row["guild_id"], row["channel_id"], row["thread_id"]),
+                root_id=row["root_id"],
+                run_id=row["run_id"],
+            )
+            for row in self._store.list_discord_bindings()
+        ]
+
+    def find_for_task(self, task_id: str) -> DiscordBinding | None:
+        if not isinstance(task_id, str) or not task_id.strip():
+            raise ValueError("task_id must be a non-empty string")
+        for binding in self.list_bindings():
+            if task_id in {binding.root_id, binding.run_id}:
+                return binding
+        return None
+
     def mark_message_seen(self, message_id: str, *, binding_key: DiscordBindingKey | None = None, kind: str = "UNKNOWN", received_at: str | None = None) -> bool:
         message_id = _discord_id(message_id, "message_id")
         if not isinstance(kind, str) or not kind.strip() or len(kind) > 64:
@@ -158,6 +189,11 @@ class SQLiteDiscordBindingStore:
         return self._store.has_discord_delivery(
             request_id=validate_identifier(request_id, "request_id"),
             discord_message_id=_discord_id(discord_message_id, "discord_message_id"),
+        )
+
+    def has_any_delivery(self, request_id: str) -> bool:
+        return self._store.has_any_discord_delivery(
+            request_id=validate_identifier(request_id, "request_id"),
         )
 
 

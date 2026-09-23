@@ -192,6 +192,10 @@ class SQLiteStateStore:
         return self._core.get_discord_binding(binding_key)
 
     @_serialized
+    def list_discord_bindings(self) -> list[dict[str, str]]:
+        return self._core.list_discord_bindings()
+
+    @_serialized
     def mark_discord_message_seen(self, *, message_id: str, binding_key: str, kind: str, received_at: str) -> bool:
         try:
             inserted = self._core.mark_discord_message_seen(
@@ -225,8 +229,16 @@ class SQLiteStateStore:
         return self._core.has_discord_delivery(request_id=request_id, discord_message_id=discord_message_id)
 
     @_serialized
+    def has_any_discord_delivery(self, *, request_id: str) -> bool:
+        return self._core.has_any_discord_delivery(request_id=request_id)
+
+    @_serialized
     def list_pending_human_requests(self) -> list[HumanRequest]:
         return self._core.list_pending_human_requests()
+
+    @_serialized
+    def latest_event_for_task(self, task_id: str) -> dict[str, Any] | None:
+        return self._core.latest_event_for_task(task_id)
 
     @_serialized
     def save_human_response(self, response: HumanResponse) -> None:

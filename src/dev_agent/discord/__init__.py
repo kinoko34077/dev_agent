@@ -18,6 +18,7 @@ from .human import DiscordHumanAdapter
 from .approval import DiscordApprovalAdapter
 from .core import DiscordCoreAdapter
 from .composition import DiscordRuntimeComposition
+from .outbound import DiscordOutboundPublisher
 
 __all__ = [
     "DiscordAuthorizer",
@@ -34,5 +35,6 @@ __all__ = [
     "DiscordApprovalAdapter",
     "DiscordCoreAdapter",
     "DiscordRuntimeComposition",
+    "DiscordOutboundPublisher",
     "classify_message",
 ]

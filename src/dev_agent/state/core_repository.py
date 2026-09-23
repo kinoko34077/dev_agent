@@ -93,6 +93,15 @@ class CoreStateRepository:
         ).fetchone()
         return dict(row) if row is not None else None
 
+    def list_discord_bindings(self) -> list[dict[str, str]]:
+        """Return pointer-only Discord bindings in stable order."""
+
+        rows = self.connection.execute(
+            "SELECT binding_key, guild_id, channel_id, thread_id, root_id, run_id, updated_at "
+            "FROM discord_bindings ORDER BY updated_at, binding_key"
+        ).fetchall()
+        return [dict(row) for row in rows]
+
     def mark_discord_message_seen(self, *, message_id: str, binding_key: str, kind: str, received_at: str) -> bool:
         cursor = self.connection.execute(
             "INSERT OR IGNORE INTO discord_ingress(message_id, binding_key, kind, received_at) VALUES (?, ?, ?, ?)",
@@ -113,11 +122,30 @@ class CoreStateRepository:
             (request_id, discord_message_id),
         ).fetchone() is not None
 
+    def has_any_discord_delivery(self, *, request_id: str) -> bool:
+        return self.connection.execute(
+            "SELECT 1 FROM discord_deliveries WHERE request_id = ? LIMIT 1",
+            (request_id,),
+        ).fetchone() is not None
+
     def list_pending_human_requests(self) -> list[HumanRequest]:
         rows = self.connection.execute(
             "SELECT request_payload FROM human_requests WHERE status IN ('pending', 'answered') ORDER BY requested_at, request_id"
         ).fetchall()
         return [HumanRequest.from_dict(json.loads(row["request_payload"])) for row in rows]
+
+    def latest_event_for_task(self, task_id: str) -> dict[str, Any] | None:
+        """Read one bounded latest event without exposing the event history."""
+
+        rows = self.connection.execute(
+            "SELECT payload FROM events WHERE payload LIKE ? ORDER BY sequence DESC LIMIT 128",
+            (f'%\"task_id\": \"{task_id}\"%',),
+        ).fetchall()
+        for row in rows:
+            event = json.loads(row["payload"])
+            if event.get("task_id") == task_id:
+                return event
+        return None
 
     def save_human_response(self, response: HumanResponse) -> None:
         row = self.connection.execute(

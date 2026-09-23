@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 from dataclasses import dataclass, field
 import inspect
 import os
@@ -15,6 +16,7 @@ from .approval import DiscordApprovalAdapter
 from .auth import DiscordAuthorizer
 from .binding import InMemoryDiscordBindingStore, SQLiteDiscordBindingStore
 from .composition import DiscordRuntimeComposition
+from .outbound import DiscordOutboundPublisher
 from .renderer import render_echo, render_progress, render_read_projection
 from ..operation import OperationConfig
 
@@ -190,6 +192,7 @@ def build_bot(
     bindings: InMemoryDiscordBindingStore | SQLiteDiscordBindingStore | None = None,
     authorizer: DiscordAuthorizer | None = None,
     on_event=None,
+    outbound: DiscordOutboundPublisher | None = None,
 ) -> Any:
     """Build the Gateway bot; no Discord connection starts until ``run``."""
 
@@ -212,12 +215,30 @@ def build_bot(
     intents.message_content = True
     bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
     sync_state = {"done": False}
+    outbound_state: dict[str, asyncio.Task[Any] | None] = {"task": None}
+
+    async def _serve_outbound() -> None:
+        publisher = getattr(bot, "_dev_agent_discord_outbound", None)
+        if publisher is None:
+            return
+        try:
+            await publisher.serve(stop=bot.is_closed)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # Outbound delivery is a read-only projection.  A Discord or
+            # SQLite observation error must not terminate Gateway ingress.
+            return
 
     @bot.event
     async def on_ready():
         if not sync_state["done"]:
             await bot.tree.sync()
             sync_state["done"] = True
+        if outbound_state["task"] is None:
+            publisher = getattr(bot, "_dev_agent_discord_outbound", None)
+            if publisher is not None:
+                outbound_state["task"] = asyncio.create_task(_serve_outbound())
         print("Discord Human UI bot ready")
 
     @bot.event
@@ -272,6 +293,7 @@ def build_bot(
     bot._dev_agent_discord_scope = scope
     bot._dev_agent_discord_bindings = bindings
     bot._dev_agent_discord_on_event = on_event
+    bot._dev_agent_discord_outbound = outbound
     return bot
 
 
@@ -293,6 +315,21 @@ def run_from_environment(*, env_path: str | Path | None = None, workspace: str |
             bindings=composition.bindings,
             authorizer=authorizer,
             on_event=composition.core.handle,
+        )
+
+        async def _send_to_binding(binding, content, view=None):
+            target_id = binding.key.thread_id or binding.key.channel_id
+            channel = bot.get_channel(int(target_id))
+            if channel is None:
+                channel = await bot.fetch_channel(int(target_id))
+            if view is None:
+                return await channel.send(content)
+            return await channel.send(content, view=view)
+
+        bot._dev_agent_discord_outbound = DiscordOutboundPublisher(
+            composition.store,
+            composition.bindings,
+            send=_send_to_binding,
         )
         bot._dev_agent_discord_composition = composition
         bot._dev_agent_discord_human = composition.human
