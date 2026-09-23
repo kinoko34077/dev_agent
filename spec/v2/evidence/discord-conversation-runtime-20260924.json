@@ -43,7 +43,14 @@
     "architecture": "ARCHITECTURE_PASS",
     "compileall": "PASS",
     "credential_scan": "known Discord token fragments absent from tracked files; local .env remains untracked",
-    "exact_head_ci": "PENDING_PUSH",
+    "exact_head_ci": {
+      "revision": "cf33aa29432b51a5478756c643aed759abeb3467",
+      "v2_core_run_id": 35897151560,
+      "kernel_3.10": "PASS",
+      "kernel_3.11": "PASS",
+      "provider_smoke_run_id": 35897151586,
+      "provider_smoke": "PASS"
+    },
     "live_discord_client": "NOT_VERIFIED"
   },
   "formal_gates": {

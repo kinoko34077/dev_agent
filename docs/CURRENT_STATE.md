@@ -13,7 +13,7 @@
 | Local regression | `1610 passed, 1 skipped` (`python -m pytest tests/v2 -q`) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | `c326c9b5b597d3667a91e7da4d9e18a84be0fb71`: kernel 3.10 PASS, kernel 3.11 PASS, provider-smoke PASS (`v2-core` run `35875550603`, provider-smoke run `35875550623`). The documentation sync itself is kept out of this implementation baseline to avoid recursive self-reference. |
+| Exact-head CI | Implementation push `cf33aa29432b51a5478756c643aed759abeb3467`: kernel 3.10 PASS, kernel 3.11 PASS (`v2-core` run `35897151560`), provider-smoke PASS (`35897151586`). |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
