@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "evidence_id": "discord-operational-routing-20260923",
+  "scope": "NON_GATE_DISCORD_OPERATIONAL_ROUTING",
+  "status": "LOCAL_BOUNDARY_VERIFIED",
+  "verified_at": "2026-09-23",
+  "implementation_commit": "639d9032de47c3647d74a858dbf07e743a752c52",
+  "routing": {
+    "unbound_plain_message": "NEW_REQUEST",
+    "active_nonterminal_plain_message": "NOTE",
+    "terminal_binding_plain_message": "NEW_REQUEST",
+    "explicit_commands_override_context": true,
+    "parallel_bound_run": "existing OperationService.submit_child",
+    "cancel_bound_run": "existing task-only cancellation; no process-wide stop"
+  },
+  "coordination": {
+    "note": "existing durable mailbox MessageKind.NOTE",
+    "parallel": "distinct MessageKind.PARALLEL when mailbox routing is required; bound runs use Core child submission",
+    "interrupt": "distinct durable MessageKind.INTERRUPT intent",
+    "interrupt_safe_checkpoint_consumer": "NOT_EXPOSED_BY_CORE_PUBLIC_BOUNDARY",
+    "discord_owned_queue": false,
+    "discord_owned_scheduler": false
+  },
+  "scope": {
+    "storage": "existing Core SQLite StateStore",
+    "schema_version": 9,
+    "directory_and_files": "validated repository-relative pointers",
+    "operation_handoff": "structured discord_scope input",
+    "raw_prompt_concatenation": false
+  },
+  "human": {
+    "reply_correlation": "delivery Discord message ID to exact HumanRequest ID before ordinary ingress",
+    "finite_answers": "proposal-only Discord buttons delegate to existing HumanInteractionPort",
+    "free_text": "bounded TEXT_RESPONSE marker with original response payload",
+    "consume_once": true
+  },
+  "outbound": {
+    "progress_and_human_request_projection": "existing read-only publisher",
+    "error_observability": "bounded exception category and health projection",
+    "approval_standard_runner": "NOT_WIRED_CORE_OWNED_SUBMIT_BOUNDARY",
+    "raw_discord_content_persisted": false,
+    "secrets_persisted": false
+  },
+  "verification": {
+    "focused_discord_tests": "PASS",
+    "full_tests_v2": "1564 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "credential_scan": "tracked source/docs contain no operator Bot Token",
+    "exact_head_ci": {
+      "kernel_3.10": "PASS",
+      "kernel_3.11": "PASS",
+      "provider_smoke": "PASS",
+      "v2_core_run": 35834269219,
+      "provider_smoke_run": 35834269231
+    }
+  },
+  "live": {
+    "gateway_login": "historical local smoke only",
+    "new_human_message": "NOT_VERIFIED",
+    "active_run_intervention": "NOT_VERIFIED",
+    "human_request_round_trip": "NOT_VERIFIED",
+    "approval_button_round_trip": "NOT_VERIFIED",
+    "restart_offline_delivery": "NOT_VERIFIED"
+  },
+  "formal_gates": {
+    "D9_DOGFOOD": "VERIFIED",
+    "D9_PRODUCTION_DEPLOYMENT": "DEFERRED_NOT_READY",
+    "PHASE8_PREPARATION": "PREPARATION_ONLY",
+    "PHASE8_LIVE_ACTIVATION": "NOT_VERIFIED"
+  },
+  "limitations": [
+    "The standard runner does not invent an Approval authority callback.",
+    "The Core public boundary does not yet consume MessageKind.INTERRUPT into a safe checkpoint and parent-resume operation.",
+    "A real Discord client must send a new message while the runner is online for live Gateway evidence; history backfill is not used."
+  ],
+  "test_refs": [
+    "tests/v2/test_discord_adapter.py",
+    "tests/v2/test_discord_bot.py",
+    "tests/v2/test_discord_composition.py",
+    "tests/v2/test_discord_durable_flow.py",
+    "tests/v2/test_discord_outbound.py"
+  ]
+}

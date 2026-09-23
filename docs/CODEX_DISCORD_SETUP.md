@@ -48,12 +48,21 @@ Start the Phase A/early Phase B adapter:
 python scripts/run_discord_bot.py
 ```
 
-The current MVP echoes accepted human messages as `受信: ...`, ignores
-Bot-authored messages, and exposes `/dir` and `/file` only as bounded
-repository-relative scope/reference commands. The standard runner also starts
-the read-only outbound projection after Gateway readiness; it observes existing
-Core state for progress and pending HumanRequest delivery without owning Tasks,
-the queue, retry policy, or Approval authority.
+The adapter echoes accepted human messages as `受信: ...`, ignores Bot-authored
+messages, and exposes `/dir` and `/file` as bounded repository-relative scope
+commands. Scope is persisted in the existing Core SQLite StateStore and is
+passed to the next Operation or child Operation as structured input. Plain text
+sent while a bound run is non-terminal becomes a NOTE; explicit `/parallel`,
+`/interrupt`, and `/cancel` retain their Core meanings. The standard runner
+also starts the read-only outbound projection after Gateway readiness; it
+observes existing Core state for progress and pending HumanRequest delivery
+without owning Tasks, the queue, retry policy, or Approval authority.
+
+Replies to a delivered HumanRequest are correlated by the Discord reply
+reference before ordinary ingress. Finite answers can use buttons and free-text
+requests use the same exact HumanInteractionPort request identity. A standard
+runner Approval view/submit callback is intentionally not fabricated: it still
+requires an explicit Core-owned Approval boundary.
 
 ## Live message smoke order
 
@@ -63,11 +72,15 @@ The runner does not backfill Discord history. Use this order:
 2. Wait for `Discord Human UI bot ready`.
 3. From the authorized Human Discord client, send a **new** message.
 4. Confirm the echo, Core ingress/binding result, and any bounded outbound
-   projection in the same channel or thread.
+   projection in the same channel or thread. Start the existing
+   RuntimeCoordinator separately when you want the submitted Operation to be
+   claimed and executed.
 
 Posting a message before starting or restarting the runner does not test the
 Gateway ingress path. A real interactive client is required for live message,
 progress, HumanRequest, and button evidence; local tests and Gateway login do
-not claim that external E2E. Approval-button delivery additionally requires an
-explicit Core-owned approval view/submit boundary; the Discord adapter never
-creates approval authority itself.
+not claim that external E2E. The same applies to real progress, HumanRequest
+reply, restart/offline delivery, and Approval button round-trips. Approval
+button delivery additionally requires an explicit Core-owned approval
+view/submit boundary; the Discord adapter never creates approval authority
+itself.
