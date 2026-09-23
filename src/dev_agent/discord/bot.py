@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import inspect
 import os
 from pathlib import Path
@@ -16,9 +16,11 @@ from .approval import DiscordApprovalAdapter
 from .auth import DiscordAuthorizer
 from .binding import DiscordBindingKey, InMemoryDiscordBindingStore, SQLiteDiscordBindingStore
 from .composition import DiscordRuntimeComposition
+from .delivery import DiscordHumanFacingSender
+from .history import collect_discord_history
 from .human import DiscordHumanAdapter
 from .outbound import DiscordOutboundPublisher
-from .renderer import render_echo, render_progress, render_read_projection
+from .renderer import render_ingress_ack, render_progress, render_read_projection
 from ..human import HumanRequest
 from ..operation import OperationConfig
 
@@ -251,6 +253,8 @@ def build_bot(
     outbound: DiscordOutboundPublisher | None = None,
     human: DiscordHumanAdapter | None = None,
     binding_is_active=None,
+    typing_delay_seconds: float = 2.0,
+    human_facing_sender: DiscordHumanFacingSender | None = None,
 ) -> Any:
     """Build the Gateway bot; no Discord connection starts until ``run``."""
 
@@ -267,6 +271,9 @@ def build_bot(
     bindings = bindings or InMemoryDiscordBindingStore()
     if not isinstance(bindings, (InMemoryDiscordBindingStore, SQLiteDiscordBindingStore)):
         raise TypeError("bindings must implement the Discord binding contract")
+    sender = human_facing_sender or DiscordHumanFacingSender(typing_delay_seconds=typing_delay_seconds)
+    if not isinstance(sender, DiscordHumanFacingSender):
+        raise TypeError("human_facing_sender must implement the Discord send boundary")
     ingress = DiscordIngressAdapter(
         authorizer=authorizer,
         bindings=bindings,
@@ -337,7 +344,7 @@ def build_bot(
                         return
                 except (PermissionError, ValueError, KeyError):
                     return
-                await message.channel.send("回答を受け付けました。")
+                await sender.send(message.channel, "回答を受け付けました。")
                 return
         try:
             event = ingress.accept(projected_message)
@@ -348,15 +355,33 @@ def build_bot(
         if event is None:
             # Unauthorized and duplicate messages are deliberately silent.
             return
+        if event.kind in {DiscordMessageKind.NEW_REQUEST, DiscordMessageKind.PARALLEL}:
+            try:
+                history_context = await collect_discord_history(
+                    message.channel,
+                    current_message_id=projected_message.message_id,
+                    current_message=message,
+                    authorizer=authorizer,
+                    guild_id=projected_message.guild_id,
+                    channel_id=projected_message.channel_id,
+                    thread_id=projected_message.thread_id,
+                    bot_user_id=str(getattr(getattr(bot, "user", None), "id", config.application_id)),
+                )
+            except Exception:
+                # History is a bounded context hint.  A read failure must not
+                # turn an otherwise accepted ingress into a retry or replay.
+                history_context = ()
+            if history_context:
+                event = replace(event, history_context=history_context)
         result = None
         if on_event is not None:
             result = on_event(event)
             if inspect.isawaitable(result):
                 result = await result
         if event.kind is DiscordMessageKind.READ_QUERY and isinstance(result, Mapping):
-            await message.channel.send(render_read_projection(result))
+            await sender.send(message.channel, render_read_projection(result))
         else:
-            await message.channel.send(render_echo(message.content))
+            await sender.send(message.channel, render_ingress_ack(event.kind.value))
         await bot.process_commands(message)
 
     @bot.tree.command(name="dir", description="作業対象ディレクトリを指定します")
@@ -405,6 +430,7 @@ def build_bot(
     bot._dev_agent_discord_bindings = bindings
     bot._dev_agent_discord_on_event = on_event
     bot._dev_agent_discord_outbound = outbound
+    bot._dev_agent_discord_sender = sender
     return bot
 
 
@@ -435,9 +461,7 @@ def run_from_environment(*, env_path: str | Path | None = None, workspace: str |
             channel = bot.get_channel(int(target_id))
             if channel is None:
                 channel = await bot.fetch_channel(int(target_id))
-            if view is None:
-                return await channel.send(content)
-            return await channel.send(content, view=view)
+            return await bot._dev_agent_discord_sender.send(channel, content, view=view)
 
         bot._dev_agent_discord_outbound = DiscordOutboundPublisher(
             composition.store,

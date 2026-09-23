@@ -24,6 +24,14 @@ from src.dev_agent.human import SQLiteHumanInteractionPort
 from src.dev_agent.state.sqlite_store import SQLiteStateStore
 
 
+class _NoopTyping:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_args):
+        return None
+
+
 def _env_file(tmp_path: Path, *, token: str = "token-value") -> Path:
     path = tmp_path / ".env"
     path.write_text(
@@ -135,6 +143,9 @@ def test_unauthorized_message_is_silent_and_never_reaches_core(tmp_path):
         def __init__(self):
             self.sent = []
 
+        def typing(self):
+            return _NoopTyping()
+
         async def send(self, content):
             self.sent.append(content)
 
@@ -181,6 +192,9 @@ def test_authorized_read_query_renders_projection_instead_of_echo(tmp_path):
         def __init__(self):
             self.sent = []
 
+        def typing(self):
+            return _NoopTyping()
+
         async def send(self, content):
             self.sent.append(content)
 
@@ -196,7 +210,73 @@ def test_authorized_read_query_renders_projection_instead_of_echo(tmp_path):
     message = _Message()
     asyncio.run(handler(message))
 
-    assert message.channel.sent == ["処理: Host Verification"]
+    assert message.channel.sent == ["現在の状態\n\n- 処理: Host Verification"]
+
+
+def test_new_request_attaches_bounded_history_without_replaying_it(tmp_path):
+    pytest.importorskip("discord")
+    config = DiscordBotConfig.from_environment(env_path=_env_file(tmp_path))
+    routed = []
+    bot = build_bot(
+        config,
+        workspace=tmp_path,
+        typing_delay_seconds=0,
+        on_event=lambda event: routed.append(event),
+    )
+    bot.process_commands = lambda _message: asyncio.sleep(0)
+
+    class _Author:
+        id = 42
+        bot = False
+
+    class _Guild:
+        id = 10
+
+    class _Channel:
+        id = 20
+
+        def __init__(self):
+            self.sent = []
+            self.history_kwargs = None
+
+        def typing(self):
+            return _NoopTyping()
+
+        async def send(self, content):
+            self.sent.append(content)
+
+        def history(self, **kwargs):
+            self.history_kwargs = kwargs
+
+            class _PreviousMessage:
+                id = 900
+                author = _Author()
+                content = "先にREADMEを確認して"
+                channel = _Channel()
+
+            async def _iterate():
+                yield _PreviousMessage()
+
+            return _iterate()
+
+    class _Message:
+        id = 901
+        author = _Author()
+        guild = _Guild()
+        content = "それも反映して"
+
+        def __init__(self):
+            self.channel = _Channel()
+
+    message = _Message()
+    asyncio.run(bot.on_message(message))
+
+    assert len(routed) == 1
+    assert [item.to_dict() for item in routed[0].history_context] == [
+        {"role": "human", "content": "先にREADMEを確認して"}
+    ]
+    assert message.channel.history_kwargs["before"] is message
+    assert len(message.channel.sent) == 1
 
 
 def test_message_projection_preserves_reply_reference_id():
@@ -298,6 +378,9 @@ def test_human_request_reply_is_correlated_before_normal_ingress(tmp_path):
 
             def __init__(self):
                 self.sent = []
+
+            def typing(self):
+                return _NoopTyping()
 
             async def send(self, content):
                 self.sent.append(content)

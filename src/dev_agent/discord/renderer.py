@@ -35,14 +35,31 @@ def _bounded(value: str) -> str:
 
 
 def render_echo(content: str) -> str:
-    return _bounded(f"受信: {_safe_text(content, maximum=1_900)}")
+    # The Human already sees their own message in Discord; do not duplicate
+    # untrusted input in the Bot response.
+    _ = content
+    return "受信しました。\n作業を開始します。"
+
+
+def render_ingress_ack(kind: str) -> str:
+    """Render a short acknowledgement for an accepted ingress event."""
+
+    labels = {
+        "NEW_REQUEST": "受信しました。\n作業を開始します。",
+        "NOTE": "追加指示を受け付けました。\n次の安全な区切りから反映します。",
+        "PARALLEL": "並行作業を受け付けました。\n既存の作業とは分けて進めます。",
+        "INTERRUPT": "割り込みを受け付けました。\n安全な区切りで切り替えます。",
+        "CANCEL": "停止依頼を受け付けました。\n対象Taskだけを停止します。",
+    }
+    return labels.get(str(kind).upper(), render_echo(""))
 
 
 def render_progress(stage: str, *, detail: str | None = None) -> str:
     label = _STAGE_LABELS.get(stage.casefold(), "作業状態が更新されました")
+    lines = ["状態が更新されました", "", f"- 状態: {label}"]
     if detail:
-        return _bounded(f"{label}\n{_safe_text(detail)}")
-    return label
+        lines.append(f"- 詳細: {_safe_text(detail)}")
+    return _bounded("\n".join(lines))
 
 
 def render_human_request(request: HumanRequest) -> str:
@@ -52,9 +69,8 @@ def render_human_request(request: HumanRequest) -> str:
     suffix = f"\n選択肢: {answers}" if answers else ""
     rendered = (
         "判断が必要です\n"
-        f"Request: {_safe_text(request.request_id, maximum=120)}\n"
-        f"理由: {_safe_text(request.reason)}\n"
-        f"質問: {_safe_text(request.question)}"
+        f"\n- 理由: {_safe_text(request.reason)}\n"
+        f"- 質問: {_safe_text(request.question)}"
         f"{suffix}"
     )
     return _bounded(rendered)
@@ -76,7 +92,9 @@ def render_read_projection(projection: Mapping[str, object]) -> str:
     for key, label in labels:
         if key in projection and projection[key] is not None:
             lines.append(f"{label}: {_safe_text(projection[key], maximum=300)}")
-    return _bounded("\n".join(lines) or "状態情報はまだありません")
+    if not lines:
+        return "状態情報はまだありません"
+    return _bounded("現在の状態\n\n" + "\n".join(f"- {line}" for line in lines))
 
 
-__all__ = ["render_echo", "render_human_request", "render_progress", "render_read_projection"]
+__all__ = ["render_echo", "render_human_request", "render_ingress_ack", "render_progress", "render_read_projection"]

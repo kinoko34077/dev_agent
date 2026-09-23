@@ -19,6 +19,7 @@ from .approval import DiscordApprovalAdapter
 from .core import DiscordCoreAdapter
 from .composition import DiscordRuntimeComposition
 from .outbound import DiscordOutboundPublisher
+from .history import DiscordHistoryMessage, collect_discord_history
 
 __all__ = [
     "DiscordAuthorizer",
@@ -37,5 +38,7 @@ __all__ = [
     "DiscordCoreAdapter",
     "DiscordRuntimeComposition",
     "DiscordOutboundPublisher",
+    "DiscordHistoryMessage",
+    "collect_discord_history",
     "classify_message",
 ]

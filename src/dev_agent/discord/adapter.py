@@ -12,6 +12,7 @@ from ..coordination.protocol_helpers import validate_relative_path, validate_tex
 from ..security.protected_paths import PathProtectionClass, classify_path
 from .auth import DiscordAuthorizer
 from .binding import DiscordBindingKey, InMemoryDiscordBindingStore, SQLiteDiscordBindingStore
+from .history import DiscordHistoryMessage
 
 
 class DiscordMessageKind(str, Enum):
@@ -90,6 +91,13 @@ class DiscordIngressEvent:
     message: DiscordMessage
     kind: DiscordMessageKind
     binding_key: DiscordBindingKey
+    history_context: tuple[DiscordHistoryMessage, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.history_context, tuple):
+            object.__setattr__(self, "history_context", tuple(self.history_context))
+        if not all(isinstance(item, DiscordHistoryMessage) for item in self.history_context):
+            raise TypeError("history_context must contain DiscordHistoryMessage values")
 
 
 class DiscordScope:

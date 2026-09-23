@@ -1,9 +1,15 @@
 from __future__ import annotations
 
-from src.dev_agent.discord.adapter import DiscordIngressEvent, DiscordMessage, DiscordMessageKind
+from src.dev_agent.discord.adapter import (
+    DiscordIngressAdapter,
+    DiscordIngressEvent,
+    DiscordMessage,
+    DiscordMessageKind,
+)
 from src.dev_agent.discord.auth import DiscordAuthorizer
 from src.dev_agent.discord.binding import DiscordBindingKey
 from src.dev_agent.discord.composition import DiscordRuntimeComposition
+from src.dev_agent.discord.history import DiscordHistoryMessage
 from src.dev_agent.domain.protocol import Task, TaskStatus
 from src.dev_agent.operation import OperationConfig, OperationService
 from src.dev_agent.operation_runtime import RuntimeCoordinator
@@ -14,7 +20,13 @@ from src.dev_agent.state.sqlite_store import SQLiteStateStore
 from time import time
 
 
-def _event(content: str, kind: DiscordMessageKind, message_id: str) -> DiscordIngressEvent:
+def _event(
+    content: str,
+    kind: DiscordMessageKind,
+    message_id: str,
+    *,
+    history_context: tuple[DiscordHistoryMessage, ...] = (),
+) -> DiscordIngressEvent:
     message = DiscordMessage(
         message_id=message_id,
         author_id="42",
@@ -27,6 +39,7 @@ def _event(content: str, kind: DiscordMessageKind, message_id: str) -> DiscordIn
         message=message,
         kind=kind,
         binding_key=DiscordBindingKey("10", "20", "30"),
+        history_context=history_context,
     )
 
 
@@ -83,6 +96,70 @@ def test_composition_passes_persisted_discord_scope_as_structured_task_input(tmp
             "directory": "src/dev_agent",
             "files": ["src/dev_agent/operation.py"],
         }
+
+
+def test_composition_passes_bounded_history_as_context_without_replaying_it(tmp_path):
+    config = OperationConfig(data_dir=tmp_path / "agent")
+    history = (
+        DiscordHistoryMessage(role="human", content="先にREADMEを確認して"),
+        DiscordHistoryMessage(role="assistant", content="確認を開始します"),
+    )
+    with DiscordRuntimeComposition.open(
+        config,
+        authorizer=DiscordAuthorizer(allowed_user_ids={"42"}),
+    ) as composition:
+        task = composition.core.handle(
+            _event("それも反映して", DiscordMessageKind.NEW_REQUEST, "1006", history_context=history)
+        )
+
+        persisted = composition.store.load_task(task.task_id)
+        assert persisted is not None
+        assert persisted.inputs["discord_context"] == {
+            "messages": [
+                {"role": "human", "content": "先にREADMEを確認して"},
+                {"role": "assistant", "content": "確認を開始します"},
+            ]
+        }
+        assert len(composition.store.snapshot()["tasks"]) == 1
+        assert composition.coordination.snapshot(recipient_role="agent").mailbox == ()
+
+
+def test_waiting_binding_plain_text_is_one_note_without_new_root_or_cancellation(tmp_path):
+    config = OperationConfig(data_dir=tmp_path / "agent")
+    waiting = Task(objective="wait for the human answer", status=TaskStatus.WAITING_HUMAN)
+    key = DiscordBindingKey("10", "20", "30")
+    with DiscordRuntimeComposition.open(
+        config,
+        authorizer=DiscordAuthorizer(allowed_user_ids={"42"}),
+    ) as composition:
+        composition.store.save_task(waiting)
+        composition.bindings.bind(key, root_id=waiting.task_id, run_id=waiting.task_id)
+        ingress = DiscordIngressAdapter(
+            authorizer=composition.authorizer,
+            bindings=composition.bindings,
+            binding_is_active=composition.binding_is_active,
+        )
+        event = ingress.accept(
+            DiscordMessage(
+                message_id="1007",
+                author_id="42",
+                guild_id="10",
+                channel_id="20",
+                thread_id="30",
+                content="あとREADMEにも反映して",
+            )
+        )
+
+        assert event is not None
+        assert event.kind is DiscordMessageKind.NOTE
+        result = composition.core.handle(event)
+
+        assert result.kind is MessageKind.NOTE
+        assert len(composition.store.snapshot()["tasks"]) == 1
+        assert composition.store.load_task(waiting.task_id).status is TaskStatus.WAITING_HUMAN
+        mailbox = composition.coordination.snapshot(recipient_role="agent").mailbox
+        assert len(mailbox) == 1
+        assert mailbox[0].kind is MessageKind.NOTE
 
 
 def test_intervention_uses_existing_coordination_note_with_bounded_content(tmp_path):

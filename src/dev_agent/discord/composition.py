@@ -157,9 +157,9 @@ class DiscordRuntimeComposition:
         task = self.store.load_task(binding.run_id)
         return task is not None and task.status not in _TERMINAL_TASK_STATES
 
-    def submit_request(self, content: str, event: DiscordIngressEvent):
-        if not isinstance(event, DiscordIngressEvent):
-            raise TypeError("event must be DiscordIngressEvent")
+    def _structured_inputs(self, event: DiscordIngressEvent) -> dict[str, Any]:
+        """Build bounded structured hints without constructing a Planner prompt."""
+
         scope = self.bindings.get_scope(event.binding_key)
         inputs: dict[str, Any] = {}
         if scope is not None:
@@ -169,7 +169,20 @@ class DiscordRuntimeComposition:
             }
             if scope_hint["directory"] or scope_hint["files"]:
                 inputs["discord_scope"] = scope_hint
-        task = OperationService.submit(self.config, content, inputs=inputs)
+        if event.history_context:
+            inputs["discord_context"] = {
+                "messages": [item.to_dict() for item in event.history_context],
+            }
+        return inputs
+
+    def submit_request(self, content: str, event: DiscordIngressEvent):
+        if not isinstance(event, DiscordIngressEvent):
+            raise TypeError("event must be DiscordIngressEvent")
+        task = OperationService.submit(
+            self.config,
+            content,
+            inputs=self._structured_inputs(event),
+        )
         self.bindings.bind(
             event.binding_key,
             root_id=task.root_task_id or task.task_id,
@@ -209,17 +222,11 @@ class DiscordRuntimeComposition:
                 objective = objective[len("/parallel") :].strip()
             if not objective:
                 objective = "Discordからの並行確認"
-            scope = self.bindings.get_scope(event.binding_key)
-            inputs = {}
-            if scope is not None:
-                scope_hint = {"directory": scope.directory_scope, "files": list(scope.selected_files)}
-                if scope_hint["directory"] or scope_hint["files"]:
-                    inputs["discord_scope"] = scope_hint
             return OperationService.submit_child(
                 self.config,
                 binding.run_id,
                 objective,
-                inputs=inputs,
+                inputs=self._structured_inputs(event),
             )
         if event.kind is DiscordMessageKind.INTERRUPT:
             if binding is None:
