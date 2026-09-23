@@ -64,7 +64,7 @@ class DiscordHumanAdapter:
         request_id: str,
         author_id: str,
         response: Any,
-        decision: str,
+        decision: str | None = None,
         guild_id: str = "",
         channel_id: str = "",
         received_at: str | None = None,
@@ -79,13 +79,18 @@ class DiscordHumanAdapter:
         request = self._port.get_request(request_id)
         if request is None:
             raise KeyError(request_id)
-        if request.allowed_answers and decision not in request.allowed_answers:
-            raise ValueError("decision is not an allowed answer")
+        selected_decision = decision
+        if request.allowed_answers:
+            selected_decision = selected_decision or (response.strip() if isinstance(response, str) else "")
+            if selected_decision not in request.allowed_answers:
+                raise ValueError("decision is not an allowed answer")
+        else:
+            selected_decision = "TEXT_RESPONSE"
         human_response = HumanResponse(
             request_id=request.request_id,
             responder=f"discord:{author_id}",
             response=response,
-            decision=decision,
+            decision=selected_decision,
             received_at=received_at or _now(),
         )
         self._port.record_response(human_response)

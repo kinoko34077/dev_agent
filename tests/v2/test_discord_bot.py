@@ -9,14 +9,19 @@ from src.dev_agent.discord.bot import (
     DiscordBotConfig,
     build_bot,
     build_approval_view,
+    _message_from_discord,
 )
 from src.dev_agent.discord.auth import DiscordAuthorizer
+from src.dev_agent.discord.binding import DiscordBindingKey, SQLiteDiscordBindingStore
+from src.dev_agent.discord.human import DiscordHumanAdapter
 from src.dev_agent.discord.renderer import (
     render_echo,
     render_human_request,
     render_progress,
 )
 from src.dev_agent.human import HumanRequest
+from src.dev_agent.human import SQLiteHumanInteractionPort
+from src.dev_agent.state.sqlite_store import SQLiteStateStore
 
 
 def _env_file(tmp_path: Path, *, token: str = "token-value") -> Path:
@@ -192,6 +197,169 @@ def test_authorized_read_query_renders_projection_instead_of_echo(tmp_path):
     asyncio.run(handler(message))
 
     assert message.channel.sent == ["処理: Host Verification"]
+
+
+def test_message_projection_preserves_reply_reference_id():
+    class _Reference:
+        message_id = 700
+
+    class _Author:
+        id = 42
+        bot = False
+
+    class _Guild:
+        id = 10
+
+    class _Channel:
+        id = 20
+
+    class _Message:
+        id = 701
+        author = _Author()
+        guild = _Guild()
+        channel = _Channel()
+        content = "A"
+        reference = _Reference()
+
+    projected = _message_from_discord(_Message())
+
+    assert projected.reference_message_id == "700"
+
+
+def test_message_projection_uses_thread_parent_as_channel_pointer():
+    class Thread:
+        id = 701
+        parent_id = 20
+
+    class _Author:
+        id = 42
+        bot = False
+
+    class _Guild:
+        id = 10
+
+    class _Message:
+        id = 702
+        author = _Author()
+        guild = _Guild()
+        channel = Thread()
+        content = "A"
+        reference = None
+
+    projected = _message_from_discord(_Message())
+
+    assert projected.channel_id == "20"
+    assert projected.thread_id == "701"
+
+
+def test_human_request_reply_is_correlated_before_normal_ingress(tmp_path):
+    pytest.importorskip("discord")
+    config = DiscordBotConfig.from_environment(env_path=_env_file(tmp_path))
+    state_path = tmp_path / "state.sqlite3"
+    request = HumanRequest(
+        request_id="discord-request-1",
+        root_id="root-1",
+        task_id="task-1",
+        attempt_id="attempt-1",
+        reason="仕様判断",
+        question="AかBか",
+        allowed_answers=("A", "B"),
+    )
+    with SQLiteStateStore(state_path) as store:
+        bindings = SQLiteDiscordBindingStore(store)
+        key = DiscordBindingKey("10", "20", "")
+        bindings.bind(key, root_id="root-1", run_id="task-1")
+        human = DiscordHumanAdapter(
+            SQLiteHumanInteractionPort(store),
+            authorizer=DiscordAuthorizer(allowed_user_ids={"42"}),
+            bindings=bindings,
+        )
+        human.request_human(request)
+        bindings.record_delivery(request.request_id, "700")
+        bot = build_bot(
+            config,
+            workspace=tmp_path,
+            bindings=bindings,
+            authorizer=DiscordAuthorizer(allowed_user_ids={"42"}),
+            human=human,
+        )
+        bot.process_commands = lambda _message: asyncio.sleep(0)
+        handler = bot.on_message
+
+        class _Author:
+            id = 42
+            bot = False
+
+        class _Guild:
+            id = 10
+
+        class _Channel:
+            id = 20
+
+            def __init__(self):
+                self.sent = []
+
+            async def send(self, content):
+                self.sent.append(content)
+
+        class _Reference:
+            message_id = 700
+
+        class _Message:
+            id = 702
+            author = _Author()
+            guild = _Guild()
+            content = "A"
+            reference = _Reference()
+
+            def __init__(self):
+                self.channel = _Channel()
+
+        message = _Message()
+        asyncio.run(handler(message))
+
+        assert message.channel.sent == ["回答を受け付けました。"]
+        assert store.get_human_response(request.request_id).decision == "A"
+
+
+def test_scope_commands_persist_scope_for_the_current_channel(tmp_path):
+    pytest.importorskip("discord")
+    config = DiscordBotConfig.from_environment(env_path=_env_file(tmp_path))
+    workspace = Path(__file__).resolve().parents[2]
+    bot = build_bot(config, workspace=workspace)
+    commands = {command.name: command for command in bot.tree.get_commands()}
+
+    class _User:
+        id = 42
+
+    class _Guild:
+        id = 10
+
+    class _Channel:
+        id = 20
+
+    class _Response:
+        def __init__(self):
+            self.messages = []
+
+        async def send_message(self, content, **_kwargs):
+            self.messages.append(content)
+
+    class _Interaction:
+        user = _User()
+        guild = _Guild()
+        channel = _Channel()
+
+        def __init__(self):
+            self.response = _Response()
+
+    interaction = _Interaction()
+    asyncio.run(commands["dir"].callback(interaction, "src/dev_agent"))
+    asyncio.run(commands["file"].callback(interaction, "src/dev_agent/discord/bot.py"))
+
+    scope = bot._dev_agent_discord_bindings.get_scope(DiscordBindingKey("10", "20", ""))
+    assert scope.directory_scope == "src/dev_agent"
+    assert scope.selected_files == ("src/dev_agent/discord/bot.py",)
 
 
 def test_environment_runner_injects_durable_core_composition(tmp_path, monkeypatch):

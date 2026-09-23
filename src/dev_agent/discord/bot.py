@@ -14,10 +14,12 @@ from typing import Any, Mapping
 from .adapter import DiscordIngressAdapter, DiscordMessage, DiscordMessageKind, DiscordScope
 from .approval import DiscordApprovalAdapter
 from .auth import DiscordAuthorizer
-from .binding import InMemoryDiscordBindingStore, SQLiteDiscordBindingStore
+from .binding import DiscordBindingKey, InMemoryDiscordBindingStore, SQLiteDiscordBindingStore
 from .composition import DiscordRuntimeComposition
+from .human import DiscordHumanAdapter
 from .outbound import DiscordOutboundPublisher
 from .renderer import render_echo, render_progress, render_read_projection
+from ..human import HumanRequest
 from ..operation import OperationConfig
 
 
@@ -131,18 +133,32 @@ def _discord_modules():
     return discord, commands
 
 
+def _binding_key_from_discord(guild: Any, channel: Any) -> DiscordBindingKey:
+    guild_id = str(getattr(guild, "id", 0))
+    if channel is not None and channel.__class__.__name__ == "Thread":
+        channel_id = str(getattr(channel, "parent_id", None) or getattr(channel, "id", 0))
+        thread_id = str(getattr(channel, "id", 0))
+    else:
+        channel_id = str(getattr(channel, "id", 0))
+        thread_id = ""
+    return DiscordBindingKey(guild_id, channel_id, thread_id)
+
+
 def _message_from_discord(message: Any) -> DiscordMessage:
     guild = getattr(message, "guild", None)
     channel = getattr(message, "channel", None)
-    thread = getattr(channel, "id", None) if channel is not None and channel.__class__.__name__ == "Thread" else None
+    binding_key = _binding_key_from_discord(guild, channel)
+    reference = getattr(message, "reference", None)
+    reference_id = getattr(reference, "message_id", None) if reference is not None else None
     return DiscordMessage(
         message_id=str(message.id),
         author_id=str(message.author.id),
-        guild_id=str(getattr(guild, "id", 0)),
-        channel_id=str(getattr(channel, "id", 0)),
-        thread_id="" if thread is None else str(thread),
+        guild_id=binding_key.guild_id,
+        channel_id=binding_key.channel_id,
+        thread_id=binding_key.thread_id,
         content=str(message.content),
         author_is_bot=bool(getattr(message.author, "bot", False)),
+        reference_message_id=None if reference_id is None else str(reference_id),
     )
 
 
@@ -185,6 +201,46 @@ def build_approval_view(*, approval_id: str, authorizer: DiscordAuthorizer, subm
     return ApprovalView()
 
 
+def build_human_request_view(*, request: HumanRequest, authorizer: DiscordAuthorizer, submit) -> Any:
+    """Build finite-answer buttons that delegate to HumanInteractionPort."""
+
+    discord, _commands = _discord_modules()
+    if not isinstance(request, HumanRequest):
+        raise TypeError("request must be HumanRequest")
+    if not callable(submit):
+        raise TypeError("submit must be callable")
+
+    class HumanRequestView(discord.ui.View):
+        def __init__(self) -> None:
+            super().__init__(timeout=None)
+            for answer in request.allowed_answers:
+                button = discord.ui.Button(label=answer, style=discord.ButtonStyle.primary)
+
+                async def _callback(interaction: Any, selected: str = answer) -> None:
+                    guild = getattr(interaction, "guild", None)
+                    channel = getattr(interaction, "channel", None)
+                    try:
+                        result = submit(
+                            request_id=request.request_id,
+                            author_id=str(interaction.user.id),
+                            response={"decision": selected},
+                            decision=selected,
+                            guild_id=str(getattr(guild, "id", "")),
+                            channel_id=str(getattr(channel, "id", "")),
+                        )
+                        if inspect.isawaitable(result):
+                            await result
+                    except (PermissionError, ValueError, KeyError):
+                        await interaction.response.send_message("この回答は受け付けられません。", ephemeral=True)
+                        return
+                    await interaction.response.send_message("回答を受け付けました。", ephemeral=True)
+
+                button.callback = _callback
+                self.add_item(button)
+
+    return HumanRequestView()
+
+
 def build_bot(
     config: DiscordBotConfig,
     *,
@@ -193,6 +249,8 @@ def build_bot(
     authorizer: DiscordAuthorizer | None = None,
     on_event=None,
     outbound: DiscordOutboundPublisher | None = None,
+    human: DiscordHumanAdapter | None = None,
+    binding_is_active=None,
 ) -> Any:
     """Build the Gateway bot; no Discord connection starts until ``run``."""
 
@@ -209,7 +267,11 @@ def build_bot(
     bindings = bindings or InMemoryDiscordBindingStore()
     if not isinstance(bindings, (InMemoryDiscordBindingStore, SQLiteDiscordBindingStore)):
         raise TypeError("bindings must implement the Discord binding contract")
-    ingress = DiscordIngressAdapter(authorizer=authorizer, bindings=bindings)
+    ingress = DiscordIngressAdapter(
+        authorizer=authorizer,
+        bindings=bindings,
+        binding_is_active=binding_is_active,
+    )
     scope = DiscordScope(Path(workspace))
     intents = discord.Intents.default()
     intents.message_content = True
@@ -246,7 +308,39 @@ def build_bot(
         if getattr(message.author, "bot", False):
             return
         try:
-            event = ingress.accept(_message_from_discord(message))
+            projected_message = _message_from_discord(message)
+        except ValueError:
+            # Discord itself supplied malformed/unusable metadata; do not echo
+            # or route it into the Core boundary.
+            return
+        if human is not None and projected_message.reference_message_id:
+            request_id = bindings.request_id_for_delivery(projected_message.reference_message_id)
+            if request_id is not None:
+                try:
+                    human.receive_response(
+                        request_id=request_id,
+                        author_id=projected_message.author_id,
+                        response=projected_message.content,
+                        decision=None,
+                        guild_id=projected_message.guild_id,
+                        channel_id=projected_message.channel_id,
+                    )
+                    if not bindings.mark_message_seen(
+                        projected_message.message_id,
+                        binding_key=DiscordBindingKey(
+                            projected_message.guild_id,
+                            projected_message.channel_id,
+                            projected_message.thread_id,
+                        ),
+                        kind="HUMAN_RESPONSE",
+                    ):
+                        return
+                except (PermissionError, ValueError, KeyError):
+                    return
+                await message.channel.send("回答を受け付けました。")
+                return
+        try:
+            event = ingress.accept(projected_message)
         except ValueError:
             # Discord itself supplied malformed/unusable metadata; do not echo
             # or route it into the Core boundary.
@@ -275,6 +369,13 @@ def build_bot(
         except ValueError:
             await interaction.response.send_message("指定ディレクトリは許可されていません。", ephemeral=True)
             return
+        key = _binding_key_from_discord(interaction.guild, interaction.channel)
+        existing = bindings.get_scope(key)
+        bindings.save_scope(
+            key,
+            directory_scope=resolved,
+            selected_files=() if existing is None else existing.selected_files,
+        )
         await interaction.response.send_message(f"参照ディレクトリ: `{resolved}`", ephemeral=True)
 
     @bot.tree.command(name="file", description="参照ファイルを指定します")
@@ -287,6 +388,16 @@ def build_bot(
         except ValueError:
             await interaction.response.send_message("指定ファイルは許可されていません。", ephemeral=True)
             return
+        key = _binding_key_from_discord(interaction.guild, interaction.channel)
+        existing = bindings.get_scope(key)
+        selected_files = () if existing is None else existing.selected_files
+        if resolved not in selected_files:
+            selected_files = (*selected_files, resolved)
+        bindings.save_scope(
+            key,
+            directory_scope=None if existing is None else existing.directory_scope,
+            selected_files=selected_files,
+        )
         await interaction.response.send_message(f"参照ファイル: `{resolved}`", ephemeral=True)
 
     bot._dev_agent_discord_ingress = ingress
@@ -315,6 +426,8 @@ def run_from_environment(*, env_path: str | Path | None = None, workspace: str |
             bindings=composition.bindings,
             authorizer=authorizer,
             on_event=composition.core.handle,
+            human=composition.human,
+            binding_is_active=composition.binding_is_active,
         )
 
         async def _send_to_binding(binding, content, view=None):
@@ -330,6 +443,11 @@ def run_from_environment(*, env_path: str | Path | None = None, workspace: str |
             composition.store,
             composition.bindings,
             send=_send_to_binding,
+            human_request_view_factory=lambda request, _binding: build_human_request_view(
+                request=request,
+                authorizer=authorizer,
+                submit=composition.human.receive_response,
+            ),
         )
         bot._dev_agent_discord_composition = composition
         bot._dev_agent_discord_human = composition.human
@@ -353,6 +471,7 @@ __all__ = [
     "DiscordDependencyError",
     "build_bot",
     "build_approval_view",
+    "build_human_request_view",
     "main",
     "run_from_environment",
 ]

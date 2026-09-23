@@ -13,11 +13,12 @@ from typing import Any, Callable
 from ..coordination.protocol import CoordinationConflict, MessageKind, PeerRecord, PeerStatus
 from ..coordination.protocol_helpers import validate_identifier
 from ..coordination.service import ProcessCoordinationService
+from ..domain.protocol import TaskStatus
 from ..human import SQLiteHumanInteractionPort
 from ..operation import OperationConfig, OperationService
 from ..security.audit import AuditRecorder
 from ..state.sqlite_store import SQLiteStateStore
-from .adapter import DiscordIngressEvent
+from .adapter import DiscordIngressEvent, DiscordMessageKind
 from .approval import DiscordApprovalAdapter
 from .auth import DiscordAuthorizer
 from .binding import SQLiteDiscordBindingStore
@@ -26,6 +27,9 @@ from .human import DiscordHumanAdapter
 
 
 _COORDINATION_SUBJECT_LIMIT = 3_500
+_TERMINAL_TASK_STATES = frozenset(
+    {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED}
+)
 
 
 def _coordination_subject(kind: str, event: DiscordIngressEvent) -> str:
@@ -131,10 +135,27 @@ class DiscordRuntimeComposition:
         self.peer = self.coordination.heartbeat(self.peer, lease_seconds=60.0)
         return self.peer
 
+    def binding_is_active(self, key) -> bool:
+        """Observe Core task state for context-sensitive Discord routing."""
+        binding = self.bindings.lookup(key)
+        if binding is None:
+            return False
+        task = self.store.load_task(binding.run_id)
+        return task is not None and task.status not in _TERMINAL_TASK_STATES
+
     def submit_request(self, content: str, event: DiscordIngressEvent):
         if not isinstance(event, DiscordIngressEvent):
             raise TypeError("event must be DiscordIngressEvent")
-        task = OperationService.submit(self.config, content)
+        scope = self.bindings.get_scope(event.binding_key)
+        inputs: dict[str, Any] = {}
+        if scope is not None:
+            scope_hint = {
+                "directory": scope.directory_scope,
+                "files": list(scope.selected_files),
+            }
+            if scope_hint["directory"] or scope_hint["files"]:
+                inputs["discord_scope"] = scope_hint
+        task = OperationService.submit(self.config, content, inputs=inputs)
         self.bindings.bind(
             event.binding_key,
             root_id=task.root_task_id or task.task_id,
@@ -163,10 +184,38 @@ class DiscordRuntimeComposition:
             raise TypeError("event must be DiscordIngressEvent")
         self._heartbeat()
         message_id = event.message.message_id
+        binding = self.bindings.lookup(event.binding_key)
+        if event.kind is DiscordMessageKind.CANCEL:
+            if binding is None:
+                return {"state": "NO_BINDING", "next_action": "キャンセル対象がありません"}
+            return OperationService.cancel_task_only(self.config, binding.run_id)
+        if event.kind is DiscordMessageKind.PARALLEL and binding is not None:
+            objective = event.message.content.strip()
+            if objective.casefold().startswith("/parallel"):
+                objective = objective[len("/parallel") :].strip()
+            if not objective:
+                objective = "Discordからの並行確認"
+            scope = self.bindings.get_scope(event.binding_key)
+            inputs = {}
+            if scope is not None:
+                scope_hint = {"directory": scope.directory_scope, "files": list(scope.selected_files)}
+                if scope_hint["directory"] or scope_hint["files"]:
+                    inputs["discord_scope"] = scope_hint
+            return OperationService.submit_child(
+                self.config,
+                binding.run_id,
+                objective,
+                inputs=inputs,
+            )
+        mailbox_kind = {
+            DiscordMessageKind.NOTE: MessageKind.NOTE,
+            DiscordMessageKind.PARALLEL: MessageKind.PARALLEL,
+            DiscordMessageKind.INTERRUPT: MessageKind.INTERRUPT,
+        }.get(event.kind, MessageKind.NOTE)
         return self.coordination.send_message(
             self.peer,
             recipient_role=self.coordination_recipient_role,
-            kind=MessageKind.NOTE,
+            kind=mailbox_kind,
             subject=_coordination_subject(kind, event),
             correlation_id=f"discord-{message_id}",
             idempotency_key=f"discord-{message_id}",

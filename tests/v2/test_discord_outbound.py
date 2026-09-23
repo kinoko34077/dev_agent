@@ -53,6 +53,31 @@ def test_human_request_is_pushed_once_and_survives_pump_reentry(tmp_path):
         assert "判断が必要です" in sent[0][1]
 
 
+def test_human_request_projection_can_attach_finite_answer_view(tmp_path):
+    sent: list[tuple[str, object | None]] = []
+
+    async def send(_binding, content, view=None):
+        sent.append((content, view))
+        return "850"
+
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        task = Task(objective="request-with-view")
+        store.save_task(task)
+        bindings, _key = _binding(store, task)
+        store.save_human_request(_request(task))
+        publisher = DiscordOutboundPublisher(
+            store,
+            bindings,
+            send=send,
+            human_request_view_factory=lambda request, _binding: {"request_id": request.request_id},
+        )
+
+        result = asyncio.run(publisher.publish_once())
+
+        assert result["human_requests"] == 1
+        assert sent[0][1] == {"request_id": "human-request-1"}
+
+
 def test_latest_progress_is_projected_without_replaying_older_events(tmp_path):
     sent: list[str] = []
 
@@ -153,3 +178,26 @@ def test_projection_loop_survives_transient_observation_error(tmp_path):
         asyncio.run(publisher.serve(stop=stop, interval_seconds=0.001))
 
         assert attempts["publish"] == 2
+
+
+def test_projection_loop_exposes_bounded_error_health_without_raw_exception(tmp_path):
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        bindings = SQLiteDiscordBindingStore(store)
+        publisher = DiscordOutboundPublisher(store, bindings, send=lambda *_args: "903")
+        attempts = {"publish": 0, "stop": 0}
+
+        async def publish_once():
+            attempts["publish"] += 1
+            raise RuntimeError("secret payload must not be projected")
+
+        def stop():
+            attempts["stop"] += 1
+            return attempts["stop"] > 1
+
+        publisher.publish_once = publish_once
+        asyncio.run(publisher.serve(stop=stop, interval_seconds=0.001))
+
+        assert publisher.health_projection() == {
+            "state": "DEGRADED",
+            "last_error_category": "RuntimeError",
+        }

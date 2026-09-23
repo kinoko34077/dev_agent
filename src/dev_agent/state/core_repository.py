@@ -128,6 +128,40 @@ class CoreStateRepository:
             (request_id,),
         ).fetchone() is not None
 
+    def discord_request_id_for_message(self, discord_message_id: str) -> str | None:
+        row = self.connection.execute(
+            "SELECT request_id FROM discord_deliveries WHERE discord_message_id = ? ORDER BY delivered_at, request_id LIMIT 1",
+            (discord_message_id,),
+        ).fetchone()
+        return str(row["request_id"]) if row is not None else None
+
+    def save_discord_scope(
+        self,
+        *,
+        binding_key: str,
+        directory_scope: str | None,
+        selected_files_payload: str,
+        updated_at: str,
+    ) -> None:
+        self.connection.execute(
+            """
+            INSERT INTO discord_scopes(binding_key, directory_scope, selected_files_payload, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(binding_key) DO UPDATE SET
+                directory_scope=excluded.directory_scope,
+                selected_files_payload=excluded.selected_files_payload,
+                updated_at=excluded.updated_at
+            """,
+            (binding_key, directory_scope, selected_files_payload, updated_at),
+        )
+
+    def get_discord_scope(self, binding_key: str) -> dict[str, str] | None:
+        row = self.connection.execute(
+            "SELECT binding_key, directory_scope, selected_files_payload, updated_at FROM discord_scopes WHERE binding_key = ?",
+            (binding_key,),
+        ).fetchone()
+        return dict(row) if row is not None else None
+
     def list_pending_human_requests(self) -> list[HumanRequest]:
         rows = self.connection.execute(
             "SELECT request_payload FROM human_requests WHERE status IN ('pending', 'answered') ORDER BY requested_at, request_id"

@@ -26,6 +26,7 @@ from .renderer import render_human_request, render_progress
 
 SendCallback = Callable[[DiscordBinding, str, Any | None], Awaitable[Any] | Any]
 ApprovalViewFactory = Callable[[str, DiscordBinding], Awaitable[Any] | Any]
+HumanRequestViewFactory = Callable[[HumanRequest, DiscordBinding], Awaitable[Any] | Any]
 
 
 def _message_id(value: Any) -> str:
@@ -83,6 +84,7 @@ class DiscordOutboundPublisher:
         *,
         send: SendCallback,
         approval_view_factory: ApprovalViewFactory | None = None,
+        human_request_view_factory: HumanRequestViewFactory | None = None,
     ) -> None:
         required_store = (
             "list_pending_human_requests",
@@ -98,10 +100,27 @@ class DiscordOutboundPublisher:
             raise TypeError("send must be callable")
         if approval_view_factory is not None and not callable(approval_view_factory):
             raise TypeError("approval_view_factory must be callable")
+        if human_request_view_factory is not None and not callable(human_request_view_factory):
+            raise TypeError("human_request_view_factory must be callable")
         self._store = store
         self._bindings = bindings
         self._send = send
         self._approval_view_factory = approval_view_factory
+        self._human_request_view_factory = human_request_view_factory
+        self._last_error_category: str | None = None
+
+    @property
+    def last_error_category(self) -> str | None:
+        return self._last_error_category
+
+    def health_projection(self) -> dict[str, str | None]:
+        return {
+            "state": "DEGRADED" if self._last_error_category else "READY",
+            "last_error_category": self._last_error_category,
+        }
+
+    def _record_error(self, error: BaseException) -> None:
+        self._last_error_category = type(error).__name__[:64]
 
     async def _send_once(
         self,
@@ -145,10 +164,16 @@ class DiscordOutboundPublisher:
             binding = self._binding_for_task(request.root_id) or self._binding_for_task(request.task_id)
             if binding is None:
                 continue
+            view = None
+            if self._human_request_view_factory is not None:
+                view = self._human_request_view_factory(request, binding)
+                if inspect.isawaitable(view):
+                    view = await view
             if await self._send_once(
                 binding,
                 request.request_id,
                 render_human_request(request),
+                view=view,
             ):
                 published += 1
         return published
@@ -226,13 +251,14 @@ class DiscordOutboundPublisher:
         while not stop():
             try:
                 await self.publish_once()
+                self._last_error_category = None
             except asyncio.CancelledError:
                 raise
-            except Exception:
+            except Exception as exc:
                 # A transient Discord/StateStore observation failure must not
                 # terminate the projection loop or affect Core execution.
                 # The next bounded pass will retry observation naturally.
-                pass
+                self._record_error(exc)
             await asyncio.sleep(interval_seconds)
 
 

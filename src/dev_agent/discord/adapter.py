@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -22,7 +23,15 @@ class DiscordMessageKind(str, Enum):
     CANCEL = "CANCEL"
 
 
-def classify_message(content: str) -> DiscordMessageKind:
+def classify_message(content: str, *, active_run: bool = False) -> DiscordMessageKind:
+    """Classify one message, keeping explicit commands authoritative.
+
+    Plain language is intentionally context-sensitive: a bound non-terminal
+    run receives ordinary follow-up text as a NOTE, while an unbound or
+    terminal binding starts a new Operation request.  Explicit commands are
+    resolved before that default is applied.
+    """
+
     normalized = validate_text(content, "message", max_chars=4_000).strip()
     lowered = normalized.casefold()
     if lowered in {"/status", "status", "今何してる", "進捗", "状態"}:
@@ -34,6 +43,10 @@ def classify_message(content: str) -> DiscordMessageKind:
     if lowered == "/parallel" or lowered.startswith("/parallel ") or normalized.startswith("並行"):
         return DiscordMessageKind.PARALLEL
     if lowered == "/note" or lowered.startswith("/note ") or normalized.startswith(("補足", "メモ")):
+        return DiscordMessageKind.NOTE
+    if lowered == "/new" or lowered.startswith("/new "):
+        return DiscordMessageKind.NEW_REQUEST
+    if active_run:
         return DiscordMessageKind.NOTE
     return DiscordMessageKind.NEW_REQUEST
 
@@ -47,6 +60,7 @@ class DiscordMessage:
     thread_id: str
     content: str
     author_is_bot: bool = False
+    reference_message_id: str | None = None
 
     def __post_init__(self) -> None:
         key = DiscordBindingKey(self.guild_id, self.channel_id, self.thread_id)
@@ -57,6 +71,14 @@ class DiscordMessage:
             if not isinstance(value, str) or not value.strip().isdecimal() or len(value.strip()) > 32:
                 raise ValueError(f"{name} must be a bounded Discord numeric ID")
             object.__setattr__(self, name, value.strip())
+        if self.reference_message_id is not None:
+            if (
+                not isinstance(self.reference_message_id, str)
+                or not self.reference_message_id.strip().isdecimal()
+                or len(self.reference_message_id.strip()) > 32
+            ):
+                raise ValueError("reference_message_id must be a bounded Discord numeric ID")
+            object.__setattr__(self, "reference_message_id", self.reference_message_id.strip())
         if not isinstance(self.content, str) or not self.content.strip() or len(self.content) > 4_000:
             raise ValueError("content must be bounded non-empty text")
         if not isinstance(self.author_is_bot, bool):
@@ -101,13 +123,22 @@ class DiscordScope:
 class DiscordIngressAdapter:
     """Accept authorized, non-duplicate messages without owning execution."""
 
-    def __init__(self, *, authorizer: DiscordAuthorizer, bindings: InMemoryDiscordBindingStore | SQLiteDiscordBindingStore) -> None:
+    def __init__(
+        self,
+        *,
+        authorizer: DiscordAuthorizer,
+        bindings: InMemoryDiscordBindingStore | SQLiteDiscordBindingStore,
+        binding_is_active: Callable[[DiscordBindingKey], bool] | None = None,
+    ) -> None:
         if not isinstance(authorizer, DiscordAuthorizer):
             raise TypeError("authorizer must be DiscordAuthorizer")
         if not isinstance(bindings, (InMemoryDiscordBindingStore, SQLiteDiscordBindingStore)):
             raise TypeError("bindings must implement the Discord binding contract")
+        if binding_is_active is not None and not callable(binding_is_active):
+            raise TypeError("binding_is_active must be callable")
         self._authorizer = authorizer
         self._bindings = bindings
+        self._binding_is_active = binding_is_active
 
     def accept(self, message: DiscordMessage) -> DiscordIngressEvent | None:
         if not isinstance(message, DiscordMessage) or message.author_is_bot:
@@ -115,7 +146,8 @@ class DiscordIngressAdapter:
         if not self._authorizer.is_allowed(message.author_id, message.guild_id, message.channel_id):
             return None
         key = DiscordBindingKey(message.guild_id, message.channel_id, message.thread_id)
-        kind = classify_message(message.content)
+        active = bool(self._binding_is_active(key)) if self._binding_is_active and self._bindings.lookup(key) is not None else False
+        kind = classify_message(message.content, active_run=active)
         if not self._bindings.mark_message_seen(message.message_id, binding_key=key, kind=kind.value):
             return None
         return DiscordIngressEvent(message=message, kind=kind, binding_key=key)

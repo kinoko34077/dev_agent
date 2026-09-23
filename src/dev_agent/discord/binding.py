@@ -4,14 +4,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import json
 from typing import Any
 
-from ..coordination.protocol_helpers import validate_identifier
+from ..coordination.protocol_helpers import validate_identifier, validate_relative_path
 
 
 _MAX_POINTERS = 2048
 _MAX_MESSAGES = 4096
 _MAX_ID_CHARS = 32
+_MAX_SCOPE_FILES = 32
 
 
 def _discord_id(value: Any, name: str, *, allow_empty: bool = False) -> str:
@@ -50,6 +52,24 @@ class DiscordBinding:
         object.__setattr__(self, "run_id", validate_identifier(self.run_id, "run_id"))
 
 
+@dataclass(frozen=True)
+class DiscordScopeState:
+    """Small UI-owned scope pointer; never a copy of Task state."""
+
+    directory_scope: str | None = None
+    selected_files: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.directory_scope is not None:
+            object.__setattr__(self, "directory_scope", validate_relative_path(self.directory_scope, "directory_scope"))
+        if not isinstance(self.selected_files, tuple) or len(self.selected_files) > _MAX_SCOPE_FILES:
+            raise ValueError("selected_files must be a bounded tuple")
+        normalized = tuple(validate_relative_path(item, "selected_file") for item in self.selected_files)
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("selected_files must be unique")
+        object.__setattr__(self, "selected_files", normalized)
+
+
 class InMemoryDiscordBindingStore:
     """MVP pointer/idempotency store; never a Task or Conversation SSOT."""
 
@@ -60,6 +80,8 @@ class InMemoryDiscordBindingStore:
         self._max_messages = max_messages
         self._bindings: dict[DiscordBindingKey, DiscordBinding] = {}
         self._messages: dict[str, None] = {}
+        self._scopes: dict[DiscordBindingKey, DiscordScopeState] = {}
+        self._deliveries: dict[tuple[str, str], None] = {}
 
     def bind(self, key: DiscordBindingKey, *, root_id: str, run_id: str) -> DiscordBinding:
         if not isinstance(key, DiscordBindingKey):
@@ -95,6 +117,36 @@ class InMemoryDiscordBindingStore:
             self._messages.pop(next(iter(self._messages)))
         return True
 
+    def save_scope(self, key: DiscordBindingKey, *, directory_scope: str | None, selected_files: tuple[str, ...] = ()) -> DiscordScopeState:
+        if not isinstance(key, DiscordBindingKey):
+            raise ValueError("key must be DiscordBindingKey")
+        scope = DiscordScopeState(directory_scope=directory_scope, selected_files=selected_files)
+        self._scopes[key] = scope
+        return scope
+
+    def get_scope(self, key: DiscordBindingKey) -> DiscordScopeState | None:
+        if not isinstance(key, DiscordBindingKey):
+            raise ValueError("key must be DiscordBindingKey")
+        return self._scopes.get(key)
+
+    def record_delivery(self, request_id: str, discord_message_id: str, *, delivered_at: str | None = None) -> bool:
+        marker = (validate_identifier(request_id, "request_id"), _discord_id(discord_message_id, "discord_message_id"))
+        if marker in self._deliveries:
+            return False
+        self._deliveries[marker] = None
+        return True
+
+    def has_any_delivery(self, request_id: str) -> bool:
+        request_id = validate_identifier(request_id, "request_id")
+        return any(item[0] == request_id for item in self._deliveries)
+
+    def request_id_for_delivery(self, discord_message_id: str) -> str | None:
+        discord_message_id = _discord_id(discord_message_id, "discord_message_id")
+        for request_id, message_id in self._deliveries:
+            if message_id == discord_message_id:
+                return request_id
+        return None
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -112,6 +164,9 @@ class SQLiteDiscordBindingStore:
             "record_discord_delivery",
             "has_discord_delivery",
             "has_any_discord_delivery",
+            "discord_request_id_for_message",
+            "save_discord_scope",
+            "get_discord_scope",
         )
         if any(not callable(getattr(store, name, None)) for name in required):
             raise TypeError("store does not implement the Discord persistence contract")
@@ -196,5 +251,37 @@ class SQLiteDiscordBindingStore:
             request_id=validate_identifier(request_id, "request_id"),
         )
 
+    def request_id_for_delivery(self, discord_message_id: str) -> str | None:
+        return self._store.discord_request_id_for_message(
+            _discord_id(discord_message_id, "discord_message_id"),
+        )
 
-__all__ = ["DiscordBinding", "DiscordBindingKey", "InMemoryDiscordBindingStore", "SQLiteDiscordBindingStore"]
+    def save_scope(
+        self,
+        key: DiscordBindingKey,
+        *,
+        directory_scope: str | None,
+        selected_files: tuple[str, ...] = (),
+        updated_at: str | None = None,
+    ) -> DiscordScopeState:
+        scope = DiscordScopeState(directory_scope=directory_scope, selected_files=selected_files)
+        self._store.save_discord_scope(
+            binding_key=self._key(key),
+            directory_scope=scope.directory_scope,
+            selected_files_payload=json.dumps(list(scope.selected_files), ensure_ascii=False, separators=(",", ":")),
+            updated_at=updated_at or _now(),
+        )
+        return scope
+
+    def get_scope(self, key: DiscordBindingKey) -> DiscordScopeState | None:
+        row = self._store.get_discord_scope(self._key(key))
+        if row is None:
+            return None
+        try:
+            selected_files = tuple(json.loads(row["selected_files_payload"]))
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise ValueError("stored Discord scope is malformed") from exc
+        return DiscordScopeState(directory_scope=row.get("directory_scope"), selected_files=selected_files)
+
+
+__all__ = ["DiscordBinding", "DiscordBindingKey", "DiscordScopeState", "InMemoryDiscordBindingStore", "SQLiteDiscordBindingStore"]

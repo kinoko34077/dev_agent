@@ -46,7 +46,7 @@ def test_sqlite_store_records_schema_version(tmp_path):
     database = tmp_path / "versioned.sqlite3"
     with SQLiteStateStore(database) as store:
         version = store.connection.execute("SELECT value FROM schema_meta WHERE key = 'schema_version'").fetchone()[0]
-    assert version == "8"
+    assert version == "9"
 
 
 def test_sqlite_store_upgrades_a_v1_schema_through_ordered_migrations(tmp_path):
@@ -66,7 +66,7 @@ def test_sqlite_store_upgrades_a_v1_schema_through_ordered_migrations(tmp_path):
             """
         )
     with SQLiteStateStore(database) as store:
-        assert store.connection.execute("SELECT value FROM schema_meta WHERE key = 'schema_version'").fetchone()[0] == "8"
+        assert store.connection.execute("SELECT value FROM schema_meta WHERE key = 'schema_version'").fetchone()[0] == "9"
         assert store.connection.execute("SELECT 1 FROM discord_bindings").fetchone() is None
         assert store.connection.execute("SELECT 1 FROM discord_ingress").fetchone() is None
         assert store.connection.execute("SELECT 1 FROM discord_deliveries").fetchone() is None

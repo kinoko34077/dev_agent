@@ -233,6 +233,24 @@ class SQLiteStateStore:
         return self._core.has_any_discord_delivery(request_id=request_id)
 
     @_serialized
+    def discord_request_id_for_message(self, discord_message_id: str) -> str | None:
+        return self._core.discord_request_id_for_message(discord_message_id)
+
+    @_serialized
+    def save_discord_scope(self, *, binding_key: str, directory_scope: str | None, selected_files_payload: str, updated_at: str) -> None:
+        self._core.save_discord_scope(
+            binding_key=binding_key,
+            directory_scope=directory_scope,
+            selected_files_payload=selected_files_payload,
+            updated_at=updated_at,
+        )
+        self.connection.commit()
+
+    @_serialized
+    def get_discord_scope(self, binding_key: str) -> dict[str, str] | None:
+        return self._core.get_discord_scope(binding_key)
+
+    @_serialized
     def list_pending_human_requests(self) -> list[HumanRequest]:
         return self._core.list_pending_human_requests()
 

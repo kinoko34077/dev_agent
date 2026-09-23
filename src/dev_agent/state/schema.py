@@ -8,7 +8,7 @@ import sqlite3
 class StateSchema:
     """Own state-table DDL while SQLiteStateStore owns the connection."""
 
-    VERSION = 8
+    VERSION = 9
 
     V1_SCHEMA = """
         CREATE TABLE IF NOT EXISTS tasks (task_id TEXT PRIMARY KEY, payload TEXT NOT NULL);
@@ -44,6 +44,7 @@ class StateSchema:
         CREATE TABLE IF NOT EXISTS discord_ingress (message_id TEXT PRIMARY KEY, binding_key TEXT NOT NULL, kind TEXT NOT NULL, received_at TEXT NOT NULL);
         CREATE INDEX IF NOT EXISTS idx_discord_ingress_binding ON discord_ingress(binding_key, received_at);
         CREATE TABLE IF NOT EXISTS discord_deliveries (request_id TEXT NOT NULL, discord_message_id TEXT NOT NULL, delivered_at TEXT NOT NULL, PRIMARY KEY(request_id, discord_message_id));
+        CREATE TABLE IF NOT EXISTS discord_scopes (binding_key TEXT PRIMARY KEY, directory_scope TEXT, selected_files_payload TEXT NOT NULL DEFAULT '[]', updated_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     """
 
@@ -119,6 +120,10 @@ class StateSchema:
                 connection.execute("CREATE INDEX IF NOT EXISTS idx_discord_ingress_binding ON discord_ingress(binding_key, received_at)")
                 connection.execute("CREATE TABLE IF NOT EXISTS discord_deliveries (request_id TEXT NOT NULL, discord_message_id TEXT NOT NULL, delivered_at TEXT NOT NULL, PRIMARY KEY(request_id, discord_message_id))")
                 connection.execute("UPDATE schema_meta SET value = '8' WHERE key = 'schema_version'")
+                current = 8
+            if current < 9:
+                connection.execute("CREATE TABLE IF NOT EXISTS discord_scopes (binding_key TEXT PRIMARY KEY, directory_scope TEXT, selected_files_payload TEXT NOT NULL DEFAULT '[]', updated_at TEXT NOT NULL)")
+                connection.execute("UPDATE schema_meta SET value = '9' WHERE key = 'schema_version'")
             connection.commit()
         except Exception:
             connection.rollback()

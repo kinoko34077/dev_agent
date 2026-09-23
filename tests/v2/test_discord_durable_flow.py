@@ -4,7 +4,7 @@ import pytest
 
 from src.dev_agent.discord.adapter import DiscordIngressAdapter, DiscordMessage
 from src.dev_agent.discord.auth import DiscordAuthorizer
-from src.dev_agent.discord.binding import DiscordBindingKey, SQLiteDiscordBindingStore
+from src.dev_agent.discord.binding import DiscordBindingKey, DiscordScopeState, SQLiteDiscordBindingStore
 from src.dev_agent.discord.human import DiscordHumanAdapter
 from src.dev_agent.discord.approval import DiscordApprovalAdapter
 from src.dev_agent.human import HumanRequest, SQLiteHumanInteractionPort
@@ -47,6 +47,12 @@ def test_sqlite_discord_binding_and_message_idempotency_survive_restart(tmp_path
         assert bindings.mark_message_seen("900", binding_key=key, kind="NEW_REQUEST") is False
         assert bindings.record_delivery("request-1", "901") is True
         assert bindings.record_delivery("request-1", "901") is False
+        bindings.save_scope(
+            key,
+            directory_scope="src/dev_agent",
+            selected_files=("src/dev_agent/operation.py",),
+        )
+        assert bindings.request_id_for_delivery("901") == "request-1"
 
     with SQLiteStateStore(path) as reopened:
         bindings = SQLiteDiscordBindingStore(reopened)
@@ -56,6 +62,10 @@ def test_sqlite_discord_binding_and_message_idempotency_survive_restart(tmp_path
         assert binding.run_id == "run-1"
         assert bindings.mark_message_seen("900", binding_key=key, kind="NEW_REQUEST") is False
         assert bindings.has_delivery("request-1", "901") is True
+        assert bindings.get_scope(key) == DiscordScopeState(
+            directory_scope="src/dev_agent",
+            selected_files=("src/dev_agent/operation.py",),
+        )
         columns = {
             row[1]
             for row in reopened.connection.execute("PRAGMA table_info(discord_ingress)")
@@ -131,6 +141,33 @@ def test_discord_human_adapter_rejects_wrong_identity_and_unknown_request(tmp_pa
                 response={"decision": "A"},
                 decision="A",
             )
+
+
+def test_discord_human_adapter_uses_bounded_marker_for_free_text_response(tmp_path):
+    path = tmp_path / "discord-human-free-text.sqlite3"
+    request = HumanRequest(
+        request_id="discord-free-text-1",
+        root_id="root-free-text-1",
+        task_id="task-free-text-1",
+        attempt_id="attempt-free-text-1",
+        reason="追加情報が必要です",
+        question="補足を入力してください",
+    )
+    with SQLiteStateStore(path) as store:
+        adapter = DiscordHumanAdapter(
+            SQLiteHumanInteractionPort(store),
+            authorizer=DiscordAuthorizer(allowed_user_ids={"42"}),
+        )
+        adapter.request_human(request)
+
+        response = adapter.receive_response(
+            request_id=request.request_id,
+            author_id="42",
+            response="この内容で進めてください",
+            decision=None,
+        )
+
+        assert response.decision == "TEXT_RESPONSE"
         with pytest.raises(KeyError):
             adapter.receive_response(
                 request_id="other-request",

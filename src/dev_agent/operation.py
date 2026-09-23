@@ -1568,6 +1568,24 @@ class OperationService:
             queue.close()
             store.close()
 
+    @staticmethod
+    def cancel_task_only(config: OperationConfig | None, task_id: str) -> dict[str, Any]:
+        """Cancel one Task without requesting a process-wide runtime stop.
+
+        Discord is a Task control surface, not an owner of the foreground
+        RuntimeCoordinator.  Keep the existing ``cancel_task`` behavior for
+        the CLI stop boundary, while this narrow API preserves unrelated work.
+        """
+        config = config or OperationConfig.from_environment()
+        store = SQLiteStateStore(config.state_path)
+        queue = DurableQueue(config.queue_path)
+        try:
+            controller = Controller(FakeProvider(), ToolRuntime(ToolRegistry()), store)
+            return OperationService._cancel_task(store, queue, controller, task_id)
+        finally:
+            queue.close()
+            store.close()
+
     def stop(self, task_id: str | None = None) -> dict[str, Any] | None:
         """Request loop shutdown and optionally apply one Task stop."""
         self.request_stop()
