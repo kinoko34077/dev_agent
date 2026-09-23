@@ -157,6 +157,35 @@ def test_final_response_is_projected_once_and_recorded_after_send(tmp_path):
         assert rows[-1].content == sent[-1]
 
 
+def test_final_response_accepts_production_task_completed_text_payload(tmp_path):
+    sent: list[str] = []
+
+    async def send(_binding, content, view=None):
+        sent.append(content)
+        return str(960 + len(sent))
+
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        task = Task(objective="production completion payload")
+        task.status = TaskStatus.COMPLETED
+        store.save_task(task)
+        bindings, _key = _binding(store, task)
+        store.append_event(
+            Event(
+                event_id=str(uuid4()),
+                event_type="task.completed",
+                task_id=task.task_id,
+                payload={"text": ["実際の完了回答です。", "次の処理はありません。"]},
+            )
+        )
+        publisher = DiscordOutboundPublisher(store, bindings, send=send)
+
+        result = asyncio.run(publisher.publish_once())
+
+        assert result["final_responses"] == 1
+        assert sent[-1] == "実際の完了回答です。\n次の処理はありません。"
+        assert sent.count("実際の完了回答です。\n次の処理はありません。") == 1
+
+
 def test_approval_projection_requires_an_explicit_core_submit_boundary(tmp_path):
     sent: list[tuple[str, object | None]] = []
 

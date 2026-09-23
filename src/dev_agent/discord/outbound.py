@@ -246,7 +246,14 @@ class DiscordOutboundPublisher:
             if not isinstance(event, Mapping) or event.get("event_type") != "task.completed":
                 continue
             payload = event.get("payload")
-            segments = payload.get("text_segments") if isinstance(payload, Mapping) else None
+            segments = None
+            if isinstance(payload, Mapping):
+                # The Controller's task.completed contract uses ``text``;
+                # retain the older adapter-facing ``text_segments`` alias for
+                # durable events written by earlier runtime revisions.
+                segments = payload.get("text")
+                if segments is None:
+                    segments = payload.get("text_segments")
             if not isinstance(segments, str) and not isinstance(segments, (list, tuple)):
                 continue
             if isinstance(segments, str) and not segments.strip():
