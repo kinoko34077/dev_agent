@@ -6,7 +6,10 @@
   "verified_at": "2026-09-24",
   "implementation_commits": [
     "d7cdb6d feat: archive durable discord conversation logs",
-    "67a5a3d feat: connect safe discord intent and waits"
+    "67a5a3d feat: connect safe discord intent and waits",
+    "c00f6ab fix: project task completion text to discord",
+    "1b547c4 feat: preserve discord reply context in conversation log",
+    "79823e0 feat: connect discord wait and archive maintenance"
   ],
   "durable_wait": {
     "queue_boundary": "existing DurableQueue.defer_queued_until and wake_due",
@@ -14,6 +17,7 @@
     "max_seconds": 3600,
     "worker_lease_held_during_wait": false,
     "wake_is_idempotent": true,
+    "active_binding_wait": "explicit WAIT_DEFERRED until a cooperative Core checkpoint can own parent park/resume; never silently downgraded to NOTE",
     "live_wall_clock_smoke": "NOT_VERIFIED"
   },
   "conversation_log": {
@@ -21,10 +25,13 @@
     "separate_from_task_state": true,
     "inbound_deduplication": "message_id",
     "outbound_recorded_after_send_id": true,
+    "reply_reference_persistence": true,
+    "human_response_ack_recorded": true,
     "bounded_sanitized_content": true,
     "history_is_context_only": true,
     "archive": "JSONL gzip plus fsync/hash/count manifest; rows removed only after verification",
     "archive_failure_retains_rows": true,
+    "archive_maintenance": "injected into the existing bounded Discord outbound projection pass; failures are isolated and retried on the next pass",
     "read_only_archive_search": true
   },
   "intent": {
@@ -37,9 +44,10 @@
   },
   "verification": {
     "focused_wait_intent_composition": "PASS",
+    "focused_discord_hardening": "PASS",
     "archive_tests": "PASS",
     "full_discord_suite": "PASS",
-    "full_tests_v2": "1610 passed, 1 skipped",
+    "full_tests_v2": "1615 passed, 1 skipped",
     "architecture": "ARCHITECTURE_PASS",
     "compileall": "PASS",
     "credential_scan": "known Discord token fragments absent from tracked files; local .env remains untracked",
