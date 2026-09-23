@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "evidence_id": "discord-gateway-login-20260923",
+  "scope": "NON_GATE_DISCORD_GATEWAY_SMOKE",
+  "status": "GATEWAY_LOGIN_VERIFIED",
+  "verified_at": "2026-09-23",
+  "implementation_commit": "03f7bd6441f2b818353892c619378e39c3d3ebd8",
+  "configuration": {
+    "application_id": "ignored_local_env_only",
+    "public_key": "ignored_local_env_only",
+    "bot_token": "configured_in_ignored_local_env",
+    "token_logged_or_persisted": false,
+    "discord_dependency": "discord.py 2.7.1"
+  },
+  "observed": {
+    "gateway_login": "PASS",
+    "gateway_session_connected": true,
+    "on_ready": "PASS",
+    "application_command_sync": "PASS",
+    "runner_composition": "DiscordRuntimeComposition opened and injected before Gateway login",
+    "shutdown": "bounded smoke process stopped after ready"
+  },
+  "external_boundary": {
+    "message_content_intent": "NOT_VERIFIED_IN_DEVELOPER_PORTAL",
+    "ordinary_message_e2e": "PENDING_PORTAL_INTENT",
+    "button_e2e": "PENDING_LIVE_SERVER_INTERACTION",
+    "restart_delivery": "PENDING",
+    "offline_delivery": "PENDING"
+  },
+  "security": {
+    "token_in_source": false,
+    "token_in_evidence": false,
+    "token_in_logs": false,
+    "local_env": "ignored operator configuration only"
+  },
+  "verification": {
+    "config_summary": "PASS with redacted token summary",
+    "gateway_log": "Discord Gateway connected; Discord Human UI bot ready",
+    "formal_gates_unchanged": true
+  },
+  "formal_gates": {
+    "D9_DOGFOOD": "VERIFIED",
+    "D9_PRODUCTION_DEPLOYMENT": "DEFERRED_NOT_READY",
+    "PHASE8_PREPARATION": "PREPARATION_ONLY",
+    "PHASE8_LIVE_ACTIVATION": "NOT_VERIFIED"
+  },
+  "limitations": [
+    "This smoke proves Gateway authentication, ready lifecycle, and command synchronization only.",
+    "It does not claim ordinary message content delivery until the Developer Portal Message Content Intent is enabled.",
+    "It does not claim live button, restart-delivery, offline-delivery, or formal Gate completion."
+  ],
+  "test_refs": [
+    "tests/v2/test_discord_bot.py",
+    "tests/v2/test_discord_composition.py",
+    "tests/v2/test_discord_durable_flow.py"
+  ]
+}
