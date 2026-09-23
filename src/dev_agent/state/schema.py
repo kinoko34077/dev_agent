@@ -8,7 +8,7 @@ import sqlite3
 class StateSchema:
     """Own state-table DDL while SQLiteStateStore owns the connection."""
 
-    VERSION = 6
+    VERSION = 7
 
     V1_SCHEMA = """
         CREATE TABLE IF NOT EXISTS tasks (task_id TEXT PRIMARY KEY, payload TEXT NOT NULL);
@@ -37,6 +37,8 @@ class StateSchema:
         CREATE INDEX IF NOT EXISTS idx_provider_dispatch_audits_request ON provider_dispatch_audits(request_id, sequence);
         CREATE TABLE IF NOT EXISTS task_controls (sequence INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL, control_type TEXT NOT NULL, reason TEXT NOT NULL, requested_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
         CREATE INDEX IF NOT EXISTS idx_task_controls_task ON task_controls(task_id, sequence);
+        CREATE TABLE IF NOT EXISTS human_requests (request_id TEXT PRIMARY KEY, task_id TEXT NOT NULL, status TEXT NOT NULL, request_payload TEXT NOT NULL, response_payload TEXT, requested_at TEXT NOT NULL, responded_at TEXT, consumed_at TEXT);
+        CREATE INDEX IF NOT EXISTS idx_human_requests_task ON human_requests(task_id, status);
         CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     """
 
@@ -95,10 +97,15 @@ class StateSchema:
                 connection.execute("CREATE INDEX IF NOT EXISTS idx_provider_dispatch_audits_request ON provider_dispatch_audits(request_id, sequence)")
                 connection.execute("UPDATE schema_meta SET value = '5' WHERE key = 'schema_version'")
                 current = 5
-            if current < 6:
-                connection.execute("CREATE TABLE IF NOT EXISTS task_controls (sequence INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL, control_type TEXT NOT NULL, reason TEXT NOT NULL, requested_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")
-                connection.execute("CREATE INDEX IF NOT EXISTS idx_task_controls_task ON task_controls(task_id, sequence)")
-                connection.execute("UPDATE schema_meta SET value = '6' WHERE key = 'schema_version'")
+                if current < 6:
+                    connection.execute("CREATE TABLE IF NOT EXISTS task_controls (sequence INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL, control_type TEXT NOT NULL, reason TEXT NOT NULL, requested_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")
+                    connection.execute("CREATE INDEX IF NOT EXISTS idx_task_controls_task ON task_controls(task_id, sequence)")
+                    connection.execute("UPDATE schema_meta SET value = '6' WHERE key = 'schema_version'")
+                    current = 6
+            if current < 7:
+                connection.execute("CREATE TABLE IF NOT EXISTS human_requests (request_id TEXT PRIMARY KEY, task_id TEXT NOT NULL, status TEXT NOT NULL, request_payload TEXT NOT NULL, response_payload TEXT, requested_at TEXT NOT NULL, responded_at TEXT, consumed_at TEXT)")
+                connection.execute("CREATE INDEX IF NOT EXISTS idx_human_requests_task ON human_requests(task_id, status)")
+                connection.execute("UPDATE schema_meta SET value = '7' WHERE key = 'schema_version'")
             connection.commit()
         except Exception:
             connection.rollback()

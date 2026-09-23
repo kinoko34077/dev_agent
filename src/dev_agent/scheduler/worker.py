@@ -47,6 +47,7 @@ class WorkerRunner:
     _DEFERRED_STATUSES = {
         TaskStatus.WAITING_DEPENDENCY,
         TaskStatus.WAITING_APPROVAL,
+        TaskStatus.WAITING_HUMAN,
         TaskStatus.WAITING_RECONCILIATION,
         TaskStatus.BLOCKED_QUOTA,
         TaskStatus.BLOCKED_BUDGET,

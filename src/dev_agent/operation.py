@@ -1151,7 +1151,7 @@ class OperationService:
             provider_id = provider_id or response.get("provider")
             selected_model = selected_model or response.get("model")
         state = task.status.value
-        waiting = state in {TaskStatus.WAITING_DEPENDENCY.value, TaskStatus.WAITING_APPROVAL.value, TaskStatus.WAITING_RECONCILIATION.value, TaskStatus.BLOCKED_QUOTA.value, TaskStatus.BLOCKED_BUDGET.value}
+        waiting = state in {TaskStatus.WAITING_DEPENDENCY.value, TaskStatus.WAITING_APPROVAL.value, TaskStatus.WAITING_HUMAN.value, TaskStatus.WAITING_RECONCILIATION.value, TaskStatus.BLOCKED_QUOTA.value, TaskStatus.BLOCKED_BUDGET.value}
         return {
             "task_id": task.task_id,
             "state": state,

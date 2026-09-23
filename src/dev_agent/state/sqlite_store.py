@@ -13,6 +13,7 @@ from typing import Any
 
 from .._sqlite import connect
 from ..domain.protocol import Event, Step, Task, TaskStatus, ToolResult
+from ..human import HumanRequest, HumanResponse
 from ..persistence.lease import assert_active_lease
 from .core_repository import CoreStateRepository
 from .effects_repository import EffectAuditRepository
@@ -163,6 +164,39 @@ class SQLiteStateStore:
     @_serialized
     def load_task(self, task_id: str) -> Task | None:
         return self._core.load_task(task_id)
+
+    @_serialized
+    def save_human_request(self, request: HumanRequest) -> None:
+        self._core.save_human_request(request)
+        self.connection.commit()
+
+    @_serialized
+    def get_human_request(self, request_id: str) -> HumanRequest | None:
+        return self._core.get_human_request(request_id)
+
+    @_serialized
+    def list_pending_human_requests(self) -> list[HumanRequest]:
+        return self._core.list_pending_human_requests()
+
+    @_serialized
+    def save_human_response(self, response: HumanResponse) -> None:
+        self._core.save_human_response(response)
+        self.connection.commit()
+
+    @_serialized
+    def get_human_response(self, request_id: str) -> HumanResponse | None:
+        return self._core.get_human_response(request_id)
+
+    @_serialized
+    def consume_human_response(self, request_id: str) -> HumanResponse:
+        try:
+            self.connection.execute("BEGIN IMMEDIATE")
+            response = self._core.consume_human_response(request_id)
+            self.connection.commit()
+            return response
+        except BaseException:
+            self.connection.rollback()
+            raise
 
     @_serialized
     def get_idempotent(self, key: str) -> ToolResult | None:

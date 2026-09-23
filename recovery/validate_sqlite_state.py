@@ -9,7 +9,7 @@ import sqlite3
 import sys
 
 
-REQUIRED_TABLES = frozenset({"tasks", "steps", "tool_results", "events", "checkpoints", "idempotency", "approvals", "approval_consumptions", "effect_intents", "effect_reconciliations", "provider_dispatch_audits", "task_controls", "schema_meta"})
+REQUIRED_TABLES = frozenset({"tasks", "steps", "tool_results", "events", "checkpoints", "idempotency", "approvals", "approval_consumptions", "effect_intents", "effect_reconciliations", "provider_dispatch_audits", "task_controls", "human_requests", "schema_meta"})
 
 
 def validate_sqlite_state(path: str | Path) -> tuple[bool, str]:
@@ -24,7 +24,7 @@ def validate_sqlite_state(path: str | Path) -> tuple[bool, str]:
         if missing:
             return False, f"missing tables: {', '.join(missing)}"
         version_row = connection.execute("SELECT value FROM schema_meta WHERE key = 'schema_version'").fetchone()
-        if version_row is None or version_row[0] != "6":
+        if version_row is None or version_row[0] != "7":
             return False, "unsupported or missing schema version"
         invalid = connection.execute("SELECT task_id, payload FROM tasks").fetchall()
         task_ids = set()
@@ -47,6 +47,13 @@ def validate_sqlite_state(path: str | Path) -> tuple[bool, str]:
             value = json.loads(payload)
             if not isinstance(value, dict) or value.get("call_id") != call_id:
                 return False, f"invalid tool result: {call_id}"
+        for request_id, task_id, status, request_payload, response_payload in connection.execute("SELECT request_id, task_id, status, request_payload, response_payload FROM human_requests"):
+            if task_id not in task_ids or status not in {"pending", "answered", "consumed"}:
+                return False, f"invalid human request: {request_id}"
+            if not isinstance(json.loads(request_payload), dict):
+                return False, f"invalid human request payload: {request_id}"
+            if response_payload is not None and not isinstance(json.loads(response_payload), dict):
+                return False, f"invalid human response payload: {request_id}"
         approval_columns = {row[1] for row in connection.execute("PRAGMA table_info(approvals)")}
         required_approval_columns = {"approval_id", "task_id", "side_effect_level", "actor", "call_id", "arguments_hash", "expires_at", "revoked"}
         if not required_approval_columns <= approval_columns:
