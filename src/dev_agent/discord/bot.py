@@ -17,6 +17,7 @@ from .auth import DiscordAuthorizer
 from .binding import DiscordBindingKey, InMemoryDiscordBindingStore, SQLiteDiscordBindingStore
 from .composition import DiscordRuntimeComposition
 from .context import build_bounded_context, conversation_message_from_discord, sync_history_once
+from .conversation_archive import archive_eligible_messages
 from .conversation_log import ConversationLog
 from .delivery import DiscordHumanFacingSender
 from .history import collect_discord_history
@@ -518,6 +519,7 @@ def run_from_environment(*, env_path: str | Path | None = None, workspace: str |
         allowed_channel_ids=config.allowed_channel_ids,
     )
     with DiscordRuntimeComposition.open(operation_config, authorizer=authorizer) as composition:
+        conversation_log = ConversationLog(composition.store)
         bot = build_bot(
             config,
             workspace=workspace_path,
@@ -526,7 +528,7 @@ def run_from_environment(*, env_path: str | Path | None = None, workspace: str |
             on_event=composition.core.handle,
             human=composition.human,
             binding_is_active=composition.binding_is_active,
-            conversation_log=ConversationLog(composition.store),
+            conversation_log=conversation_log,
         )
 
         async def _send_to_binding(binding, content, view=None):
@@ -550,7 +552,11 @@ def run_from_environment(*, env_path: str | Path | None = None, workspace: str |
                 authorizer=authorizer,
                 submit=composition.human.receive_response,
             ),
-            conversation_log=ConversationLog(composition.store),
+            conversation_log=conversation_log,
+            archive_maintenance=lambda: archive_eligible_messages(
+                conversation_log,
+                Path(data_dir) / "discord-archive",
+            ),
         )
         bot._dev_agent_discord_composition = composition
         bot._dev_agent_discord_human = composition.human

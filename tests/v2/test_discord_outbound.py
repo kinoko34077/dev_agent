@@ -270,3 +270,20 @@ def test_projection_loop_exposes_bounded_error_health_without_raw_exception(tmp_
             "state": "DEGRADED",
             "last_error_category": "RuntimeError",
         }
+
+
+def test_projection_pass_runs_existing_archive_maintenance_callback(tmp_path):
+    calls: list[str] = []
+
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        bindings = SQLiteDiscordBindingStore(store)
+        publisher = DiscordOutboundPublisher(
+            store,
+            bindings,
+            send=lambda *_args: "904",
+            archive_maintenance=lambda: calls.append("archive"),
+        )
+
+        asyncio.run(publisher.publish_once())
+
+    assert calls == ["archive"]

@@ -29,6 +29,7 @@ from .renderer import render_final_response, render_human_request, render_progre
 SendCallback = Callable[[DiscordBinding, str, Any | None], Awaitable[Any] | Any]
 ApprovalViewFactory = Callable[[str, DiscordBinding], Awaitable[Any] | Any]
 HumanRequestViewFactory = Callable[[HumanRequest, DiscordBinding], Awaitable[Any] | Any]
+ArchiveMaintenance = Callable[[], Awaitable[Any] | Any]
 
 
 def _message_id(value: Any) -> str:
@@ -93,6 +94,7 @@ class DiscordOutboundPublisher:
         approval_view_factory: ApprovalViewFactory | None = None,
         human_request_view_factory: HumanRequestViewFactory | None = None,
         conversation_log: ConversationLog | None = None,
+        archive_maintenance: ArchiveMaintenance | None = None,
     ) -> None:
         required_store = (
             "list_pending_human_requests",
@@ -112,12 +114,15 @@ class DiscordOutboundPublisher:
             raise TypeError("human_request_view_factory must be callable")
         if conversation_log is not None and not isinstance(conversation_log, ConversationLog):
             raise TypeError("conversation_log must implement the ConversationLog boundary")
+        if archive_maintenance is not None and not callable(archive_maintenance):
+            raise TypeError("archive_maintenance must be callable")
         self._store = store
         self._bindings = bindings
         self._send = send
         self._approval_view_factory = approval_view_factory
         self._human_request_view_factory = human_request_view_factory
         self._conversation_log = conversation_log
+        self._archive_maintenance = archive_maintenance
         self._last_error_category: str | None = None
 
     @property
@@ -292,6 +297,18 @@ class DiscordOutboundPublisher:
 
     async def publish_once(self) -> dict[str, int]:
         """Publish one bounded projection pass; no Core work is claimed."""
+
+        if self._archive_maintenance is not None:
+            try:
+                result = self._archive_maintenance()
+                if inspect.isawaitable(result):
+                    await result
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                # Archive is maintenance-only.  Keep Discord projection and
+                # Core execution alive; the next bounded pass retries it.
+                self._record_error(exc)
 
         human_requests = await self.publish_human_requests()
         approvals = await self.publish_approvals()

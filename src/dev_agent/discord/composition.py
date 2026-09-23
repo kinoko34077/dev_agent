@@ -215,10 +215,15 @@ class DiscordRuntimeComposition:
             raise ValueError("WAIT requires a bounded delay proposal")
         binding = self.bindings.lookup(event.binding_key)
         if binding is not None and self.binding_is_active(event.binding_key):
-            # An active run already owns its execution boundary.  Preserve the
-            # request as ordinary coordination rather than creating a second
-            # timer or mutating an active Worker lease.
-            return self.submit_coordination("NOTE", content, event)
+            # An active run already owns its execution boundary.  Do not
+            # silently reinterpret an explicit WAIT as NOTE and do not steal a
+            # Worker lease.  A future Core checkpoint boundary can consume
+            # this explicit result and park/resume the parent durably.
+            return {
+                "state": "WAIT_DEFERRED",
+                "delay_seconds": proposal.delay_seconds,
+                "reason": "active_run_requires_safe_checkpoint",
+            }
         task = OperationService.submit_delayed(
             self.config,
             content,

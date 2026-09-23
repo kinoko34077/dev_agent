@@ -82,6 +82,35 @@ def test_standard_composition_submits_user_wait_without_claiming_a_worker(tmp_pa
         assert composition.store.load_task(task.task_id).metadata["wait_reason"] == "user_delay"
 
 
+def test_active_wait_is_explicitly_deferred_instead_of_becoming_note(tmp_path):
+    config = OperationConfig(data_dir=tmp_path / "agent")
+    waiting = Task(objective="active work", status=TaskStatus.WAITING_HUMAN)
+    key = DiscordBindingKey("10", "20", "30")
+    event = _event("20秒待ってから返事して", DiscordMessageKind.WAIT, "1009")
+    event = DiscordIngressEvent(
+        message=event.message,
+        kind=event.kind,
+        binding_key=event.binding_key,
+        intent_proposal=IntentProposal(IntentKind.WAIT, event.message.content, 20),
+    )
+    with DiscordRuntimeComposition.open(
+        config,
+        authorizer=DiscordAuthorizer(allowed_user_ids={"42"}),
+    ) as composition:
+        composition.store.save_task(waiting)
+        composition.bindings.bind(key, root_id=waiting.task_id, run_id=waiting.task_id)
+
+        result = composition.core.handle(event)
+
+        assert result == {
+            "state": "WAIT_DEFERRED",
+            "delay_seconds": 20,
+            "reason": "active_run_requires_safe_checkpoint",
+        }
+        assert composition.coordination.snapshot(recipient_role="agent").mailbox == ()
+        assert composition.store.load_task(waiting.task_id).status is TaskStatus.WAITING_HUMAN
+
+
 def test_standard_composition_reads_existing_operation_without_submitting_task(tmp_path):
     config = OperationConfig(data_dir=tmp_path / "agent")
     with DiscordRuntimeComposition.open(
