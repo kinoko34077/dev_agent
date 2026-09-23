@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "evidence_id": "discord-core-interrupt-approval-20260923",
+  "scope": "NON_GATE_DISCORD_CORE_BOUNDARIES",
+  "status": "LOCAL_BOUNDARY_VERIFIED",
+  "verified_at": "2026-09-23",
+  "implementation_commit": "9888d75d2e6675bf2dea391005855cc393590fca",
+  "interrupt": {
+    "ingress": "MessageKind.INTERRUPT is claimed through the filtered durable coordination mailbox",
+    "checkpoint": "RuntimeCoordinator consumes the request at the existing cooperative Controller boundary",
+    "child": "one Core-owned interrupt child is created with an immutable InterruptFrame",
+    "resume": "maintenance resumes the parent only after the child reaches a terminal state",
+    "capsule": "ResumeCapsule push/pop is recorded as a bounded parent-resume projection",
+    "duplicate_protection": "repeated coordination delivery reuses the existing interrupt child"
+  },
+  "approval": {
+    "runner": "standard Discord runner injects a Core-owned approval view and submit callback",
+    "authority": "OperationService.submit_approval resolves the exact Controller checkpoint request",
+    "persistence": "approval records and decision events remain in the existing SQLite authority",
+    "wake": "approved waiting work is woken through the existing DurableQueue",
+    "idempotency": "approval event identity is scoped to the exact approval reference",
+    "discord_authority": "Discord buttons remain a thin authenticated input and do not own approval state"
+  },
+  "verification": {
+    "focused_boundary_tests": "19 passed",
+    "full_tests_v2": "1567 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "git_diff_check": "PASS",
+    "credential_scan": "no operator token or public secret value in tracked source, tests, docs, or evidence",
+    "codex_direct_implementation": 0,
+    "exact_head_ci": {
+      "head": "9888d75d2e6675bf2dea391005855cc393590fca",
+      "kernel_3.10": {
+        "run_id": 35843778541,
+        "job_id": 107124883078,
+        "conclusion": "success"
+      },
+      "kernel_3.11": {
+        "run_id": 35843778541,
+        "job_id": 107124882532,
+        "conclusion": "success"
+      },
+      "provider_smoke": {
+        "run_id": 35843777666,
+        "conclusion": "success"
+      }
+    }
+  },
+  "live": {
+    "gateway_login": "historical local smoke only",
+    "new_human_message": "NOT_VERIFIED",
+    "active_run_intervention": "NOT_VERIFIED",
+    "human_request_round_trip": "NOT_VERIFIED",
+    "approval_button_round_trip": "NOT_VERIFIED",
+    "restart_offline_delivery": "NOT_VERIFIED"
+  },
+  "formal_gates": {
+    "D9_DOGFOOD": "VERIFIED",
+    "D9_PRODUCTION_DEPLOYMENT": "DEFERRED_NOT_READY",
+    "PHASE8_PREPARATION": "PREPARATION_ONLY",
+    "PHASE8_LIVE_ACTIVATION": "NOT_VERIFIED"
+  },
+  "limitations": [
+    "This evidence verifies the local Core boundaries and standard-runner composition; it does not claim a real Discord client round trip.",
+    "A live test still requires a new Human message while the runner is online; Discord history backfill is not used.",
+    "The formal Phase 8 and D9 Production Deployment gates are unchanged."
+  ],
+  "test_refs": [
+    "tests/v2/test_discord_composition.py",
+    "tests/v2/test_approval_boundary.py",
+    "tests/v2/test_process_coordination_store.py",
+    "tests/v2/test_operation_runtime.py",
+    "tests/v2/test_discord_bot.py"
+  ]
+}
