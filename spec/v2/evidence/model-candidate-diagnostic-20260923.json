@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "evidence_id": "model-candidate-diagnostic-20260923",
+  "scope": "READ_ONLY_MODEL_ADMISSION_DIAGNOSTIC",
+  "collected_on": "2026-09-23",
+  "command": "python scripts/diagnose_model_candidates.py --all --summary --json",
+  "provider_counts": {
+    "gemini": 232
+  },
+  "summary": {
+    "row_count": 232,
+    "static_eligible_count": 32,
+    "runtime_unknown_count": 5,
+    "final_eligible_count": 0,
+    "result_counts": {
+      "BENCHMARK_MISSING": 36,
+      "BILLING_UNKNOWN": 22,
+      "QUALIFICATION_MISSING": 5,
+      "RUNTIME_UNAVAILABLE": 164,
+      "RUNTIME_UNKNOWN": 5
+    },
+    "static_result_counts": {
+      "BENCHMARK_MISSING": 36,
+      "ELIGIBLE": 32,
+      "RUNTIME_UNAVAILABLE": 164
+    }
+  },
+  "interpretation": {
+    "discovery_is_not_routing_grant": true,
+    "catalog_rows_are_not_runtime_candidates": true,
+    "final_eligible_zero_means_no_runtime_confirmed_route_in_this_snapshot": true,
+    "unknown_quota_or_runtime_state_is_not_replayed": true,
+    "next_action": "wait for a newly observed eligible route and use a fresh R9 request identity"
+  },
+  "secrets_or_raw_provider_response": false
+}
