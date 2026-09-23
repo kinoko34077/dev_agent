@@ -11,6 +11,7 @@ import math
 from threading import Event, RLock
 from time import monotonic, time
 from typing import Any, Callable
+from uuid import NAMESPACE_URL, uuid5
 
 from ..domain.protocol import Event as ProtocolEvent
 from ..domain.protocol import ModelRequest, ModelResponse, Step, StepStatus, Task, TaskStatus, ToolCall, ToolResult, ToolResultStatus
@@ -19,6 +20,7 @@ from ..security.event_artifacts import EventArtifactStore
 from ..security.audit import AuditRecorder
 from ..resources.control import DispatchDenied, ResourcePolicy
 from ..resources.budget import BudgetExceeded, BudgetReconciliationRequired
+from ..policy.approvals import canonical_arguments_hash
 from ..state.store import StateStore
 from ..tools.runtime import ToolRuntime
 from ..intelligence.policy import TaskIntelligencePolicy
@@ -158,6 +160,10 @@ class Controller:
     @staticmethod
     def _checkpoint_payload(task: Task, step: Step, phase: str, state: dict[str, Any]) -> dict[str, Any]:
         return {"task_id": task.task_id, "step_id": step.step_id, "phase": phase, "state": state}
+
+    @staticmethod
+    def _approval_reference(task: Task, call: ToolCall, arguments_hash: str) -> str:
+        return str(uuid5(NAMESPACE_URL, f"dev-agent/approval/{task.task_id}/{call.call_id}/{arguments_hash}"))
 
     def _commit(self, *, task: Task | None = None, step: Step | None = None, checkpoint: dict[str, Any] | None = None, events: list[ProtocolEvent] | None = None, tool_result: ToolResult | None = None) -> None:
         self._active_lease_guard()
@@ -569,8 +575,29 @@ class Controller:
                 if category == "approval_required":
                     step.status = StepStatus.WAITING
                     state["active_step"] = step.to_dict()
+                    spec = self.tools.registry.resolve(call.tool_name)
+                    effective_arguments = self.tools.effective_arguments(call)
+                    arguments_hash = canonical_arguments_hash(effective_arguments)
+                    approval_reference = self._approval_reference(task, call, arguments_hash)
+                    state["approval_request"] = {
+                        "approval_reference": approval_reference,
+                        "call_id": call.call_id,
+                        "tool_name": call.tool_name,
+                        "side_effect_level": spec.side_effect_level if spec is not None else "external_write",
+                        "arguments_hash": arguments_hash,
+                    }
+                    state.pop("approval_id", None)
                     task.status = TaskStatus.WAITING_APPROVAL
-                    waiting_event = self._event_record(task, "task.waiting_approval", {"tool_call_id": call.call_id, "tool_name": call.tool_name}, step_id=step.step_id)
+                    waiting_event = self._event_record(
+                        task,
+                        "task.waiting_approval",
+                        {
+                            "tool_call_id": call.call_id,
+                            "tool_name": call.tool_name,
+                            "approval_reference": approval_reference,
+                        },
+                        step_id=step.step_id,
+                    )
                     self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "waiting_approval", state), events=[tool_event, waiting_event], tool_result=result)
                     return
                 if category == "reconciliation_required":
@@ -597,6 +624,8 @@ class Controller:
                 self._fail(task, state, category, error.get("message", "tool failed"), step=step, tool_result=result, extra_events=[tool_event])
             state["tool_results"].append(result.to_dict())
             state["pending_tool_calls"] = [item for item in state["pending_tool_calls"] if item["call_id"] != call.call_id]
+            state.pop("approval_request", None)
+            state.pop("approval_id", None)
             state["active_step"] = step.to_dict()
             self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "after_tool_result", state), events=[tool_event], tool_result=result)
         step.status = StepStatus.COMPLETED
@@ -722,6 +751,11 @@ class Controller:
                 if persisted.metadata.get("cancellation_requested"):
                     task.metadata.update(persisted.metadata)
                     cancel_event.set()
+                interrupt_request = persisted.metadata.get("interrupt_request")
+                if isinstance(interrupt_request, dict) and interrupt_request.get("child_task_id"):
+                    task.metadata.update(persisted.metadata)
+                    self._park_for_interrupt(task, state, interrupt_request)
+                    return task
             task.status = TaskStatus.RUNNING
             # Register the cancellation event before the first durable write so
             # an API/UI cancellation racing with startup cannot be overwritten
@@ -735,6 +769,11 @@ class Controller:
                 if cancel_event.is_set():
                     step = Step.from_dict(state["active_step"]) if state.get("active_step") else None
                     self._cancel(task, state, step=step)
+                    return task
+                interrupt_request = persisted.metadata.get("interrupt_request") if persisted is not None else None
+                if isinstance(interrupt_request, dict) and interrupt_request.get("child_task_id"):
+                    task.metadata.update(persisted.metadata)
+                    self._park_for_interrupt(task, state, interrupt_request)
                     return task
                 # A durable provider response discovered after the original
                 # timeout is already an external outcome.  Allow that one
@@ -1121,6 +1160,45 @@ class Controller:
             self._running_tasks.pop(task.task_id, None)
             self._cancellation_events.pop(task.task_id, None)
             self._cancellation_reasons.pop(task.task_id, None)
+
+    def _park_for_interrupt(self, task: Task, state: dict[str, Any], request: dict[str, Any]) -> None:
+        """Park at a cooperative boundary without cancelling an external call."""
+
+        raw_step = state.get("active_step")
+        if isinstance(raw_step, dict):
+            step = Step.from_dict(raw_step)
+        else:
+            step = Step(
+                task_id=task.task_id,
+                order=int(state.get("next_step_order", 0)),
+                kind="interrupt",
+                status=StepStatus.WAITING,
+            )
+        step.status = StepStatus.WAITING
+        state["active_step"] = step.to_dict()
+        frame = request.get("frame") if isinstance(request.get("frame"), dict) else {}
+        state["interrupt"] = {
+            "child_task_id": request.get("child_task_id"),
+            "checkpoint_revision": frame.get("checkpoint_revision"),
+            "resume_from": frame.get("resume_from"),
+        }
+        task.status = TaskStatus.WAITING_DEPENDENCY
+        event = self._event_record(
+            task,
+            "task.waiting_interrupt",
+            {
+                "child_task_id": request.get("child_task_id"),
+                "checkpoint_revision": frame.get("checkpoint_revision"),
+                "source": "cooperative_boundary",
+            },
+            step_id=step.step_id,
+        )
+        self._commit(
+            task=task,
+            step=step,
+            checkpoint=self._checkpoint_payload(task, step, "waiting_interrupt", state),
+            events=[event],
+        )
 
     def _provider_waiting_reconciliation(self, task: Task, state: dict[str, Any], *, step: Step, request_id: str, cause: str, message: str) -> None:
         step.status = StepStatus.WAITING

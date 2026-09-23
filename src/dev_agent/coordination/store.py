@@ -19,6 +19,7 @@ from .protocol import (
     GuardianActionStatus,
     MailboxMessage,
     MailboxStatus,
+    MessageKind,
     PeerRecord,
     PeerStatus,
 )
@@ -741,6 +742,7 @@ class CoordinationStore:
         now: str,
         lease_seconds: int | float,
         limit: int = 10,
+        kind: MessageKind | str | None = None,
     ) -> list[MailboxMessage]:
         recipient_role = validate_identifier(recipient_role, "recipient_role")
         consumer_instance_id = validate_identifier(consumer_instance_id, "consumer_instance_id")
@@ -749,16 +751,23 @@ class CoordinationStore:
             raise CoordinationValidationError("lease_seconds must be positive")
         if isinstance(limit, bool) or not isinstance(limit, int) or not 0 < limit <= _MAX_CLAIM_LIMIT:
             raise CoordinationValidationError(f"limit must be between 1 and {_MAX_CLAIM_LIMIT}")
+        normalized_kind = None if kind is None else (
+            kind if isinstance(kind, MessageKind) else MessageKind(kind)
+        )
+        kind_value = normalized_kind.value if normalized_kind is not None else None
         now_dt = _parse_timestamp(now, "now")
         lease_until = datetime.fromtimestamp(
             now_dt.timestamp() + float(lease_seconds), tz=now_dt.tzinfo
         ).isoformat()
         claimed: list[MailboxMessage] = []
         with self._transaction() as connection:
-            rows = connection.execute(
-                "SELECT * FROM mailbox WHERE recipient_role=? AND status=? ORDER BY created_at, message_id",
-                (recipient_role, MailboxStatus.CLAIMED.value),
-            ).fetchall()
+            claimed_query = "SELECT * FROM mailbox WHERE recipient_role=? AND status=?"
+            claimed_params: list[Any] = [recipient_role, MailboxStatus.CLAIMED.value]
+            if kind_value is not None:
+                claimed_query += " AND kind=?"
+                claimed_params.append(kind_value)
+            claimed_query += " ORDER BY created_at, message_id"
+            rows = connection.execute(claimed_query, tuple(claimed_params)).fetchall()
             for row in rows:
                 if _due(row["claim_lease_until"], now):
                     if _due(row["expires_at"], now):
@@ -771,13 +780,16 @@ class CoordinationStore:
                             "UPDATE mailbox SET status=?, claimed_by=NULL, claimed_at=NULL, claim_lease_until=NULL WHERE message_id=?",
                             (MailboxStatus.PENDING.value, row["message_id"]),
                         )
-            pending_rows = connection.execute(
-                """SELECT * FROM mailbox
+            pending_query = """SELECT * FROM mailbox
                    WHERE recipient_role=? AND status=?
-                     AND (expires_at IS NULL OR expires_at > ?)
-                   ORDER BY created_at, message_id LIMIT ?""",
-                (recipient_role, MailboxStatus.PENDING.value, now, limit),
-            ).fetchall()
+                     AND (expires_at IS NULL OR expires_at > ?)"""
+            pending_params: list[Any] = [recipient_role, MailboxStatus.PENDING.value, now]
+            if kind_value is not None:
+                pending_query += " AND kind=?"
+                pending_params.append(kind_value)
+            pending_query += " ORDER BY created_at, message_id LIMIT ?"
+            pending_params.append(limit)
+            pending_rows = connection.execute(pending_query, tuple(pending_params)).fetchall()
             for row in pending_rows:
                 connection.execute(
                     """UPDATE mailbox
@@ -797,11 +809,13 @@ class CoordinationStore:
                     (row["message_id"],),
                 ).fetchone()
                 claimed.append(_message_from_row(updated))
-            expired_rows = connection.execute(
-                """SELECT * FROM mailbox
-                   WHERE recipient_role=? AND status=? AND expires_at IS NOT NULL AND expires_at <= ?""",
-                (recipient_role, MailboxStatus.PENDING.value, now),
-            ).fetchall()
+            expired_query = """SELECT * FROM mailbox
+                   WHERE recipient_role=? AND status=? AND expires_at IS NOT NULL AND expires_at <= ?"""
+            expired_params: list[Any] = [recipient_role, MailboxStatus.PENDING.value, now]
+            if kind_value is not None:
+                expired_query += " AND kind=?"
+                expired_params.append(kind_value)
+            expired_rows = connection.execute(expired_query, tuple(expired_params)).fetchall()
             for row in expired_rows:
                 connection.execute(
                     "UPDATE mailbox SET status=? WHERE message_id=?",

@@ -443,6 +443,11 @@ def run_from_environment(*, env_path: str | Path | None = None, workspace: str |
             composition.store,
             composition.bindings,
             send=_send_to_binding,
+            approval_view_factory=lambda approval_id, _binding: build_approval_view(
+                approval_id=approval_id,
+                authorizer=authorizer,
+                submit=composition.submit_approval,
+            ),
             human_request_view_factory=lambda request, _binding: build_human_request_view(
                 request=request,
                 authorizer=authorizer,

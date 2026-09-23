@@ -17,10 +17,10 @@ import time
 from threading import Event
 from typing import Any, Callable, Mapping
 
-from .coordination.protocol import CoordinationConflict, PeerRecord, PeerStatus
+from .coordination.protocol import CoordinationConflict, MessageKind, PeerRecord, PeerStatus
 from .coordination.service import ProcessCoordinationService
 from .human import HumanInteractionPort
-from .operation import OperationConfig, OperationService
+from .operation import OperationConfig, OperationError, OperationService
 from .state.sqlite_store import SQLiteStateStore
 
 
@@ -222,6 +222,43 @@ class RuntimeCoordinator:
         self.operation.prepare_runtime()
         self._prepared = True
 
+    def _consume_interrupt_messages(self) -> int:
+        """Consume only interrupt intents and hand them to Operation Core."""
+
+        messages = self.coordination.claim_messages(
+            self.peer,
+            kind=MessageKind.INTERRUPT,
+            limit=4,
+            lease_seconds=self.presence_lease_seconds,
+        )
+        consumed = 0
+        for message in messages:
+            request = None
+            for reference in message.artifact_refs:
+                if reference.kind != "task_interrupt_request":
+                    continue
+                request = self.coordination.artifacts.read_json(reference)
+                break
+            if not isinstance(request, Mapping):
+                self.coordination.ack_message(self.peer, message)
+                continue
+            task_id = request.get("task_id")
+            objective = request.get("objective")
+            if not isinstance(task_id, str) or not task_id.strip() or not isinstance(objective, str) or not objective.strip():
+                self.coordination.ack_message(self.peer, message)
+                continue
+            try:
+                self.operation.interrupt_task(task_id, objective)
+            except (OperationError, ValueError) as exc:
+                # A terminal/malformed target is a deterministic Core result,
+                # not a reason to poison the mailbox forever.  Transient
+                # store/queue failures still escape and leave the lease for
+                # the existing coordination recovery path.
+                self._last_error = f"interrupt:{type(exc).__name__}: {exc}"
+            self.coordination.ack_message(self.peer, message)
+            consumed += 1
+        return consumed
+
     def run_once(
         self,
         *,
@@ -236,6 +273,7 @@ class RuntimeCoordinator:
         # shared compatibility stop flag.  A stale process must never be able
         # to erase a stop request intended for the current generation.
         self._prepare()
+        self._consume_interrupt_messages()
         result = self.operation.run_once(quota_probe=quota_probe)
         self._heartbeat()
         self._cycles += 1

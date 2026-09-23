@@ -50,6 +50,20 @@ def _coordination_subject(kind: str, event: DiscordIngressEvent) -> str:
     return f"{prefix}:{normalized}"[:_COORDINATION_SUBJECT_LIMIT]
 
 
+def _interrupt_objective(event: DiscordIngressEvent) -> str:
+    """Return a bounded, secret-sanitized objective for the Core artifact."""
+
+    safe = AuditRecorder.sanitize_payload({"content": event.message.content})
+    content = safe.get("content", "")
+    normalized = " ".join(content.split()) if isinstance(content, str) else ""
+    lowered = normalized.casefold()
+    for prefix in ("/interrupt", "割り込み"):
+        if lowered.startswith(prefix.casefold()):
+            normalized = normalized[len(prefix):].strip()
+            break
+    return normalized[:_COORDINATION_SUBJECT_LIMIT] or "Discordからの割り込み確認"
+
+
 class DiscordRuntimeComposition:
     """Inject Discord into existing durable Operation and coordination APIs."""
 
@@ -207,6 +221,27 @@ class DiscordRuntimeComposition:
                 objective,
                 inputs=inputs,
             )
+        if event.kind is DiscordMessageKind.INTERRUPT:
+            if binding is None:
+                return {"state": "NO_BINDING", "next_action": "割り込み対象がありません"}
+            reference = self.coordination.artifacts.put_json(
+                {
+                    "task_id": binding.run_id,
+                    "objective": _interrupt_objective(event),
+                    "source": "discord",
+                },
+                kind="task_interrupt_request",
+                revision="discord",
+            )
+            return self.coordination.send_message(
+                self.peer,
+                recipient_role=self.coordination_recipient_role,
+                kind=MessageKind.INTERRUPT,
+                subject=_coordination_subject(kind, event),
+                artifact_refs=(reference,),
+                correlation_id=f"discord-{message_id}",
+                idempotency_key=f"discord-{message_id}",
+            )
         mailbox_kind = {
             DiscordMessageKind.NOTE: MessageKind.NOTE,
             DiscordMessageKind.PARALLEL: MessageKind.PARALLEL,
@@ -228,6 +263,11 @@ class DiscordRuntimeComposition:
         """Return the existing proposal-only Approval adapter for a UI view."""
 
         return DiscordApprovalAdapter(authorizer=self.authorizer, submit=submit)
+
+    def submit_approval(self, approval_id: str, approved: bool, actor: str) -> dict[str, Any]:
+        """Delegate a Discord decision to the existing Core approval authority."""
+
+        return OperationService.submit_approval(self.config, approval_id, approved, actor)
 
     def close(self) -> None:
         if self._closed:

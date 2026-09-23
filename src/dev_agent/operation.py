@@ -16,6 +16,7 @@ import os
 from pathlib import Path
 from threading import Event
 from typing import Any, Callable, Mapping
+from uuid import NAMESPACE_URL, uuid5
 from .operation_planning import (
     PlanningContext,
     apply_proposal as _apply_planning_proposal,
@@ -24,7 +25,7 @@ from .operation_planning import (
     validate_proposal as _validate_planning_proposal,
 )
 
-from .domain.protocol import ModelRequest, RiskLevel, Task, TaskStatus, TaskType
+from .domain.protocol import Event as ProtocolEvent, ModelRequest, RiskLevel, Task, TaskStatus, TaskType
 from .human import HumanInteractionPort, SQLiteHumanInteractionPort
 from .providers.dispatch import ProviderDispatcher
 from .providers.factory import ProviderDefinition, ProviderFactory
@@ -45,11 +46,13 @@ from .scheduler.quota import QuotaRequalificationCoordinator, QuotaWakeScheduler
 from .scheduler.worker import WorkerRunner
 from .state.control_repository import OperationControl
 from .state.sqlite_store import SQLiteStateStore
+from .security.audit import AuditRecorder
 from .operation_bootstrap import open_components
 from .tools.registry import ToolRegistry, ToolSpec
 from .tools.runtime import ToolRuntime
 from .runtime.controller import Controller
 from .runtime.task_graph import TaskGraph, TaskGraphError
+from .coordination.work import ResumeCapsule, WorkAddress
 from .intelligence.coordination import EvaluationCoordinator
 from .intelligence.convergence import ConvergenceMetadata
 from .intelligence.evaluator import EvaluationEvidence
@@ -1280,6 +1283,7 @@ class OperationService:
         self._refresh_deterministic_local_resources(current)
         self._wake_human_tasks()
         self._wake_reconciled_provider_tasks()
+        self._wake_interrupted_parents()
         self.release_planner_dependencies()
         for domain in self.ledger.due_unknown_quota_domains(now_epoch=current.timestamp()):
             self.queue.wake_due(now=current, reason=unknown_quota_wake_reason(domain))
@@ -1585,6 +1589,340 @@ class OperationService:
         finally:
             queue.close()
             store.close()
+
+    @staticmethod
+    def submit_approval(
+        config: OperationConfig | None,
+        approval_id: str,
+        approved: bool,
+        actor: str,
+    ) -> dict[str, Any]:
+        """Apply one UI approval through the durable Core authority.
+
+        The Discord adapter supplies only an authenticated actor and a
+        proposal decision.  This method resolves the exact waiting tool call
+        from the Controller checkpoint, persists the approval record, and
+        wakes the existing queue.  It never executes the tool or owns a
+        Discord-side approval record.
+        """
+
+        config = config or OperationConfig.from_environment()
+        if not isinstance(approval_id, str) or not approval_id.strip():
+            raise ValueError("approval_id must be a non-empty string")
+        if not isinstance(approved, bool):
+            raise ValueError("approved must be boolean")
+        if not isinstance(actor, str) or not actor.strip() or len(actor.strip()) > 256:
+            raise ValueError("actor must be bounded non-empty text")
+        safe_actor = AuditRecorder.sanitize_payload({"actor": actor.strip()}).get("actor", "")
+        if not isinstance(safe_actor, str) or not safe_actor.strip():
+            raise ValueError("actor is empty after sanitization")
+        store = SQLiteStateStore(config.state_path)
+        queue = DurableQueue(config.queue_path)
+        try:
+            target: tuple[Task, dict[str, Any], dict[str, Any]] | None = None
+            for payload in store.snapshot().get("tasks", {}).values():
+                if not isinstance(payload, dict):
+                    continue
+                task = Task.from_persisted_dict(payload)
+                if task.status is not TaskStatus.WAITING_APPROVAL:
+                    continue
+                checkpoint = store.load_latest_checkpoint(task.task_id)
+                if not isinstance(checkpoint, dict):
+                    continue
+                state = checkpoint.get("state")
+                request = state.get("approval_request") if isinstance(state, dict) else None
+                if not isinstance(request, Mapping) or request.get("approval_reference") != approval_id.strip():
+                    continue
+                target = (task, checkpoint, dict(request))
+                break
+            if target is None:
+                raise ValueError(f"approval request not found: {approval_id}")
+            task, checkpoint, request = target
+            task_id = task.task_id
+            call_id = request.get("call_id")
+            side_effect_level = request.get("side_effect_level")
+            arguments_hash = request.get("arguments_hash")
+            if not all(isinstance(value, str) and value.strip() for value in (call_id, side_effect_level, arguments_hash)):
+                raise OperationError("approval request is incomplete")
+            if approved:
+                if not store.has_approval(
+                    approval_id.strip(),
+                    task_id=task_id,
+                    side_effect_level=side_effect_level,
+                    call_id=call_id,
+                    arguments_hash=arguments_hash,
+                ):
+                    store.save_approval(
+                        approval_id.strip(),
+                        task_id=task_id,
+                        side_effect_level=side_effect_level,
+                        actor=safe_actor,
+                        call_id=call_id,
+                        arguments_hash=arguments_hash,
+                    )
+                approval_event_exists = any(
+                    event.get("event_type") == "task.approval_received"
+                    and isinstance(event.get("payload"), dict)
+                    and event["payload"].get("approval_reference") == approval_id.strip()
+                    for event in store.snapshot().get("events", [])
+                    if isinstance(event, dict)
+                )
+                if not approval_event_exists:
+                    state = dict(checkpoint.get("state") or {})
+                    updated_request = dict(request)
+                    updated_request["decision"] = "approved"
+                    updated_request["actor"] = safe_actor
+                    state["approval_request"] = updated_request
+                    state["approval_id"] = approval_id.strip()
+                    updated_checkpoint = dict(checkpoint)
+                    updated_checkpoint["state"] = state
+                    task.metadata["approval_decision"] = "approved"
+                    task.metadata["approval_actor"] = safe_actor
+                    event = ProtocolEvent(
+                        event_id=str(uuid5(NAMESPACE_URL, f"dev-agent/approval/{approval_id.strip()}/approved")),
+                        event_type="task.approval_received",
+                        task_id=task_id,
+                        step_id=updated_checkpoint.get("step_id"),
+                        payload={
+                            "approval_reference": approval_id.strip(),
+                            "decision": "approved",
+                            "actor": safe_actor,
+                        },
+                    )
+                    store.commit_transition(task=task, checkpoint=updated_checkpoint, event=event)
+                try:
+                    item = queue.snapshot(task_id)
+                except KeyError:
+                    item = None
+                if item is not None and item.state == "waiting":
+                    queue.wake_waiting_task(task_id)
+            else:
+                task.status = TaskStatus.CANCELLED
+                task.metadata["approval_decision"] = "rejected"
+                task.metadata["approval_actor"] = safe_actor
+                state = dict(checkpoint.get("state") or {})
+                state["approval_request"] = {**request, "decision": "rejected", "actor": safe_actor}
+                updated_checkpoint = dict(checkpoint)
+                updated_checkpoint["phase"] = "cancelled"
+                updated_checkpoint["state"] = state
+                event = ProtocolEvent(
+                    event_id=str(uuid5(NAMESPACE_URL, f"dev-agent/approval/{approval_id.strip()}/rejected")),
+                    event_type="task.approval_rejected",
+                    task_id=task_id,
+                    step_id=updated_checkpoint.get("step_id"),
+                    payload={
+                        "approval_reference": approval_id.strip(),
+                        "decision": "rejected",
+                        "actor": safe_actor,
+                    },
+                )
+                store.commit_transition(task=task, checkpoint=updated_checkpoint, event=event)
+                try:
+                    item = queue.snapshot(task_id)
+                except KeyError:
+                    item = None
+                if item is not None and item.state in {"queued", "waiting"}:
+                    queue.cancel(task_id)
+            return OperationService._status(store, queue, task_id)
+        finally:
+            queue.close()
+            store.close()
+
+    def interrupt_task(self, parent_task_id: str, objective: str, *, priority: int = 0) -> Task:
+        """Create one interrupt child from the parent's latest checkpoint.
+
+        The request is durable on the parent before the child is queued.  The
+        Controller consumes that marker at its next cooperative boundary and
+        parks the parent; ``maintenance_tick`` clears it only after the child
+        reaches a terminal state.  This keeps interruption inside the
+        existing Task/Queue/RuntimeCoordinator authorities.
+        """
+
+        if not isinstance(parent_task_id, str) or not parent_task_id.strip():
+            raise ValueError("parent_task_id must be a non-empty string")
+        if not isinstance(objective, str) or not objective.strip():
+            raise ValueError("objective must be a non-empty string")
+        if isinstance(priority, bool) or not isinstance(priority, int):
+            raise ValueError("priority must be an integer")
+        parent = self.store.load_task(parent_task_id.strip())
+        if parent is None:
+            raise OperationError(f"parent task not found: {parent_task_id}")
+        existing_request = parent.metadata.get("interrupt_request")
+        if isinstance(existing_request, Mapping):
+            existing_child_id = existing_request.get("child_task_id")
+            if isinstance(existing_child_id, str) and existing_child_id.strip():
+                existing_child = self.store.load_task(existing_child_id)
+                if existing_child is not None:
+                    try:
+                        self.queue.snapshot(existing_child.task_id)
+                    except KeyError:
+                        if existing_child.status not in {
+                            TaskStatus.COMPLETED,
+                            TaskStatus.FAILED,
+                            TaskStatus.CANCELLED,
+                        }:
+                            self.queue.enqueue(
+                                existing_child.task_id,
+                                priority=priority,
+                                max_attempts=existing_child.limits.max_retries + 1,
+                            )
+                    return existing_child
+        if parent.status in {
+            TaskStatus.COMPLETED,
+            TaskStatus.FAILED,
+            TaskStatus.CANCELLED,
+            TaskStatus.WAITING_HUMAN,
+            TaskStatus.WAITING_APPROVAL,
+            TaskStatus.WAITING_RECONCILIATION,
+        }:
+            raise OperationError(f"task is not interruptible in state: {parent.status.value}")
+        checkpoint = self.store.load_latest_checkpoint(parent.task_id)
+        if not isinstance(checkpoint, Mapping):
+            raise OperationError("interrupt requires a durable checkpoint")
+        phase = checkpoint.get("phase")
+        step_id = checkpoint.get("step_id")
+        if not isinstance(phase, str) or not phase.strip() or not isinstance(step_id, str) or not step_id.strip():
+            raise OperationError("interrupt checkpoint is incomplete")
+        safe_objective = AuditRecorder.sanitize_payload({"objective": objective.strip()}).get("objective", "")
+        if not isinstance(safe_objective, str) or not safe_objective.strip():
+            raise OperationError("interrupt objective is empty after sanitization")
+        raw_address = parent.metadata.get("work_address")
+        try:
+            work_address = WorkAddress.parse(raw_address) if isinstance(raw_address, str) else WorkAddress(("1",))
+        except Exception:
+            work_address = WorkAddress(("1",))
+        safe_parent_objective = AuditRecorder.sanitize_payload({"objective": parent.objective}).get("objective", "")
+        if not isinstance(safe_parent_objective, str) or not safe_parent_objective.strip():
+            safe_parent_objective = "parent task"
+        capsule = ResumeCapsule(
+            work_address=work_address,
+            status=parent.status.value,
+            objective=safe_parent_objective,
+            current_action=f"checkpoint:{phase}",
+            completed=(),
+            next_action="resume parent after interrupt child",
+            resume_from=f"checkpoint:{phase}",
+            blocked_by=(),
+            owned_paths=(),
+            checkpoint_revision=f"{parent.task_id}:{step_id}:{phase}",
+            task_id=parent.task_id,
+        )
+        frame = capsule.to_interrupt_frame(task_id=parent.task_id)
+        suspended_capsule = capsule.push_interrupt(frame)
+        persisted = [
+            Task.from_persisted_dict(payload)
+            for payload in self.store.snapshot().get("tasks", {}).values()
+            if isinstance(payload, dict)
+        ]
+        try:
+            graph = TaskGraph.from_tasks(persisted)
+            child = Task(
+                objective=safe_objective,
+                parent_task_id=parent.task_id,
+                root_task_id=parent.root_task_id,
+                depth=parent.depth + 1,
+                sensitivity=parent.sensitivity,
+                task_type=TaskType.WORKER,
+                risk=parent.risk,
+                metadata={
+                    "interrupt_parent_task_id": parent.task_id,
+                    "interruption_mode": "INTERRUPT",
+                    "interrupt_frame": frame.to_dict(),
+                },
+            )
+            graph.add(child)
+        except TaskGraphError as exc:
+            raise OperationError(str(exc)) from exc
+        parent.metadata["interrupt_request"] = {
+            "child_task_id": child.task_id,
+            "frame": frame.to_dict(),
+            "capsule": suspended_capsule.to_dict(),
+            "source": "discord_coordination",
+        }
+        event = ProtocolEvent(
+            event_id=str(uuid5(NAMESPACE_URL, f"dev-agent/interrupt/{parent.task_id}/{child.task_id}/requested")),
+            event_type="task.interrupt_requested",
+            task_id=parent.task_id,
+            step_id=step_id,
+            payload={
+                "child_task_id": child.task_id,
+                "checkpoint_revision": frame.checkpoint_revision,
+                "source": "coordination_mailbox",
+            },
+        )
+        self.store.save_task(child)
+        self.store.commit_transition(task=parent, event=event)
+        self.queue.enqueue(
+            child.task_id,
+            priority=priority,
+            max_attempts=child.limits.max_retries + 1,
+        )
+        return child
+
+    def _wake_interrupted_parents(self) -> tuple[str, ...]:
+        """Resume a parent only after its interrupt child is terminal."""
+
+        resumed: list[str] = []
+        payloads = self.store.snapshot().get("tasks", {})
+        for payload in payloads.values():
+            if not isinstance(payload, dict):
+                continue
+            parent = Task.from_persisted_dict(payload)
+            request = parent.metadata.get("interrupt_request")
+            if not isinstance(request, Mapping):
+                continue
+            child_id = request.get("child_task_id")
+            if not isinstance(child_id, str) or not child_id.strip():
+                continue
+            child = self.store.load_task(child_id)
+            if child is None or child.status not in {
+                TaskStatus.COMPLETED,
+                TaskStatus.FAILED,
+                TaskStatus.CANCELLED,
+            }:
+                continue
+            if parent.status not in {TaskStatus.WAITING_DEPENDENCY, TaskStatus.QUEUED, TaskStatus.READY}:
+                continue
+            frame = request.get("frame") if isinstance(request.get("frame"), Mapping) else {}
+            resume_capsule = None
+            raw_capsule = request.get("capsule")
+            if isinstance(raw_capsule, Mapping):
+                try:
+                    _, resumed_capsule = ResumeCapsule.from_dict(raw_capsule).pop_interrupt()
+                    resume_capsule = resumed_capsule.to_dict()
+                except Exception:
+                    resume_capsule = None
+            parent.metadata.pop("interrupt_request", None)
+            parent.metadata["last_interrupt"] = {
+                "child_task_id": child.task_id,
+                "child_status": child.status.value,
+                "checkpoint_revision": frame.get("checkpoint_revision"),
+                "resumed": True,
+            }
+            if resume_capsule is not None:
+                parent.metadata["last_interrupt"]["resume_capsule"] = resume_capsule
+            if parent.status is TaskStatus.WAITING_DEPENDENCY:
+                parent.status = TaskStatus.READY
+            event = ProtocolEvent(
+                event_id=str(uuid5(NAMESPACE_URL, f"dev-agent/interrupt/{parent.task_id}/{child.task_id}/resumed")),
+                event_type="task.interrupt_resumed",
+                task_id=parent.task_id,
+                payload={
+                    "child_task_id": child.task_id,
+                    "child_status": child.status.value,
+                    "checkpoint_revision": frame.get("checkpoint_revision"),
+                    "source": "operation_maintenance",
+                },
+            )
+            self.store.commit_transition(task=parent, event=event)
+            try:
+                item = self.queue.snapshot(parent.task_id)
+            except KeyError:
+                item = None
+            if item is not None and item.state == "waiting":
+                self.queue.wake_waiting_task(parent.task_id)
+            resumed.append(parent.task_id)
+        return tuple(resumed)
 
     def stop(self, task_id: str | None = None) -> dict[str, Any] | None:
         """Request loop shutdown and optionally apply one Task stop."""

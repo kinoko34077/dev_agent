@@ -44,7 +44,15 @@ def test_controller_waiting_approval_can_resume_with_persisted_record(tmp_path):
     controller = Controller(provider, ToolRuntime(registry), store)
     task = Task(objective="publish")
     assert controller.run(task).status == TaskStatus.WAITING_APPROVAL
-    pending = store.load_latest_checkpoint(task.task_id)["state"]["pending_tool_calls"][0]
+    checkpoint = store.load_latest_checkpoint(task.task_id)
+    pending = checkpoint["state"]["pending_tool_calls"][0]
+    approval_request = checkpoint["state"]["approval_request"]
+    waiting_event = next(
+        event for event in store.snapshot()["events"]
+        if event["event_type"] == "task.waiting_approval"
+    )
+    assert waiting_event["payload"]["approval_reference"] == approval_request["approval_reference"]
+    assert approval_request["call_id"] == pending["call_id"]
     store.save_approval("approval-1", task_id=task.task_id, side_effect_level="external_write", actor="human", call_id=pending["call_id"], arguments_hash=canonical_arguments_hash(pending["arguments"]))
     assert controller.resume(task.task_id, approval_id="approval-1").status == TaskStatus.COMPLETED
     assert calls == [{"value": "x"}]

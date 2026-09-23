@@ -24,14 +24,14 @@ def _peer(*, role: str = "agent", instance_id: str = "agent-1", generation: int 
     )
 
 
-def _message(*, subject: str = "hello", key: str = "key-1") -> MailboxMessage:
+def _message(*, subject: str = "hello", key: str = "key-1", message_id: str = "message-1", kind: MessageKind = MessageKind.NOTE) -> MailboxMessage:
     return MailboxMessage(
-        message_id="message-1",
+        message_id=message_id,
         sender_role="agent",
         sender_instance_id="agent-1",
         sender_generation=1,
         recipient_role="codex",
-        kind=MessageKind.NOTE,
+        kind=kind,
         subject=subject,
         idempotency_key=key,
         created_at="2026-09-14T12:00:00+00:00",
@@ -149,6 +149,28 @@ def test_mailbox_claim_ack_reclaim_is_at_least_once(tmp_path) -> None:
             consumer_instance_id="another-instance",
             now="2026-09-14T12:01:02+00:00",
         ).status is MailboxStatus.ACKED
+
+
+def test_mailbox_claim_can_filter_one_intervention_kind_without_stealing_notes(tmp_path) -> None:
+    with CoordinationStore(tmp_path / "coordination.sqlite3") as store:
+        store.enqueue(_message())
+        interrupt = _message(
+            subject="interrupt",
+            key="interrupt-key",
+            message_id="message-2",
+            kind=MessageKind.INTERRUPT,
+        )
+        store.enqueue(interrupt)
+
+        claimed = store.claim(
+            "codex",
+            consumer_instance_id="codex-1",
+            now="2026-09-14T12:00:01+00:00",
+            lease_seconds=30,
+            kind=MessageKind.INTERRUPT,
+        )
+        assert [item.message_id for item in claimed] == ["message-2"]
+        assert store.get_message("message-1").status is MailboxStatus.PENDING
 
 
 def test_expired_message_is_not_claimed(tmp_path) -> None:

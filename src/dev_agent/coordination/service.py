@@ -408,14 +408,19 @@ class ProcessCoordinationService:
         now: str | None = None,
         limit: int = 10,
         lease_seconds: int | float = 60,
+        kind: MessageKind | str | None = None,
     ) -> list[MailboxMessage]:
         current = self._assert_current(consumer)
+        normalized_kind = None if kind is None else (
+            kind if isinstance(kind, MessageKind) else MessageKind(kind)
+        )
         return self.store.claim(
             current.role,
             consumer_instance_id=current.instance_id,
             now=now or _now(),
             limit=limit,
             lease_seconds=lease_seconds,
+            kind=normalized_kind,
         )
 
     def ack_message(
