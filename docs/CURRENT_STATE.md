@@ -9,7 +9,7 @@
 | Latest implementation baseline before this documentation sync | `1cbf10440820aa304822d085e9f0ae1ecfaa75e2` (`feat: add discord ux and bounded history context`) |
 | Latest evidence baseline before this sync | `discord-ux-history-20260923.json` |
 | Implementation/evidence baseline | `1cbf104` adds a single serialized Discord human-facing send boundary with a default typing indicator, concise renderers, bounded same-channel/thread history context, and structured `inputs["discord_context"]` handoff. Existing Core Task, mailbox, HumanRequest, Approval, RuntimeCoordinator, and Host authority remain unchanged. |
-| Worktree | implementation `1cbf104` is pushed; this documentation synchronization is the remaining local change |
+| Worktree | implementation `1cbf104` and documentation/evidence sync `585fccc` are pushed; worktree is clean |
 | Local regression | `1577 passed, 1 skipped` (`python -m pytest tests/v2 -q`) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
