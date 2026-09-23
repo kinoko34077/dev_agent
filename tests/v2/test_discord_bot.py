@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,7 @@ from src.dev_agent.discord.bot import (
 )
 from src.dev_agent.discord.auth import DiscordAuthorizer
 from src.dev_agent.discord.binding import DiscordBindingKey, SQLiteDiscordBindingStore
+from src.dev_agent.discord.conversation_log import ConversationLog
 from src.dev_agent.discord.human import DiscordHumanAdapter
 from src.dev_agent.discord.renderer import (
     render_echo,
@@ -349,6 +351,75 @@ def test_active_note_attaches_bounded_history_without_replaying_it(tmp_path):
     ]
     assert message.channel.history_kwargs["before"] is message
     assert len(message.channel.sent) == 1
+
+
+def test_bot_uses_persistent_local_conversation_context_when_injected(tmp_path):
+    pytest.importorskip("discord")
+    config = DiscordBotConfig.from_environment(env_path=_env_file(tmp_path))
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        bindings = SQLiteDiscordBindingStore(store)
+        log = ConversationLog(store)
+        routed = []
+        bot = build_bot(
+            config,
+            workspace=tmp_path,
+            bindings=bindings,
+            conversation_log=log,
+            typing_delay_seconds=0,
+            on_event=lambda event: routed.append(event),
+        )
+        bot.process_commands = lambda _message: asyncio.sleep(0)
+
+        class _Author:
+            id = 42
+            bot = False
+            name = "Human"
+
+        class _Guild:
+            id = 10
+
+        class _Channel:
+            id = 20
+
+            def __init__(self):
+                self.sent = []
+
+            def typing(self):
+                return _NoopTyping()
+
+            async def send(self, content):
+                self.sent.append(content)
+
+            def history(self, **_kwargs):
+                class _PreviousMessage:
+                    id = 900
+                    author = _Author()
+                    content = "先にREADMEを確認して"
+                    created_at = datetime(2026, 9, 24, tzinfo=timezone.utc)
+
+                async def _iterate():
+                    yield _PreviousMessage()
+
+                return _iterate()
+
+        class _Message:
+            id = 901
+            author = _Author()
+            guild = _Guild()
+            content = "それも反映して"
+            created_at = datetime(2026, 9, 24, 0, 1, tzinfo=timezone.utc)
+
+            def __init__(self):
+                self.channel = _Channel()
+
+        message = _Message()
+        asyncio.run(bot.on_message(message))
+
+        assert len(routed) == 1
+        assert [item.to_dict() for item in routed[0].history_context] == [
+            {"role": "human", "content": "先にREADMEを確認して"}
+        ]
+        assert [item.message_id for item in log.list_context("10|20|")] == ["900", "901"]
 
 
 def test_message_projection_preserves_reply_reference_id():

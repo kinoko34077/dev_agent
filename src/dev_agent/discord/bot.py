@@ -16,6 +16,8 @@ from .approval import DiscordApprovalAdapter
 from .auth import DiscordAuthorizer
 from .binding import DiscordBindingKey, InMemoryDiscordBindingStore, SQLiteDiscordBindingStore
 from .composition import DiscordRuntimeComposition
+from .context import build_bounded_context, conversation_message_from_discord, sync_history_once
+from .conversation_log import ConversationLog
 from .delivery import DiscordHumanFacingSender
 from .history import collect_discord_history
 from .human import DiscordHumanAdapter
@@ -255,6 +257,7 @@ def build_bot(
     binding_is_active=None,
     typing_delay_seconds: float = 2.0,
     human_facing_sender: DiscordHumanFacingSender | None = None,
+    conversation_log: ConversationLog | None = None,
 ) -> Any:
     """Build the Gateway bot; no Discord connection starts until ``run``."""
 
@@ -274,6 +277,8 @@ def build_bot(
     sender = human_facing_sender or DiscordHumanFacingSender(typing_delay_seconds=typing_delay_seconds)
     if not isinstance(sender, DiscordHumanFacingSender):
         raise TypeError("human_facing_sender must implement the Discord send boundary")
+    if conversation_log is not None and not isinstance(conversation_log, ConversationLog):
+        raise TypeError("conversation_log must implement the ConversationLog boundary")
     ingress = DiscordIngressAdapter(
         authorizer=authorizer,
         bindings=bindings,
@@ -344,6 +349,21 @@ def build_bot(
                         return
                 except (PermissionError, ValueError, KeyError):
                     return
+                if conversation_log is not None:
+                    conversation_log.append(
+                        conversation_message_from_discord(
+                            message,
+                            binding_key=DiscordBindingKey(
+                                projected_message.guild_id,
+                                projected_message.channel_id,
+                                projected_message.thread_id,
+                            ),
+                            message_kind="HUMAN_RESPONSE",
+                            message_id=projected_message.message_id,
+                            content=projected_message.content,
+                            direction="inbound",
+                        )
+                    )
                 await sender.send(message.channel, "回答を受け付けました。")
                 return
         try:
@@ -355,22 +375,51 @@ def build_bot(
         if event is None:
             # Unauthorized and duplicate messages are deliberately silent.
             return
+        if conversation_log is not None:
+            conversation_log.append(
+                conversation_message_from_discord(
+                    message,
+                    binding_key=event.binding_key,
+                    message_kind=event.kind.value,
+                    message_id=projected_message.message_id,
+                    content=projected_message.content,
+                    direction="inbound",
+                )
+            )
         if event.kind in {
             DiscordMessageKind.NEW_REQUEST,
             DiscordMessageKind.PARALLEL,
             DiscordMessageKind.NOTE,
         }:
             try:
-                history_context = await collect_discord_history(
-                    message.channel,
-                    current_message_id=projected_message.message_id,
-                    current_message=message,
-                    authorizer=authorizer,
-                    guild_id=projected_message.guild_id,
-                    channel_id=projected_message.channel_id,
-                    thread_id=projected_message.thread_id,
-                    bot_user_id=str(getattr(getattr(bot, "user", None), "id", config.application_id)),
-                )
+                if conversation_log is not None:
+                    history_items = []
+                    async for history_item in message.channel.history(limit=20, oldest_first=True, before=message):
+                        history_items.append(history_item)
+                    sync_history_once(
+                        history_items,
+                        conversation_log,
+                        event.binding_key,
+                        authorizer=authorizer,
+                        bot_user_id=str(getattr(getattr(bot, "user", None), "id", config.application_id)),
+                        current_message_id=projected_message.message_id,
+                    )
+                    history_context = build_bounded_context(
+                        conversation_log,
+                        event.binding_key,
+                        current_message_id=projected_message.message_id,
+                    )
+                else:
+                    history_context = await collect_discord_history(
+                        message.channel,
+                        current_message_id=projected_message.message_id,
+                        current_message=message,
+                        authorizer=authorizer,
+                        guild_id=projected_message.guild_id,
+                        channel_id=projected_message.channel_id,
+                        thread_id=projected_message.thread_id,
+                        bot_user_id=str(getattr(getattr(bot, "user", None), "id", config.application_id)),
+                    )
             except Exception:
                 # History is a bounded context hint.  A read failure must not
                 # turn an otherwise accepted ingress into a retry or replay.
@@ -458,6 +507,7 @@ def run_from_environment(*, env_path: str | Path | None = None, workspace: str |
             on_event=composition.core.handle,
             human=composition.human,
             binding_is_active=composition.binding_is_active,
+            conversation_log=ConversationLog(composition.store),
         )
 
         async def _send_to_binding(binding, content, view=None):

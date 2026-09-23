@@ -43,11 +43,14 @@ class ConversationMessage:
 
     def __post_init__(self) -> None:
         for name in (
-            "message_id", "binding_key", "guild_id", "channel_id", "thread_id",
+            "message_id", "binding_key", "guild_id", "channel_id",
             "created_at", "received_at", "speaker_id", "speaker_name",
             "message_kind", "source",
         ):
             object.__setattr__(self, name, _text(getattr(self, name), name))
+        if not isinstance(self.thread_id, str) or len(self.thread_id) > _MAX_ID_CHARS:
+            raise ValueError("thread_id must be bounded text")
+        object.__setattr__(self, "thread_id", self.thread_id.strip())
         if self.speaker_role not in {"human", "assistant", "system"}:
             raise ValueError("speaker_role must be human, assistant, or system")
         if self.direction not in {"inbound", "outbound"}:

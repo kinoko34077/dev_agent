@@ -195,7 +195,7 @@ class CoreStateRepository:
                       message_kind, root_id, run_id, source
                  FROM discord_conversation_messages
                 WHERE binding_key = ?
-                ORDER BY received_at ASC, message_id ASC
+                ORDER BY created_at ASC, received_at ASC, message_id ASC
                 LIMIT ?""",
             (binding_key.strip(), limit),
         ).fetchall()
