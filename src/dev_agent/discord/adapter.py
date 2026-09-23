@@ -10,7 +10,7 @@ from typing import Any
 from ..coordination.protocol_helpers import validate_relative_path, validate_text
 from ..security.protected_paths import PathProtectionClass, classify_path
 from .auth import DiscordAuthorizer
-from .binding import DiscordBindingKey, InMemoryDiscordBindingStore
+from .binding import DiscordBindingKey, InMemoryDiscordBindingStore, SQLiteDiscordBindingStore
 
 
 class DiscordMessageKind(str, Enum):
@@ -101,11 +101,11 @@ class DiscordScope:
 class DiscordIngressAdapter:
     """Accept authorized, non-duplicate messages without owning execution."""
 
-    def __init__(self, *, authorizer: DiscordAuthorizer, bindings: InMemoryDiscordBindingStore) -> None:
+    def __init__(self, *, authorizer: DiscordAuthorizer, bindings: InMemoryDiscordBindingStore | SQLiteDiscordBindingStore) -> None:
         if not isinstance(authorizer, DiscordAuthorizer):
             raise TypeError("authorizer must be DiscordAuthorizer")
-        if not isinstance(bindings, InMemoryDiscordBindingStore):
-            raise TypeError("bindings must be InMemoryDiscordBindingStore")
+        if not isinstance(bindings, (InMemoryDiscordBindingStore, SQLiteDiscordBindingStore)):
+            raise TypeError("bindings must implement the Discord binding contract")
         self._authorizer = authorizer
         self._bindings = bindings
 
@@ -114,10 +114,11 @@ class DiscordIngressAdapter:
             return None
         if not self._authorizer.is_allowed(message.author_id, message.guild_id, message.channel_id):
             return None
-        if not self._bindings.mark_message_seen(message.message_id):
-            return None
         key = DiscordBindingKey(message.guild_id, message.channel_id, message.thread_id)
-        return DiscordIngressEvent(message=message, kind=classify_message(message.content), binding_key=key)
+        kind = classify_message(message.content)
+        if not self._bindings.mark_message_seen(message.message_id, binding_key=key, kind=kind.value):
+            return None
+        return DiscordIngressEvent(message=message, kind=kind, binding_key=key)
 
 
 __all__ = [

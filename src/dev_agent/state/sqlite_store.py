@@ -175,6 +175,56 @@ class SQLiteStateStore:
         return self._core.get_human_request(request_id)
 
     @_serialized
+    def save_discord_binding(self, *, binding_key: str, guild_id: str, channel_id: str, thread_id: str, root_id: str, run_id: str, updated_at: str) -> None:
+        self._core.save_discord_binding(
+            binding_key=binding_key,
+            guild_id=guild_id,
+            channel_id=channel_id,
+            thread_id=thread_id,
+            root_id=root_id,
+            run_id=run_id,
+            updated_at=updated_at,
+        )
+        self.connection.commit()
+
+    @_serialized
+    def get_discord_binding(self, binding_key: str) -> dict[str, str] | None:
+        return self._core.get_discord_binding(binding_key)
+
+    @_serialized
+    def mark_discord_message_seen(self, *, message_id: str, binding_key: str, kind: str, received_at: str) -> bool:
+        try:
+            inserted = self._core.mark_discord_message_seen(
+                message_id=message_id,
+                binding_key=binding_key,
+                kind=kind,
+                received_at=received_at,
+            )
+            self.connection.commit()
+            return inserted
+        except BaseException:
+            self.connection.rollback()
+            raise
+
+    @_serialized
+    def record_discord_delivery(self, *, request_id: str, discord_message_id: str, delivered_at: str) -> bool:
+        try:
+            inserted = self._core.record_discord_delivery(
+                request_id=request_id,
+                discord_message_id=discord_message_id,
+                delivered_at=delivered_at,
+            )
+            self.connection.commit()
+            return inserted
+        except BaseException:
+            self.connection.rollback()
+            raise
+
+    @_serialized
+    def has_discord_delivery(self, *, request_id: str, discord_message_id: str) -> bool:
+        return self._core.has_discord_delivery(request_id=request_id, discord_message_id=discord_message_id)
+
+    @_serialized
     def list_pending_human_requests(self) -> list[HumanRequest]:
         return self._core.list_pending_human_requests()
 

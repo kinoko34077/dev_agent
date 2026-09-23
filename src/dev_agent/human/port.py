@@ -13,6 +13,9 @@ class HumanInteractionPort(Protocol):
     def request_human(self, request: HumanRequest) -> None:
         ...
 
+    def get_request(self, request_id: str) -> HumanRequest | None:
+        ...
+
     def poll_response(self, request_id: str) -> HumanResponse | None:
         ...
 
@@ -34,6 +37,9 @@ class SQLiteHumanInteractionPort:
 
     def request_human(self, request: HumanRequest) -> None:
         self._store.save_human_request(request)
+
+    def get_request(self, request_id: str) -> HumanRequest | None:
+        return self._store.get_human_request(request_id)
 
     def poll_response(self, request_id: str) -> HumanResponse | None:
         return self._store.get_human_response(request_id)

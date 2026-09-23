@@ -1,0 +1,53 @@
+"""Thin Discord-to-Core composition boundary.
+
+This module only classifies already-validated ingress and invokes callbacks
+owned by Operation or Process Coordination. It has no task, queue, retry, or
+model state of its own.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Mapping
+from typing import Any
+
+from .adapter import DiscordIngressEvent, DiscordMessageKind
+
+
+class DiscordCoreAdapter:
+    """Delegate Discord input to the existing Core public boundaries."""
+
+    def __init__(
+        self,
+        *,
+        submit_request: Callable[[str, DiscordIngressEvent], Any] | None = None,
+        submit_coordination: Callable[[str, str, DiscordIngressEvent], Any] | None = None,
+        read_status: Callable[[DiscordIngressEvent], Mapping[str, Any] | str | None] | None = None,
+    ) -> None:
+        for callback, name in (
+            (submit_request, "submit_request"),
+            (submit_coordination, "submit_coordination"),
+            (read_status, "read_status"),
+        ):
+            if callback is not None and not callable(callback):
+                raise TypeError(f"{name} must be callable")
+        self._submit_request = submit_request
+        self._submit_coordination = submit_coordination
+        self._read_status = read_status
+
+    def handle(self, event: DiscordIngressEvent) -> Any:
+        if not isinstance(event, DiscordIngressEvent):
+            raise TypeError("event must be DiscordIngressEvent")
+        if event.kind is DiscordMessageKind.READ_QUERY:
+            if self._read_status is None:
+                raise RuntimeError("Discord read query has no Core status boundary")
+            return self._read_status(event)
+        if event.kind is DiscordMessageKind.NEW_REQUEST:
+            if self._submit_request is None:
+                raise RuntimeError("Discord request has no Core Operation boundary")
+            return self._submit_request(event.message.content, event)
+        if self._submit_coordination is None:
+            raise RuntimeError("Discord intervention has no Core Coordination boundary")
+        return self._submit_coordination(event.kind.value, event.message.content, event)
+
+
+__all__ = ["DiscordCoreAdapter"]

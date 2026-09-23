@@ -7,7 +7,9 @@ from src.dev_agent.discord.bot import (
     DiscordDependencyError,
     DiscordBotConfig,
     build_bot,
+    build_approval_view,
 )
+from src.dev_agent.discord.auth import DiscordAuthorizer
 from src.dev_agent.discord.renderer import (
     render_echo,
     render_human_request,
@@ -86,3 +88,18 @@ def test_build_bot_fails_bounded_when_optional_dependency_is_missing(tmp_path):
     except ImportError:
         with pytest.raises(DiscordDependencyError, match="discord.py"):
             build_bot(config, workspace=tmp_path)
+
+
+def test_approval_view_keeps_optional_dependency_lazy(monkeypatch):
+    import src.dev_agent.discord.bot as discord_bot
+
+    def missing_dependency():
+        raise DiscordDependencyError("discord.py is required")
+
+    monkeypatch.setattr(discord_bot, "_discord_modules", missing_dependency)
+    with pytest.raises(DiscordDependencyError, match="discord.py"):
+        build_approval_view(
+            approval_id="approval-1",
+            authorizer=DiscordAuthorizer(allowed_user_ids={"42"}),
+            submit=lambda *_args: None,
+        )

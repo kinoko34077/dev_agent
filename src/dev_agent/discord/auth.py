@@ -59,5 +59,13 @@ class DiscordAuthorizer:
             return False
         return True
 
+    def is_user_allowed(self, user_id: str) -> bool:
+        """Check the configured Human identity without inventing a location."""
+        try:
+            normalized = _snowflake(user_id, "user_id")
+        except ValueError:
+            return False
+        return bool(self.allowed_user_ids) and normalized in self.allowed_user_ids
+
 
 __all__ = ["DiscordAuthorizer"]

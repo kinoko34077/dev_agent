@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 from ..coordination.protocol_helpers import validate_identifier
@@ -74,7 +75,7 @@ class InMemoryDiscordBindingStore:
             raise ValueError("key must be DiscordBindingKey")
         return self._bindings.get(key)
 
-    def mark_message_seen(self, message_id: str) -> bool:
+    def mark_message_seen(self, message_id: str, *, binding_key: DiscordBindingKey | None = None, kind: str = "", received_at: str | None = None) -> bool:
         message_id = _discord_id(message_id, "message_id")
         if message_id in self._messages:
             return False
@@ -84,4 +85,80 @@ class InMemoryDiscordBindingStore:
         return True
 
 
-__all__ = ["DiscordBinding", "DiscordBindingKey", "InMemoryDiscordBindingStore"]
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+class SQLiteDiscordBindingStore:
+    """Durable Discord pointers and delivery/idempotency metadata on Core StateStore."""
+
+    def __init__(self, store: Any) -> None:
+        required = (
+            "save_discord_binding",
+            "get_discord_binding",
+            "mark_discord_message_seen",
+            "record_discord_delivery",
+            "has_discord_delivery",
+        )
+        if any(not callable(getattr(store, name, None)) for name in required):
+            raise TypeError("store does not implement the Discord persistence contract")
+        self._store = store
+
+    @staticmethod
+    def _key(key: DiscordBindingKey) -> str:
+        if not isinstance(key, DiscordBindingKey):
+            raise ValueError("key must be DiscordBindingKey")
+        return "|".join((key.guild_id, key.channel_id, key.thread_id))
+
+    def bind(self, key: DiscordBindingKey, *, root_id: str, run_id: str, updated_at: str | None = None) -> DiscordBinding:
+        binding = DiscordBinding(key=key, root_id=root_id, run_id=run_id)
+        self._store.save_discord_binding(
+            binding_key=self._key(binding.key),
+            guild_id=binding.key.guild_id,
+            channel_id=binding.key.channel_id,
+            thread_id=binding.key.thread_id,
+            root_id=binding.root_id,
+            run_id=binding.run_id,
+            updated_at=updated_at or _now(),
+        )
+        return binding
+
+    def lookup(self, key: DiscordBindingKey) -> DiscordBinding | None:
+        row = self._store.get_discord_binding(self._key(key))
+        if row is None:
+            return None
+        return DiscordBinding(
+            key=DiscordBindingKey(row["guild_id"], row["channel_id"], row["thread_id"]),
+            root_id=row["root_id"],
+            run_id=row["run_id"],
+        )
+
+    def mark_message_seen(self, message_id: str, *, binding_key: DiscordBindingKey | None = None, kind: str = "UNKNOWN", received_at: str | None = None) -> bool:
+        message_id = _discord_id(message_id, "message_id")
+        if not isinstance(kind, str) or not kind.strip() or len(kind) > 64:
+            raise ValueError("kind must be bounded text")
+        key = self._key(binding_key) if binding_key is not None else "||"
+        return self._store.mark_discord_message_seen(
+            message_id=message_id,
+            binding_key=key,
+            kind=kind.strip(),
+            received_at=received_at or _now(),
+        )
+
+    def record_delivery(self, request_id: str, discord_message_id: str, *, delivered_at: str | None = None) -> bool:
+        request_id = validate_identifier(request_id, "request_id")
+        discord_message_id = _discord_id(discord_message_id, "discord_message_id")
+        return self._store.record_discord_delivery(
+            request_id=request_id,
+            discord_message_id=discord_message_id,
+            delivered_at=delivered_at or _now(),
+        )
+
+    def has_delivery(self, request_id: str, discord_message_id: str) -> bool:
+        return self._store.has_discord_delivery(
+            request_id=validate_identifier(request_id, "request_id"),
+            discord_message_id=_discord_id(discord_message_id, "discord_message_id"),
+        )
+
+
+__all__ = ["DiscordBinding", "DiscordBindingKey", "InMemoryDiscordBindingStore", "SQLiteDiscordBindingStore"]

@@ -13,7 +13,10 @@ from .adapter import (
     classify_message,
 )
 from .auth import DiscordAuthorizer
-from .binding import DiscordBinding, DiscordBindingKey, InMemoryDiscordBindingStore
+from .binding import DiscordBinding, DiscordBindingKey, InMemoryDiscordBindingStore, SQLiteDiscordBindingStore
+from .human import DiscordHumanAdapter
+from .approval import DiscordApprovalAdapter
+from .core import DiscordCoreAdapter
 
 __all__ = [
     "DiscordAuthorizer",
@@ -25,5 +28,9 @@ __all__ = [
     "DiscordMessageKind",
     "DiscordScope",
     "InMemoryDiscordBindingStore",
+    "SQLiteDiscordBindingStore",
+    "DiscordHumanAdapter",
+    "DiscordApprovalAdapter",
+    "DiscordCoreAdapter",
     "classify_message",
 ]

@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass, field
+import inspect
 import os
 from pathlib import Path
 import re
 from typing import Any, Mapping
 
 from .adapter import DiscordIngressAdapter, DiscordMessage, DiscordScope
+from .approval import DiscordApprovalAdapter
 from .auth import DiscordAuthorizer
-from .binding import InMemoryDiscordBindingStore
+from .binding import InMemoryDiscordBindingStore, SQLiteDiscordBindingStore
 from .renderer import render_echo, render_progress
 
 
@@ -140,7 +142,52 @@ def _message_from_discord(message: Any) -> DiscordMessage:
     )
 
 
-def build_bot(config: DiscordBotConfig, *, workspace: str | Path) -> Any:
+def build_approval_view(*, approval_id: str, authorizer: DiscordAuthorizer, submit) -> Any:
+    """Build a proposal-only Discord button view around Core approval input."""
+
+    discord, _commands = _discord_modules()
+    boundary = DiscordApprovalAdapter(authorizer=authorizer, submit=submit)
+
+    class ApprovalView(discord.ui.View):
+        def __init__(self) -> None:
+            super().__init__(timeout=None)
+
+        async def _handle(self, interaction: Any, approved: bool) -> None:
+            guild = getattr(interaction, "guild", None)
+            channel = getattr(interaction, "channel", None)
+            try:
+                result = boundary.submit(
+                    approval_id,
+                    author_id=str(interaction.user.id),
+                    approved=approved,
+                    guild_id=str(getattr(guild, "id", "")),
+                    channel_id=str(getattr(channel, "id", "")),
+                )
+                if inspect.isawaitable(result):
+                    await result
+            except (PermissionError, ValueError, KeyError):
+                await interaction.response.send_message("この承認操作は受け付けられません。", ephemeral=True)
+                return
+            await interaction.response.send_message("既存のApproval Authorityへ結果を送信しました。", ephemeral=True)
+
+        @discord.ui.button(label="承認", style=discord.ButtonStyle.success)
+        async def approve(self, interaction: Any, _button: Any) -> None:
+            await self._handle(interaction, True)
+
+        @discord.ui.button(label="拒否", style=discord.ButtonStyle.danger)
+        async def reject(self, interaction: Any, _button: Any) -> None:
+            await self._handle(interaction, False)
+
+    return ApprovalView()
+
+
+def build_bot(
+    config: DiscordBotConfig,
+    *,
+    workspace: str | Path,
+    bindings: InMemoryDiscordBindingStore | SQLiteDiscordBindingStore | None = None,
+    on_event=None,
+) -> Any:
     """Build the Gateway bot; no Discord connection starts until ``run``."""
 
     if not isinstance(config, DiscordBotConfig):
@@ -151,7 +198,9 @@ def build_bot(config: DiscordBotConfig, *, workspace: str | Path) -> Any:
         allowed_guild_ids=config.allowed_guild_ids,
         allowed_channel_ids=config.allowed_channel_ids,
     )
-    bindings = InMemoryDiscordBindingStore()
+    bindings = bindings or InMemoryDiscordBindingStore()
+    if not isinstance(bindings, (InMemoryDiscordBindingStore, SQLiteDiscordBindingStore)):
+        raise TypeError("bindings must implement the Discord binding contract")
     ingress = DiscordIngressAdapter(authorizer=authorizer, bindings=bindings)
     scope = DiscordScope(Path(workspace))
     intents = discord.Intents.default()
@@ -171,11 +220,15 @@ def build_bot(config: DiscordBotConfig, *, workspace: str | Path) -> Any:
         if getattr(message.author, "bot", False):
             return
         try:
-            ingress.accept(_message_from_discord(message))
+            event = ingress.accept(_message_from_discord(message))
         except ValueError:
             # Discord itself supplied malformed/unusable metadata; do not echo
             # or route it into the Core boundary.
             return
+        if event is not None and on_event is not None:
+            result = on_event(event)
+            if inspect.isawaitable(result):
+                await result
         await message.channel.send(render_echo(message.content))
         await bot.process_commands(message)
 
@@ -205,6 +258,8 @@ def build_bot(config: DiscordBotConfig, *, workspace: str | Path) -> Any:
 
     bot._dev_agent_discord_ingress = ingress
     bot._dev_agent_discord_scope = scope
+    bot._dev_agent_discord_bindings = bindings
+    bot._dev_agent_discord_on_event = on_event
     return bot
 
 
@@ -230,6 +285,7 @@ __all__ = [
     "DiscordConfigurationError",
     "DiscordDependencyError",
     "build_bot",
+    "build_approval_view",
     "main",
     "run_from_environment",
 ]

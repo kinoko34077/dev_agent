@@ -70,6 +70,49 @@ class CoreStateRepository:
         ).fetchone()
         return HumanRequest.from_dict(json.loads(row["request_payload"])) if row else None
 
+    def save_discord_binding(self, *, binding_key: str, guild_id: str, channel_id: str, thread_id: str, root_id: str, run_id: str, updated_at: str) -> None:
+        self.connection.execute(
+            """
+            INSERT INTO discord_bindings(binding_key, guild_id, channel_id, thread_id, root_id, run_id, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(binding_key) DO UPDATE SET
+                guild_id=excluded.guild_id,
+                channel_id=excluded.channel_id,
+                thread_id=excluded.thread_id,
+                root_id=excluded.root_id,
+                run_id=excluded.run_id,
+                updated_at=excluded.updated_at
+            """,
+            (binding_key, guild_id, channel_id, thread_id, root_id, run_id, updated_at),
+        )
+
+    def get_discord_binding(self, binding_key: str) -> dict[str, str] | None:
+        row = self.connection.execute(
+            "SELECT binding_key, guild_id, channel_id, thread_id, root_id, run_id, updated_at FROM discord_bindings WHERE binding_key = ?",
+            (binding_key,),
+        ).fetchone()
+        return dict(row) if row is not None else None
+
+    def mark_discord_message_seen(self, *, message_id: str, binding_key: str, kind: str, received_at: str) -> bool:
+        cursor = self.connection.execute(
+            "INSERT OR IGNORE INTO discord_ingress(message_id, binding_key, kind, received_at) VALUES (?, ?, ?, ?)",
+            (message_id, binding_key, kind, received_at),
+        )
+        return cursor.rowcount == 1
+
+    def record_discord_delivery(self, *, request_id: str, discord_message_id: str, delivered_at: str) -> bool:
+        cursor = self.connection.execute(
+            "INSERT OR IGNORE INTO discord_deliveries(request_id, discord_message_id, delivered_at) VALUES (?, ?, ?)",
+            (request_id, discord_message_id, delivered_at),
+        )
+        return cursor.rowcount == 1
+
+    def has_discord_delivery(self, *, request_id: str, discord_message_id: str) -> bool:
+        return self.connection.execute(
+            "SELECT 1 FROM discord_deliveries WHERE request_id = ? AND discord_message_id = ?",
+            (request_id, discord_message_id),
+        ).fetchone() is not None
+
     def list_pending_human_requests(self) -> list[HumanRequest]:
         rows = self.connection.execute(
             "SELECT request_payload FROM human_requests WHERE status IN ('pending', 'answered') ORDER BY requested_at, request_id"
