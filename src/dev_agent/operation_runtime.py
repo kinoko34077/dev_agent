@@ -19,6 +19,7 @@ from typing import Any, Callable, Mapping
 
 from .coordination.protocol import CoordinationConflict, PeerRecord, PeerStatus
 from .coordination.service import ProcessCoordinationService
+from .human import HumanInteractionPort
 from .operation import OperationConfig, OperationService
 from .state.sqlite_store import SQLiteStateStore
 
@@ -169,11 +170,14 @@ class RuntimeCoordinator:
         instance_id: str = "operation-runtime",
         presence_lease_seconds: int | float = 60.0,
         monotonic_fn: Callable[[], float] = time.monotonic,
+        human_interaction_port: HumanInteractionPort | None = None,
     ) -> "RuntimeCoordinator":
         """Open the established Operation components and attach one peer."""
 
         config = config or OperationConfig.from_environment()
         operation = OperationService.open(config)
+        if human_interaction_port is not None:
+            operation.bind_human_interaction_port(human_interaction_port)
         coordination = ProcessCoordinationService(data_dir=config.data_dir)
         try:
             peer = coordination.attach_peer(

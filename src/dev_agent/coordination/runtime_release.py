@@ -114,6 +114,22 @@ class RevisionPinnedRuntimeStore:
         self._write_metadata(metadata_path, resolved_revision)
         return RuntimeRelease(resolved_revision, runtime_root, metadata_path)
 
+    def revision_reachable_from(self, revision: str, trusted_ref: str) -> bool:
+        """Return whether ``revision`` is contained in one trusted Git ref.
+
+        This is a read-only source check for callers such as local self-update.
+        It does not grant process or promotion authority and never changes the
+        mutable checkout.
+        """
+
+        resolved_revision = self._resolve_revision(revision)
+        trusted = _revision_text(trusted_ref)
+        ref = self._run_git(self.source_root, "rev-parse", "--verify", f"{trusted}^{{commit}}")
+        if ref.returncode != 0:
+            return False
+        result = self._run_git(self.source_root, "merge-base", "--is-ancestor", resolved_revision, trusted)
+        return result.returncode == 0
+
     def create_rollback_proof(
         self,
         revision: str,
