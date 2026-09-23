@@ -355,7 +355,11 @@ def build_bot(
         if event is None:
             # Unauthorized and duplicate messages are deliberately silent.
             return
-        if event.kind in {DiscordMessageKind.NEW_REQUEST, DiscordMessageKind.PARALLEL}:
+        if event.kind in {
+            DiscordMessageKind.NEW_REQUEST,
+            DiscordMessageKind.PARALLEL,
+            DiscordMessageKind.NOTE,
+        }:
             try:
                 history_context = await collect_discord_history(
                     message.channel,

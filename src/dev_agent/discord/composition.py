@@ -175,6 +175,22 @@ class DiscordRuntimeComposition:
             }
         return inputs
 
+    def _discord_context_artifact_refs(self, event: DiscordIngressEvent):
+        """Persist bounded Discord context as a Core-owned immutable reference."""
+
+        if not event.history_context:
+            return ()
+        reference = self.coordination.artifacts.put_json(
+            {
+                "source": "discord",
+                "source_message_id": event.message.message_id,
+                "messages": [item.to_dict() for item in event.history_context],
+            },
+            kind="discord_context",
+            revision="discord-ui",
+        )
+        return (reference,)
+
     def submit_request(self, content: str, event: DiscordIngressEvent):
         if not isinstance(event, DiscordIngressEvent):
             raise TypeError("event must be DiscordIngressEvent")
@@ -254,11 +270,17 @@ class DiscordRuntimeComposition:
             DiscordMessageKind.PARALLEL: MessageKind.PARALLEL,
             DiscordMessageKind.INTERRUPT: MessageKind.INTERRUPT,
         }.get(event.kind, MessageKind.NOTE)
+        artifact_refs = (
+            self._discord_context_artifact_refs(event)
+            if event.kind is DiscordMessageKind.NOTE
+            else ()
+        )
         return self.coordination.send_message(
             self.peer,
             recipient_role=self.coordination_recipient_role,
             kind=mailbox_kind,
             subject=_coordination_subject(kind, event),
+            artifact_refs=artifact_refs,
             correlation_id=f"discord-{message_id}",
             idempotency_key=f"discord-{message_id}",
         )

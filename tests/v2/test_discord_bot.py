@@ -279,6 +279,78 @@ def test_new_request_attaches_bounded_history_without_replaying_it(tmp_path):
     assert len(message.channel.sent) == 1
 
 
+def test_active_note_attaches_bounded_history_without_replaying_it(tmp_path):
+    pytest.importorskip("discord")
+    config = DiscordBotConfig.from_environment(env_path=_env_file(tmp_path))
+    bindings = SQLiteDiscordBindingStore(SQLiteStateStore(tmp_path / "state.sqlite3"))
+    key = DiscordBindingKey("10", "20", "")
+    bindings.bind(key, root_id="root-1", run_id="task-1")
+    routed = []
+    bot = build_bot(
+        config,
+        workspace=tmp_path,
+        bindings=bindings,
+        binding_is_active=lambda _key: True,
+        typing_delay_seconds=0,
+        on_event=lambda event: routed.append(event),
+    )
+    bot.process_commands = lambda _message: asyncio.sleep(0)
+
+    class _Author:
+        id = 42
+        bot = False
+
+    class _Guild:
+        id = 10
+
+    class _Channel:
+        id = 20
+
+        def __init__(self):
+            self.sent = []
+            self.history_kwargs = None
+
+        def typing(self):
+            return _NoopTyping()
+
+        async def send(self, content):
+            self.sent.append(content)
+
+        def history(self, **kwargs):
+            self.history_kwargs = kwargs
+
+            class _PreviousMessage:
+                id = 900
+                author = _Author()
+                content = "READMEのエラー処理を直して"
+                channel = _Channel()
+
+            async def _iterate():
+                yield _PreviousMessage()
+
+            return _iterate()
+
+    class _Message:
+        id = 901
+        author = _Author()
+        guild = _Guild()
+        content = "さっきの方にコメントも付けて"
+
+        def __init__(self):
+            self.channel = _Channel()
+
+    message = _Message()
+    asyncio.run(bot.on_message(message))
+
+    assert len(routed) == 1
+    assert routed[0].kind.value == "NOTE"
+    assert [item.to_dict() for item in routed[0].history_context] == [
+        {"role": "human", "content": "READMEのエラー処理を直して"}
+    ]
+    assert message.channel.history_kwargs["before"] is message
+    assert len(message.channel.sent) == 1
+
+
 def test_message_projection_preserves_reply_reference_id():
     class _Reference:
         message_id = 700

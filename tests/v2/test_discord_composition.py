@@ -162,6 +162,36 @@ def test_waiting_binding_plain_text_is_one_note_without_new_root_or_cancellation
         assert mailbox[0].kind is MessageKind.NOTE
 
 
+def test_note_attaches_history_as_immutable_coordination_context(tmp_path):
+    config = OperationConfig(data_dir=tmp_path / "agent")
+    history = (
+        DiscordHistoryMessage(role="human", content="READMEのエラー処理を直して"),
+        DiscordHistoryMessage(role="assistant", content="作業を開始します"),
+    )
+    with DiscordRuntimeComposition.open(
+        config,
+        authorizer=DiscordAuthorizer(allowed_user_ids={"42"}),
+    ) as composition:
+        result = composition.core.handle(
+            _event(
+                "さっきの方にコメントも付けて",
+                DiscordMessageKind.NOTE,
+                "1008",
+                history_context=history,
+            )
+        )
+
+        assert result.kind is MessageKind.NOTE
+        mailbox = composition.coordination.snapshot(recipient_role="agent").mailbox
+        assert len(mailbox) == 1
+        assert len(mailbox[0].artifact_refs) == 1
+        context = composition.coordination.artifacts.read_json(mailbox[0].artifact_refs[0])
+        assert context["messages"] == [
+            {"role": "human", "content": "READMEのエラー処理を直して"},
+            {"role": "assistant", "content": "作業を開始します"},
+        ]
+
+
 def test_intervention_uses_existing_coordination_note_with_bounded_content(tmp_path):
     config = OperationConfig(data_dir=tmp_path / "agent")
     content = "補足: 確認して api_key=do-not-persist-this"
