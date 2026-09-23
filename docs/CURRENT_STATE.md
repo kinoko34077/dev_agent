@@ -9,7 +9,7 @@
 | Latest implementation baseline before this documentation sync | `9888d75d2e6675bf2dea391005855cc393590fca` (`feat: complete discord interrupt and approval boundaries`) |
 | Latest evidence baseline before this sync | `discord-core-interrupt-approval-20260923.json` |
 | Implementation/evidence baseline | `9888d75` completes the Core-owned Discord `INTERRUPT` consumer: filtered durable mailbox claim, cooperative safe checkpoint, immutable interrupt child, and parent ResumeCapsule restoration after terminal child completion. It also wires the standard runner's Approval view to the existing Core approval boundary with exact-reference idempotency. Discord remains a thin UI; RuntimeCoordinator, Task, Human, Approval, and Host authority remain in Core. |
-| Worktree | documentation and Evidence synchronization in progress; implementation commit `9888d75` is pushed |
+| Worktree | clean after implementation/Evidence synchronization; implementation `9888d75` and documentation `8808253` are pushed |
 | Local regression | `1567 passed, 1 skipped` (`python -m pytest tests/v2 -q`) |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
