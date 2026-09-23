@@ -8,7 +8,7 @@ import sqlite3
 class StateSchema:
     """Own state-table DDL while SQLiteStateStore owns the connection."""
 
-    VERSION = 9
+    VERSION = 10
 
     V1_SCHEMA = """
         CREATE TABLE IF NOT EXISTS tasks (task_id TEXT PRIMARY KEY, payload TEXT NOT NULL);
@@ -45,6 +45,26 @@ class StateSchema:
         CREATE INDEX IF NOT EXISTS idx_discord_ingress_binding ON discord_ingress(binding_key, received_at);
         CREATE TABLE IF NOT EXISTS discord_deliveries (request_id TEXT NOT NULL, discord_message_id TEXT NOT NULL, delivered_at TEXT NOT NULL, PRIMARY KEY(request_id, discord_message_id));
         CREATE TABLE IF NOT EXISTS discord_scopes (binding_key TEXT PRIMARY KEY, directory_scope TEXT, selected_files_payload TEXT NOT NULL DEFAULT '[]', updated_at TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS discord_conversation_messages (
+            message_id TEXT PRIMARY KEY,
+            binding_key TEXT NOT NULL,
+            guild_id TEXT NOT NULL,
+            channel_id TEXT NOT NULL,
+            thread_id TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            received_at TEXT NOT NULL,
+            speaker_role TEXT NOT NULL,
+            speaker_id TEXT NOT NULL,
+            speaker_name TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            content TEXT NOT NULL,
+            reply_to_message_id TEXT,
+            message_kind TEXT NOT NULL,
+            root_id TEXT,
+            run_id TEXT,
+            source TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_discord_conversation_binding ON discord_conversation_messages(binding_key, received_at, message_id);
         CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     """
 
@@ -124,6 +144,29 @@ class StateSchema:
             if current < 9:
                 connection.execute("CREATE TABLE IF NOT EXISTS discord_scopes (binding_key TEXT PRIMARY KEY, directory_scope TEXT, selected_files_payload TEXT NOT NULL DEFAULT '[]', updated_at TEXT NOT NULL)")
                 connection.execute("UPDATE schema_meta SET value = '9' WHERE key = 'schema_version'")
+                current = 9
+            if current < 10:
+                connection.execute("""CREATE TABLE IF NOT EXISTS discord_conversation_messages (
+                    message_id TEXT PRIMARY KEY,
+                    binding_key TEXT NOT NULL,
+                    guild_id TEXT NOT NULL,
+                    channel_id TEXT NOT NULL,
+                    thread_id TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    received_at TEXT NOT NULL,
+                    speaker_role TEXT NOT NULL,
+                    speaker_id TEXT NOT NULL,
+                    speaker_name TEXT NOT NULL,
+                    direction TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    reply_to_message_id TEXT,
+                    message_kind TEXT NOT NULL,
+                    root_id TEXT,
+                    run_id TEXT,
+                    source TEXT NOT NULL
+                )""")
+                connection.execute("CREATE INDEX IF NOT EXISTS idx_discord_conversation_binding ON discord_conversation_messages(binding_key, received_at, message_id)")
+                connection.execute("UPDATE schema_meta SET value = '10' WHERE key = 'schema_version'")
             connection.commit()
         except Exception:
             connection.rollback()

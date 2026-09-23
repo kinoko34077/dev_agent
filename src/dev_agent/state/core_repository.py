@@ -8,6 +8,7 @@ from typing import Any
 
 from ..domain.protocol import Event, Step, Task, ToolResult
 from ..human import HumanRequest, HumanResponse
+from .conversation import ConversationMessage
 
 
 class CoreStateRepository:
@@ -161,6 +162,54 @@ class CoreStateRepository:
             (binding_key,),
         ).fetchone()
         return dict(row) if row is not None else None
+
+    def append_discord_conversation_message(self, message: ConversationMessage) -> bool:
+        cursor = self.connection.execute(
+            """INSERT OR IGNORE INTO discord_conversation_messages(
+                message_id, binding_key, guild_id, channel_id, thread_id,
+                created_at, received_at, speaker_role, speaker_id,
+                speaker_name, direction, content, reply_to_message_id,
+                message_kind, root_id, run_id, source
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            message.to_storage_tuple(),
+        )
+        return cursor.rowcount == 1
+
+    def list_discord_conversation_messages(
+        self,
+        binding_key: str,
+        *,
+        limit: int,
+        max_chars: int,
+    ) -> list[ConversationMessage]:
+        if not isinstance(binding_key, str) or not binding_key.strip():
+            raise ValueError("binding_key must be non-empty text")
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 200:
+            raise ValueError("limit must be between 1 and 200")
+        if isinstance(max_chars, bool) or not isinstance(max_chars, int) or not 1 <= max_chars <= 64_000:
+            raise ValueError("max_chars must be between 1 and 64000")
+        rows = self.connection.execute(
+            """SELECT message_id, binding_key, guild_id, channel_id, thread_id,
+                      created_at, received_at, speaker_role, speaker_id,
+                      speaker_name, direction, content, reply_to_message_id,
+                      message_kind, root_id, run_id, source
+                 FROM discord_conversation_messages
+                WHERE binding_key = ?
+                ORDER BY received_at ASC, message_id ASC
+                LIMIT ?""",
+            (binding_key.strip(), limit),
+        ).fetchall()
+        result: list[ConversationMessage] = []
+        remaining = max_chars
+        for row in rows:
+            message = ConversationMessage.from_row(row)
+            if len(message.content) > remaining:
+                break
+            result.append(message)
+            remaining -= len(message.content)
+            if remaining == 0:
+                break
+        return result
 
     def list_pending_human_requests(self) -> list[HumanRequest]:
         rows = self.connection.execute(

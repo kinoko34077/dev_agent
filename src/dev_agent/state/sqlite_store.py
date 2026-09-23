@@ -14,6 +14,7 @@ from typing import Any
 from .._sqlite import connect
 from ..domain.protocol import Event, Step, Task, TaskStatus, ToolResult
 from ..human import HumanRequest, HumanResponse
+from ..discord.conversation_log import ConversationMessage
 from ..persistence.lease import assert_active_lease
 from .core_repository import CoreStateRepository
 from .effects_repository import EffectAuditRepository
@@ -249,6 +250,26 @@ class SQLiteStateStore:
     @_serialized
     def get_discord_scope(self, binding_key: str) -> dict[str, str] | None:
         return self._core.get_discord_scope(binding_key)
+
+    @_serialized
+    def append_discord_conversation_message(self, message: ConversationMessage) -> bool:
+        inserted = self._core.append_discord_conversation_message(message)
+        self.connection.commit()
+        return inserted
+
+    @_serialized
+    def list_discord_conversation_messages(
+        self,
+        binding_key: str,
+        *,
+        limit: int = 50,
+        max_chars: int = 16_000,
+    ) -> list[ConversationMessage]:
+        return self._core.list_discord_conversation_messages(
+            binding_key,
+            limit=limit,
+            max_chars=max_chars,
+        )
 
     @_serialized
     def list_pending_human_requests(self) -> list[HumanRequest]:
