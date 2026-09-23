@@ -70,6 +70,15 @@ MCP server/clientはuntrusted入力を扱う可能性があるため、process i
 
 この移行前調整ではAPI/MCPを追加しない。
 
+### Local operational amendment (2026-09-23)
+
+The repository now contains a bounded, injectable JSON-lines adapter for two
+distinct interim roles: a `HUMAN_REQUIRED` Codex Human Proxy and a
+`PROPOSAL_ONLY` Codex Expert Assist path. This is not a formal external MCP
+server or live external-client E2E. It delegates Human waiting to the existing
+SQLite StateStore/Operation loop and never converts a Codex response into Human
+authority. See ADR-015 and the local operational evidence record.
+
 ## 24. Human authority
 
 人間だけが変更できる操作を明示的に分離する。

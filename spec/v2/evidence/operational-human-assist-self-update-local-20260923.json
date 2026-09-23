@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "evidence_id": "operational-human-assist-self-update-local-20260923",
+  "scope": "NON_GATE_OPERATIONAL_SELF_HEAL",
+  "status": "LOCAL_COMPOSITION_VERIFIED",
+  "verified_at": "2026-09-23",
+  "human_interaction": {
+    "port": "HumanInteractionPort",
+    "durable_state": "SQLite human_requests table",
+    "waiting_state": "WAITING_HUMAN",
+    "response_correlation": "exact request_id",
+    "consume_once": true,
+    "timeout_auto_decision": false,
+    "unrelated_ready_work_continues": true,
+    "restart_persistence": true
+  },
+  "codex": {
+    "human_proxy": {
+      "transport": "bounded JSON-lines injectable transport",
+      "authority": "HUMAN_REQUIRED",
+      "human_actor_required": true,
+      "codex_response_as_human": false
+    },
+    "expert_assist": {
+      "authority": "PROPOSAL_ONLY",
+      "integration_authority": false,
+      "approval_authority": false,
+      "gate_authority": false
+    },
+    "external_live_endpoint": "NOT_CONFIGURED"
+  },
+  "runtime": {
+    "entrypoint": "python -m scripts.devfarm_runtime_coordinator serve",
+    "coordinator": "existing RuntimeCoordinator",
+    "new_scheduler": false,
+    "new_state_store": false,
+    "bat_launcher": "start-dev-agent.bat",
+    "os_startup_registration": "DEFERRED"
+  },
+  "self_update": {
+    "composition": "SelfUpdateService",
+    "trusted_source": "v2/bootstrap ref boundary",
+    "preflight": true,
+    "pinned_release": true,
+    "candidate_health_promotion": true,
+    "candidate_failed_durable_suppression": true,
+    "known_good_rollback": true,
+    "unknown_effect_replay": false,
+    "in_place_checkout_overwrite": false
+  },
+  "verification": {
+    "focused": "29 passed",
+    "full_tests_v2": "1516 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "codex_direct_implementation": 0
+  },
+  "formal_gates": {
+    "D9_DOGFOOD": "VERIFIED",
+    "D9_PRODUCTION_DEPLOYMENT": "DEFERRED_NOT_READY",
+    "PHASE8_PREPARATION": "PREPARATION_ONLY",
+    "PHASE8_LIVE_ACTIVATION": "NOT_VERIFIED"
+  },
+  "limitations": [
+    "Codex MCP external endpoint and live Human roundtrip are not configured by this repository slice.",
+    "OS startup, Task Scheduler, Windows Service, and deployed Guardian remain deferred.",
+    "This evidence does not promote D9 Production Deployment or Phase 8 LIVE_ACTIVATION."
+  ],
+  "test_refs": [
+    "tests/v2/test_human_interaction.py",
+    "tests/v2/test_codex_human_mcp.py",
+    "tests/v2/test_operation_runtime.py",
+    "tests/v2/test_self_update.py",
+    "tests/v2/test_runtime_launcher.py"
+  ]
+}
