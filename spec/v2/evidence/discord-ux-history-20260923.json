@@ -4,7 +4,7 @@
   "scope": "NON_GATE_DISCORD_UX_HISTORY",
   "status": "LOCAL_BOUNDARY_VERIFIED",
   "verified_at": "2026-09-23",
-  "implementation_commit": "1cbf10440820aa304822d085e9f0ae1ecfaa75e2",
+  "implementation_commit": "c326c9b5b597d3667a91e7da4d9e18a84be0fb71",
   "delivery": {
     "single_human_facing_sender": true,
     "default_typing_delay_seconds": 2.0,
@@ -27,36 +27,40 @@
     "unrelated_bots_and_webhooks_excluded": true,
     "secret_redaction": true,
     "task_input": "bounded inputs.discord_context.messages",
+    "note_coordination_artifact": "bounded messages attached through the existing Core Coordination mailbox artifact_refs",
     "replayed_into_ingress_or_mailbox": false,
     "discord_history_persisted_as_ssot": false
   },
   "routing": {
     "new_request_history_collection": true,
     "parallel_request_history_collection": true,
+    "note_history_collection": true,
+    "note_history_handoff": "existing Coordination immutable artifact reference",
     "note_history_replay": false,
     "human_request_reply_precedence": true,
     "core_prompt_construction_in_discord": false
   },
   "verification": {
-    "focused_discord_slice": "46 passed, then 11 composition tests including WAITING_HUMAN NOTE",
-    "full_tests_v2": "1577 passed, 1 skipped",
+    "focused_discord_slice": "62 passed across Discord adapter, bot, composition, config, core, delivery, durable flow, history, and outbound tests including active NOTE context",
+    "full_tests_v2": "1579 passed, 1 skipped",
     "architecture": "ARCHITECTURE_PASS",
     "compileall": "PASS",
     "diff_check": "PASS",
     "tracked_discord_token_pattern": false,
     "exact_head_ci": {
-      "revision": "1cbf10440820aa304822d085e9f0ae1ecfaa75e2",
+      "revision": "c326c9b5b597d3667a91e7da4d9e18a84be0fb71",
       "kernel_3.10": "PASS",
       "kernel_3.11": "PASS",
       "provider_smoke": "PASS",
-      "v2_core_run_id": 35869301594,
-      "provider_smoke_run_id": 35869303251
+      "v2_core_run_id": 35875550603,
+      "provider_smoke_run_id": 35875550623
     }
   },
   "live": {
     "runner_after_implementation_gateway": "PASS",
     "runner_after_implementation_ready": "PASS by bounded log observation",
     "authorized_human_message_metadata": "OBSERVED in same-day predecessor trace; only bounded id/length/hash metadata retained",
+    "predecessor_trace_new_request": "OBSERVED: authorized Human message reached NEW_REQUEST/Core ingress and RuntimeCoordinator execution; raw content not retained",
     "ordinary_message_e2e_for_this_commit": "NOT_VERIFIED",
     "typing_visual": "NOT_VERIFIED without interactive client observation",
     "active_waiting_note": "NOT_VERIFIED",
