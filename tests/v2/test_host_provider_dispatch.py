@@ -11,6 +11,7 @@ from src.dev_agent.providers.host_dispatch import (
     HostProviderDispatch,
     HostRoutedDispatcher,
 )
+from src.dev_agent.providers.ollama.provider import OllamaProvider
 
 
 class _Provider:
@@ -189,6 +190,28 @@ def test_host_process_executor_preserves_bounded_transport_category_from_host_ru
         executor(provider, request)
 
     assert getattr(caught.value, "transport_failure_category", None) == "sandbox_network_denied"
+
+
+def test_host_process_executor_propagates_ollama_timeout_to_static_host_runtime(tmp_path):
+    provider = OllamaProvider(model="qwen3.5:9b", timeout_seconds=180.0)
+    provider.provider_binding_id = "ollama:local:qwen3.5-9b"
+    provider.intelligence_tier = "L1"
+    request = _request()
+    request.metadata["egress_manifest_sha256"] = "5" * 64
+    code = (
+        "import json,os,sys; "
+        "response=sys.argv[sys.argv.index('--response')+1]; "
+        "value=os.environ.get('OLLAMA_TIMEOUT_SECONDS'); "
+        "payload={'status':'completed','response':{"
+        "'provider':'ollama','model':'qwen3.5:9b','text_segments':[value]}}; "
+        "open(response,'w',encoding='utf-8').write(json.dumps(payload))"
+    )
+    executor = HostProcessExecutor((sys.executable, "-c", code), request_dir=tmp_path, timeout_seconds=180)
+
+    response = executor(provider, request)
+
+    assert response.provider == "ollama"
+    assert response.text_segments == ["180.0"]
 
 
 def test_host_process_executor_preserves_bounded_transport_diagnostics(tmp_path):

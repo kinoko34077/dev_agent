@@ -12,9 +12,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-import re
-from pathlib import Path
 import json
+import os
+from pathlib import Path
+import re
 import subprocess
 from uuid import uuid4
 
@@ -320,6 +321,15 @@ class HostProcessExecutor:
         response_path = self.request_dir / f"{token}.response.json"
         request_path.write_text(json.dumps(envelope.to_dict(), ensure_ascii=False, sort_keys=True), encoding="utf-8")
         try:
+            runtime_env = None
+            if getattr(provider, "provider_id", None) == "ollama":
+                # The static Host runtime reconstructs the exact binding from
+                # its environment. Keep the child adapter's HTTP deadline
+                # aligned with the already Host-owned subprocess bound; a
+                # missing environment override would silently fall back to
+                # OllamaProvider's 30-second default after model load.
+                runtime_env = os.environ.copy()
+                runtime_env["OLLAMA_TIMEOUT_SECONDS"] = str(self.timeout_seconds)
             completed = subprocess.run(
                 [*self.command, "--request", str(request_path), "--response", str(response_path)],
                 stdin=subprocess.DEVNULL,
@@ -327,6 +337,7 @@ class HostProcessExecutor:
                 stderr=subprocess.DEVNULL,
                 check=False,
                 timeout=self.timeout_seconds,
+                env=runtime_env,
             )
             if not response_path.is_file():
                 raise ProviderError(
