@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "evidence_id": "discord-core-runner-composition-20260923",
+  "scope": "NON_GATE_DISCORD_CORE_COMPOSITION",
+  "status": "LOCAL_COMPOSITION_VERIFIED",
+  "verified_at": "2026-09-23",
+  "implementation_commit": "89ae801562c444ab611592e58e715ff861f1fbd9",
+  "composition": {
+    "standard_runner": "run_from_environment opens DiscordRuntimeComposition and injects it into build_bot",
+    "state": "existing SQLiteStateStore at OperationConfig.state_path",
+    "discord_persistence": "SQLite channel/thread pointers, ingress idempotency, and delivery metadata only",
+    "operation": "existing OperationService.submit and read_status static boundaries",
+    "coordination": "existing ProcessCoordinationService NOTE mailbox with bounded sanitized subject",
+    "runtime_owner": "existing RuntimeCoordinator remains the only queue/Task execution owner",
+    "human": "existing SQLiteHumanInteractionPort wrapped by DiscordHumanAdapter",
+    "approval": "existing proposal-only DiscordApprovalAdapter factory"
+  },
+  "ingress": {
+    "unauthorized_message": "silent; no Core callback and no echo",
+    "bot_message": "silent",
+    "duplicate_message": "silent through existing ingress idempotency",
+    "authorized_read_query": "bounded render_read_projection",
+    "authorized_new_request": "existing Operation boundary plus durable pointer binding"
+  },
+  "secrets": {
+    "token_in_source": false,
+    "token_in_evidence": false,
+    "token_in_logs": false,
+    "local_env": "ignored operator configuration only"
+  },
+  "verification": {
+    "focused_discord": "22 passed",
+    "full_tests_v2": "1545 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "codex_direct_implementation": 0,
+    "exact_head_ci": {
+      "kernel_3.10": {
+        "run_id": 35818424478,
+        "conclusion": "success"
+      },
+      "kernel_3.11": {
+        "run_id": 35818424478,
+        "conclusion": "success"
+      },
+      "provider_smoke": {
+        "run_id": 35818424560,
+        "conclusion": "success"
+      }
+    }
+  },
+  "formal_gates": {
+    "D9_DOGFOOD": "VERIFIED",
+    "D9_PRODUCTION_DEPLOYMENT": "DEFERRED_NOT_READY",
+    "PHASE8_PREPARATION": "PREPARATION_ONLY",
+    "PHASE8_LIVE_ACTIVATION": "NOT_VERIFIED"
+  },
+  "limitations": [
+    "The Developer Portal Message Content Intent remains disabled, so real Gateway message/button E2E is not claimed.",
+    "This is local runner composition evidence and does not claim live Discord delivery, restart delivery, or offline delivery.",
+    "This evidence does not promote a formal Gate or replace RuntimeCoordinator, Human, Approval, or Host authority."
+  ],
+  "test_refs": [
+    "tests/v2/test_discord_bot.py",
+    "tests/v2/test_discord_composition.py",
+    "tests/v2/test_discord_core_adapter.py",
+    "tests/v2/test_discord_durable_flow.py"
+  ]
+}
