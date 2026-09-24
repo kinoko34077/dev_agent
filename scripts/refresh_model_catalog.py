@@ -23,7 +23,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.dev_agent.providers.model_discovery import ModelDiscoveryBinding, ProviderModelDiscovery
-from src.dev_agent.providers.base import TransportStage, project_transport_failure
+from src.dev_agent.providers.base import project_transport_failure
 
 
 def _bindings_from_document(document: Mapping[str, Any]) -> tuple[ModelDiscoveryBinding, ...]:
@@ -82,10 +82,12 @@ def refresh(
                 "category": type(exc).__name__,
             }
             if execution_boundary is not None:
+                # The CLI/operator supplies this context; discovery itself
+                # cannot attest that a process is a Host-owned boundary.
+                failure["execution_boundary_source"] = "operator_asserted"
                 diagnostics = project_transport_failure(
                     exc,
                     execution_boundary=execution_boundary,
-                    stage=TransportStage.RESPONSE_WAIT,
                 )
                 failure.update({key: value for key, value in diagnostics.items() if value is not None})
             failures.append(failure)
