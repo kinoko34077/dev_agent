@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "evidence_id": "external-provider-access-diagnostic-20260924",
+  "scope": "NON_GATE_PROVIDER_ACCESS_DIAGNOSTIC",
+  "verified_at": "2026-09-24",
+  "branch": "v2/bootstrap",
+  "method": {
+    "operation": "read_only_model_list_discovery",
+    "providers": ["gemini", "cloudflare"],
+    "credentials": "configured_boolean_only; values not recorded",
+    "inference_request": false,
+    "raw_response": false
+  },
+  "observations": {
+    "restricted_execution_boundary": {
+      "gemini": {
+        "result": "blocked_before_provider_response",
+        "transport_failure_category": "local_network_policy_denied",
+        "transport_stage": "response_wait",
+        "exception_type": "PermissionError",
+        "errno": 13,
+        "winerror": 10013
+      },
+      "cloudflare": {
+        "result": "blocked_before_provider_response",
+        "transport_failure_category": "local_network_policy_denied",
+        "transport_stage": "response_wait",
+        "exception_type": "PermissionError",
+        "errno": 13,
+        "winerror": 10013
+      },
+      "interpretation": "The normal Codex execution boundary denies outbound sockets. This is not evidence of missing credentials or a Provider HTTP rejection."
+    },
+    "approved_host_network_boundary": {
+      "gemini": {
+        "result": "success",
+        "model_list_count": 61
+      },
+      "cloudflare": {
+        "result": "success",
+        "model_list_count": 65
+      },
+      "interpretation": "The same read-only discovery endpoints are reachable from the permitted Host network boundary."
+    },
+    "historical_runtime_observations": {
+      "gemini": "Earlier bounded Host-process Planner attempts recorded provider_unavailable with no Provider response observed and reconciliation_required=false.",
+      "cloudflare": "Earlier bounded Worker attempts recorded local_network_policy_denied before a Provider response.",
+      "interpretation": "Discovery reachability does not prove generation availability, quota, or qualification. The historical provider_unavailable result remains separate and was not replayed."
+    }
+  },
+  "conclusion": {
+    "current_normal_runtime_blocker": "local_network_policy_denied",
+    "credentials_missing": false,
+    "provider_http_auth_failure_observed": false,
+    "current_remote_generation_eligibility": "not requalified by this read-only diagnostic",
+    "blind_retry": false,
+    "unknown_replay": false,
+    "security_boundary_changed": false,
+    "next_safe_action": "Use an already approved Host-process boundary for a newly admitted bounded route, or continue local qwen3.5:9b primary -> gemma4:12b fallback. Do not disable the socket policy or replay prior operations."
+  },
+  "formal_gates": {
+    "D9_DOGFOOD": "VERIFIED",
+    "D9_PRODUCTION_DEPLOYMENT": "DEFERRED_NOT_READY",
+    "PHASE8_PREPARATION": "PREPARATION_ONLY",
+    "PHASE8_LIVE_ACTIVATION": "NOT_VERIFIED"
+  }
+}
