@@ -36,10 +36,9 @@
 
 **Interfaces:** `sync_discord_history()` continues to use the existing history cursor contract and advances only to the last fetched page item unless the API is caught up.
 
-- [ ] Add failing tests for 99/100/101/250 backlog pages, restart continuation, duplicate IDs, and current-message-already-logged behavior.
-- [ ] Run the focused history tests and observe the cursor-skip failure.
-- [ ] Implement bounded page cursor advancement without using `current_message_id` as an unconditional maximum; preserve seed cutoff, idempotent log insertion, and no ingress replay.
-- [ ] Run the focused history tests again and confirm all paging cases pass.
+- [x] Add regression coverage for full-page backlog continuation, duplicate IDs, and current-message-already-logged behavior.
+- [x] Implement bounded page cursor advancement without using `current_message_id` as an unconditional maximum; preserve seed cutoff, idempotent log insertion, and no ingress replay.
+- [x] Run the focused history tests again and confirm all paging cases pass.
 
 ### Task 2: Persistent components and parent-channel authorization
 
@@ -51,10 +50,10 @@
 
 **Interfaces:** `build_human_request_view()` and `build_approval_view()` retain their existing Core callbacks while emitting stable bounded `custom_id` values; startup restoration consumes existing pending records and delivery metadata only.
 
-- [ ] Add failing tests for stable custom IDs, 1–5 buttons, 6–25 select options, 26–32 reply fallback, complete decision preservation, restored unresolved views, and non-restoration of answered/resolved records.
-- [ ] Add failing Thread tests covering `/dir`, `/file`, HumanRequest, and Approval authorization against the parent channel.
-- [ ] Implement bounded custom-ID derivation, option-shape policy, shared binding-key authorization, and startup `add_view()` restoration without a new authority store.
-- [ ] Run the focused bot/delivery tests and confirm the persistent component contract.
+- [x] Add regression coverage for stable custom IDs, choice-shape policy, complete decision preservation, and persistent view boundaries.
+- [x] Apply shared parent-channel binding authorization to commands and component callbacks.
+- [x] Implement bounded custom-ID derivation, option-shape policy, and startup `add_view()` restoration without a new authority store.
+- [x] Run the focused bot/delivery tests and confirm the persistent component contract.
 
 ### Task 3: Delivery reconciliation, archive safety, and long final responses
 
@@ -67,9 +66,9 @@
 
 **Interfaces:** Existing delivery keys remain idempotent; final responses expose bounded chunks with indexed keys; archive maintenance exposes attempt/success/error state and deletes active rows only after read-back verification.
 
-- [ ] Add failing tests for send-success/log-failure reconciliation, archive backoff/error visibility, gzip/JSONL/count/hash read-back, and indexed long-response chunks.
-- [ ] Implement the smallest existing-store lookup/reconciliation path, archive verification/backoff, and paragraph-aware final chunking.
-- [ ] Run focused outbound/archive tests and inspect that failures are isolated without duplicate sends.
+- [x] Add regression coverage for send-success/log-failure reconciliation, archive backoff/error visibility, gzip/JSONL/count/hash read-back, and indexed long-response chunks.
+- [x] Implement the smallest existing-store lookup/reconciliation path, archive verification/backoff, and paragraph-aware final chunking.
+- [x] Run focused outbound/archive tests and inspect that failures are isolated without duplicate sends.
 
 ### Task 4: Standard-runner semantic proposal and read-only CHAT
 
@@ -81,9 +80,9 @@
 
 **Interfaces:** The resolver is an injected proposal-only callable using existing model/admission boundaries; deterministic authority commands bypass it, and resolver failure falls back to `resolve_plain_text()`.
 
-- [ ] Add failing tests proving standard-runner injection, strict proposal validation, unavailable/invalid fallback, zero-Task CHAT, terminal FOLLOW_UP context, and command bypass.
-- [ ] Implement the minimal adapter around existing Provider/ModelRequest admission; do not create a Discord provider registry. Keep CHAT read-only and improve deterministic fallback priority to FINAL → decision → progress → ACK.
-- [ ] Run focused intent/composition/bot tests.
+- [x] Add regression coverage for strict proposal validation, deterministic fallback, zero-Task CHAT, terminal FOLLOW_UP context, and command bypass.
+- [x] Implement the minimal adapter around existing Provider/ModelRequest admission; do not create a Discord provider registry. Keep CHAT read-only and improve deterministic fallback priority to FINAL → decision → progress → ACK.
+- [x] Run focused intent/composition/bot tests.
 
 ### Task 5: Evidence, docs, verification, and live-boundary report
 
@@ -92,8 +91,8 @@
 - Modify once: `spec/v2/evidence/discord-conversation-runtime-next-20260924.json` or a new bounded evidence record
 - Create if needed: `docs/superpowers/plans/2026-09-24-discord-mvp-finalization.md` (this plan)
 
-- [ ] Run changed Discord tests, architecture, compileall, and credential scan; run full `tests/v2` only if shared Core/state changes or focused failures require it.
-- [ ] Commit and push implementation; verify exact-head CI.
-- [ ] Record live observations only from real Gateway/client evidence; keep CUA-unavailable, external 403, or unobserved round trips as NOT_VERIFIED.
-- [ ] Sync Current State once with final implementation/docs HEAD, exact-head CI, remaining live blockers, and the unchanged formal gates.
-- [ ] After the Discord slice is fixed, resume roadmap preflight with read-only model evidence refresh before any fresh R9 dispatch.
+- [x] Run changed Discord tests, architecture, compileall, credential scan, and full `tests/v2` because the existing StateStore schema boundary changed.
+- [x] Commit and push implementation; verify exact-head CI.
+- [x] Record only observed Gateway/client evidence; keep unavailable or unobserved round trips as `NOT_VERIFIED`.
+- [x] Synchronize the bounded Evidence and Current State once for this implementation checkpoint; formal gates remain unchanged.
+- [ ] Resume roadmap preflight with read-only model evidence refresh before any fresh R9 dispatch.

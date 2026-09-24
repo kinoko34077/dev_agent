@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "evidence_id": "discord-mvp-finalization-20260924",
+  "scope": "NON_GATE_DISCORD_HUMAN_UI_MVP_FINALIZATION",
+  "status": "IMPLEMENTATION_VERIFIED_LIVE_CLIENT_PARTIAL",
+  "verified_at": "2026-09-24",
+  "base_remote_head": "c0da3ca091320f7791f2c2c148c164a15adc9fc0",
+  "implementation_revision": "93aee79ced3bebc7653a2d84c12efad2f055e009",
+  "implementation": {
+    "history_sync": {
+      "bounded_incremental_pages": true,
+      "full_page_cursor_does_not_jump_to_current_message": true,
+      "seed_limit": 500,
+      "incremental_limit": 100,
+      "ingress_replay": false,
+      "cursor_store": "existing SQLiteStateStore"
+    },
+    "persistent_components": {
+      "stable_custom_ids": true,
+      "pending_human_request_views_restore": true,
+      "pending_approval_views_restore": true,
+      "answered_or_resolved_views_restore": false,
+      "authority": "existing HumanInteractionPort and Core Approval Authority"
+    },
+    "thread_authorization": {
+      "commands_and_components_use_parent_channel_policy": true,
+      "thread_id_remains_in_binding_key": true
+    },
+    "human_request_ui": {
+      "one_to_five_buttons": true,
+      "six_to_twenty_five_select": true,
+      "twenty_six_to_thirty_two_reply_fallback": true,
+      "full_core_decision_preserved": true
+    },
+    "semantic_intent": {
+      "standard_runner_injection": true,
+      "proposal_only": true,
+      "existing_operation_provider_admission": true,
+      "deterministic_authority_fast_paths_preserved": true,
+      "invalid_or_unavailable_fallback": true,
+      "chat_is_read_only": true
+    },
+    "delivery_and_archive": {
+      "sent_delivery_log_reconciliation": true,
+      "discord_resend_on_log_reconciliation": false,
+      "archive_attempt_success_error_projection": true,
+      "archive_retry_backoff_seconds": 60,
+      "archive_readback_before_active_delete": true,
+      "long_final_response_chunked": true,
+      "chunk_delivery_keys_are_idempotent": true
+    },
+    "new_runtime_authority": {
+      "discord_scheduler": false,
+      "discord_task_queue": false,
+      "discord_conversation_database": false,
+      "discord_approval_authority": false
+    }
+  },
+  "verification": {
+    "focused_discord_suite": "125 passed",
+    "recovery_sqlite_suite": "10 passed",
+    "full_tests_v2": "1644 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS",
+    "credential_scan": "PASS: no supplied credential or token in tracked changes; ignored environment files excluded",
+    "jev_audit": "NOT_RUN: prior MCP permission timeout; no secret-bearing audit request was issued in this slice",
+    "exact_head_ci": {
+      "revision": "93aee79ced3bebc7653a2d84c12efad2f055e009",
+      "v2_core_kernel_3_10": "PASS",
+      "v2_core_kernel_3_11": "PASS",
+      "provider_smoke": "PASS"
+    }
+  },
+  "live": {
+    "gateway_login": "PREVIOUSLY_OBSERVED_PASS",
+    "on_ready_and_command_sync": "PREVIOUSLY_OBSERVED_PASS",
+    "ordinary_message_to_core": "PREVIOUSLY_OBSERVED_PASS",
+    "typing_visual": "NOT_VERIFIED: interactive Discord client observation unavailable",
+    "active_note_and_history": "NOT_VERIFIED: interactive Discord client observation unavailable",
+    "active_wait": "NOT_VERIFIED: this slice did not claim a new real-client wall-clock observation",
+    "chat_and_terminal_follow_up": "NOT_VERIFIED: interactive Discord client observation unavailable",
+    "human_request_and_persistent_component_round_trip": "NOT_VERIFIED: interactive Discord client observation unavailable",
+    "approval_round_trip": "NOT_VERIFIED: interactive Discord client observation unavailable",
+    "restart_and_offline_delivery": "NOT_VERIFIED: interactive Discord client observation unavailable",
+    "thread_boundary": "NOT_VERIFIED: interactive Discord client observation unavailable"
+  },
+  "formal_gates": {
+    "D9_DOGFOOD": "VERIFIED",
+    "D9_PRODUCTION_DEPLOYMENT": "DEFERRED_NOT_READY",
+    "PHASE8_PREPARATION": "PREPARATION_ONLY",
+    "PHASE8_LIVE_ACTIVATION": "NOT_VERIFIED"
+  },
+  "security": {
+    "tokens_or_credentials_recorded": false,
+    "raw_discord_conversation_recorded": false,
+    "unknown_external_effect_replayed": false
+  }
+}
