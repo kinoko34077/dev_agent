@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 import json
+from urllib.error import URLError
 
 import pytest
 
@@ -336,6 +337,35 @@ def test_catalog_refresh_records_a_bounded_sanitized_failure_without_discarding_
         {"provider_id": "bad", "provider_binding_id": "bad:catalog", "category": "RuntimeError"}
     ]
     assert "credential-like" not in json.dumps(document)
+
+
+def test_catalog_refresh_projects_bounded_transport_diagnostics_for_explicit_boundary():
+    class _Discovery:
+        def discover(self, binding):
+            blocked = PermissionError(13, "socket denied")
+            blocked.winerror = 10013
+            raise URLError(blocked)
+
+    document = refresh(
+        (
+            ModelDiscoveryBinding(provider_id="gemini", provider_binding_id="gemini:catalog", api_key_env="TEST_KEY"),
+        ),
+        discovery=_Discovery(),
+        execution_boundary="codex_sandbox",
+    )
+
+    assert document["discovery_failures"] == [
+        {
+            "provider_id": "gemini",
+            "provider_binding_id": "gemini:catalog",
+            "category": "URLError",
+            "transport_failure_category": "sandbox_network_denied",
+            "transport_stage": "response_wait",
+            "transport_exception_type": "PermissionError",
+            "transport_errno": 13,
+            "transport_winerror": 10013,
+        }
+    ]
 
 
 def test_catalog_candidate_writer_is_create_only_until_operator_explicitly_replaces(tmp_path):

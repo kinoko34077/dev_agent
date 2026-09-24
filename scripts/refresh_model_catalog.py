@@ -23,6 +23,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.dev_agent.providers.model_discovery import ModelDiscoveryBinding, ProviderModelDiscovery
+from src.dev_agent.providers.base import TransportStage, project_transport_failure
 
 
 def _bindings_from_document(document: Mapping[str, Any]) -> tuple[ModelDiscoveryBinding, ...]:
@@ -56,7 +57,12 @@ def load_bindings(path: str | Path) -> tuple[ModelDiscoveryBinding, ...]:
     return _bindings_from_document(document)
 
 
-def refresh(bindings: tuple[ModelDiscoveryBinding, ...], *, discovery: ProviderModelDiscovery | None = None) -> dict[str, Any]:
+def refresh(
+    bindings: tuple[ModelDiscoveryBinding, ...],
+    *,
+    discovery: ProviderModelDiscovery | None = None,
+    execution_boundary: str | None = None,
+) -> dict[str, Any]:
     client = discovery or ProviderModelDiscovery()
     entries = []
     failures = []
@@ -70,13 +76,19 @@ def refresh(bindings: tuple[ModelDiscoveryBinding, ...], *, discovery: ProviderM
             # observation.  Keep successful independent bindings, and retain
             # only type-level diagnostics so a Provider response can never
             # become an outbound/credential artifact.
-            failures.append(
-                {
-                    "provider_id": binding.provider_id,
-                    "provider_binding_id": binding.provider_binding_id,
-                    "category": type(exc).__name__,
-                }
-            )
+            failure = {
+                "provider_id": binding.provider_id,
+                "provider_binding_id": binding.provider_binding_id,
+                "category": type(exc).__name__,
+            }
+            if execution_boundary is not None:
+                diagnostics = project_transport_failure(
+                    exc,
+                    execution_boundary=execution_boundary,
+                    stage=TransportStage.RESPONSE_WAIT,
+                )
+                failure.update({key: value for key, value in diagnostics.items() if value is not None})
+            failures.append(failure)
             continue
         refreshed_bindings.append(
             {
@@ -196,9 +208,14 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         help="merge successful refreshed bindings into an existing catalog before writing the candidate",
     )
+    parser.add_argument(
+        "--execution-boundary",
+        choices=("codex_sandbox", "host_process", "provider_process"),
+        help="explicit boundary for bounded transport diagnostics; does not change routing or network policy",
+    )
     args = parser.parse_args(argv)
     try:
-        document = refresh(load_bindings(args.bindings))
+        document = refresh(load_bindings(args.bindings), execution_boundary=args.execution_boundary)
         if args.merge_into is not None:
             base = json.loads(args.merge_into.read_text(encoding="utf-8"))
             if not isinstance(base, Mapping):
