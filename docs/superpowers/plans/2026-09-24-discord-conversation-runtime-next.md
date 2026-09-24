@@ -119,4 +119,4 @@
 - [x] Run focused Discord tests.
 - [x] Run `tests/v2`, architecture, compileall, diff check, and credential scan.
 - [x] Record bounded implementation evidence and the observed real Discord WAIT park/wake timestamps without storing message content or credentials; leave the remaining client scenarios unverified.
-- [ ] Commit and push to `origin/v2/bootstrap`, then verify exact-head CI.
+- [x] Commit and push to `origin/v2/bootstrap`, then verify exact-head CI (`950baaf`, core 3.10/3.11 and provider-smoke green).

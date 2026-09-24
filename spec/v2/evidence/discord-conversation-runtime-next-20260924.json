@@ -2,10 +2,10 @@
   "schema_version": 1,
   "evidence_id": "discord-conversation-runtime-next-20260924",
   "scope": "NON_GATE_DISCORD_CONVERSATION_RUNTIME",
-  "status": "LOCAL_VERIFIED_LIVE_PARTIAL_COMMIT_PENDING",
+  "status": "PUSHED_EXACT_HEAD_CI_GREEN_LIVE_PARTIAL",
   "verified_at": "2026-09-24",
   "base_remote_head": "73280cd8a613e3549f4549c12be7bc94ba5ec854",
-  "revision": "uncommitted working-tree slice based on base_remote_head",
+  "revision": "950baaff16ca5e8c557771e0f5046280824d8043",
   "implementation": {
     "active_wait": {
       "core_owned_request": true,
@@ -73,7 +73,7 @@
     "diff_check": "PASS",
     "credential_scan": "no credential-shaped tracked content; .env ignored; setup documentation contains placeholders only",
     "jev_audit": "NOT_RUN: MCP permission review timed out twice",
-    "exact_head_ci": "PENDING_COMMIT_AND_PUSH"
+    "exact_head_ci": "PASS: 950baaff16ca5e8c557771e0f5046280824d8043; v2-core kernel 3.10/3.11 and v2-provider-smoke success"
   },
   "live": {
     "gateway_login": "PASS",
