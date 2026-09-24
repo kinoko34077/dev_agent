@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "provider_id": "ollama",
+      "provider_binding_id": "ollama:local",
+      "model_id": "Ninja-v1-NSFW-128k-Q8_0.gguf:latest",
+      "source": "ollama.models.list",
+      "observed_at": "2026-09-24T04:15:52.909969+00:00",
+      "expires_at": "2026-10-01T04:15:52.909969+00:00"
+    },
+    {
+      "provider_id": "ollama",
+      "provider_binding_id": "ollama:local",
+      "model_id": "gemma3:12b",
+      "source": "ollama.models.list",
+      "observed_at": "2026-09-24T04:15:52.909969+00:00",
+      "expires_at": "2026-10-01T04:15:52.909969+00:00"
+    },
+    {
+      "provider_id": "ollama",
+      "provider_binding_id": "ollama:local",
+      "model_id": "gemma4:12b",
+      "source": "ollama.models.list",
+      "observed_at": "2026-09-24T04:15:52.909969+00:00",
+      "expires_at": "2026-10-01T04:15:52.909969+00:00"
+    },
+    {
+      "provider_id": "ollama",
+      "provider_binding_id": "ollama:local",
+      "model_id": "phi:2.7b",
+      "source": "ollama.models.list",
+      "observed_at": "2026-09-24T04:15:52.909969+00:00",
+      "expires_at": "2026-10-01T04:15:52.909969+00:00"
+    },
+    {
+      "provider_id": "ollama",
+      "provider_binding_id": "ollama:local",
+      "model_id": "qwen3.5:4b",
+      "source": "ollama.models.list",
+      "observed_at": "2026-09-24T04:15:52.909969+00:00",
+      "expires_at": "2026-10-01T04:15:52.909969+00:00"
+    },
+    {
+      "provider_id": "ollama",
+      "provider_binding_id": "ollama:local",
+      "model_id": "qwen3.5:9b",
+      "source": "ollama.models.list",
+      "observed_at": "2026-09-24T04:15:52.909969+00:00",
+      "expires_at": "2026-10-01T04:15:52.909969+00:00"
+    },
+    {
+      "provider_id": "ollama",
+      "provider_binding_id": "ollama:local",
+      "model_id": "qwen3:0.6b",
+      "source": "ollama.models.list",
+      "observed_at": "2026-09-24T04:15:52.909969+00:00",
+      "expires_at": "2026-10-01T04:15:52.909969+00:00"
+    },
+    {
+      "provider_id": "ollama",
+      "provider_binding_id": "ollama:local",
+      "model_id": "qwen3:8b",
+      "source": "ollama.models.list",
+      "observed_at": "2026-09-24T04:15:52.909969+00:00",
+      "expires_at": "2026-10-01T04:15:52.909969+00:00"
+    }
+  ],
+  "refreshed_bindings": [
+    {
+      "provider_id": "ollama",
+      "provider_binding_id": "ollama:local"
+    }
+  ],
+  "discovery_failures": [
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:core",
+      "category": "URLError"
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker",
+      "category": "URLError"
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-2",
+      "category": "URLError"
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-3",
+      "category": "URLError"
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-4",
+      "category": "URLError"
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-5",
+      "category": "URLError"
+    },
+    {
+      "provider_id": "cloudflare",
+      "provider_binding_id": "cloudflare:account",
+      "category": "URLError"
+    },
+    {
+      "provider_id": "openrouter",
+      "provider_binding_id": "openrouter:account",
+      "category": "URLError"
+    },
+    {
+      "provider_id": "groq",
+      "provider_binding_id": "groq:account",
+      "category": "URLError"
+    },
+    {
+      "provider_id": "mistral",
+      "provider_binding_id": "mistral:account",
+      "category": "URLError"
+    },
+    {
+      "provider_id": "sambanova",
+      "provider_binding_id": "sambanova:account",
+      "category": "URLError"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "provider_binding_id": "ollama_cloud:account",
+      "category": "URLError"
+    },
+    {
+      "provider_id": "vercel",
+      "provider_binding_id": "vercel:account",
+      "category": "URLError"
+    }
+  ]
+}
