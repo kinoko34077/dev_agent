@@ -20,6 +20,13 @@ def test_plain_text_resolver_returns_follow_up_for_active_run() -> None:
     assert proposal.objective == "さっきのREADMEにも追記して"
 
 
+def test_plain_text_resolver_keeps_terminal_conversation_follow_up_as_proposal() -> None:
+    proposal = resolve_plain_text("やっぱりさっきの2個目だけ戻して", active_run=False, has_binding=True)
+
+    assert proposal.kind is IntentKind.FOLLOW_UP
+    assert proposal.objective == "やっぱりさっきの2個目だけ戻して"
+
+
 def test_plain_text_resolver_returns_new_request_without_binding() -> None:
     proposal = resolve_plain_text("READMEを確認して", active_run=False, has_binding=False)
 

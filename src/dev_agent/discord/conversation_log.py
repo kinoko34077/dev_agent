@@ -27,8 +27,19 @@ class ConversationLog:
         *,
         limit: int = 50,
         max_chars: int = 16_000,
+        newest_first: bool = False,
     ) -> tuple[ConversationMessage, ...]:
-        return tuple(self._store.list_discord_conversation_messages(binding_key, limit=limit, max_chars=max_chars))
+        return tuple(
+            self._store.list_discord_conversation_messages(
+                binding_key,
+                limit=limit,
+                max_chars=max_chars,
+                newest_first=newest_first,
+            )
+        )
+
+    def get(self, message_id: str) -> ConversationMessage | None:
+        return self._store.get_discord_conversation_message(message_id)
 
     def list_archive_candidates(self, *, cutoff: str, per_channel_limit: int) -> tuple[ConversationMessage, ...]:
         return tuple(

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Iterable
+from datetime import datetime, timedelta, timezone
+from typing import Any, Callable, Iterable
 
 from .auth import DiscordAuthorizer
 from .binding import DiscordBindingKey
@@ -35,6 +35,8 @@ def build_bounded_context(
     current_message_id: str,
     limit: int = 50,
     max_chars: int = 16_000,
+    reply_to_message_id: str | None = None,
+    reply_depth: int = 3,
 ) -> tuple[DiscordHistoryMessage, ...]:
     """Project local log rows into bounded Core context without replay."""
 
@@ -44,14 +46,55 @@ def build_bounded_context(
         raise TypeError("binding_key must be a DiscordBindingKey")
     if not isinstance(current_message_id, str) or not current_message_id.strip():
         raise ValueError("current_message_id must be non-empty text")
-    rows = log.list_context(_binding_key(binding_key), limit=limit, max_chars=max_chars)
+    if isinstance(reply_depth, bool) or not isinstance(reply_depth, int) or not 0 <= reply_depth <= 3:
+        raise ValueError("reply_depth must be between 0 and 3")
+    rows = log.list_context(
+        _binding_key(binding_key),
+        limit=limit,
+        max_chars=max_chars,
+        newest_first=True,
+    )
+    selected = list(rows)
+    current_reply = (
+        reply_to_message_id.strip()
+        if isinstance(reply_to_message_id, str) and reply_to_message_id.strip().isdecimal()
+        else None
+    )
+    seen = {row.message_id for row in selected}
+    for _ in range(reply_depth):
+        if current_reply is None or current_reply in seen:
+            break
+        row = log.get(current_reply)
+        if row is None or row.speaker_role not in {"human", "assistant"}:
+            break
+        selected.append(row)
+        seen.add(row.message_id)
+        current_reply = row.reply_to_message_id
+    selected.sort(key=lambda row: (row.created_at, row.received_at, row.message_id))
     result: list[DiscordHistoryMessage] = []
-    for row in rows:
+    remaining = max_chars
+    for row in selected:
         if row.message_id == current_message_id.strip():
             continue
         if row.speaker_role not in {"human", "assistant"}:
             continue
-        result.append(DiscordHistoryMessage(role=row.speaker_role, content=row.content))
+        if len(row.content) > remaining:
+            continue
+        result.append(
+            DiscordHistoryMessage(
+                role=row.speaker_role,
+                content=row.content,
+                message_id=row.message_id,
+                created_at=row.created_at,
+                speaker_id=row.speaker_id,
+                speaker_name=row.speaker_name,
+                reply_to_message_id=row.reply_to_message_id,
+                message_kind=row.message_kind,
+                root_id=row.root_id,
+                run_id=row.run_id,
+            )
+        )
+        remaining -= len(row.content)
     return tuple(result)
 
 
@@ -166,4 +209,98 @@ def sync_history_once(
     return inserted
 
 
-__all__ = ["build_bounded_context", "conversation_message_from_discord", "sync_history_once"]
+async def sync_discord_history(
+    channel: Any,
+    log: ConversationLog,
+    bindings: Any,
+    binding_key: DiscordBindingKey,
+    *,
+    authorizer: DiscordAuthorizer,
+    bot_user_id: str,
+    current_message_id: str,
+    current_message: Any | None = None,
+    history_after_factory: Callable[[int], Any] | None = None,
+    seed_limit: int = 500,
+    incremental_limit: int = 100,
+    seed_days: int = 30,
+) -> int:
+    """Synchronize bounded Discord history into the existing ConversationLog.
+
+    The durable cursor is only a channel/thread pointer.  Items returned by
+    Discord are passed to ``sync_history_once`` and never to ingress, a
+    mailbox, or a Task boundary.
+    """
+
+    if channel is None:
+        raise TypeError("channel is required")
+    if not isinstance(log, ConversationLog):
+        raise TypeError("log must be a ConversationLog")
+    if not isinstance(binding_key, DiscordBindingKey):
+        raise TypeError("binding_key must be a DiscordBindingKey")
+    if not callable(getattr(bindings, "get_history_sync", None)) or not callable(getattr(bindings, "save_history_sync", None)):
+        raise TypeError("bindings must implement the Discord history sync contract")
+    if not isinstance(authorizer, DiscordAuthorizer):
+        raise TypeError("authorizer must be a DiscordAuthorizer")
+    if not isinstance(current_message_id, str) or not current_message_id.strip().isdecimal() or len(current_message_id.strip()) > 32:
+        raise ValueError("current_message_id must be a Discord numeric ID")
+    if isinstance(seed_limit, bool) or not isinstance(seed_limit, int) or not 1 <= seed_limit <= 500:
+        raise ValueError("seed_limit must be between 1 and 500")
+    if isinstance(incremental_limit, bool) or not isinstance(incremental_limit, int) or not 1 <= incremental_limit <= 100:
+        raise ValueError("incremental_limit must be between 1 and 100")
+    if isinstance(seed_days, bool) or not isinstance(seed_days, int) or not 1 <= seed_days <= 3650:
+        raise ValueError("seed_days must be between 1 and 3650")
+    if history_after_factory is not None and not callable(history_after_factory):
+        raise TypeError("history_after_factory must be callable")
+
+    sync_state = bindings.get_history_sync(binding_key)
+    is_seed = sync_state is None or not sync_state.seeded
+    history_kwargs: dict[str, Any] = {
+        "limit": seed_limit if is_seed else incremental_limit,
+        "oldest_first": True,
+    }
+    if is_seed:
+        if current_message is not None:
+            history_kwargs["before"] = current_message
+    elif sync_state.latest_synced_message_id:
+        latest_id = int(sync_state.latest_synced_message_id)
+        history_kwargs["after"] = history_after_factory(latest_id) if history_after_factory else sync_state.latest_synced_message_id
+
+    items: list[Any] = []
+    cutoff = datetime.now(timezone.utc) - timedelta(days=seed_days)
+    async for item in channel.history(**history_kwargs):
+        if is_seed:
+            created_at = getattr(item, "created_at", None)
+            if isinstance(created_at, datetime):
+                if created_at.tzinfo is None:
+                    created_at = created_at.replace(tzinfo=timezone.utc)
+                if created_at < cutoff:
+                    continue
+        items.append(item)
+
+    inserted = sync_history_once(
+        items,
+        log,
+        binding_key,
+        authorizer=authorizer,
+        bot_user_id=bot_user_id,
+        current_message_id=current_message_id,
+    )
+    ids = [
+        str(getattr(item, "id", ""))
+        for item in items
+        if str(getattr(item, "id", "")).isdecimal() and len(str(getattr(item, "id", ""))) <= 32
+    ]
+    ids.append(current_message_id.strip())
+    numeric_ids = [int(item) for item in ids]
+    latest = str(max(numeric_ids))
+    oldest = str(min(numeric_ids)) if is_seed else sync_state.oldest_seeded_message_id
+    bindings.save_history_sync(
+        binding_key,
+        latest_synced_message_id=latest,
+        oldest_seeded_message_id=oldest,
+        seeded=True,
+    )
+    return inserted
+
+
+__all__ = ["build_bounded_context", "conversation_message_from_discord", "sync_discord_history", "sync_history_once"]

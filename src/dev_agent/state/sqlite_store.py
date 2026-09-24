@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from functools import wraps
+import math
 from pathlib import Path
 import sqlite3
 from threading import RLock
@@ -212,6 +213,61 @@ class SQLiteStateStore:
             raise
 
     @_serialized
+    def request_user_delay(
+        self,
+        task_id: str,
+        *,
+        accepted_at_epoch: float,
+        wake_at_epoch: float,
+        delay_seconds: int,
+        source: str,
+    ) -> Task:
+        """Publish a bounded user-delay request without replacing Task state."""
+
+        if not isinstance(task_id, str) or not task_id.strip():
+            raise ValueError("task_id must be a non-empty string")
+        if any(
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(float(value))
+            for value in (accepted_at_epoch, wake_at_epoch)
+        ):
+            raise ValueError("delay timestamps must be finite numbers")
+        if isinstance(delay_seconds, bool) or not isinstance(delay_seconds, int) or not 1 <= delay_seconds <= 3_600:
+            raise ValueError("delay_seconds must be between 1 and 3600")
+        if wake_at_epoch < accepted_at_epoch + delay_seconds:
+            raise ValueError("wake_at_epoch must not precede the requested delay")
+        if not isinstance(source, str) or not source.strip() or len(source.strip()) > 256:
+            raise ValueError("source must be bounded non-empty text")
+        task_id = task_id.strip()
+        try:
+            self.connection.execute("BEGIN IMMEDIATE")
+            row = self.connection.execute("SELECT payload FROM tasks WHERE task_id=?", (task_id,)).fetchone()
+            if row is None:
+                raise KeyError(task_id)
+            payload = json.loads(row["payload"])
+            if payload.get("status") in {"completed", "failed", "cancelled"}:
+                raise ValueError("cannot delay a terminal Task")
+            metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+            metadata["user_delay_request"] = {
+                "accepted_at_epoch": float(accepted_at_epoch),
+                "wake_at_epoch": float(wake_at_epoch),
+                "delay_seconds": delay_seconds,
+                "source": source.strip()[:256],
+            }
+            payload["metadata"] = metadata
+            payload["updated_at"] = datetime.now(timezone.utc).isoformat()
+            self.connection.execute(
+                "UPDATE tasks SET payload=? WHERE task_id=?",
+                (json.dumps(payload, ensure_ascii=False), task_id),
+            )
+            self.connection.commit()
+            return Task.from_persisted_dict(payload)
+        except BaseException:
+            self.connection.rollback()
+            raise
+
+    @_serialized
     def record_discord_delivery(self, *, request_id: str, discord_message_id: str, delivered_at: str) -> bool:
         try:
             inserted = self._core.record_discord_delivery(
@@ -252,6 +308,29 @@ class SQLiteStateStore:
         return self._core.get_discord_scope(binding_key)
 
     @_serialized
+    def save_discord_history_sync(
+        self,
+        *,
+        binding_key: str,
+        latest_synced_message_id: str | None,
+        oldest_seeded_message_id: str | None,
+        seeded: bool,
+        last_sync_at: str,
+    ) -> None:
+        self._core.save_discord_history_sync(
+            binding_key=binding_key,
+            latest_synced_message_id=latest_synced_message_id,
+            oldest_seeded_message_id=oldest_seeded_message_id,
+            seeded=seeded,
+            last_sync_at=last_sync_at,
+        )
+        self.connection.commit()
+
+    @_serialized
+    def get_discord_history_sync(self, binding_key: str) -> dict[str, Any] | None:
+        return self._core.get_discord_history_sync(binding_key)
+
+    @_serialized
     def append_discord_conversation_message(self, message: ConversationMessage) -> bool:
         inserted = self._core.append_discord_conversation_message(message)
         self.connection.commit()
@@ -264,12 +343,18 @@ class SQLiteStateStore:
         *,
         limit: int = 50,
         max_chars: int = 16_000,
+        newest_first: bool = False,
     ) -> list[ConversationMessage]:
         return self._core.list_discord_conversation_messages(
             binding_key,
             limit=limit,
             max_chars=max_chars,
+            newest_first=newest_first,
         )
+
+    @_serialized
+    def get_discord_conversation_message(self, message_id: str) -> ConversationMessage | None:
+        return self._core.get_discord_conversation_message(message_id)
 
     @_serialized
     def list_discord_conversation_archive_candidates(

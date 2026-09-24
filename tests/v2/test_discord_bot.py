@@ -20,6 +20,7 @@ from src.dev_agent.discord.human import DiscordHumanAdapter
 from src.dev_agent.discord.renderer import (
     render_echo,
     render_human_request,
+    render_ingress_ack,
     render_progress,
 )
 from src.dev_agent.human import HumanRequest
@@ -96,6 +97,18 @@ def test_human_request_renderer_omits_unbounded_context():
     assert "A / B" in rendered
     assert "must not render" not in rendered
     assert len(rendered) <= 2_000
+
+
+def test_wait_ack_for_scheduled_task_describes_actual_durable_schedule():
+    result = SimpleNamespace(
+        status="waiting_dependency",
+        metadata={"wait_reason": "user_delay", "requested_duration_seconds": 20, "wait_until_epoch": 1_900_000_000.0},
+    )
+
+    rendered = render_ingress_ack("WAIT", result=result)
+
+    assert "20秒待機します" in rendered
+    assert "指定時刻以降" in rendered
 
 
 def test_build_bot_fails_bounded_when_optional_dependency_is_missing(tmp_path):
@@ -390,6 +403,11 @@ def test_bot_uses_persistent_local_conversation_context_when_injected(tmp_path):
 
             async def send(self, content):
                 self.sent.append(content)
+                return SimpleNamespace(
+                    id=902,
+                    author=SimpleNamespace(id=99, bot=True, name="dev_agent"),
+                    created_at=datetime(2026, 9, 24, 0, 2, tzinfo=timezone.utc),
+                )
 
             def history(self, **_kwargs):
                 class _PreviousMessage:
@@ -420,7 +438,10 @@ def test_bot_uses_persistent_local_conversation_context_when_injected(tmp_path):
         assert [item.to_dict() for item in routed[0].history_context] == [
             {"role": "human", "content": "先にREADMEを確認して"}
         ]
-        assert [item.message_id for item in log.list_context("10|20|")] == ["900", "901"]
+        rows = log.list_context("10|20|")
+        assert [item.message_id for item in rows] == ["900", "901", "902"]
+        assert rows[-1].direction == "outbound"
+        assert rows[-1].message_kind == "NEW_REQUEST_ACK"
 
 
 def test_message_projection_preserves_reply_reference_id():

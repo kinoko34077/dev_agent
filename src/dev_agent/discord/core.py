@@ -24,12 +24,14 @@ class DiscordCoreAdapter:
         submit_coordination: Callable[[str, str, DiscordIngressEvent], Any] | None = None,
         submit_wait: Callable[[str, DiscordIngressEvent, IntentProposal], Any] | None = None,
         read_status: Callable[[DiscordIngressEvent], Mapping[str, Any] | str | None] | None = None,
+        chat_response: Callable[[DiscordIngressEvent], Mapping[str, Any] | str | None] | None = None,
     ) -> None:
         for callback, name in (
             (submit_request, "submit_request"),
             (submit_coordination, "submit_coordination"),
             (submit_wait, "submit_wait"),
             (read_status, "read_status"),
+            (chat_response, "chat_response"),
         ):
             if callback is not None and not callable(callback):
                 raise TypeError(f"{name} must be callable")
@@ -37,6 +39,7 @@ class DiscordCoreAdapter:
         self._submit_coordination = submit_coordination
         self._submit_wait = submit_wait
         self._read_status = read_status
+        self._chat_response = chat_response
 
     def handle(self, event: DiscordIngressEvent) -> Any:
         if not isinstance(event, DiscordIngressEvent):
@@ -48,6 +51,10 @@ class DiscordCoreAdapter:
         if event.kind is DiscordMessageKind.CHAT:
             # CHAT is deliberately not an Operation.  It is a bounded UI
             # projection and carries no mutation authority.
+            if self._chat_response is not None:
+                result = self._chat_response(event)
+                if result is not None:
+                    return result
             return {"state": "CHAT", "text": "了解しました。"}
         if event.kind is DiscordMessageKind.WAIT:
             if self._submit_wait is None or event.intent_proposal is None:

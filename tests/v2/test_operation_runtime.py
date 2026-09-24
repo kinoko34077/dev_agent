@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 
 import pytest
 
@@ -99,6 +100,30 @@ def test_runtime_coordinator_wakes_for_task_submitted_during_idle(tmp_path):
     assert result["last_task_id"] == submitted[0].task_id
     assert sleeps == [0.01]
     assert OperationService.read_status(config, submitted[0].task_id)["state"] == TaskStatus.COMPLETED.value
+
+
+def test_runtime_coordinator_wakes_due_user_delay_without_early_claim(tmp_path):
+    """The existing maintenance boundary owns user-delay wake/resume."""
+
+    config = _config(tmp_path)
+    task = OperationService.submit(config, "resume after the durable user delay")
+    requested = OperationService.request_user_delay(
+        config,
+        task.task_id,
+        1,
+        source="bounded test wait",
+    )
+
+    with RuntimeCoordinator.open(config, revision="test-revision", instance_id="runtime-delay") as runtime:
+        assert runtime.run_once() is None
+        assert OperationService.read_status(config, task.task_id)["queue_state"] == "waiting"
+        time.sleep(1.05)
+        resumed = runtime.run_once()
+
+    assert resumed is not None
+    assert resumed.task_id == task.task_id
+    assert resumed.status is TaskStatus.COMPLETED
+    assert time.time() >= requested["wake_at_epoch"]
 
 
 def test_runtime_coordinator_restart_preserves_durable_waiting_state(tmp_path):

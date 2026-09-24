@@ -152,7 +152,7 @@ def test_final_response_is_projected_once_and_recorded_after_send(tmp_path):
         assert second["final_responses"] == 0
         assert sent[-1] == "READMEを確認しました。\n問題ありません。"
         rows = ConversationLog(store).list_context("10|20|30")
-        assert rows[-1].message_id == "952"
+        assert rows[-1].message_id == "951"
         assert rows[-1].direction == "outbound"
         assert rows[-1].content == sent[-1]
 
@@ -184,6 +184,35 @@ def test_final_response_accepts_production_task_completed_text_payload(tmp_path)
         assert result["final_responses"] == 1
         assert sent[-1] == "実際の完了回答です。\n次の処理はありません。"
         assert sent.count("実際の完了回答です。\n次の処理はありません。") == 1
+
+
+def test_completed_text_suppresses_generic_completed_progress(tmp_path):
+    sent: list[str] = []
+
+    async def send(_binding, content, view=None):
+        sent.append(content)
+        return str(970 + len(sent))
+
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        task = Task(objective="final only")
+        task.status = TaskStatus.COMPLETED
+        store.save_task(task)
+        bindings, _key = _binding(store, task)
+        store.append_event(
+            Event(
+                event_id=str(uuid4()),
+                event_type="task.completed",
+                task_id=task.task_id,
+                payload={"text": "完了した変更の要約"},
+            )
+        )
+        publisher = DiscordOutboundPublisher(store, bindings, send=send)
+
+        result = asyncio.run(publisher.publish_once())
+
+    assert result["progress"] == 0
+    assert result["final_responses"] == 1
+    assert sent == ["完了した変更の要約"]
 
 
 def test_approval_projection_requires_an_explicit_core_submit_boundary(tmp_path):
@@ -287,3 +316,26 @@ def test_projection_pass_runs_existing_archive_maintenance_callback(tmp_path):
         asyncio.run(publisher.publish_once())
 
     assert calls == ["archive"]
+
+
+def test_archive_maintenance_is_throttled_without_a_second_scheduler(tmp_path):
+    calls: list[str] = []
+    clock = [100.0]
+
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        bindings = SQLiteDiscordBindingStore(store)
+        publisher = DiscordOutboundPublisher(
+            store,
+            bindings,
+            send=lambda *_args: "905",
+            archive_maintenance=lambda: calls.append("archive"),
+            archive_maintenance_interval_seconds=3600,
+            monotonic=lambda: clock[0],
+        )
+
+        asyncio.run(publisher.publish_once())
+        asyncio.run(publisher.publish_once())
+        clock[0] = 3700.0
+        asyncio.run(publisher.publish_once())
+
+    assert calls == ["archive", "archive"]

@@ -10,6 +10,8 @@ from src.dev_agent.discord.auth import DiscordAuthorizer
 from src.dev_agent.discord.binding import DiscordBindingKey
 from src.dev_agent.discord.composition import DiscordRuntimeComposition
 from src.dev_agent.discord.history import DiscordHistoryMessage
+from src.dev_agent.discord.conversation_archive import archive_eligible_messages
+from src.dev_agent.discord.conversation_log import ConversationLog, ConversationMessage
 from src.dev_agent.discord.intent import IntentKind, IntentProposal
 from src.dev_agent.domain.protocol import Task, TaskStatus
 from src.dev_agent.operation import OperationConfig, OperationService
@@ -19,6 +21,7 @@ from src.dev_agent.runtime.state import RuntimeState
 from src.dev_agent.scheduler.queue import DurableQueue
 from src.dev_agent.state.sqlite_store import SQLiteStateStore
 from time import time
+from datetime import datetime, timezone
 
 
 def _event(
@@ -59,6 +62,78 @@ def test_standard_composition_submits_durable_operation_and_binds_pointer(tmp_pa
         assert binding.root_id == task.root_task_id
         assert binding.run_id == task.task_id
         assert composition.store.load_task(task.task_id).objective == "小さな確認作業"
+
+
+def test_terminal_follow_up_starts_new_operation_with_previous_pointer_and_context(tmp_path):
+    config = OperationConfig(data_dir=tmp_path / "agent")
+    previous = Task(objective="previous", status=TaskStatus.COMPLETED)
+    event = _event(
+        "やっぱりさっきの2個目だけ戻して",
+        DiscordMessageKind.NEW_REQUEST,
+        "1002",
+        history_context=(DiscordHistoryMessage(role="assistant", content="2件を統合しました", message_id="1001"),),
+    )
+    event = DiscordIngressEvent(
+        message=event.message,
+        kind=event.kind,
+        binding_key=event.binding_key,
+        history_context=event.history_context,
+        intent_proposal=IntentProposal(IntentKind.FOLLOW_UP, event.message.content),
+    )
+    with DiscordRuntimeComposition.open(
+        config,
+        authorizer=DiscordAuthorizer(allowed_user_ids={"42"}),
+    ) as composition:
+        composition.store.save_task(previous)
+        composition.bindings.bind(event.binding_key, root_id=previous.task_id, run_id=previous.task_id)
+        task = composition.core.handle(event)
+
+        assert task.inputs["discord_follow_up"] == {
+            "previous_root_id": previous.task_id,
+            "previous_run_id": previous.task_id,
+        }
+        assert task.inputs["discord_context"]["messages"][0]["message_id"] == "1001"
+
+
+def test_chat_uses_bounded_archive_search_only_for_past_reference(tmp_path):
+    config = OperationConfig(data_dir=tmp_path / "agent")
+    with DiscordRuntimeComposition.open(
+        config,
+        authorizer=DiscordAuthorizer(allowed_user_ids={"42"}),
+    ) as composition:
+        log = ConversationLog(composition.store)
+        log.append(
+            ConversationMessage(
+                message_id="1800",
+                binding_key="10|20|30",
+                guild_id="10",
+                channel_id="20",
+                thread_id="30",
+                created_at="2026-08-01T00:00:00+00:00",
+                received_at="2026-08-01T00:00:00+00:00",
+                speaker_role="assistant",
+                speaker_id="99",
+                speaker_name="dev_agent",
+                direction="outbound",
+                content="READMEのエラー処理を修正しました。",
+                reply_to_message_id=None,
+                message_kind="FINAL",
+                root_id=None,
+                run_id=None,
+                source="discord",
+            )
+        )
+        archive_eligible_messages(
+            log,
+            config.data_dir / "discord-archive",
+            now=datetime(2026, 10, 1, tzinfo=timezone.utc),
+        )
+        result = composition.chat_response(
+            _event("前にREADMEで何を変えた？", DiscordMessageKind.CHAT, "1801")
+        )
+
+    assert result["state"] == "CHAT"
+    assert "README" in result["text"]
 
 
 def test_standard_composition_submits_user_wait_without_claiming_a_worker(tmp_path):
@@ -109,6 +184,84 @@ def test_active_wait_is_explicitly_deferred_instead_of_becoming_note(tmp_path):
         }
         assert composition.coordination.snapshot(recipient_role="agent").mailbox == ()
         assert composition.store.load_task(waiting.task_id).status is TaskStatus.WAITING_HUMAN
+
+
+def test_active_wait_is_parked_at_a_cooperative_checkpoint_and_not_before_due(tmp_path):
+    config = OperationConfig(
+        data_dir=tmp_path / "agent",
+        provider_id="fake",
+        model="deterministic",
+        worker_id="active-wait-runtime-worker",
+        idle_sleep_seconds=0.01,
+    )
+    active = Task(objective="active work", status=TaskStatus.RUNNING)
+    with SQLiteStateStore(config.state_path) as store:
+        store.save_task(active)
+    with DurableQueue(config.queue_path) as queue:
+        queue.enqueue(active.task_id)
+
+    requested = OperationService.request_user_delay(
+        config,
+        active.task_id,
+        20,
+        source="20秒待ってから返事して",
+    )
+
+    assert requested["state"] == "WAIT_ACCEPTED"
+    assert requested["wake_at_epoch"] >= requested["accepted_at_epoch"] + 20
+
+    with DurableQueue(config.queue_path) as queue:
+        item = queue.snapshot(active.task_id)
+        assert item.state == "waiting"
+        assert item.wake_at is not None
+        assert item.wake_at.timestamp() >= requested["accepted_at_epoch"] + 20
+        assert queue.wake_due(now=requested["wake_at_epoch"] - 0.1, reason="user_delay") == 0
+        assert queue.wake_due(now=requested["wake_at_epoch"] + 0.1, reason="user_delay") == 1
+
+
+def test_active_leased_wait_is_consumed_by_controller_at_checkpoint(tmp_path):
+    config = OperationConfig(
+        data_dir=tmp_path / "agent",
+        provider_id="fake",
+        model="deterministic",
+        worker_id="active-wait-controller-worker",
+        idle_sleep_seconds=0.01,
+    )
+    active = Task(objective="leased active work", status=TaskStatus.RUNNING)
+    with SQLiteStateStore(config.state_path) as store:
+        store.save_task(active)
+    with DurableQueue(config.queue_path) as queue:
+        queue.enqueue(active.task_id)
+        lease = queue.claim(config.worker_id, lease_seconds=30.0)
+
+    requested = OperationService.request_user_delay(
+        config,
+        active.task_id,
+        20,
+        source="20秒待ってから返事して",
+    )
+    assert requested["state"] == "WAIT_DEFERRED"
+
+    from src.dev_agent.operation_runtime import RuntimeCoordinator
+
+    with RuntimeCoordinator.open(
+        config,
+        revision="active-wait-controller-test",
+        instance_id="active-wait-controller-runtime",
+    ) as runtime:
+        parked = runtime.operation.controller.resume(active.task_id)
+        assert parked.status is TaskStatus.WAITING_DEPENDENCY
+
+    with DurableQueue(config.queue_path) as queue:
+        item = queue.defer_until(
+            active.task_id,
+            worker_id=config.worker_id,
+            state_version=lease.state_version,
+            wake_at=requested["wake_at_epoch"],
+            reason="user_delay",
+        )
+        assert item.state == "waiting"
+        assert item.wake_at.timestamp() >= requested["accepted_at_epoch"] + 20
 
 
 def test_standard_composition_reads_existing_operation_without_submitting_task(tmp_path):

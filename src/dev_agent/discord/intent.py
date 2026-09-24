@@ -40,6 +40,7 @@ class IntentProposal:
 
 _CHAT_PHRASES = frozenset({"ありがとう", "ありがとうございます", "了解", "了解です", "助かった", "こんにちは", "こんばんは", "おはよう"})
 _READ_PHRASES = frozenset({"status", "今何してる", "進捗", "状態"})
+_TERMINAL_FOLLOW_UP_MARKERS = ("やっぱ", "戻して", "戻す", "さっき", "前に", "この前", "あの時", "その件")
 
 
 def resolve_plain_text(text: str, *, active_run: bool, has_binding: bool) -> IntentProposal:
@@ -61,6 +62,8 @@ def resolve_plain_text(text: str, *, active_run: bool, has_binding: bool) -> Int
     if normalized in _CHAT_PHRASES:
         return validate_intent(IntentProposal(IntentKind.CHAT), has_binding=has_binding)
     if active_run and has_binding:
+        return validate_intent(IntentProposal(IntentKind.FOLLOW_UP, normalized), has_binding=has_binding)
+    if has_binding and any(marker in normalized for marker in _TERMINAL_FOLLOW_UP_MARKERS):
         return validate_intent(IntentProposal(IntentKind.FOLLOW_UP, normalized), has_binding=has_binding)
     return validate_intent(IntentProposal(IntentKind.NEW_REQUEST, normalized), has_binding=has_binding)
 

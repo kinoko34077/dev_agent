@@ -1132,6 +1132,73 @@ class OperationService:
             store.close()
 
     @staticmethod
+    def request_user_delay(
+        config: OperationConfig | None,
+        task_id: str,
+        delay_seconds: int,
+        *,
+        source: str,
+    ) -> dict[str, Any]:
+        """Request a delay on an existing Task through the durable Core.
+
+        A leased Task receives a durable checkpoint marker for the running
+        Controller. A queued Task can be parked immediately. No Discord
+        timer or lease manipulation is performed here.
+        """
+
+        config = config or OperationConfig.from_environment()
+        if not isinstance(task_id, str) or not task_id.strip():
+            raise ValueError("task_id must be a non-empty string")
+        if isinstance(delay_seconds, bool) or not isinstance(delay_seconds, int) or not 1 <= delay_seconds <= 3_600:
+            raise ValueError("delay_seconds must be between 1 and 3600")
+        if not isinstance(source, str) or not source.strip():
+            raise ValueError("source must be non-empty text")
+        accepted_at_epoch = datetime.now(timezone.utc).timestamp()
+        wake_at_epoch = accepted_at_epoch + delay_seconds
+        store = SQLiteStateStore(config.state_path)
+        queue = DurableQueue(config.queue_path)
+        try:
+            task = store.request_user_delay(
+                task_id.strip(),
+                accepted_at_epoch=accepted_at_epoch,
+                wake_at_epoch=wake_at_epoch,
+                delay_seconds=delay_seconds,
+                source=source,
+            )
+            try:
+                item = queue.snapshot(task.task_id)
+            except KeyError:
+                raise OperationError(f"Task queue item not found: {task.task_id}") from None
+            if item.state == "queued":
+                task.status = TaskStatus.WAITING_DEPENDENCY
+                task.metadata.pop("user_delay_request", None)
+                task.metadata["wait_reason"] = "user_delay"
+                task.metadata["wait_until_epoch"] = wake_at_epoch
+                task.metadata["user_delay_seconds"] = delay_seconds
+                task.metadata["wait_accepted_at_epoch"] = accepted_at_epoch
+                store.save_task(task)
+                queue.defer_queued_until(
+                    task.task_id,
+                    wake_at=wake_at_epoch,
+                    reason="user_delay",
+                )
+                state = "WAIT_ACCEPTED"
+            elif item.state in {"leased", "waiting"}:
+                state = "WAIT_DEFERRED"
+            else:
+                raise OperationError(f"Task cannot accept a user delay from queue state: {item.state}")
+            return {
+                "state": state,
+                "task_id": task.task_id,
+                "delay_seconds": delay_seconds,
+                "accepted_at_epoch": accepted_at_epoch,
+                "wake_at_epoch": wake_at_epoch,
+            }
+        finally:
+            queue.close()
+            store.close()
+
+    @staticmethod
     def submit_child(config: OperationConfig | None, parent_task_id: str, objective: str, *, priority: int = 0, sensitivity: str | None = None, task_type: TaskType | str = TaskType.WORKER, risk: RiskLevel | str = RiskLevel.NORMAL, required_capabilities: list[str] | None = None, inputs: Mapping[str, Any] | None = None, constraints: Mapping[str, Any] | None = None) -> Task:
         """Create an explicitly classified child without a language classifier.
 

@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "evidence_id": "discord-conversation-runtime-next-20260924",
+  "scope": "NON_GATE_DISCORD_CONVERSATION_RUNTIME",
+  "status": "LOCAL_VERIFIED_LIVE_PARTIAL_COMMIT_PENDING",
+  "verified_at": "2026-09-24",
+  "base_remote_head": "73280cd8a613e3549f4549c12be7bc94ba5ec854",
+  "revision": "uncommitted working-tree slice based on base_remote_head",
+  "implementation": {
+    "active_wait": {
+      "core_owned_request": true,
+      "cooperative_checkpoint_park": true,
+      "queue_wake_at": true,
+      "user_delay_reason_separate_from_interrupt": true,
+      "deferred_ack_is_not_success": true,
+      "wall_clock_discord_smoke": {
+        "status": "PARTIAL_OBSERVED",
+        "task_id": "5d4110d2-8353-4d0e-9fba-2bae9e0b4f67",
+        "accepted_at": "2026-09-23T23:53:53.130974+00:00",
+        "park_observed": true,
+        "wake_at": "2026-09-23T23:54:13.130974+00:00",
+        "resume_observed_at": "2026-09-23T23:59:13.797861+00:00",
+        "early_resume": false,
+        "qualification": "real Discord new delayed-wait ingress and durable park observed; due resume was recovered through an existing RuntimeCoordinator once boundary after the prior generation was fenced, so active-run WAIT and continuous serve wake for this same request are not claimed"
+      }
+    },
+    "conversation_context": {
+      "metadata_fields": [
+        "message_id",
+        "created_at",
+        "speaker_role",
+        "speaker_id",
+        "speaker_name",
+        "content",
+        "reply_to_message_id",
+        "message_kind",
+        "root_id",
+        "run_id"
+      ],
+      "recent_message_limit": 50,
+      "reply_depth_limit": 3,
+      "total_character_limit": 16000,
+      "same_channel_or_thread_only": true,
+      "history_is_context_only": true
+    },
+    "history_sync": {
+      "store": "existing SQLiteStateStore",
+      "schema_version": 11,
+      "initial_seed_limit": 500,
+      "seed_age_days": 30,
+      "incremental_limit": 100,
+      "cursor_only": true,
+      "ingress_replay": false
+    },
+    "outbound": {
+      "archive_maintenance_throttle_seconds": 3600,
+      "ack_logged_after_successful_send": true,
+      "completion_text_suppresses_generic_progress": true
+    },
+    "intent": {
+      "terminal_follow_up": true,
+      "chat_read_only": true,
+      "archive_search_marker_triggered": true,
+      "authority_commands_remain_deterministic": true
+    }
+  },
+  "verification": {
+    "focused_discord_suite": "89 passed",
+    "full_tests_v2": "1630 passed, 1 skipped",
+    "runtime_due_wake_regression": "PASS: due-before claim suppressed; existing RuntimeCoordinator run_once woke and completed the user-delay Task after wake_at",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS",
+    "credential_scan": "no credential-shaped tracked content; .env ignored; setup documentation contains placeholders only",
+    "jev_audit": "NOT_RUN: MCP permission review timed out twice",
+    "exact_head_ci": "PENDING_COMMIT_AND_PUSH"
+  },
+  "live": {
+    "gateway_login": "PASS",
+    "on_ready": "PASS",
+    "ordinary_message_ingress": "OBSERVED: authorized Human message reached NEW_REQUEST, durable Operation submission, PROGRESS, and FINAL projection; raw content was not retained in Evidence",
+    "bot_status_send": "PASS: bounded test-status messages returned HTTP 200",
+    "active_wait": "NOT_VERIFIED: the observed WAIT was a new delayed-wait Task, not a WAIT injected into an already active Task",
+    "active_note_and_history": "NOT_VERIFIED",
+    "chat_and_terminal_follow_up": "NOT_VERIFIED",
+    "human_request_round_trip": "NOT_VERIFIED",
+    "approval_round_trip": "NOT_VERIFIED",
+    "restart_offline_delivery": "NOT_VERIFIED",
+    "runner_observation": "Gateway and configured guild/channel access returned successfully; the old duplicate runner was stopped, the current runner was restarted from the working tree, and RuntimeCoordinator generation 7 is READY."
+  },
+  "formal_gates": {
+    "D9_DOGFOOD": "VERIFIED",
+    "D9_PRODUCTION_DEPLOYMENT": "DEFERRED_NOT_READY",
+    "PHASE8_PREPARATION": "PREPARATION_ONLY",
+    "PHASE8_LIVE_ACTIVATION": "NOT_VERIFIED"
+  },
+  "security": {
+    "tokens_or_credentials_recorded": false,
+    "raw_discord_history_recorded": false,
+    "new_scheduler": false,
+    "new_state_store": false,
+    "new_discord_task_authority": false
+  }
+}

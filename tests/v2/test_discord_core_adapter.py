@@ -56,6 +56,18 @@ def test_chat_is_a_non_task_projection():
     }
 
 
+def test_chat_uses_bounded_read_only_response_boundary_when_available():
+    seen = []
+    adapter = DiscordCoreAdapter(
+        chat_response=lambda event: seen.append(event) or {"state": "CHAT", "text": "直近の変更はREADMEです。"},
+    )
+
+    result = adapter.handle(_event("さっき何変えた？", DiscordMessageKind.CHAT))
+
+    assert result["text"] == "直近の変更はREADMEです。"
+    assert len(seen) == 1
+
+
 def test_wait_uses_the_durable_wait_boundary_and_proposal():
     from src.dev_agent.discord.intent import IntentKind, IntentProposal
 

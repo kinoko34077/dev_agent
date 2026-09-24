@@ -16,14 +16,14 @@ from .approval import DiscordApprovalAdapter
 from .auth import DiscordAuthorizer
 from .binding import DiscordBindingKey, InMemoryDiscordBindingStore, SQLiteDiscordBindingStore
 from .composition import DiscordRuntimeComposition
-from .context import build_bounded_context, conversation_message_from_discord, sync_history_once
+from .context import build_bounded_context, conversation_message_from_discord, sync_discord_history
 from .conversation_archive import archive_eligible_messages
 from .conversation_log import ConversationLog
 from .delivery import DiscordHumanFacingSender
 from .history import collect_discord_history
 from .human import DiscordHumanAdapter
 from .outbound import DiscordOutboundPublisher
-from .renderer import render_ingress_ack, render_progress, render_read_projection
+from .renderer import render_chat_response, render_ingress_ack, render_progress, render_read_projection
 from ..human import HumanRequest
 from ..operation import OperationConfig
 
@@ -38,6 +38,7 @@ class DiscordDependencyError(RuntimeError):
 
 _MAX_ENV_BYTES = 64 * 1024
 _TOKEN_MAX_CHARS = 512
+_COMMAND_SYNC_TIMEOUT_SECONDS = 15.0
 _PUBLIC_KEY = re.compile(r"^[0-9a-fA-F]{64}$")
 
 
@@ -259,6 +260,9 @@ def build_bot(
     typing_delay_seconds: float = 2.0,
     human_facing_sender: DiscordHumanFacingSender | None = None,
     conversation_log: ConversationLog | None = None,
+    history_seed_limit: int = 500,
+    history_incremental_limit: int = 100,
+    history_seed_days: int = 30,
 ) -> Any:
     """Build the Gateway bot; no Discord connection starts until ``run``."""
 
@@ -292,6 +296,36 @@ def build_bot(
     sync_state = {"done": False}
     outbound_state: dict[str, asyncio.Task[Any] | None] = {"task": None}
 
+    async def _send_human_facing(
+        channel: Any,
+        content: str,
+        *,
+        binding_key: DiscordBindingKey,
+        message_kind: str,
+        reply_to_message_id: str | None = None,
+        view: Any | None = None,
+    ) -> Any:
+        """Send once through the UI boundary, then append only sent messages."""
+
+        sent_message = await sender.send(channel, content, view=view)
+        sent_id = str(getattr(sent_message, "id", ""))
+        if conversation_log is not None and sent_id.isdecimal():
+            binding = bindings.lookup(binding_key)
+            conversation_log.append(
+                conversation_message_from_discord(
+                    sent_message,
+                    binding_key=binding_key,
+                    message_kind=message_kind,
+                    message_id=sent_id,
+                    content=content,
+                    direction="outbound",
+                    root_id=None if binding is None else binding.root_id,
+                    run_id=None if binding is None else binding.run_id,
+                    reply_to_message_id=reply_to_message_id,
+                )
+            )
+        return sent_message
+
     async def _serve_outbound() -> None:
         publisher = getattr(bot, "_dev_agent_discord_outbound", None)
         if publisher is None:
@@ -308,7 +342,17 @@ def build_bot(
     @bot.event
     async def on_ready():
         if not sync_state["done"]:
-            await bot.tree.sync()
+            try:
+                # Command registration is useful UI setup, but it must not
+                # hold Gateway ingress hostage.  A REST-side delay or
+                # transient denial is observable as bounded setup state; the
+                # bot can still receive ordinary messages through the already
+                # connected Gateway and the next process start retries sync.
+                await asyncio.wait_for(bot.tree.sync(), timeout=_COMMAND_SYNC_TIMEOUT_SECONDS)
+            except asyncio.TimeoutError:
+                print("Discord application-command sync timed out; Gateway ingress remains active")
+            except Exception:
+                print("Discord application-command sync failed; Gateway ingress remains active")
             sync_state["done"] = True
         if outbound_state["task"] is None:
             publisher = getattr(bot, "_dev_agent_discord_outbound", None)
@@ -366,24 +410,17 @@ def build_bot(
                         )
                     )
                 acknowledgement = "回答を受け付けました。"
-                sent_message = await sender.send(message.channel, acknowledgement)
-                sent_id = str(getattr(sent_message, "id", ""))
-                if conversation_log is not None and sent_id.isdecimal():
-                    conversation_log.append(
-                        conversation_message_from_discord(
-                            sent_message,
-                            binding_key=DiscordBindingKey(
-                                projected_message.guild_id,
-                                projected_message.channel_id,
-                                projected_message.thread_id,
-                            ),
-                            message_kind="HUMAN_RESPONSE_ACK",
-                            message_id=sent_id,
-                            content=acknowledgement,
-                            direction="outbound",
-                            reply_to_message_id=projected_message.message_id,
-                        )
-                    )
+                await _send_human_facing(
+                    message.channel,
+                    acknowledgement,
+                    binding_key=DiscordBindingKey(
+                        projected_message.guild_id,
+                        projected_message.channel_id,
+                        projected_message.thread_id,
+                    ),
+                    message_kind="HUMAN_RESPONSE_ACK",
+                    reply_to_message_id=projected_message.message_id,
+                )
                 return
         try:
             event = ingress.accept(projected_message)
@@ -410,24 +447,29 @@ def build_bot(
             DiscordMessageKind.PARALLEL,
             DiscordMessageKind.NOTE,
             DiscordMessageKind.WAIT,
+            DiscordMessageKind.CHAT,
         }:
             try:
                 if conversation_log is not None:
-                    history_items = []
-                    async for history_item in message.channel.history(limit=20, oldest_first=True, before=message):
-                        history_items.append(history_item)
-                    sync_history_once(
-                        history_items,
+                    await sync_discord_history(
+                        message.channel,
                         conversation_log,
+                        bindings,
                         event.binding_key,
                         authorizer=authorizer,
                         bot_user_id=str(getattr(getattr(bot, "user", None), "id", config.application_id)),
                         current_message_id=projected_message.message_id,
+                        current_message=message,
+                        history_after_factory=lambda value: discord.Object(id=value),
+                        seed_limit=history_seed_limit,
+                        incremental_limit=history_incremental_limit,
+                        seed_days=history_seed_days,
                     )
                     history_context = build_bounded_context(
                         conversation_log,
                         event.binding_key,
                         current_message_id=projected_message.message_id,
+                        reply_to_message_id=projected_message.reference_message_id,
                     )
                 else:
                     history_context = await collect_discord_history(
@@ -452,9 +494,26 @@ def build_bot(
             if inspect.isawaitable(result):
                 result = await result
         if event.kind is DiscordMessageKind.READ_QUERY and isinstance(result, Mapping):
-            await sender.send(message.channel, render_read_projection(result))
+            await _send_human_facing(
+                message.channel,
+                render_read_projection(result),
+                binding_key=event.binding_key,
+                message_kind="READ_QUERY_REPLY",
+            )
+        elif event.kind is DiscordMessageKind.CHAT and isinstance(result, Mapping):
+            await _send_human_facing(
+                message.channel,
+                render_chat_response(result),
+                binding_key=event.binding_key,
+                message_kind="CHAT_REPLY",
+            )
         else:
-            await sender.send(message.channel, render_ingress_ack(event.kind.value))
+            await _send_human_facing(
+                message.channel,
+                render_ingress_ack(event.kind.value, result=result),
+                binding_key=event.binding_key,
+                message_kind=f"{event.kind.value}_ACK",
+            )
         await bot.process_commands(message)
 
     @bot.tree.command(name="dir", description="作業対象ディレクトリを指定します")

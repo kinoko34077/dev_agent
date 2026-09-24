@@ -751,10 +751,20 @@ class Controller:
                 if persisted.metadata.get("cancellation_requested"):
                     task.metadata.update(persisted.metadata)
                     cancel_event.set()
+                user_delay_request = persisted.metadata.get("user_delay_request")
+                if isinstance(user_delay_request, dict):
+                    task.metadata.update(persisted.metadata)
+                    self._park_for_user_delay(task, state, user_delay_request)
+                    return task
                 interrupt_request = persisted.metadata.get("interrupt_request")
                 if isinstance(interrupt_request, dict) and interrupt_request.get("child_task_id"):
                     task.metadata.update(persisted.metadata)
                     self._park_for_interrupt(task, state, interrupt_request)
+                    return task
+                user_delay_request = persisted.metadata.get("user_delay_request") if persisted is not None else None
+                if isinstance(user_delay_request, dict):
+                    task.metadata.update(persisted.metadata)
+                    self._park_for_user_delay(task, state, user_delay_request)
                     return task
             task.status = TaskStatus.RUNNING
             # Register the cancellation event before the first durable write so
@@ -1197,6 +1207,58 @@ class Controller:
             task=task,
             step=step,
             checkpoint=self._checkpoint_payload(task, step, "waiting_interrupt", state),
+            events=[event],
+        )
+
+    def _park_for_user_delay(self, task: Task, state: dict[str, Any], request: dict[str, Any]) -> None:
+        """Park an active Task at a cooperative boundary until its wake time."""
+
+        accepted_at = request.get("accepted_at_epoch")
+        wake_at = request.get("wake_at_epoch")
+        seconds = request.get("delay_seconds")
+        if any(
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(float(value))
+            for value in (accepted_at, wake_at)
+        ) or isinstance(seconds, bool) or not isinstance(seconds, int) or not 1 <= seconds <= 3_600:
+            raise RuntimeFailure("invalid durable user delay request")
+        if float(wake_at) < float(accepted_at) + seconds:
+            raise RuntimeFailure("durable user delay request expires before its requested duration")
+        raw_step = state.get("active_step")
+        if isinstance(raw_step, dict):
+            step = Step.from_dict(raw_step)
+        else:
+            step = Step(
+                task_id=task.task_id,
+                order=int(state.get("next_step_order", 0)),
+                kind="user_delay",
+                status=StepStatus.WAITING,
+            )
+        step.status = StepStatus.WAITING
+        state["active_step"] = step.to_dict()
+        task.metadata.pop("user_delay_request", None)
+        task.metadata["wait_reason"] = "user_delay"
+        task.metadata["wait_until_epoch"] = float(wake_at)
+        task.metadata["user_delay_seconds"] = seconds
+        task.metadata["wait_accepted_at_epoch"] = float(accepted_at)
+        task.status = TaskStatus.WAITING_DEPENDENCY
+        event = self._event_record(
+            task,
+            "task.waiting_user_delay",
+            {
+                "reason": "user_delay",
+                "delay_seconds": seconds,
+                "accepted_at_epoch": float(accepted_at),
+                "wake_at_epoch": float(wake_at),
+                "source": "cooperative_boundary",
+            },
+            step_id=step.step_id,
+        )
+        self._commit(
+            task=task,
+            step=step,
+            checkpoint=self._checkpoint_payload(task, step, "waiting_user_delay", state),
             events=[event],
         )
 

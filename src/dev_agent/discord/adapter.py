@@ -14,6 +14,7 @@ from .auth import DiscordAuthorizer
 from .binding import DiscordBindingKey, InMemoryDiscordBindingStore, SQLiteDiscordBindingStore
 from .history import DiscordHistoryMessage
 from .intent import IntentKind, IntentProposal, resolve_plain_text
+from .wait import parse_user_delay
 
 
 class DiscordMessageKind(str, Enum):
@@ -50,6 +51,10 @@ def classify_message(content: str, *, active_run: bool = False) -> DiscordMessag
         return DiscordMessageKind.NOTE
     if lowered == "/new" or lowered.startswith("/new "):
         return DiscordMessageKind.NEW_REQUEST
+    # Explicit finite waits are a Host-owned fast path.  They must not depend
+    # on an advisory intent resolver being present or available.
+    if parse_user_delay(normalized) is not None:
+        return DiscordMessageKind.WAIT
     if active_run:
         return DiscordMessageKind.NOTE
     return DiscordMessageKind.NEW_REQUEST
@@ -162,9 +167,13 @@ class DiscordIngressAdapter:
         if not self._authorizer.is_allowed(message.author_id, message.guild_id, message.channel_id):
             return None
         key = DiscordBindingKey(message.guild_id, message.channel_id, message.thread_id)
-        active = bool(self._binding_is_active(key)) if self._binding_is_active and self._bindings.lookup(key) is not None else False
+        has_binding = self._bindings.lookup(key) is not None
+        active = bool(self._binding_is_active(key)) if self._binding_is_active and has_binding else False
         kind = classify_message(message.content, active_run=active)
         proposal = None
+        delay_seconds = parse_user_delay(message.content) if kind is DiscordMessageKind.WAIT else None
+        if delay_seconds is not None:
+            proposal = IntentProposal(IntentKind.WAIT, message.content, delay_seconds)
         if self._intent_resolver is not None and kind in {
             DiscordMessageKind.NEW_REQUEST,
             DiscordMessageKind.NOTE,
@@ -173,7 +182,7 @@ class DiscordIngressAdapter:
                 proposal = self._intent_resolver(
                     message.content,
                     active_run=active,
-                    has_binding=self._bindings.lookup(key) is not None,
+                    has_binding=has_binding,
                 )
             except (TypeError, ValueError):
                 # The proposal layer is advisory.  Existing deterministic
@@ -183,7 +192,7 @@ class DiscordIngressAdapter:
                 kind = {
                     IntentKind.CHAT: DiscordMessageKind.CHAT,
                     IntentKind.NEW_REQUEST: DiscordMessageKind.NEW_REQUEST,
-                    IntentKind.FOLLOW_UP: DiscordMessageKind.NOTE,
+                    IntentKind.FOLLOW_UP: DiscordMessageKind.NOTE if active else DiscordMessageKind.NEW_REQUEST,
                     IntentKind.READ_QUERY: DiscordMessageKind.READ_QUERY,
                     IntentKind.WAIT: DiscordMessageKind.WAIT,
                 }[proposal.kind]

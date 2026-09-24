@@ -8,7 +8,7 @@ import sqlite3
 class StateSchema:
     """Own state-table DDL while SQLiteStateStore owns the connection."""
 
-    VERSION = 10
+    VERSION = 11
 
     V1_SCHEMA = """
         CREATE TABLE IF NOT EXISTS tasks (task_id TEXT PRIMARY KEY, payload TEXT NOT NULL);
@@ -65,6 +65,13 @@ class StateSchema:
             source TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_discord_conversation_binding ON discord_conversation_messages(binding_key, received_at, message_id);
+        CREATE TABLE IF NOT EXISTS discord_conversation_sync (
+            binding_key TEXT PRIMARY KEY,
+            latest_synced_message_id TEXT,
+            oldest_seeded_message_id TEXT,
+            seeded INTEGER NOT NULL DEFAULT 0,
+            last_sync_at TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     """
 
@@ -167,6 +174,16 @@ class StateSchema:
                 )""")
                 connection.execute("CREATE INDEX IF NOT EXISTS idx_discord_conversation_binding ON discord_conversation_messages(binding_key, received_at, message_id)")
                 connection.execute("UPDATE schema_meta SET value = '10' WHERE key = 'schema_version'")
+                current = 10
+            if current < 11:
+                connection.execute("""CREATE TABLE IF NOT EXISTS discord_conversation_sync (
+                    binding_key TEXT PRIMARY KEY,
+                    latest_synced_message_id TEXT,
+                    oldest_seeded_message_id TEXT,
+                    seeded INTEGER NOT NULL DEFAULT 0,
+                    last_sync_at TEXT NOT NULL
+                )""")
+                connection.execute("UPDATE schema_meta SET value = '11' WHERE key = 'schema_version'")
             connection.commit()
         except Exception:
             connection.rollback()

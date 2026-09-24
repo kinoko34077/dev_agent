@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any
 
 from ..security.audit import AuditRecorder
@@ -13,12 +14,29 @@ _DEFAULT_LIMIT = 20
 _DEFAULT_MAX_CHARS = 8_000
 
 
+def _iso(value: Any) -> str:
+    return value.isoformat() if hasattr(value, "isoformat") else datetime.now(timezone.utc).isoformat()
+
+
 @dataclass(frozen=True)
 class DiscordHistoryMessage:
-    """A sanitized conversation item, deliberately without replay metadata."""
+    """A sanitized context item; metadata is context, never replay authority."""
 
     role: str
     content: str
+    # Metadata enriches Core context without changing the legacy value
+    # semantics of a history item (role + content).  Keeping it out of
+    # dataclass equality preserves callers that compare the original bounded
+    # two-field projection while consumers that need the richer context can
+    # read the explicit attributes or ``to_dict(include_metadata=True)``.
+    message_id: str | None = field(default=None, compare=False)
+    created_at: str | None = field(default=None, compare=False)
+    speaker_id: str | None = field(default=None, compare=False)
+    speaker_name: str | None = field(default=None, compare=False)
+    reply_to_message_id: str | None = field(default=None, compare=False)
+    message_kind: str | None = field(default=None, compare=False)
+    root_id: str | None = field(default=None, compare=False)
+    run_id: str | None = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
         if self.role not in {"human", "assistant"}:
@@ -27,9 +45,26 @@ class DiscordHistoryMessage:
             raise ValueError("content must be non-empty text")
         if len(self.content) > _DEFAULT_MAX_CHARS:
             raise ValueError("content exceeds the bounded history size")
+        for name in ("message_id", "reply_to_message_id"):
+            value = getattr(self, name)
+            if value is not None and (not isinstance(value, str) or not value.isdecimal() or len(value) > 32):
+                raise ValueError(f"{name} must be a bounded Discord ID")
+        for name in ("created_at", "speaker_id", "speaker_name", "message_kind", "root_id", "run_id"):
+            value = getattr(self, name)
+            if value is not None and (not isinstance(value, str) or not value.strip() or len(value) > 256):
+                raise ValueError(f"{name} must be bounded text")
 
-    def to_dict(self) -> dict[str, str]:
-        return {"role": self.role, "content": self.content}
+    def to_dict(self, *, include_metadata: bool = False) -> dict[str, str | None]:
+        result: dict[str, str | None] = {"role": self.role, "content": self.content}
+        if include_metadata:
+            for name in (
+                "message_id", "created_at", "speaker_id", "speaker_name",
+                "reply_to_message_id", "message_kind", "root_id", "run_id",
+            ):
+                value = getattr(self, name)
+                if value is not None:
+                    result[name] = value
+        return result
 
 
 def _message_channel_id(message: Any) -> str | None:
@@ -115,7 +150,20 @@ async def collect_discord_history(
         content = _safe_content(item, remaining=remaining)
         if not content:
             continue
-        result.append(DiscordHistoryMessage(role=role, content=content))
+        reference = getattr(item, "reference", None)
+        reference_id = str(getattr(reference, "message_id", ""))
+        result.append(
+            DiscordHistoryMessage(
+                role=role,
+                content=content,
+                message_id=item_id,
+                created_at=_iso(getattr(item, "created_at", None)),
+                speaker_id=author_id,
+                speaker_name=str(getattr(author, "name", author_id))[:256] or author_id,
+                reply_to_message_id=reference_id if reference_id.isdecimal() else None,
+                message_kind="HISTORY_CONTEXT",
+            )
+        )
         remaining -= len(content)
 
     return tuple(result)

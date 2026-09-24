@@ -37,6 +37,7 @@ def test_message_classification_keeps_ordinary_text_and_explicit_cancel_separate
     assert classify_message("/interrupt 今すぐ確認") is DiscordMessageKind.INTERRUPT
     assert classify_message("/cancel") is DiscordMessageKind.CANCEL
     assert classify_message("停止して") is DiscordMessageKind.CANCEL
+    assert classify_message("20秒待ってから返事して") is DiscordMessageKind.WAIT
 
 
 def test_plain_text_uses_active_run_context_but_explicit_commands_win():
@@ -115,6 +116,24 @@ def test_active_plain_text_follow_up_stays_note_with_intent_metadata():
 
     assert event is not None
     assert event.kind is DiscordMessageKind.NOTE
+    assert event.intent_proposal is not None
+    assert event.intent_proposal.kind.value == "FOLLOW_UP"
+
+
+def test_terminal_conversation_follow_up_starts_new_operation_with_prior_binding_context():
+    store = InMemoryDiscordBindingStore()
+    key = DiscordBindingKey(guild_id="10", channel_id="20", thread_id="30")
+    store.bind(key, root_id="root-1", run_id="run-1")
+    adapter = DiscordIngressAdapter(
+        authorizer=DiscordAuthorizer(allowed_user_ids={"42"}),
+        bindings=store,
+        binding_is_active=lambda _candidate: False,
+    )
+
+    event = adapter.accept(_message("やっぱりさっきの2個目だけ戻して", message_id="101"))
+
+    assert event is not None
+    assert event.kind is DiscordMessageKind.NEW_REQUEST
     assert event.intent_proposal is not None
     assert event.intent_proposal.kind.value == "FOLLOW_UP"
 

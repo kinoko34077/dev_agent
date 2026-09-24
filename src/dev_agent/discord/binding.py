@@ -70,6 +70,31 @@ class DiscordScopeState:
         object.__setattr__(self, "selected_files", normalized)
 
 
+@dataclass(frozen=True)
+class DiscordHistorySyncState:
+    """Durable cursor metadata for Discord-to-log synchronization only."""
+
+    binding_key: str
+    latest_synced_message_id: str | None = None
+    oldest_seeded_message_id: str | None = None
+    seeded: bool = False
+    last_sync_at: str = ""
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.binding_key, str) or not self.binding_key.strip() or len(self.binding_key) > 256:
+            raise ValueError("binding_key must be bounded non-empty text")
+        for value, name in (
+            (self.latest_synced_message_id, "latest_synced_message_id"),
+            (self.oldest_seeded_message_id, "oldest_seeded_message_id"),
+        ):
+            if value is not None:
+                _discord_id(value, name)
+        if not isinstance(self.seeded, bool):
+            raise ValueError("seeded must be boolean")
+        if not isinstance(self.last_sync_at, str) or not self.last_sync_at.strip() or len(self.last_sync_at) > 128:
+            raise ValueError("last_sync_at must be bounded non-empty text")
+
+
 class InMemoryDiscordBindingStore:
     """MVP pointer/idempotency store; never a Task or Conversation SSOT."""
 
@@ -81,6 +106,7 @@ class InMemoryDiscordBindingStore:
         self._bindings: dict[DiscordBindingKey, DiscordBinding] = {}
         self._messages: dict[str, None] = {}
         self._scopes: dict[DiscordBindingKey, DiscordScopeState] = {}
+        self._history_sync: dict[DiscordBindingKey, DiscordHistorySyncState] = {}
         self._deliveries: dict[tuple[str, str], None] = {}
 
     def bind(self, key: DiscordBindingKey, *, root_id: str, run_id: str) -> DiscordBinding:
@@ -129,6 +155,30 @@ class InMemoryDiscordBindingStore:
             raise ValueError("key must be DiscordBindingKey")
         return self._scopes.get(key)
 
+    def save_history_sync(
+        self,
+        key: DiscordBindingKey,
+        *,
+        latest_synced_message_id: str | None,
+        oldest_seeded_message_id: str | None,
+        seeded: bool,
+        last_sync_at: str | None = None,
+    ) -> DiscordHistorySyncState:
+        state = DiscordHistorySyncState(
+            binding_key="|".join((key.guild_id, key.channel_id, key.thread_id)),
+            latest_synced_message_id=latest_synced_message_id,
+            oldest_seeded_message_id=oldest_seeded_message_id,
+            seeded=seeded,
+            last_sync_at=last_sync_at or _now(),
+        )
+        self._history_sync[key] = state
+        return state
+
+    def get_history_sync(self, key: DiscordBindingKey) -> DiscordHistorySyncState | None:
+        if not isinstance(key, DiscordBindingKey):
+            raise ValueError("key must be DiscordBindingKey")
+        return self._history_sync.get(key)
+
     def record_delivery(self, request_id: str, discord_message_id: str, *, delivered_at: str | None = None) -> bool:
         marker = (validate_identifier(request_id, "request_id"), _discord_id(discord_message_id, "discord_message_id"))
         if marker in self._deliveries:
@@ -167,6 +217,8 @@ class SQLiteDiscordBindingStore:
             "discord_request_id_for_message",
             "save_discord_scope",
             "get_discord_scope",
+            "save_discord_history_sync",
+            "get_discord_history_sync",
         )
         if any(not callable(getattr(store, name, None)) for name in required):
             raise TypeError("store does not implement the Discord persistence contract")
@@ -283,5 +335,42 @@ class SQLiteDiscordBindingStore:
             raise ValueError("stored Discord scope is malformed") from exc
         return DiscordScopeState(directory_scope=row.get("directory_scope"), selected_files=selected_files)
 
+    def save_history_sync(
+        self,
+        key: DiscordBindingKey,
+        *,
+        latest_synced_message_id: str | None,
+        oldest_seeded_message_id: str | None,
+        seeded: bool,
+        last_sync_at: str | None = None,
+    ) -> DiscordHistorySyncState:
+        state = DiscordHistorySyncState(
+            binding_key=self._key(key),
+            latest_synced_message_id=latest_synced_message_id,
+            oldest_seeded_message_id=oldest_seeded_message_id,
+            seeded=seeded,
+            last_sync_at=last_sync_at or _now(),
+        )
+        self._store.save_discord_history_sync(
+            binding_key=state.binding_key,
+            latest_synced_message_id=state.latest_synced_message_id,
+            oldest_seeded_message_id=state.oldest_seeded_message_id,
+            seeded=state.seeded,
+            last_sync_at=state.last_sync_at,
+        )
+        return state
 
-__all__ = ["DiscordBinding", "DiscordBindingKey", "DiscordScopeState", "InMemoryDiscordBindingStore", "SQLiteDiscordBindingStore"]
+    def get_history_sync(self, key: DiscordBindingKey) -> DiscordHistorySyncState | None:
+        row = self._store.get_discord_history_sync(self._key(key))
+        if row is None:
+            return None
+        return DiscordHistorySyncState(
+            binding_key=row["binding_key"],
+            latest_synced_message_id=row.get("latest_synced_message_id"),
+            oldest_seeded_message_id=row.get("oldest_seeded_message_id"),
+            seeded=bool(row.get("seeded")),
+            last_sync_at=row["last_sync_at"],
+        )
+
+
+__all__ = ["DiscordBinding", "DiscordBindingKey", "DiscordHistorySyncState", "DiscordScopeState", "InMemoryDiscordBindingStore", "SQLiteDiscordBindingStore"]

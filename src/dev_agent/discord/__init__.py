@@ -13,18 +13,20 @@ from .adapter import (
     classify_message,
 )
 from .auth import DiscordAuthorizer
-from .binding import DiscordBinding, DiscordBindingKey, DiscordScopeState, InMemoryDiscordBindingStore, SQLiteDiscordBindingStore
+from .binding import DiscordBinding, DiscordBindingKey, DiscordHistorySyncState, DiscordScopeState, InMemoryDiscordBindingStore, SQLiteDiscordBindingStore
 from .human import DiscordHumanAdapter
 from .approval import DiscordApprovalAdapter
 from .core import DiscordCoreAdapter
 from .composition import DiscordRuntimeComposition
 from .outbound import DiscordOutboundPublisher
 from .history import DiscordHistoryMessage, collect_discord_history
+from .context import sync_discord_history
 
 __all__ = [
     "DiscordAuthorizer",
     "DiscordBinding",
     "DiscordBindingKey",
+    "DiscordHistorySyncState",
     "DiscordScopeState",
     "DiscordIngressAdapter",
     "DiscordIngressEvent",
@@ -40,5 +42,6 @@ __all__ = [
     "DiscordOutboundPublisher",
     "DiscordHistoryMessage",
     "collect_discord_history",
+    "sync_discord_history",
     "classify_message",
 ]

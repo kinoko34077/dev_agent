@@ -12,6 +12,8 @@ import asyncio
 from datetime import datetime, timezone
 import hashlib
 import inspect
+import math
+import time
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
@@ -49,6 +51,22 @@ def _progress_delivery_key(root_id: str, marker: str) -> str:
 def _final_delivery_key(task_id: str, marker: str) -> str:
     digest = hashlib.sha256(marker.encode("utf-8", errors="replace")).hexdigest()[:32]
     return f"final:{task_id}:{digest}"
+
+
+def _completed_text(event: Mapping[str, Any] | None) -> str | list[str] | tuple[str, ...] | None:
+    if not isinstance(event, Mapping) or event.get("event_type") != "task.completed":
+        return None
+    payload = event.get("payload")
+    if not isinstance(payload, Mapping):
+        return None
+    value = payload.get("text")
+    if value is None:
+        value = payload.get("text_segments")
+    if isinstance(value, str):
+        return value if value.strip() else None
+    if isinstance(value, (list, tuple)) and any(isinstance(item, str) and item.strip() for item in value):
+        return value
+    return None
 
 
 def _event_stage(status: str, event: Mapping[str, Any] | None) -> tuple[str, str | None]:
@@ -95,6 +113,8 @@ class DiscordOutboundPublisher:
         human_request_view_factory: HumanRequestViewFactory | None = None,
         conversation_log: ConversationLog | None = None,
         archive_maintenance: ArchiveMaintenance | None = None,
+        archive_maintenance_interval_seconds: float = 3_600.0,
+        monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         required_store = (
             "list_pending_human_requests",
@@ -116,6 +136,10 @@ class DiscordOutboundPublisher:
             raise TypeError("conversation_log must implement the ConversationLog boundary")
         if archive_maintenance is not None and not callable(archive_maintenance):
             raise TypeError("archive_maintenance must be callable")
+        if isinstance(archive_maintenance_interval_seconds, bool) or not math.isfinite(archive_maintenance_interval_seconds) or archive_maintenance_interval_seconds <= 0:
+            raise ValueError("archive_maintenance_interval_seconds must be positive and finite")
+        if not callable(monotonic):
+            raise TypeError("monotonic must be callable")
         self._store = store
         self._bindings = bindings
         self._send = send
@@ -123,6 +147,9 @@ class DiscordOutboundPublisher:
         self._human_request_view_factory = human_request_view_factory
         self._conversation_log = conversation_log
         self._archive_maintenance = archive_maintenance
+        self._archive_maintenance_interval_seconds = float(archive_maintenance_interval_seconds)
+        self._monotonic = monotonic
+        self._last_archive_maintenance_at: float | None = None
         self._last_error_category: str | None = None
 
     @property
@@ -223,6 +250,10 @@ class DiscordOutboundPublisher:
             if latest is None:
                 continue
             task, event = latest
+            if _completed_text(event) is not None:
+                # A meaningful final answer is the completion projection.  Do
+                # not send a generic completed progress line before it.
+                continue
             payload = event.get("payload") if isinstance(event, Mapping) else {}
             approval_reference = payload.get("approval_reference") if isinstance(payload, Mapping) else None
             if (
@@ -250,20 +281,8 @@ class DiscordOutboundPublisher:
             task, event = latest
             if not isinstance(event, Mapping) or event.get("event_type") != "task.completed":
                 continue
-            payload = event.get("payload")
-            segments = None
-            if isinstance(payload, Mapping):
-                # The Controller's task.completed contract uses ``text``;
-                # retain the older adapter-facing ``text_segments`` alias for
-                # durable events written by earlier runtime revisions.
-                segments = payload.get("text")
-                if segments is None:
-                    segments = payload.get("text_segments")
-            if not isinstance(segments, str) and not isinstance(segments, (list, tuple)):
-                continue
-            if isinstance(segments, str) and not segments.strip():
-                continue
-            if isinstance(segments, (list, tuple)) and not any(isinstance(item, str) and item.strip() for item in segments):
+            segments = _completed_text(event)
+            if segments is None:
                 continue
             content = render_final_response(segments)
             event_id = event.get("event_id")
@@ -298,7 +317,16 @@ class DiscordOutboundPublisher:
     async def publish_once(self) -> dict[str, int]:
         """Publish one bounded projection pass; no Core work is claimed."""
 
-        if self._archive_maintenance is not None:
+        now = self._monotonic()
+        archive_due = (
+            self._archive_maintenance is not None
+            and (
+                self._last_archive_maintenance_at is None
+                or now - self._last_archive_maintenance_at >= self._archive_maintenance_interval_seconds
+            )
+        )
+        if archive_due:
+            self._last_archive_maintenance_at = now
             try:
                 result = self._archive_maintenance()
                 if inspect.isawaitable(result):

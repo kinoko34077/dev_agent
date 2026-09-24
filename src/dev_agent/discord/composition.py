@@ -8,6 +8,7 @@ second runtime loop; ``RuntimeCoordinator`` remains the execution owner.
 from __future__ import annotations
 
 from collections.abc import Mapping
+import re
 from typing import Any, Callable
 
 from ..coordination.protocol import CoordinationConflict, MessageKind, PeerRecord, PeerStatus
@@ -15,7 +16,7 @@ from ..coordination.protocol_helpers import validate_identifier
 from ..coordination.service import ProcessCoordinationService
 from ..domain.protocol import TaskStatus
 from ..human import SQLiteHumanInteractionPort
-from ..operation import OperationConfig, OperationService
+from ..operation import OperationConfig, OperationError, OperationService
 from ..security.audit import AuditRecorder
 from ..state.sqlite_store import SQLiteStateStore
 from .adapter import DiscordIngressEvent, DiscordMessageKind
@@ -25,12 +26,14 @@ from .binding import SQLiteDiscordBindingStore
 from .core import DiscordCoreAdapter
 from .human import DiscordHumanAdapter
 from .intent import IntentProposal
+from .conversation_archive import search_archive
 
 
 _COORDINATION_SUBJECT_LIMIT = 3_500
 _TERMINAL_TASK_STATES = frozenset(
     {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED}
 )
+_ARCHIVE_REFERENCE_MARKERS = ("前に", "以前", "先週", "この前", "あの時")
 
 
 def _coordination_subject(kind: str, event: DiscordIngressEvent) -> str:
@@ -94,6 +97,7 @@ class DiscordRuntimeComposition:
             submit_coordination=self.submit_coordination,
             submit_wait=self.submit_wait,
             read_status=self.read_status,
+            chat_response=self.chat_response,
         )
 
     @classmethod
@@ -173,9 +177,51 @@ class DiscordRuntimeComposition:
                 inputs["discord_scope"] = scope_hint
         if event.history_context:
             inputs["discord_context"] = {
-                "messages": [item.to_dict() for item in event.history_context],
+                "messages": [item.to_dict(include_metadata=True) for item in event.history_context],
+            }
+        binding = self.bindings.lookup(event.binding_key)
+        if (
+            binding is not None
+            and event.intent_proposal is not None
+            and event.intent_proposal.kind.value == "FOLLOW_UP"
+        ):
+            inputs["discord_follow_up"] = {
+                "previous_root_id": binding.root_id,
+                "previous_run_id": binding.run_id,
             }
         return inputs
+
+    def chat_response(self, event: DiscordIngressEvent) -> dict[str, str]:
+        """Answer read-only chat from bounded context without creating work."""
+
+        if not isinstance(event, DiscordIngressEvent):
+            raise TypeError("event must be DiscordIngressEvent")
+        assistant_lines = [item.content.strip() for item in event.history_context if item.role == "assistant" and item.content.strip()]
+        if any(marker in event.message.content for marker in _ARCHIVE_REFERENCE_MARKERS):
+            safe = AuditRecorder.sanitize_payload({"content": event.message.content}).get("content", "")
+            tokens = re.findall(r"[A-Za-z0-9_./-]{2,}", safe if isinstance(safe, str) else "")
+            query = max(tokens, key=len) if tokens else " ".join(str(safe).split())[:64]
+            if query:
+                try:
+                    archived = search_archive(
+                        self.config.data_dir / "discord-archive",
+                        "|".join((event.binding_key.guild_id, event.binding_key.channel_id, event.binding_key.thread_id)),
+                        query,
+                        limit=5,
+                    )
+                except (OSError, ValueError, TypeError):
+                    archived = ()
+                if archived:
+                    assistant_lines.extend(item.content.strip() for item in archived if item.content.strip())
+        if assistant_lines:
+            return {
+                "state": "CHAT",
+                "text": f"直近のBot記録では、{assistant_lines[-1][:800]}",
+            }
+        return {
+            "state": "CHAT",
+            "text": "この会話内に参照できる完了記録はまだありません。",
+        }
 
     def _discord_context_artifact_refs(self, event: DiscordIngressEvent):
         """Persist bounded Discord context as a Core-owned immutable reference."""
@@ -186,7 +232,7 @@ class DiscordRuntimeComposition:
             {
                 "source": "discord",
                 "source_message_id": event.message.message_id,
-                "messages": [item.to_dict() for item in event.history_context],
+                "messages": [item.to_dict(include_metadata=True) for item in event.history_context],
             },
             kind="discord_context",
             revision="discord-ui",
@@ -215,15 +261,25 @@ class DiscordRuntimeComposition:
             raise ValueError("WAIT requires a bounded delay proposal")
         binding = self.bindings.lookup(event.binding_key)
         if binding is not None and self.binding_is_active(event.binding_key):
-            # An active run already owns its execution boundary.  Do not
-            # silently reinterpret an explicit WAIT as NOTE and do not steal a
-            # Worker lease.  A future Core checkpoint boundary can consume
-            # this explicit result and park/resume the parent durably.
-            return {
-                "state": "WAIT_DEFERRED",
-                "delay_seconds": proposal.delay_seconds,
-                "reason": "active_run_requires_safe_checkpoint",
-            }
+            try:
+                return OperationService.request_user_delay(
+                    self.config,
+                    binding.run_id,
+                    proposal.delay_seconds,
+                    source=content,
+                )
+            except (OperationError, KeyError):
+                return {
+                    "state": "WAIT_DEFERRED",
+                    "delay_seconds": proposal.delay_seconds,
+                    "reason": "active_run_requires_safe_checkpoint",
+                }
+            except ValueError:
+                return {
+                    "state": "WAIT_FAILED",
+                    "delay_seconds": proposal.delay_seconds,
+                    "reason": "active_task_wait_could_not_be_scheduled",
+                }
         task = OperationService.submit_delayed(
             self.config,
             content,

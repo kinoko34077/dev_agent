@@ -41,7 +41,7 @@ def render_echo(content: str) -> str:
     return "受信しました。\n作業を開始します。"
 
 
-def render_ingress_ack(kind: str) -> str:
+def render_ingress_ack(kind: str, *, result: object | None = None) -> str:
     """Render a short acknowledgement for an accepted ingress event."""
 
     labels = {
@@ -53,6 +53,21 @@ def render_ingress_ack(kind: str) -> str:
         "CANCEL": "停止依頼を受け付けました。\n対象Taskだけを停止します。",
         "WAIT": "待機を受け付けました。\n指定時刻以降に作業を再開します。",
     }
+    if str(kind).upper() == "WAIT" and isinstance(result, Mapping):
+        state = result.get("state")
+        seconds = result.get("delay_seconds")
+        if state == "WAIT_ACCEPTED":
+            return f"{_safe_text(seconds, maximum=16)}秒待機します。\n指定時刻以降に作業を再開します。"
+        if state == "WAIT_DEFERRED":
+            return f"現在の処理が安全な区切りに到達したら{_safe_text(seconds, maximum=16)}秒待機します。\nまだ待機開始前です。"
+        if state == "WAIT_FAILED":
+            return "待機を設定できませんでした。\n現在の処理は継続しています。"
+    if str(kind).upper() == "WAIT" and result is not None:
+        metadata = getattr(result, "metadata", None)
+        if isinstance(metadata, Mapping) and metadata.get("wait_reason") == "user_delay":
+            seconds = metadata.get("requested_duration_seconds")
+            if isinstance(seconds, int) and not isinstance(seconds, bool):
+                return f"{_safe_text(seconds, maximum=16)}秒待機します。\n指定時刻以降に作業を再開します。"
     return labels.get(str(kind).upper(), render_echo(""))
 
 
@@ -99,6 +114,17 @@ def render_read_projection(projection: Mapping[str, object]) -> str:
     return _bounded("現在の状態\n\n" + "\n".join(f"- {line}" for line in lines))
 
 
+def render_chat_response(projection: Mapping[str, object]) -> str:
+    """Render a read-only conversational response without echoing raw input."""
+
+    if not isinstance(projection, Mapping):
+        return "会話の参照情報を取得できませんでした。"
+    text = projection.get("text")
+    if not isinstance(text, str) or not text.strip():
+        return "会話の参照情報を取得できませんでした。"
+    return _bounded(_safe_text(text, maximum=1_800))
+
+
 def render_final_response(text_segments: object) -> str:
     """Render a bounded natural-language completion projection."""
 
@@ -112,4 +138,4 @@ def render_final_response(text_segments: object) -> str:
     return _bounded(text or "作業が完了しました。")
 
 
-__all__ = ["render_echo", "render_final_response", "render_human_request", "render_ingress_ack", "render_progress", "render_read_projection"]
+__all__ = ["render_chat_response", "render_echo", "render_final_response", "render_human_request", "render_ingress_ack", "render_progress", "render_read_projection"]

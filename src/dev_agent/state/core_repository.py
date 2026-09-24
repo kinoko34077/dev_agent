@@ -163,6 +163,51 @@ class CoreStateRepository:
         ).fetchone()
         return dict(row) if row is not None else None
 
+    def save_discord_history_sync(
+        self,
+        *,
+        binding_key: str,
+        latest_synced_message_id: str | None,
+        oldest_seeded_message_id: str | None,
+        seeded: bool,
+        last_sync_at: str,
+    ) -> None:
+        if not isinstance(binding_key, str) or not binding_key.strip() or len(binding_key) > 256:
+            raise ValueError("binding_key must be bounded non-empty text")
+        for value, name in (
+            (latest_synced_message_id, "latest_synced_message_id"),
+            (oldest_seeded_message_id, "oldest_seeded_message_id"),
+        ):
+            if value is not None and (not isinstance(value, str) or not value.isdecimal() or len(value) > 32):
+                raise ValueError(f"{name} must be a bounded Discord numeric ID")
+        if not isinstance(seeded, bool):
+            raise ValueError("seeded must be boolean")
+        if not isinstance(last_sync_at, str) or not last_sync_at.strip() or len(last_sync_at) > 128:
+            raise ValueError("last_sync_at must be bounded non-empty text")
+        self.connection.execute(
+            """
+            INSERT INTO discord_conversation_sync(
+                binding_key, latest_synced_message_id, oldest_seeded_message_id, seeded, last_sync_at
+            ) VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(binding_key) DO UPDATE SET
+                latest_synced_message_id=excluded.latest_synced_message_id,
+                oldest_seeded_message_id=excluded.oldest_seeded_message_id,
+                seeded=excluded.seeded,
+                last_sync_at=excluded.last_sync_at
+            """,
+            (binding_key.strip(), latest_synced_message_id, oldest_seeded_message_id, int(seeded), last_sync_at.strip()),
+        )
+
+    def get_discord_history_sync(self, binding_key: str) -> dict[str, Any] | None:
+        if not isinstance(binding_key, str) or not binding_key.strip():
+            raise ValueError("binding_key must be non-empty text")
+        row = self.connection.execute(
+            """SELECT binding_key, latest_synced_message_id, oldest_seeded_message_id, seeded, last_sync_at
+                 FROM discord_conversation_sync WHERE binding_key = ?""",
+            (binding_key.strip(),),
+        ).fetchone()
+        return dict(row) if row is not None else None
+
     def append_discord_conversation_message(self, message: ConversationMessage) -> bool:
         cursor = self.connection.execute(
             """INSERT OR IGNORE INTO discord_conversation_messages(
@@ -181,6 +226,7 @@ class CoreStateRepository:
         *,
         limit: int,
         max_chars: int,
+        newest_first: bool = False,
     ) -> list[ConversationMessage]:
         if not isinstance(binding_key, str) or not binding_key.strip():
             raise ValueError("binding_key must be non-empty text")
@@ -188,14 +234,15 @@ class CoreStateRepository:
             raise ValueError("limit must be between 1 and 200")
         if isinstance(max_chars, bool) or not isinstance(max_chars, int) or not 1 <= max_chars <= 64_000:
             raise ValueError("max_chars must be between 1 and 64000")
+        order = "DESC" if newest_first else "ASC"
         rows = self.connection.execute(
-            """SELECT message_id, binding_key, guild_id, channel_id, thread_id,
+            f"""SELECT message_id, binding_key, guild_id, channel_id, thread_id,
                       created_at, received_at, speaker_role, speaker_id,
                       speaker_name, direction, content, reply_to_message_id,
                       message_kind, root_id, run_id, source
                  FROM discord_conversation_messages
                 WHERE binding_key = ?
-                ORDER BY created_at ASC, received_at ASC, message_id ASC
+                ORDER BY created_at {order}, received_at {order}, message_id {order}
                 LIMIT ?""",
             (binding_key.strip(), limit),
         ).fetchall()
@@ -209,7 +256,21 @@ class CoreStateRepository:
             remaining -= len(message.content)
             if remaining == 0:
                 break
-        return result
+        return list(reversed(result)) if newest_first else result
+
+    def get_discord_conversation_message(self, message_id: str) -> ConversationMessage | None:
+        if not isinstance(message_id, str) or not message_id.strip():
+            raise ValueError("message_id must be non-empty text")
+        row = self.connection.execute(
+            """SELECT message_id, binding_key, guild_id, channel_id, thread_id,
+                      created_at, received_at, speaker_role, speaker_id,
+                      speaker_name, direction, content, reply_to_message_id,
+                      message_kind, root_id, run_id, source
+                 FROM discord_conversation_messages
+                WHERE message_id = ?""",
+            (message_id.strip(),),
+        ).fetchone()
+        return ConversationMessage.from_row(row) if row is not None else None
 
     def list_discord_conversation_archive_candidates(
         self,
