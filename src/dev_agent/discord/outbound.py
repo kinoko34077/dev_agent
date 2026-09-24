@@ -25,7 +25,7 @@ from .binding import (
     SQLiteDiscordBindingStore,
 )
 from .conversation_log import ConversationLog, ConversationMessage
-from .renderer import render_final_response, render_human_request, render_progress
+from .renderer import render_final_response_chunks, render_human_request, render_progress
 
 
 SendCallback = Callable[[DiscordBinding, str, Any | None], Awaitable[Any] | Any]
@@ -48,9 +48,9 @@ def _progress_delivery_key(root_id: str, marker: str) -> str:
     return f"progress:{root_id}:{digest}"
 
 
-def _final_delivery_key(task_id: str, marker: str) -> str:
+def _final_delivery_key(task_id: str, marker: str, chunk_index: int = 0) -> str:
     digest = hashlib.sha256(marker.encode("utf-8", errors="replace")).hexdigest()[:32]
-    return f"final:{task_id}:{digest}"
+    return f"final:{task_id}:{digest}:{chunk_index}"
 
 
 def _completed_text(event: Mapping[str, Any] | None) -> str | list[str] | tuple[str, ...] | None:
@@ -150,16 +150,24 @@ class DiscordOutboundPublisher:
         self._archive_maintenance_interval_seconds = float(archive_maintenance_interval_seconds)
         self._monotonic = monotonic
         self._last_archive_maintenance_at: float | None = None
+        self._last_archive_attempt_at: float | None = None
+        self._last_archive_success_at: float | None = None
+        self._last_archive_error_category: str | None = None
+        self._archive_failure_retry_seconds = 60.0
         self._last_error_category: str | None = None
+        self._pending_log_reconciliations: dict[tuple[str, str], ConversationMessage] = {}
 
     @property
     def last_error_category(self) -> str | None:
         return self._last_error_category
 
     def health_projection(self) -> dict[str, str | None]:
+        last_error = self._last_error_category or self._last_archive_error_category
         return {
-            "state": "DEGRADED" if self._last_error_category else "READY",
-            "last_error_category": self._last_error_category,
+            "state": "DEGRADED" if last_error else "READY",
+            "last_error_category": last_error,
+            "archive_state": "DEGRADED" if self._last_archive_error_category else "READY",
+            "last_archive_error_category": self._last_archive_error_category,
         }
 
     def _record_error(self, error: BaseException) -> None:
@@ -174,34 +182,65 @@ class DiscordOutboundPublisher:
         view: Any | None = None,
     ) -> bool:
         if self._bindings.has_any_delivery(delivery_key):
+            if self._conversation_log is not None:
+                delivery_ids = self._bindings.delivery_message_ids(delivery_key)
+                metadata_reader = getattr(self._bindings, "delivery_metadata", None)
+                if callable(metadata_reader):
+                    for message_id in delivery_ids:
+                        metadata = metadata_reader(delivery_key, message_id)
+                        payload = metadata.get("conversation_message") if isinstance(metadata, Mapping) else None
+                        if not isinstance(payload, Mapping) or self._conversation_log.get(message_id) is not None:
+                            continue
+                        try:
+                            self._conversation_log.append(ConversationMessage(**dict(payload)))
+                        except (TypeError, ValueError, KeyError):
+                            # Corrupt optional metadata must never trigger a
+                            # Discord resend or mutate Core state.
+                            continue
+                pending = [
+                    (key, message)
+                    for key, message in self._pending_log_reconciliations.items()
+                    if key[0] == delivery_key
+                ]
+                for key, message in pending:
+                    if self._conversation_log.get(message.message_id) is None:
+                        self._conversation_log.append(message)
+                    self._pending_log_reconciliations.pop(key, None)
             return False
         result = self._send(binding, content, view)
         if inspect.isawaitable(result):
             result = await result
         message_id = _message_id(result)
-        self._bindings.record_delivery(delivery_key, message_id)
+        message = ConversationMessage(
+            message_id=message_id,
+            binding_key="|".join((binding.key.guild_id, binding.key.channel_id, binding.key.thread_id)),
+            guild_id=binding.key.guild_id,
+            channel_id=binding.key.channel_id,
+            thread_id=binding.key.thread_id,
+            created_at=datetime.now(timezone.utc).isoformat(),
+            received_at=datetime.now(timezone.utc).isoformat(),
+            speaker_role="assistant",
+            speaker_id="dev_agent",
+            speaker_name="dev_agent",
+            direction="outbound",
+            content=content,
+            reply_to_message_id=None,
+            message_kind=delivery_key.split(":", 1)[0].upper(),
+            root_id=binding.root_id,
+            run_id=binding.run_id,
+            source="outbound_projection",
+        )
+        self._bindings.record_delivery(
+            delivery_key,
+            message_id,
+            metadata={"conversation_message": message.to_dict()},
+        )
         if self._conversation_log is not None:
-            self._conversation_log.append(
-                ConversationMessage(
-                    message_id=message_id,
-                    binding_key="|".join((binding.key.guild_id, binding.key.channel_id, binding.key.thread_id)),
-                    guild_id=binding.key.guild_id,
-                    channel_id=binding.key.channel_id,
-                    thread_id=binding.key.thread_id,
-                    created_at=datetime.now(timezone.utc).isoformat(),
-                    received_at=datetime.now(timezone.utc).isoformat(),
-                    speaker_role="assistant",
-                    speaker_id="dev_agent",
-                    speaker_name="dev_agent",
-                    direction="outbound",
-                    content=content,
-                    reply_to_message_id=None,
-                    message_kind=delivery_key.split(":", 1)[0].upper(),
-                    root_id=binding.root_id,
-                    run_id=binding.run_id,
-                    source="outbound_projection",
-                )
-            )
+            try:
+                self._conversation_log.append(message)
+            except BaseException:
+                self._pending_log_reconciliations[(delivery_key, message_id)] = message
+                raise
         return True
 
     def _binding_for_task(self, task_id: str) -> DiscordBinding | None:
@@ -284,11 +323,12 @@ class DiscordOutboundPublisher:
             segments = _completed_text(event)
             if segments is None:
                 continue
-            content = render_final_response(segments)
+            chunks = render_final_response_chunks(segments)
             event_id = event.get("event_id")
             marker = event_id if isinstance(event_id, str) and event_id else task.updated_at
-            if await self._send_once(binding, _final_delivery_key(task.task_id, marker), content):
-                published += 1
+            for chunk_index, content in enumerate(chunks):
+                if await self._send_once(binding, _final_delivery_key(task.task_id, marker, chunk_index), content):
+                    published += 1
         return published
 
     async def publish_approvals(self) -> int:
@@ -318,24 +358,31 @@ class DiscordOutboundPublisher:
         """Publish one bounded projection pass; no Core work is claimed."""
 
         now = self._monotonic()
+        archive_interval = self._archive_maintenance_interval_seconds
+        if self._last_archive_error_category is not None:
+            archive_interval = min(archive_interval, self._archive_failure_retry_seconds)
         archive_due = (
             self._archive_maintenance is not None
             and (
-                self._last_archive_maintenance_at is None
-                or now - self._last_archive_maintenance_at >= self._archive_maintenance_interval_seconds
+                self._last_archive_attempt_at is None
+                or now - self._last_archive_attempt_at >= archive_interval
             )
         )
         if archive_due:
+            self._last_archive_attempt_at = now
             self._last_archive_maintenance_at = now
             try:
                 result = self._archive_maintenance()
                 if inspect.isawaitable(result):
                     await result
+                self._last_archive_success_at = now
+                self._last_archive_error_category = None
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
                 # Archive is maintenance-only.  Keep Discord projection and
                 # Core execution alive; the next bounded pass retries it.
+                self._last_archive_error_category = type(exc).__name__[:64]
                 self._record_error(exc)
 
         human_requests = await self.publish_human_requests()

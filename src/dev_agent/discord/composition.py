@@ -27,6 +27,7 @@ from .core import DiscordCoreAdapter
 from .human import DiscordHumanAdapter
 from .intent import IntentProposal
 from .conversation_archive import search_archive
+from .history import DiscordHistoryMessage
 
 
 _COORDINATION_SUBJECT_LIMIT = 3_500
@@ -34,6 +35,10 @@ _TERMINAL_TASK_STATES = frozenset(
     {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED}
 )
 _ARCHIVE_REFERENCE_MARKERS = ("前に", "以前", "先週", "この前", "あの時")
+_FINAL_MESSAGE_KINDS = frozenset({"FINAL", "TASK_FINAL", "FINAL_RESPONSE"})
+_DECISION_MESSAGE_MARKERS = ("HUMAN_REQUEST", "HUMAN_RESPONSE", "APPROVAL")
+_PROGRESS_MESSAGE_MARKERS = ("PROGRESS", "STATUS", "COMPLETED")
+_ACK_MESSAGE_MARKERS = ("ACK", "CHAT_REPLY", "READ_QUERY_REPLY")
 
 
 def _coordination_subject(kind: str, event: DiscordIngressEvent) -> str:
@@ -196,10 +201,16 @@ class DiscordRuntimeComposition:
 
         if not isinstance(event, DiscordIngressEvent):
             raise TypeError("event must be DiscordIngressEvent")
-        assistant_lines = [item.content.strip() for item in event.history_context if item.role == "assistant" and item.content.strip()]
+        assistant_items = [
+            item for item in event.history_context
+            if item.role == "assistant" and item.content.strip()
+        ]
         if any(marker in event.message.content for marker in _ARCHIVE_REFERENCE_MARKERS):
             safe = AuditRecorder.sanitize_payload({"content": event.message.content}).get("content", "")
-            tokens = re.findall(r"[A-Za-z0-9_./-]{2,}", safe if isinstance(safe, str) else "")
+            tokens = re.findall(
+                r"[A-Za-z0-9_./-]{2,}|[\u3040-\u30ff\u3400-\u9fff]{2,}",
+                safe if isinstance(safe, str) else "",
+            )
             query = max(tokens, key=len) if tokens else " ".join(str(safe).split())[:64]
             if query:
                 try:
@@ -212,12 +223,55 @@ class DiscordRuntimeComposition:
                 except (OSError, ValueError, TypeError):
                     archived = ()
                 if archived:
-                    assistant_lines.extend(item.content.strip() for item in archived if item.content.strip())
-        if assistant_lines:
+                    assistant_items.extend(
+                        DiscordHistoryMessage(
+                            role="assistant",
+                            content=item.content.strip(),
+                            message_id=item.message_id,
+                            created_at=item.created_at,
+                            speaker_id=item.speaker_id,
+                            speaker_name=item.speaker_name,
+                            reply_to_message_id=item.reply_to_message_id,
+                            message_kind=item.message_kind,
+                            root_id=item.root_id,
+                            run_id=item.run_id,
+                        )
+                        for item in archived
+                        if item.content.strip()
+                    )
+        def _kind(item: Any) -> str:
+            return str(getattr(item, "message_kind", "") or "").upper()
+
+        final_lines = [item.content.strip() for item in assistant_items if _kind(item) in _FINAL_MESSAGE_KINDS]
+        decision_lines = [
+            item.content.strip()
+            for item in assistant_items
+            if any(marker in _kind(item) for marker in _DECISION_MESSAGE_MARKERS)
+        ]
+        progress_lines = [
+            item.content.strip()
+            for item in assistant_items
+            if any(marker in _kind(item) for marker in _PROGRESS_MESSAGE_MARKERS)
+        ]
+        ack_lines = [
+            item.content.strip()
+            for item in assistant_items
+            if any(marker in _kind(item) for marker in _ACK_MESSAGE_MARKERS)
+        ]
+        selected = final_lines or decision_lines or progress_lines or ack_lines
+        if selected:
             return {
                 "state": "CHAT",
-                "text": f"直近のBot記録では、{assistant_lines[-1][:800]}",
+                "text": f"会話の記録では、{selected[-1][:800]}",
             }
+        binding = self.bindings.lookup(event.binding_key)
+        if binding is not None:
+            task = self.store.load_task(binding.run_id)
+            if task is not None:
+                return {
+                    "state": "CHAT",
+                    "text": f"現在のTaskは「{task.objective[:240]}」で、状態は{task.status.value}です。",
+                }
         return {
             "state": "CHAT",
             "text": "この会話内に参照できる完了記録はまだありません。",

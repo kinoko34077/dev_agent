@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 from uuid import uuid4
 
+import pytest
+
 from src.dev_agent.discord.binding import DiscordBindingKey, SQLiteDiscordBindingStore
 from src.dev_agent.discord.conversation_log import ConversationLog
 from src.dev_agent.discord.outbound import DiscordOutboundPublisher
@@ -186,6 +188,117 @@ def test_final_response_accepts_production_task_completed_text_payload(tmp_path)
         assert sent.count("実際の完了回答です。\n次の処理はありません。") == 1
 
 
+def test_final_response_is_split_into_idempotent_bounded_chunks(tmp_path):
+    sent: list[str] = []
+
+    async def send(_binding, content, view=None):
+        sent.append(content)
+        return str(965 + len(sent))
+
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        task = Task(objective="long final response")
+        task.status = TaskStatus.COMPLETED
+        store.save_task(task)
+        bindings, _key = _binding(store, task)
+        store.append_event(
+            Event(
+                event_id=str(uuid4()),
+                event_type="task.completed",
+                task_id=task.task_id,
+                payload={"text": "段落A。\n\n" + ("長い説明です。" * 500) + "\n\n段落C。"},
+            )
+        )
+        publisher = DiscordOutboundPublisher(store, bindings, send=send)
+
+        first = asyncio.run(publisher.publish_once())
+        second = asyncio.run(publisher.publish_once())
+
+    assert first["final_responses"] > 1
+    assert second["final_responses"] == 0
+    assert all(0 < len(chunk) <= 1900 for chunk in sent)
+
+
+def test_sent_delivery_reconciles_missing_conversation_log_without_resend(tmp_path, monkeypatch):
+    sent: list[str] = []
+
+    async def send(_binding, content, view=None):
+        sent.append(content)
+        return "980"
+
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        task = Task(objective="log reconciliation")
+        task.status = TaskStatus.COMPLETED
+        store.save_task(task)
+        bindings, _key = _binding(store, task)
+        store.append_event(
+            Event(
+                event_id=str(uuid4()),
+                event_type="task.completed",
+                task_id=task.task_id,
+                payload={"text": "送信済みだが記録が欠けた回答"},
+            )
+        )
+        log = ConversationLog(store)
+        original_append = log.append
+        fail_once = {"value": True}
+
+        def flaky_append(message):
+            if fail_once["value"]:
+                fail_once["value"] = False
+                raise OSError("conversation log temporarily unavailable")
+            return original_append(message)
+
+        monkeypatch.setattr(log, "append", flaky_append)
+        publisher = DiscordOutboundPublisher(store, bindings, send=send, conversation_log=log)
+
+        with pytest.raises(OSError, match="conversation log temporarily unavailable"):
+            asyncio.run(publisher.publish_once())
+        assert sent == ["送信済みだが記録が欠けた回答"]
+
+        result = asyncio.run(publisher.publish_once())
+        assert log.get("980") is not None
+
+    assert result["final_responses"] == 0
+    assert sent == ["送信済みだが記録が欠けた回答"]
+
+
+def test_sent_delivery_reconciles_after_publisher_restart_without_resend(tmp_path, monkeypatch):
+    sent: list[str] = []
+    path = tmp_path / "state.sqlite3"
+
+    async def send(_binding, content, view=None):
+        sent.append(content)
+        return "981"
+
+    with SQLiteStateStore(path) as store:
+        task = Task(objective="durable log reconciliation")
+        task.status = TaskStatus.COMPLETED
+        store.save_task(task)
+        bindings, _key = _binding(store, task)
+        store.append_event(
+            Event(
+                event_id=str(uuid4()),
+                event_type="task.completed",
+                task_id=task.task_id,
+                payload={"text": "再起動後もログだけ補完する回答"},
+            )
+        )
+        log = ConversationLog(store)
+        monkeypatch.setattr(log, "append", lambda _message: (_ for _ in ()).throw(OSError("log append failed")))
+        with pytest.raises(OSError, match="log append failed"):
+            asyncio.run(DiscordOutboundPublisher(store, bindings, send=send, conversation_log=log).publish_once())
+
+    with SQLiteStateStore(path) as reopened:
+        bindings = SQLiteDiscordBindingStore(reopened)
+        log = ConversationLog(reopened)
+        publisher = DiscordOutboundPublisher(reopened, bindings, send=send, conversation_log=log)
+        result = asyncio.run(publisher.publish_once())
+        assert result["final_responses"] == 0
+        assert log.get("981") is not None
+
+    assert sent == ["再起動後もログだけ補完する回答"]
+
+
 def test_completed_text_suppresses_generic_completed_progress(tmp_path):
     sent: list[str] = []
 
@@ -298,6 +411,8 @@ def test_projection_loop_exposes_bounded_error_health_without_raw_exception(tmp_
         assert publisher.health_projection() == {
             "state": "DEGRADED",
             "last_error_category": "RuntimeError",
+            "archive_state": "READY",
+            "last_archive_error_category": None,
         }
 
 
@@ -339,3 +454,35 @@ def test_archive_maintenance_is_throttled_without_a_second_scheduler(tmp_path):
         asyncio.run(publisher.publish_once())
 
     assert calls == ["archive", "archive"]
+
+
+def test_archive_failure_uses_bounded_retry_backoff_and_health_projection(tmp_path):
+    calls: list[str] = []
+    clock = [100.0]
+
+    def archive():
+        calls.append("archive")
+        if len(calls) == 1:
+            raise OSError("archive unavailable")
+
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        bindings = SQLiteDiscordBindingStore(store)
+        publisher = DiscordOutboundPublisher(
+            store,
+            bindings,
+            send=lambda *_args: "906",
+            archive_maintenance=archive,
+            archive_maintenance_interval_seconds=3600,
+            monotonic=lambda: clock[0],
+        )
+
+        asyncio.run(publisher.publish_once())
+        assert publisher.health_projection()["last_archive_error_category"] == "OSError"
+        clock[0] = 159.0
+        asyncio.run(publisher.publish_once())
+        assert calls == ["archive"]
+        clock[0] = 160.0
+        asyncio.run(publisher.publish_once())
+
+    assert calls == ["archive", "archive"]
+    assert publisher.health_projection()["archive_state"] == "READY"

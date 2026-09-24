@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
+import hashlib
 import inspect
 import os
 from pathlib import Path
@@ -24,8 +25,9 @@ from .history import collect_discord_history
 from .human import DiscordHumanAdapter
 from .outbound import DiscordOutboundPublisher
 from .renderer import render_chat_response, render_ingress_ack, render_progress, render_read_projection
+from .intent import ProposalOnlyIntentResolver, resolve_plain_text
 from ..human import HumanRequest
-from ..operation import OperationConfig
+from ..operation import OperationConfig, OperationService
 
 
 class DiscordConfigurationError(ValueError):
@@ -150,6 +152,21 @@ def _binding_key_from_discord(guild: Any, channel: Any) -> DiscordBindingKey:
     return DiscordBindingKey(guild_id, channel_id, thread_id)
 
 
+def _component_id(kind: str, identifier: str, suffix: str = "") -> str:
+    """Build a stable, bounded component id without embedding UI content."""
+
+    safe_identifier = re.sub(r"[^A-Za-z0-9_-]", "-", str(identifier).strip())
+    if not safe_identifier:
+        raise ValueError("component identifier must be non-empty")
+    prefix = f"devagent:{kind}:"
+    tail = f":{suffix}" if suffix else ""
+    candidate = f"{prefix}{safe_identifier}{tail}"
+    if len(candidate) <= 100:
+        return candidate
+    digest = hashlib.sha256(str(identifier).encode("utf-8", errors="replace")).hexdigest()[:32]
+    return f"{prefix}{digest}{tail}"[:100]
+
+
 def _message_from_discord(message: Any) -> DiscordMessage:
     guild = getattr(message, "guild", None)
     channel = getattr(message, "channel", None)
@@ -178,16 +195,39 @@ def build_approval_view(*, approval_id: str, authorizer: DiscordAuthorizer, subm
         def __init__(self) -> None:
             super().__init__(timeout=None)
 
+            approve = discord.ui.Button(
+                label="承認",
+                style=discord.ButtonStyle.success,
+                custom_id=_component_id("approval", approval_id, "yes"),
+            )
+            reject = discord.ui.Button(
+                label="拒否",
+                style=discord.ButtonStyle.danger,
+                custom_id=_component_id("approval", approval_id, "no"),
+            )
+
+            async def _approve(interaction: Any) -> None:
+                await self._handle(interaction, True)
+
+            async def _reject(interaction: Any) -> None:
+                await self._handle(interaction, False)
+
+            approve.callback = _approve
+            reject.callback = _reject
+            self.add_item(approve)
+            self.add_item(reject)
+
         async def _handle(self, interaction: Any, approved: bool) -> None:
             guild = getattr(interaction, "guild", None)
             channel = getattr(interaction, "channel", None)
             try:
+                binding_key = _binding_key_from_discord(guild, channel)
                 result = boundary.submit(
                     approval_id,
                     author_id=str(interaction.user.id),
                     approved=approved,
-                    guild_id=str(getattr(guild, "id", "")),
-                    channel_id=str(getattr(channel, "id", "")),
+                    guild_id=binding_key.guild_id,
+                    channel_id=binding_key.channel_id,
                 )
                 if inspect.isawaitable(result):
                     await result
@@ -195,14 +235,6 @@ def build_approval_view(*, approval_id: str, authorizer: DiscordAuthorizer, subm
                 await interaction.response.send_message("この承認操作は受け付けられません。", ephemeral=True)
                 return
             await interaction.response.send_message("既存のApproval Authorityへ結果を送信しました。", ephemeral=True)
-
-        @discord.ui.button(label="承認", style=discord.ButtonStyle.success)
-        async def approve(self, interaction: Any, _button: Any) -> None:
-            await self._handle(interaction, True)
-
-        @discord.ui.button(label="拒否", style=discord.ButtonStyle.danger)
-        async def reject(self, interaction: Any, _button: Any) -> None:
-            await self._handle(interaction, False)
 
     return ApprovalView()
 
@@ -219,30 +251,64 @@ def build_human_request_view(*, request: HumanRequest, authorizer: DiscordAuthor
     class HumanRequestView(discord.ui.View):
         def __init__(self) -> None:
             super().__init__(timeout=None)
-            for answer in request.allowed_answers:
-                button = discord.ui.Button(label=answer, style=discord.ButtonStyle.primary)
+            answers = tuple(request.allowed_answers)
 
-                async def _callback(interaction: Any, selected: str = answer) -> None:
-                    guild = getattr(interaction, "guild", None)
-                    channel = getattr(interaction, "channel", None)
+            async def _submit_selected(interaction: Any, selected: str) -> None:
+                guild = getattr(interaction, "guild", None)
+                channel = getattr(interaction, "channel", None)
+                binding_key = _binding_key_from_discord(guild, channel)
+                try:
+                    result = submit(
+                        request_id=request.request_id,
+                        author_id=str(interaction.user.id),
+                        response={"decision": selected},
+                        decision=selected,
+                        guild_id=binding_key.guild_id,
+                        channel_id=binding_key.channel_id,
+                    )
+                    if inspect.isawaitable(result):
+                        await result
+                except (PermissionError, ValueError, KeyError):
+                    await interaction.response.send_message("この回答は受け付けられません。", ephemeral=True)
+                    return
+                await interaction.response.send_message("回答を受け付けました。", ephemeral=True)
+
+            if 1 <= len(answers) <= 5:
+                for index, answer in enumerate(answers):
+                    button = discord.ui.Button(
+                        label=str(answer)[:80],
+                        style=discord.ButtonStyle.primary,
+                        custom_id=_component_id("human", request.request_id, str(index)),
+                    )
+
+                    async def _callback(interaction: Any, selected: str = answer) -> None:
+                        await _submit_selected(interaction, selected)
+
+                    button.callback = _callback
+                    self.add_item(button)
+            elif 6 <= len(answers) <= 25:
+                select = discord.ui.Select(
+                    custom_id=_component_id("human", request.request_id, "select"),
+                    placeholder="選択してください",
+                    min_values=1,
+                    max_values=1,
+                    options=[
+                        discord.SelectOption(label=str(answer)[:100], value=str(index))
+                        for index, answer in enumerate(answers)
+                    ],
+                )
+
+                async def _select_callback(interaction: Any) -> None:
+                    values = getattr(select, "values", ())
                     try:
-                        result = submit(
-                            request_id=request.request_id,
-                            author_id=str(interaction.user.id),
-                            response={"decision": selected},
-                            decision=selected,
-                            guild_id=str(getattr(guild, "id", "")),
-                            channel_id=str(getattr(channel, "id", "")),
-                        )
-                        if inspect.isawaitable(result):
-                            await result
-                    except (PermissionError, ValueError, KeyError):
+                        selected = answers[int(values[0])]
+                    except (IndexError, TypeError, ValueError):
                         await interaction.response.send_message("この回答は受け付けられません。", ephemeral=True)
                         return
-                    await interaction.response.send_message("回答を受け付けました。", ephemeral=True)
+                    await _submit_selected(interaction, selected)
 
-                button.callback = _callback
-                self.add_item(button)
+                select.callback = _select_callback
+                self.add_item(select)
 
     return HumanRequestView()
 
@@ -263,6 +329,8 @@ def build_bot(
     history_seed_limit: int = 500,
     history_incremental_limit: int = 100,
     history_seed_days: int = 30,
+    persistent_view_loader=None,
+    intent_resolver=None,
 ) -> Any:
     """Build the Gateway bot; no Discord connection starts until ``run``."""
 
@@ -284,16 +352,23 @@ def build_bot(
         raise TypeError("human_facing_sender must implement the Discord send boundary")
     if conversation_log is not None and not isinstance(conversation_log, ConversationLog):
         raise TypeError("conversation_log must implement the ConversationLog boundary")
+    if persistent_view_loader is not None and not callable(persistent_view_loader):
+        raise TypeError("persistent_view_loader must be callable")
+    if intent_resolver is not None and not callable(intent_resolver):
+        raise TypeError("intent_resolver must be callable")
+    intent_resolver = intent_resolver or resolve_plain_text
     ingress = DiscordIngressAdapter(
         authorizer=authorizer,
         bindings=bindings,
         binding_is_active=binding_is_active,
+        intent_resolver=intent_resolver,
     )
     scope = DiscordScope(Path(workspace))
     intents = discord.Intents.default()
     intents.message_content = True
     bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
     sync_state = {"done": False}
+    restore_state = {"done": False}
     outbound_state: dict[str, asyncio.Task[Any] | None] = {"task": None}
 
     async def _send_human_facing(
@@ -354,6 +429,21 @@ def build_bot(
             except Exception:
                 print("Discord application-command sync failed; Gateway ingress remains active")
             sync_state["done"] = True
+        if persistent_view_loader is not None and not restore_state["done"]:
+            try:
+                views = persistent_view_loader()
+                if inspect.isawaitable(views):
+                    views = await views
+                for item in views or ():
+                    view, message_id = item
+                    if message_id is None:
+                        bot.add_view(view)
+                    else:
+                        bot.add_view(view, message_id=int(message_id))
+            except Exception:
+                print("Discord persistent component restoration failed")
+            finally:
+                restore_state["done"] = True
         if outbound_state["task"] is None:
             publisher = getattr(bot, "_dev_agent_discord_outbound", None)
             if publisher is not None:
@@ -369,6 +459,12 @@ def build_bot(
         except ValueError:
             # Discord itself supplied malformed/unusable metadata; do not echo
             # or route it into the Core boundary.
+            return
+        binding_key = _binding_key_from_discord(getattr(message, "guild", None), getattr(message, "channel", None))
+        # Reject unauthorized input before reading any channel history.  This
+        # keeps the bounded context query behind the same parent-channel
+        # authorization boundary as normal ingress and components.
+        if not authorizer.is_allowed(projected_message.author_id, binding_key.guild_id, binding_key.channel_id):
             return
         if human is not None and projected_message.reference_message_id:
             request_id = bindings.request_id_for_delivery(projected_message.reference_message_id)
@@ -422,14 +518,52 @@ def build_bot(
                     reply_to_message_id=projected_message.message_id,
                 )
                 return
+        history_context: tuple = ()
         try:
-            event = ingress.accept(projected_message)
+            if conversation_log is not None:
+                await sync_discord_history(
+                    message.channel,
+                    conversation_log,
+                    bindings,
+                    binding_key,
+                    authorizer=authorizer,
+                    bot_user_id=str(getattr(getattr(bot, "user", None), "id", config.application_id)),
+                    current_message_id=projected_message.message_id,
+                    current_message=message,
+                    history_after_factory=lambda value: discord.Object(id=value),
+                    seed_limit=history_seed_limit,
+                    incremental_limit=history_incremental_limit,
+                    seed_days=history_seed_days,
+                )
+                history_context = build_bounded_context(
+                    conversation_log,
+                    binding_key,
+                    current_message_id=projected_message.message_id,
+                    reply_to_message_id=projected_message.reference_message_id,
+                )
+            else:
+                history_context = await collect_discord_history(
+                    message.channel,
+                    current_message_id=projected_message.message_id,
+                    current_message=message,
+                    authorizer=authorizer,
+                    guild_id=projected_message.guild_id,
+                    channel_id=projected_message.channel_id,
+                    thread_id=projected_message.thread_id,
+                    bot_user_id=str(getattr(getattr(bot, "user", None), "id", config.application_id)),
+                )
+        except Exception:
+            # History is a bounded context hint.  A read failure must not turn
+            # an otherwise accepted ingress into a retry or replay.
+            history_context = ()
+        try:
+            event = ingress.accept(projected_message, history_context=history_context)
         except ValueError:
             # Discord itself supplied malformed/unusable metadata; do not echo
             # or route it into the Core boundary.
             return
         if event is None:
-            # Unauthorized and duplicate messages are deliberately silent.
+            # Duplicate messages are deliberately silent.
             return
         if conversation_log is not None:
             conversation_log.append(
@@ -442,52 +576,6 @@ def build_bot(
                     direction="inbound",
                 )
             )
-        if event.kind in {
-            DiscordMessageKind.NEW_REQUEST,
-            DiscordMessageKind.PARALLEL,
-            DiscordMessageKind.NOTE,
-            DiscordMessageKind.WAIT,
-            DiscordMessageKind.CHAT,
-        }:
-            try:
-                if conversation_log is not None:
-                    await sync_discord_history(
-                        message.channel,
-                        conversation_log,
-                        bindings,
-                        event.binding_key,
-                        authorizer=authorizer,
-                        bot_user_id=str(getattr(getattr(bot, "user", None), "id", config.application_id)),
-                        current_message_id=projected_message.message_id,
-                        current_message=message,
-                        history_after_factory=lambda value: discord.Object(id=value),
-                        seed_limit=history_seed_limit,
-                        incremental_limit=history_incremental_limit,
-                        seed_days=history_seed_days,
-                    )
-                    history_context = build_bounded_context(
-                        conversation_log,
-                        event.binding_key,
-                        current_message_id=projected_message.message_id,
-                        reply_to_message_id=projected_message.reference_message_id,
-                    )
-                else:
-                    history_context = await collect_discord_history(
-                        message.channel,
-                        current_message_id=projected_message.message_id,
-                        current_message=message,
-                        authorizer=authorizer,
-                        guild_id=projected_message.guild_id,
-                        channel_id=projected_message.channel_id,
-                        thread_id=projected_message.thread_id,
-                        bot_user_id=str(getattr(getattr(bot, "user", None), "id", config.application_id)),
-                    )
-            except Exception:
-                # History is a bounded context hint.  A read failure must not
-                # turn an otherwise accepted ingress into a retry or replay.
-                history_context = ()
-            if history_context:
-                event = replace(event, history_context=history_context)
         result = None
         if on_event is not None:
             result = on_event(event)
@@ -518,7 +606,8 @@ def build_bot(
 
     @bot.tree.command(name="dir", description="作業対象ディレクトリを指定します")
     async def directory_command(interaction, path: str):
-        if not authorizer.is_allowed(str(interaction.user.id), str(getattr(interaction.guild, "id", 0)), str(interaction.channel.id)):
+        binding_key = _binding_key_from_discord(interaction.guild, interaction.channel)
+        if not authorizer.is_allowed(str(interaction.user.id), binding_key.guild_id, binding_key.channel_id):
             await interaction.response.send_message("この操作は許可されていません。", ephemeral=True)
             return
         try:
@@ -526,7 +615,7 @@ def build_bot(
         except ValueError:
             await interaction.response.send_message("指定ディレクトリは許可されていません。", ephemeral=True)
             return
-        key = _binding_key_from_discord(interaction.guild, interaction.channel)
+        key = binding_key
         existing = bindings.get_scope(key)
         bindings.save_scope(
             key,
@@ -537,7 +626,8 @@ def build_bot(
 
     @bot.tree.command(name="file", description="参照ファイルを指定します")
     async def file_command(interaction, path: str):
-        if not authorizer.is_allowed(str(interaction.user.id), str(getattr(interaction.guild, "id", 0)), str(interaction.channel.id)):
+        binding_key = _binding_key_from_discord(interaction.guild, interaction.channel)
+        if not authorizer.is_allowed(str(interaction.user.id), binding_key.guild_id, binding_key.channel_id):
             await interaction.response.send_message("この操作は許可されていません。", ephemeral=True)
             return
         try:
@@ -545,7 +635,7 @@ def build_bot(
         except ValueError:
             await interaction.response.send_message("指定ファイルは許可されていません。", ephemeral=True)
             return
-        key = _binding_key_from_discord(interaction.guild, interaction.channel)
+        key = binding_key
         existing = bindings.get_scope(key)
         selected_files = () if existing is None else existing.selected_files
         if resolved not in selected_files:
@@ -561,6 +651,7 @@ def build_bot(
     bot._dev_agent_discord_scope = scope
     bot._dev_agent_discord_bindings = bindings
     bot._dev_agent_discord_on_event = on_event
+    bot._dev_agent_discord_intent_resolver = intent_resolver
     bot._dev_agent_discord_outbound = outbound
     bot._dev_agent_discord_sender = sender
     return bot
@@ -579,6 +670,64 @@ def run_from_environment(*, env_path: str | Path | None = None, workspace: str |
     )
     with DiscordRuntimeComposition.open(operation_config, authorizer=authorizer) as composition:
         conversation_log = ConversationLog(composition.store)
+        advisory_service = None
+        intent_resolver = resolve_plain_text
+        # Use the canonical Operation/Provider dispatcher only when the
+        # operator has explicitly configured a real provider or pool.  The
+        # default fake Operation config must remain a deterministic, offline
+        # smoke path rather than silently creating a model route.
+        if operation_config.provider_id != "fake" or operation_config.provider_pool is not None:
+            try:
+                advisory_service = OperationService.open(operation_config)
+                intent_resolver = ProposalOnlyIntentResolver(advisory_service.dispatcher.request)
+            except Exception:
+                # Resolver availability is advisory.  Do not expose provider
+                # details or raw exception text through Discord logs; ingress
+                # remains available through the deterministic fast path.
+                if advisory_service is not None:
+                    advisory_service.close()
+                    advisory_service = None
+                intent_resolver = resolve_plain_text
+                print("Discord semantic intent resolver unavailable; deterministic fallback active")
+
+        def _load_persistent_views():
+            restored = []
+            for request in composition.store.list_pending_human_requests():
+                if composition.store.get_human_response(request.request_id) is not None:
+                    continue
+                for message_id in composition.bindings.delivery_message_ids(request.request_id):
+                    restored.append(
+                        (
+                            build_human_request_view(
+                                request=request,
+                                authorizer=authorizer,
+                                submit=composition.human.receive_response,
+                            ),
+                            message_id,
+                        )
+                    )
+            for binding in composition.bindings.list_bindings():
+                task = composition.store.load_task(binding.run_id)
+                if task is None or str(getattr(task.status, "value", task.status)) != "waiting_approval":
+                    continue
+                event = composition.store.latest_event_for_task(binding.run_id)
+                payload = event.get("payload") if isinstance(event, Mapping) else None
+                approval_id = payload.get("approval_reference") if isinstance(payload, Mapping) else None
+                if not isinstance(approval_id, str) or not approval_id.strip():
+                    continue
+                for message_id in composition.bindings.delivery_message_ids(f"approval:{approval_id.strip()}"):
+                    restored.append(
+                        (
+                            build_approval_view(
+                                approval_id=approval_id.strip(),
+                                authorizer=authorizer,
+                                submit=composition.submit_approval,
+                            ),
+                            message_id,
+                        )
+                    )
+            return restored
+
         bot = build_bot(
             config,
             workspace=workspace_path,
@@ -588,6 +737,8 @@ def run_from_environment(*, env_path: str | Path | None = None, workspace: str |
             human=composition.human,
             binding_is_active=composition.binding_is_active,
             conversation_log=conversation_log,
+            persistent_view_loader=_load_persistent_views,
+            intent_resolver=intent_resolver,
         )
 
         async def _send_to_binding(binding, content, view=None):
@@ -620,7 +771,11 @@ def run_from_environment(*, env_path: str | Path | None = None, workspace: str |
         bot._dev_agent_discord_composition = composition
         bot._dev_agent_discord_human = composition.human
         bot._dev_agent_discord_approval_factory = composition.build_approval_adapter
-        bot.run(config.bot_token)
+        try:
+            bot.run(config.bot_token)
+        finally:
+            if advisory_service is not None:
+                advisory_service.close()
 
 
 def main(argv: list[str] | None = None) -> int:

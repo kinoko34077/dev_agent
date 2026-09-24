@@ -271,3 +271,91 @@ def test_initial_history_seed_and_incremental_cursor_only_write_conversation_log
         assert channel.calls[1]["limit"] == 100
         assert [row.content for row in log.list_context("10|20|30")] == ["過去の依頼", "過去の補足", "新しい補足"]
         assert bindings.get_history_sync(key).latest_synced_message_id == "1902"
+
+
+def test_incremental_history_does_not_skip_a_full_page_tail(tmp_path) -> None:
+    key = DiscordBindingKey("10", "20", "30")
+    authorizer = DiscordAuthorizer(allowed_user_ids={"42"})
+    human = SimpleNamespace(id=42, bot=False, name="Human")
+
+    class Channel:
+        def __init__(self, items):
+            self.items = list(items)
+            self.calls = []
+
+        def history(self, **kwargs):
+            self.calls.append(kwargs)
+            after = kwargs.get("after")
+            after_id = int(getattr(after, "id", after or 0))
+            before = kwargs.get("before")
+            before_id = int(getattr(before, "id", before or 2**63))
+            limit = int(kwargs["limit"])
+            selected = [item for item in self.items if after_id < int(item.id) < before_id][:limit]
+
+            async def _iterate():
+                for item in selected:
+                    yield item
+
+            return _iterate()
+
+    messages = [
+        SimpleNamespace(id=message_id, author=human, content=f"message-{message_id}", webhook_id=None)
+        for message_id in range(1001, 1251)
+    ]
+    channel = Channel(messages)
+
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        bindings = SQLiteDiscordBindingStore(store)
+        log = ConversationLog(store)
+        bindings.save_history_sync(
+            key,
+            latest_synced_message_id="1000",
+            oldest_seeded_message_id="900",
+            seeded=True,
+        )
+
+        first = asyncio.run(
+            sync_discord_history(
+                channel,
+                log,
+                bindings,
+                key,
+                authorizer=authorizer,
+                bot_user_id="99",
+                current_message_id="1251",
+                history_after_factory=lambda value: SimpleNamespace(id=value),
+            )
+        )
+        assert first == 100
+        assert bindings.get_history_sync(key).latest_synced_message_id == "1100"
+
+        second = asyncio.run(
+            sync_discord_history(
+                channel,
+                log,
+                bindings,
+                key,
+                authorizer=authorizer,
+                bot_user_id="99",
+                current_message_id="1251",
+                history_after_factory=lambda value: SimpleNamespace(id=value),
+            )
+        )
+        assert second == 100
+        assert bindings.get_history_sync(key).latest_synced_message_id == "1200"
+
+        third = asyncio.run(
+            sync_discord_history(
+                channel,
+                log,
+                bindings,
+                key,
+                authorizer=authorizer,
+                bot_user_id="99",
+                current_message_id="1251",
+                history_after_factory=lambda value: SimpleNamespace(id=value),
+            )
+        )
+        assert third == 50
+        assert bindings.get_history_sync(key).latest_synced_message_id == "1251"
+        assert sum(log.get(str(message_id)) is not None for message_id in range(1001, 1251)) == 250

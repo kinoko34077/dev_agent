@@ -82,8 +82,15 @@ def render_progress(stage: str, *, detail: str | None = None) -> str:
 def render_human_request(request: HumanRequest) -> str:
     if not isinstance(request, HumanRequest):
         raise TypeError("request must be HumanRequest")
-    answers = " / ".join(_safe_text(answer, maximum=120) for answer in request.allowed_answers)
-    suffix = f"\n選択肢: {answers}" if answers else ""
+    if len(request.allowed_answers) >= 26:
+        numbered = "\n".join(
+            f"{index}. {_safe_text(answer, maximum=48)}"
+            for index, answer in enumerate(request.allowed_answers, start=1)
+        )
+        suffix = f"\n選択肢（番号または全文で返信）:\n{numbered}"
+    else:
+        answers = " / ".join(_safe_text(answer, maximum=120) for answer in request.allowed_answers)
+        suffix = f"\n選択肢: {answers}" if answers else ""
     rendered = (
         "判断が必要です\n"
         f"\n- 理由: {_safe_text(request.reason)}\n"
@@ -128,14 +135,59 @@ def render_chat_response(projection: Mapping[str, object]) -> str:
 def render_final_response(text_segments: object) -> str:
     """Render a bounded natural-language completion projection."""
 
+    return render_final_response_chunks(text_segments)[0]
+
+
+def render_final_response_chunks(
+    text_segments: object,
+    *,
+    chunk_size: int = 1_900,
+    max_chunks: int = 8,
+) -> tuple[str, ...]:
+    """Render a bounded completion as paragraph-aware Discord-sized chunks."""
+
+    if isinstance(chunk_size, bool) or not isinstance(chunk_size, int) or not 1 <= chunk_size <= 1_900:
+        raise ValueError("chunk_size must be between 1 and 1900")
+    if isinstance(max_chunks, bool) or not isinstance(max_chunks, int) or not 1 <= max_chunks <= 32:
+        raise ValueError("max_chunks must be between 1 and 32")
+
     if isinstance(text_segments, str):
         values = [text_segments]
     elif isinstance(text_segments, (list, tuple)):
         values = [item for item in text_segments if isinstance(item, str) and item.strip()]
     else:
         values = []
-    text = "\n".join(_safe_text(item, maximum=800) for item in values).strip()
-    return _bounded(text or "作業が完了しました。")
+    safe_values = []
+    for item in values:
+        raw = AuditRecorder.sanitize_payload({"value": item}).get("value", "")
+        if isinstance(raw, str) and raw.strip():
+            safe_values.append(raw.strip()[:12_000])
+    text = "\n".join(safe_values).strip() or "作業が完了しました。"
+    chunks: list[str] = []
+    remaining = text
+    while remaining and len(chunks) < max_chunks:
+        if len(remaining) <= chunk_size:
+            chunks.append(remaining)
+            remaining = ""
+            break
+        cut = max(
+            remaining.rfind("\n\n", 0, chunk_size + 1),
+            remaining.rfind("\n", 0, chunk_size + 1),
+            remaining.rfind("。", 0, chunk_size + 1),
+            remaining.rfind(". ", 0, chunk_size + 1),
+        )
+        if cut < max(1, chunk_size // 2):
+            cut = chunk_size
+        elif remaining[cut:cut + 2] == ". ":
+            cut += 1
+        else:
+            cut += 1
+        chunks.append(remaining[:cut].strip())
+        remaining = remaining[cut:].lstrip()
+    if remaining and chunks:
+        suffix = "\n\n（続きはCoreの完了結果を参照してください。）"
+        chunks[-1] = (chunks[-1][: max(1, chunk_size - len(suffix))].rstrip() + suffix)[:chunk_size]
+    return tuple(chunk for chunk in chunks if chunk)
 
 
-__all__ = ["render_chat_response", "render_echo", "render_final_response", "render_human_request", "render_ingress_ack", "render_progress", "render_read_projection"]
+__all__ = ["render_chat_response", "render_echo", "render_final_response", "render_final_response_chunks", "render_human_request", "render_ingress_ack", "render_progress", "render_read_projection"]

@@ -52,7 +52,7 @@ def test_chat_is_a_non_task_projection():
 
     assert adapter.handle(_event("ありがとう", DiscordMessageKind.CHAT)) == {
         "state": "CHAT",
-        "text": "了解しました。",
+        "text": "会話の参照情報を取得できませんでした。",
     }
 
 

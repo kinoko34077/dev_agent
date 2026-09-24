@@ -268,12 +268,20 @@ class SQLiteStateStore:
             raise
 
     @_serialized
-    def record_discord_delivery(self, *, request_id: str, discord_message_id: str, delivered_at: str) -> bool:
+    def record_discord_delivery(
+        self,
+        *,
+        request_id: str,
+        discord_message_id: str,
+        delivered_at: str,
+        metadata_payload: str = "{}",
+    ) -> bool:
         try:
             inserted = self._core.record_discord_delivery(
                 request_id=request_id,
                 discord_message_id=discord_message_id,
                 delivered_at=delivered_at,
+                metadata_payload=metadata_payload,
             )
             self.connection.commit()
             return inserted
@@ -292,6 +300,17 @@ class SQLiteStateStore:
     @_serialized
     def discord_request_id_for_message(self, discord_message_id: str) -> str | None:
         return self._core.discord_request_id_for_message(discord_message_id)
+
+    @_serialized
+    def list_discord_delivery_message_ids(self, request_id: str) -> list[str]:
+        return self._core.list_discord_delivery_message_ids(request_id)
+
+    @_serialized
+    def get_discord_delivery_metadata(self, *, request_id: str, discord_message_id: str) -> dict[str, Any]:
+        return self._core.get_discord_delivery_metadata(
+            request_id=request_id,
+            discord_message_id=discord_message_id,
+        )
 
     @_serialized
     def save_discord_scope(self, *, binding_key: str, directory_scope: str | None, selected_files_payload: str, updated_at: str) -> None:

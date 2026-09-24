@@ -290,10 +290,29 @@ async def sync_discord_history(
         for item in items
         if str(getattr(item, "id", "")).isdecimal() and len(str(getattr(item, "id", ""))) <= 32
     ]
-    ids.append(current_message_id.strip())
     numeric_ids = [int(item) for item in ids]
-    latest = str(max(numeric_ids))
-    oldest = str(min(numeric_ids)) if is_seed else sync_state.oldest_seeded_message_id
+    previous_latest = (
+        int(sync_state.latest_synced_message_id)
+        if sync_state is not None and sync_state.latest_synced_message_id and sync_state.latest_synced_message_id.isdecimal()
+        else None
+    )
+    page_limit = seed_limit if is_seed else incremental_limit
+    page_is_full = len(items) >= page_limit
+    if numeric_ids:
+        latest_value = max(numeric_ids)
+        # A full Discord page is not proof that the cursor has caught up.  Do
+        # not jump to the current Gateway message; the next invocation must
+        # request the next page using the last item actually observed here.
+        if not page_is_full:
+            latest_value = max(latest_value, int(current_message_id.strip()))
+    elif previous_latest is not None:
+        latest_value = previous_latest
+    else:
+        latest_value = int(current_message_id.strip())
+    latest = str(latest_value)
+    oldest = str(min(numeric_ids)) if is_seed and numeric_ids else (
+        sync_state.oldest_seeded_message_id if sync_state is not None else None
+    )
     bindings.save_history_sync(
         binding_key,
         latest_synced_message_id=latest,

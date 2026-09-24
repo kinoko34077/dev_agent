@@ -82,6 +82,18 @@ class DiscordHumanAdapter:
         selected_decision = decision
         if request.allowed_answers:
             selected_decision = selected_decision or (response.strip() if isinstance(response, str) else "")
+            # Large finite answer sets intentionally use a numbered reply
+            # fallback instead of Discord components.  Keep the submitted
+            # text as the HumanResponse payload, but map only a bounded,
+            # exact decimal index to the original Core-owned answer value.
+            # Exact answer text wins first so a legitimate answer such as
+            # "2" is never reinterpreted as a different choice.
+            if selected_decision not in request.allowed_answers and isinstance(selected_decision, str):
+                candidate = selected_decision.strip()
+                if candidate.isdecimal():
+                    index = int(candidate) - 1
+                    if 0 <= index < len(request.allowed_answers):
+                        selected_decision = request.allowed_answers[index]
             if selected_decision not in request.allowed_answers:
                 raise ValueError("decision is not an allowed answer")
         else:

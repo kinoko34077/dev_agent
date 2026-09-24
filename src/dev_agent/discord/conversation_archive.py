@@ -30,6 +30,19 @@ def _fsync_file(path: Path) -> None:
         os.fsync(handle.fileno())
 
 
+def _readback_archive(path: Path, *, expected_count: int, expected_sha256: str) -> None:
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    if digest != expected_sha256:
+        raise OSError("archive sha256 read-back mismatch")
+    count = 0
+    with gzip.open(path, "rt", encoding="utf-8") as handle:
+        for line in handle:
+            json.loads(line)
+            count += 1
+    if count != expected_count:
+        raise OSError("archive record count read-back mismatch")
+
+
 def archive_eligible_messages(
     log: ConversationLog,
     archive_root: str | Path,
@@ -68,10 +81,11 @@ def archive_eligible_messages(
         digest = hashlib.sha256(temp_path.read_bytes()).hexdigest()
         archive_file = f"conversation-{current.strftime('%Y%m%dT%H%M%SZ')}-{digest[:12]}.jsonl.gz"
         archive_path = root / archive_file
+        manifest_path = root / f"{archive_file}.manifest.json"
         os.replace(temp_path, archive_path)
         manifest = ArchiveManifest(archive_file=archive_file, count=len(messages), sha256=digest, created_at=created_at)
         manifest_temp = root / f"{archive_file}.manifest.tmp"
-        manifest_path = root / f"{archive_file}.manifest.json"
+        _readback_archive(archive_path, expected_count=len(messages), expected_sha256=digest)
         manifest_temp.write_text(json.dumps(manifest.__dict__, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
         _fsync_file(manifest_temp)
         os.replace(manifest_temp, manifest_path)
@@ -80,6 +94,10 @@ def archive_eligible_messages(
     except BaseException:
         if temp_path.exists():
             temp_path.unlink()
+        if 'archive_path' in locals() and archive_path.exists():
+            archive_path.unlink()
+        if 'manifest_path' in locals() and manifest_path.exists():
+            manifest_path.unlink()
         raise
 
 

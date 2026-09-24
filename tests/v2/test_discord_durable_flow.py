@@ -177,6 +177,35 @@ def test_discord_human_adapter_uses_bounded_marker_for_free_text_response(tmp_pa
             )
 
 
+def test_discord_human_adapter_maps_numbered_large_choice_reply_to_full_decision(tmp_path):
+    path = tmp_path / "discord-human-numbered-choice.sqlite3"
+    request = HumanRequest(
+        request_id="discord-numbered-choice-1",
+        root_id="root-numbered-choice-1",
+        task_id="task-numbered-choice-1",
+        attempt_id="attempt-numbered-choice-1",
+        reason="仕様判断",
+        question="番号または全文で返信してください",
+        allowed_answers=tuple(f"complete-answer-{index}-" + ("x" * 90) for index in range(26)),
+    )
+    with SQLiteStateStore(path) as store:
+        adapter = DiscordHumanAdapter(
+            SQLiteHumanInteractionPort(store),
+            authorizer=DiscordAuthorizer(allowed_user_ids={"42"}),
+        )
+        adapter.request_human(request)
+
+        response = adapter.receive_response(
+            request_id=request.request_id,
+            author_id="42",
+            response="2",
+            decision=None,
+        )
+
+        assert response.decision == request.allowed_answers[1]
+        assert response.response == "2"
+
+
 def test_discord_human_adapter_does_not_accept_expert_actor_as_human(tmp_path):
     path = tmp_path / "discord-human-authority.sqlite3"
     with SQLiteStateStore(path) as store:

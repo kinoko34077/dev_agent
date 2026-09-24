@@ -136,6 +136,37 @@ def test_chat_uses_bounded_archive_search_only_for_past_reference(tmp_path):
     assert "README" in result["text"]
 
 
+def test_chat_fallback_prefers_final_over_acknowledgement(tmp_path):
+    config = OperationConfig(data_dir=tmp_path / "agent")
+    event = _event(
+        "さっき何を変えた？",
+        DiscordMessageKind.CHAT,
+        "1802",
+        history_context=(
+            DiscordHistoryMessage(
+                role="assistant",
+                content="受信しました。作業を開始します。",
+                message_id="1800",
+                message_kind="NEW_REQUEST_ACK",
+            ),
+            DiscordHistoryMessage(
+                role="assistant",
+                content="READMEのエラー処理を修正しました。",
+                message_id="1801",
+                message_kind="FINAL",
+            ),
+        ),
+    )
+    with DiscordRuntimeComposition.open(
+        config,
+        authorizer=DiscordAuthorizer(allowed_user_ids={"42"}),
+    ) as composition:
+        result = composition.chat_response(event)
+
+    assert "READMEのエラー処理を修正しました" in result["text"]
+    assert "受信しました" not in result["text"]
+
+
 def test_standard_composition_submits_user_wait_without_claiming_a_worker(tmp_path):
     config = OperationConfig(data_dir=tmp_path / "agent")
     event = _event("20秒待ってから返事して", DiscordMessageKind.WAIT, "1001")

@@ -11,6 +11,7 @@ from src.dev_agent.discord.bot import (
     DiscordBotConfig,
     build_bot,
     build_approval_view,
+    build_human_request_view,
     _message_from_discord,
 )
 from src.dev_agent.discord.auth import DiscordAuthorizer
@@ -99,6 +100,23 @@ def test_human_request_renderer_omits_unbounded_context():
     assert len(rendered) <= 2_000
 
 
+def test_human_request_renderer_uses_numbered_reply_fallback_for_large_choice_sets():
+    request = HumanRequest(
+        root_id="root-1",
+        task_id="task-1",
+        attempt_id="attempt-1",
+        reason="仕様判断",
+        question="番号または全文で返信してください",
+        allowed_answers=tuple(f"long-answer-{index}-" + ("x" * 100) for index in range(26)),
+    )
+
+    rendered = render_human_request(request)
+
+    assert "1." in rendered
+    assert "26." in rendered
+    assert "返信" in rendered
+
+
 def test_wait_ack_for_scheduled_task_describes_actual_durable_schedule():
     result = SimpleNamespace(
         status="waiting_dependency",
@@ -133,6 +151,108 @@ def test_approval_view_keeps_optional_dependency_lazy(monkeypatch):
             authorizer=DiscordAuthorizer(allowed_user_ids={"42"}),
             submit=lambda *_args: None,
         )
+
+
+def test_persistent_component_ids_and_human_choice_shape(tmp_path):
+    pytest.importorskip("discord")
+    authorizer = DiscordAuthorizer(allowed_user_ids={"42"}, allowed_channel_ids={"20"})
+
+    approval_view = build_approval_view(
+        approval_id="approval-1",
+        authorizer=authorizer,
+        submit=lambda *_args: None,
+    )
+    assert {item.custom_id for item in approval_view.children} == {
+        "devagent:approval:approval-1:yes",
+        "devagent:approval:approval-1:no",
+    }
+
+    five = HumanRequest(
+        request_id="request-5",
+        root_id="root-1",
+        task_id="task-1",
+        attempt_id="attempt-1",
+        reason="仕様判断",
+        question="選択してください",
+        allowed_answers=tuple(f"choice-{index}" for index in range(5)),
+    )
+    five_view = build_human_request_view(request=five, authorizer=authorizer, submit=lambda **_kwargs: None)
+    assert len(five_view.children) == 5
+    assert all(item.custom_id.startswith("devagent:human:request-5:") for item in five_view.children)
+
+    six = HumanRequest(
+        request_id="request-6",
+        root_id="root-1",
+        task_id="task-1",
+        attempt_id="attempt-1",
+        reason="仕様判断",
+        question="選択してください",
+        allowed_answers=tuple(f"choice-{index}" for index in range(6)),
+    )
+    six_view = build_human_request_view(request=six, authorizer=authorizer, submit=lambda **_kwargs: None)
+    assert len(six_view.children) == 1
+    assert six_view.children[0].custom_id == "devagent:human:request-6:select"
+
+    many = HumanRequest(
+        request_id="request-26",
+        root_id="root-1",
+        task_id="task-1",
+        attempt_id="attempt-1",
+        reason="仕様判断",
+        question="番号で返信してください",
+        allowed_answers=tuple("x" * 120 + str(index) for index in range(26)),
+    )
+    many_view = build_human_request_view(request=many, authorizer=authorizer, submit=lambda **_kwargs: None)
+    assert many_view.children == []
+
+
+def test_thread_scope_command_authorizes_against_parent_channel(tmp_path):
+    pytest.importorskip("discord")
+    config = DiscordBotConfig.from_environment(env_path=_env_file(tmp_path))
+    bot = build_bot(config, workspace=Path(__file__).resolve().parents[2])
+    command = {item.name: item for item in bot.tree.get_commands()}["dir"]
+
+    class _User:
+        id = 42
+
+    class _Guild:
+        id = 10
+
+    class Thread:
+        id = 701
+        parent_id = 20
+
+    class _Response:
+        def __init__(self):
+            self.messages = []
+
+        async def send_message(self, content, **_kwargs):
+            self.messages.append(content)
+
+    interaction = SimpleNamespace(user=_User(), guild=_Guild(), channel=Thread(), response=_Response())
+    import asyncio
+
+    asyncio.run(command.callback(interaction, "src/dev_agent"))
+    assert interaction.response.messages == ["参照ディレクトリ: `src/dev_agent`"]
+    assert bot._dev_agent_discord_bindings.get_scope(DiscordBindingKey("10", "20", "701")).directory_scope == "src/dev_agent"
+
+
+def test_on_ready_restores_durable_persistent_views(tmp_path):
+    pytest.importorskip("discord")
+    config = DiscordBotConfig.from_environment(env_path=_env_file(tmp_path))
+    view = object()
+    bot = build_bot(
+        config,
+        workspace=tmp_path,
+        persistent_view_loader=lambda: [(view, "700")],
+    )
+    restored = []
+    bot.add_view = lambda candidate, **kwargs: restored.append((candidate, kwargs))
+    bot.tree.sync = lambda: asyncio.sleep(0)
+
+    asyncio.run(bot.on_ready())
+
+    assert restored == [(view, {"message_id": 700})]
 
 
 def test_unauthorized_message_is_silent_and_never_reaches_core(tmp_path):

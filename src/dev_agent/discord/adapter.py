@@ -161,7 +161,13 @@ class DiscordIngressAdapter:
         self._binding_is_active = binding_is_active
         self._intent_resolver = intent_resolver
 
-    def accept(self, message: DiscordMessage) -> DiscordIngressEvent | None:
+    def accept(
+        self,
+        message: DiscordMessage,
+        *,
+        history_context: tuple[DiscordHistoryMessage, ...] = (),
+        current_status: str | None = None,
+    ) -> DiscordIngressEvent | None:
         if not isinstance(message, DiscordMessage) or message.author_is_bot:
             return None
         if not self._authorizer.is_allowed(message.author_id, message.guild_id, message.channel_id):
@@ -183,6 +189,9 @@ class DiscordIngressAdapter:
                     message.content,
                     active_run=active,
                     has_binding=has_binding,
+                    history_context=tuple(item.to_dict(include_metadata=True) for item in history_context),
+                    reply_to_message_id=message.reference_message_id,
+                    current_status=current_status,
                 )
             except (TypeError, ValueError):
                 # The proposal layer is advisory.  Existing deterministic
@@ -202,6 +211,7 @@ class DiscordIngressAdapter:
             message=message,
             kind=kind,
             binding_key=key,
+            history_context=history_context,
             intent_proposal=proposal,
         )
 

@@ -55,7 +55,7 @@ class DiscordCoreAdapter:
                 result = self._chat_response(event)
                 if result is not None:
                     return result
-            return {"state": "CHAT", "text": "了解しました。"}
+            return {"state": "CHAT", "text": "会話の参照情報を取得できませんでした。"}
         if event.kind is DiscordMessageKind.WAIT:
             if self._submit_wait is None or event.intent_proposal is None:
                 raise RuntimeError("Discord wait has no Core durable wait boundary")

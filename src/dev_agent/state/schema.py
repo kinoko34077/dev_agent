@@ -8,7 +8,7 @@ import sqlite3
 class StateSchema:
     """Own state-table DDL while SQLiteStateStore owns the connection."""
 
-    VERSION = 11
+    VERSION = 12
 
     V1_SCHEMA = """
         CREATE TABLE IF NOT EXISTS tasks (task_id TEXT PRIMARY KEY, payload TEXT NOT NULL);
@@ -43,7 +43,7 @@ class StateSchema:
         CREATE INDEX IF NOT EXISTS idx_discord_bindings_root ON discord_bindings(root_id, run_id);
         CREATE TABLE IF NOT EXISTS discord_ingress (message_id TEXT PRIMARY KEY, binding_key TEXT NOT NULL, kind TEXT NOT NULL, received_at TEXT NOT NULL);
         CREATE INDEX IF NOT EXISTS idx_discord_ingress_binding ON discord_ingress(binding_key, received_at);
-        CREATE TABLE IF NOT EXISTS discord_deliveries (request_id TEXT NOT NULL, discord_message_id TEXT NOT NULL, delivered_at TEXT NOT NULL, PRIMARY KEY(request_id, discord_message_id));
+        CREATE TABLE IF NOT EXISTS discord_deliveries (request_id TEXT NOT NULL, discord_message_id TEXT NOT NULL, delivered_at TEXT NOT NULL, metadata_payload TEXT NOT NULL DEFAULT '{}', PRIMARY KEY(request_id, discord_message_id));
         CREATE TABLE IF NOT EXISTS discord_scopes (binding_key TEXT PRIMARY KEY, directory_scope TEXT, selected_files_payload TEXT NOT NULL DEFAULT '[]', updated_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS discord_conversation_messages (
             message_id TEXT PRIMARY KEY,
@@ -184,6 +184,11 @@ class StateSchema:
                     last_sync_at TEXT NOT NULL
                 )""")
                 connection.execute("UPDATE schema_meta SET value = '11' WHERE key = 'schema_version'")
+                current = 11
+            if current < 12:
+                cls._ensure_column(connection, "discord_deliveries", "metadata_payload", "TEXT NOT NULL DEFAULT '{}'")
+                connection.execute("UPDATE schema_meta SET value = '12' WHERE key = 'schema_version'")
+                current = 12
             connection.commit()
         except Exception:
             connection.rollback()

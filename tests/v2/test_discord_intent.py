@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from src.dev_agent.discord.intent import IntentKind, IntentProposal, resolve_plain_text, validate_intent
+from src.dev_agent.discord.adapter import DiscordIngressAdapter, DiscordMessage
+from src.dev_agent.discord.auth import DiscordAuthorizer
+from src.dev_agent.discord.binding import InMemoryDiscordBindingStore
+from src.dev_agent.discord.history import DiscordHistoryMessage
+from src.dev_agent.discord.intent import IntentKind, IntentProposal, ProposalOnlyIntentResolver, resolve_plain_text, validate_intent
+from src.dev_agent.domain.protocol import ModelResponse
 
 
 def test_plain_text_resolver_returns_chat_without_creating_task() -> None:
@@ -52,3 +57,59 @@ def test_intent_validation_rejects_unsafe_or_incoherent_proposals() -> None:
             IntentProposal(kind=IntentKind.CHAT, objective="approve this", delay_seconds=10),
             has_binding=False,
         )
+
+
+def test_proposal_only_resolver_uses_bounded_context_and_strict_output() -> None:
+    captured = []
+
+    def model(request):
+        captured.append(request)
+        return ModelResponse(
+            provider="ollama",
+            model="qwen3.5:9b",
+            structured_output={
+                "kind": "CHAT",
+                "confidence": 0.91,
+                "target_message_id": None,
+                "reason": "既存会話の確認質問",
+            },
+        )
+
+    resolver = ProposalOnlyIntentResolver(model)
+    proposal = resolver(
+        "さっき何を変えた？",
+        active_run=False,
+        has_binding=True,
+        history_context=(
+            DiscordHistoryMessage(role="assistant", content="READMEを修正しました", message_id="100"),
+        ),
+    )
+
+    assert proposal.kind is IntentKind.CHAT
+    assert proposal.confidence == 0.91
+    assert captured[0].response_schema is not None
+    assert "READMEを修正しました" in captured[0].messages[1]["content"]
+    assert captured[0].metadata["authority"] == "proposal_only"
+
+
+def test_invalid_model_intent_falls_back_to_deterministic_resolution() -> None:
+    resolver = ProposalOnlyIntentResolver(lambda _request: ModelResponse(provider="ollama", model="qwen", text_segments=["not-json"]))
+    adapter = DiscordIngressAdapter(
+        authorizer=DiscordAuthorizer(allowed_user_ids={"42"}),
+        bindings=InMemoryDiscordBindingStore(),
+        intent_resolver=resolver,
+    )
+    message = DiscordMessage(
+        message_id="100",
+        author_id="42",
+        guild_id="10",
+        channel_id="20",
+        thread_id="30",
+        content="READMEを確認して",
+    )
+
+    event = adapter.accept(message)
+
+    assert event is not None
+    assert event.kind.value == "NEW_REQUEST"
+    assert event.intent_proposal is None

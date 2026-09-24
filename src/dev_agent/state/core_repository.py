@@ -110,10 +110,17 @@ class CoreStateRepository:
         )
         return cursor.rowcount == 1
 
-    def record_discord_delivery(self, *, request_id: str, discord_message_id: str, delivered_at: str) -> bool:
+    def record_discord_delivery(
+        self,
+        *,
+        request_id: str,
+        discord_message_id: str,
+        delivered_at: str,
+        metadata_payload: str = "{}",
+    ) -> bool:
         cursor = self.connection.execute(
-            "INSERT OR IGNORE INTO discord_deliveries(request_id, discord_message_id, delivered_at) VALUES (?, ?, ?)",
-            (request_id, discord_message_id, delivered_at),
+            "INSERT OR IGNORE INTO discord_deliveries(request_id, discord_message_id, delivered_at, metadata_payload) VALUES (?, ?, ?, ?)",
+            (request_id, discord_message_id, delivered_at, metadata_payload),
         )
         return cursor.rowcount == 1
 
@@ -135,6 +142,26 @@ class CoreStateRepository:
             (discord_message_id,),
         ).fetchone()
         return str(row["request_id"]) if row is not None else None
+
+    def list_discord_delivery_message_ids(self, request_id: str) -> list[str]:
+        rows = self.connection.execute(
+            "SELECT discord_message_id FROM discord_deliveries WHERE request_id = ? ORDER BY delivered_at, discord_message_id",
+            (request_id,),
+        ).fetchall()
+        return [str(row["discord_message_id"]) for row in rows]
+
+    def get_discord_delivery_metadata(self, *, request_id: str, discord_message_id: str) -> dict[str, Any]:
+        row = self.connection.execute(
+            "SELECT metadata_payload FROM discord_deliveries WHERE request_id = ? AND discord_message_id = ?",
+            (request_id, discord_message_id),
+        ).fetchone()
+        if row is None:
+            return {}
+        try:
+            value = json.loads(row["metadata_payload"] or "{}")
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return {}
+        return dict(value) if isinstance(value, dict) else {}
 
     def save_discord_scope(
         self,

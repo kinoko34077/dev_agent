@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
-from typing import Any
+from typing import Any, Mapping
 
 from ..coordination.protocol_helpers import validate_identifier, validate_relative_path
 
@@ -108,6 +108,7 @@ class InMemoryDiscordBindingStore:
         self._scopes: dict[DiscordBindingKey, DiscordScopeState] = {}
         self._history_sync: dict[DiscordBindingKey, DiscordHistorySyncState] = {}
         self._deliveries: dict[tuple[str, str], None] = {}
+        self._delivery_metadata: dict[tuple[str, str], dict[str, Any]] = {}
 
     def bind(self, key: DiscordBindingKey, *, root_id: str, run_id: str) -> DiscordBinding:
         if not isinstance(key, DiscordBindingKey):
@@ -179,11 +180,19 @@ class InMemoryDiscordBindingStore:
             raise ValueError("key must be DiscordBindingKey")
         return self._history_sync.get(key)
 
-    def record_delivery(self, request_id: str, discord_message_id: str, *, delivered_at: str | None = None) -> bool:
+    def record_delivery(
+        self,
+        request_id: str,
+        discord_message_id: str,
+        *,
+        delivered_at: str | None = None,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> bool:
         marker = (validate_identifier(request_id, "request_id"), _discord_id(discord_message_id, "discord_message_id"))
         if marker in self._deliveries:
             return False
         self._deliveries[marker] = None
+        self._delivery_metadata[marker] = dict(metadata or {})
         return True
 
     def has_any_delivery(self, request_id: str) -> bool:
@@ -196,6 +205,14 @@ class InMemoryDiscordBindingStore:
             if message_id == discord_message_id:
                 return request_id
         return None
+
+    def delivery_message_ids(self, request_id: str) -> tuple[str, ...]:
+        request_id = validate_identifier(request_id, "request_id")
+        return tuple(message_id for marker_request_id, message_id in self._deliveries if marker_request_id == request_id)
+
+    def delivery_metadata(self, request_id: str, discord_message_id: str) -> dict[str, Any]:
+        marker = (validate_identifier(request_id, "request_id"), _discord_id(discord_message_id, "discord_message_id"))
+        return dict(self._delivery_metadata.get(marker, {}))
 
 
 def _now() -> str:
@@ -215,6 +232,8 @@ class SQLiteDiscordBindingStore:
             "has_discord_delivery",
             "has_any_discord_delivery",
             "discord_request_id_for_message",
+            "list_discord_delivery_message_ids",
+            "get_discord_delivery_metadata",
             "save_discord_scope",
             "get_discord_scope",
             "save_discord_history_sync",
@@ -283,13 +302,24 @@ class SQLiteDiscordBindingStore:
             received_at=received_at or _now(),
         )
 
-    def record_delivery(self, request_id: str, discord_message_id: str, *, delivered_at: str | None = None) -> bool:
+    def record_delivery(
+        self,
+        request_id: str,
+        discord_message_id: str,
+        *,
+        delivered_at: str | None = None,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> bool:
         request_id = validate_identifier(request_id, "request_id")
         discord_message_id = _discord_id(discord_message_id, "discord_message_id")
+        payload = json.dumps(dict(metadata or {}), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        if len(payload) > 32_000:
+            raise ValueError("Discord delivery metadata is too large")
         return self._store.record_discord_delivery(
             request_id=request_id,
             discord_message_id=discord_message_id,
             delivered_at=delivered_at or _now(),
+            metadata_payload=payload,
         )
 
     def has_delivery(self, request_id: str, discord_message_id: str) -> bool:
@@ -306,6 +336,19 @@ class SQLiteDiscordBindingStore:
     def request_id_for_delivery(self, discord_message_id: str) -> str | None:
         return self._store.discord_request_id_for_message(
             _discord_id(discord_message_id, "discord_message_id"),
+        )
+
+    def delivery_message_ids(self, request_id: str) -> tuple[str, ...]:
+        return tuple(
+            self._store.list_discord_delivery_message_ids(
+                validate_identifier(request_id, "request_id"),
+            )
+        )
+
+    def delivery_metadata(self, request_id: str, discord_message_id: str) -> dict[str, Any]:
+        return self._store.get_discord_delivery_metadata(
+            request_id=validate_identifier(request_id, "request_id"),
+            discord_message_id=_discord_id(discord_message_id, "discord_message_id"),
         )
 
     def save_scope(

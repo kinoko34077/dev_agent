@@ -66,3 +66,19 @@ def test_archive_failure_keeps_active_rows(tmp_path, monkeypatch) -> None:
             archive_eligible_messages(log, tmp_path / "archive", now=now)
 
         assert [item.message_id for item in log.list_context("10|20|30")] == ["1003"]
+
+
+def test_archive_readback_failure_keeps_active_rows(tmp_path, monkeypatch) -> None:
+    now = datetime(2026, 9, 24, tzinfo=timezone.utc)
+    with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
+        log = ConversationLog(store)
+        assert log.append(_message("1004", now - timedelta(days=31), "keep after readback failure")) is True
+
+        def fail_readback(*_args, **_kwargs):
+            raise OSError("gzip readback failed")
+
+        monkeypatch.setattr("src.dev_agent.discord.conversation_archive._readback_archive", fail_readback, raising=False)
+        with pytest.raises(OSError, match="gzip readback failed"):
+            archive_eligible_messages(log, tmp_path / "archive", now=now)
+
+        assert [item.message_id for item in log.list_context("10|20|30")] == ["1004"]
