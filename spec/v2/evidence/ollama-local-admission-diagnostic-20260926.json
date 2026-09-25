@@ -1,0 +1,13 @@
+{
+  "evidence_id": "ollama-local-admission-diagnostic-20260926",
+  "observed_at": "2026-09-26",
+  "scope": "bounded local Ollama availability diagnostic",
+  "status": "DEV_AGENT_ROUTE_BLOCKED",
+  "daemon": {"version": "0.33.3", "loopback": "http://127.0.0.1:11434"},
+  "installed_models": ["qwen3.5:9b", "gemma4:12b", "qwen3.5:4b"],
+  "direct_loopback_smoke": {"tags": "PASS", "bounded_chat_transport": "PASS", "raw_response_recorded": false},
+  "dev_agent_route": {"model": "qwen3.5:9b", "result": "provider_unavailable", "host_validation": "not_run"},
+  "interpretation": "The daemon and loopback transport responded, but the current dev_agent admission/dispatch path did not admit the fresh Planner request.",
+  "safety": {"remote_generation_attempted": false, "unknown_replayed": false, "third_model_attempted": false, "secrets_recorded": false},
+  "gate_impact": {"PHASE8_PREPARATION": "PREPARATION_ONLY", "LIVE_ACTIVATION": "NOT_VERIFIED"}
+}
