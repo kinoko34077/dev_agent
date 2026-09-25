@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | Branch | `phase8/worker-contract-preflight-issue9` (PR #12; target `v2/bootstrap`) |
-| Remote HEAD before this docs/evidence synchronization | `5fd89a1a78a416fca73e0641ba2d8d17d2dd4bde` (`feat: add bounded worker proposal preflight`) |
+| Current remote HEAD | `f6a4071dd2a9592c5c123b83ca05574440aad440` (`docs: record worker preflight evidence`) |
 | Latest implementation branch HEAD | `5fd89a1a78a416fca73e0641ba2d8d17d2dd4bde` (`feat: add bounded worker proposal preflight`) |
 | Latest committed implementation baseline | `5fd89a1` (`feat: add bounded worker proposal preflight`) |
 | Current local implementation slice | Issue #9 adds a Host-owned `minimal_file_replacement` Worker proposal mode, deterministic proposal preflight, bounded transport-only canonicalization audit, and fail-closed output rejection while retaining the legacy full-result contract. |
@@ -15,7 +15,7 @@
 | Local regression | `194 passed` in the affected DevFarm/Worker slice; full `tests/v2`: `1676 passed, 1 skipped` |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | PASS via writable alternate pycache target; shared worktree pycache itself remains ACL-blocked with WinError 5 |
-| Exact-head CI | `5fd89a1`: [v2-core](https://github.com/kinoko34077/dev_agent/actions/runs/36170291585) kernel 3.10/3.11 and [provider-smoke](https://github.com/kinoko34077/dev_agent/actions/runs/36170291535) all PASS. |
+| Exact-head CI | implementation `5fd89a1`: [v2-core](https://github.com/kinoko34077/dev_agent/actions/runs/36170291585) and [provider-smoke](https://github.com/kinoko34077/dev_agent/actions/runs/36170291535) PASS; final docs/evidence HEAD `f6a4071`: [v2-core](https://github.com/kinoko34077/dev_agent/actions/runs/36171096042) and [provider-smoke](https://github.com/kinoko34077/dev_agent/actions/runs/36171096233) PASS. |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in

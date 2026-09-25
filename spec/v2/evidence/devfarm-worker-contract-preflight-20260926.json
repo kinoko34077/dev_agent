@@ -2,6 +2,7 @@
   "evidence_id": "devfarm-worker-contract-preflight-20260926",
   "observed_at": "2026-09-26",
   "revision": "5fd89a1a78a416fca73e0641ba2d8d17d2dd4bde",
+  "documentation_revision": "f6a4071dd2a9592c5c123b83ca05574440aad440",
   "branch": "phase8/worker-contract-preflight-issue9",
   "scope": "Issue #9 bounded Worker proposal contract and deterministic Host preflight",
   "status": "VERIFIED_LOCAL_NON_GATE",
