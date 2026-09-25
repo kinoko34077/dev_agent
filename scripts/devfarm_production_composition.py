@@ -188,6 +188,7 @@ class Phase8ProductionSubmission:
         """Submit one fresh root and run one bounded existing execution pass."""
 
         from src.dev_agent.operation import OperationService
+        from src.dev_agent.operation_runtime import RuntimeCoordinator
 
         root = OperationService.submit(self.operation_config, objective, **kwargs)
         proposal = self.planner(root)
@@ -210,6 +211,10 @@ class Phase8ProductionSubmission:
                 raise ProductionCompositionError("fresh Operation root is not durable")
             operation.validate_planning_proposal(proposal)
             operation.apply_planning_proposal(proposal, execution_owner="devfarm")
+            operation.park_planning_root_for_children(
+                parent_task_id=root.task_id,
+                proposal_id=proposal.proposal_id,
+            )
             candidate = DevelopmentPlanningBridge(self.repository).build_candidate(
                 parent,
                 proposal,
@@ -248,6 +253,39 @@ class Phase8ProductionSubmission:
                 dispatch_timeout_seconds=self.dispatch_timeout_seconds,
             )
             execution = executor.advance()
+            continuation_changes = [
+                item
+                for item in execution.get("operation_changes", [])
+                if item.get("planner_child_key") not in bindings
+                and item.get("state") in {"queued", "waiting_dependency"}
+            ]
+            if len(continuation_changes) != 1:
+                raise ProductionCompositionError(
+                    "production submission requires exactly one released continuation"
+                )
+            continuation_task_id = continuation_changes[0]["task_id"]
+
+        # The continuation is the only newly claimable Operation item after
+        # the DevFarm-owned children integrate.  Reuse one existing
+        # RuntimeCoordinator cycle to execute it; this is deliberately not a
+        # serve loop or a second scheduler.
+        with RuntimeCoordinator.open(
+            self.operation_config,
+            revision=base_revision,
+            instance_id=f"{run_id}-runtime",
+        ) as runtime:
+            continuation = runtime.run_once()
+            if continuation is None or continuation.task_id != continuation_task_id:
+                raise ProductionCompositionError(
+                    "RuntimeCoordinator did not execute the released continuation"
+                )
+            if continuation.status.value != "completed":
+                raise ProductionCompositionError("released continuation did not reach terminal completion")
+            root_terminal = runtime.operation.complete_planning_root(
+                parent_task_id=root.task_id,
+                proposal_id=proposal.proposal_id,
+                continuation_task_id=continuation.task_id,
+            )
         result = {
             "root_task_id": root.task_id,
             "run_id": run_id,
@@ -257,6 +295,9 @@ class Phase8ProductionSubmission:
                 "reviewed": list(execution.get("reviewed", [])),
                 "integrated": list(execution.get("integrated", [])),
                 "continuation_ready": bool(execution.get("continuation_ready")),
+                "continuation_task_id": continuation.task_id,
+                "continuation_state": continuation.status.value,
+                "root_state": root_terminal.status.value,
             },
         }
         projected = _bounded_projection(result)

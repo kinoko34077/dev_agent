@@ -12,8 +12,8 @@ from scripts.devfarm_production_composition import (
     Phase8ProductionComposition,
     Phase8ProductionSubmission,
 )
-from src.dev_agent.domain.protocol import Task, TaskType
-from src.dev_agent.operation import OperationConfig
+from src.dev_agent.domain.protocol import Task, TaskStatus, TaskType
+from src.dev_agent.operation import OperationConfig, OperationService
 from src.dev_agent.intelligence.planner import (
     ChildTaskProposal,
     PlannerDependencyType,
@@ -161,4 +161,12 @@ def test_phase8_public_driver_only_submits_and_observes(tmp_path: Path):
 
     assert result["execution"]["integrated"] == ["worker-a", "worker-b"]
     assert result["execution"]["continuation_ready"] is True
+    assert result["execution"]["continuation_state"] == TaskStatus.COMPLETED.value
+    assert result["execution"]["root_state"] == TaskStatus.COMPLETED.value
     assert {item["status"] for item in observed["workers"]} == {"INTEGRATED"}
+    root_status = OperationService.read_status(config, result["root_task_id"])
+    assert root_status["state"] == TaskStatus.COMPLETED.value
+    assert root_status["claim_count"] == 0
+    continuation_status = OperationService.read_status(config, result["execution"]["continuation_task_id"])
+    assert continuation_status["state"] == TaskStatus.COMPLETED.value
+    assert continuation_status["execution_attempts"] == 1

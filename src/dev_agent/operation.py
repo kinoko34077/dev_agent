@@ -979,6 +979,164 @@ class OperationService:
             self.store.commit_transition(task=task, event=event)
         return tuple(prepared)
 
+    def park_planning_root_for_children(
+        self,
+        *,
+        parent_task_id: str,
+        proposal_id: str,
+        execution_owner: str = "devfarm",
+    ) -> Task:
+        """Park a submitted planning root while its children execute elsewhere.
+
+        ``OperationService.submit`` durably enqueues a fresh root before a
+        Planner proposal exists.  Once an explicitly validated proposal is
+        handed to the existing DevFarm owner, that original queue item must
+        not remain claimable by the Operation worker.  This narrow boundary
+        cancels only the unleased root item and records a durable wait state;
+        it does not create a queue, loop, or alternate execution owner.
+
+        The method is idempotent for the exact proposal/owner marker so a
+        crash between composition steps can safely resume the handoff.
+        """
+
+        if not isinstance(parent_task_id, str) or not parent_task_id.strip():
+            raise OperationError("parent_task_id must be a non-empty string")
+        if not isinstance(proposal_id, str) or not proposal_id.strip():
+            raise OperationError("proposal_id must be a non-empty string")
+        if not isinstance(execution_owner, str) or execution_owner.strip().lower() != "devfarm":
+            raise OperationError("planning root may only be parked for DevFarm")
+        parent = self.store.load_task(parent_task_id.strip())
+        if parent is None:
+            raise OperationError("planning root is missing")
+        normalized_parent_id = parent_task_id.strip()
+        normalized_proposal_id = proposal_id.strip()
+        marker = parent.metadata.get("planning_handoff")
+        if parent.status is TaskStatus.WAITING_DEPENDENCY and isinstance(marker, Mapping):
+            if (
+                marker.get("proposal_id") == normalized_proposal_id
+                and marker.get("execution_owner") == "devfarm"
+            ):
+                return parent
+            raise OperationError("planning root is already parked for another proposal")
+        if parent.parent_task_id is not None or parent.root_task_id != parent.task_id:
+            raise OperationError("planning root must be a top-level Task")
+        if parent.status is not TaskStatus.QUEUED:
+            raise OperationError("planning root is not at the fresh submit boundary")
+        try:
+            item = self.queue.snapshot(normalized_parent_id)
+        except KeyError as exc:
+            raise OperationError("planning root queue item is missing") from exc
+        if item.state != "queued":
+            raise OperationError("planning root queue item is not unleased")
+
+        # Cancel the unleased queue item first.  If durable Task persistence
+        # fails afterward, the existing restore_queue path repairs only tasks
+        # that remain QUEUED; a parked root therefore cannot be claimed by a
+        # second runtime generation.
+        self.queue.cancel(normalized_parent_id)
+        parent.status = TaskStatus.WAITING_DEPENDENCY
+        parent.metadata["planning_handoff"] = {
+            "proposal_id": normalized_proposal_id,
+            "execution_owner": "devfarm",
+            "wait_reason": "planner_children",
+        }
+        event = ProtocolEvent(
+            event_id=str(uuid5(NAMESPACE_URL, f"dev-agent/planning/{normalized_proposal_id}/{normalized_parent_id}/parked")),
+            event_type="task.planning_root_parked",
+            task_id=parent.task_id,
+            payload={
+                "proposal_id": normalized_proposal_id,
+                "execution_owner": "devfarm",
+                "source": "operation_planning_handoff",
+            },
+        )
+        self.store.commit_transition(task=parent, event=event)
+        return parent
+
+    def complete_planning_root(
+        self,
+        *,
+        parent_task_id: str,
+        proposal_id: str,
+        continuation_task_id: str,
+    ) -> Task:
+        """Terminalize a parked planning root after its continuation passes.
+
+        Worker children are accepted only through their existing bounded
+        ``INTEGRATED`` evidence, and the dependency continuation must have
+        completed through the existing RuntimeCoordinator.  This closes the
+        root projection without claiming or replaying any child queue item.
+        """
+
+        if not isinstance(parent_task_id, str) or not parent_task_id.strip():
+            raise OperationError("parent_task_id must be a non-empty string")
+        if not isinstance(proposal_id, str) or not proposal_id.strip():
+            raise OperationError("proposal_id must be a non-empty string")
+        if not isinstance(continuation_task_id, str) or not continuation_task_id.strip():
+            raise OperationError("continuation_task_id must be a non-empty string")
+        parent = self.store.load_task(parent_task_id.strip())
+        if parent is None:
+            raise OperationError("planning root is missing")
+        marker = parent.metadata.get("planning_handoff")
+        if not isinstance(marker, Mapping) or marker.get("proposal_id") != proposal_id.strip():
+            raise OperationError("planning root handoff does not match proposal")
+        if parent.status is TaskStatus.COMPLETED:
+            return parent
+        if parent.status is not TaskStatus.WAITING_DEPENDENCY:
+            raise OperationError("planning root is not parked")
+        try:
+            root_item = self.queue.snapshot(parent.task_id)
+        except KeyError:
+            root_item = None
+        if root_item is not None and root_item.state not in {"cancelled", "completed", "failed"}:
+            raise OperationError("planning root remains claimable")
+
+        proposal_tasks: list[Task] = []
+        payloads = self.store.snapshot().get("tasks", {})
+        if not isinstance(payloads, Mapping):
+            raise OperationError("durable planning state is unavailable")
+        for payload in payloads.values():
+            if not isinstance(payload, dict):
+                continue
+            metadata = payload.get("metadata")
+            if not isinstance(metadata, dict) or metadata.get("planning_proposal_id") != proposal_id.strip():
+                continue
+            try:
+                proposal_tasks.append(Task.from_persisted_dict(payload))
+            except Exception as exc:
+                raise OperationError("durable planner child is invalid") from exc
+        if not proposal_tasks:
+            raise OperationError("planning proposal has no durable children")
+        continuation = next((task for task in proposal_tasks if task.task_id == continuation_task_id.strip()), None)
+        if continuation is None or continuation.status is not TaskStatus.COMPLETED:
+            raise OperationError("planning continuation is not completed")
+        for task in proposal_tasks:
+            if task.task_id == continuation.task_id:
+                continue
+            metadata = task.metadata
+            if (
+                metadata.get("integration_status") != "INTEGRATED"
+                or not isinstance(metadata.get("integration_revision"), str)
+                or not metadata.get("integration_revision").strip()
+            ):
+                raise OperationError("not all planner workers have integration evidence")
+
+        parent.status = TaskStatus.COMPLETED
+        parent.metadata["planning_terminal_state"] = "completed"
+        parent.metadata["planning_continuation_task_id"] = continuation.task_id
+        event = ProtocolEvent(
+            event_id=str(uuid5(NAMESPACE_URL, f"dev-agent/planning/{proposal_id.strip()}/{parent.task_id}/completed")),
+            event_type="task.completed",
+            task_id=parent.task_id,
+            payload={
+                "source": "operation_planning_completion",
+                "proposal_id": proposal_id.strip(),
+                "continuation_task_id": continuation.task_id,
+            },
+        )
+        self.store.commit_transition(task=parent, event=event)
+        return parent
+
     def record_devfarm_integration_evidence(
         self,
         *,
