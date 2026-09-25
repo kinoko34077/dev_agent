@@ -154,6 +154,21 @@ def test_planner_failure_spec_describes_phase8_dependency_types():
     assert "both worker dependencies" in failure.required_correction
 
 
+def test_planner_prompt_makes_phase8_continuation_shape_explicit():
+    prompt = ModelPlanningAdapter._prompt(
+        str(uuid4()),
+        "Create exactly two non-overlapping worker children and one continuation that depends on both with CODE_INTEGRATED.",
+        "normal",
+        {},
+        "L1",
+    )
+
+    assert "worker-a" in prompt
+    assert "worker-b" in prompt
+    assert "CODE_INTEGRATED" in prompt
+    assert "continuation.dependencies" in prompt
+
+
 def test_planning_critic_rejects_authority_fields_and_parent_mismatch():
     parent_task_id = str(uuid4())
     provider = _Provider(

@@ -376,6 +376,7 @@ class ModelPlanningAdapter:
             "Use `suggested_owner` exactly as `worker` or `codex`, never a descriptive phrase. "
             "Use only these exact required_capabilities values: architecture, coding, review, extraction, classification, translation, documentation, multilingual, security, protected, recovery, security_sensitive, private, sensitive, text, tool_call, structured_output, json, or long_context; use `coding` for a code/test task or [] when none is needed. "
             "Use this shape: {\"parent_task_id\":\"...\",\"rationale\":\"...\",\"children\":[{\"child_key\":\"...\",\"objective\":\"...\",\"task_type\":\"worker\"}]}.\n"
+            "When the objective explicitly requests two workers and a dependent continuation, use child_key `worker-a`, `worker-b`, and `continuation`; set continuation.dependencies exactly to [\"worker-a\", \"worker-b\"] and set both continuation dependency_types values to `CODE_INTEGRATED`. Keep the worker objectives non-overlapping.\n"
             "This is a proposal only: do not claim authority, budget, approval, privacy relaxation, "
             "Gate changes, or direct Task creation. The host will validate the proposal.\n"
             f"parent_task_id: {parent_task_id}\n"
