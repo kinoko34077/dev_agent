@@ -8,6 +8,74 @@ from src.dev_agent.domain.protocol import Task, TaskType
 from src.dev_agent.intelligence.planner import ChildTaskProposal, RootPlanningProposal
 
 
+def test_phase8_composition_delegates_submission_and_observation_without_resequencing():
+    from scripts.devfarm_production_composition import Phase8ProductionComposition
+
+    calls = []
+    composition = Phase8ProductionComposition(
+        submit_boundary=lambda objective, **kwargs: calls.append(("submit", objective, kwargs))
+        or {"run_id": "run-1", "status": "SUBMITTED"},
+        observe_boundary=lambda run_id, **kwargs: calls.append(("observe", run_id, kwargs))
+        or {"run_id": run_id, "status": "COMPLETED"},
+    )
+
+    assert composition.submit("one fresh root", source="test") == {
+        "run_id": "run-1",
+        "status": "SUBMITTED",
+    }
+    assert composition.observe("run-1", view="bounded") == {
+        "run_id": "run-1",
+        "status": "COMPLETED",
+    }
+    assert calls == [
+        ("submit", "one fresh root", {"source": "test"}),
+        ("observe", "run-1", {"view": "bounded"}),
+    ]
+
+
+def test_phase8_composition_rejects_non_callable_boundary():
+    from scripts.devfarm_production_composition import Phase8ProductionComposition
+
+    with pytest.raises(TypeError, match="boundary"):
+        Phase8ProductionComposition(
+            submit_boundary=None,
+            observe_boundary=lambda run_id: {},
+        )
+
+
+def test_phase8_composition_rejects_non_mapping_boundary_result():
+    from scripts.devfarm_production_composition import (
+        Phase8ProductionComposition,
+        ProductionCompositionError,
+    )
+
+    composition = Phase8ProductionComposition(
+        submit_boundary=lambda objective, **kwargs: ["raw"],
+        observe_boundary=lambda run_id, **kwargs: {"run_id": run_id},
+    )
+
+    with pytest.raises(ProductionCompositionError, match="mapping"):
+        composition.submit("bounded objective")
+
+
+def test_phase8_composition_rejects_secret_shaped_projection_fields():
+    from scripts.devfarm_production_composition import (
+        Phase8ProductionComposition,
+        ProductionCompositionError,
+    )
+
+    composition = Phase8ProductionComposition(
+        submit_boundary=lambda objective, **kwargs: {
+            "run_id": "run-1",
+            "api_key": "must-not-cross",
+        },
+        observe_boundary=lambda run_id, **kwargs: {"run_id": run_id},
+    )
+
+    with pytest.raises(ProductionCompositionError, match="bounded"):
+        composition.submit("bounded objective")
+
+
 def test_phase8_production_composition_exposes_only_submission_and_observation_boundary():
     """The E2E driver must not become a shadow orchestrator.
 
