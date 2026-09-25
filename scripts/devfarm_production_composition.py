@@ -40,11 +40,12 @@ def _development_task_links(
 ) -> tuple[_DevelopmentTaskLink, ...]:
     """Join Operation and Commander tasks by the planner's stable child key.
 
-    Operation children persist ``planning_proposal_id`` and
-    ``planner_child_key``.  Commander candidates preserve proposal order but
-    generate a different deterministic task UUID.  This function validates
-    both projections before returning an explicit mapping used by the future
-    composition owner.
+    Operation children and Commander candidates persist
+    ``planning_proposal_id`` and ``planner_child_key``.  Commander generates a
+    different deterministic task UUID, so this function validates the
+    semantic identity on both projections before returning an explicit
+    mapping used by the future composition owner. Planner child order is used
+    only for deterministic presentation after the identity join.
     """
 
     if not isinstance(proposal, RootPlanningProposal):
@@ -65,11 +66,23 @@ def _development_task_links(
         operation_by_key[child_key] = task
 
     if len(commander_tasks) != len(expected_keys):
-        raise ProductionCompositionError("Commander projection does not match planner child count")
+        raise ProductionCompositionError("Commander projection is missing planner children")
     commander_by_key: dict[str, Mapping[str, Any]] = {}
-    for child_key, task in zip(expected_keys, commander_tasks, strict=True):
+    for task in commander_tasks:
         if not isinstance(task, Mapping):
             raise TypeError("commander_tasks must contain mappings")
+        commander_proposal_id = task.get("planning_proposal_id")
+        if commander_proposal_id is None:
+            raise ProductionCompositionError("Commander task has no validated planner identity")
+        if commander_proposal_id != proposal.proposal_id:
+            raise ProductionCompositionError("Commander task belongs to another planning proposal")
+        child_key = task.get("planner_child_key")
+        if not isinstance(child_key, str) or not child_key.strip():
+            raise ProductionCompositionError("Commander task has no validated planner child key")
+        if child_key not in expected_keys:
+            raise ProductionCompositionError("Commander task has an unknown planner child key")
+        if child_key in commander_by_key:
+            raise ProductionCompositionError(f"duplicate Commander child key: {child_key}")
         task_id = task.get("task_id")
         if not isinstance(task_id, str) or not task_id.strip():
             raise ProductionCompositionError("Commander task has no durable task_id")
@@ -77,6 +90,8 @@ def _development_task_links(
 
     if set(operation_by_key) != set(expected_keys):
         raise ProductionCompositionError("Operation projection is missing planner children")
+    if set(commander_by_key) != set(expected_keys):
+        raise ProductionCompositionError("Commander projection is missing planner children")
 
     return tuple(
         _DevelopmentTaskLink(

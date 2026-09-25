@@ -80,6 +80,8 @@ def test_bridge_returns_host_validated_candidate_without_writing_devfarm(tmp_pat
     assert task["risk"] == "normal"
     assert task["sensitivity"] == "normal"
     assert task["manifest_path"] == manifest_path
+    assert task["planning_proposal_id"] == proposal.proposal_id
+    assert task["planner_child_key"] == "implementation"
     assert manifest["task_id"] == task["task_id"]
     assert manifest["objective"] == "implement the narrow change"
     assert manifest["base_revision"] == "abc123"
