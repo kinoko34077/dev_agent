@@ -88,6 +88,23 @@ def _planning_failure_spec(message: str, *, response_contract: str) -> ConcreteF
         expected = "the requested parent_task_id"
         correction = "Set parent_task_id exactly to the requested parent_task_id."
         acceptance = ("parent_task_id matches the request",)
+    elif "continuation" in normalized and "dependency_types" in normalized:
+        location = "children[continuation].dependency_types"
+        observed = "continuation dependency types were missing or incorrect"
+        expected = '"CODE_INTEGRATED" for both worker dependencies'
+        correction = (
+            'Set continuation.dependency_types to map both worker dependencies to "CODE_INTEGRATED"; '
+            "do not change the worker objectives."
+        )
+        acceptance = ("continuation marks both worker dependencies as CODE_INTEGRATED",)
+    elif "continuation" in normalized and "depend" in normalized:
+        location = "children[continuation].dependencies"
+        observed = "continuation dependency shape was incomplete"
+        expected = '["worker-a", "worker-b"]'
+        correction = (
+            'Set continuation.dependencies exactly to ["worker-a", "worker-b"] and preserve both worker objectives.'
+        )
+        acceptance = ("continuation names both worker dependencies",)
     elif "dependencies" in normalized:
         location = "children[].dependencies"
         observed = "invalid dependency shape"

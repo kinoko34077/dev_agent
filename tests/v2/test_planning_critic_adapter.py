@@ -15,6 +15,7 @@ from src.dev_agent.intelligence.planner_adapter import (
     PLANNING_CRITIC_RESPONSE_SCHEMA,
     PlanningCriticAdapterError,
     PlanningResponseError,
+    _planning_failure_spec,
     propose_with_planning_critic,
 )
 from src.dev_agent.providers.base import ProviderError
@@ -126,6 +127,31 @@ def test_planner_contract_failure_carries_concrete_task_type_repair_spec():
     assert caught.value.failure_spec is not None
     assert caught.value.failure_spec.location == "children[].task_type"
     assert "exact task_type enum" in caught.value.failure_spec.required_correction
+
+
+def test_planner_failure_spec_describes_phase8_continuation_dependencies():
+    failure = _planning_failure_spec(
+        "continuation dependencies must include both worker-a and worker-b",
+        response_contract="invalid_proposal",
+    )
+
+    assert failure.location == "children[continuation].dependencies"
+    assert failure.expected == '["worker-a", "worker-b"]'
+    assert "exactly" in failure.required_correction
+    assert "worker-a" in failure.required_correction
+    assert "worker-b" in failure.required_correction
+    assert "both worker dependencies" in failure.acceptance_checks[0]
+
+
+def test_planner_failure_spec_describes_phase8_dependency_types():
+    failure = _planning_failure_spec(
+        "continuation dependency_types must be CODE_INTEGRATED for both workers",
+        response_contract="invalid_proposal",
+    )
+
+    assert failure.location == "children[continuation].dependency_types"
+    assert "CODE_INTEGRATED" in failure.expected
+    assert "both worker dependencies" in failure.required_correction
 
 
 def test_planning_critic_rejects_authority_fields_and_parent_mismatch():
