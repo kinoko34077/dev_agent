@@ -101,6 +101,14 @@ def apply_proposal(
 
     owner = _normalize_execution_owner(execution_owner)
     children = validate_proposal(proposal, context=context)
+    expected_owner_by_key = {
+        child.child_key: (
+            "devfarm"
+            if owner == "devfarm" and not child.dependencies
+            else "operation"
+        )
+        for child in children
+    }
     parent = context.parent
     existing = context.payloads
 
@@ -121,7 +129,7 @@ def apply_proposal(
             except Exception:
                 continue
             existing_owner = task.metadata.get("execution_owner", "operation")
-            if existing_owner != owner:
+            if existing_owner != expected_owner_by_key.get(child_key, "operation"):
                 raise PlanningValidationError("execution owner mismatch for existing child")
             existing_by_key[child_key] = task
 
@@ -136,12 +144,13 @@ def apply_proposal(
 
         # Build with deterministic task_id so a re-run produces the same UUID.
         dependencies = list(child.dependencies)
-        status = TaskStatus.WAITING_DEPENDENCY if dependencies or owner == "devfarm" else TaskStatus.QUEUED
+        child_owner = expected_owner_by_key[child.child_key]
+        status = TaskStatus.WAITING_DEPENDENCY if dependencies or child_owner == "devfarm" else TaskStatus.QUEUED
         metadata: dict[str, Any] = {
             "planning_proposal_id": proposal.proposal_id,
             "planner_child_key": child.child_key,
         }
-        if owner == "devfarm":
+        if child_owner == "devfarm":
             metadata.update(
                 {
                     "execution_owner": "devfarm",
@@ -150,8 +159,7 @@ def apply_proposal(
                 }
             )
         if dependencies:
-            if owner != "devfarm":
-                metadata["wait_reason"] = "planner_dependency"
+            metadata["wait_reason"] = "planner_dependency"
             metadata["planner_dependency_types"] = {
                 dependency: child.dependency_types.get(dependency, PlannerDependencyType.TASK_COMPLETED).value
                 for dependency in dependencies

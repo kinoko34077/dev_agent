@@ -5,7 +5,7 @@ import inspect
 import pytest
 
 from src.dev_agent.domain.protocol import Task, TaskStatus, TaskType
-from src.dev_agent.intelligence.planner import ChildTaskProposal, RootPlanningProposal
+from src.dev_agent.intelligence.planner import ChildTaskProposal, PlannerDependencyType, RootPlanningProposal
 from src.dev_agent.operation import OperationConfig, OperationError, OperationService
 
 
@@ -398,3 +398,93 @@ def test_phase8_devfarm_handoff_rejects_a_child_already_owned_by_operation_queue
             service.store.load_task(task.task_id).metadata["handoff_state"] == "HANDOFF_PENDING"
             for task in children
         )
+
+
+def test_phase8_devfarm_integration_evidence_releases_operation_continuation_once(tmp_path):
+    config = _handoff_config(tmp_path)
+    root = OperationService.submit(config, "phase8 integration evidence")
+    proposal = RootPlanningProposal(
+        parent_task_id=root.task_id,
+        proposal_id="phase8-integration-proposal",
+        rationale="integrated worker releases a continuation",
+        children=(
+            ChildTaskProposal(
+                child_key="worker-a",
+                objective="implement bounded change",
+                task_type=TaskType.WORKER,
+            ),
+            ChildTaskProposal(
+                child_key="continuation",
+                objective="continue after integration",
+                task_type=TaskType.DETERMINISTIC,
+                dependencies=("worker-a",),
+                dependency_types={"worker-a": PlannerDependencyType.CODE_INTEGRATED},
+            ),
+        ),
+    )
+
+    with OperationService.open(config) as service:
+        worker, continuation = service.apply_planning_proposal(proposal, execution_owner="devfarm")
+        service.handoff_planning_children_to_devfarm(
+            proposal_id=proposal.proposal_id,
+            run_id="devfarm-integration-run",
+            bindings={"worker-a": "devfarm-worker-a"},
+        )
+
+        with pytest.raises(OperationError, match="integration evidence"):
+            service.record_devfarm_integration_evidence(
+                proposal_id=proposal.proposal_id,
+                child_key="worker-a",
+                devfarm_run_id="devfarm-integration-run",
+                devfarm_task_id="devfarm-worker-a",
+                status="HOST_VERIFIED",
+                host_verification="PASS",
+                review_decision="APPROVE_INTEGRATION",
+                integration_revision="a" * 40,
+                source_attempt_id="attempt-1",
+                verified_patch_digest="b" * 64,
+            )
+
+        changed = service.record_devfarm_integration_evidence(
+            proposal_id=proposal.proposal_id,
+            child_key="worker-a",
+            devfarm_run_id="devfarm-integration-run",
+            devfarm_task_id="devfarm-worker-a",
+            status="INTEGRATED",
+            host_verification="PASS",
+            review_decision="APPROVE_INTEGRATION",
+            integration_revision="a" * 40,
+            source_attempt_id="attempt-1",
+            verified_patch_digest="b" * 64,
+        )
+
+        assert [task.task_id for task in changed] == [worker.task_id, continuation.task_id]
+        integrated = service.store.load_task(worker.task_id)
+        released = service.store.load_task(continuation.task_id)
+        assert integrated.metadata["integration_status"] == "INTEGRATED"
+        assert integrated.metadata["integration_revision"] == "a" * 40
+        assert released.status is TaskStatus.QUEUED
+        assert service.queue.snapshot(continuation.task_id).state == "queued"
+        assert service.store.has_event(worker.task_id, "task.devfarm_integration_recorded")
+        assert service.store.has_event(continuation.task_id, "task.planner_dependency_released")
+
+        replayed = service.record_devfarm_integration_evidence(
+            proposal_id=proposal.proposal_id,
+            child_key="worker-a",
+            devfarm_run_id="devfarm-integration-run",
+            devfarm_task_id="devfarm-worker-a",
+            status="INTEGRATED",
+            host_verification="PASS",
+            review_decision="APPROVE_INTEGRATION",
+            integration_revision="a" * 40,
+            source_attempt_id="attempt-1",
+            verified_patch_digest="b" * 64,
+        )
+        assert [task.task_id for task in replayed] == [worker.task_id]
+        assert len(
+            [
+                event
+                for event in service.store.snapshot()["events"]
+                if event["task_id"] == worker.task_id and event["event_type"] == "task.devfarm_integration_recorded"
+            ]
+        ) == 1

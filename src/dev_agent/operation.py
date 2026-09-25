@@ -14,6 +14,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 from threading import Event
 from typing import Any, Callable, Mapping
 from uuid import NAMESPACE_URL, uuid5
@@ -921,12 +922,17 @@ class OperationService:
             except Exception as exc:
                 raise OperationError("durable planner child is invalid") from exc
 
-        if set(children_by_key) != set(normalized):
+        devfarm_children = {
+            child_key: task
+            for child_key, task in children_by_key.items()
+            if task.metadata.get("execution_owner") == "devfarm"
+        }
+        if not devfarm_children or set(devfarm_children) != set(normalized):
             raise OperationError("handoff bindings do not cover the exact child set")
 
         prepared: list[Task] = []
         for child_key, devfarm_task_id in normalized.items():
-            task = children_by_key[child_key]
+            task = devfarm_children[child_key]
             metadata = task.metadata
             if metadata.get("execution_owner") != "devfarm":
                 raise OperationError("planner child is not explicitly DevFarm-owned")
@@ -972,6 +978,126 @@ class OperationService:
             )
             self.store.commit_transition(task=task, event=event)
         return tuple(prepared)
+
+    def record_devfarm_integration_evidence(
+        self,
+        *,
+        proposal_id: str,
+        child_key: str,
+        devfarm_run_id: str,
+        devfarm_task_id: str,
+        status: str,
+        host_verification: str,
+        review_decision: str,
+        integration_revision: str,
+        source_attempt_id: str,
+        verified_patch_digest: str,
+        evidence_source: str = "devfarm_host_integration",
+    ) -> tuple[Task, ...]:
+        """Return authoritative DevFarm integration evidence to Operation.
+
+        The caller supplies only the bounded result of the existing Host-owned
+        DevFarm integration boundary.  This method does not review or
+        integrate code; it joins the result to the exact proposal/child
+        identity recorded during handoff, records the minimum dependency
+        evidence, and invokes the existing dependency-release predicates.
+        """
+
+        def bounded_text(value: Any, name: str, maximum: int) -> str:
+            if not isinstance(value, str) or not value.strip() or len(value.strip()) > maximum:
+                raise OperationError(f"integration evidence {name} is invalid")
+            return value.strip()
+
+        normalized_proposal_id = bounded_text(proposal_id, "proposal_id", 256)
+        normalized_child_key = bounded_text(child_key, "child_key", 256)
+        normalized_run_id = bounded_text(devfarm_run_id, "devfarm_run_id", 256)
+        normalized_task_id = bounded_text(devfarm_task_id, "devfarm_task_id", 256)
+        normalized_status = bounded_text(status, "status", 32)
+        normalized_host_verification = bounded_text(host_verification, "host_verification", 32)
+        normalized_review_decision = bounded_text(review_decision, "review_decision", 64)
+        normalized_revision = bounded_text(integration_revision, "integration_revision", 200)
+        normalized_attempt = bounded_text(source_attempt_id, "source_attempt_id", 200)
+        normalized_digest = bounded_text(verified_patch_digest, "verified_patch_digest", 64).lower()
+        normalized_source = bounded_text(evidence_source, "evidence_source", 64)
+        if normalized_status != "INTEGRATED" or normalized_host_verification != "PASS" or normalized_review_decision != "APPROVE_INTEGRATION":
+            raise OperationError("integration evidence is not authoritative")
+        if normalized_source != "devfarm_host_integration":
+            raise OperationError("integration evidence source is not authoritative")
+        if re.fullmatch(r"[0-9a-f]{64}", normalized_digest) is None:
+            raise OperationError("integration evidence digest is invalid")
+
+        payloads = self.store.snapshot().get("tasks", {})
+        if not isinstance(payloads, Mapping):
+            raise OperationError("durable integration state is unavailable")
+        matches: list[Task] = []
+        for payload in payloads.values():
+            if not isinstance(payload, dict):
+                continue
+            metadata = payload.get("metadata")
+            if not isinstance(metadata, dict):
+                continue
+            if metadata.get("planning_proposal_id") != normalized_proposal_id or metadata.get("planner_child_key") != normalized_child_key:
+                continue
+            try:
+                matches.append(Task.from_persisted_dict(payload))
+            except Exception as exc:
+                raise OperationError("mapped Operation child is invalid") from exc
+        if len(matches) != 1:
+            raise OperationError("integration evidence has an ambiguous Operation mapping")
+
+        task = matches[0]
+        metadata = task.metadata
+        if metadata.get("execution_owner") != "devfarm" or metadata.get("handoff_state") != "DEVFARM_OWNED":
+            raise OperationError("integration evidence targets a child without a DevFarm handoff")
+        if metadata.get("devfarm_run_id") != normalized_run_id or metadata.get("devfarm_task_id") != normalized_task_id:
+            raise OperationError("integration evidence identity does not match the durable handoff")
+        try:
+            self.queue.snapshot(task.task_id)
+        except KeyError:
+            pass
+        else:
+            raise OperationError("integrated child is still owned by the Operation queue")
+
+        evidence = {
+            "integration_status": normalized_status,
+            "integration_revision": normalized_revision,
+            "host_verification": normalized_host_verification,
+            "review_decision": normalized_review_decision,
+            "source_attempt_id": normalized_attempt,
+            "verified_patch_digest": normalized_digest,
+            "integration_evidence_source": normalized_source,
+        }
+        if metadata.get("integration_status") == "INTEGRATED":
+            if any(metadata.get(key) != value for key, value in evidence.items()):
+                raise OperationError("conflicting integration evidence replay")
+            released = _release_planner_dependencies(self.store, self.queue, proposal_id=normalized_proposal_id)
+            return (task, *released)
+        if metadata.get("integration_status") is not None:
+            raise OperationError("Operation child already has a non-integrated result")
+
+        metadata.update(evidence)
+        event = ProtocolEvent(
+            event_id=str(
+                uuid5(
+                    NAMESPACE_URL,
+                    f"dev-agent:devfarm-integration:{normalized_run_id}:{normalized_task_id}:{normalized_digest}",
+                )
+            ),
+            task_id=task.task_id,
+            event_type="task.devfarm_integration_recorded",
+            payload={
+                "proposal_id": normalized_proposal_id,
+                "child_key": normalized_child_key,
+                "devfarm_run_id": normalized_run_id,
+                "devfarm_task_id": normalized_task_id,
+                "integration_revision": normalized_revision,
+                "source_attempt_id": normalized_attempt,
+                "verified_patch_digest": normalized_digest,
+            },
+        )
+        self.store.commit_transition(task=task, event=event)
+        released = _release_planner_dependencies(self.store, self.queue, proposal_id=normalized_proposal_id)
+        return (task, *released)
 
     def release_planner_dependencies(self, *, proposal_id: str | None = None) -> tuple[Task, ...]:
         """Release or terminalize validated planner children from durable state.

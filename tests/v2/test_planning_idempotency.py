@@ -208,10 +208,13 @@ def test_devfarm_owned_children_are_durable_but_not_operation_queued(tmp_path):
             TaskStatus.WAITING_DEPENDENCY,
             TaskStatus.WAITING_DEPENDENCY,
         ]
+        implementation, continuation = children
+        assert implementation.metadata["execution_owner"] == "devfarm"
+        assert implementation.metadata["handoff_state"] == "HANDOFF_PENDING"
+        assert implementation.metadata["wait_reason"] == "devfarm_handoff"
+        assert "execution_owner" not in continuation.metadata
+        assert continuation.metadata["wait_reason"] == "planner_dependency"
         for child in children:
-            assert child.metadata["execution_owner"] == "devfarm"
-            assert child.metadata["handoff_state"] == "HANDOFF_PENDING"
-            assert child.metadata["wait_reason"] == "devfarm_handoff"
             with pytest.raises(KeyError):
                 service.queue.snapshot(child.task_id)
 
