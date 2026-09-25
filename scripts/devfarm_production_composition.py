@@ -142,11 +142,14 @@ class Phase8ProductionSubmission:
         operator_approved: bool = True,
         dispatch_timeout_seconds: int | float = 300.0,
         roadmap_reference: Mapping[str, Any] | None = None,
+        local_trial: bool = False,
     ) -> None:
         if not callable(planner) or not callable(task_specs) or not callable(providers):
             raise TypeError("Planner, task-spec, and provider boundaries are required")
         if not callable(review_proposal) or not callable(final_review_decision):
             raise TypeError("review boundaries are required")
+        if not isinstance(local_trial, bool):
+            raise TypeError("local_trial must be a boolean")
         self.operation_config = operation_config
         self.repository = Path(repository).resolve()
         self.planner = planner
@@ -161,6 +164,7 @@ class Phase8ProductionSubmission:
         self.operator_approved = operator_approved
         self.dispatch_timeout_seconds = dispatch_timeout_seconds
         self.roadmap_reference = dict(roadmap_reference or {})
+        self.local_trial = local_trial
 
     @staticmethod
     def _worker_bindings(plan: Mapping[str, Any]) -> dict[str, str]:
@@ -251,6 +255,7 @@ class Phase8ProductionSubmission:
                 verification_trust_level=self.verification_trust_level,
                 operator_approved=self.operator_approved,
                 dispatch_timeout_seconds=self.dispatch_timeout_seconds,
+                local_trial=self.local_trial,
             )
             execution = executor.advance()
             continuation_changes = [
@@ -377,6 +382,7 @@ class Phase8ProductionExecutor:
         verification_trust_level: str = "TRUSTED_HOST_EXEC",
         operator_approved: bool = True,
         dispatch_timeout_seconds: int | float = 300.0,
+        local_trial: bool = False,
     ) -> None:
         required_operation = "record_devfarm_integration_evidence"
         required_commander = (
@@ -419,6 +425,8 @@ class Phase8ProductionExecutor:
             raise ValueError("unsupported verification trust level")
         if not isinstance(operator_approved, bool):
             raise TypeError("operator_approved must be a boolean")
+        if not isinstance(local_trial, bool):
+            raise TypeError("local_trial must be a boolean")
         if (
             isinstance(dispatch_timeout_seconds, bool)
             or not isinstance(dispatch_timeout_seconds, (int, float))
@@ -440,6 +448,7 @@ class Phase8ProductionExecutor:
         self.verification_trust_level = verification_trust_level
         self.operator_approved = operator_approved
         self.dispatch_timeout_seconds = float(dispatch_timeout_seconds)
+        self.local_trial = local_trial
 
     @staticmethod
     def _worker_tasks(plan: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
@@ -597,6 +606,7 @@ class Phase8ProductionExecutor:
             verification_trust_level=self.verification_trust_level,
             operator_approved=self.operator_approved,
             dispatch_timeout_seconds=self.dispatch_timeout_seconds,
+            local_trial=self.local_trial,
         )
         plan = self.commander.plan()
         workers = self._validate_worker_identity(plan)

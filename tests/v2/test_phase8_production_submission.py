@@ -148,6 +148,7 @@ def test_phase8_public_driver_only_submits_and_observes(tmp_path: Path):
         },
         final_review_decision=lambda _packet, proposal: proposal,
         target_checkout=repository,
+        local_trial=True,
     )
     composition = Phase8ProductionComposition(
         submit_boundary=submission.submit,
