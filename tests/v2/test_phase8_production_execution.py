@@ -206,6 +206,17 @@ def test_phase8_executor_rejects_incomplete_identity_before_dispatch():
     assert values["commander"].advance_calls == 0
 
 
+def test_phase8_executor_reordered_commander_tasks_use_identity_not_position():
+    executor, values = _executor()
+    values["commander"]._plan["tasks"][:] = list(reversed(values["commander"]._plan["tasks"]))
+
+    result = executor.advance()
+
+    assert result["integrated"] == ["worker-a", "worker-b"]
+    assert values["commander"].integration_calls == ["devfarm-a", "devfarm-b"]
+    assert [call["child_key"] for call in values["operation"].calls] == ["worker-a", "worker-b"]
+
+
 def test_phase8_executor_composes_real_operation_and_commander_boundaries(tmp_path):
     from scripts.devfarm_production_composition import Phase8ProductionExecutor
 

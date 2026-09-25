@@ -245,9 +245,16 @@ class Phase8ProductionExecutor:
             raise ValueError("bindings must cover the exact worker identity set")
         if set(task_ids) != set(self.providers):
             raise ValueError("providers must cover the exact worker task set")
-        if any(self.bindings[key] != task_id for key, task_id in zip(child_keys, task_ids, strict=True)):
+        commander_by_key = {
+            child_key: task_id
+            for child_key, task_id in zip(child_keys, task_ids, strict=True)
+        }
+        if any(self.bindings[key] != commander_by_key[key] for key in self.bindings):
             raise ProductionCompositionError("DevFarm handoff identity does not match Commander task identity")
-        return workers
+        return tuple(
+            next(task for task in workers if task.get("planner_child_key") == child_key)
+            for child_key in self.bindings
+        )
 
     @classmethod
     def _normalize_review_decision(cls, value: Mapping[str, Any]) -> dict[str, Any]:
