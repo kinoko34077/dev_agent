@@ -218,6 +218,7 @@ def test_run_worker_does_not_turn_reconciliation_failure_into_model_repair_spec(
     assert result["status"] == "failed"
     assert result["worker_metrics"]["provider_failure_category"] == "transport"
     assert result["worker_metrics"]["reconciliation_required"] is True
+    assert "proposal_preflight" not in result["worker_metrics"]
     assert "failure_spec" not in result
     assert "repair_directive" not in result
 

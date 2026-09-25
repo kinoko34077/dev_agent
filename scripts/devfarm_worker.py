@@ -67,11 +67,16 @@ from scripts.devfarm_worker_input import (
     build_worker_input_context,
 )
 from scripts.devfarm_worker_output import (
+    MINIMAL_WORKER_OUTPUT_KEYS,
     build_worker_metrics,
     extract_json_object,
+    minimal_worker_output_schema,
     normalize_model_status,
     safe_host_failure_metadata,
     safe_usage,
+    worker_output_mode,
+    worker_proposal_preflight_failure,
+    worker_proposal_preflight_success,
 )
 from scripts.devfarm_verification import (
     HostVerificationRunner as shared_host_verification_runner,
@@ -307,7 +312,7 @@ def _materialize_file_replacements(
     root: Path,
     manifest: Mapping[str, Any],
     replacements: Mapping[str, Any],
-) -> tuple[str, list[str]]:
+) -> tuple[str, list[str], str, tuple[str, ...]]:
     """Turn bounded complete-file output into a Host-generated unified diff.
 
     A Worker may find a literal unified diff difficult to format. This
@@ -327,6 +332,7 @@ def _materialize_file_replacements(
     seen: set[str] = set()
     total_chars = 0
     encodings: set[str] = set()
+    canonicalization_rules: list[str] = []
     for raw_path, replacement in replacements.items():
         if not isinstance(raw_path, str) or not raw_path.strip():
             raise DevFarmError("file replacement path must be a non-empty string")
@@ -358,6 +364,7 @@ def _materialize_file_replacements(
             replacement = list(replacement)
             while replacement and replacement[-1] == "":
                 replacement.pop()
+                canonicalization_rules.append("line_array_terminal_empty_lines")
             replacement = "\n".join(replacement)
             if replacement:
                 replacement += "\n"
@@ -408,7 +415,7 @@ def _materialize_file_replacements(
     if len(patch) > MAX_OUTPUT_TEXT_CHARS:
         raise DevFarmError(f"Host-generated replacement patch exceeds {MAX_OUTPUT_TEXT_CHARS} characters")
     encoding = "lines" if encodings == {"lines"} else "text"
-    return patch, changed_paths, encoding
+    return patch, changed_paths, encoding, tuple(dict.fromkeys(canonicalization_rules))
 
 
 _canonical_digest = canonical_digest
@@ -460,6 +467,7 @@ def _prompt(
     *,
     egress_manifest: EgressManifest | None = None,
     local_ollama: bool = False,
+    minimal_proposal: bool = False,
 ) -> str:
     """Backward-compatible Worker prompt entrypoint."""
 
@@ -468,36 +476,16 @@ def _prompt(
         inputs,
         egress_manifest=egress_manifest,
         local_ollama=local_ollama,
+        minimal_proposal=minimal_proposal,
     )
 
 
 _provider = build_worker_provider
 
 
-# Ollama supports host-supplied JSON-schema output mode.  Keep the local model
-# contract minimal: the model proposes only file content, while status,
-# changed paths, tests, and verification facts remain Host-owned.
-_OLLAMA_WORKER_RESPONSE_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "file_replacements": {
-            "type": "object",
-            "minProperties": 1,
-            "additionalProperties": {
-                "oneOf": [
-                    {"type": "string"},
-                    {
-                        "type": "array",
-                        "items": {"type": "string", "pattern": "^[^\\r\\n]*$"},
-                    },
-                ]
-            },
-        },
-        "notes": {"type": "string"},
-    },
-    "required": ["file_replacements"],
-    "additionalProperties": False,
-}
+# Compatibility export retained for tests and older in-process callers.  The
+# shared schema is used for both local Ollama and explicit remote minimal mode.
+_OLLAMA_WORKER_RESPONSE_SCHEMA = minimal_worker_output_schema()
 
 
 def inspect_worker_egress(
@@ -610,11 +598,15 @@ def _record_failed_model_output(
     reason: str,
     *,
     worker_metrics: Mapping[str, Any] | None = None,
+    proposal_preflight: Mapping[str, Any] | None = None,
     attempt_id: str | None = None,
     egress_manifest: EgressManifest | None = None,
 ) -> dict[str, Any]:
     selected_attempt = _attempt_id(attempt_id)
     failure_spec = build_concrete_failure_spec(reason, manifest=manifest)
+    metrics = dict(worker_metrics or {})
+    if proposal_preflight is not None:
+        metrics["proposal_preflight"] = dict(proposal_preflight)
     result = {
         "status": "failed",
         "attempt_id": selected_attempt,
@@ -625,7 +617,7 @@ def _record_failed_model_output(
         "model_claims": {},
         "proposed_test_commands": [],
         "host_verified_tests": [],
-        "worker_metrics": dict(worker_metrics or {}),
+        "worker_metrics": metrics,
         # This is a bounded deterministic Host-validator reason, not raw model
         # output.  Preserve it for existing failure artifacts while the
         # structured FailureSpec carries the sanitized repair facts.
@@ -898,6 +890,10 @@ def run_worker(
         provider,
         allow_local=local_trial,
     )
+    output_mode = worker_output_mode(
+        manifest["output_contract"],
+        local_ollama=provider_id == "ollama",
+    )
     worker_tier = _tier or _eligibility.intelligence_tier
     if not isinstance(worker_tier, str) or not worker_tier.strip():
         raise DevFarmError("worker provider has no Host-admitted intelligence tier")
@@ -910,12 +906,12 @@ def run_worker(
     messages = [
         {"role": "system", "content": "Return the bounded development-worker result as JSON only."},
     ]
-    if provider_id == "ollama":
+    if output_mode == "minimal_file_replacement":
         messages.append(
             {
                 "role": "system",
                 "content": (
-                    "For this local Ollama trial, the only required output key is "
+                    "For this bounded change proposal, the only required output key is "
                     "file_replacements. Use a complete replacement for one supplied file. "
                     "Do not emit status metadata or a unified diff; the Host derives those facts."
                 ),
@@ -929,6 +925,7 @@ def run_worker(
                 inputs,
                 egress_manifest=egress_manifest,
                 local_ollama=provider_id == "ollama",
+                minimal_proposal=output_mode == "minimal_file_replacement",
             ),
         }
     )
@@ -948,10 +945,10 @@ def run_worker(
         },
         response_schema=(
             _OLLAMA_WORKER_RESPONSE_SCHEMA
-            if provider_id == "ollama"
+            if output_mode == "minimal_file_replacement"
             else None
         ),
-        max_output_tokens=(LOCAL_OLLAMA_MAX_OUTPUT_TOKENS if provider_id == "ollama" else 4096),
+        max_output_tokens=(LOCAL_OLLAMA_MAX_OUTPUT_TOKENS if output_mode == "minimal_file_replacement" else 4096),
     )
     dispatch = host_dispatch or HostProviderDispatch(provider)
     if dispatch.provider_identity["provider_id"] not in {provider_id, "resource-router"}:
@@ -961,6 +958,7 @@ def run_worker(
         response = dispatch.request(request)
     except ProviderError as exc:
         metrics = _worker_metrics(provider, request, elapsed_ms=round((time.perf_counter() - started) * 1000), task_type=manifest["task_type"])
+        metrics["output_contract_mode"] = output_mode
         metrics["execution_boundary"] = dispatch.execution_boundary
         # Keep the provider/Host failure category distinct from the bounded
         # transport-layer diagnostic.  A Host configuration rejection must
@@ -1004,12 +1002,17 @@ def run_worker(
         return result
     elapsed_ms = round((time.perf_counter() - started) * 1000)
     metrics = _worker_metrics(provider, request, response=response, elapsed_ms=elapsed_ms, task_type=manifest["task_type"])
+    metrics["output_contract_mode"] = output_mode
     if getattr(response, "provider", None) != provider_id or getattr(response, "model", None) != model_id:
         return _record_failed_model_output(
             root,
             manifest,
             "worker response identity mismatch with admitted provider binding",
             worker_metrics=metrics,
+            proposal_preflight=worker_proposal_preflight_failure(
+                "worker response identity mismatch with admitted provider binding",
+                mode=output_mode,
+            ),
             attempt_id=attempt_id,
             egress_manifest=egress_manifest,
         )
@@ -1020,6 +1023,10 @@ def run_worker(
             manifest,
             "worker response exceeds output limit",
             worker_metrics=metrics,
+            proposal_preflight=worker_proposal_preflight_failure(
+                "worker response exceeds output limit",
+                mode=output_mode,
+            ),
             attempt_id=attempt_id,
             egress_manifest=egress_manifest,
         )
@@ -1031,28 +1038,47 @@ def run_worker(
             manifest,
             str(exc),
             worker_metrics=metrics,
+            proposal_preflight=worker_proposal_preflight_failure(
+                str(exc),
+                mode=output_mode,
+            ),
             attempt_id=attempt_id,
             egress_manifest=egress_manifest,
         )
     try:
+        if output_mode == "minimal_file_replacement":
+            unsupported = sorted(set(output) - MINIMAL_WORKER_OUTPUT_KEYS)
+            if unsupported:
+                raise DevFarmError(
+                    "minimal worker output contains unsupported fields: "
+                    + ", ".join(unsupported)
+                )
+            if "notes" in output and not isinstance(output["notes"], str):
+                raise DevFarmError("minimal worker notes must be a string")
         patch = output.get("patch", "")
         if not isinstance(patch, str):
             raise DevFarmError("worker patch must be a string")
         replacement_value = output.get("file_replacements")
-        if provider_id == "ollama":
+        if output_mode == "minimal_file_replacement":
             if not isinstance(replacement_value, Mapping) or not replacement_value:
-                raise DevFarmError("local Ollama worker must provide non-empty file_replacements")
+                raise DevFarmError("minimal Worker must provide non-empty file_replacements")
             if patch:
-                raise DevFarmError("local Ollama worker must not provide a unified patch")
+                raise DevFarmError("minimal Worker must not provide a unified patch")
         host_generated_paths: list[str] = []
         host_generated_encoding: str | None = None
+        host_canonicalization_rules: tuple[str, ...] = ()
         if replacement_value is not None:
             if not isinstance(replacement_value, Mapping):
                 raise DevFarmError("file_replacements must be an object")
             if replacement_value:
                 if patch:
                     raise DevFarmError("worker must provide either patch or file_replacements")
-                patch, host_generated_paths, host_generated_encoding = _materialize_file_replacements(
+                (
+                    patch,
+                    host_generated_paths,
+                    host_generated_encoding,
+                    host_canonicalization_rules,
+                ) = _materialize_file_replacements(
                     root,
                     manifest,
                     replacement_value,
@@ -1070,8 +1096,12 @@ def run_worker(
         if patch_normalizations:
             output = {**output, "patch": patch, "patch_normalizations": patch_normalizations}
         actual_changed_files = validate_patch(patch, manifest=manifest)
-        status = "completed" if provider_id == "ollama" else _normalize_model_status(output.get("status"))
-        if provider_id == "ollama":
+        status = (
+            "completed"
+            if output_mode == "minimal_file_replacement"
+            else _normalize_model_status(output.get("status"))
+        )
+        if output_mode == "minimal_file_replacement":
             # Local minimal-contract output has no model-owned status or
             # metadata.  The Host derives its proposal projection only from
             # the validated replacement and never creates source content.
@@ -1095,7 +1125,13 @@ def run_worker(
             metrics["host_generated_patch"] = "file_replacements"
             metrics["host_generated_patch_paths"] = list(host_generated_paths)
             metrics["file_replacement_encoding"] = host_generated_encoding
-        if provider_id == "ollama":
+        preflight_rules = tuple((*host_canonicalization_rules, *patch_normalizations))
+        metrics["proposal_preflight"] = worker_proposal_preflight_success(
+            mode=output_mode,
+            canonicalization_rules=preflight_rules,
+        )
+        metrics["canonicalization"] = metrics["proposal_preflight"]["canonicalization"]
+        if output_mode == "minimal_file_replacement":
             result = {
                 "status": status,
                 "attempt_id": attempt_id,
@@ -1132,6 +1168,10 @@ def run_worker(
             manifest,
             str(exc),
             worker_metrics=metrics,
+            proposal_preflight=worker_proposal_preflight_failure(
+                str(exc),
+                mode=output_mode,
+            ),
             attempt_id=attempt_id,
             egress_manifest=egress_manifest,
         )

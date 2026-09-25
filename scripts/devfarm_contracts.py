@@ -228,6 +228,10 @@ def validate_manifest(value: Mapping[str, Any]) -> dict[str, Any]:
         raise DevFarmError("max_attempts must be a positive integer")
     if not isinstance(value["output_contract"], Mapping):
         raise DevFarmError("output_contract must be an object")
+    output_contract = dict(value["output_contract"])
+    output_mode = output_contract.get("mode")
+    if output_mode is not None and output_mode not in {"full_result", "minimal_file_replacement"}:
+        raise DevFarmError("output_contract.mode must be full_result or minimal_file_replacement")
     requirements = _strings(value["requirements"], "requirements")
     acceptance = _strings(value["acceptance"], "acceptance")
     test_commands = _test_commands(value["test_commands"])
@@ -257,7 +261,7 @@ def validate_manifest(value: Mapping[str, Any]) -> dict[str, Any]:
         "acceptance": acceptance,
         "test_commands": test_commands,
         "max_attempts": value["max_attempts"],
-        "output_contract": dict(value["output_contract"]),
+        "output_contract": output_contract,
     }
     rework_handoff = value.get("rework_handoff")
     if rework_handoff is not None:
