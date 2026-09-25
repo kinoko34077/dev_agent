@@ -148,7 +148,8 @@ def prepare_worktree(
         if detached_result.returncode != 0:
             detached_stderr = detached_result.stderr.strip()
             clone_permission_limited = (
-                "could not create directory of '.git/worktrees" in detached_stderr.lower()
+                "could not create directory of" in detached_stderr.lower()
+                and ".git/worktrees" in detached_stderr.lower()
                 and "permission denied" in detached_stderr.lower()
             )
             if not clone_permission_limited:
