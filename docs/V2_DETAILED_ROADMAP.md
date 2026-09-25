@@ -265,7 +265,7 @@ G6O1、paid provider、OpenAI/Claude API、Production auto-deploy、UI、unbound
 
 ### Main Phase 8 / Main Phase 9
 
-- D9 Dogfoodは`VERIFIED`。現在はR9のfresh single-root Planner → 2 Implementer → Reviewer → integration → `CODE_INTEGRATED` continuationを進め、自然なFORMAT/PATCHまたはSEMANTIC/TEST failureが起きた場合に限りAR1を適用する。R9/Phase 8 LIVE_ACTIVATIONがEvidenceで閉じた後にR10・Stage 6 AI Company benchmarkへ進む。Production DeploymentはDeferredのまま。
+- D9 Dogfoodは`VERIFIED`。Issue #5/PR #4で決定論的なsingle-root composition（Planner validation → 2 Implementer → Host Verification → Reviewer → integration → `CODE_INTEGRATED` continuation）を閉じ、Issue #9では弱モデル向けの最小Worker proposal contractとHost-owned deterministic preflightを追加した。次はR9のfresh single-root live Planner → 2 Implementer → Reviewer → integration → `CODE_INTEGRATED` continuationを進め、自然なFORMAT/PATCHまたはSEMANTIC/TEST failureが起きた場合に限りAR1を適用する。新規にadmittedなremote generation routeがない場合は、同じ外部失敗を盲目的に再試行しない。R9/Phase 8 LIVE_ACTIVATIONがEvidenceで閉じた後にR10・Stage 6 AI Company benchmarkへ進む。Production DeploymentはDeferredのまま。Issue #9 Evidenceは[`devfarm-worker-contract-preflight-20260926.json`](../spec/v2/evidence/devfarm-worker-contract-preflight-20260926.json)。
 - Virtual Office UIは正式Operation/MCP APIが安定した後に限る。
 
 ## 凍結・非ブロッキング

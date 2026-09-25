@@ -1,0 +1,87 @@
+{
+  "evidence_id": "devfarm-worker-contract-preflight-20260926",
+  "observed_at": "2026-09-26",
+  "revision": "5fd89a1a78a416fca73e0641ba2d8d17d2dd4bde",
+  "branch": "phase8/worker-contract-preflight-issue9",
+  "scope": "Issue #9 bounded Worker proposal contract and deterministic Host preflight",
+  "status": "VERIFIED_LOCAL_NON_GATE",
+  "roadmap": {
+    "preceding_composition": "Issue #5 / PR #4 single-root deterministic composition proof",
+    "current_slice": "Issue #9 worker contract/preflight",
+    "next_gate_relevant_action": "fresh R9 single-root live execution only after a newly admitted remote generation route exists"
+  },
+  "worker_contract": {
+    "legacy_mode": "full_result",
+    "local_ollama_default_mode": "minimal_file_replacement",
+    "explicit_opt_in_mode": "minimal_file_replacement",
+    "minimal_model_owned_fields": ["file_replacements", "notes"],
+    "host_derived_fields": [
+      "status",
+      "changed_files",
+      "tests_run",
+      "tests_passed",
+      "host_verification"
+    ],
+    "host_verification_remains_acceptance_boundary": true
+  },
+  "preflight": {
+    "deterministic": true,
+    "fail_closed": true,
+    "rejects": [
+      "unsupported output fields",
+      "malformed JSON",
+      "invalid file replacement shape",
+      "out-of-scope paths",
+      "embedded line breaks",
+      "secret candidates",
+      "invalid patch syntax"
+    ],
+    "canonicalization": {
+      "source": "host",
+      "allowlisted_transport_rules": [
+        "line_array_terminal_empty_lines",
+        "appended_final_newline",
+        "bounded_patch_hunk_counts"
+      ],
+      "source_code_invention": false,
+      "path_invention": false
+    },
+    "model_failure_fallback_disposition": "defer_to_bounded_correction",
+    "provider_transport_or_reconciliation_enters_model_preflight": false
+  },
+  "verification": {
+    "focused_affected_tests": "194 passed",
+    "full_tests_v2": "1676 passed, 1 skipped",
+    "architecture": "PASS",
+    "compile": "PASS via writable alternate pycache target; shared worktree pycache reported existing WinError 5 ACL",
+    "diff_check": "PASS",
+    "credential_scan": "PASS; no credential value included",
+    "exact_head_ci": {
+      "v2_core_kernel_3_10": "PASS",
+      "v2_core_kernel_3_11": "PASS",
+      "provider_smoke": "PASS",
+      "v2_core_run": "https://github.com/kinoko34077/dev_agent/actions/runs/36170291585",
+      "provider_smoke_run": "https://github.com/kinoko34077/dev_agent/actions/runs/36170291535"
+    }
+  },
+  "boundaries_preserved": [
+    "existing Worker manifest and egress admission",
+    "existing Host patch validation and Host Verification",
+    "existing refinement/provider admission authority",
+    "provider transport, UNKNOWN, and reconciliation separation",
+    "no new scheduler, queue, state store, provider registry, or authority"
+  ],
+  "limitations": [
+    "no new remote generation admission was established",
+    "formal Phase 8 LIVE_ACTIVATION remains NOT_VERIFIED",
+    "Discord live-client E2E remains outside this slice",
+    "this is local contract/preflight evidence, not a Worker integration success"
+  ],
+  "gate_impact": {
+    "D9_DOGFOOD": "VERIFIED",
+    "D9_PRODUCTION_DEPLOYMENT": "DEFERRED_NOT_READY",
+    "PHASE8_PREPARATION": "PREPARATION_ONLY",
+    "LIVE_ACTIVATION": "NOT_VERIFIED"
+  },
+  "secrets_included": false
+}

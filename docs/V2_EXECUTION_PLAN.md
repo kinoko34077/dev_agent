@@ -25,6 +25,17 @@ and 0 runtime-eligible; no generation or UNKNOWN replay was attempted. Do not
 start remote R9 until a fresh admitted generation route exists. Evidence:
 [`model-catalog-r9-refresh-20260926.json`](../spec/v2/evidence/model-catalog-r9-refresh-20260926.json).
 
+2026-09-26 Issue #9 Worker contract/preflight checkpoint: `5fd89a1` adds a
+Host-owned `minimal_file_replacement` proposal mode for local Ollama, retains
+the legacy full-result mode, and records deterministic fail-closed preflight
+metadata before any bounded correction or provider reassignment decision.
+Only allowlisted transport formatting is canonicalized; source content, paths,
+authority, Host Verification, UNKNOWN, and reconciliation semantics remain
+unchanged. Affected DevFarm coverage is `194 passed`, full `tests/v2` is
+`1676 passed, 1 skipped`, and exact-head v2-core/provider-smoke CI is green.
+This is local non-Gate evidence; do not treat it as a new Phase 8 live root.
+Evidence: [`devfarm-worker-contract-preflight-20260926.json`](../spec/v2/evidence/devfarm-worker-contract-preflight-20260926.json).
+
 ## Current phase
 
 Phase 7後半の安全な拡張と開発運用移管。既存のKernel、Resource/Provider、Task/Scheduler、Recovery、DevFarm、Supervisor、Host Verification、Review/Integration境界は維持する。G6O1は未検証の外部Gateだが、Human決定により現行roadmapでは非ブロッキング凍結中である。
@@ -55,7 +66,7 @@ Phase 7後半の安全な拡張と開発運用移管。既存のKernel、Resourc
 
 2026-09-23 Discord operational routing checkpoint: `639d903` connects active-run plain-message routing to the existing NOTE boundary, preserves explicit intervention kinds, uses Core child submission for bound PARALLEL work, cancels only the bound Task without requesting a process-wide stop, and persists `/dir`/`/file` UI scope in StateStore schema version 9 for structured Core inputs. Discord replies to delivered HumanRequests are correlated before ordinary ingress and finite-answer buttons delegate to `HumanInteractionPort`; outbound projection exposes a bounded health/error category. The Core safe-checkpoint consumer for INTERRUPT and the standard-runner Core-owned Approval submit callback remain unexposed, so those two operational paths are not claimed as complete. Local tests and exact-head CI pass; real Discord Human-message/button E2E remains pending interactive-client observation. Evidence: [`discord-operational-routing-20260923.json`](../spec/v2/evidence/discord-operational-routing-20260923.json).
 
-The operational slice is a bounded continuation of the existing roadmap, not a new phase: resume R9 fresh-root live execution next, use AR1 only for a naturally observed eligible Worker failure, and keep Stage 6/7/8 work behind the existing Phase 8 activation conditions.
+The operational slice is a bounded continuation of the existing roadmap, not a new phase: after the Issue #5/PR #4 composition proof and Issue #9 Worker contract/preflight slice, resume R9 fresh-root live execution only on a newly admitted remote generation route. If no such route exists, do not repeat the prior failed route; use only a new local hypothesis. Use AR1 only for a naturally observed eligible Worker failure, and keep Stage 6/7/8 work behind the existing Phase 8 activation conditions. Discord remains a non-Gate surface with live-client observations still explicitly pending.
 
 ## Implementation frontier
 
