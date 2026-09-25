@@ -4,18 +4,18 @@
 
 | Field | Value |
 | --- | --- |
-| Branch | `v2/bootstrap` |
-| Remote HEAD before this implementation slice | `ae78db59e6a886e87ee4cae54282fd7379b1f63f` (`v2/bootstrap`) |
-| Latest implementation branch HEAD | `c957dfad27432f0f6855b37d47c4569451d77ca9` (`feat: add phase8 production submission boundary`) |
-| Latest committed implementation baseline | `c957dfa` (`feat: add phase8 production submission boundary`) |
-| Current local implementation slice | One bounded production submission now composes the existing Operation/Commander/Host Verification/Review/Integration/dependency-release boundaries; pushed to the Phase 8 PR branch with exact-head CI green |
-| Latest evidence baseline | `model-catalog-r9-refresh-20260926.json` and `phase8-production-submission-20260926.json` |
-| Implementation/evidence baseline | `c957dfa` adds a fresh-root submission boundary with no second scheduler, queue, StateStore, retry engine, or authority. Provider responses remain fixture-only and formal Gate status is unchanged. |
+| Branch | `phase8/production-composition-e2e` (draft PR #4; target `v2/bootstrap`) |
+| Remote HEAD before this implementation slice | `cb018b91c281aabfa841ae72291d7376ccab7d50` (`docs: record current model evidence refresh`) |
+| Latest implementation branch HEAD | `f47d3828fbe9f0126b0d9e3db9ce7b8e9c4df0f8` (`feat: execute phase8 dependent continuation`) |
+| Latest committed implementation baseline | `f47d382` (`feat: execute phase8 dependent continuation`) |
+| Current local implementation slice | One bounded production submission now parks the fresh root through the existing Operation boundary, executes the released `CODE_INTEGRATED` continuation through one existing RuntimeCoordinator cycle, and closes the root terminally; no second scheduler or queue was added |
+| Latest evidence baseline | `model-catalog-r9-refresh-20260926.json` and `phase8-production-composition-terminal-20260926.json` |
+| Implementation/evidence baseline | `f47d382` completes the deterministic local composition chain through dependent continuation and root terminal state. Provider responses remain fixture-only and formal Gate status is unchanged. |
 | Worktree | clean after this docs/evidence synchronization |
-| Local regression | `41 passed` in the affected Phase 8/planning slice; exact-head CI covers the full `tests/v2` suite |
+| Local regression | `53 passed` in the affected Phase 8/runtime slice; full `tests/v2`: `1672 passed, 1 skipped` |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | `c957dfa`: v2-core kernel 3.10/3.11 and provider-smoke all PASS. |
+| Exact-head CI | `f47d382`: v2-core kernel 3.10/3.11 and provider-smoke all PASS. |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in

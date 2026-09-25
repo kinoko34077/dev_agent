@@ -13,17 +13,19 @@ not merged, current admission remains 32 static-eligible / 5 runtime-unknown /
 R9 remains blocked until a fresh qualified, quota-usable, healthy generation
 route is observed. Evidence: [`model-catalog-r9-refresh-20260926.json`](../spec/v2/evidence/model-catalog-r9-refresh-20260926.json).
 
-**2026-09-26 Phase 8 production submission checkpoint:** `c957dfa` adds a
-bounded submission boundary that creates one fresh Operation root, accepts a
-Host-validated Planner proposal, builds the existing Commander plan, records
-the single-owner Operation→DevFarm handoff, and invokes one existing
-DevFarm/Supervisor execution pass. The public driver only exposes submit and
-observe; the deterministic local test reaches two non-overlapping Worker
-proposals, Host Verification, separate Reviewer proposal/final decision,
-deterministic integration, and `CODE_INTEGRATED` continuation queue release.
-Provider responses are fixtures and this is non-Gate local evidence; remote
-generation admission, continuous runtime execution, Discord live E2E, and
-Phase 8 LIVE_ACTIVATION remain unverified.
+**2026-09-26 Phase 8 production composition checkpoint:** `f47d382` closes the
+deterministic local composition chain: one fresh Operation root is submitted,
+validated Planner children are handed to the single existing DevFarm owner,
+two non-overlapping Workers pass Host Verification and separate Reviewer /
+final-decision boundaries, deterministic integration records `CODE_INTEGRATED`,
+and one existing RuntimeCoordinator cycle completes the released dependent
+continuation. The root is parked before that cycle, its queue item has zero
+claims, and the root then reaches `COMPLETED`. The public driver remains only
+submit/observe and no scheduler, queue, StateStore, retry engine, or authority
+was added. Provider responses are fixtures, so this is non-Gate local
+composition evidence; remote generation admission, Discord live E2E, and
+Phase 8 LIVE_ACTIVATION remain unverified. Evidence:
+[`phase8-production-composition-terminal-20260926.json`](../spec/v2/evidence/phase8-production-composition-terminal-20260926.json).
 
 **2026-09-22 R9 checkpoint:** `D9_DOGFOOD=VERIFIED` remains closed and `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`. Model observations were refreshed read-only; the current static diagnostic shows 32 static-eligible and 5 runtime-unknown rows (not an empty catalog). Four exact qualified/no-charge L2 identities entered one fresh bounded Planner pool, but three distinct quota domains returned confirmed `provider_unavailable` before a proposal. No Critic, child task, Worker, Reviewer, or integration ran; no UNKNOWN was replayed. `PHASE8_PREPARATION=PREPARATION_ONLY` and `LIVE_ACTIVATION=NOT_VERIFIED` remain unchanged. Evidence: [`model-evidence-refresh-r9-planner-blocker-20260922.json`](../spec/v2/evidence/model-evidence-refresh-r9-planner-blocker-20260922.json). Continue R9 on a newly eligible route/fresh request; apply AR1 only if a natural eligible Worker failure occurs, without making AR1 an entry gate.
 

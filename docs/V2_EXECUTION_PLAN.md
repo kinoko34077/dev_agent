@@ -2,15 +2,19 @@
 
 この文書は現在の大きな順序だけを示すMain Roadmapである。詳細なGate、依存関係、完了条件は [`V2_DETAILED_ROADMAP.md`](V2_DETAILED_ROADMAP.md) を正本とする。要求は`docs/requirements/**`、decision rationaleは`spec/v2/adr/**`、観測証拠は`spec/v2/evidence/**`、Gate statusは`spec/v2/GATE_STATUS.json`を参照する。
 
-2026-09-26 Phase 8 production submission checkpoint: `c957dfa` now
+2026-09-26 Phase 8 production composition checkpoint: `f47d382` now
 composes one fresh Operation root through the existing Planner validation,
 DevelopmentPlanningBridge, Commander/Supervisor, single-owner handoff,
 Host Verification, separate Reviewer proposal/final decision, deterministic
-integration, and `CODE_INTEGRATED` continuation release boundaries. The
-public driver is limited to submit/observe and the execution is one bounded
-pass, not a scheduler. This is deterministic local non-Gate evidence with
-fixture Provider responses; remote generation admission, continuous runtime
-execution, Discord live E2E, and `PHASE8 LIVE_ACTIVATION` remain unchanged.
+integration, `CODE_INTEGRATED` continuation release, and one existing
+RuntimeCoordinator cycle. The root is parked before continuation execution,
+the root queue item is never claimed, the continuation reaches `COMPLETED`,
+and the root closes terminally. The public driver is still limited to
+submit/observe; this is one bounded cycle, not a scheduler. This is
+deterministic local non-Gate evidence with fixture Provider responses;
+remote generation admission, Discord live E2E, and `PHASE8 LIVE_ACTIVATION`
+remain unchanged. Evidence:
+[`phase8-production-composition-terminal-20260926.json`](../spec/v2/evidence/phase8-production-composition-terminal-20260926.json).
 
 2026-09-26 read-only model evidence refresh: approved Host-boundary discovery
 returned 1,357 candidate rows from 13 bindings, with one bounded Groq

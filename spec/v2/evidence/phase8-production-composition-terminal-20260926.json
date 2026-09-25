@@ -1,0 +1,62 @@
+{
+  "evidence_id": "phase8-production-composition-terminal-20260926",
+  "observed_at": "2026-09-26",
+  "revision": "f47d3824509df030622a2433d9fbc158dd4f3d09",
+  "branch": "phase8/production-composition-e2e",
+  "scope": "deterministic local Phase 8 production composition terminal chain",
+  "status": "VERIFIED_LOCAL_NON_GATE",
+  "composition": {
+    "public_driver": ["submit", "observe"],
+    "fresh_operation_root": true,
+    "planner_boundary": "injected_bounded_proposal",
+    "operation_planning_validation": "PASS",
+    "root_queue_claim_count": 0,
+    "single_owner_handoff": "PASS",
+    "worker_count": 2,
+    "worker_scopes": "non_overlapping",
+    "host_verification": "PASS",
+    "reviewer_proposal": "SEPARATE_FROM_FINAL_DECISION",
+    "final_review_decision": "EXPLICIT_BOUNDARY",
+    "deterministic_integration": "PASS",
+    "code_integrated_continuation": "COMPLETED",
+    "continuation_execution_attempts": 1,
+    "root_terminal_state": "COMPLETED"
+  },
+  "verification": {
+    "focused_command": "python -m pytest -p no:cacheprovider tests/v2/test_phase8_production_submission.py tests/v2/test_phase8_production_execution.py tests/v2/test_phase8_production_composition_e2e.py tests/v2/test_operation_runtime.py tests/v2/test_planning_idempotency.py tests/v2/test_development_planning_bridge.py -q --tb=short --maxfail=1",
+    "focused_result": "53 passed",
+    "full_command": "python -m pytest -p no:cacheprovider tests/v2 -q --tb=short --maxfail=1",
+    "full_result": "1672 passed, 1 skipped",
+    "compile": "PASS",
+    "diff_check": "PASS",
+    "credential_scan": "PASS",
+    "exact_head_ci": {
+      "kernel_3_10": "PASS",
+      "kernel_3_11": "PASS",
+      "provider_smoke": "PASS"
+    }
+  },
+  "boundaries_preserved": [
+    "existing Operation StateStore and DurableQueue",
+    "existing RuntimeCoordinator one-cycle continuation execution",
+    "existing Commander/Supervisor",
+    "existing Host Verification",
+    "proposal-only Reviewer plus separate final decision",
+    "existing deterministic integration",
+    "existing Operation dependency release"
+  ],
+  "limitations": [
+    "Planner and Worker provider responses are deterministic test fixtures",
+    "remote generation admission and live Provider availability were not exercised",
+    "this is one bounded RuntimeCoordinator cycle, not a new serve loop",
+    "Discord live E2E was not part of this slice",
+    "formal Phase 8 LIVE_ACTIVATION remains unverified"
+  ],
+  "gate_impact": {
+    "D9_DOGFOOD": "VERIFIED",
+    "D9_PRODUCTION_DEPLOYMENT": "DEFERRED_NOT_READY",
+    "PHASE8_PREPARATION": "PREPARATION_ONLY",
+    "LIVE_ACTIVATION": "NOT_VERIFIED"
+  },
+  "secrets_included": false
+}
