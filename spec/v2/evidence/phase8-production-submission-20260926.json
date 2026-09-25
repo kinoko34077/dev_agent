@@ -1,0 +1,55 @@
+{
+  "evidence_id": "phase8-production-submission-20260926",
+  "observed_at": "2026-09-26",
+  "revision": "c957dfad27432f0f6855b37d47c4569451d77ca9",
+  "branch": "phase8/production-composition-e2e",
+  "scope": "deterministic local Phase 8 production composition",
+  "status": "VERIFIED_LOCAL_NON_GATE",
+  "composition": {
+    "public_driver": ["submit", "observe"],
+    "fresh_operation_root": true,
+    "planner_boundary": "injected_bounded_proposal",
+    "operation_planning_validation": "PASS",
+    "single_owner_handoff": "PASS",
+    "worker_count": 2,
+    "worker_scopes": "non_overlapping",
+    "host_verification": "PASS",
+    "reviewer_proposal": "SEPARATE_FROM_FINAL_DECISION",
+    "final_review_decision": "EXPLICIT_BOUNDARY",
+    "deterministic_integration": "PASS",
+    "code_integrated_continuation": "QUEUED"
+  },
+  "verification": {
+    "focused_command": "python -m pytest -p no:cacheprovider tests/v2/test_phase8_production_submission.py tests/v2/test_phase8_production_execution.py tests/v2/test_phase8_production_composition_e2e.py tests/v2/test_planning_idempotency.py tests/v2/test_development_planning_bridge.py -q --tb=short --maxfail=1",
+    "focused_result": "41 passed",
+    "compile": "PASS",
+    "diff_check": "PASS",
+    "credential_scan": "PASS",
+    "exact_head_ci": {
+      "kernel_3_10": "PASS",
+      "kernel_3_11": "PASS",
+      "provider_smoke": "PASS"
+    }
+  },
+  "boundaries_preserved": [
+    "existing Operation StateStore and DurableQueue",
+    "existing Commander/Supervisor",
+    "existing Host Verification",
+    "proposal-only Reviewer plus separate final decision",
+    "existing deterministic integration",
+    "existing Operation dependency release"
+  ],
+  "limitations": [
+    "Planner and Worker provider responses are deterministic test fixtures",
+    "remote generation admission and live Provider availability were not exercised",
+    "continuous RuntimeCoordinator execution after the bounded pass is not claimed",
+    "Discord live E2E was not part of this slice"
+  ],
+  "gate_impact": {
+    "D9_DOGFOOD": "VERIFIED",
+    "D9_PRODUCTION_DEPLOYMENT": "DEFERRED_NOT_READY",
+    "PHASE8_PREPARATION": "PREPARATION_ONLY",
+    "LIVE_ACTIVATION": "NOT_VERIFIED"
+  },
+  "secrets_included": false
+}

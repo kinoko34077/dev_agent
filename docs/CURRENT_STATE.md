@@ -5,17 +5,17 @@
 | Field | Value |
 | --- | --- |
 | Branch | `v2/bootstrap` |
-| Remote HEAD before this implementation slice | `d89a012261abd192d42c6d9d746e302431b212fc` |
-| Latest implementation remote HEAD before this docs-only sync | `b8717ca24f5ffbde8b13aa3bb0b2bec0eba7e925` (`fix: qualify discovery transport provenance`) |
-| Latest committed implementation baseline | `b8717ca` (`fix: qualify discovery transport provenance`) |
-| Current local implementation slice | Pushed; exact-head CI green; this commit synchronizes the bounded Provider diagnostic Evidence and Current State |
-| Latest evidence baseline | `external-provider-access-diagnostic-20260924.json` |
-| Implementation/evidence baseline | `b8717ca` preserves bounded discovery transport taxonomy without overclaiming transport stage and records operator-asserted execution-boundary provenance; Provider routing/admission/retry/UNKNOWN/security boundaries remain unchanged. |
+| Remote HEAD before this implementation slice | `ae78db59e6a886e87ee4cae54282fd7379b1f63f` (`v2/bootstrap`) |
+| Latest implementation branch HEAD | `c957dfad27432f0f6855b37d47c4569451d77ca9` (`feat: add phase8 production submission boundary`) |
+| Latest committed implementation baseline | `c957dfa` (`feat: add phase8 production submission boundary`) |
+| Current local implementation slice | One bounded production submission now composes the existing Operation/Commander/Host Verification/Review/Integration/dependency-release boundaries; pushed to the Phase 8 PR branch with exact-head CI green |
+| Latest evidence baseline | `phase8-production-submission-20260926.json` |
+| Implementation/evidence baseline | `c957dfa` adds a fresh-root submission boundary with no second scheduler, queue, StateStore, retry engine, or authority. Provider responses remain fixture-only and formal Gate status is unchanged. |
 | Worktree | clean after this docs/evidence synchronization |
-| Local regression | `26 passed` (`python -m pytest tests/v2/test_model_catalog_admission.py -q`); exact-head CI covers the full `tests/v2` suite |
+| Local regression | `41 passed` in the affected Phase 8/planning slice; exact-head CI covers the full `tests/v2` suite |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | `b8717ca`: v2-core kernel 3.10/3.11 and provider-smoke all PASS. |
+| Exact-head CI | `c957dfa`: v2-core kernel 3.10/3.11 and provider-smoke all PASS. |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in

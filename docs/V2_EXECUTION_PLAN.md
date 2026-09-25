@@ -2,6 +2,16 @@
 
 この文書は現在の大きな順序だけを示すMain Roadmapである。詳細なGate、依存関係、完了条件は [`V2_DETAILED_ROADMAP.md`](V2_DETAILED_ROADMAP.md) を正本とする。要求は`docs/requirements/**`、decision rationaleは`spec/v2/adr/**`、観測証拠は`spec/v2/evidence/**`、Gate statusは`spec/v2/GATE_STATUS.json`を参照する。
 
+2026-09-26 Phase 8 production submission checkpoint: `c957dfa` now
+composes one fresh Operation root through the existing Planner validation,
+DevelopmentPlanningBridge, Commander/Supervisor, single-owner handoff,
+Host Verification, separate Reviewer proposal/final decision, deterministic
+integration, and `CODE_INTEGRATED` continuation release boundaries. The
+public driver is limited to submit/observe and the execution is one bounded
+pass, not a scheduler. This is deterministic local non-Gate evidence with
+fixture Provider responses; remote generation admission, continuous runtime
+execution, Discord live E2E, and `PHASE8 LIVE_ACTIVATION` remain unchanged.
+
 ## Current phase
 
 Phase 7後半の安全な拡張と開発運用移管。既存のKernel、Resource/Provider、Task/Scheduler、Recovery、DevFarm、Supervisor、Host Verification、Review/Integration境界は維持する。G6O1は未検証の外部Gateだが、Human決定により現行roadmapでは非ブロッキング凍結中である。
