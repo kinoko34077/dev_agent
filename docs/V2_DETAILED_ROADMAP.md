@@ -4,6 +4,15 @@
 
 ## 現在位置
 
+**2026-09-26 model evidence refresh:** approved Host-boundary discovery returned
+1,357 bounded candidate rows from 13 bindings (one Groq `HTTPError`), while
+the restricted comparison returned only the 8 local Ollama rows and bounded
+`URLError` observations. This is discovery evidence only: the candidate was
+not merged, current admission remains 32 static-eligible / 5 runtime-unknown /
+0 runtime-eligible, and no generation or UNKNOWN replay was attempted. Remote
+R9 remains blocked until a fresh qualified, quota-usable, healthy generation
+route is observed. Evidence: [`model-catalog-r9-refresh-20260926.json`](../spec/v2/evidence/model-catalog-r9-refresh-20260926.json).
+
 **2026-09-26 Phase 8 production submission checkpoint:** `c957dfa` adds a
 bounded submission boundary that creates one fresh Operation root, accepts a
 Host-validated Planner proposal, builds the existing Commander plan, records

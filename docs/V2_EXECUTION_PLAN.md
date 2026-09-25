@@ -12,6 +12,15 @@ pass, not a scheduler. This is deterministic local non-Gate evidence with
 fixture Provider responses; remote generation admission, continuous runtime
 execution, Discord live E2E, and `PHASE8 LIVE_ACTIVATION` remain unchanged.
 
+2026-09-26 read-only model evidence refresh: approved Host-boundary discovery
+returned 1,357 candidate rows from 13 bindings, with one bounded Groq
+`HTTPError`; the restricted comparison returned only 8 Ollama rows and
+bounded `URLError` observations. The candidate was not merged into canonical
+evidence. Existing admission remains 32 static-eligible, 5 runtime-unknown,
+and 0 runtime-eligible; no generation or UNKNOWN replay was attempted. Do not
+start remote R9 until a fresh admitted generation route exists. Evidence:
+[`model-catalog-r9-refresh-20260926.json`](../spec/v2/evidence/model-catalog-r9-refresh-20260926.json).
+
 ## Current phase
 
 Phase 7後半の安全な拡張と開発運用移管。既存のKernel、Resource/Provider、Task/Scheduler、Recovery、DevFarm、Supervisor、Host Verification、Review/Integration境界は維持する。G6O1は未検証の外部Gateだが、Human決定により現行roadmapでは非ブロッキング凍結中である。
