@@ -18,7 +18,13 @@ from dataclasses import dataclass
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
+from scripts.devfarm import write_manifest
+from scripts.devfarm_commander import create_plan
+from scripts.devfarm_planning_bridge import DevelopmentPlanningBridge
+from scripts.devfarm_repository import resolved_revision
+from scripts.devfarm_supervisor import CodexSupervisedCommanderRun
 from src.dev_agent.domain.protocol import Task
 from src.dev_agent.intelligence.planner import RootPlanningProposal
 
@@ -104,6 +110,191 @@ class Phase8ProductionComposition:
         projected = _bounded_projection(result)
         if not isinstance(projected, dict):
             raise ProductionCompositionError("observe boundary must return a mapping")
+        return projected
+
+
+class Phase8ProductionSubmission:
+    """Compose one fresh Phase 8 root through existing production boundaries.
+
+    This object is a one-shot submission boundary, not a scheduler.  It
+    creates the durable Operation root, accepts one already-proposed Planner
+    result, builds the existing Commander plan, records the single-owner
+    handoff, and invokes exactly one :class:`Phase8ProductionExecutor` pass.
+    External model responses remain injected through ``planner`` and
+    ``providers``; all task, queue, verification, review, integration, and
+    dependency state remains owned by the existing implementations.
+    """
+
+    def __init__(
+        self,
+        *,
+        operation_config: Any,
+        repository: str | Path,
+        planner: Callable[[Task], RootPlanningProposal],
+        task_specs: Callable[[Task, RootPlanningProposal], Mapping[str, Mapping[str, Any]]],
+        providers: Callable[[Mapping[str, str]], Mapping[str, Any]],
+        orchestrator: Any,
+        review_proposal: Callable[[Mapping[str, Any]], Mapping[str, Any]],
+        final_review_decision: Callable[[Mapping[str, Any], Mapping[str, Any]], Mapping[str, Any]],
+        target_checkout: str | Path,
+        target_ref: str = "HEAD",
+        verification_trust_level: str = "TRUSTED_HOST_EXEC",
+        operator_approved: bool = True,
+        dispatch_timeout_seconds: int | float = 300.0,
+        roadmap_reference: Mapping[str, Any] | None = None,
+    ) -> None:
+        if not callable(planner) or not callable(task_specs) or not callable(providers):
+            raise TypeError("Planner, task-spec, and provider boundaries are required")
+        if not callable(review_proposal) or not callable(final_review_decision):
+            raise TypeError("review boundaries are required")
+        self.operation_config = operation_config
+        self.repository = Path(repository).resolve()
+        self.planner = planner
+        self.task_specs = task_specs
+        self.providers = providers
+        self.orchestrator = orchestrator
+        self.review_proposal = review_proposal
+        self.final_review_decision = final_review_decision
+        self.target_checkout = str(Path(target_checkout).resolve())
+        self.target_ref = target_ref
+        self.verification_trust_level = verification_trust_level
+        self.operator_approved = operator_approved
+        self.dispatch_timeout_seconds = dispatch_timeout_seconds
+        self.roadmap_reference = dict(roadmap_reference or {})
+
+    @staticmethod
+    def _worker_bindings(plan: Mapping[str, Any]) -> dict[str, str]:
+        tasks = plan.get("tasks")
+        if isinstance(tasks, (str, bytes)) or not isinstance(tasks, Sequence):
+            raise ProductionCompositionError("Commander plan tasks are unavailable")
+        bindings: dict[str, str] = {}
+        for task in tasks:
+            if not isinstance(task, Mapping) or task.get("owner") != "worker":
+                continue
+            child_key = task.get("planner_child_key")
+            task_id = task.get("task_id")
+            if not isinstance(child_key, str) or not child_key.strip():
+                raise ProductionCompositionError("Commander Worker has no planner child identity")
+            if not isinstance(task_id, str) or not task_id.strip():
+                raise ProductionCompositionError("Commander Worker has no durable task identity")
+            if child_key in bindings or task_id in bindings.values():
+                raise ProductionCompositionError("Commander Worker identities are ambiguous")
+            bindings[child_key.strip()] = task_id.strip()
+        if not bindings:
+            raise ProductionCompositionError("Commander plan has no Worker children")
+        return bindings
+
+    def submit(self, objective: str, **kwargs: Any) -> dict[str, Any]:
+        """Submit one fresh root and run one bounded existing execution pass."""
+
+        from src.dev_agent.operation import OperationService
+
+        root = OperationService.submit(self.operation_config, objective, **kwargs)
+        proposal = self.planner(root)
+        if not isinstance(proposal, RootPlanningProposal):
+            raise ProductionCompositionError("Planner boundary must return a RootPlanningProposal")
+        if proposal.parent_task_id != root.task_id:
+            raise ProductionCompositionError("Planner proposal parent identity does not match the fresh root")
+        run_id = f"phase8-{uuid4().hex}"
+        base_revision = resolved_revision(self.repository, self.target_ref)
+        raw_specs = self.task_specs(root, proposal)
+        if not isinstance(raw_specs, Mapping):
+            raise ProductionCompositionError("task-spec boundary must return a mapping")
+        expected_keys = {child.child_key for child in proposal.children}
+        if set(raw_specs) != expected_keys:
+            raise ProductionCompositionError("task-spec boundary must cover the exact Planner child set")
+
+        with OperationService.open(self.operation_config) as operation:
+            parent = operation.store.load_task(root.task_id)
+            if parent is None:
+                raise ProductionCompositionError("fresh Operation root is not durable")
+            operation.validate_planning_proposal(proposal)
+            operation.apply_planning_proposal(proposal, execution_owner="devfarm")
+            candidate = DevelopmentPlanningBridge(self.repository).build_candidate(
+                parent,
+                proposal,
+                run_id=run_id,
+                base_revision=base_revision,
+                task_specs=raw_specs,
+            )
+            for manifest_path, manifest in candidate.manifests:
+                write_manifest(self.repository, manifest)
+            create_plan(self.repository, candidate.plan)
+            commander = CodexSupervisedCommanderRun(self.repository, run_id)
+            commander.create(roadmap_reference=self.roadmap_reference)
+            bindings = self._worker_bindings(commander.plan())
+            operation.handoff_planning_children_to_devfarm(
+                proposal_id=proposal.proposal_id,
+                run_id=run_id,
+                bindings=bindings,
+            )
+            provider_map = self.providers(bindings)
+            if not isinstance(provider_map, Mapping):
+                raise ProductionCompositionError("provider boundary must return a mapping")
+            executor = Phase8ProductionExecutor(
+                operation=operation,
+                commander=commander,
+                proposal_id=proposal.proposal_id,
+                devfarm_run_id=run_id,
+                bindings=bindings,
+                providers=provider_map,
+                orchestrator=self.orchestrator,
+                review_proposal=self.review_proposal,
+                final_review_decision=self.final_review_decision,
+                target_checkout=self.target_checkout,
+                target_ref=self.target_ref,
+                verification_trust_level=self.verification_trust_level,
+                operator_approved=self.operator_approved,
+                dispatch_timeout_seconds=self.dispatch_timeout_seconds,
+            )
+            execution = executor.advance()
+        result = {
+            "root_task_id": root.task_id,
+            "run_id": run_id,
+            "proposal_id": proposal.proposal_id,
+            "execution": {
+                "commander_status": execution.get("commander_status"),
+                "reviewed": list(execution.get("reviewed", [])),
+                "integrated": list(execution.get("integrated", [])),
+                "continuation_ready": bool(execution.get("continuation_ready")),
+            },
+        }
+        projected = _bounded_projection(result)
+        if not isinstance(projected, dict):
+            raise ProductionCompositionError("Phase 8 submission result is not bounded")
+        return projected
+
+    def observe(self, run_id: str, **_: Any) -> dict[str, Any]:
+        """Read one durable Commander projection without advancing it."""
+
+        if not isinstance(run_id, str) or not run_id.strip():
+            raise ValueError("run_id must be a bounded non-empty string")
+        plan = CodexSupervisedCommanderRun(self.repository, run_id.strip()).plan()
+        workers = [
+            {
+                key: task.get(key)
+                for key in ("task_id", "planner_child_key", "owner", "status", "last_attempt_id", "integration_revision")
+                if task.get(key) is not None
+            }
+            for task in plan.get("tasks", [])
+            if isinstance(task, Mapping) and task.get("owner") == "worker"
+        ]
+        proposal_ids = {
+            task.get("planning_proposal_id")
+            for task in plan.get("tasks", [])
+            if isinstance(task, Mapping) and isinstance(task.get("planning_proposal_id"), str)
+        }
+        if len(proposal_ids) != 1:
+            raise ProductionCompositionError("Commander plan has no unique Planner proposal identity")
+        result = {
+            "run_id": run_id.strip(),
+            "proposal_id": next(iter(proposal_ids)),
+            "commander_status": plan.get("status"),
+            "workers": workers,
+        }
+        projected = _bounded_projection(result)
+        if not isinstance(projected, dict):
+            raise ProductionCompositionError("Phase 8 observation is not bounded")
         return projected
 
 
@@ -528,4 +719,9 @@ def _development_task_links(
     )
 
 
-__all__ = ["Phase8ProductionComposition", "Phase8ProductionExecutor", "ProductionCompositionError"]
+__all__ = [
+    "Phase8ProductionComposition",
+    "Phase8ProductionExecutor",
+    "Phase8ProductionSubmission",
+    "ProductionCompositionError",
+]
