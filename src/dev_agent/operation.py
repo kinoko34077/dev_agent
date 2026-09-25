@@ -837,13 +837,16 @@ class OperationService:
         proposal: RootPlanningProposal,
         *,
         priority: int = 0,
+        execution_owner: str = "operation",
     ) -> tuple[Task, ...]:
         """Host-validate and persist a finite root decomposition.
 
         Children with planner dependencies are durably parked as
         ``WAITING_DEPENDENCY`` and are not enqueued until an explicit
         dependency-release authority is added.  Independent children use the
-        existing Queue; this method does not create a second scheduler.
+        existing Queue by default.  An explicit ``devfarm`` owner parks every
+        child for a later handoff and never enqueues it in the Operation
+        queue; this method does not create a second scheduler.
         """
 
         return _apply_planning_proposal(
@@ -852,7 +855,123 @@ class OperationService:
             proposal,
             priority=priority,
             context=self._planning_context(proposal.parent_task_id),
+            execution_owner=execution_owner,
         )
+
+    def handoff_planning_children_to_devfarm(
+        self,
+        *,
+        proposal_id: str,
+        run_id: str,
+        bindings: Mapping[str, str],
+    ) -> tuple[Task, ...]:
+        """Claim a validated planning proposal for the existing DevFarm owner.
+
+        This is a narrow ownership transfer, not an execution loop.  Every
+        child must be present, explicitly marked ``devfarm``, still waiting at
+        the handoff boundary, and absent from the Operation queue.  The same
+        complete binding is idempotent after restart; partial, stale, and
+        conflicting identities fail closed before any new child is claimed.
+        """
+
+        if not isinstance(proposal_id, str) or not proposal_id.strip():
+            raise OperationError("proposal_id must be a non-empty string")
+        if not isinstance(run_id, str) or not run_id.strip() or len(run_id.strip()) > 256:
+            raise OperationError("run_id must be a bounded non-empty string")
+        if not isinstance(bindings, Mapping) or not bindings:
+            raise OperationError("handoff bindings must be a non-empty mapping")
+
+        normalized_proposal_id = proposal_id.strip()
+        normalized_run_id = run_id.strip()
+        normalized: dict[str, str] = {}
+        seen_devfarm_ids: set[str] = set()
+        for child_key, devfarm_task_id in bindings.items():
+            if not isinstance(child_key, str) or not child_key.strip():
+                raise OperationError("handoff binding child key must be non-empty")
+            if not isinstance(devfarm_task_id, str) or not devfarm_task_id.strip() or len(devfarm_task_id.strip()) > 256:
+                raise OperationError("handoff binding task identity must be bounded")
+            key = child_key.strip()
+            task_id = devfarm_task_id.strip()
+            if key in normalized:
+                raise OperationError("duplicate handoff child key")
+            if task_id in seen_devfarm_ids:
+                raise OperationError("duplicate DevFarm task identity")
+            normalized[key] = task_id
+            seen_devfarm_ids.add(task_id)
+
+        payloads = self.store.snapshot().get("tasks", {})
+        if not isinstance(payloads, Mapping):
+            raise OperationError("durable planning state is unavailable")
+        children_by_key: dict[str, Task] = {}
+        for payload in payloads.values():
+            if not isinstance(payload, dict):
+                continue
+            metadata = payload.get("metadata")
+            if not isinstance(metadata, dict):
+                continue
+            if metadata.get("planning_proposal_id") != normalized_proposal_id:
+                continue
+            child_key = metadata.get("planner_child_key")
+            if not isinstance(child_key, str) or not child_key.strip():
+                raise OperationError("planner child identity is incomplete")
+            if child_key in children_by_key:
+                raise OperationError("duplicate durable planner child identity")
+            try:
+                children_by_key[child_key] = Task.from_persisted_dict(payload)
+            except Exception as exc:
+                raise OperationError("durable planner child is invalid") from exc
+
+        if set(children_by_key) != set(normalized):
+            raise OperationError("handoff bindings do not cover the exact child set")
+
+        prepared: list[Task] = []
+        for child_key, devfarm_task_id in normalized.items():
+            task = children_by_key[child_key]
+            metadata = task.metadata
+            if metadata.get("execution_owner") != "devfarm":
+                raise OperationError("planner child is not explicitly DevFarm-owned")
+            if task.status is not TaskStatus.WAITING_DEPENDENCY:
+                raise OperationError("planner child is not waiting at the handoff boundary")
+            handoff_state = metadata.get("handoff_state")
+            if handoff_state == "DEVFARM_OWNED":
+                if metadata.get("devfarm_run_id") != normalized_run_id or metadata.get("devfarm_task_id") != devfarm_task_id:
+                    raise OperationError("conflicting DevFarm handoff identity")
+            elif handoff_state != "HANDOFF_PENDING":
+                raise OperationError("planner child has an invalid handoff state")
+            try:
+                self.queue.snapshot(task.task_id)
+            except KeyError:
+                pass
+            else:
+                raise OperationError("planner child is already owned by the Operation queue")
+            prepared.append(task)
+
+        for task in prepared:
+            metadata = task.metadata
+            if metadata.get("handoff_state") == "DEVFARM_OWNED":
+                continue
+            child_key = str(metadata["planner_child_key"])
+            metadata["handoff_state"] = "DEVFARM_OWNED"
+            metadata["devfarm_run_id"] = normalized_run_id
+            metadata["devfarm_task_id"] = normalized[child_key]
+            event = ProtocolEvent(
+                event_id=str(
+                    uuid5(
+                        NAMESPACE_URL,
+                        f"dev-agent:devfarm-handoff:{normalized_run_id}:{normalized_proposal_id}:{child_key}",
+                    )
+                ),
+                task_id=task.task_id,
+                event_type="task.devfarm_handoff_claimed",
+                payload={
+                    "proposal_id": normalized_proposal_id,
+                    "child_key": child_key,
+                    "devfarm_run_id": normalized_run_id,
+                    "devfarm_task_id": normalized[child_key],
+                },
+            )
+            self.store.commit_transition(task=task, event=event)
+        return tuple(prepared)
 
     def release_planner_dependencies(self, *, proposal_id: str | None = None) -> tuple[Task, ...]:
         """Release or terminalize validated planner children from durable state.

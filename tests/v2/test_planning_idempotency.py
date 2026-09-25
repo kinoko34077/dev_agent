@@ -9,9 +9,12 @@ Verifies that apply_proposal is idempotent:
 
 from __future__ import annotations
 
+import pytest
+
 from src.dev_agent.domain.protocol import TaskStatus, TaskType
 from src.dev_agent.intelligence.planner import (
     ChildTaskProposal,
+    PlanningValidationError,
     RootPlanningProposal,
 )
 from src.dev_agent.operation import OperationConfig, OperationService
@@ -191,3 +194,38 @@ def test_apply_proposal_partial_recovery_does_not_duplicate_existing_child(tmp_p
     impl_children = [t for t in children if t.metadata.get("planner_child_key") == "impl"]
     assert len(impl_children) == 1, "impl child must appear exactly once"
     assert impl_children[0].task_id == _child_task_id(proposal.proposal_id, "impl")
+
+
+def test_devfarm_owned_children_are_durable_but_not_operation_queued(tmp_path):
+    config = _config(tmp_path)
+    root = _root(config)
+    proposal = _proposal(root.task_id)
+
+    with OperationService.open(config) as service:
+        children = service.apply_planning_proposal(proposal, execution_owner="devfarm")
+
+        assert [child.status for child in children] == [
+            TaskStatus.WAITING_DEPENDENCY,
+            TaskStatus.WAITING_DEPENDENCY,
+        ]
+        for child in children:
+            assert child.metadata["execution_owner"] == "devfarm"
+            assert child.metadata["handoff_state"] == "HANDOFF_PENDING"
+            assert child.metadata["wait_reason"] == "devfarm_handoff"
+            with pytest.raises(KeyError):
+                service.queue.snapshot(child.task_id)
+
+        # Dependency release belongs to the existing Operation authority, but
+        # it must not enqueue work whose execution owner is DevFarm.
+        assert service.release_planner_dependencies(proposal_id=proposal.proposal_id) == ()
+
+
+def test_devfarm_owner_mismatch_fails_closed_on_reapply(tmp_path):
+    config = _config(tmp_path)
+    root = _root(config)
+    proposal = _proposal(root.task_id)
+
+    with OperationService.open(config) as service:
+        service.apply_planning_proposal(proposal)
+        with pytest.raises(PlanningValidationError, match="execution owner"):
+            service.apply_planning_proposal(proposal, execution_owner="devfarm")
