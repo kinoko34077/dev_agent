@@ -8,7 +8,8 @@
     "configured_pool_opt_in": true,
     "configured_binding_count": 8,
     "resource_count": 8,
-    "quota_domain_count": 0,
+    "configured_quota_domain_count": 6,
+    "quota_observation_count": 0,
     "generation_attempted": false,
     "network_called": false,
     "state_mutated": false,
@@ -91,7 +92,7 @@
   },
   "interpretation": {
     "generation_readiness": "NOT_ESTABLISHED",
-    "blocker": "The configured pool composes eight resources but records no quota domains or current quota observations; only the exact default free-3 model resource is present among the four candidate identities.",
+    "blocker": "The configured pool composes eight resources and six configured quota domains but records no current quota observations; only the exact default free-3 model resource is present among the four candidate identities.",
     "not_proven": "This does not prove that all configured Gemini credentials or Provider routes are unusable, and it is not a Provider generation result.",
     "next_action": "Obtain a current quota/health observation through an existing read-only runtime authority if available. Do not call generation until an exact route is RUNTIME_ELIGIBLE. If a 3.8 candidate is selected, operator-configure that exact model binding and qualify it separately."
   }

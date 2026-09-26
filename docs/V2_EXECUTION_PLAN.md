@@ -71,7 +71,7 @@ Evidence: [`devfarm-worker-contract-preflight-20260926.json`](../spec/v2/evidenc
 integrated at `81e47cea6500d9bdd8ad0cdd717f9e734d5e8a3a`; PR #17
 documentation/evidence synchronization is at `59b2c7413db3f00a0fa6c8a08a08721bd3f83d22`.
 Runtime admission is exact-identity and read-only. The current configured-pool
-composition contains 8 resources but 0 quota domains; among the four exact
+composition contains 8 resources, 6 configured quota domains, but 0 quota observations; among the four exact
 static candidates, only free-3/`gemini-3.5-flash-lite` reaches
 `RUNTIME_UNKNOWN` (exact resource present, quota observation absent), while
 the 3.6/3.8 identities are `RUNTIME_UNAVAILABLE` because their exact model
