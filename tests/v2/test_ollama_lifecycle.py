@@ -71,7 +71,7 @@ def test_ensure_loaded_is_idempotent_and_posts_bounded_keep_alive(monkeypatch):
     assert calls[2][0] == "POST"
     assert calls[2][2] == {
         "model": "qwen3.5:9b",
-        "prompt": "",
+        "prompt": "__dev_agent_lifecycle_probe__",
         "stream": True,
         "keep_alive": "10m",
         "options": {"num_predict": 1},

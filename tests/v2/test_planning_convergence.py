@@ -175,6 +175,35 @@ def test_planning_convergence_stops_after_two_consecutive_same_signatures():
     assert critic_b.requests == []
 
 
+def test_planning_convergence_preserves_concrete_failure_details_through_critic_recurrence():
+    parent_task_id = str(uuid4())
+    planner_provider = _SequenceProvider(
+        "planner-provider",
+        "planner-model",
+        responses=(_invalid_json("planner-provider", "planner-model"),),
+    )
+    critic_provider = _SequenceProvider(
+        "critic-provider",
+        "critic-model",
+        responses=(_invalid_json("critic-provider", "critic-model"),),
+    )
+
+    result = propose_with_planning_convergence(
+        ModelPlanningAdapter(planner_provider),
+        (ModelPlanningCriticAdapter(critic_provider),),
+        parent_task_id=parent_task_id,
+        objective="bounded planning objective",
+    )
+
+    assert result.completed is False
+    assert result.stop_reason is ConvergenceStopReason.SAME_SIGNATURE_LIMIT
+    assert result.attempts[0].failure_spec is not None
+    assert result.attempts[0].repair_directive is not None
+    assert result.attempts[-1].failure_spec is not None
+    assert result.attempts[-1].repair_directive is not None
+    assert "CONCRETE FAILURE SPEC" in critic_provider.requests[0].messages[0]["content"]
+
+
 def test_planning_convergence_allows_a_changed_failure_signature():
     parent_task_id = str(uuid4())
     planner_provider = _SequenceProvider(

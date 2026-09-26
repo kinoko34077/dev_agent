@@ -13,6 +13,13 @@ from ...resources.provider_policy import validate_endpoint_authority
 from ..openai_compatible.http import _read_bounded, urlopen_no_redirect
 
 
+# A non-empty, bounded prompt is required for some Ollama thinking-capable
+# models to emit the first streaming generation chunk.  This is only a
+# lifecycle probe; it is never exposed as an Agent task or persisted as model
+# output.
+_PRELOAD_PROMPT = "__dev_agent_lifecycle_probe__"
+
+
 @dataclass(frozen=True)
 class OllamaModelInfo:
     name: str
@@ -128,7 +135,7 @@ class OllamaModelManager:
 
         payload: dict[str, Any] = {
             "model": model,
-            "prompt": "",
+            "prompt": _PRELOAD_PROMPT,
             "stream": True,
             "keep_alive": keep_alive,
             "options": {"num_predict": 1},

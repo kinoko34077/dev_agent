@@ -410,6 +410,7 @@ class PlanningCriticAdapterError(PlanningAdapterError):
         request_id: str | None = None,
         provider_response_observed: bool = False,
         response_contract: str | None = None,
+        failure_spec: ConcreteFailureSpec | None = None,
     ) -> None:
         super().__init__(message)
         if response_contract is not None and response_contract not in self._RESPONSE_CONTRACTS:
@@ -417,6 +418,7 @@ class PlanningCriticAdapterError(PlanningAdapterError):
         self.request_id = request_id
         self.provider_response_observed = provider_response_observed
         self.response_contract = response_contract
+        self.failure_spec = failure_spec
 
 
 class ModelPlanningCriticAdapter:
@@ -554,10 +556,15 @@ class ModelPlanningCriticAdapter:
             )
             unknown = set(payload) - {"corrected_proposal"}
             if unknown:
+                message = f"unknown planning critic response field: {sorted(unknown)[0]}"
                 raise PlanningCriticAdapterError(
-                    f"unknown planning critic response field: {sorted(unknown)[0]}",
+                    message,
                     provider_response_observed=True,
                     response_contract="invalid_proposal",
+                    failure_spec=_planning_failure_spec(
+                        message,
+                        response_contract="invalid_proposal",
+                    ),
                 )
             proposal = RootPlanningProposal.from_dict(payload.get("corrected_proposal"))
         except StructuredResponseError as exc:
@@ -565,6 +572,10 @@ class ModelPlanningCriticAdapter:
                 str(exc),
                 provider_response_observed=True,
                 response_contract="invalid_json",
+                failure_spec=_planning_failure_spec(
+                    str(exc),
+                    response_contract="invalid_json",
+                ),
             )
             error.request_id = request.request_id
             raise error from exc
@@ -576,6 +587,10 @@ class ModelPlanningCriticAdapter:
                 f"planning critic corrected proposal is invalid: {exc}",
                 provider_response_observed=True,
                 response_contract="invalid_proposal",
+                failure_spec=_planning_failure_spec(
+                    str(exc),
+                    response_contract="invalid_proposal",
+                ),
             )
             error.request_id = request.request_id
             raise error from exc
@@ -584,6 +599,10 @@ class ModelPlanningCriticAdapter:
                 "planning critic corrected proposal parent_task_id does not match the requested parent",
                 provider_response_observed=True,
                 response_contract="invalid_proposal",
+                failure_spec=_planning_failure_spec(
+                    "planning critic corrected proposal parent_task_id does not match the requested parent",
+                    response_contract="invalid_proposal",
+                ),
             )
             error.request_id = request.request_id
             raise error
@@ -726,10 +745,16 @@ def _planning_fingerprint(
     response_contract: str | None,
     validator_ref: str,
     error_code: str,
+    failure_spec: ConcreteFailureSpec | None = None,
 ) -> FailureFingerprint:
+    validator_refs = [validator_ref]
+    if failure_spec is not None:
+        # Keep recurrence identity sensitive to the concrete Host-derived
+        # location/expected shape while retaining the stable error category.
+        validator_refs.append(f"planner:failure_spec:{failure_spec.failure_signature}")
     return FailureFingerprint.from_observation(
         failure_class="format_patch",
-        validator_refs=(validator_ref,),
+        validator_refs=tuple(validator_refs),
         response_contract=response_contract or "invalid_proposal",
         patch_category="planning_proposal",
         error_code=error_code,
@@ -740,12 +765,21 @@ def _planning_failure_for_next_round(
     *,
     request_id: str,
     response_contract: str,
+    failure_spec: ConcreteFailureSpec | None = None,
 ) -> PlanningResponseError:
     return PlanningResponseError(
         "bounded planning response contract failure",
         request_id=request_id,
         provider_response_observed=True,
         response_contract=response_contract,
+        failure_spec=(
+            failure_spec
+            if failure_spec is not None
+            else _planning_failure_spec(
+                "bounded planning response contract failure",
+                response_contract=response_contract,
+            )
+        ),
     )
 
 
@@ -779,6 +813,7 @@ def _terminal_planning_result(
     current_model_identity: str,
     refinement_round: int,
     fingerprint: FailureFingerprint,
+    failure_spec: ConcreteFailureSpec | None = None,
     stop_reason: ConvergenceStopReason,
 ) -> PlanningConvergenceResult:
     attempts.append(
@@ -794,6 +829,12 @@ def _terminal_planning_result(
             validator_refs=fingerprint.validator_refs,
             convergence_state=ConvergenceState.NON_CONVERGING,
             stop_reason=stop_reason,
+            failure_spec=failure_spec,
+            repair_directive=(
+                RepairDirective.from_failure_spec(failure_spec)
+                if failure_spec is not None
+                else None
+            ),
         )
     )
     return PlanningConvergenceResult(
@@ -876,6 +917,7 @@ def propose_with_planning_convergence(
             response_contract=failure.response_contract,
             validator_ref="planning:response_contract",
             error_code="MODEL_OUTPUT_INVALID",
+            failure_spec=failure.failure_spec,
         )
         same_signature_count = 1
         attempts.append(
@@ -885,6 +927,7 @@ def propose_with_planning_convergence(
                 current_model_identity=planner_identity,
                 source_attempt_id=current_attempt_id,
                 failure=current_fingerprint,
+                failure_spec=failure.failure_spec,
                 validator_refs=current_fingerprint.validator_refs,
             )
         )
@@ -901,6 +944,7 @@ def propose_with_planning_convergence(
             response_contract="invalid_proposal",
             validator_ref="planning:host_validation",
             error_code="HOST_VALIDATION_FAILED",
+            failure_spec=current_failure.failure_spec,
         )
         same_signature_count = 1
         attempts.append(
@@ -910,6 +954,7 @@ def propose_with_planning_convergence(
                 current_model_identity=planner_identity,
                 source_attempt_id=current_attempt_id,
                 failure=current_fingerprint,
+                failure_spec=current_failure.failure_spec,
                 validator_refs=current_fingerprint.validator_refs,
             )
         )
@@ -936,6 +981,7 @@ def propose_with_planning_convergence(
                 current_model_identity=_provider_identity(critic.provider),
                 refinement_round=round_number - 1,
                 fingerprint=current_fingerprint,
+                failure_spec=current_failure.failure_spec,
                 stop_reason=ConvergenceStopReason.SAME_SIGNATURE_LIMIT,
             )
 
@@ -965,10 +1011,16 @@ def propose_with_planning_convergence(
                 response_contract=getattr(failure, "response_contract", None),
                 validator_ref="planning:response_contract",
                 error_code="MODEL_OUTPUT_INVALID",
+                failure_spec=(
+                    getattr(failure, "failure_spec", None)
+                    or current_failure.failure_spec
+                ),
             )
+            critic_failure_spec = getattr(failure, "failure_spec", None)
             current_failure = _planning_failure_for_next_round(
                 request_id=current_attempt_id,
                 response_contract=current_fingerprint.response_contract or "invalid_proposal",
+                failure_spec=critic_failure_spec or current_failure.failure_spec,
             )
             same_signature_count = (
                 same_signature_count + 1
@@ -982,6 +1034,7 @@ def propose_with_planning_convergence(
                     current_model_identity=critic_identity,
                     source_attempt_id=current_attempt_id,
                     failure=current_fingerprint,
+                    failure_spec=current_failure.failure_spec,
                     correction_actor="planning_critic",
                     previous_model_identity=previous_model_identity,
                     validator_refs=current_fingerprint.validator_refs,
@@ -996,6 +1049,7 @@ def propose_with_planning_convergence(
                     current_model_identity=critic_identity,
                     refinement_round=round_number,
                     fingerprint=current_fingerprint,
+                    failure_spec=current_failure.failure_spec,
                     stop_reason=ConvergenceStopReason.SAME_SIGNATURE_LIMIT,
                 )
             continue
@@ -1009,6 +1063,7 @@ def propose_with_planning_convergence(
                 response_contract="invalid_proposal",
                 validator_ref="planning:host_validation",
                 error_code="HOST_VALIDATION_FAILED",
+                failure_spec=current_failure.failure_spec,
             )
             current_failure = _planning_failure_for_next_round(
                 request_id=current_attempt_id,
@@ -1026,6 +1081,7 @@ def propose_with_planning_convergence(
                     current_model_identity=critic_identity,
                     source_attempt_id=current_attempt_id,
                     failure=current_fingerprint,
+                    failure_spec=current_failure.failure_spec,
                     correction_actor="host_validator",
                     previous_model_identity=previous_model_identity,
                     validator_refs=current_fingerprint.validator_refs,
@@ -1039,6 +1095,7 @@ def propose_with_planning_convergence(
                     current_model_identity=critic_identity,
                     refinement_round=round_number,
                     fingerprint=current_fingerprint,
+                    failure_spec=current_failure.failure_spec,
                     stop_reason=ConvergenceStopReason.SAME_SIGNATURE_LIMIT,
                 )
             continue
@@ -1073,6 +1130,7 @@ def propose_with_planning_convergence(
         current_model_identity=previous_model_identity,
         refinement_round=min(max_rounds, len(attempts)),
         fingerprint=current_fingerprint,
+        failure_spec=current_failure.failure_spec if current_failure is not None else None,
         stop_reason=ConvergenceStopReason.NON_CONVERGING,
     )
 
