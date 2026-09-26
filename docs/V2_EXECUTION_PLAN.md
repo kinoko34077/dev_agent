@@ -16,6 +16,18 @@ remote generation admission, Discord live E2E, and `PHASE8 LIVE_ACTIVATION`
 remain unchanged. Evidence:
 [`phase8-production-composition-terminal-20260926.json`](../spec/v2/evidence/phase8-production-composition-terminal-20260926.json).
 
+2026-09-26 fresh local L1 root checkpoint: `0529d12` uses the minimal
+production-shaped Planner profile and a fresh qwen3.5:9b root. Both
+non-overlapping Workers passed Host Verification and deterministic integration,
+the existing review boundary was reached, `CODE_INTEGRATED` continuation
+completed, and the root reached terminal completion with zero Codex direct
+implementation. Gemma4 was available but unused; no remote route, third model,
+UNKNOWN replay, or paid route was used. The trial did not independently
+re-qualify a distinct Reviewer model, so this is
+`OLLAMA_LOCAL_E2E=COMPLETED_NON_GATE`; `PHASE8_LIVE_ACTIVATION` remains
+`NOT_VERIFIED`. Evidence:
+[`phase8-local-e2e-20260926.json`](../spec/v2/evidence/phase8-local-e2e-20260926.json).
+
 2026-09-26 read-only model evidence refresh: approved Host-boundary discovery
 returned 1,357 candidate rows from 13 bindings, with one bounded Groq
 `HTTPError`; the restricted comparison returned only 8 Ollama rows and

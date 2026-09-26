@@ -27,9 +27,27 @@ composition evidence; remote generation admission, Discord live E2E, and
 Phase 8 LIVE_ACTIVATION remain unverified. Evidence:
 [`phase8-production-composition-terminal-20260926.json`](../spec/v2/evidence/phase8-production-composition-terminal-20260926.json).
 
+**2026-09-26 fresh local L1 root checkpoint:** `0529d12` adds the minimal
+production-shaped Planner profile and concrete convergence boundary. A fresh
+qwen3.5:9b Planner/Worker root then passed Host Verification for both
+non-overlapping Workers, reached the existing review boundary, integrated both
+patches deterministically, released and completed the `CODE_INTEGRATED`
+continuation, and reached terminal root completion with zero Codex direct
+implementation. Gemma4 was available but unused; no remote route, third model,
+UNKNOWN replay, or paid route was used. The review callback in this trial was
+not an independently re-qualified Reviewer model, so this is
+`OLLAMA_LOCAL_E2E=COMPLETED_NON_GATE`, not `PHASE8_LIVE_ACTIVATION`. Terminal
+submission now unloads idle Ollama models through the existing lifecycle
+manager. Evidence: [`phase8-local-e2e-20260926.json`](../spec/v2/evidence/phase8-local-e2e-20260926.json).
+
 **2026-09-22 R9 checkpoint:** `D9_DOGFOOD=VERIFIED` remains closed and `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`. Model observations were refreshed read-only; the current static diagnostic shows 32 static-eligible and 5 runtime-unknown rows (not an empty catalog). Four exact qualified/no-charge L2 identities entered one fresh bounded Planner pool, but three distinct quota domains returned confirmed `provider_unavailable` before a proposal. No Critic, child task, Worker, Reviewer, or integration ran; no UNKNOWN was replayed. `PHASE8_PREPARATION=PREPARATION_ONLY` and `LIVE_ACTIVATION=NOT_VERIFIED` remain unchanged. Evidence: [`model-evidence-refresh-r9-planner-blocker-20260922.json`](../spec/v2/evidence/model-evidence-refresh-r9-planner-blocker-20260922.json). Continue R9 on a newly eligible route/fresh request; apply AR1 only if a natural eligible Worker failure occurs, without making AR1 an entry gate.
 
-**2026-09-26 local convergence checkpoint:** the local trial remains non-Gate `PARTIAL_BLOCKED`. `qwen3.5:9b` is primary, `gemma4:12b` is the only fallback, and `qwen3.5:4b` is inactive for automatic routing. The Worker contract preflight, local-trial propagation, absolute Git worktree fallback, and Host-derived Planner FailureSpec were strengthened from observed failures. A fresh bounded Planner attempt still did not converge; Reviewer/integration were not reached, so `PHASE8 LIVE_ACTIVATION` remains `NOT_VERIFIED`. No third model or UNKNOWN replay was attempted. Evidence: [`phase8-local-planner-convergence-20260926.json`](../spec/v2/evidence/phase8-local-planner-convergence-20260926.json).
+**2026-09-26 earlier local convergence checkpoint:** the local trial at this
+stage remained non-Gate `PARTIAL_BLOCKED`; that observation is retained as
+immutable failure evidence. The subsequent fresh root above changed the
+Planner/Worker contract and setup premise and completed the local chain. No
+third model or UNKNOWN replay was attempted. Evidence:
+[`phase8-local-planner-convergence-20260926.json`](../spec/v2/evidence/phase8-local-planner-convergence-20260926.json).
 
 **2026-09-23 operational self-heal checkpoint:** the local Operation path now durably parks Human-required work as `WAITING_HUMAN`, consumes an exact response once, and lets unrelated READY work continue through the existing `RuntimeCoordinator`. Codex Human Proxy and Expert Assist are separate bounded JSON-lines adapters with `HUMAN_REQUIRED` versus `PROPOSAL_ONLY` authority. Existing pinned release, rolling, health, and LKG rollback primitives are composed for local self-update with trusted-ref/preflight checks and failed-candidate suppression. The repo-root `start-dev-agent.bat` is foreground-only and does not register OS startup. This is non-Gate local evidence; it does not close R9, AR1, Phase 8 LIVE_ACTIVATION, or D9 Production Deployment. Evidence: [`operational-human-assist-self-update-local-20260923.json`](../spec/v2/evidence/operational-human-assist-self-update-local-20260923.json).
 
