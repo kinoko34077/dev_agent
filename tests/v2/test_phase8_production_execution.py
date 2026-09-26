@@ -130,6 +130,22 @@ class _FakeOperation:
         )
 
 
+class _LifecycleProbe:
+    def __init__(self, unloaded=()):
+        self.unloaded = tuple(unloaded)
+        self.calls = 0
+
+    def unload_idle(self, *, deadline_seconds=30.0):
+        self.calls += 1
+        return self.unloaded
+
+
+class _LocalProviderProbe:
+    def __init__(self, manager, model):
+        self.model_manager = manager
+        self.model = model
+
+
 def _executor(**overrides):
     from scripts.devfarm_production_composition import Phase8ProductionExecutor
 
@@ -196,6 +212,38 @@ def test_phase8_executor_does_not_treat_reviewer_proposal_as_final_approval():
     assert result["integrated"] == []
     assert values["commander"].integration_calls == []
     assert values["operation"].calls == []
+
+
+def test_phase8_executor_releases_worker_models_before_local_reviewer():
+    worker_manager = _LifecycleProbe(("qwen3.5:9b",))
+    reviewer_manager = _LifecycleProbe(("gemma4:12b",))
+    seen: list[tuple[int, int]] = []
+
+    def review_proposal(packet):
+        seen.append((worker_manager.calls, reviewer_manager.calls))
+        return {
+            "decision": "APPROVE_INTEGRATION",
+            "findings": [],
+            "evidence_refs": [{"kind": "bounded-review"}],
+        }
+
+    executor, values = _executor(
+        providers={
+            "devfarm-a": _LocalProviderProbe(worker_manager, "qwen3.5:9b"),
+            "devfarm-b": _LocalProviderProbe(worker_manager, "qwen3.5:9b"),
+        },
+        reviewer_providers={
+            "reviewer": _LocalProviderProbe(reviewer_manager, "gemma4:12b"),
+        },
+        review_proposal=review_proposal,
+    )
+
+    result = executor.advance()
+
+    assert result["integrated"] == ["worker-a", "worker-b"]
+    assert seen == [(1, 0), (1, 0)]
+    assert result["reviewer_model_switch"] == {"unloaded_models": ["qwen3.5:9b"], "errors": []}
+    assert reviewer_manager.calls == 0
 
 
 def test_phase8_executor_rebinds_latest_worker_failure_to_distinct_local_model(monkeypatch, tmp_path):

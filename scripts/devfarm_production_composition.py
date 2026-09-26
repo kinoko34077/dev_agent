@@ -371,6 +371,7 @@ class Phase8ProductionSubmission:
                 bindings=bindings,
                 providers=provider_map,
                 fallback_providers=fallback_provider_map,
+                reviewer_providers=self.reviewer_providers,
                 orchestrator=self.orchestrator,
                 review_proposal=self.review_proposal,
                 final_review_decision=self.final_review_decision,
@@ -507,6 +508,7 @@ class Phase8ProductionExecutor:
         bindings: Mapping[str, str],
         providers: Mapping[str, Any],
         fallback_providers: Mapping[str, Any] | None = None,
+        reviewer_providers: Mapping[str, Any] | None = None,
         orchestrator: Any,
         review_proposal: Callable[[Mapping[str, Any]], Mapping[str, Any]],
         final_review_decision: Callable[[Mapping[str, Any], Mapping[str, Any]], Mapping[str, Any]],
@@ -574,6 +576,9 @@ class Phase8ProductionExecutor:
         self.bindings = normalized_bindings
         self.providers = dict(providers)
         self.fallback_providers = dict(fallback_providers or {})
+        if reviewer_providers is not None and not isinstance(reviewer_providers, Mapping):
+            raise TypeError("reviewer_providers must be a mapping when provided")
+        self.reviewer_providers = dict(reviewer_providers or {})
         self.orchestrator = orchestrator
         self.review_proposal = review_proposal
         self.final_review_decision = final_review_decision
@@ -960,6 +965,7 @@ class Phase8ProductionExecutor:
         integrated: list[str] = []
         reviewed: list[str] = []
         operation_changes: list[dict[str, Any]] = []
+        reviewer_model_switch: dict[str, Any] | None = None
         for task in workers:
             task_id = str(task["task_id"])
             child_key = str(task["planner_child_key"])
@@ -968,6 +974,16 @@ class Phase8ProductionExecutor:
                 continue
             decision = self._decision_for_task(plan, task_id, attempt_id)
             if decision is None and task.get("status") == "HOST_VERIFIED":
+                if reviewer_model_switch is None:
+                    # Worker requests have released their leases by the time
+                    # the Supervisor exposes HOST_VERIFIED. Release idle
+                    # local Worker/fallback models before a distinct local
+                    # Reviewer is allowed to load, so qwen and Gemma do not
+                    # remain resident together during the role transition.
+                    reviewer_model_switch = Phase8ProductionSubmission._unload_local_provider_models(
+                        self.providers,
+                        self.fallback_providers,
+                    )
                 packet = self.commander.review_packet(task_id, attempt_id=attempt_id)
                 proposal = self._normalize_review_decision(self.review_proposal(packet))
                 final = self._normalize_review_decision(self.final_review_decision(packet, proposal))
@@ -1037,6 +1053,7 @@ class Phase8ProductionExecutor:
             "integrated": integrated,
             "repaired": repaired,
             "fallback": fallback,
+            "reviewer_model_switch": reviewer_model_switch,
             "operation_changes": operation_changes,
             "continuation_ready": continuation_ready,
         }
