@@ -14,6 +14,8 @@ from scripts.devfarm_production_composition import (
     Phase8ProductionComposition,
     ProductionCompositionError,
     Phase8ProductionSubmission,
+    _bounded_projection,
+    _cleanup_projection_fields,
 )
 from src.dev_agent.domain.protocol import Task, TaskStatus, TaskType
 from src.dev_agent.operation import OperationConfig, OperationService
@@ -81,6 +83,33 @@ def test_phase8_terminal_cleanup_accepts_independent_reviewer_manager():
     }
     assert worker_manager.calls == 1
     assert reviewer_manager.calls == 1
+
+
+def test_phase8_cleanup_projection_flattens_errors_for_submission_boundary():
+    fields = _cleanup_projection_fields(
+        {
+            "unloaded_models": ["qwen3.5:9b"],
+            "errors": [{"model": "gemma4:12b", "category": "lifecycle_failure"}],
+        }
+    )
+
+    assert fields == (
+        ["qwen3.5:9b"],
+        ["gemma4:12b:lifecycle_failure"],
+    )
+    assert _bounded_projection(
+        {
+            "execution": {
+                "local_model_unloaded_models": fields[0],
+                "local_model_cleanup_errors": fields[1],
+            }
+        }
+    ) == {
+        "execution": {
+            "local_model_unloaded_models": ["qwen3.5:9b"],
+            "local_model_cleanup_errors": ["gemma4:12b:lifecycle_failure"],
+        }
+    }
 
 
 def test_phase8_submission_keeps_reviewer_provider_inventory_for_terminal_cleanup():

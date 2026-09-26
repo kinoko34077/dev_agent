@@ -84,6 +84,60 @@ def _bounded_projection(value: Any, *, depth: int = 0) -> Any:
     raise ProductionCompositionError("boundary result contains an unsupported value")
 
 
+def _cleanup_projection_fields(value: Any) -> tuple[list[str], list[str]]:
+    """Flatten lifecycle cleanup into fields safe to nest in a result.
+
+    The internal cleanup record keeps model/category mappings for diagnostics.
+    The public Phase 8 result is already nested below ``execution`` and has a
+    deliberately small projection depth.  Keeping those mappings nested would
+    make a real lifecycle error reject an otherwise completed root.  Preserve
+    the bounded facts, but flatten them before the public projection.
+    """
+
+    if value is None:
+        return [], []
+    if not isinstance(value, Mapping):
+        raise ProductionCompositionError("local model cleanup projection is invalid")
+
+    def bounded_text(item: Any, fallback: str) -> str:
+        if not isinstance(item, str):
+            return fallback
+        text = item.strip()
+        if not text or len(text) > 128:
+            return fallback
+        lowered = text.casefold()
+        if any(term in lowered for term in _FORBIDDEN_PROJECTION_TERMS):
+            return fallback
+        return text
+
+    unloaded: list[str] = []
+    raw_unloaded = value.get("unloaded_models", [])
+    if isinstance(raw_unloaded, Sequence) and not isinstance(raw_unloaded, (str, bytes)):
+        for item in raw_unloaded:
+            model = bounded_text(item, "unknown")
+            if model != "unknown" and model not in unloaded:
+                unloaded.append(model)
+            if len(unloaded) >= _MAX_PROJECTION_ITEMS:
+                break
+
+    errors: list[str] = []
+    raw_errors = value.get("errors", [])
+    if isinstance(raw_errors, Sequence) and not isinstance(raw_errors, (str, bytes)):
+        for item in raw_errors:
+            if isinstance(item, Mapping):
+                model = bounded_text(item.get("model"), "unknown")
+                category = bounded_text(item.get("category"), "lifecycle_failure")
+                label = f"{model}:{category}"
+            else:
+                label = bounded_text(item, "lifecycle_failure")
+            if label not in errors:
+                errors.append(label)
+            if len(errors) >= _MAX_PROJECTION_ITEMS:
+                break
+
+    return unloaded, errors
+
+
 class Phase8ProductionComposition:
     """Expose only the production submit/observe boundary.
 
@@ -421,6 +475,10 @@ class Phase8ProductionSubmission:
             fallback_provider_map,
             self.reviewer_providers,
         )
+        cleanup_models, cleanup_errors = _cleanup_projection_fields(local_model_cleanup)
+        reviewer_models, reviewer_errors = _cleanup_projection_fields(
+            execution.get("reviewer_model_switch")
+        )
         result = {
             "root_task_id": root.task_id,
             "run_id": run_id,
@@ -435,7 +493,10 @@ class Phase8ProductionSubmission:
                 "continuation_task_id": continuation.task_id,
                 "continuation_state": continuation.status.value,
                 "root_state": root_terminal.status.value,
-                "local_model_cleanup": local_model_cleanup,
+                "local_model_unloaded_models": cleanup_models,
+                "local_model_cleanup_errors": cleanup_errors,
+                "reviewer_model_unloaded_models": reviewer_models,
+                "reviewer_model_switch_errors": reviewer_errors,
             },
         }
         projected = _bounded_projection(result)
