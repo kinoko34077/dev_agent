@@ -142,6 +142,7 @@ class Phase8ProductionSubmission:
         review_proposal: Callable[[Mapping[str, Any]], Mapping[str, Any]],
         final_review_decision: Callable[[Mapping[str, Any], Mapping[str, Any]], Mapping[str, Any]],
         target_checkout: str | Path,
+        reviewer_providers: Mapping[str, Any] | None = None,
         target_ref: str = "HEAD",
         verification_trust_level: str = "TRUSTED_HOST_EXEC",
         operator_approved: bool = True,
@@ -164,6 +165,9 @@ class Phase8ProductionSubmission:
         self.orchestrator = orchestrator
         self.review_proposal = review_proposal
         self.final_review_decision = final_review_decision
+        if reviewer_providers is not None and not isinstance(reviewer_providers, Mapping):
+            raise TypeError("reviewer_providers must be a mapping when provided")
+        self.reviewer_providers = dict(reviewer_providers or {})
         self.target_checkout = str(Path(target_checkout).resolve())
         self.target_ref = target_ref
         self.verification_trust_level = verification_trust_level
@@ -414,6 +418,7 @@ class Phase8ProductionSubmission:
         local_model_cleanup = self._unload_local_provider_models(
             provider_map,
             fallback_provider_map,
+            self.reviewer_providers,
         )
         result = {
             "root_task_id": root.task_id,

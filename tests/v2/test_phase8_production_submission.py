@@ -63,6 +63,44 @@ def test_phase8_terminal_cleanup_unloads_each_local_model_manager_once():
     assert manager.calls == 1
 
 
+def test_phase8_terminal_cleanup_accepts_independent_reviewer_manager():
+    worker_manager = _LifecycleProbe(unloaded=("qwen3.5:9b",))
+    reviewer_manager = _LifecycleProbe(unloaded=("gemma4:12b",))
+    worker = _LocalProviderProbe(worker_manager)
+    reviewer = _LocalProviderProbe(reviewer_manager)
+    reviewer.model = "gemma4:12b"
+
+    cleanup = Phase8ProductionSubmission._unload_local_provider_models(
+        {"worker-a": worker},
+        {"reviewer": reviewer},
+    )
+
+    assert cleanup == {
+        "unloaded_models": ["gemma4:12b", "qwen3.5:9b"],
+        "errors": [],
+    }
+    assert worker_manager.calls == 1
+    assert reviewer_manager.calls == 1
+
+
+def test_phase8_submission_keeps_reviewer_provider_inventory_for_terminal_cleanup():
+    reviewer = object()
+    submission = Phase8ProductionSubmission(
+        operation_config=object(),
+        repository=".",
+        planner=lambda _root: None,
+        task_specs=lambda _root, _proposal: {},
+        providers=lambda _bindings: {},
+        orchestrator=object(),
+        review_proposal=lambda _packet: {},
+        final_review_decision=lambda _packet, _proposal: {},
+        target_checkout=".",
+        reviewer_providers={"reviewer": reviewer},
+    )
+
+    assert submission.reviewer_providers == {"reviewer": reviewer}
+
+
 def test_phase8_shape_preflight_rejects_dependent_worker_before_handoff():
     proposal = RootPlanningProposal(
         parent_task_id="root",
