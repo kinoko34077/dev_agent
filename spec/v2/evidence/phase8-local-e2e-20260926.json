@@ -1,0 +1,74 @@
+{
+  "evidence_id": "phase8-local-e2e-20260926",
+  "recorded_at": "2026-09-26",
+  "branch": "phase8/worker-contract-preflight-issue9",
+  "implementation_commit": "0529d12c508eed209952051d5927e25b24b7cc6d",
+  "scope": "Non-Gate local L1 trial of the existing Phase 8 production composition after the minimal Planner contract and convergence-boundary hardening.",
+  "fresh_local_trial": {
+    "root_task_id": "21aeea0a-1ead-4ae5-a1a0-7442d420dd00",
+    "run_id": "phase8-c557db579b7f414eb100c5f84259b025",
+    "planner_model": "ollama/qwen3.5:9b",
+    "worker_models": {
+      "worker_a": "ollama/qwen3.5:9b",
+      "worker_b": "ollama/qwen3.5:9b"
+    },
+    "critic_model": "ollama/gemma4:12b",
+    "fallback_used": false,
+    "third_model_used": false,
+    "remote_provider_used": false,
+    "unknown_replayed": false,
+    "codex_direct_implementation_count": 0,
+    "planner": "PASS",
+    "worker_a": {
+      "host_verification": "PASS",
+      "integration": "PASS",
+      "attempts": 1
+    },
+    "worker_b": {
+      "host_verification": "PASS",
+      "integration": "PASS",
+      "attempts": 1
+    },
+    "reviewer": {
+      "state": "PROPOSAL_BOUNDARY_REACHED_AND_ACCEPTED",
+      "independent_model_reviewer": "NOT_CLAIMED"
+    },
+    "continuation": {
+      "state": "COMPLETED",
+      "dependency": "CODE_INTEGRATED"
+    },
+    "root_state": "COMPLETED",
+    "commander_status_at_projection": "REVIEWING",
+    "local_model_cleanup": {
+      "automatic_cleanup_implementation": "present_in_0529d12",
+      "trial_cleanup": "explicit_loopback_unload_after_terminal",
+      "post_unload_loaded_models": []
+    }
+  },
+  "implementation_changes": [
+    "phase8_production Planner profile composes exactly two worker objectives and one deterministic continuation objective",
+    "Planner validation facts and concrete correction handoff are structured and bounded",
+    "existing local convergence records the planning Critic as the correction actor",
+    "terminal local Phase 8 submission unloads idle Ollama models through the existing lifecycle manager"
+  ],
+  "verification": {
+    "focused_tests": "58 passed",
+    "architecture": "ARCHITECTURE_PASS",
+    "compile": "COMPILE_IN_MEMORY_PASS 449",
+    "changed_file_secret_scan": "PASS",
+    "exact_head_ci": {
+      "v2_core_run": "36233009411",
+      "v2_core_status": "success",
+      "provider_smoke_run": "36233009415",
+      "provider_smoke_status": "success"
+    }
+  },
+  "formal_gate": {
+    "d9_dogfood": "VERIFIED",
+    "d9_production_deployment": "DEFERRED_NOT_READY",
+    "phase8_preparation": "PREPARATION_ONLY",
+    "phase8_live_activation": "NOT_VERIFIED"
+  },
+  "interpretation": "This is bounded local L1 evidence that the existing Planner-to-Worker-to-review-boundary-to-integration-to-dependent-continuation chain can complete with correct production-composition setup. The reviewer was not independently re-qualified as a distinct model in this trial, so this does not satisfy the formal Phase 8 L2 single-root gate.",
+  "next_action": "Do not blind-retry the exhausted remote routes or replay UNKNOWN operations. Re-admit only a newly eligible remote generation route with a fresh identity; otherwise retain this local evidence for convergence preparation and continue only with a changed hypothesis. Discord live-client E2E remains separately unverified."
+}
