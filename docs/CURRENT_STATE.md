@@ -10,8 +10,8 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 | Field | Current fact |
 | --- | --- |
 | Accepted branch | `v2/bootstrap` |
-| Accepted remote head at last audit | `37b73a68890b528c0f2017a907b92c499baaa47c` (PR #4 then PR #12 integrated) |
-| Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight, local L1 evidence, and failure-safe lifecycle cleanup |
+| Accepted remote head at latest integrated audit | `50045ef85fdcc0db2f117593ea9f08fbfe280771` (PR #4, PR #12, and PR #13 integrated) |
+| Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight, local L1 evidence, and failure-safe lifecycle cleanup; PR #13 Current State compaction and blocker synchronization |
 | Formal Gate | `D9_DOGFOOD=VERIFIED`; `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`; `PHASE8_PREPARATION=PREPARATION_ONLY`; `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` |
 | Current source of truth | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json), exact-head CI, owning Issues/PRs, and bounded Evidence files |
 
@@ -25,7 +25,7 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 ### Active blockers
 
 1. Formal Phase 8 still requires a current generation-ready qualified Provider route, real Provider multi-role evidence, independent Host Verification/deterministic Integration, and exact-head CI for that benchmark revision.
-2. The current remote admission snapshot has no runtime-eligible generation route. Discovery/free-tier/model-list evidence is not generation admission; prior UNKNOWN/reconciliation/provider failures must not be replayed.
+2. The latest read-only remote admission snapshot has no runtime-eligible generation route (232 catalog rows; 32 static-eligible; 5 runtime-unknown; 0 runtime-eligible). Discovery/free-tier/model-list evidence is not generation admission; prior UNKNOWN/reconciliation/provider failures must not be replayed.
 3. Windows shared-worktree `WinError 5` during ordinary pycache writes is a local ACL/tooling boundary; verification uses a temporary pycache prefix and does not treat it as a runtime or Provider failure.
 
 ### Deferred and next action
