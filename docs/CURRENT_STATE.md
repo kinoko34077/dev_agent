@@ -10,18 +10,18 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 | Field | Current fact |
 | --- | --- |
 | Accepted branch | `v2/bootstrap` |
-| Accepted remote head at latest integrated audit | `81e47cea6500d9bdd8ad0cdd717f9e734d5e8a3a` (PR #16 integrated after PR #14 accepted base) |
+| Accepted remote head at latest integrated audit | `59b2c7413db3f00a0fa6c8a08a08721bd3f83d22` (PR #17 docs/evidence synchronization; latest implementation baseline `81e47cea6500d9bdd8ad0cdd717f9e734d5e8a3a`) |
 | Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight and local L1 evidence; PR #13 Current State compaction; PR #16 static-vs-runtime admission semantics and read-only exact-route evaluator |
 | Formal Gate | `D9_DOGFOOD=VERIFIED`; `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`; `PHASE8_PREPARATION=PREPARATION_ONLY`; `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` |
 | Current source of truth | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json), exact-head CI, owning Issues/PRs, and bounded Evidence files |
 
 ### 2026-09-27 Issue #15 admission synchronization
 
-- PR #16 is integrated at `81e47cea6500d9bdd8ad0cdd717f9e734d5e8a3a`; exact-head `v2-core` and `provider-smoke` were green on the PR head.
-- Static diagnostics now distinguish `RUNTIME_NOT_PROBED`, `RUNTIME_UNAVAILABLE`, `RUNTIME_UNKNOWN`, and `RUNTIME_ELIGIBLE`; the evaluator is read-only and delegates to existing `RoutingSnapshot` / `ResourceRouter.choose`.
-- A current read-only snapshot of the existing local ResourceLedger evaluated the four exact static/billing/qualification-admitted Gemini candidates: all four were `RUNTIME_UNAVAILABLE` because the ledger contained one non-Gemini fake resource and no quota observations. No Provider generation call was made.
-- This is an exact local runtime-state observation, not a claim that all configured Gemini credentials/routes are unusable. Generation readiness remains unestablished. Evidence: [`model-runtime-admission-20260927.json`](../spec/v2/evidence/model-runtime-admission-20260927.json).
-
+- PR #16 is integrated at `81e47cea6500d9bdd8ad0cdd717f9e734d5e8a3a`; PR #17 synchronized the repository evidence/docs at `59b2c7413db3f00a0fa6c8a08a08721bd3f83d22`. The PR-head v2-core and provider-smoke checks were green.
+- Static diagnostics distinguish `RUNTIME_NOT_PROBED`, `RUNTIME_UNAVAILABLE`, `RUNTIME_UNKNOWN`, and `RUNTIME_ELIGIBLE`; the evaluator is read-only and delegates to existing `RoutingSnapshot` / `ResourceRouter.choose`.
+- A more informative read-only snapshot of the existing configured pool was composed in an isolated temporary state through `OperationService.open` with configured-pool opt-in. It contained 8 configured bindings/resources (Cloudflare, four Gemini lanes, two Ollama locals, and OpenRouter) but 0 quota domains and no generation call.
+- The four exact static/billing/qualification-admitted Gemini candidates evaluated as: `gemini:worker:free-3 / gemini-3.5-flash-lite = RUNTIME_UNKNOWN` because the exact resource exists without a current quota observation; the other three 3.6/3.8 identities = `RUNTIME_UNAVAILABLE` because those exact model resources are not present in the current configured pool composition. No candidate is `RUNTIME_ELIGIBLE`; generation readiness remains unestablished.
+- The earlier local ledger snapshot with one fake resource is retained as historical evidence and is superseded for current configured-pool interpretation by [`model-runtime-admission-configured-pool-20260927.json`](../spec/v2/evidence/model-runtime-admission-configured-pool-20260927.json). Neither snapshot proves all configured Gemini credentials/routes unusable, and neither is a generation result.
 ### Verified now
 
 - Deterministic local composition reaches Planner validation, two non-overlapping Workers, independent Host Verification, proposal-only review, deterministic Integration, `CODE_INTEGRATED` release, and an existing RuntimeCoordinator continuation. Provider responses are fixtures, so this is non-Gate evidence.
