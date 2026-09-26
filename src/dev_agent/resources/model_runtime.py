@@ -1,3 +1,10 @@
+MethodException: 
+Line |
+   2 |  … runtime.py"); $c=$c.Replace(([char]13)+([char]10),([char]10)); [Conso …
+     |                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     | Cannot convert argument "oldChar", with value: "
+", for "Replace" to type "System.Char": "Cannot convert value "
+" to type "System.Char". Error: "String must be exactly one character long.""
 """Bounded runtime-admission observations for model diagnostics.
 
 This module is an evidence projection, not a second Provider router.  The
@@ -128,4 +135,3 @@ __all__ = [
     "RuntimeAdmissionObservation",
     "RuntimeAdmissionSnapshot",
 ]
-
