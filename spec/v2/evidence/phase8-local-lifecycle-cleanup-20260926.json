@@ -2,7 +2,7 @@
   "evidence_id": "phase8-local-lifecycle-cleanup-20260926",
   "observed_at": "2026-09-26",
   "branch": "phase8/worker-contract-preflight-issue9",
-  "implementation_commit": "13f48cc",
+  "implementation_commit": "542bdc2de54f61073e72753cf66985bca8f6d395",
   "scope": "Failure-safe local model lifecycle cleanup at the bounded Phase 8 submission boundary.",
   "finding": {
     "before": "Terminal cleanup was only observable after a completed execution result; a Worker, Reviewer, or Integration exception could leave an idle local model resident until daemon keep-alive expiry.",
@@ -17,15 +17,15 @@
   },
   "verification": {
     "focused_command": "python -B -m pytest -p no:cacheprovider tests/v2/test_phase8_production_submission.py tests/v2/test_phase8_production_execution.py tests/v2/test_phase8_production_composition_e2e.py tests/v2/test_devfarm_worker_preflight.py tests/v2/test_devfarm_worker_output.py -q",
-    "focused_result": "44 passed",
-    "failure_path_assertion": "synthetic execution failure preserved while failing cleanup and known Planner/Worker inventories were still observed",
+    "focused_result": "45 passed",
+    "failure_path_assertion": "cleanup-boundary failure is projected as bounded diagnostic data without masking a completed result or an original execution failure; known Planner/Worker inventories were still observed",
     "architecture": "ARCHITECTURE_PASS",
     "compile": "COMPILE_IN_MEMORY_PASS 268",
     "diff_check": "PASS",
     "exact_head_ci": {
-      "v2_core_run": "36239993353",
+      "v2_core_run": "36240412724",
       "v2_core_status": "success",
-      "provider_smoke_run": "36239993287",
+      "provider_smoke_run": "36240412688",
       "provider_smoke_status": "success"
     }
   },
