@@ -2,6 +2,16 @@
 
 この文書は、[V2_EXECUTION_PLAN.md](V2_EXECUTION_PLAN.md) が示す現在の大きな順序を、実装可能なGateと依存関係へ展開する詳細正本である。要求・ADR・Evidenceを複製せず、各Gateの完了条件と参照先だけを持つ。
 
+**2026-09-26 failure-path lifecycle checkpoint:** `13f48cc` hardens the
+existing Phase 8 submission boundary so supplied local Planner/Worker/
+fallback/Reviewer provider inventories are unloaded after both successful and
+failed bounded execution. The original execution exception is retained even
+when cleanup itself fails, and cleanup projection is bounded diagnostic data.
+Affected focused coverage is `44 passed`; exact-head v2-core/provider-smoke CI
+is green. This is reliability evidence, not a new live root or Gate promotion.
+Evidence:
+[`phase8-local-lifecycle-cleanup-20260926.json`](../spec/v2/evidence/phase8-local-lifecycle-cleanup-20260926.json).
+
 ## 現在位置
 
 **2026-09-26 model evidence refresh:** approved Host-boundary discovery returned

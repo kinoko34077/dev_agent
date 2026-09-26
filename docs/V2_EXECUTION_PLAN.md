@@ -2,6 +2,17 @@
 
 この文書は現在の大きな順序だけを示すMain Roadmapである。詳細なGate、依存関係、完了条件は [`V2_DETAILED_ROADMAP.md`](V2_DETAILED_ROADMAP.md) を正本とする。要求は`docs/requirements/**`、decision rationaleは`spec/v2/adr/**`、観測証拠は`spec/v2/evidence/**`、Gate statusは`spec/v2/GATE_STATUS.json`を参照する。
 
+2026-09-26 Phase 8 failure-path lifecycle checkpoint: `13f48cc` extends the
+existing bounded submission boundary so known local Planner/Worker/fallback/
+Reviewer inventories are unloaded after both success and execution failure.
+The original execution exception is preserved even when cleanup itself fails,
+and malformed cleanup projection remains bounded diagnostic data;
+no queue, scheduler, authority, retry, integration, or Gate semantics changed.
+Focused affected coverage is `44 passed`; exact-head v2-core/provider-smoke
+CI is green. This does not create a new live root and does not
+change `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED`. Evidence:
+[`phase8-local-lifecycle-cleanup-20260926.json`](../spec/v2/evidence/phase8-local-lifecycle-cleanup-20260926.json).
+
 2026-09-26 Phase 8 production composition checkpoint: `f47d382` now
 composes one fresh Operation root through the existing Planner validation,
 DevelopmentPlanningBridge, Commander/Supervisor, single-owner handoff,
