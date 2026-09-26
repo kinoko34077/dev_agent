@@ -10,7 +10,7 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 | Field | Current fact |
 | --- | --- |
 | Accepted branch | `v2/bootstrap` |
-| Accepted remote head at latest integrated audit | `59b2c7413db3f00a0fa6c8a08a08721bd3f83d22` (PR #17 docs/evidence synchronization; latest implementation baseline `81e47cea6500d9bdd8ad0cdd717f9e734d5e8a3a`) |
+| Accepted remote head at latest integrated audit | `b3427991319d5475e20ff8a02da5951fdeb4b540` (PR #20 docs/evidence synchronization; latest implementation baseline `81e47cea6500d9bdd8ad0cdd717f9e734d5e8a3a`) |
 | Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight and local L1 evidence; PR #13 Current State compaction; PR #16 static-vs-runtime admission semantics and read-only exact-route evaluator |
 | Formal Gate | `D9_DOGFOOD=VERIFIED`; `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`; `PHASE8_PREPARATION=PREPARATION_ONLY`; `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` |
 | Current source of truth | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json), exact-head CI, owning Issues/PRs, and bounded Evidence files |
