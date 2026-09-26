@@ -10,10 +10,17 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 | Field | Current fact |
 | --- | --- |
 | Accepted branch | `v2/bootstrap` |
-| Accepted remote head at latest integrated audit | `50045ef85fdcc0db2f117593ea9f08fbfe280771` (PR #4, PR #12, and PR #13 integrated) |
-| Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight, local L1 evidence, and failure-safe lifecycle cleanup; PR #13 Current State compaction and blocker synchronization |
+| Accepted remote head at latest integrated audit | `81e47cea6500d9bdd8ad0cdd717f9e734d5e8a3a` (PR #16 integrated after PR #14 accepted base) |
+| Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight and local L1 evidence; PR #13 Current State compaction; PR #16 static-vs-runtime admission semantics and read-only exact-route evaluator |
 | Formal Gate | `D9_DOGFOOD=VERIFIED`; `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`; `PHASE8_PREPARATION=PREPARATION_ONLY`; `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` |
 | Current source of truth | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json), exact-head CI, owning Issues/PRs, and bounded Evidence files |
+
+### 2026-09-27 Issue #15 admission synchronization
+
+- PR #16 is integrated at `81e47cea6500d9bdd8ad0cdd717f9e734d5e8a3a`; exact-head `v2-core` and `provider-smoke` were green on the PR head.
+- Static diagnostics now distinguish `RUNTIME_NOT_PROBED`, `RUNTIME_UNAVAILABLE`, `RUNTIME_UNKNOWN`, and `RUNTIME_ELIGIBLE`; the evaluator is read-only and delegates to existing `RoutingSnapshot` / `ResourceRouter.choose`.
+- A current read-only snapshot of the existing local ResourceLedger evaluated the four exact static/billing/qualification-admitted Gemini candidates: all four were `RUNTIME_UNAVAILABLE` because the ledger contained one non-Gemini fake resource and no quota observations. No Provider generation call was made.
+- This is an exact local runtime-state observation, not a claim that all configured Gemini credentials/routes are unusable. Generation readiness remains unestablished. Evidence: [`model-runtime-admission-20260927.json`](../spec/v2/evidence/model-runtime-admission-20260927.json).
 
 ### Verified now
 
@@ -25,7 +32,7 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 ### Active blockers
 
 1. Formal Phase 8 still requires a current generation-ready qualified Provider route, real Provider multi-role evidence, independent Host Verification/deterministic Integration, and exact-head CI for that benchmark revision.
-2. The latest read-only remote admission snapshot has no runtime-eligible generation route (232 catalog rows; 32 static-eligible; 5 runtime-unknown; 0 runtime-eligible). Discovery/free-tier/model-list evidence is not generation admission; prior UNKNOWN/reconciliation/provider failures must not be replayed.
+2. Issue #15 is integrated, but the current runtime-owned local snapshot has no exact Gemini Resource/health/quota match: 4 exact static/billing/qualification-admitted candidates are `RUNTIME_UNAVAILABLE` in that snapshot, with 1 non-Gemini fake resource and 0 quota domains. This is not a generation result and does not prove all configured Provider routes unusable; discovery/model-list evidence is not generation admission.
 3. Windows shared-worktree `WinError 5` during ordinary pycache writes is a local ACL/tooling boundary; verification uses a temporary pycache prefix and does not treat it as a runtime or Provider failure.
 
 ### Deferred and next action

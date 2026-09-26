@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "evidence_type": "runtime_admission_snapshot",
+  "recorded_at": "2026-09-26T18:19:42.103290+00:00",
+  "revision": "81e47cea6500d9bdd8ad0cdd717f9e734d5e8a3a",
+  "source": {
+    "authority": "existing ResourceLedger + ResourceRouter read-only snapshot",
+    "path_class": "local runtime state",
+    "generation_attempted": false,
+    "network_called": false,
+    "state_mutated": false,
+    "unknown_or_reconciliation_replayed": false
+  },
+  "candidate_scope": {
+    "source": "canonical current model evidence, exact static/billing/qualification-admitted routes only",
+    "candidate_count": 4,
+    "identities": [
+      {
+        "provider_id": "gemini",
+        "provider_binding_id": "gemini:worker:free-3",
+        "model_id": "gemini-3.5-flash-lite"
+      },
+      {
+        "provider_id": "gemini",
+        "provider_binding_id": "gemini:worker:free-3",
+        "model_id": "gemini-3.6-flash"
+      },
+      {
+        "provider_id": "gemini",
+        "provider_binding_id": "gemini:worker:free-3",
+        "model_id": "gemini-3.8-flash"
+      },
+      {
+        "provider_id": "gemini",
+        "provider_binding_id": "gemini:worker:free-4",
+        "model_id": "gemini-3.8-flash"
+      }
+    ]
+  },
+  "runtime_snapshot": {
+    "resource_count": 1,
+    "quota_domain_count": 0,
+    "exact_resource_match_count": 0,
+    "statuses": {
+      "RUNTIME_ELIGIBLE": 0,
+      "RUNTIME_UNAVAILABLE": 4,
+      "RUNTIME_UNKNOWN": 0,
+      "RUNTIME_NOT_PROBED": 0
+    },
+    "observations": [
+      {
+        "provider_id": "gemini",
+        "provider_binding_id": "gemini:worker:free-3",
+        "model_id": "gemini-3.5-flash-lite",
+        "status": "RUNTIME_UNAVAILABLE"
+      },
+      {
+        "provider_id": "gemini",
+        "provider_binding_id": "gemini:worker:free-3",
+        "model_id": "gemini-3.6-flash",
+        "status": "RUNTIME_UNAVAILABLE"
+      },
+      {
+        "provider_id": "gemini",
+        "provider_binding_id": "gemini:worker:free-3",
+        "model_id": "gemini-3.8-flash",
+        "status": "RUNTIME_UNAVAILABLE"
+      },
+      {
+        "provider_id": "gemini",
+        "provider_binding_id": "gemini:worker:free-4",
+        "model_id": "gemini-3.8-flash",
+        "status": "RUNTIME_UNAVAILABLE"
+      }
+    ]
+  },
+  "interpretation": {
+    "generation_readiness": "NOT_ESTABLISHED",
+    "blocker": "The current local ResourceLedger contains one non-Gemini fake resource and no exact Gemini resource or quota observation; no exact free/no-charge route is runtime-admitted by this snapshot.",
+    "not_proven": "This does not prove that all configured Gemini credentials or Provider routes are unusable, and it is not a Provider generation result.",
+    "next_action": "Obtain a current runtime-owned snapshot from the actual configured Host runtime; only if an exact route is RUNTIME_ELIGIBLE may a separate fresh generation-readiness observation be authorized."
+  }
+}
