@@ -104,6 +104,43 @@ def test_planning_critic_returns_corrected_proposal_with_fresh_proposal_only_req
     assert "split this bounded objective" in request.messages[0]["content"]
 
 
+def test_phase8_planning_critic_uses_minimal_correction_contract_and_host_shape():
+    parent_task_id = str(uuid4())
+    provider = _Provider(
+        ModelResponse(
+            provider="independent-planning-critic",
+            model="gemma4:12b",
+            structured_output={
+                "corrected_proposal": {
+                    "worker_a_objective": "Modify only src/a.py.",
+                    "worker_b_objective": "Add the focused regression test.",
+                    "continuation_objective": "Continue after both integrations.",
+                }
+            },
+        )
+    )
+
+    proposal = ModelPlanningCriticAdapter(
+        provider,
+        proposal_profile="phase8_production",
+    ).correct(
+        parent_task_id=parent_task_id,
+        objective="complete one Phase 8 production composition",
+        planner_failure=_failure(response_contract="invalid_proposal"),
+    )
+
+    request = provider.requests[0]
+    corrected_schema = request.response_schema["properties"]["corrected_proposal"]
+    assert set(corrected_schema["properties"]) == {
+        "worker_a_objective",
+        "worker_b_objective",
+        "continuation_objective",
+    }
+    assert request.metadata["planner_contract"] == "phase8_minimal_root_v1"
+    assert [child.child_key for child in proposal.children] == ["worker-a", "worker-b", "continuation"]
+    assert proposal.children[2].dependencies == ("worker-a", "worker-b")
+
+
 def test_planner_contract_failure_carries_concrete_task_type_repair_spec():
     parent_task_id = str(uuid4())
     provider = _Provider(

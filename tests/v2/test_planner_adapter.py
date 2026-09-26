@@ -121,6 +121,123 @@ def test_model_planner_returns_typed_proposal_and_keeps_host_authority(tmp_path)
     assert '"children":[{"child_key"' in request.messages[0]["content"]
 
 
+def test_model_planner_schema_constrains_host_enums_before_provider_generation():
+    parent_task_id = str(uuid4())
+    provider = _Provider(
+        ModelResponse(
+            provider="planner-test",
+            model="free-l2-test",
+            structured_output=_payload(parent_task_id),
+        )
+    )
+
+    ModelPlanningAdapter(provider).propose(
+        parent_task_id=parent_task_id,
+        objective="split this narrow development objective",
+    )
+
+    child_properties = provider.requests[0].response_schema["properties"]["children"]["items"]["properties"]
+    assert child_properties["task_type"]["enum"] == [
+        "delegated_agent",
+        "deterministic",
+        "expert",
+        "protected",
+        "reasoning",
+        "recovery",
+        "worker",
+    ]
+    assert child_properties["risk"]["enum"] == ["critical", "high", "low", "normal"]
+    assert child_properties["sensitivity"]["enum"] == [None, "internal", "normal", "public", "sensitive"]
+    assert child_properties["suggested_owner"]["enum"] == ["codex", "worker"]
+
+
+def test_phase8_planner_profile_accepts_only_bounded_objectives_and_host_composes_shape():
+    parent_task_id = str(uuid4())
+    provider = _Provider(
+        ModelResponse(
+            provider="planner-test",
+            model="qwen3.5:9b",
+            structured_output={
+                "worker_a_objective": "Modify only src/a.py to add the bounded behavior.",
+                "worker_b_objective": "Add the focused regression test in tests/v2/test_a.py.",
+                "continuation_objective": "Run the existing integration continuation after both workers pass.",
+            },
+        )
+    )
+
+    proposal = ModelPlanningAdapter(provider, proposal_profile="phase8_production").propose(
+        parent_task_id=parent_task_id,
+        objective="complete one small Phase 8 production composition",
+    )
+
+    request = provider.requests[0]
+    assert set(request.response_schema["properties"]) == {
+        "worker_a_objective",
+        "worker_b_objective",
+        "continuation_objective",
+    }
+    assert request.response_schema["additionalProperties"] is False
+    assert request.metadata["planner_contract"] == "phase8_minimal_root_v1"
+    assert [child.child_key for child in proposal.children] == ["worker-a", "worker-b", "continuation"]
+    assert [child.task_type.value for child in proposal.children] == ["worker", "worker", "deterministic"]
+    assert proposal.children[2].suggested_owner == "codex"
+    assert proposal.children[2].dependencies == ("worker-a", "worker-b")
+    assert set(proposal.children[2].dependency_types) == {"worker-a", "worker-b"}
+
+
+def test_phase8_planner_profile_rejects_unknown_fields_with_bounded_failure_spec():
+    parent_task_id = str(uuid4())
+    provider = _Provider(
+        ModelResponse(
+            provider="planner-test",
+            model="qwen3.5:9b",
+            structured_output={
+                "worker_a_objective": "Modify only src/a.py.",
+                "worker_b_objective": "Add the focused regression test.",
+                "continuation_objective": "Continue after integration.",
+                "suggested_owner": "codex",
+            },
+        )
+    )
+
+    with pytest.raises(PlanningResponseError) as raised:
+        ModelPlanningAdapter(provider, proposal_profile="phase8_production").propose(
+            parent_task_id=parent_task_id,
+            objective="complete one small Phase 8 production composition",
+        )
+
+    spec = raised.value.failure_spec
+    assert spec is not None
+    assert spec.location == "phase8_payload"
+    assert "unsupported" in spec.required_correction
+    assert "phase8:error:phase8_invalid_fields" in spec.validator_refs
+
+
+def test_model_planner_projects_unknown_child_field_to_bounded_failure_location():
+    parent_task_id = str(uuid4())
+    payload = _payload(parent_task_id)
+    payload["children"][0]["notes"] = "unsupported"
+    provider = _Provider(
+        ModelResponse(
+            provider="planner-test",
+            model="free-l2-test",
+            structured_output=payload,
+        )
+    )
+
+    with pytest.raises(PlanningResponseError) as raised:
+        ModelPlanningAdapter(provider).propose(
+            parent_task_id=parent_task_id,
+            objective="split this narrow development objective",
+        )
+
+    spec = raised.value.failure_spec
+    assert spec is not None
+    assert spec.location == "children[].notes"
+    assert "unsupported" in spec.required_correction
+    assert "planner:error:unknown_child_field" in spec.validator_refs
+
+
 def test_model_planner_can_require_an_exact_l2_route_without_model_name_inference():
     parent_task_id = str(uuid4())
     provider = _Provider(
@@ -276,6 +393,9 @@ def test_model_planner_binds_response_contract_failure_to_fresh_request_id():
     assert request_id == provider.requests[0].request_id
     assert raised.value.provider_response_observed is True
     assert raised.value.response_contract == "invalid_json"
+    assert raised.value.failure_spec is not None
+    assert raised.value.failure_spec.location == "response"
+    assert "second JSON object" in raised.value.failure_spec.required_correction
 
 
 def test_model_planner_marks_schema_failures_as_invalid_proposal():

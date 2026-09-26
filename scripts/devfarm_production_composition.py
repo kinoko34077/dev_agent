@@ -253,6 +253,54 @@ class Phase8ProductionSubmission:
                 "Phase 8 continuation dependency types must be CODE_INTEGRATED for both Workers"
             )
 
+    @staticmethod
+    def _unload_local_provider_models(
+        *provider_maps: Mapping[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Release idle local model managers after a terminal root.
+
+        Provider requests already release their active-request lease.  The
+        root terminal boundary owns the next step: ask each existing local
+        ``OllamaModelManager`` to unload idle models without introducing a
+        second lifecycle registry.  Cleanup is projected as bounded evidence;
+        a cleanup failure must not rewrite an already-completed root result.
+        """
+
+        seen: set[tuple[int, str]] = set()
+        unloaded: set[str] = set()
+        errors: list[dict[str, str]] = []
+        for provider_map in provider_maps:
+            if not isinstance(provider_map, Mapping):
+                continue
+            for provider in provider_map.values():
+                manager = getattr(provider, "model_manager", None)
+                unload_idle = getattr(manager, "unload_idle", None)
+                model = getattr(provider, "model", None)
+                model_name = model.strip() if isinstance(model, str) and model.strip() else "unknown"
+                if not callable(unload_idle):
+                    continue
+                identity = (id(manager), model_name)
+                if identity in seen:
+                    continue
+                seen.add(identity)
+                try:
+                    names = unload_idle(deadline_seconds=30.0)
+                except Exception as exc:  # lifecycle observability must stay bounded
+                    category = getattr(exc, "category", None)
+                    if not isinstance(category, str) or not category.strip() or len(category) > 128:
+                        category = "lifecycle_failure"
+                    errors.append({"model": model_name, "category": category.strip()})
+                    continue
+                if isinstance(names, (str, bytes)) or not isinstance(names, Sequence):
+                    continue
+                for name in names:
+                    if isinstance(name, str) and name.strip() and len(name.strip()) <= 128:
+                        unloaded.add(name.strip())
+        return {
+            "unloaded_models": sorted(unloaded),
+            "errors": errors,
+        }
+
     def submit(self, objective: str, **kwargs: Any) -> dict[str, Any]:
         """Submit one fresh root and run one bounded existing execution pass."""
 
@@ -363,6 +411,10 @@ class Phase8ProductionSubmission:
                 proposal_id=proposal.proposal_id,
                 continuation_task_id=continuation.task_id,
             )
+        local_model_cleanup = self._unload_local_provider_models(
+            provider_map,
+            fallback_provider_map,
+        )
         result = {
             "root_task_id": root.task_id,
             "run_id": run_id,
@@ -377,6 +429,7 @@ class Phase8ProductionSubmission:
                 "continuation_task_id": continuation.task_id,
                 "continuation_state": continuation.status.value,
                 "root_state": root_terminal.status.value,
+                "local_model_cleanup": local_model_cleanup,
             },
         }
         projected = _bounded_projection(result)

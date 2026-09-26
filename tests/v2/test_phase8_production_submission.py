@@ -25,8 +25,42 @@ from src.dev_agent.intelligence.planner import (
 from tests.v2.test_devfarm_commander import _WorkerProvider, _patch, _repo
 
 
+class _LifecycleProbe:
+    def __init__(self, unloaded=()):
+        self.unloaded = tuple(unloaded)
+        self.calls = 0
+
+    def unload_idle(self, *, deadline_seconds=30.0):
+        self.calls += 1
+        return self.unloaded
+
+
+class _LocalProviderProbe:
+    provider_id = "ollama"
+    model = "qwen3.5:9b"
+
+    def __init__(self, manager):
+        self.model_manager = manager
+
+
 def test_phase8_submission_boundary_is_exported_for_one_bounded_root():
     assert Phase8ProductionSubmission is not None
+
+
+def test_phase8_terminal_cleanup_unloads_each_local_model_manager_once():
+    manager = _LifecycleProbe(unloaded=("qwen3.5:9b",))
+    provider = _LocalProviderProbe(manager)
+
+    cleanup = Phase8ProductionSubmission._unload_local_provider_models(
+        {"worker-a": provider},
+        {"worker-b": provider},
+    )
+
+    assert cleanup == {
+        "unloaded_models": ["qwen3.5:9b"],
+        "errors": [],
+    }
+    assert manager.calls == 1
 
 
 def test_phase8_shape_preflight_rejects_dependent_worker_before_handoff():

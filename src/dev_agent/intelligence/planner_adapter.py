@@ -16,10 +16,10 @@ import json
 import math
 import re
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from ..domain.capabilities import CANONICAL_EXECUTION_CAPABILITIES
-from ..domain.protocol import ModelRequest, ModelResponse
+from ..domain.protocol import ModelRequest, ModelResponse, RiskLevel, TaskType
 from ..providers.base import ModelProvider, ProviderError
 from ..security.egress import EgressValidationError, attach_model_request_egress
 from .capabilities import TASK_COMPETENCIES, TASK_POLICY_TRAITS
@@ -31,7 +31,7 @@ from .convergence import (
     FailureFingerprint,
     RepairDirective,
 )
-from .planner import PlanningValidationError, RootPlanningProposal
+from .planner import ChildTaskProposal, PlannerDependencyType, PlanningValidationError, RootPlanningProposal
 from .structured_response import StructuredResponseError, decode_json_object
 
 
@@ -62,7 +62,53 @@ class PlanningResponseError(PlanningAdapterError):
         self.failure_spec = failure_spec
 
 
-def _planning_failure_spec(message: str, *, response_contract: str) -> ConcreteFailureSpec:
+def _planning_failure_spec(
+    message: str,
+    *,
+    response_contract: str,
+    validation_error: PlanningValidationError | None = None,
+) -> ConcreteFailureSpec:
+    if validation_error is not None:
+        error_code = getattr(validation_error, "error_code", None)
+        raw_location = getattr(validation_error, "location", None)
+        observed = getattr(validation_error, "observed", None)
+        expected = getattr(validation_error, "expected", None)
+        if isinstance(error_code, str) and re.fullmatch(r"[a-z0-9_]{1,64}", error_code):
+            location = raw_location if isinstance(raw_location, str) and len(raw_location) <= 256 else "planning_proposal"
+            # Do not retain arbitrary model-supplied field names that look
+            # like credentials or control syntax in durable diagnostics.
+            if not re.fullmatch(r"[A-Za-z0-9_.\[\]-]{1,256}", location) or any(
+                marker in location.casefold()
+                for marker in ("api_key", "apikey", "credential", "password", "private_key", "secret", "token")
+            ):
+                location = "planning_proposal"
+            observed_text = observed if isinstance(observed, str) and observed else response_contract
+            expected_text = expected if isinstance(expected, str) and expected else "the supplied Host planning schema"
+            if error_code in {"unknown_child_field", "unknown_root_field"}:
+                correction = "Remove the unsupported field and emit only fields from the supplied Host planning schema."
+            elif error_code == "invalid_task_type":
+                correction = (
+                    "Use the exact task_type enum from the supplied schema: "
+                    f"{expected_text}. Do not change unrelated fields."
+                )
+            else:
+                correction = (
+                    f"Correct {location} to satisfy this Host requirement: {expected_text}. "
+                    "Do not change unrelated fields."
+                )
+            return ConcreteFailureSpec(
+                failure_class="FORMAT_PATCH",
+                stage="planner_output_validation",
+                location=location,
+                observed=observed_text,
+                expected=expected_text,
+                problem="the Planner response failed a structured Host planning check",
+                required_correction=correction,
+                must_preserve=("requested parent_task_id", "root objective"),
+                forbidden_changes=("changing authority", "adding approval or integration decisions"),
+                acceptance_checks=(f"{location} satisfies the Host planning requirement",),
+                validator_refs=("planner:response_contract", f"planner:error:{error_code}"),
+            )
     normalized = message.casefold()
     if "phase 8 production shape" in normalized and "worker" in normalized:
         location = "children"
@@ -121,6 +167,19 @@ def _planning_failure_spec(message: str, *, response_contract: str) -> ConcreteF
         expected = "an array, or an empty array"
         correction = "Use dependencies: [] when there are no dependencies; never use null."
         acceptance = ("dependencies is an array for every child",)
+    elif response_contract == "invalid_json":
+        location = "response"
+        observed = "the response was not one parseable JSON object"
+        expected = "one JSON object matching the Host planning schema"
+        correction = (
+            "Return exactly one JSON object with no Markdown, prose, or second JSON object. "
+            "The response must begin with { and end with } exactly once. Escape every quote, "
+            "backslash, and newline inside JSON strings; do not emit trailing commas or raw "
+            "line breaks inside strings. Use only this shape: "
+            '{"parent_task_id":"<requested id>","rationale":"<short reason>","children":[]}. '
+            "Replace the empty children array with the required bounded child objects."
+        )
+        acceptance = ("response parses as one JSON object", "Host planning validation passes")
     else:
         location = "planning_proposal"
         observed = response_contract
@@ -160,11 +219,14 @@ PLANNING_PROPOSAL_RESPONSE_SCHEMA: dict[str, Any] = {
                 "additionalProperties": False,
                 "required": ["child_key", "objective", "task_type"],
                 "properties": {
-                    "child_key": {"type": "string"},
-                    "objective": {"type": "string"},
-                    "task_type": {"type": "string"},
-                    "risk": {"type": "string"},
-                    "sensitivity": {"type": ["string", "null"]},
+                    "child_key": {"type": "string", "minLength": 1},
+                    "objective": {"type": "string", "minLength": 1},
+                    "task_type": {"type": "string", "enum": sorted(item.value for item in TaskType)},
+                    "risk": {"type": "string", "enum": sorted(item.value for item in RiskLevel)},
+                    "sensitivity": {
+                        "type": ["string", "null"],
+                        "enum": [None, "internal", "normal", "public", "sensitive"],
+                    },
                     "required_capabilities": {
                         "type": "array",
                         "items": {
@@ -173,11 +235,29 @@ PLANNING_PROPOSAL_RESPONSE_SCHEMA: dict[str, Any] = {
                         },
                     },
                     "dependencies": {"type": "array", "items": {"type": "string"}},
-                    "dependency_types": {"type": "object", "additionalProperties": {"type": "string"}},
-                    "suggested_owner": {"type": "string"},
+                    "dependency_types": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "string",
+                            "enum": sorted(item.value for item in PlannerDependencyType),
+                        },
+                    },
+                    "suggested_owner": {"type": "string", "enum": ["codex", "worker"]},
                 },
             },
         },
+    },
+}
+
+
+PHASE8_MINIMAL_PLANNER_RESPONSE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["worker_a_objective", "worker_b_objective", "continuation_objective"],
+    "properties": {
+        "worker_a_objective": {"type": "string", "minLength": 1, "maxLength": 12_000},
+        "worker_b_objective": {"type": "string", "minLength": 1, "maxLength": 12_000},
+        "continuation_objective": {"type": "string", "minLength": 1, "maxLength": 12_000},
     },
 }
 
@@ -191,8 +271,121 @@ PLANNING_CRITIC_RESPONSE_SCHEMA: dict[str, Any] = {
     },
 }
 
+
+PHASE8_MINIMAL_CRITIC_RESPONSE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["corrected_proposal"],
+    "properties": {
+        "corrected_proposal": PHASE8_MINIMAL_PLANNER_RESPONSE_SCHEMA,
+    },
+}
+
 _SENSITIVITIES = {"public", "normal", "internal", "sensitive"}
 _INTELLIGENCE_TIERS = {"L0", "L1", "L2", "L3"}
+_PLANNER_PROFILES = {"general", "phase8_production"}
+_PHASE8_OBJECTIVE_KEYS = frozenset(
+    {"worker_a_objective", "worker_b_objective", "continuation_objective"}
+)
+
+
+def _phase8_failure_spec(*, location: str, observed: str, expected: str, correction: str, error_code: str) -> ConcreteFailureSpec:
+    return ConcreteFailureSpec(
+        failure_class="FORMAT_PATCH",
+        stage="planner_output_validation",
+        location=location,
+        observed=observed,
+        expected=expected,
+        problem="the Phase 8 minimal Planner response failed deterministic validation",
+        required_correction=correction,
+        must_preserve=("the requested development objective",),
+        forbidden_changes=("adding authority decisions", "adding integration decisions"),
+        acceptance_checks=(f"{location} satisfies the Phase 8 minimal Planner contract",),
+        validator_refs=("planner:phase8_minimal_v1", f"phase8:error:{error_code}"),
+    )
+
+
+def _phase8_objectives(payload: Mapping[str, Any]) -> dict[str, str]:
+    if not isinstance(payload, Mapping):
+        raise PlanningValidationError(
+            "Phase 8 minimal Planner response must be an object",
+            error_code="phase8_payload_not_object",
+            location="phase8_payload",
+            observed="non-object response",
+            expected="one object containing the three bounded objective strings",
+        )
+    if set(payload) != set(_PHASE8_OBJECTIVE_KEYS):
+        raise PlanningValidationError(
+            "Phase 8 minimal Planner response has unsupported or missing fields",
+            error_code="phase8_invalid_fields",
+            location="phase8_payload",
+            observed="the response fields do not match the minimal contract",
+            expected="worker_a_objective, worker_b_objective, and continuation_objective only",
+        )
+    objectives: dict[str, str] = {}
+    for key in _PHASE8_OBJECTIVE_KEYS:
+        value = payload.get(key)
+        if not isinstance(value, str) or not value.strip():
+            raise PlanningValidationError(
+                "Phase 8 minimal Planner objective must be a non-empty string",
+                error_code="phase8_empty_objective",
+                location=f"phase8_payload.{key}",
+                observed="empty or non-string objective",
+                expected="a non-empty bounded objective string",
+            )
+        normalized = value.strip()
+        if len(normalized) > ModelPlanningAdapter._MAX_OBJECTIVE_CHARS:
+            raise PlanningValidationError(
+                "Phase 8 minimal Planner objective exceeds the planning input limit",
+                error_code="phase8_objective_too_long",
+                location=f"phase8_payload.{key}",
+                observed="objective exceeds the bounded character limit",
+                expected="at most 12000 characters",
+            )
+        objectives[key] = normalized
+    return objectives
+
+
+def _compose_phase8_proposal(parent_task_id: str, payload: Mapping[str, Any]) -> RootPlanningProposal:
+    objectives = _phase8_objectives(payload)
+    return RootPlanningProposal(
+        parent_task_id=parent_task_id,
+        proposal_id=str(uuid4()),
+        rationale="Host-composed Phase 8 production composition from bounded model objectives.",
+        planning_cycle=1,
+        children=(
+            ChildTaskProposal(
+                child_key="worker-a",
+                objective=objectives["worker_a_objective"],
+                task_type=TaskType.WORKER,
+                sensitivity="normal",
+                required_capabilities=("coding",),
+                suggested_owner="worker",
+            ),
+            ChildTaskProposal(
+                child_key="worker-b",
+                objective=objectives["worker_b_objective"],
+                task_type=TaskType.WORKER,
+                sensitivity="normal",
+                required_capabilities=("coding",),
+                suggested_owner="worker",
+            ),
+            ChildTaskProposal(
+                child_key="continuation",
+                objective=objectives["continuation_objective"],
+                task_type=TaskType.DETERMINISTIC,
+                sensitivity="normal",
+                dependencies=("worker-a", "worker-b"),
+                dependency_types={
+                    "worker-a": PlannerDependencyType.CODE_INTEGRATED,
+                    "worker-b": PlannerDependencyType.CODE_INTEGRATED,
+                },
+                suggested_owner="codex",
+            ),
+        ),
+    )
+
+
 class ModelPlanningAdapter:
     """Request and decode one finite proposal from an injected provider.
 
@@ -213,6 +406,7 @@ class ModelPlanningAdapter:
         max_output_tokens: int = 2_048,
         cost_ceiling: float = 0.0,
         allow_unknown_quota: bool = False,
+        proposal_profile: str = "general",
     ) -> None:
         if not callable(getattr(provider, "request", None)):
             raise TypeError("provider must expose request(ModelRequest)")
@@ -222,10 +416,13 @@ class ModelPlanningAdapter:
             raise ValueError("cost_ceiling must be a finite non-negative number")
         if not isinstance(allow_unknown_quota, bool):
             raise TypeError("allow_unknown_quota must be a boolean")
+        if not isinstance(proposal_profile, str) or proposal_profile not in _PLANNER_PROFILES:
+            raise ValueError("proposal_profile must be general or phase8_production")
         self.provider = provider
         self.max_output_tokens = max_output_tokens
         self.cost_ceiling = float(cost_ceiling)
         self.allow_unknown_quota = allow_unknown_quota
+        self.proposal_profile = proposal_profile
         self.last_request_id: str | None = None
 
     def propose(
@@ -263,6 +460,7 @@ class ModelPlanningAdapter:
             sensitivity.strip().lower(),
             references,
             required_intelligence_tier,
+            self.proposal_profile,
         )
         metadata = {
             "planning_mode": "proposal_only",
@@ -271,6 +469,13 @@ class ModelPlanningAdapter:
             "task_fit": "planning",
             "prefer_diversity": True,
         }
+        if self.proposal_profile == "phase8_production":
+            metadata.update(
+                {
+                    "planner_contract": "phase8_minimal_root_v1",
+                    "host_composes_phase8_shape": True,
+                }
+            )
         if required_intelligence_tier is not None:
             metadata.update(
                 {
@@ -293,7 +498,11 @@ class ModelPlanningAdapter:
                 # requirement honest; response_schema remains a provider
                 # hint and the decoder is the authority at this boundary.
                 requested_capabilities=["text"],
-                response_schema=PLANNING_PROPOSAL_RESPONSE_SCHEMA,
+                response_schema=(
+                    PHASE8_MINIMAL_PLANNER_RESPONSE_SCHEMA
+                    if self.proposal_profile == "phase8_production"
+                    else PLANNING_PROPOSAL_RESPONSE_SCHEMA
+                ),
                 max_output_tokens=self.max_output_tokens,
                 sensitivity=sensitivity.strip().lower(),
                 cost_ceiling=self.cost_ceiling,
@@ -315,7 +524,29 @@ class ModelPlanningAdapter:
             raise
         try:
             payload = self._response_payload(response)
-            proposal = RootPlanningProposal.from_dict(payload)
+            if self.proposal_profile == "phase8_production":
+                try:
+                    proposal = _compose_phase8_proposal(parent_task_id.strip(), payload)
+                except PlanningValidationError as exc:
+                    correction = "Return only the three required non-empty objective strings and no other fields."
+                    if exc.error_code == "phase8_invalid_fields":
+                        correction = (
+                            "Remove unsupported fields and return exactly the three required non-empty "
+                            "objective strings: worker_a_objective, worker_b_objective, and continuation_objective."
+                        )
+                    raise PlanningResponseError(
+                        str(exc),
+                        response_contract="invalid_proposal",
+                        failure_spec=_phase8_failure_spec(
+                            location=exc.location or "phase8_payload",
+                            observed=exc.observed or "invalid minimal response",
+                            expected=exc.expected or "the Phase 8 minimal Planner contract",
+                            correction=correction,
+                            error_code=exc.error_code or "invalid_fields",
+                        ),
+                    ) from exc
+            else:
+                proposal = RootPlanningProposal.from_dict(payload)
             if proposal.parent_task_id != parent_task_id.strip():
                 raise PlanningResponseError(
                     "proposal parent_task_id does not match the requested parent",
@@ -347,7 +578,11 @@ class ModelPlanningAdapter:
                 request_id=request.request_id,
                 provider_response_observed=True,
                 response_contract="invalid_proposal",
-                failure_spec=_planning_failure_spec(str(exc), response_contract="invalid_proposal"),
+                failure_spec=_planning_failure_spec(
+                    str(exc),
+                    response_contract="invalid_proposal",
+                    validation_error=exc,
+                ),
             ) from exc
         return proposal
 
@@ -372,9 +607,25 @@ class ModelPlanningAdapter:
         sensitivity: str,
         references: Mapping[str, Any],
         required_intelligence_tier: str | None,
+        proposal_profile: str = "general",
     ) -> str:
         reference_text = json.dumps(dict(references), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         tier_text = required_intelligence_tier or "host-selected"
+        if proposal_profile == "phase8_production":
+            return (
+                "Generate exactly one raw JSON object matching the supplied Phase 8 minimal schema. "
+                "Do not emit Markdown fences, prose, comments, or trailing text. Output only these "
+                "three string fields: worker_a_objective, worker_b_objective, and continuation_objective. "
+                "Do not output parent_task_id, child_key, task_type, owner, dependencies, approval, "
+                "integration, or authority fields; the Host adds those fixed Phase 8 semantics. "
+                "Keep Worker A and Worker B non-overlapping, concrete, bounded, and suitable for one "
+                "small deterministic change each. The continuation objective must describe work after both "
+                "Workers are integrated. This is proposal-only and the Host validates the result.\n"
+                f"sensitivity: {sensitivity}\n"
+                f"required_intelligence_tier: {tier_text}\n"
+                f"objective:\n{objective}\n"
+                f"reference_context:\n{reference_text}"
+            )
         return (
             "Generate exactly one raw JSON object matching the supplied planning response schema. "
             "Do not emit Markdown fences, explanatory prose, comments, or trailing text.\n"
@@ -456,6 +707,7 @@ class ModelPlanningCriticAdapter:
         max_output_tokens: int = 2_048,
         cost_ceiling: float = 0.0,
         allow_unknown_quota: bool = False,
+        proposal_profile: str = "general",
     ) -> None:
         if not callable(getattr(provider, "request", None)):
             raise TypeError("provider must expose request(ModelRequest)")
@@ -470,10 +722,13 @@ class ModelPlanningCriticAdapter:
             raise ValueError("cost_ceiling must be a finite non-negative number")
         if not isinstance(allow_unknown_quota, bool):
             raise TypeError("allow_unknown_quota must be a boolean")
+        if not isinstance(proposal_profile, str) or proposal_profile not in _PLANNER_PROFILES:
+            raise ValueError("proposal_profile must be general or phase8_production")
         self.provider = provider
         self.max_output_tokens = max_output_tokens
         self.cost_ceiling = float(cost_ceiling)
         self.allow_unknown_quota = allow_unknown_quota
+        self.proposal_profile = proposal_profile
         # The Host may project this bounded correlation for evidence.  It is
         # reset for every correction so a successful Planner attempt can never
         # inherit a stale Critic request identity.
@@ -517,6 +772,7 @@ class ModelPlanningCriticAdapter:
             source_request_id=source_request_id,
             references=references,
             failure_spec=planner_failure.failure_spec,
+            proposal_profile=self.proposal_profile,
         )
         metadata: dict[str, Any] = {
             "planning_mode": "proposal_only",
@@ -530,6 +786,13 @@ class ModelPlanningCriticAdapter:
             "allowed_intelligence_tiers": ["L1"],
             "source_response_contract": response_contract,
         }
+        if self.proposal_profile == "phase8_production":
+            metadata.update(
+                {
+                    "planner_contract": "phase8_minimal_root_v1",
+                    "host_composes_phase8_shape": True,
+                }
+            )
         if source_request_id is not None:
             metadata["critic_of_request_id"] = source_request_id
         if self.allow_unknown_quota:
@@ -541,7 +804,11 @@ class ModelPlanningCriticAdapter:
                 task_id=parent_task_id,
                 messages=[{"role": "user", "content": content}],
                 requested_capabilities=["text"],
-                response_schema=PLANNING_CRITIC_RESPONSE_SCHEMA,
+                response_schema=(
+                    PHASE8_MINIMAL_CRITIC_RESPONSE_SCHEMA
+                    if self.proposal_profile == "phase8_production"
+                    else PLANNING_CRITIC_RESPONSE_SCHEMA
+                ),
                 max_output_tokens=self.max_output_tokens,
                 sensitivity=sensitivity,
                 cost_ceiling=self.cost_ceiling,
@@ -579,7 +846,13 @@ class ModelPlanningCriticAdapter:
                         response_contract="invalid_proposal",
                     ),
                 )
-            proposal = RootPlanningProposal.from_dict(payload.get("corrected_proposal"))
+            if self.proposal_profile == "phase8_production":
+                proposal = _compose_phase8_proposal(
+                    parent_task_id,
+                    payload.get("corrected_proposal"),
+                )
+            else:
+                proposal = RootPlanningProposal.from_dict(payload.get("corrected_proposal"))
         except StructuredResponseError as exc:
             error = PlanningCriticAdapterError(
                 str(exc),
@@ -596,14 +869,27 @@ class ModelPlanningCriticAdapter:
             exc.request_id = request.request_id
             raise
         except PlanningValidationError as exc:
+            failure_spec = (
+                _phase8_failure_spec(
+                    location=exc.location or "phase8_payload",
+                    observed=exc.observed or "invalid minimal correction",
+                    expected=exc.expected or "the Phase 8 minimal Planner contract",
+                    correction=(
+                        "Return exactly the three required non-empty objective strings and no other fields."
+                    ),
+                    error_code=exc.error_code or "invalid_fields",
+                )
+                if self.proposal_profile == "phase8_production"
+                else _planning_failure_spec(
+                    str(exc),
+                    response_contract="invalid_proposal",
+                )
+            )
             error = PlanningCriticAdapterError(
                 f"planning critic corrected proposal is invalid: {exc}",
                 provider_response_observed=True,
                 response_contract="invalid_proposal",
-                failure_spec=_planning_failure_spec(
-                    str(exc),
-                    response_contract="invalid_proposal",
-                ),
+                failure_spec=failure_spec,
             )
             error.request_id = request.request_id
             raise error from exc
@@ -661,6 +947,7 @@ class ModelPlanningCriticAdapter:
         source_request_id: str | None,
         references: Mapping[str, Any],
         failure_spec: ConcreteFailureSpec | None = None,
+        proposal_profile: str = "general",
     ) -> str:
         source_id = source_request_id or "not_available"
         reference_text = json.dumps(
@@ -675,6 +962,23 @@ class ModelPlanningCriticAdapter:
                 "REPAIR DIRECTIVE:\n"
                 f"{json.dumps(directive.to_dict(), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n"
                 "Correct only the specified invalid fields and preserve valid objective/dependency data.\n"
+            )
+        if proposal_profile == "phase8_production":
+            return (
+                "Act as an independent planning critic for a Phase 8 production proposal. The previous "
+                "Planner response was observed but failed its response contract. Produce exactly one raw "
+                "JSON object with one corrected_proposal field. corrected_proposal must contain only the "
+                "three non-empty string fields worker_a_objective, worker_b_objective, and "
+                "continuation_objective. Do not output parent_task_id, child keys, task types, owners, "
+                "dependencies, approval, integration, authority, or policy fields; the Host composes those "
+                "fixed semantics. Do not emit Markdown, prose, or trailing text.\n"
+                f"parent_task_id: {parent_task_id}\n"
+                f"sensitivity: {sensitivity}\n"
+                f"failed_response_contract: {response_contract}\n"
+                f"failed_planner_request_id: {source_id}\n"
+                f"{repair_text}"
+                f"objective:\n{objective}\n"
+                f"reference_context:\n{reference_text}"
             )
         return (
             "Act as an independent planning critic/normalizer. The previous Planner response was observed "
@@ -1124,6 +1428,7 @@ def propose_with_planning_convergence(
                 source_attempt_id=current_attempt_id,
                 fresh_attempt_id=fresh_attempt_id,
                 previous_model_identity=previous_model_identity,
+                correction_actor="planning_critic",
                 validator_refs=(
                     "planning:host_validation",
                 ) if host_validate is not None else ("planning:response",),
@@ -1199,6 +1504,8 @@ __all__ = [
     "ModelPlanningCriticAdapter",
     "PLANNING_CRITIC_RESPONSE_SCHEMA",
     "PLANNING_PROPOSAL_RESPONSE_SCHEMA",
+    "PHASE8_MINIMAL_CRITIC_RESPONSE_SCHEMA",
+    "PHASE8_MINIMAL_PLANNER_RESPONSE_SCHEMA",
     "PlanningAdapterError",
     "PlanningCriticAdapterError",
     "PlanningConvergenceError",

@@ -143,6 +143,66 @@ def test_planning_convergence_uses_fresh_critics_until_a_valid_proposal():
     assert all(item.failure_signature is None or len(item.failure_signature) == 64 for item in result.attempts)
 
 
+def test_phase8_minimal_convergence_composes_host_shape_after_critic_correction():
+    parent_task_id = str(uuid4())
+    planner_provider = _SequenceProvider(
+        "ollama",
+        "qwen3.5:9b",
+        responses=(_invalid_json("ollama", "qwen3.5:9b"),),
+    )
+    critic_provider = _SequenceProvider(
+        "ollama",
+        "gemma4:12b",
+        responses=(
+            ModelResponse(
+                provider="ollama",
+                model="gemma4:12b",
+                structured_output={
+                    "corrected_proposal": {
+                        "worker_a_objective": "Modify only the first allowed file.",
+                        "worker_b_objective": "Modify only the second allowed file.",
+                        "continuation_objective": "Continue after both integrations.",
+                    }
+                },
+            ),
+        ),
+    )
+
+    from scripts.devfarm_production_composition import Phase8ProductionSubmission
+
+    result = propose_with_planning_convergence(
+        ModelPlanningAdapter(
+            planner_provider,
+            proposal_profile="phase8_production",
+        ),
+        (
+            ModelPlanningCriticAdapter(
+                critic_provider,
+                proposal_profile="phase8_production",
+            ),
+        ),
+        parent_task_id=parent_task_id,
+        objective="Run two independent bounded changes and continue after integration.",
+        host_validate=Phase8ProductionSubmission.validate_phase8_root_shape,
+    )
+
+    assert result.completed is True
+    assert result.proposal is not None
+    assert [child.child_key for child in result.proposal.children] == [
+        "worker-a",
+        "worker-b",
+        "continuation",
+    ]
+    assert [child.task_type.value for child in result.proposal.children] == [
+        "worker",
+        "worker",
+        "deterministic",
+    ]
+    assert result.attempts[-1].correction_actor == "planning_critic"
+    assert len(planner_provider.requests) == 1
+    assert len(critic_provider.requests) == 1
+
+
 def test_planning_convergence_stops_after_two_consecutive_same_signatures():
     parent_task_id = str(uuid4())
     planner_provider = _SequenceProvider(
