@@ -5,17 +5,17 @@
 | Field | Value |
 | --- | --- |
 | Branch | `phase8/worker-contract-preflight-issue9` (PR #12; target `v2/bootstrap`) |
-| Current remote HEAD | `f6a4071dd2a9592c5c123b83ca05574440aad440` (`docs: record worker preflight evidence`) |
-| Latest implementation branch HEAD | `5fd89a1a78a416fca73e0641ba2d8d17d2dd4bde` (`feat: add bounded worker proposal preflight`) |
-| Latest committed implementation baseline | `5fd89a1` (`feat: add bounded worker proposal preflight`) |
-| Current local implementation slice | Issue #9 adds a Host-owned `minimal_file_replacement` Worker proposal mode, deterministic proposal preflight, bounded transport-only canonicalization audit, and fail-closed output rejection while retaining the legacy full-result contract. |
-| Latest evidence baseline | `devfarm-worker-contract-preflight-20260926.json`, `phase8-production-composition-terminal-20260926.json`, and `model-catalog-r9-refresh-20260926.json` |
-| Implementation/evidence baseline | `5fd89a1` is verified local non-Gate evidence for the Worker contract/preflight boundary. It does not claim remote generation admission, Discord live E2E, or Phase 8 activation. |
+| Current remote HEAD | `91fdbd66ca6edf528310f0ec8fa1d97b34286f00` (`fix: preserve concrete planner failure handoff`) |
+| Latest implementation branch HEAD | `91fdbd66ca6edf528310f0ec8fa1d97b34286f00` (`fix: preserve concrete planner failure handoff`) |
+| Latest committed implementation baseline | `91fdbd66` (`fix: preserve concrete planner failure handoff`) |
+| Current local implementation slice | Issue #9 now also fixes cold Ollama lifecycle probing and preserves Host-derived Planner FailureSpec/RepairDirective data through Critic failure and terminal non-convergence. |
+| Latest evidence baseline | `phase8-planner-concrete-failure-handoff-20260926.json`, `devfarm-worker-contract-preflight-20260926.json`, `phase8-production-composition-terminal-20260926.json`, and `model-catalog-r9-refresh-20260926.json` |
+| Implementation/evidence baseline | `91fdbd66` is verified non-Gate evidence for the Ollama lifecycle and Planner handoff boundary. It does not claim remote generation admission, local Phase 8 single-root completion, Discord live E2E, or Phase 8 activation. |
 | Worktree | clean after this docs/evidence synchronization |
-| Local regression | `194 passed` in the affected DevFarm/Worker slice; full `tests/v2`: `1676 passed, 1 skipped` |
+| Local regression | Changed-boundary focused tests: `51 passed`; exact-head v2-core full `tests/v2`, Architecture, and Compile: PASS |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | PASS via writable alternate pycache target; shared worktree pycache itself remains ACL-blocked with WinError 5 |
-| Exact-head CI | implementation `5fd89a1`: [v2-core](https://github.com/kinoko34077/dev_agent/actions/runs/36170291585) and [provider-smoke](https://github.com/kinoko34077/dev_agent/actions/runs/36170291535) PASS; final docs/evidence HEAD `f6a4071`: [v2-core](https://github.com/kinoko34077/dev_agent/actions/runs/36171096042) and [provider-smoke](https://github.com/kinoko34077/dev_agent/actions/runs/36171096233) PASS. |
+| Exact-head CI | implementation `91fdbd66`: [v2-core](https://github.com/kinoko34077/dev_agent/actions/runs/36215628504) and [provider-smoke](https://github.com/kinoko34077/dev_agent/actions/runs/36215628561) PASS; this docs sync is based on that implementation SHA. |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
