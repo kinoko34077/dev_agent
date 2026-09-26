@@ -1,10 +1,3 @@
-MethodException: 
-Line |
-   2 |  … didates.py"); $c=$c.Replace(([char]13)+([char]10),([char]10)); [Conso …
-     |                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-     | Cannot convert argument "oldChar", with value: "
-", for "Replace" to type "System.Char": "Cannot convert value "
-" to type "System.Char". Error: "String must be exactly one character long.""
 """Print bounded, non-secret reasons why discovered models are or are not usable."""
 
 from __future__ import annotations
@@ -208,8 +201,6 @@ def summarize_candidate_evidence(document: Mapping[str, Any]) -> dict[str, Any]:
         reasons.append("generation_not_attempted")
     if canonical.get("runtime_eligible_count") == 0:
         reasons.append("no_runtime_eligible_route")
-    if generation.get("paid_route_added") is False:
-        reasons.append("paid_route_not_added")
     return {
         "status": "NOT_PROMOTED" if reasons else "NO_EXPLICIT_BLOCKER",
         "candidate_entry_count": (document.get("host_discovery") or {}).get("candidate_entry_count") if isinstance(document.get("host_discovery"), Mapping) else None,
@@ -290,6 +281,9 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(f"rows\t{summary['row_count']}")
             print(f"eligible\t{summary['eligible_count']}")
+            print(f"runtime_eligible\t{summary['runtime_eligible_count']}")
+            print(f"runtime_not_probed\t{summary['runtime_not_probed_count']}")
+            print(f"runtime_unavailable\t{summary['runtime_unavailable_count']}")
             print("result_counts\t" + json.dumps(summary["result_counts"], ensure_ascii=False, sort_keys=True))
             print("provider_counts\t" + json.dumps(summary["provider_counts"], ensure_ascii=False, sort_keys=True))
     elif args.as_json:
