@@ -74,3 +74,37 @@ def test_prepare_worktree_falls_back_to_shared_clone_when_git_worktrees_are_deni
     assert commands[2][-1] == "HEAD"
     assert "--no-checkout" in commands[3]
     assert commands[4][-1] == "abc123"
+
+
+def test_prepare_worktree_recognizes_absolute_git_worktrees_permission_error(monkeypatch, tmp_path):
+    commands = []
+
+    def fake_run(command, **kwargs):
+        commands.append(command)
+        if "bundle" in command or "clone" in command or "checkout" in command:
+            return SimpleNamespace(returncode=0, stderr="")
+        if "--detach" in command:
+            return SimpleNamespace(
+                returncode=1,
+                stderr=(
+                    "fatal: could not create directory of "
+                    "'C:/workspace/.git/worktrees/task-absolute': Permission denied"
+                ),
+            )
+        return SimpleNamespace(
+            returncode=1,
+            stderr="fatal: cannot lock ref 'refs/heads/agent/devfarm/task-absolute.lock': Permission denied",
+        )
+
+    monkeypatch.setattr(devfarm_workspace.subprocess, "run", fake_run)
+
+    prepare_worktree(
+        tmp_path,
+        task_id="task-absolute",
+        branch="agent/devfarm/task-absolute",
+        revision="abc123",
+    )
+
+    assert len(commands) == 5
+    assert "bundle" in commands[2]
+    assert "clone" in commands[3]

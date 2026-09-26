@@ -31,6 +31,24 @@ class PlannerDependencyType(str, Enum):
 class PlanningValidationError(ValueError):
     """A planning proposal is not safe to convert into child Tasks."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        error_code: str | None = None,
+        location: str | None = None,
+        observed: str | None = None,
+        expected: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        # These bounded facts let the adapter construct a useful Host-owned
+        # FailureSpec without parsing arbitrary model text.  The legacy
+        # message remains available as a compatibility fallback only.
+        self.error_code = error_code
+        self.location = location
+        self.observed = observed
+        self.expected = expected
+
 
 @dataclass(frozen=True)
 class ChildTaskProposal:
@@ -48,33 +66,79 @@ class ChildTaskProposal:
 
     def __post_init__(self) -> None:
         if not isinstance(self.child_key, str) or not self.child_key.strip():
-            raise PlanningValidationError("child_key must be a non-empty string")
+            raise PlanningValidationError(
+                "child_key must be a non-empty string",
+                error_code="empty_child_key",
+                location="children[].child_key",
+                observed="empty or non-string child_key",
+                expected="a non-empty string",
+            )
         if not isinstance(self.objective, str) or not self.objective.strip():
-            raise PlanningValidationError("child objective must be a non-empty string")
+            raise PlanningValidationError(
+                "child objective must be a non-empty string",
+                error_code="empty_child_objective",
+                location="children[].objective",
+                observed="empty or non-string objective",
+                expected="a non-empty string",
+            )
         try:
             task_type = self.task_type if isinstance(self.task_type, TaskType) else TaskType(self.task_type)
         except (TypeError, ValueError) as exc:
-            raise PlanningValidationError("invalid child task_type") from exc
+            raise PlanningValidationError(
+                "invalid child task_type",
+                error_code="invalid_task_type",
+                location="children[].task_type",
+                observed="unsupported task_type",
+                expected="deterministic, worker, reasoning, expert, delegated_agent, recovery, or protected",
+            ) from exc
         try:
             risk = self.risk if isinstance(self.risk, RiskLevel) else RiskLevel(self.risk)
         except (TypeError, ValueError) as exc:
-            raise PlanningValidationError("invalid child risk") from exc
+            raise PlanningValidationError(
+                "invalid child risk",
+                error_code="invalid_risk",
+                location="children[].risk",
+                observed="unsupported risk",
+                expected="low, normal, high, or critical",
+            ) from exc
         sensitivity = self.sensitivity
         if sensitivity is not None:
             if not isinstance(sensitivity, str) or sensitivity.strip().lower() not in _SENSITIVITY_RANK:
-                raise PlanningValidationError("child sensitivity must be public, normal, internal, or sensitive")
+                raise PlanningValidationError(
+                    "child sensitivity must be public, normal, internal, or sensitive",
+                    error_code="invalid_sensitivity",
+                    location="children[].sensitivity",
+                    observed="unsupported sensitivity",
+                    expected="public, normal, internal, or sensitive",
+                )
             sensitivity = sensitivity.strip().lower()
         owner = self.suggested_owner.strip().lower() if isinstance(self.suggested_owner, str) else ""
         if owner not in {"worker", "codex"}:
-            raise PlanningValidationError("suggested_owner must be worker or codex")
+            raise PlanningValidationError(
+                "suggested_owner must be worker or codex",
+                error_code="invalid_suggested_owner",
+                location="children[].suggested_owner",
+                observed="unsupported suggested_owner",
+                expected="worker or codex",
+            )
         capabilities = _string_tuple(self.required_capabilities, "required_capabilities")
         dependencies = _string_tuple(self.dependencies, "dependencies")
         if not isinstance(self.dependency_types, Mapping):
-            raise PlanningValidationError("dependency_types must be an object")
+            raise PlanningValidationError(
+                "dependency_types must be an object",
+                error_code="dependency_types_not_object",
+                location="children[].dependency_types",
+                observed="non-object dependency_types",
+                expected="an object mapping dependency keys to dependency types",
+            )
         unknown_dependency_types = set(self.dependency_types) - set(dependencies)
         if unknown_dependency_types:
             raise PlanningValidationError(
-                f"dependency_types references unknown dependency: {sorted(unknown_dependency_types)[0]}"
+                f"dependency_types references unknown dependency: {sorted(unknown_dependency_types)[0]}",
+                error_code="unknown_dependency_reference",
+                location="children[].dependency_types",
+                observed="dependency_types contains an unlisted dependency",
+                expected="keys matching dependencies exactly",
             )
         normalized_dependency_types: dict[str, PlannerDependencyType] = {}
         for dependency in dependencies:
@@ -84,7 +148,13 @@ class ChildTaskProposal:
                     value if isinstance(value, PlannerDependencyType) else PlannerDependencyType(value)
                 )
             except (TypeError, ValueError) as exc:
-                raise PlanningValidationError(f"invalid dependency type for {dependency}") from exc
+                raise PlanningValidationError(
+                    f"invalid dependency type for {dependency}",
+                    error_code="invalid_dependency_type",
+                    location=f"children[].dependency_types.{dependency}",
+                    observed="unsupported dependency type",
+                    expected="ARTIFACT_READY, TASK_COMPLETED, or CODE_INTEGRATED",
+                ) from exc
         object.__setattr__(self, "child_key", self.child_key.strip())
         object.__setattr__(self, "objective", self.objective.strip())
         object.__setattr__(self, "task_type", task_type)
@@ -114,7 +184,13 @@ class ChildTaskProposal:
         """
 
         if not isinstance(data, Mapping):
-            raise PlanningValidationError("child proposal must be an object")
+            raise PlanningValidationError(
+                "child proposal must be an object",
+                error_code="child_not_object",
+                location="children[]",
+                observed="non-object child proposal",
+                expected="one child proposal object",
+            )
         allowed = {
             "child_key",
             "objective",
@@ -128,11 +204,24 @@ class ChildTaskProposal:
         }
         unknown = set(data) - allowed
         if unknown:
-            raise PlanningValidationError(f"unknown child proposal field: {sorted(unknown)[0]}")
+            unknown_field = sorted(unknown)[0]
+            raise PlanningValidationError(
+                f"unknown child proposal field: {unknown_field}",
+                error_code="unknown_child_field",
+                location=f"children[].{unknown_field}",
+                observed="unsupported field",
+                expected="only fields from the supplied Host schema",
+            )
         try:
             return cls(**dict(data))
         except TypeError as exc:
-            raise PlanningValidationError(f"invalid child proposal: {exc}") from exc
+            raise PlanningValidationError(
+                f"invalid child proposal: {exc}",
+                error_code="invalid_child_proposal",
+                location="children[]",
+                observed="child proposal does not satisfy the typed contract",
+                expected="a valid child proposal object",
+            ) from exc
 
 
 @dataclass(frozen=True)
@@ -174,21 +263,46 @@ class RootPlanningProposal:
         """Decode a bounded proposal returned by a Planner adapter."""
 
         if not isinstance(data, Mapping):
-            raise PlanningValidationError("planning proposal must be an object")
+            raise PlanningValidationError(
+                "planning proposal must be an object",
+                error_code="root_not_object",
+                location="planning_proposal",
+                observed="non-object planning response",
+                expected="one planning proposal object",
+            )
         allowed = {"parent_task_id", "rationale", "children", "planning_cycle", "proposal_id"}
         unknown = set(data) - allowed
         if unknown:
-            raise PlanningValidationError(f"unknown planning proposal field: {sorted(unknown)[0]}")
+            unknown_field = sorted(unknown)[0]
+            raise PlanningValidationError(
+                f"unknown planning proposal field: {unknown_field}",
+                error_code="unknown_root_field",
+                location=unknown_field,
+                observed="unsupported top-level field",
+                expected="only fields from the supplied Host schema",
+            )
         raw_children = data.get("children")
         if isinstance(raw_children, (str, bytes)) or not isinstance(raw_children, (list, tuple)):
-            raise PlanningValidationError("planning proposal children must be a list")
+            raise PlanningValidationError(
+                "planning proposal children must be a list",
+                error_code="children_not_list",
+                location="children",
+                observed="children is not an array",
+                expected="an array of child proposal objects",
+            )
         children = tuple(ChildTaskProposal.from_dict(item) for item in raw_children)
         values = dict(data)
         values["children"] = children
         try:
             return cls(**values)
         except TypeError as exc:
-            raise PlanningValidationError(f"invalid planning proposal: {exc}") from exc
+            raise PlanningValidationError(
+                f"invalid planning proposal: {exc}",
+                error_code="invalid_root_proposal",
+                location="planning_proposal",
+                observed="planning proposal does not satisfy the typed contract",
+                expected="a valid planning proposal object",
+            ) from exc
 
 
 class RootPlanningValidator:

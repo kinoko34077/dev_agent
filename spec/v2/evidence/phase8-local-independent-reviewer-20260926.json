@@ -1,0 +1,63 @@
+{
+  "evidence_id": "phase8-local-independent-reviewer-20260926",
+  "recorded_at": "2026-09-26",
+  "branch": "phase8/worker-contract-preflight-issue9",
+  "implementation_commit": "320616c7742aa84ab14c80e93c0b97f1628e3659",
+  "scope": "Non-Gate fresh local Phase 8 composition with a distinct proposal-only Gemma Reviewer and bounded terminal projection.",
+  "fresh_local_trial": {
+    "root_task_id": "27ccfac9-f458-41bd-8c63-9cfb9dac51b2",
+    "run_id": "phase8-6f62de2fa5d043e29552293f9e3299a9",
+    "planner_model": "ollama/qwen3.5:9b",
+    "worker_models": {
+      "worker_a": "ollama/qwen3.5:9b",
+      "worker_b": "ollama/qwen3.5:9b"
+    },
+    "reviewer_model": "ollama/gemma4:12b",
+    "reviewer_role": "proposal_only",
+    "fallback_used": false,
+    "planner_attempts": 1,
+    "worker_attempts": {
+      "worker_a": 1,
+      "worker_b": 1
+    },
+    "review_decisions": {
+      "worker_a": "APPROVE_INTEGRATION",
+      "worker_b": "APPROVE_INTEGRATION"
+    },
+    "host_verification": "PASS",
+    "integration": "PASS",
+    "dependent_continuation": {
+      "dependency": "CODE_INTEGRATED",
+      "state": "COMPLETED"
+    },
+    "root_state": "COMPLETED",
+    "codex_direct_implementation_count": 0,
+    "unknown_replay": false,
+    "remote_generation": false,
+    "third_model": false,
+    "terminal_projection": {
+      "status": "PASS",
+      "change": "Lifecycle cleanup diagnostics are flattened only at the public result boundary so bounded cleanup errors cannot reject a completed root."
+    }
+  },
+  "verification": {
+    "focused_tests": "15 passed",
+    "architecture": "ARCHITECTURE_PASS",
+    "compile": "COMPILE_IN_MEMORY_PASS 268",
+    "diff_check": "PASS",
+    "exact_head_ci": {
+      "v2_core_run": "36238154196",
+      "v2_core_status": "success",
+      "provider_smoke_run": "36238154051",
+      "provider_smoke_status": "success"
+    }
+  },
+  "formal_gate": {
+    "d9_dogfood": "VERIFIED",
+    "d9_production_deployment": "DEFERRED_NOT_READY",
+    "phase8_preparation": "PREPARATION_ONLY",
+    "phase8_live_activation": "NOT_VERIFIED"
+  },
+  "interpretation": "This closes the distinct local Reviewer and terminal continuation path for a fresh bounded L1 trial. It is not formal Phase 8 activation because local models remain outside the required remote/L2 admission evidence and the real Discord client E2E is separately unverified.",
+  "next_action": "Refresh only read-only remote admission evidence; start a fresh formal R9 root only if a newly eligible generation route is admitted. Otherwise continue with changed-hypothesis local reliability work without replaying UNKNOWN operations."
+}

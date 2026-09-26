@@ -500,8 +500,11 @@ class ConvergenceMetadata:
             raise ValueError("repair_directive must be RepairDirective or None")
         if self.repair_directive is not None and self.failure_spec is None:
             raise ValueError("repair_directive requires failure_spec")
-        if self.failure_spec is not None and failure_signature != self.failure_spec.failure_signature:
-            raise ValueError("failure_spec signature must match failure_signature")
+        # ``failure_signature`` identifies the coarse recurrence fingerprint,
+        # while ConcreteFailureSpec carries its own digest for the detailed
+        # actionable facts. They intentionally use different canonical
+        # payloads; retaining both lets a later model receive concrete repair
+        # information without changing the bounded recurrence identity.
 
         if state is ConvergenceState.FAST_PATH:
             if (
@@ -573,6 +576,8 @@ class ConvergenceMetadata:
         source_attempt_id: str | None = None,
         fresh_attempt_id: str | None = None,
         failure: FailureFingerprint | None = None,
+        failure_spec: ConcreteFailureSpec | None = None,
+        repair_directive: RepairDirective | None = None,
         correction_actor: str | None = None,
         previous_model_identity: str | None = None,
     ) -> "ConvergenceMetadata":
@@ -584,6 +589,12 @@ class ConvergenceMetadata:
             raise ValueError("a passing validation cannot carry a failure")
         if not passed and not isinstance(failure, FailureFingerprint):
             raise ValueError("a failed validation requires a FailureFingerprint")
+        if passed and (failure_spec is not None or repair_directive is not None):
+            raise ValueError("a passing validation cannot carry failure details")
+        if repair_directive is not None and failure_spec is None:
+            raise ValueError("repair_directive requires failure_spec")
+        if failure_spec is not None and repair_directive is None:
+            repair_directive = RepairDirective.from_failure_spec(failure_spec)
         if passed and refinement_round == 0:
             return cls.fast_path(
                 current_model_identity=current_model_identity,
@@ -601,6 +612,8 @@ class ConvergenceMetadata:
             validator_refs=tuple(validator_refs),
             convergence_state=ConvergenceState.REFINEMENT if not passed else ConvergenceState.COMPLETED,
             stop_reason=None,
+            failure_spec=failure_spec,
+            repair_directive=repair_directive,
         )
 
     def to_dict(self) -> dict[str, Any]:

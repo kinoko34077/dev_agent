@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -129,6 +130,22 @@ class _FakeOperation:
         )
 
 
+class _LifecycleProbe:
+    def __init__(self, unloaded=()):
+        self.unloaded = tuple(unloaded)
+        self.calls = 0
+
+    def unload_idle(self, *, deadline_seconds=30.0):
+        self.calls += 1
+        return self.unloaded
+
+
+class _LocalProviderProbe:
+    def __init__(self, manager, model):
+        self.model_manager = manager
+        self.model = model
+
+
 def _executor(**overrides):
     from scripts.devfarm_production_composition import Phase8ProductionExecutor
 
@@ -195,6 +212,100 @@ def test_phase8_executor_does_not_treat_reviewer_proposal_as_final_approval():
     assert result["integrated"] == []
     assert values["commander"].integration_calls == []
     assert values["operation"].calls == []
+
+
+def test_phase8_executor_releases_worker_models_before_local_reviewer():
+    worker_manager = _LifecycleProbe(("qwen3.5:9b",))
+    reviewer_manager = _LifecycleProbe(("gemma4:12b",))
+    seen: list[tuple[int, int]] = []
+
+    def review_proposal(packet):
+        seen.append((worker_manager.calls, reviewer_manager.calls))
+        return {
+            "decision": "APPROVE_INTEGRATION",
+            "findings": [],
+            "evidence_refs": [{"kind": "bounded-review"}],
+        }
+
+    executor, values = _executor(
+        providers={
+            "devfarm-a": _LocalProviderProbe(worker_manager, "qwen3.5:9b"),
+            "devfarm-b": _LocalProviderProbe(worker_manager, "qwen3.5:9b"),
+        },
+        reviewer_providers={
+            "reviewer": _LocalProviderProbe(reviewer_manager, "gemma4:12b"),
+        },
+        review_proposal=review_proposal,
+    )
+
+    result = executor.advance()
+
+    assert result["integrated"] == ["worker-a", "worker-b"]
+    assert seen == [(1, 0), (1, 0)]
+    assert result["reviewer_model_switch"] == {"unloaded_models": ["qwen3.5:9b"], "errors": []}
+    assert reviewer_manager.calls == 0
+
+
+def test_phase8_executor_rebinds_latest_worker_failure_to_distinct_local_model(monkeypatch, tmp_path):
+    import scripts.devfarm_production_composition as composition
+
+    commander = _FakeCommander()
+    commander.root = tmp_path
+    failed = commander._plan["tasks"][0]
+    failed.update(
+        status="REJECTED",
+        block_reason="proposal_failed",
+        last_attempt_id="qwen-attempt-2",
+        result_ref=".devfarm/results/qwen-attempt-2.json",
+        attempt_count=2,
+        max_attempts=3,
+        manifest_history=[".devfarm/manifests/worker-a.json"],
+        manifest_path=".devfarm/manifests/worker-a-rework.json",
+        last_error="WORKER_OUTPUT_INVALID_JSON: worker response JSON is invalid",
+    )
+    manifest = {"allowed_files": ["src/worker_a.py"], "outbound_files": ["src/worker_a.py"]}
+    monkeypatch.setattr(
+        composition,
+        "load_worker_manifest",
+        lambda _root, _task: (Path("worker-a.json"), manifest),
+    )
+    handoff_calls: list[dict[str, object]] = []
+    reassign_calls: list[dict[str, object]] = []
+
+    def rework_handoff(task_id, **kwargs):
+        handoff_calls.append({"task_id": task_id, **kwargs})
+        return {"kind": "repair_request", "task_id": task_id}
+
+    def reassign(task_id, **kwargs):
+        reassign_calls.append({"task_id": task_id, **kwargs})
+
+    commander.rework_handoff = rework_handoff
+    commander.reassign = reassign
+    primary = SimpleNamespace(
+        provider_id="ollama",
+        model_id="qwen3.5:9b",
+        provider_binding_id="ollama:local:qwen3.5-9b",
+    )
+    fallback = SimpleNamespace(
+        provider_id="ollama",
+        model_id="gemma4:12b",
+        provider_binding_id="ollama:local:gemma4-12b",
+    )
+    executor, values = _executor(
+        commander=commander,
+        providers={"devfarm-a": primary, "devfarm-b": object()},
+        fallback_providers={"devfarm-a": fallback},
+    )
+
+    result = executor._fallback_failed_proposals(commander.plan())
+
+    assert result == ["worker-a"]
+    assert values["commander"] is commander
+    assert executor.providers["devfarm-a"] is fallback
+    assert handoff_calls[0]["repair_context"]["directive_rebound"] is True
+    assert handoff_calls[0]["repair_context"]["fallback_to_provider"] == "ollama"
+    assert reassign_calls[0]["provider_binding_id"] == "ollama:local:gemma4-12b"
+    assert reassign_calls[0]["model_id"] == "gemma4:12b"
 
 
 def test_phase8_executor_rejects_incomplete_identity_before_dispatch():

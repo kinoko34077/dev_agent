@@ -15,6 +15,7 @@ from src.dev_agent.intelligence.planner_adapter import (
     PLANNING_CRITIC_RESPONSE_SCHEMA,
     PlanningCriticAdapterError,
     PlanningResponseError,
+    _planning_failure_spec,
     propose_with_planning_critic,
 )
 from src.dev_agent.providers.base import ProviderError
@@ -103,6 +104,43 @@ def test_planning_critic_returns_corrected_proposal_with_fresh_proposal_only_req
     assert "split this bounded objective" in request.messages[0]["content"]
 
 
+def test_phase8_planning_critic_uses_minimal_correction_contract_and_host_shape():
+    parent_task_id = str(uuid4())
+    provider = _Provider(
+        ModelResponse(
+            provider="independent-planning-critic",
+            model="gemma4:12b",
+            structured_output={
+                "corrected_proposal": {
+                    "worker_a_objective": "Modify only src/a.py.",
+                    "worker_b_objective": "Add the focused regression test.",
+                    "continuation_objective": "Continue after both integrations.",
+                }
+            },
+        )
+    )
+
+    proposal = ModelPlanningCriticAdapter(
+        provider,
+        proposal_profile="phase8_production",
+    ).correct(
+        parent_task_id=parent_task_id,
+        objective="complete one Phase 8 production composition",
+        planner_failure=_failure(response_contract="invalid_proposal"),
+    )
+
+    request = provider.requests[0]
+    corrected_schema = request.response_schema["properties"]["corrected_proposal"]
+    assert set(corrected_schema["properties"]) == {
+        "worker_a_objective",
+        "worker_b_objective",
+        "continuation_objective",
+    }
+    assert request.metadata["planner_contract"] == "phase8_minimal_root_v1"
+    assert [child.child_key for child in proposal.children] == ["worker-a", "worker-b", "continuation"]
+    assert proposal.children[2].dependencies == ("worker-a", "worker-b")
+
+
 def test_planner_contract_failure_carries_concrete_task_type_repair_spec():
     parent_task_id = str(uuid4())
     provider = _Provider(
@@ -126,6 +164,49 @@ def test_planner_contract_failure_carries_concrete_task_type_repair_spec():
     assert caught.value.failure_spec is not None
     assert caught.value.failure_spec.location == "children[].task_type"
     assert "exact task_type enum" in caught.value.failure_spec.required_correction
+
+
+def test_planner_failure_spec_describes_phase8_continuation_dependencies():
+    failure = _planning_failure_spec(
+        "continuation dependencies must include both worker-a and worker-b",
+        response_contract="invalid_proposal",
+    )
+
+    assert failure.location == "children[continuation].dependencies"
+    assert failure.expected == '["worker-a", "worker-b"]'
+    assert "exactly" in failure.required_correction
+    assert "worker-a" in failure.required_correction
+    assert "worker-b" in failure.required_correction
+    assert "both worker dependencies" in failure.acceptance_checks[0]
+
+
+def test_planner_failure_spec_describes_phase8_dependency_types():
+    failure = _planning_failure_spec(
+        "continuation dependency_types must be CODE_INTEGRATED for both workers",
+        response_contract="invalid_proposal",
+    )
+
+    assert failure.location == "children[continuation].dependency_types"
+    assert "CODE_INTEGRATED" in failure.expected
+    assert "both worker dependencies" in failure.required_correction
+
+
+def test_planner_prompt_makes_phase8_continuation_shape_explicit():
+    prompt = ModelPlanningAdapter._prompt(
+        str(uuid4()),
+        "Create exactly two non-overlapping worker children and one continuation that depends on both with CODE_INTEGRATED.",
+        "normal",
+        {},
+        "L1",
+    )
+
+    assert "worker-a" in prompt
+    assert "worker-b" in prompt
+    assert "CODE_INTEGRATED" in prompt
+    assert "continuation.dependencies" in prompt
+    assert "task_type values exactly" in prompt
+    assert "use deterministic for the dependent continuation" in prompt
+    assert "continuation.suggested_owner exactly to `codex`" in prompt
 
 
 def test_planning_critic_rejects_authority_fields_and_parent_mismatch():

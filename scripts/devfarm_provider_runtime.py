@@ -49,15 +49,21 @@ def build_worker_provider(
             provider_binding_id=provider_binding_id,
         )
     try:
-        return ProviderFactory().create(
-            ProviderDefinition(
-                provider_id=name,
-                model=model,
-                timeout_seconds=timeout_seconds,
-                provider_binding_id=binding_id,
-                intelligence_tier=intelligence_tier,
-            )
-        )
+        definition_values = {
+            "provider_id": name,
+            "model": model,
+            "timeout_seconds": timeout_seconds,
+            "provider_binding_id": binding_id,
+            "intelligence_tier": intelligence_tier,
+        }
+        if name == "ollama":
+            # Local Planner/Worker requests use strict JSON contracts.  Keep
+            # Ollama's model-thinking channel out of that contract and retain
+            # the bounded on-demand lifecycle default used by configured local
+            # bindings.  This does not change tier/admission or make the local
+            # route a formal Phase 8 L2 qualification.
+            definition_values.update({"keep_alive": "10m", "think": False})
+        return ProviderFactory().create(ProviderDefinition(**definition_values))
     except (TypeError, ValueError) as exc:
         raise DevFarmError(f"unsupported development worker provider: {name}") from exc
 

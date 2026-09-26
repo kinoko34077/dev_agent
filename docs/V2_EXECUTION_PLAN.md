@@ -2,6 +2,18 @@
 
 この文書は現在の大きな順序だけを示すMain Roadmapである。詳細なGate、依存関係、完了条件は [`V2_DETAILED_ROADMAP.md`](V2_DETAILED_ROADMAP.md) を正本とする。要求は`docs/requirements/**`、decision rationaleは`spec/v2/adr/**`、観測証拠は`spec/v2/evidence/**`、Gate statusは`spec/v2/GATE_STATUS.json`を参照する。
 
+2026-09-26 Phase 8 failure-path lifecycle checkpoint: `542bdc2` extends the
+existing bounded submission boundary so known local Planner/Worker/fallback/
+Reviewer inventories are unloaded after both success and execution failure.
+The original execution exception is preserved even when cleanup itself fails,
+and malformed cleanup projection remains bounded diagnostic data;
+no queue, scheduler, authority, retry, integration, or Gate semantics changed.
+Focused affected coverage is `45 passed`; exact-head v2-core/provider-smoke
+CI is green. A focused cleanup-boundary regression proves that an unexpected
+cleanup exception cannot mask a completed result. This does not create a new live root and does not
+change `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED`. Evidence:
+[`phase8-local-lifecycle-cleanup-20260926.json`](../spec/v2/evidence/phase8-local-lifecycle-cleanup-20260926.json).
+
 2026-09-26 Phase 8 production composition checkpoint: `f47d382` now
 composes one fresh Operation root through the existing Planner validation,
 DevelopmentPlanningBridge, Commander/Supervisor, single-owner handoff,
@@ -16,6 +28,18 @@ remote generation admission, Discord live E2E, and `PHASE8 LIVE_ACTIVATION`
 remain unchanged. Evidence:
 [`phase8-production-composition-terminal-20260926.json`](../spec/v2/evidence/phase8-production-composition-terminal-20260926.json).
 
+2026-09-26 fresh local L1 root checkpoint: `0529d12` uses the minimal
+production-shaped Planner profile and a fresh qwen3.5:9b root. Both
+non-overlapping Workers passed Host Verification and deterministic integration,
+the existing review boundary was reached, `CODE_INTEGRATED` continuation
+completed, and the root reached terminal completion with zero Codex direct
+implementation. Gemma4 was available but unused; no remote route, third model,
+UNKNOWN replay, or paid route was used. The trial did not independently
+re-qualify a distinct Reviewer model, so this is
+`OLLAMA_LOCAL_E2E=COMPLETED_NON_GATE`; `PHASE8_LIVE_ACTIVATION` remains
+`NOT_VERIFIED`. Evidence:
+[`phase8-local-e2e-20260926.json`](../spec/v2/evidence/phase8-local-e2e-20260926.json).
+
 2026-09-26 read-only model evidence refresh: approved Host-boundary discovery
 returned 1,357 candidate rows from 13 bindings, with one bounded Groq
 `HTTPError`; the restricted comparison returned only 8 Ollama rows and
@@ -24,6 +48,17 @@ evidence. Existing admission remains 32 static-eligible, 5 runtime-unknown,
 and 0 runtime-eligible; no generation or UNKNOWN replay was attempted. Do not
 start remote R9 until a fresh admitted generation route exists. Evidence:
 [`model-catalog-r9-refresh-20260926.json`](../spec/v2/evidence/model-catalog-r9-refresh-20260926.json).
+
+2026-09-26 Issue #9 Worker contract/preflight checkpoint: `5fd89a1` adds a
+Host-owned `minimal_file_replacement` proposal mode for local Ollama, retains
+the legacy full-result mode, and records deterministic fail-closed preflight
+metadata before any bounded correction or provider reassignment decision.
+Only allowlisted transport formatting is canonicalized; source content, paths,
+authority, Host Verification, UNKNOWN, and reconciliation semantics remain
+unchanged. Affected DevFarm coverage is `194 passed`, full `tests/v2` is
+`1676 passed, 1 skipped`, and exact-head v2-core/provider-smoke CI is green.
+This is local non-Gate evidence; do not treat it as a new Phase 8 live root.
+Evidence: [`devfarm-worker-contract-preflight-20260926.json`](../spec/v2/evidence/devfarm-worker-contract-preflight-20260926.json).
 
 ## Current phase
 
@@ -55,7 +90,7 @@ Phase 7後半の安全な拡張と開発運用移管。既存のKernel、Resourc
 
 2026-09-23 Discord operational routing checkpoint: `639d903` connects active-run plain-message routing to the existing NOTE boundary, preserves explicit intervention kinds, uses Core child submission for bound PARALLEL work, cancels only the bound Task without requesting a process-wide stop, and persists `/dir`/`/file` UI scope in StateStore schema version 9 for structured Core inputs. Discord replies to delivered HumanRequests are correlated before ordinary ingress and finite-answer buttons delegate to `HumanInteractionPort`; outbound projection exposes a bounded health/error category. The Core safe-checkpoint consumer for INTERRUPT and the standard-runner Core-owned Approval submit callback remain unexposed, so those two operational paths are not claimed as complete. Local tests and exact-head CI pass; real Discord Human-message/button E2E remains pending interactive-client observation. Evidence: [`discord-operational-routing-20260923.json`](../spec/v2/evidence/discord-operational-routing-20260923.json).
 
-The operational slice is a bounded continuation of the existing roadmap, not a new phase: resume R9 fresh-root live execution next, use AR1 only for a naturally observed eligible Worker failure, and keep Stage 6/7/8 work behind the existing Phase 8 activation conditions.
+The operational slice is a bounded continuation of the existing roadmap, not a new phase: after the Issue #5/PR #4 composition proof and Issue #9 Worker contract/preflight slice, resume R9 fresh-root live execution only on a newly admitted remote generation route. If no such route exists, do not repeat the prior failed route; use only a new local hypothesis. Use AR1 only for a naturally observed eligible Worker failure, and keep Stage 6/7/8 work behind the existing Phase 8 activation conditions. Discord remains a non-Gate surface with live-client observations still explicitly pending.
 
 ## Implementation frontier
 

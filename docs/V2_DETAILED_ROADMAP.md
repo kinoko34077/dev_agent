@@ -2,6 +2,18 @@
 
 この文書は、[V2_EXECUTION_PLAN.md](V2_EXECUTION_PLAN.md) が示す現在の大きな順序を、実装可能なGateと依存関係へ展開する詳細正本である。要求・ADR・Evidenceを複製せず、各Gateの完了条件と参照先だけを持つ。
 
+**2026-09-26 failure-path lifecycle checkpoint:** `542bdc2` hardens the
+existing Phase 8 submission boundary so supplied local Planner/Worker/
+fallback/Reviewer provider inventories are unloaded after both successful and
+failed bounded execution. The original execution exception is retained even
+when cleanup itself fails, and cleanup projection is bounded diagnostic data.
+Affected focused coverage is `45 passed`; exact-head v2-core/provider-smoke CI
+is green. A focused cleanup-boundary regression proves that an unexpected
+cleanup exception cannot mask a completed result. This is reliability evidence,
+not a new live root or Gate promotion.
+Evidence:
+[`phase8-local-lifecycle-cleanup-20260926.json`](../spec/v2/evidence/phase8-local-lifecycle-cleanup-20260926.json).
+
 ## 現在位置
 
 **2026-09-26 model evidence refresh:** approved Host-boundary discovery returned
@@ -27,9 +39,27 @@ composition evidence; remote generation admission, Discord live E2E, and
 Phase 8 LIVE_ACTIVATION remain unverified. Evidence:
 [`phase8-production-composition-terminal-20260926.json`](../spec/v2/evidence/phase8-production-composition-terminal-20260926.json).
 
+**2026-09-26 fresh local L1 root checkpoint:** `0529d12` adds the minimal
+production-shaped Planner profile and concrete convergence boundary. A fresh
+qwen3.5:9b Planner/Worker root then passed Host Verification for both
+non-overlapping Workers, reached the existing review boundary, integrated both
+patches deterministically, released and completed the `CODE_INTEGRATED`
+continuation, and reached terminal root completion with zero Codex direct
+implementation. Gemma4 was available but unused; no remote route, third model,
+UNKNOWN replay, or paid route was used. The review callback in this trial was
+not an independently re-qualified Reviewer model, so this is
+`OLLAMA_LOCAL_E2E=COMPLETED_NON_GATE`, not `PHASE8_LIVE_ACTIVATION`. Terminal
+submission now unloads idle Ollama models through the existing lifecycle
+manager. Evidence: [`phase8-local-e2e-20260926.json`](../spec/v2/evidence/phase8-local-e2e-20260926.json).
+
 **2026-09-22 R9 checkpoint:** `D9_DOGFOOD=VERIFIED` remains closed and `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`. Model observations were refreshed read-only; the current static diagnostic shows 32 static-eligible and 5 runtime-unknown rows (not an empty catalog). Four exact qualified/no-charge L2 identities entered one fresh bounded Planner pool, but three distinct quota domains returned confirmed `provider_unavailable` before a proposal. No Critic, child task, Worker, Reviewer, or integration ran; no UNKNOWN was replayed. `PHASE8_PREPARATION=PREPARATION_ONLY` and `LIVE_ACTIVATION=NOT_VERIFIED` remain unchanged. Evidence: [`model-evidence-refresh-r9-planner-blocker-20260922.json`](../spec/v2/evidence/model-evidence-refresh-r9-planner-blocker-20260922.json). Continue R9 on a newly eligible route/fresh request; apply AR1 only if a natural eligible Worker failure occurs, without making AR1 an entry gate.
 
-**2026-09-23 local convergence interrupt:** the local trial remains non-Gate `PARTIAL_BLOCKED`. `qwen3.5:9b` is primary, `gemma4:12b` is the only fallback, and `qwen3.5:4b` is inactive for automatic routing. Host-derived concrete format FailureSpecs and RepairDirectives are now carried into fresh Worker attempts. The latest follow-up rebound the newest Qwen directive into a fresh Gemma attempt that passed Host Verification for Worker A; a separate Worker B request reached `read_timeout` at `response_wait` and was closed as reconciliation-required without replay. Reviewer/integration were not reached, so `PHASE8 LIVE_ACTIVATION` remains `NOT_VERIFIED`; no third model or UNKNOWN replay was attempted. Evidence: [`ollama-local-worker-rebind-followup-20260923.json`](../spec/v2/evidence/ollama-local-worker-rebind-followup-20260923.json).
+**2026-09-26 earlier local convergence checkpoint:** the local trial at this
+stage remained non-Gate `PARTIAL_BLOCKED`; that observation is retained as
+immutable failure evidence. The subsequent fresh root above changed the
+Planner/Worker contract and setup premise and completed the local chain. No
+third model or UNKNOWN replay was attempted. Evidence:
+[`phase8-local-planner-convergence-20260926.json`](../spec/v2/evidence/phase8-local-planner-convergence-20260926.json).
 
 **2026-09-23 operational self-heal checkpoint:** the local Operation path now durably parks Human-required work as `WAITING_HUMAN`, consumes an exact response once, and lets unrelated READY work continue through the existing `RuntimeCoordinator`. Codex Human Proxy and Expert Assist are separate bounded JSON-lines adapters with `HUMAN_REQUIRED` versus `PROPOSAL_ONLY` authority. Existing pinned release, rolling, health, and LKG rollback primitives are composed for local self-update with trusted-ref/preflight checks and failed-candidate suppression. The repo-root `start-dev-agent.bat` is foreground-only and does not register OS startup. This is non-Gate local evidence; it does not close R9, AR1, Phase 8 LIVE_ACTIVATION, or D9 Production Deployment. Evidence: [`operational-human-assist-self-update-local-20260923.json`](../spec/v2/evidence/operational-human-assist-self-update-local-20260923.json).
 
@@ -265,7 +295,7 @@ G6O1、paid provider、OpenAI/Claude API、Production auto-deploy、UI、unbound
 
 ### Main Phase 8 / Main Phase 9
 
-- D9 Dogfoodは`VERIFIED`。現在はR9のfresh single-root Planner → 2 Implementer → Reviewer → integration → `CODE_INTEGRATED` continuationを進め、自然なFORMAT/PATCHまたはSEMANTIC/TEST failureが起きた場合に限りAR1を適用する。R9/Phase 8 LIVE_ACTIVATIONがEvidenceで閉じた後にR10・Stage 6 AI Company benchmarkへ進む。Production DeploymentはDeferredのまま。
+- D9 Dogfoodは`VERIFIED`。Issue #5/PR #4で決定論的なsingle-root composition（Planner validation → 2 Implementer → Host Verification → Reviewer → integration → `CODE_INTEGRATED` continuation）を閉じ、Issue #9では弱モデル向けの最小Worker proposal contractとHost-owned deterministic preflightを追加した。次はR9のfresh single-root live Planner → 2 Implementer → Reviewer → integration → `CODE_INTEGRATED` continuationを進め、自然なFORMAT/PATCHまたはSEMANTIC/TEST failureが起きた場合に限りAR1を適用する。新規にadmittedなremote generation routeがない場合は、同じ外部失敗を盲目的に再試行しない。R9/Phase 8 LIVE_ACTIVATIONがEvidenceで閉じた後にR10・Stage 6 AI Company benchmarkへ進む。Production DeploymentはDeferredのまま。Issue #9 Evidenceは[`devfarm-worker-contract-preflight-20260926.json`](../spec/v2/evidence/devfarm-worker-contract-preflight-20260926.json)。
 - Virtual Office UIは正式Operation/MCP APIが安定した後に限る。
 
 ## 凍結・非ブロッキング

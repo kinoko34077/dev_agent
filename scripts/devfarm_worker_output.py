@@ -4,12 +4,173 @@ from __future__ import annotations
 
 import json
 import math
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from scripts.devfarm_errors import DevFarmError
 from src.dev_agent.domain.protocol import ModelRequest
 from src.dev_agent.providers.base import ModelProvider, transport_failure_metadata
+
+
+FULL_WORKER_OUTPUT_MODE = "full_result"
+MINIMAL_WORKER_OUTPUT_MODE = "minimal_file_replacement"
+MINIMAL_WORKER_OUTPUT_KEYS = frozenset({"file_replacements", "notes"})
+
+
+def worker_output_mode(
+    output_contract: Mapping[str, Any],
+    *,
+    local_ollama: bool = False,
+) -> str:
+    """Resolve the bounded Worker output mode from Host-owned configuration.
+
+    Existing manifests retain the historical full-result contract.  Ollama
+    remains on the minimal contract by default, while another provider may
+    opt into the same Host-generated replacement path explicitly.  Unknown
+    modes fail closed before a provider request is made.
+    """
+
+    if not isinstance(output_contract, Mapping):
+        raise DevFarmError("output_contract must be an object")
+    configured = output_contract.get("mode", FULL_WORKER_OUTPUT_MODE)
+    if not isinstance(configured, str) or configured not in {
+        FULL_WORKER_OUTPUT_MODE,
+        MINIMAL_WORKER_OUTPUT_MODE,
+    }:
+        raise DevFarmError("output_contract.mode must be full_result or minimal_file_replacement")
+    if local_ollama:
+        return MINIMAL_WORKER_OUTPUT_MODE
+    return configured
+
+
+def minimal_worker_output_schema(
+    *,
+    allowed_paths: Sequence[str] | None = None,
+) -> dict[str, Any]:
+    """Return the strict provider schema for a Host-owned change proposal.
+
+    When the Host knows the outbound paths, bind the replacement object to
+    those exact keys.  This prevents a structured-output provider from
+    treating metadata such as ``notes`` as a source path before the existing
+    Host path validator gets a chance to reject it.
+    """
+
+    replacement_value = {
+        "oneOf": [
+            {"type": "string"},
+            {
+                "type": "array",
+                "items": {"type": "string", "pattern": "^[^\\r\\n]*$"},
+            },
+        ]
+    }
+    if allowed_paths is None:
+        replacement_object: dict[str, Any] = {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": replacement_value,
+        }
+    else:
+        if isinstance(allowed_paths, (str, bytes)):
+            raise DevFarmError("allowed_paths must be a sequence of paths")
+        normalized_paths = tuple(
+            dict.fromkeys(
+                path.replace("\\", "/").strip()
+                for path in allowed_paths
+                if isinstance(path, str) and path.strip()
+            )
+        )
+        if not normalized_paths:
+            raise DevFarmError("allowed_paths must contain at least one path")
+        replacement_object = {
+            "type": "object",
+            "minProperties": 1,
+            "maxProperties": 1,
+            "properties": {path: replacement_value for path in normalized_paths},
+            "additionalProperties": False,
+        }
+
+    return {
+        "type": "object",
+        "properties": {
+            "file_replacements": replacement_object,
+            "notes": {"type": "string"},
+        },
+        "required": ["file_replacements"],
+        "additionalProperties": False,
+    }
+
+
+def worker_proposal_preflight_failure(
+    reason: str,
+    *,
+    mode: str,
+) -> dict[str, Any]:
+    """Project a deterministic Worker rejection without retaining raw output.
+
+    This projection is deliberately advisory metadata.  It tells the
+    existing refinement boundary that the model output needs bounded
+    correction before provider reassignment is considered; it does not select
+    a provider, retry a request, or alter Host Verification authority.
+    """
+
+    if not isinstance(reason, str) or not reason.strip():
+        raise DevFarmError("preflight failure reason must be non-empty text")
+    if mode not in {FULL_WORKER_OUTPUT_MODE, MINIMAL_WORKER_OUTPUT_MODE}:
+        raise DevFarmError("preflight failure mode is unsupported")
+    normalized = reason.casefold()
+    if "unsupported fields" in normalized or "additional field" in normalized:
+        error_code = "WORKER_OUTPUT_ADDITIONAL_FIELD"
+    elif "json" in normalized or "json object" in normalized:
+        error_code = "WORKER_OUTPUT_INVALID_JSON"
+    elif "must be" in normalized or "required" in normalized:
+        error_code = "WORKER_OUTPUT_SCHEMA"
+    elif "outside manifest" in normalized or "outside" in normalized and "allowed" in normalized:
+        error_code = "WORKER_OUTPUT_PATH_SCOPE"
+    elif "newline" in normalized or "line" in normalized and "string" in normalized:
+        error_code = "WORKER_OUTPUT_LINE_SHAPE"
+    elif "secret" in normalized:
+        error_code = "WORKER_OUTPUT_SECRET_REJECTED"
+    elif "unified diff" in normalized or "patch" in normalized:
+        error_code = "WORKER_OUTPUT_PATCH_SYNTAX"
+    else:
+        error_code = "WORKER_OUTPUT_DETERMINISTIC_REJECTED"
+    return {
+        "status": "rejected",
+        "stage": "worker_proposal_preflight",
+        "mode": mode,
+        "failure_class": "FORMAT_PATCH",
+        "error_code": error_code,
+        "fallback_eligible": False,
+        "fallback_disposition": "defer_to_bounded_correction",
+        "validator_ref": "worker:proposal_preflight",
+    }
+
+
+def worker_proposal_preflight_success(
+    *,
+    mode: str,
+    canonicalization_rules: tuple[str, ...] = (),
+) -> dict[str, Any]:
+    """Project an accepted deterministic preflight and its audit facts."""
+
+    if mode not in {FULL_WORKER_OUTPUT_MODE, MINIMAL_WORKER_OUTPUT_MODE}:
+        raise DevFarmError("preflight success mode is unsupported")
+    rules = list(dict.fromkeys(item for item in canonicalization_rules if isinstance(item, str)))
+    return {
+        "status": "accepted",
+        "stage": "worker_proposal_preflight",
+        "mode": mode,
+        "fallback_eligible": False,
+        "fallback_disposition": "not_applicable",
+        "validator_ref": "worker:proposal_preflight",
+        "canonicalization": {
+            "applied": bool(rules),
+            "rules": rules,
+            "source": "host",
+            "preserves_source_content": True,
+        },
+    }
 
 
 _MODEL_STATUS_ALIASES = {
@@ -202,9 +363,16 @@ def build_worker_metrics(
 
 
 __all__ = [
+    "FULL_WORKER_OUTPUT_MODE",
+    "MINIMAL_WORKER_OUTPUT_KEYS",
+    "MINIMAL_WORKER_OUTPUT_MODE",
     "build_worker_metrics",
     "extract_json_object",
+    "minimal_worker_output_schema",
     "normalize_model_status",
     "safe_host_failure_metadata",
     "safe_usage",
+    "worker_output_mode",
+    "worker_proposal_preflight_failure",
+    "worker_proposal_preflight_success",
 ]

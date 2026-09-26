@@ -218,6 +218,7 @@ def test_run_worker_does_not_turn_reconciliation_failure_into_model_repair_spec(
     assert result["status"] == "failed"
     assert result["worker_metrics"]["provider_failure_category"] == "transport"
     assert result["worker_metrics"]["reconciliation_required"] is True
+    assert "proposal_preflight" not in result["worker_metrics"]
     assert "failure_spec" not in result
     assert "repair_directive" not in result
 
@@ -277,8 +278,10 @@ def test_run_worker_requests_bounded_json_schema_for_local_ollama(tmp_path, monk
     assert requests[0].max_output_tokens == 8192
     assert set(requests[0].response_schema["properties"]) == {"file_replacements", "notes"}
     assert requests[0].response_schema["properties"]["file_replacements"]["minProperties"] == 1
-    replacement_schema = requests[0].response_schema["properties"]["file_replacements"]["additionalProperties"]
+    replacement_schema = requests[0].response_schema["properties"]["file_replacements"]["properties"]["tests/v2/test_target.py"]
     assert replacement_schema["oneOf"][1]["items"]["pattern"] == "^[^\\r\\n]*$"
+    assert requests[0].response_schema["properties"]["file_replacements"]["additionalProperties"] is False
+    assert requests[0].response_schema["properties"]["file_replacements"]["maxProperties"] == 1
     assert requests[0].response_schema["required"] == ["file_replacements"]
     assert requests[0].response_schema["additionalProperties"] is False
     assert "only required output key is file_replacements" in requests[0].messages[1]["content"]

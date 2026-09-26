@@ -318,8 +318,12 @@ class CodexSupervisedCommanderRun:
         operator_approved: bool = False,
         dispatch_timeout_seconds: int | float = 300.0,
         execution_boundary: str = "in_process",
+        local_trial: bool = False,
     ) -> SupervisorStep:
         """Run exactly one bounded refresh/dispatch/collect/verify pass."""
+
+        if not isinstance(local_trial, bool):
+            raise TypeError("local_trial must be a boolean")
 
         # Reconcile durable result artifacts before classifying an old
         # dispatch.  An expired dispatch with a result must be collected, not
@@ -364,6 +368,7 @@ class CodexSupervisedCommanderRun:
                     host_dispatches=host_dispatches,
                     orchestrator=orchestrator,
                     dispatch_timeout_seconds=dispatch_timeout_seconds,
+                    local_trial=local_trial,
                 )
             except (DevFarmError, TypeError, ValueError) as exc:
                 metadata = normalize_supervisor_metadata(self.store.load(self.run_id).get("supervisor"))

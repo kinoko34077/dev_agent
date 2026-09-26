@@ -1,0 +1,41 @@
+{
+  "evidence_id": "phase8-planner-concrete-failure-handoff-20260926",
+  "evidence_kind": "phase8_local_planner_convergence_hardening",
+  "checked_at": "2026-09-26",
+  "branch": "phase8/worker-contract-preflight-issue9",
+  "scope": "Issue #9 / Phase 8 local Planner diagnostic and bounded repair handoff",
+  "change": {
+    "preload": "Ollama lifecycle uses a fixed non-empty bounded probe prompt so cold qwen3.5:9b streaming preload emits a readiness chunk.",
+    "convergence": "Planning attempt metadata now retains Host-derived ConcreteFailureSpec and RepairDirective, including terminal non-converging projections.",
+    "recurrence": "Planning recurrence fingerprints include the bounded FailureSpec digest without exposing model output or secrets.",
+    "transport_boundary": "No Provider, UNKNOWN, reconciliation, authority, or Gate semantics were changed."
+  },
+  "observations": {
+    "direct_ollama_chat": "PASS",
+    "cold_factory_lifecycle_chat_keep_alive_10m": "PASS",
+    "terminal_unload": "PASS",
+    "fresh_planner_shadow_after_lifecycle_fix": "model_output_invalid",
+    "planner_host_validation": "not_reached",
+    "critic": "Gemma4 invoked once as distinct proposal-only critic; same bounded response-contract failure signature was observed",
+    "worker_host_verification": "not_reached",
+    "reviewer_integration_continuation": "not_reached",
+    "unknown_replay": false,
+    "third_model": false
+  },
+  "focused_verification": {
+    "tests": "51 passed",
+    "coverage": [
+      "Ollama lifecycle and ProviderFactory",
+      "planning convergence",
+      "ConcreteFailureSpec/RepairDirective retention",
+      "planning critic response-contract projection"
+    ],
+    "secret_scan": "pending implementation commit"
+  },
+  "gate": {
+    "phase8_live_activation": "NOT_VERIFIED",
+    "ollama_local_e2e": "PARTIAL_BLOCKED",
+    "interpretation": "This slice improves actionable failure evidence but does not claim a Phase 8 single-root completion."
+  },
+  "next_action": "Commit and exact-head verify this slice, then perform at most one fresh local Planner/Worker root using qwen3.5:9b primary and gemma4:12b fallback only if the new evidence-bearing convergence path is ready."
+}

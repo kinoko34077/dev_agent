@@ -46,6 +46,8 @@ _LAZY_EXPORTS = {
     "ModelPlanningCriticAdapter": (".planner_adapter", "ModelPlanningCriticAdapter"),
     "PLANNING_CRITIC_RESPONSE_SCHEMA": (".planner_adapter", "PLANNING_CRITIC_RESPONSE_SCHEMA"),
     "PLANNING_PROPOSAL_RESPONSE_SCHEMA": (".planner_adapter", "PLANNING_PROPOSAL_RESPONSE_SCHEMA"),
+    "PHASE8_MINIMAL_CRITIC_RESPONSE_SCHEMA": (".planner_adapter", "PHASE8_MINIMAL_CRITIC_RESPONSE_SCHEMA"),
+    "PHASE8_MINIMAL_PLANNER_RESPONSE_SCHEMA": (".planner_adapter", "PHASE8_MINIMAL_PLANNER_RESPONSE_SCHEMA"),
     "PlanningAdapterError": (".planner_adapter", "PlanningAdapterError"),
     "PlanningCriticAdapterError": (".planner_adapter", "PlanningCriticAdapterError"),
     "PlanningConvergenceError": (".planner_adapter", "PlanningConvergenceError"),

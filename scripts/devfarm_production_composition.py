@@ -22,11 +22,15 @@ from uuid import uuid4
 
 from scripts.devfarm import write_manifest
 from scripts.devfarm_commander import create_plan
+from scripts.devfarm_errors import DevFarmError
+from scripts.devfarm_manifests import load_worker_manifest
 from scripts.devfarm_planning_bridge import DevelopmentPlanningBridge
+from scripts.devfarm_refinement import build_concrete_failure_spec
 from scripts.devfarm_repository import resolved_revision
 from scripts.devfarm_supervisor import CodexSupervisedCommanderRun
-from src.dev_agent.domain.protocol import Task
-from src.dev_agent.intelligence.planner import RootPlanningProposal
+from src.dev_agent.domain.protocol import Task, TaskType
+from src.dev_agent.intelligence.convergence import RepairDirective
+from src.dev_agent.intelligence.planner import PlannerDependencyType, RootPlanningProposal
 
 
 class ProductionCompositionError(ValueError):
@@ -78,6 +82,69 @@ def _bounded_projection(value: Any, *, depth: int = 0) -> Any:
             raise ProductionCompositionError("boundary result exceeds bounded sequence")
         return [_bounded_projection(item, depth=depth + 1) for item in value]
     raise ProductionCompositionError("boundary result contains an unsupported value")
+
+
+def _cleanup_projection_fields(value: Any) -> tuple[list[str], list[str]]:
+    """Flatten lifecycle cleanup into fields safe to nest in a result.
+
+    The internal cleanup record keeps model/category mappings for diagnostics.
+    The public Phase 8 result is already nested below ``execution`` and has a
+    deliberately small projection depth.  Keeping those mappings nested would
+    make a real lifecycle error reject an otherwise completed root.  Preserve
+    the bounded facts, but flatten them before the public projection.
+    """
+
+    if value is None:
+        return [], []
+    if not isinstance(value, Mapping):
+        raise ProductionCompositionError("local model cleanup projection is invalid")
+
+    def bounded_text(item: Any, fallback: str) -> str:
+        if not isinstance(item, str):
+            return fallback
+        text = item.strip()
+        if not text or len(text) > 128:
+            return fallback
+        lowered = text.casefold()
+        if any(term in lowered for term in _FORBIDDEN_PROJECTION_TERMS):
+            return fallback
+        return text
+
+    unloaded: list[str] = []
+    raw_unloaded = value.get("unloaded_models", [])
+    if isinstance(raw_unloaded, Sequence) and not isinstance(raw_unloaded, (str, bytes)):
+        for item in raw_unloaded:
+            model = bounded_text(item, "unknown")
+            if model != "unknown" and model not in unloaded:
+                unloaded.append(model)
+            if len(unloaded) >= _MAX_PROJECTION_ITEMS:
+                break
+
+    errors: list[str] = []
+    raw_errors = value.get("errors", [])
+    if isinstance(raw_errors, Sequence) and not isinstance(raw_errors, (str, bytes)):
+        for item in raw_errors:
+            if isinstance(item, Mapping):
+                model = bounded_text(item.get("model"), "unknown")
+                category = bounded_text(item.get("category"), "lifecycle_failure")
+                label = f"{model}:{category}"
+            else:
+                label = bounded_text(item, "lifecycle_failure")
+            if label not in errors:
+                errors.append(label)
+            if len(errors) >= _MAX_PROJECTION_ITEMS:
+                break
+
+    return unloaded, errors
+
+
+def _safe_cleanup_projection_fields(value: Any) -> tuple[list[str], list[str]]:
+    """Keep malformed cleanup diagnostics from changing execution semantics."""
+
+    try:
+        return _cleanup_projection_fields(value)
+    except (ProductionCompositionError, TypeError, ValueError):
+        return [], ["unknown:cleanup_projection_failure"]
 
 
 class Phase8ProductionComposition:
@@ -133,34 +200,48 @@ class Phase8ProductionSubmission:
         planner: Callable[[Task], RootPlanningProposal],
         task_specs: Callable[[Task, RootPlanningProposal], Mapping[str, Mapping[str, Any]]],
         providers: Callable[[Mapping[str, str]], Mapping[str, Any]],
+        fallback_providers: Callable[[Mapping[str, str]], Mapping[str, Any]] | None = None,
         orchestrator: Any,
         review_proposal: Callable[[Mapping[str, Any]], Mapping[str, Any]],
         final_review_decision: Callable[[Mapping[str, Any], Mapping[str, Any]], Mapping[str, Any]],
         target_checkout: str | Path,
+        planner_providers: Mapping[str, Any] | None = None,
+        reviewer_providers: Mapping[str, Any] | None = None,
         target_ref: str = "HEAD",
         verification_trust_level: str = "TRUSTED_HOST_EXEC",
         operator_approved: bool = True,
         dispatch_timeout_seconds: int | float = 300.0,
         roadmap_reference: Mapping[str, Any] | None = None,
+        local_trial: bool = False,
     ) -> None:
         if not callable(planner) or not callable(task_specs) or not callable(providers):
             raise TypeError("Planner, task-spec, and provider boundaries are required")
         if not callable(review_proposal) or not callable(final_review_decision):
             raise TypeError("review boundaries are required")
+        if not isinstance(local_trial, bool):
+            raise TypeError("local_trial must be a boolean")
         self.operation_config = operation_config
         self.repository = Path(repository).resolve()
         self.planner = planner
         self.task_specs = task_specs
         self.providers = providers
+        self.fallback_providers = fallback_providers
         self.orchestrator = orchestrator
         self.review_proposal = review_proposal
         self.final_review_decision = final_review_decision
+        if planner_providers is not None and not isinstance(planner_providers, Mapping):
+            raise TypeError("planner_providers must be a mapping when provided")
+        self.planner_providers = dict(planner_providers or {})
+        if reviewer_providers is not None and not isinstance(reviewer_providers, Mapping):
+            raise TypeError("reviewer_providers must be a mapping when provided")
+        self.reviewer_providers = dict(reviewer_providers or {})
         self.target_checkout = str(Path(target_checkout).resolve())
         self.target_ref = target_ref
         self.verification_trust_level = verification_trust_level
         self.operator_approved = operator_approved
         self.dispatch_timeout_seconds = dispatch_timeout_seconds
         self.roadmap_reference = dict(roadmap_reference or {})
+        self.local_trial = local_trial
 
     @staticmethod
     def _worker_bindings(plan: Mapping[str, Any]) -> dict[str, str]:
@@ -184,8 +265,173 @@ class Phase8ProductionSubmission:
             raise ProductionCompositionError("Commander plan has no Worker children")
         return bindings
 
+    @staticmethod
+    def validate_phase8_root_shape(proposal: RootPlanningProposal) -> None:
+        """Reject a non-composable Phase 8 proposal before durable handoff.
+
+        The general Planner validator intentionally accepts arbitrary finite
+        DAGs.  This production boundary has a narrower acceptance contract:
+        two independent Worker children and one Codex-owned deterministic
+        continuation released only after both integrations.  Checking that
+        contract before ``apply_planning_proposal`` keeps a malformed model
+        proposal out of the durable handoff path and gives a caller a bounded,
+        actionable failure for a fresh correction attempt.
+        """
+
+        if not isinstance(proposal, RootPlanningProposal):
+            raise ProductionCompositionError("Phase 8 Planner proposal is not a RootPlanningProposal")
+        if len(proposal.children) != 3:
+            raise ProductionCompositionError(
+                "Phase 8 production shape requires exactly two Worker children and one continuation"
+            )
+        workers = tuple(child for child in proposal.children if child.task_type is TaskType.WORKER)
+        if len(workers) != 2:
+            raise ProductionCompositionError(
+                "Phase 8 production shape requires exactly two Worker children"
+            )
+        if any(child.suggested_owner != "worker" for child in workers):
+            raise ProductionCompositionError(
+                "Phase 8 Worker children must remain worker-owned"
+            )
+        if any(child.dependencies for child in workers):
+            raise ProductionCompositionError(
+                "Phase 8 Worker children must be independent and have no dependencies"
+            )
+        continuations = tuple(child for child in proposal.children if child.child_key == "continuation")
+        if len(continuations) != 1:
+            raise ProductionCompositionError(
+                "Phase 8 production shape requires exactly one child_key=continuation"
+            )
+        continuation = continuations[0]
+        if continuation.task_type is not TaskType.DETERMINISTIC:
+            raise ProductionCompositionError(
+                "Phase 8 continuation must use task_type=deterministic"
+            )
+        if continuation.suggested_owner != "codex":
+            raise ProductionCompositionError(
+                "Phase 8 continuation must be suggested_owner=codex"
+            )
+        worker_keys = {child.child_key for child in workers}
+        if set(continuation.dependencies) != worker_keys:
+            raise ProductionCompositionError(
+                "Phase 8 continuation dependencies must exactly match both Worker children"
+            )
+        if set(continuation.dependency_types) != worker_keys or any(
+            continuation.dependency_types.get(key) is not PlannerDependencyType.CODE_INTEGRATED
+            for key in worker_keys
+        ):
+            raise ProductionCompositionError(
+                "Phase 8 continuation dependency types must be CODE_INTEGRATED for both Workers"
+            )
+
+    @staticmethod
+    def _unload_local_provider_models(
+        *provider_maps: Mapping[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Release idle local model managers after a terminal root.
+
+        Provider requests already release their active-request lease.  The
+        root terminal boundary owns the next step: ask each existing local
+        ``OllamaModelManager`` to unload idle models without introducing a
+        second lifecycle registry.  Cleanup is projected as bounded evidence;
+        a cleanup failure must not rewrite an already-completed root result.
+        """
+
+        seen: set[tuple[int, str]] = set()
+        unloaded: set[str] = set()
+        errors: list[dict[str, str]] = []
+        for provider_map in provider_maps:
+            if not isinstance(provider_map, Mapping):
+                continue
+            for provider in provider_map.values():
+                manager = getattr(provider, "model_manager", None)
+                unload_idle = getattr(manager, "unload_idle", None)
+                model = getattr(provider, "model", None)
+                model_name = model.strip() if isinstance(model, str) and model.strip() else "unknown"
+                if not callable(unload_idle):
+                    continue
+                identity = (id(manager), model_name)
+                if identity in seen:
+                    continue
+                seen.add(identity)
+                try:
+                    names = unload_idle(deadline_seconds=30.0)
+                except Exception as exc:  # lifecycle observability must stay bounded
+                    category = getattr(exc, "category", None)
+                    if not isinstance(category, str) or not category.strip() or len(category) > 128:
+                        category = "lifecycle_failure"
+                    errors.append({"model": model_name, "category": category.strip()})
+                    continue
+                if isinstance(names, (str, bytes)) or not isinstance(names, Sequence):
+                    continue
+                for name in names:
+                    if isinstance(name, str) and name.strip() and len(name.strip()) <= 128:
+                        unloaded.add(name.strip())
+        return {
+            "unloaded_models": sorted(unloaded),
+            "errors": errors,
+        }
+
     def submit(self, objective: str, **kwargs: Any) -> dict[str, Any]:
-        """Submit one fresh root and run one bounded existing execution pass."""
+        """Submit one root and unload local models on success or failure.
+
+        The execution body deliberately remains a single bounded pass.  The
+        wrapper owns only lifecycle cleanup so a Worker/Reviewer/Integration
+        exception cannot leave an idle local model resident until the daemon's
+        keep-alive expiry.  Cleanup is best-effort evidence and never replaces
+        the original execution error.
+        """
+
+        provider_maps: list[Mapping[str, Any] | None] = [self.planner_providers]
+        result: dict[str, Any] | None = None
+        try:
+            result = self._submit_without_cleanup(
+                objective,
+                provider_maps=provider_maps,
+                **kwargs,
+            )
+        finally:
+            try:
+                local_model_cleanup = self._unload_local_provider_models(
+                    *provider_maps,
+                    self.reviewer_providers,
+                )
+            except Exception:  # cleanup is diagnostic and must never mask execution
+                local_model_cleanup = {
+                    "unloaded_models": [],
+                    "errors": [{"model": "unknown", "category": "cleanup_failure"}],
+                }
+            if result is not None:
+                execution = result.get("execution")
+                if not isinstance(execution, dict):
+                    raise ProductionCompositionError("Phase 8 execution result is not a mapping")
+                cleanup_models, cleanup_errors = _safe_cleanup_projection_fields(local_model_cleanup)
+                reviewer_models, reviewer_errors = _safe_cleanup_projection_fields(
+                    execution.pop("reviewer_model_switch", None)
+                )
+                execution.update(
+                    {
+                        "local_model_unloaded_models": cleanup_models,
+                        "local_model_cleanup_errors": cleanup_errors,
+                        "reviewer_model_unloaded_models": reviewer_models,
+                        "reviewer_model_switch_errors": reviewer_errors,
+                    }
+                )
+        if result is None:
+            raise ProductionCompositionError("Phase 8 submission produced no result")
+        projected = _bounded_projection(result)
+        if not isinstance(projected, dict):
+            raise ProductionCompositionError("Phase 8 submission result is not bounded")
+        return projected
+
+    def _submit_without_cleanup(
+        self,
+        objective: str,
+        *,
+        provider_maps: list[Mapping[str, Any] | None],
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Run the one-shot submission body under the public cleanup wrapper."""
 
         from src.dev_agent.operation import OperationService
         from src.dev_agent.operation_runtime import RuntimeCoordinator
@@ -196,6 +442,7 @@ class Phase8ProductionSubmission:
             raise ProductionCompositionError("Planner boundary must return a RootPlanningProposal")
         if proposal.parent_task_id != root.task_id:
             raise ProductionCompositionError("Planner proposal parent identity does not match the fresh root")
+        self.validate_phase8_root_shape(proposal)
         run_id = f"phase8-{uuid4().hex}"
         base_revision = resolved_revision(self.repository, self.target_ref)
         raw_specs = self.task_specs(root, proposal)
@@ -236,6 +483,13 @@ class Phase8ProductionSubmission:
             provider_map = self.providers(bindings)
             if not isinstance(provider_map, Mapping):
                 raise ProductionCompositionError("provider boundary must return a mapping")
+            provider_maps.append(provider_map)
+            fallback_provider_map = None
+            if self.fallback_providers is not None:
+                fallback_provider_map = self.fallback_providers(bindings)
+                if not isinstance(fallback_provider_map, Mapping):
+                    raise ProductionCompositionError("fallback provider boundary must return a mapping")
+                provider_maps.append(fallback_provider_map)
             executor = Phase8ProductionExecutor(
                 operation=operation,
                 commander=commander,
@@ -243,6 +497,8 @@ class Phase8ProductionSubmission:
                 devfarm_run_id=run_id,
                 bindings=bindings,
                 providers=provider_map,
+                fallback_providers=fallback_provider_map,
+                reviewer_providers=self.reviewer_providers,
                 orchestrator=self.orchestrator,
                 review_proposal=self.review_proposal,
                 final_review_decision=self.final_review_decision,
@@ -251,6 +507,7 @@ class Phase8ProductionSubmission:
                 verification_trust_level=self.verification_trust_level,
                 operator_approved=self.operator_approved,
                 dispatch_timeout_seconds=self.dispatch_timeout_seconds,
+                local_trial=self.local_trial,
             )
             execution = executor.advance()
             continuation_changes = [
@@ -294,16 +551,16 @@ class Phase8ProductionSubmission:
                 "commander_status": execution.get("commander_status"),
                 "reviewed": list(execution.get("reviewed", [])),
                 "integrated": list(execution.get("integrated", [])),
+                "repaired": list(execution.get("repaired", [])),
+                "fallback": list(execution.get("fallback", [])),
                 "continuation_ready": bool(execution.get("continuation_ready")),
                 "continuation_task_id": continuation.task_id,
                 "continuation_state": continuation.status.value,
                 "root_state": root_terminal.status.value,
+                "reviewer_model_switch": execution.get("reviewer_model_switch"),
             },
         }
-        projected = _bounded_projection(result)
-        if not isinstance(projected, dict):
-            raise ProductionCompositionError("Phase 8 submission result is not bounded")
-        return projected
+        return result
 
     def observe(self, run_id: str, **_: Any) -> dict[str, Any]:
         """Read one durable Commander projection without advancing it."""
@@ -369,6 +626,8 @@ class Phase8ProductionExecutor:
         devfarm_run_id: str,
         bindings: Mapping[str, str],
         providers: Mapping[str, Any],
+        fallback_providers: Mapping[str, Any] | None = None,
+        reviewer_providers: Mapping[str, Any] | None = None,
         orchestrator: Any,
         review_proposal: Callable[[Mapping[str, Any]], Mapping[str, Any]],
         final_review_decision: Callable[[Mapping[str, Any], Mapping[str, Any]], Mapping[str, Any]],
@@ -377,6 +636,7 @@ class Phase8ProductionExecutor:
         verification_trust_level: str = "TRUSTED_HOST_EXEC",
         operator_approved: bool = True,
         dispatch_timeout_seconds: int | float = 300.0,
+        local_trial: bool = False,
     ) -> None:
         required_operation = "record_devfarm_integration_evidence"
         required_commander = (
@@ -419,6 +679,8 @@ class Phase8ProductionExecutor:
             raise ValueError("unsupported verification trust level")
         if not isinstance(operator_approved, bool):
             raise TypeError("operator_approved must be a boolean")
+        if not isinstance(local_trial, bool):
+            raise TypeError("local_trial must be a boolean")
         if (
             isinstance(dispatch_timeout_seconds, bool)
             or not isinstance(dispatch_timeout_seconds, (int, float))
@@ -432,6 +694,10 @@ class Phase8ProductionExecutor:
         self.devfarm_run_id = devfarm_run_id.strip()
         self.bindings = normalized_bindings
         self.providers = dict(providers)
+        self.fallback_providers = dict(fallback_providers or {})
+        if reviewer_providers is not None and not isinstance(reviewer_providers, Mapping):
+            raise TypeError("reviewer_providers must be a mapping when provided")
+        self.reviewer_providers = dict(reviewer_providers or {})
         self.orchestrator = orchestrator
         self.review_proposal = review_proposal
         self.final_review_decision = final_review_decision
@@ -440,6 +706,7 @@ class Phase8ProductionExecutor:
         self.verification_trust_level = verification_trust_level
         self.operator_approved = operator_approved
         self.dispatch_timeout_seconds = float(dispatch_timeout_seconds)
+        self.local_trial = local_trial
 
     @staticmethod
     def _worker_tasks(plan: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
@@ -487,6 +754,192 @@ class Phase8ProductionExecutor:
             next(task for task in workers if task.get("planner_child_key") == child_key)
             for child_key in self.bindings
         )
+
+    def _repair_failed_proposals(self, plan: Mapping[str, Any]) -> list[str]:
+        """Reassign one bounded model-output failure through existing repair seams.
+
+        This is deliberately one correction pass, not a retry loop.  Only a
+        durable ``WORKER_OUTPUT_*`` proposal failure is eligible; provider,
+        transport, UNKNOWN, and reconciliation states remain outside model
+        repair.  ``reassign`` creates the fresh immutable manifest and keeps
+        the rejected attempt as evidence.
+        """
+
+        rework_handoff = getattr(self.commander, "rework_handoff", None)
+        reassign = getattr(self.commander, "reassign", None)
+        if not callable(rework_handoff) or not callable(reassign):
+            return []
+        repaired: list[str] = []
+        for task in self._worker_tasks(plan):
+            if task.get("status") != "REJECTED" or task.get("block_reason") != "proposal_failed":
+                continue
+            # A manifest history means this task already consumed the bounded
+            # automatic correction opportunity.  Do not blind-retry it on a
+            # later executor/resume call.
+            if isinstance(task.get("manifest_history"), list) and task.get("manifest_history"):
+                continue
+            error = task.get("last_error")
+            if not isinstance(error, str) or not error.startswith("WORKER_OUTPUT_"):
+                continue
+            task_id = task.get("task_id")
+            attempt_id = task.get("last_attempt_id")
+            provider = self.providers.get(task_id) if isinstance(task_id, str) else None
+            provider_id = getattr(provider, "provider_id", None)
+            model_id = getattr(provider, "model_id", None) or getattr(provider, "model", None)
+            binding_id = getattr(provider, "provider_binding_id", None)
+            if not all(isinstance(value, str) and value.strip() for value in (task_id, attempt_id, provider_id, model_id)):
+                continue
+            try:
+                _manifest_path, manifest = load_worker_manifest(self.commander.root, task)
+                failure_spec = build_concrete_failure_spec(error, manifest=manifest)
+                directive = RepairDirective.from_failure_spec(failure_spec)
+                result_ref = task.get("result_ref")
+                if not isinstance(result_ref, str) or not result_ref.strip():
+                    raise ProductionCompositionError("proposal failure has no durable result reference")
+                handoff = rework_handoff(
+                    task_id,
+                    failure_evidence_reference={
+                        "kind": "worker_proposal_failure",
+                        "path": result_ref,
+                        "attempt_id": attempt_id,
+                    },
+                    review_findings_reference=None,
+                    required_correction=directive.required_action,
+                    failure_spec=failure_spec,
+                    repair_directive=directive,
+                    repair_context={
+                        "source_attempt_id": attempt_id,
+                        "source_failure_signature": failure_spec.failure_signature,
+                        "latest_failure_spec": failure_spec.to_dict(),
+                        "latest_repair_directive": directive.to_dict(),
+                        "current_repair": directive.to_dict(),
+                        "historical_constraints": {
+                            "unresolved": [directive.required_action],
+                            "resolved_must_not_regress": [],
+                        },
+                        "directive_rebound": True,
+                    },
+                )
+                reassign(
+                    task_id,
+                    provider_id=provider_id.strip(),
+                    model_id=model_id.strip(),
+                    provider_binding_id=binding_id if isinstance(binding_id, str) and binding_id.strip() else None,
+                    rework_handoff=handoff,
+                )
+            except (ProductionCompositionError, ValueError, TypeError) as exc:
+                raise ProductionCompositionError(
+                    f"bounded Worker repair handoff failed for {task.get('planner_child_key', 'worker')}"
+                ) from exc
+            repaired.append(str(task.get("planner_child_key")))
+        return repaired
+
+    def _fallback_failed_proposals(self, plan: Mapping[str, Any]) -> list[str]:
+        """Rebind one recurrent proposal failure to the configured fallback.
+
+        The fallback is deliberately optional and per-task. It is considered
+        only after the primary model consumed one concrete correction attempt,
+        and it receives a fresh handoff built from the latest failure and
+        manifest. Provider/runtime, UNKNOWN, and reconciliation failures do
+        not enter this path.
+        """
+
+        if not self.fallback_providers:
+            return []
+        rework_handoff = getattr(self.commander, "rework_handoff", None)
+        reassign = getattr(self.commander, "reassign", None)
+        if not callable(rework_handoff) or not callable(reassign):
+            return []
+        fallback: list[str] = []
+        for task in self._worker_tasks(plan):
+            if task.get("status") != "REJECTED" or task.get("block_reason") != "proposal_failed":
+                continue
+            history = task.get("manifest_history")
+            if not isinstance(history, list) or not history:
+                continue
+            error = task.get("last_error")
+            if not isinstance(error, str) or not error.startswith("WORKER_OUTPUT_"):
+                continue
+            task_id = task.get("task_id")
+            attempt_id = task.get("last_attempt_id")
+            if (
+                not isinstance(task_id, str)
+                or not task_id.strip()
+                or not isinstance(attempt_id, str)
+                or not attempt_id.strip()
+            ):
+                continue
+            current_provider = self.providers.get(task_id)
+            fallback_provider = self.fallback_providers.get(task_id)
+            if fallback_provider is None:
+                continue
+            provider_id = getattr(fallback_provider, "provider_id", None)
+            model_id = getattr(fallback_provider, "model_id", None) or getattr(fallback_provider, "model", None)
+            binding_id = getattr(fallback_provider, "provider_binding_id", None)
+            current_provider_id = getattr(current_provider, "provider_id", None)
+            current_model_id = getattr(current_provider, "model_id", None) or getattr(current_provider, "model", None)
+            current_binding_id = getattr(current_provider, "provider_binding_id", None)
+            if not all(isinstance(value, str) and value.strip() for value in (provider_id, model_id)):
+                continue
+            if (
+                isinstance(current_provider_id, str)
+                and current_provider_id.strip() == provider_id.strip()
+                and isinstance(current_model_id, str)
+                and current_model_id.strip() == model_id.strip()
+                and (current_binding_id or current_provider_id) == (binding_id or provider_id)
+            ):
+                continue
+            attempt_count = task.get("attempt_count")
+            max_attempts = task.get("max_attempts")
+            if isinstance(attempt_count, int) and isinstance(max_attempts, int) and attempt_count >= max_attempts:
+                continue
+            try:
+                _manifest_path, manifest = load_worker_manifest(self.commander.root, task)
+                failure_spec = build_concrete_failure_spec(error, manifest=manifest)
+                directive = RepairDirective.from_failure_spec(failure_spec)
+                result_ref = task.get("result_ref")
+                if not isinstance(result_ref, str) or not result_ref.strip():
+                    raise ProductionCompositionError("proposal failure has no durable result reference")
+                handoff = rework_handoff(
+                    task_id,
+                    failure_evidence_reference={
+                        "kind": "worker_proposal_failure",
+                        "path": result_ref,
+                        "attempt_id": attempt_id,
+                    },
+                    review_findings_reference=None,
+                    required_correction=directive.required_action,
+                    failure_spec=failure_spec,
+                    repair_directive=directive,
+                    repair_context={
+                        "source_attempt_id": attempt_id,
+                        "source_failure_signature": failure_spec.failure_signature,
+                        "latest_failure_spec": failure_spec.to_dict(),
+                        "latest_repair_directive": directive.to_dict(),
+                        "current_repair": directive.to_dict(),
+                        "historical_constraints": {
+                            "unresolved": [directive.required_action],
+                            "resolved_must_not_regress": [],
+                        },
+                        "directive_rebound": True,
+                        "fallback_from_provider": current_provider_id,
+                        "fallback_to_provider": provider_id.strip(),
+                    },
+                )
+                reassign(
+                    task_id,
+                    provider_id=provider_id.strip(),
+                    model_id=model_id.strip(),
+                    provider_binding_id=binding_id if isinstance(binding_id, str) and binding_id.strip() else None,
+                    rework_handoff=handoff,
+                )
+            except (DevFarmError, ProductionCompositionError, ValueError, TypeError) as exc:
+                raise ProductionCompositionError(
+                    f"bounded Worker fallback handoff failed for {task.get('planner_child_key', 'worker')}"
+                ) from exc
+            self.providers[task_id] = fallback_provider
+            fallback.append(str(task.get("planner_child_key")))
+        return fallback
 
     @classmethod
     def _normalize_review_decision(cls, value: Mapping[str, Any]) -> dict[str, Any]:
@@ -597,12 +1050,41 @@ class Phase8ProductionExecutor:
             verification_trust_level=self.verification_trust_level,
             operator_approved=self.operator_approved,
             dispatch_timeout_seconds=self.dispatch_timeout_seconds,
+            local_trial=self.local_trial,
         )
         plan = self.commander.plan()
+        repaired = self._repair_failed_proposals(plan)
+        if repaired:
+            # One fresh correction pass is enough to consume the concrete
+            # directive.  Further recurrence remains a durable failure for
+            # the existing refinement/fallback authority to classify.
+            step = self.commander.advance(
+                providers=self.providers,
+                orchestrator=self.orchestrator,
+                verification_trust_level=self.verification_trust_level,
+                operator_approved=self.operator_approved,
+                dispatch_timeout_seconds=self.dispatch_timeout_seconds,
+                local_trial=self.local_trial,
+            )
+            plan = self.commander.plan()
+        fallback = self._fallback_failed_proposals(plan)
+        if fallback:
+            # The fallback receives a fresh immutable manifest and the latest
+            # concrete directive. It is one bounded alternate-model pass.
+            step = self.commander.advance(
+                providers=self.providers,
+                orchestrator=self.orchestrator,
+                verification_trust_level=self.verification_trust_level,
+                operator_approved=self.operator_approved,
+                dispatch_timeout_seconds=self.dispatch_timeout_seconds,
+                local_trial=self.local_trial,
+            )
+            plan = self.commander.plan()
         workers = self._validate_worker_identity(plan)
         integrated: list[str] = []
         reviewed: list[str] = []
         operation_changes: list[dict[str, Any]] = []
+        reviewer_model_switch: dict[str, Any] | None = None
         for task in workers:
             task_id = str(task["task_id"])
             child_key = str(task["planner_child_key"])
@@ -611,6 +1093,16 @@ class Phase8ProductionExecutor:
                 continue
             decision = self._decision_for_task(plan, task_id, attempt_id)
             if decision is None and task.get("status") == "HOST_VERIFIED":
+                if reviewer_model_switch is None:
+                    # Worker requests have released their leases by the time
+                    # the Supervisor exposes HOST_VERIFIED. Release idle
+                    # local Worker/fallback models before a distinct local
+                    # Reviewer is allowed to load, so qwen and Gemma do not
+                    # remain resident together during the role transition.
+                    reviewer_model_switch = Phase8ProductionSubmission._unload_local_provider_models(
+                        self.providers,
+                        self.fallback_providers,
+                    )
                 packet = self.commander.review_packet(task_id, attempt_id=attempt_id)
                 proposal = self._normalize_review_decision(self.review_proposal(packet))
                 final = self._normalize_review_decision(self.final_review_decision(packet, proposal))
@@ -678,6 +1170,9 @@ class Phase8ProductionExecutor:
             "commander_status": commander_status,
             "reviewed": reviewed,
             "integrated": integrated,
+            "repaired": repaired,
+            "fallback": fallback,
+            "reviewer_model_switch": reviewer_model_switch,
             "operation_changes": operation_changes,
             "continuation_ready": continuation_ready,
         }

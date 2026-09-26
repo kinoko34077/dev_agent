@@ -455,6 +455,17 @@ def test_plan_refinement_preserves_unknown_external_effect_boundary():
     assert plan.next_binding_id is None
 
 
+def test_concrete_failure_spec_makes_minimal_contract_field_failure_actionable():
+    spec = build_concrete_failure_spec(
+        "WORKER_OUTPUT_ADDITIONAL_FIELD: minimal worker output contains unsupported fields: output_contract",
+        manifest={"allowed_files": ["src/example.py"]},
+    )
+
+    assert spec.location == "worker_output"
+    assert "output_contract" in spec.required_correction
+    assert "file_replacements" in spec.acceptance_checks[1]
+
+
 def test_plan_refinement_rejects_unknown_category_before_policy_execution():
     with pytest.raises(RefinementCompositionError, match="unsupported failure category"):
         plan_refinement(_refinement_context(), "future_failure")

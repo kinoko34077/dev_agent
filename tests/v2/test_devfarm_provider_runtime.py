@@ -91,3 +91,5 @@ def test_build_worker_provider_requires_explicit_local_trial_opt_in() -> None:
     assert provider.model_id == "qwen3.5:9b"
     assert provider.provider_binding_id == binding
     assert provider.intelligence_tier == "L1"
+    assert provider.think is False
+    assert provider.keep_alive == "10m"

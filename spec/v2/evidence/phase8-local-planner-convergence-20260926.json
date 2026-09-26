@@ -1,0 +1,25 @@
+{
+  "evidence_id": "phase8-local-planner-convergence-20260926",
+  "observed_at": "2026-09-26",
+  "scope": "fresh local Phase 8 trial after Worker contract preflight",
+  "status": "PARTIAL_BLOCKED",
+  "models": {
+    "primary": "qwen3.5:9b",
+    "fallback": "gemma4:12b",
+    "automatic_four_b_model": false
+  },
+  "observations": [
+    {"stage": "planner", "model": "qwen3.5:9b", "result": "response_contract_failure", "failure_signature": "invalid_task_type"},
+    {"stage": "planner_convergence", "model": "gemma4:12b", "result": "host_shape_failure", "failure_signature": "continuation_dependency_shape"},
+    {"stage": "worker_host_preflight", "model": "qwen3.5:9b", "result": "blocked_by_host_worktree_creation", "failure_signature": "absolute_git_worktree_permission_denied", "remediation": "3f11cbd_detects_absolute_git_worktree_permission_fallback"},
+    {"stage": "planner_convergence", "model": "qwen3.5:9b", "result": "non_converging", "failure_signature": "bounded_planner_convergence_incomplete"}
+  ],
+  "implementation_changes": [
+    "local_trial is propagated through Phase8ProductionSubmission and Supervisor dispatch",
+    "absolute-path Git worktree permission errors use the existing bundle-clone fallback",
+    "Planner FailureSpec names continuation dependencies and CODE_INTEGRATED dependency types"
+  ],
+  "reached": {"planner_host_validation": false, "worker_attempted": true, "host_verification": false, "reviewer": false, "integration": false, "dependent_continuation": false},
+  "safety": {"unknown_replayed": false, "remote_generation_attempted": false, "third_model_attempted": false, "secrets_recorded": false},
+  "gate_impact": {"D9_DOGFOOD": "VERIFIED", "D9_PRODUCTION_DEPLOYMENT": "DEFERRED_NOT_READY", "PHASE8_PREPARATION": "PREPARATION_ONLY", "LIVE_ACTIVATION": "NOT_VERIFIED"}
+}

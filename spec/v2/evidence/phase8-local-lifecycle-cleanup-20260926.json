@@ -1,0 +1,44 @@
+{
+  "evidence_id": "phase8-local-lifecycle-cleanup-20260926",
+  "observed_at": "2026-09-26",
+  "branch": "phase8/worker-contract-preflight-issue9",
+  "implementation_commit": "542bdc2de54f61073e72753cf66985bca8f6d395",
+  "scope": "Failure-safe local model lifecycle cleanup at the bounded Phase 8 submission boundary.",
+  "finding": {
+    "before": "Terminal cleanup was only observable after a completed execution result; a Worker, Reviewer, or Integration exception could leave an idle local model resident until daemon keep-alive expiry.",
+    "risk": "A failed local root could retain shared Ollama memory beyond the failed attempt and obscure the next bounded attempt's resource state."
+  },
+  "correction": {
+    "boundary": "Phase8ProductionSubmission.submit",
+    "mechanism": "existing OllamaModelManager.unload_idle through a finally cleanup wrapper",
+    "inventories": ["planner", "worker", "fallback", "reviewer"],
+    "error_semantics": "cleanup is bounded evidence and never replaces the original execution exception",
+    "authority_impact": "none; no queue, scheduler, retry, review, integration, or Gate semantics changed"
+  },
+  "verification": {
+    "focused_command": "python -B -m pytest -p no:cacheprovider tests/v2/test_phase8_production_submission.py tests/v2/test_phase8_production_execution.py tests/v2/test_phase8_production_composition_e2e.py tests/v2/test_devfarm_worker_preflight.py tests/v2/test_devfarm_worker_output.py -q",
+    "focused_result": "45 passed",
+    "failure_path_assertion": "cleanup-boundary failure is projected as bounded diagnostic data without masking a completed result or an original execution failure; known Planner/Worker inventories were still observed",
+    "architecture": "ARCHITECTURE_PASS",
+    "compile": "COMPILE_IN_MEMORY_PASS 268",
+    "diff_check": "PASS",
+    "exact_head_ci": {
+      "v2_core_run": "36240412724",
+      "v2_core_status": "success",
+      "provider_smoke_run": "36240412688",
+      "provider_smoke_status": "success"
+    }
+  },
+  "formal_gate": {
+    "d9_dogfood": "VERIFIED",
+    "d9_production_deployment": "DEFERRED_NOT_READY",
+    "phase8_preparation": "PREPARATION_ONLY",
+    "phase8_live_activation": "NOT_VERIFIED"
+  },
+  "limitations": [
+    "No new real-model root was rerun because this slice changes failure-path cleanup, not the Worker convergence premise.",
+    "Planner cleanup is available through an explicit provider inventory; no live claim is made for a caller that does not supply that inventory.",
+    "Discord real-client E2E remains externally unverified."
+  ],
+  "secrets_included": false
+}
