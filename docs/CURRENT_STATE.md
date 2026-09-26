@@ -10,8 +10,8 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 | Field | Current fact |
 | --- | --- |
 | Accepted branch | `v2/bootstrap` |
-| Accepted remote head at latest integrated audit | `b3427991319d5475e20ff8a02da5951fdeb4b540` (PR #20 docs/evidence synchronization; latest implementation baseline `81e47cea6500d9bdd8ad0cdd717f9e734d5e8a3a`) |
-| Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight and local L1 evidence; PR #13 Current State compaction; PR #16 static-vs-runtime admission semantics and read-only exact-route evaluator |
+| Accepted remote head at latest integrated audit | `fbe4a766dabca5b424bb4e98cd765b404703030d` (PR #22 concrete Worker repair directive; latest implementation baseline `fbe4a766dabca5b424bb4e98cd765b404703030d`) |
+| Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight and local L1 evidence; PR #13 Current State compaction; PR #16 static-vs-runtime admission semantics and read-only exact-route evaluator; PR #22 concrete invalid-JSON Worker repair directive |
 | Formal Gate | `D9_DOGFOOD=VERIFIED`; `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`; `PHASE8_PREPARATION=PREPARATION_ONLY`; `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` |
 | Current source of truth | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json), exact-head CI, owning Issues/PRs, and bounded Evidence files |
 
@@ -27,6 +27,14 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 - The existing trusted free qualification boundary completed one `gemini:worker:free-3 / gemini-3.5-flash-lite` text/tool roundtrip in an isolated temporary state. The bounded result contained two model calls, one tool call, two provider audit records, and valid Gemini thought-signature receive/replay counts.
 - The provider returned no numeric quota observation. Therefore the exact configured route remains `RUNTIME_UNKNOWN`, not `RUNTIME_ELIGIBLE`; current free-quota remaining is unknown and no quota value is inferred.
 - This is generation-readiness evidence for the bounded qualification contract only. It is not full Planner/Worker/Reviewer role readiness, not a fresh R9 root, and does not change the Formal Gate. Evidence: [`gemini-free3-generation-readiness-20260927.json`](../spec/v2/evidence/gemini-free3-generation-readiness-20260927.json).
+### 2026-09-27 Local reconciliation and opportunistic Gemini policy
+
+- PR #22 is integrated at `fbe4a766dabca5b424bb4e98cd765b404703030d`. It makes the invalid-JSON Repair Directive concrete without changing Host authority, Provider routing, UNKNOWN handling, or Gate state; the focused refinement check was `26 passed` and exact-head `v2-core` / `provider-smoke` were green.
+- The local runtime-admission files were content-identical to the already integrated PR #16 implementation; no duplicate merge was made. The remaining local pre-existing changes are intentionally preserved in the shared worktree and are not represented as accepted remote state.
+- Operational Gemini policy is opportunistic: use the trusted no-charge route while a fresh bounded generation attempt succeeds, but do not rotate keys, bypass quota, replay UNKNOWN effects, or infer remaining free quota. A fresh `gemini:worker:free-3 / gemini-3.8-flash` Planner attempt reached the Provider and produced an observed `invalid_json` response-contract failure; a subsequent bounded attempt observed `provider_unavailable`. Generation liveness was observed, but current stable runtime admission remains unknown/unavailable rather than `RUNTIME_ELIGIBLE`.
+- The Gemini API documents rate limits as project-scoped RPM/TPM/RPD controls and does not provide a repository-side remaining-quota value; the repository therefore records quota as unknown unless the existing runtime authority observes it.
+- Phase 8 remains `LIVE_ACTIVATION=NOT_VERIFIED`; no fresh multi-role root was claimed from these Planner-only observations.
+
 ### Verified now
 
 - Deterministic local composition reaches Planner validation, two non-overlapping Workers, independent Host Verification, proposal-only review, deterministic Integration, `CODE_INTEGRATED` release, and an existing RuntimeCoordinator continuation. Provider responses are fixtures, so this is non-Gate evidence.
