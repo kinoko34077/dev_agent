@@ -85,6 +85,17 @@ Evidence:
 [`model-runtime-admission-configured-pool-20260927.json`](../spec/v2/evidence/model-runtime-admission-configured-pool-20260927.json).
 Formal Gate is unchanged.
 
+2026-09-27 bounded Gemini generation-readiness observation: the existing
+trusted free qualification boundary completed one
+`gemini:worker:free-3 / gemini-3.5-flash-lite` text/tool roundtrip in an
+isolated temporary state. Two model calls and one tool call completed with
+bounded provider audit and Gemini thought-signature evidence, but the provider
+returned no numeric quota observation. The exact configured route therefore
+remains `RUNTIME_UNKNOWN`, not `RUNTIME_ELIGIBLE`; current free-quota
+remaining is unknown. This does not establish full multi-role readiness or
+start R9. Evidence:
+[`gemini-free3-generation-readiness-20260927.json`](../spec/v2/evidence/gemini-free3-generation-readiness-20260927.json).
+
 ## Current phase
 
 Phase 7後半の安全な拡張と開発運用移管。既存のKernel、Resource/Provider、Task/Scheduler、Recovery、DevFarm、Supervisor、Host Verification、Review/Integration境界は維持する。G6O1は未検証の外部Gateだが、Human決定により現行roadmapでは非ブロッキング凍結中である。
