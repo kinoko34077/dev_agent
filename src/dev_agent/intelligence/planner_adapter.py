@@ -64,7 +64,17 @@ class PlanningResponseError(PlanningAdapterError):
 
 def _planning_failure_spec(message: str, *, response_contract: str) -> ConcreteFailureSpec:
     normalized = message.casefold()
-    if "task_type" in normalized:
+    if "phase 8 production shape" in normalized and "worker" in normalized:
+        location = "children"
+        observed = "the proposal does not match the Phase 8 production composition"
+        expected = "exactly two independent Worker children and one deterministic continuation"
+        correction = (
+            "Return exactly two dependency-free Worker children and one child_key=continuation. "
+            "Keep the continuation deterministic and Codex-owned; it must depend on both Workers "
+            "with CODE_INTEGRATED dependency types."
+        )
+        acceptance = ("the Phase 8 production composition preflight passes",)
+    elif "task_type" in normalized:
         location = "children[].task_type"
         observed = "unsupported task type"
         expected = "a task type accepted by the Host planner contract"
@@ -374,9 +384,12 @@ class ModelPlanningAdapter:
             "must be nested inside one object in `children`; do not place child fields at the top level. "
             "If a child has no dependencies, use `dependencies`: [] and `dependency_types`: {}; never use null for either field. "
             "Use `suggested_owner` exactly as `worker` or `codex`, never a descriptive phrase. "
+            "The task_type values exactly accepted by the Host are: deterministic, worker, reasoning, expert, delegated_agent, recovery, or protected. "
+            "Use task_type `worker` for implementation children and use deterministic for the dependent continuation; never use `coding` as a task_type. "
+            "Use risk exactly as low, normal, high, or critical, and sensitivity exactly as public, normal, internal, or sensitive. "
             "Use only these exact required_capabilities values: architecture, coding, review, extraction, classification, translation, documentation, multilingual, security, protected, recovery, security_sensitive, private, sensitive, text, tool_call, structured_output, json, or long_context; use `coding` for a code/test task or [] when none is needed. "
             "Use this shape: {\"parent_task_id\":\"...\",\"rationale\":\"...\",\"children\":[{\"child_key\":\"...\",\"objective\":\"...\",\"task_type\":\"worker\"}]}.\n"
-            "When the objective explicitly requests two workers and a dependent continuation, use child_key `worker-a`, `worker-b`, and `continuation`; set continuation.dependencies exactly to [\"worker-a\", \"worker-b\"] and set both continuation dependency_types values to `CODE_INTEGRATED`. Keep the worker objectives non-overlapping.\n"
+            "When the objective explicitly requests two workers and a dependent continuation, use child_key `worker-a`, `worker-b`, and `continuation`; set continuation.suggested_owner exactly to `codex`, set continuation.dependencies exactly to [\"worker-a\", \"worker-b\"] and set both continuation dependency_types values to `CODE_INTEGRATED`. Keep the worker objectives non-overlapping.\n"
             "This is a proposal only: do not claim authority, budget, approval, privacy relaxation, "
             "Gate changes, or direct Task creation. The host will validate the proposal.\n"
             f"parent_task_id: {parent_task_id}\n"

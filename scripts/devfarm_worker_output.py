@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import math
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from scripts.devfarm_errors import DevFarmError
@@ -43,25 +43,57 @@ def worker_output_mode(
     return configured
 
 
-def minimal_worker_output_schema() -> dict[str, Any]:
-    """Return the strict provider schema for a Host-owned change proposal."""
+def minimal_worker_output_schema(
+    *,
+    allowed_paths: Sequence[str] | None = None,
+) -> dict[str, Any]:
+    """Return the strict provider schema for a Host-owned change proposal.
+
+    When the Host knows the outbound paths, bind the replacement object to
+    those exact keys.  This prevents a structured-output provider from
+    treating metadata such as ``notes`` as a source path before the existing
+    Host path validator gets a chance to reject it.
+    """
+
+    replacement_value = {
+        "oneOf": [
+            {"type": "string"},
+            {
+                "type": "array",
+                "items": {"type": "string", "pattern": "^[^\\r\\n]*$"},
+            },
+        ]
+    }
+    if allowed_paths is None:
+        replacement_object: dict[str, Any] = {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": replacement_value,
+        }
+    else:
+        if isinstance(allowed_paths, (str, bytes)):
+            raise DevFarmError("allowed_paths must be a sequence of paths")
+        normalized_paths = tuple(
+            dict.fromkeys(
+                path.replace("\\", "/").strip()
+                for path in allowed_paths
+                if isinstance(path, str) and path.strip()
+            )
+        )
+        if not normalized_paths:
+            raise DevFarmError("allowed_paths must contain at least one path")
+        replacement_object = {
+            "type": "object",
+            "minProperties": 1,
+            "maxProperties": 1,
+            "properties": {path: replacement_value for path in normalized_paths},
+            "additionalProperties": False,
+        }
 
     return {
         "type": "object",
         "properties": {
-            "file_replacements": {
-                "type": "object",
-                "minProperties": 1,
-                "additionalProperties": {
-                    "oneOf": [
-                        {"type": "string"},
-                        {
-                            "type": "array",
-                            "items": {"type": "string", "pattern": "^[^\\r\\n]*$"},
-                        },
-                    ]
-                },
-            },
+            "file_replacements": replacement_object,
             "notes": {"type": "string"},
         },
         "required": ["file_replacements"],

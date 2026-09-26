@@ -6,7 +6,7 @@ import pytest
 
 from scripts.devfarm import DevFarmError, validate_manifest
 from scripts.devfarm_worker import run_worker
-from scripts.devfarm_worker_output import worker_output_mode
+from scripts.devfarm_worker_output import minimal_worker_output_schema, worker_output_mode
 from tests.v2.devfarm_test_support import _WorkerProvider, _workspace
 
 
@@ -21,6 +21,14 @@ def test_worker_output_mode_is_manifest_selectable_and_fail_closed() -> None:
         assert "output_contract.mode" in str(exc)
     else:  # pragma: no cover - the assertion documents the fail-closed contract
         raise AssertionError("unsupported output mode must be rejected")
+
+
+def test_minimal_worker_schema_binds_file_replacement_keys_to_host_paths() -> None:
+    schema = minimal_worker_output_schema(allowed_paths=("src/example.py",))
+
+    replacement = schema["properties"]["file_replacements"]
+    assert replacement["additionalProperties"] is False
+    assert set(replacement["properties"]) == {"src/example.py"}
 
 
 def test_manifest_rejects_unknown_worker_output_mode(tmp_path) -> None:

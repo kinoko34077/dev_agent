@@ -1010,6 +1010,7 @@ def test_commander_keeps_sibling_proposal_when_one_worker_raises(tmp_path):
     by_id = {task["task_id"]: task for task in dispatched["tasks"]}
     assert by_id["worker-a"]["status"] == "REJECTED"
     assert by_id["worker-a"]["block_reason"] == "proposal_failed"
+    assert "worker boundary exception" in by_id["worker-a"]["last_error"]
     assert by_id["worker-b"]["status"] == "PROPOSED"
     assert any(
         item["task_id"] == "worker-b" and item["status"] == "completed"

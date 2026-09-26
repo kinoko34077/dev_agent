@@ -60,6 +60,45 @@ _manifest_for = load_worker_manifest
 _result_ref = result_reference
 
 
+def _bounded_result_error(result: Mapping[str, Any]) -> str | None:
+    """Project a bounded, secret-safe failure summary for plan observers."""
+
+    error_code: str | None = None
+    metrics = result.get("worker_metrics")
+    if isinstance(metrics, Mapping):
+        preflight = metrics.get("proposal_preflight")
+        if isinstance(preflight, Mapping):
+            error_code = preflight.get("error_code")
+            if isinstance(error_code, str) and error_code.strip():
+                error_code = error_code.strip()[:128]
+            else:
+                error_code = None
+        for key in (
+            "provider_failure_category",
+            "transport_failure_category",
+            "host_failure_category",
+        ):
+            category = metrics.get(key)
+            if isinstance(category, str) and category.strip():
+                error_code = category.strip()[:128]
+                break
+
+    issue_summary: str | None = None
+    known_issues = result.get("known_issues")
+    if isinstance(known_issues, Sequence) and not isinstance(known_issues, (str, bytes)):
+        for issue in known_issues:
+            if isinstance(issue, str) and issue.strip():
+                normalized = " ".join(issue.split())
+                lowered = normalized.casefold()
+                if any(term in lowered for term in ("api_key", "apikey", "credential", "password", "private_key", "secret", "token")):
+                    continue
+                issue_summary = normalized[:512]
+                break
+    if error_code is not None and issue_summary is not None:
+        return f"{error_code}: {issue_summary}"[:1000]
+    return error_code or issue_summary
+
+
 def _apply_proposal_result(plan: dict[str, Any], task: dict[str, Any], result: Mapping[str, Any]) -> None:
     status = str(result.get("status", "failed"))
     attempt_id = result.get("attempt_id")
@@ -77,6 +116,9 @@ def _apply_proposal_result(plan: dict[str, Any], task: dict[str, Any], result: M
     else:
         task["status"] = "REJECTED"
         task["block_reason"] = "proposal_failed"
+    failure_summary = _bounded_result_error(result)
+    if failure_summary is not None:
+        task["last_error"] = failure_summary
     record_result(plan, task["task_id"], "proposal", status, result_ref, attempt_id=task.get("last_attempt_id"))
 
 

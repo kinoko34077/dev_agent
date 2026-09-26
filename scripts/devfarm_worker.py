@@ -355,13 +355,28 @@ def _materialize_file_replacements(
                 raise DevFarmError(f"file replacement has too many lines: {normalized_path}")
             if any(not isinstance(line, str) for line in replacement):
                 raise DevFarmError(f"file replacement lines must be strings: {normalized_path}")
-            if any("\r" in line or "\n" in line for line in replacement):
-                raise DevFarmError(f"file replacement lines must not contain newlines: {normalized_path}")
             # Models commonly serialize the final newline as an extra empty
             # line.  Canonicalize that transport artifact before generating a
             # patch; git's whitespace=error must still reject real blank
             # lines before EOF, but a single final newline is always valid.
             replacement = list(replacement)
+            if any("\r" in line or "\n" in line for line in replacement):
+                # Some structured-output implementations still return a
+                # complete multi-line fragment inside one array element even
+                # when the schema asks for one source line per element.  A
+                # deterministic split is meaning-preserving here: the Host
+                # joins the resulting source lines with LF exactly as it does
+                # for a conforming line array.  Do not guess paths or source
+                # content; only normalize the explicit line separators.
+                expanded: list[str] = []
+                for line in replacement:
+                    if "\r" in line or "\n" in line:
+                        pieces = line.splitlines()
+                        expanded.extend(pieces if pieces else [""])
+                    else:
+                        expanded.append(line)
+                replacement = expanded
+                canonicalization_rules.append("line_array_embedded_newline_split")
             while replacement and replacement[-1] == "":
                 replacement.pop()
                 canonicalization_rules.append("line_array_terminal_empty_lines")
@@ -944,7 +959,7 @@ def run_worker(
             **({"allow_unknown_quota": True} if _eligibility.billing_admitted else {}),
         },
         response_schema=(
-            _OLLAMA_WORKER_RESPONSE_SCHEMA
+            minimal_worker_output_schema(allowed_paths=manifest["outbound_files"])
             if output_mode == "minimal_file_replacement"
             else None
         ),

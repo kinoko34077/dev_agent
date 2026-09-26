@@ -167,6 +167,9 @@ def test_planner_prompt_makes_phase8_continuation_shape_explicit():
     assert "worker-b" in prompt
     assert "CODE_INTEGRATED" in prompt
     assert "continuation.dependencies" in prompt
+    assert "task_type values exactly" in prompt
+    assert "use deterministic for the dependent continuation" in prompt
+    assert "continuation.suggested_owner exactly to `codex`" in prompt
 
 
 def test_planning_critic_rejects_authority_fields_and_parent_mismatch():

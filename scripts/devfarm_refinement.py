@@ -400,7 +400,27 @@ def build_concrete_failure_spec(
     )
     preserve = ("task objective", "supplied file scope")
     forbidden = ("unrelated files", "new output fields")
-    if (
+    if "unsupported fields" in normalized or "additional field" in normalized:
+        spec = ConcreteFailureSpec(
+            failure_class="FORMAT_PATCH",
+            stage="worker_output_validation",
+            location="worker_output",
+            observed="output contains fields outside the minimal Worker contract",
+            expected="only file_replacements and optional notes",
+            problem="the minimal Worker output contains unsupported fields",
+            required_correction=(
+                "Return exactly one JSON object with file_replacements and, optionally, notes. "
+                "Remove every other top-level field, including output_contract."
+            ),
+            must_preserve=preserve,
+            forbidden_changes=("adding metadata fields", "changing file scope"),
+            acceptance_checks=(
+                "top-level keys are file_replacements and optional notes",
+                "file_replacements contains only supplied outbound paths",
+            ),
+            validator_refs=(validator_ref,),
+        )
+    elif (
         "worker response json is invalid" in normalized
         or "invalid json" in normalized
         or "did not contain a json object" in normalized

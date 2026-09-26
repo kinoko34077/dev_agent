@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from scripts.devfarm import write_manifest
 from scripts.devfarm_orchestrator import (
     DevFarmOrchestrator,
@@ -10,6 +12,7 @@ from scripts.devfarm_orchestrator import (
 )
 from scripts.devfarm_production_composition import (
     Phase8ProductionComposition,
+    ProductionCompositionError,
     Phase8ProductionSubmission,
 )
 from src.dev_agent.domain.protocol import Task, TaskStatus, TaskType
@@ -24,6 +27,41 @@ from tests.v2.test_devfarm_commander import _WorkerProvider, _patch, _repo
 
 def test_phase8_submission_boundary_is_exported_for_one_bounded_root():
     assert Phase8ProductionSubmission is not None
+
+
+def test_phase8_shape_preflight_rejects_dependent_worker_before_handoff():
+    proposal = RootPlanningProposal(
+        parent_task_id="root",
+        proposal_id="phase8-shape-preflight",
+        rationale="bounded phase 8 shape",
+        children=(
+            ChildTaskProposal(
+                child_key="worker-a",
+                objective="implement A",
+                task_type=TaskType.WORKER,
+            ),
+            ChildTaskProposal(
+                child_key="worker-b",
+                objective="implement B",
+                task_type=TaskType.WORKER,
+                dependencies=("worker-a",),
+            ),
+            ChildTaskProposal(
+                child_key="continuation",
+                objective="continue after integration",
+                task_type=TaskType.DETERMINISTIC,
+                suggested_owner="codex",
+                dependencies=("worker-a", "worker-b"),
+                dependency_types={
+                    "worker-a": PlannerDependencyType.CODE_INTEGRATED,
+                    "worker-b": PlannerDependencyType.CODE_INTEGRATED,
+                },
+            ),
+        ),
+    )
+
+    with pytest.raises(ProductionCompositionError, match="independent"):
+        Phase8ProductionSubmission.validate_phase8_root_shape(proposal)
 
 
 def test_phase8_public_driver_only_submits_and_observes(tmp_path: Path):

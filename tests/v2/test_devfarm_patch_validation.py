@@ -529,6 +529,38 @@ def test_worker_line_array_replacement_canonicalizes_terminal_blank_line(tmp_pat
     assert verified["worker_metrics"]["result_accepted"] is True
 
 
+def test_worker_line_array_replacement_splits_embedded_newlines_deterministically(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": True,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": "",
+        "file_replacements": {
+            "tests/v2/test_target.py": [
+                "def test_target():\n    assert True",
+                "    return None\n",
+            ]
+        },
+        "notes": "line-array replacement with embedded line separators",
+    }
+
+    proposed = run_worker(root, manifest_path, provider=_WorkerProvider(output))
+
+    assert proposed["status"] == "completed"
+    assert proposed["worker_metrics"]["canonicalization"]["rules"] == [
+        "line_array_embedded_newline_split"
+    ]
+    verified = _trusted_apply(root, manifest_path)
+
+    assert verified["status"] == "completed"
+    assert verified["tests_passed"] is True
+    assert verified["worker_metrics"]["result_accepted"] is True
+
+
 def test_worker_rejects_file_replacement_outside_outbound_scope(tmp_path):
     root, manifest_path = _workspace(tmp_path)
     output = {
