@@ -151,6 +151,36 @@ def test_phase8_submission_keeps_planner_provider_inventory_for_failure_cleanup(
     assert submission.planner_providers == {"planner": planner}
 
 
+def test_phase8_submission_does_not_mask_cleanup_boundary_failure(monkeypatch):
+    submission = Phase8ProductionSubmission(
+        operation_config=object(),
+        repository=".",
+        planner=lambda _root: None,
+        task_specs=lambda _root, _proposal: {},
+        providers=lambda _bindings: {},
+        orchestrator=object(),
+        review_proposal=lambda _packet: {},
+        final_review_decision=lambda _packet, _proposal: {},
+        target_checkout=".",
+    )
+
+    monkeypatch.setattr(
+        submission,
+        "_submit_without_cleanup",
+        lambda _objective, **_kwargs: {"execution": {}},
+    )
+
+    def fail_cleanup(*_provider_maps):
+        raise RuntimeError("synthetic cleanup boundary failure")
+
+    monkeypatch.setattr(submission, "_unload_local_provider_models", fail_cleanup)
+
+    result = submission.submit("bounded cleanup projection")
+
+    assert result["execution"]["local_model_cleanup_errors"] == ["unknown:cleanup_failure"]
+    assert result["execution"]["local_model_unloaded_models"] == []
+
+
 def test_phase8_submission_cleans_up_local_models_when_execution_fails(tmp_path: Path, monkeypatch):
     repository, targets, _revision = _repo(tmp_path)
     config = OperationConfig(
