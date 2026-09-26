@@ -1,0 +1,32 @@
+{
+  "evidence_id": "phase8-state-evidence-hygiene-20260926",
+  "observed_at": "2026-09-26",
+  "accepted_base": "37b73a68890b528c0f2017a907b92c499baaa47c",
+  "scope": "Issue #10 current-state projection and stale Phase 8 blocker prose synchronization.",
+  "changes": [
+    "Added a compact authoritative handoff projection to docs/CURRENT_STATE.md.",
+    "Marked the retained chronology as historical detail rather than current authority.",
+    "Added an archive index that points to Git history, Issues/PRs, CI, and bounded Evidence.",
+    "Updated only the phase8_preparation.current_blocker prose in GATE_STATUS.json; machine status flags and Gate authority are unchanged.",
+    "Recorded the same handoff rule in the two roadmap documents."
+  ],
+  "verification": {
+    "gate_json_parse": "PASS",
+    "current_state_handoff": "PRESENT",
+    "history_pointer": "PRESENT",
+    "source_runtime": "UNCHANGED",
+    "authority": "UNCHANGED",
+    "formal_gate": {
+      "d9_dogfood": "VERIFIED",
+      "d9_production_deployment": "DEFERRED_NOT_READY",
+      "phase8_preparation": "PREPARATION_ONLY",
+      "phase8_live_activation": "NOT_VERIFIED"
+    }
+  },
+  "limitations": [
+    "This is documentation/status projection work; it does not create new live Provider or Discord evidence.",
+    "The accepted local L1 root remains non-Gate evidence and does not qualify Phase 8 LIVE_ACTIVATION.",
+    "Exact-head CI for the later docs slice is required at its release boundary."
+  ],
+  "secrets_included": false
+}

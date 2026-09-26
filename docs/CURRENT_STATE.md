@@ -1,6 +1,45 @@
 # Current State
 
-## Exact current baseline
+## Current handoff projection — Issue #10
+
+This compact projection is the current operational handoff. The detailed
+chronology below is retained for traceability and must not be read as a second
+Gate authority; durable historical evidence remains in Issues, PRs, CI, and
+`spec/v2/evidence/`.
+
+| Field | Current fact |
+| --- | --- |
+| Accepted branch | `v2/bootstrap` |
+| Accepted remote head at last audit | `37b73a68890b528c0f2017a907b92c499baaa47c` (PR #4 then PR #12 integrated) |
+| Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight, local L1 evidence, and failure-safe lifecycle cleanup |
+| Formal Gate | `D9_DOGFOOD=VERIFIED`; `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`; `PHASE8_PREPARATION=PREPARATION_ONLY`; `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` |
+| Current source of truth | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json), exact-head CI, owning Issues/PRs, and bounded Evidence files |
+
+### Verified now
+
+- Deterministic local composition reaches Planner validation, two non-overlapping Workers, independent Host Verification, proposal-only review, deterministic Integration, `CODE_INTEGRATED` release, and an existing RuntimeCoordinator continuation. Provider responses are fixtures, so this is non-Gate evidence.
+- A fresh qwen3.5:9b / Gemma4:12b local L1 root completed the multi-role chain with terminal continuation and Codex direct implementation `0`; this is non-Gate evidence.
+- Worker preflight and failure-safe local model cleanup are integrated. Cleanup failures remain bounded diagnostics and cannot mask the result or original exception.
+- Discord remains a thin Core adapter. Local composition is verified; real-client typing, active NOTE/history/WAIT, CHAT/follow-up, HumanRequest/Approval, restart/offline, and Thread E2E remain unverified.
+
+### Active blockers
+
+1. Formal Phase 8 still requires a current generation-ready qualified Provider route, real Provider multi-role evidence, independent Host Verification/deterministic Integration, and exact-head CI for that benchmark revision.
+2. The current remote admission snapshot has no runtime-eligible generation route. Discovery/free-tier/model-list evidence is not generation admission; prior UNKNOWN/reconciliation/provider failures must not be replayed.
+3. Windows shared-worktree `WinError 5` during ordinary pycache writes is a local ACL/tooling boundary; verification uses a temporary pycache prefix and does not treat it as a runtime or Provider failure.
+
+### Deferred and next action
+
+- D9 Production Deployment (OS Guardian, Task Scheduler, reboot/deployed recovery) remains Human-deferred. R10/Stage 6/Stage 7/Stage 8 remain behind Phase 8 activation.
+- Use Issue #11 only for a fresh R9 root after materially new generation-admission evidence or a materially changed local premise. Run the complete single-root chain and exact-head CI; do not blind-retry or replay UNKNOWN effects.
+- The chronology-heavy sections below are historical detail. The pre-compaction handoff is indexed at [`docs/archive/current-state/2026-09-26-pre-compaction.md`](archive/current-state/2026-09-26-pre-compaction.md).
+
+## Historical detail retained from the pre-compaction snapshot
+
+The following section is retained for traceability only. Its branch/head values
+describe the pre-compaction snapshot, not the current accepted `v2/bootstrap`
+head above. Use the handoff projection and canonical Issue/PR/Evidence records
+for present state.
 
 | Field | Value |
 | --- | --- |
