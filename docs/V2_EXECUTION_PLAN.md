@@ -2,6 +2,29 @@
 
 この文書は現在の大きな順序だけを示すMain Roadmapである。詳細なGate、依存関係、完了条件は [`V2_DETAILED_ROADMAP.md`](V2_DETAILED_ROADMAP.md) を正本とする。要求は`docs/requirements/**`、decision rationaleは`spec/v2/adr/**`、観測証拠は`spec/v2/evidence/**`、Gate statusは`spec/v2/GATE_STATUS.json`を参照する。
 
+2026-09-26 Phase 8 production composition checkpoint: `f47d382` now
+composes one fresh Operation root through the existing Planner validation,
+DevelopmentPlanningBridge, Commander/Supervisor, single-owner handoff,
+Host Verification, separate Reviewer proposal/final decision, deterministic
+integration, `CODE_INTEGRATED` continuation release, and one existing
+RuntimeCoordinator cycle. The root is parked before continuation execution,
+the root queue item is never claimed, the continuation reaches `COMPLETED`,
+and the root closes terminally. The public driver is still limited to
+submit/observe; this is one bounded cycle, not a scheduler. This is
+deterministic local non-Gate evidence with fixture Provider responses;
+remote generation admission, Discord live E2E, and `PHASE8 LIVE_ACTIVATION`
+remain unchanged. Evidence:
+[`phase8-production-composition-terminal-20260926.json`](../spec/v2/evidence/phase8-production-composition-terminal-20260926.json).
+
+2026-09-26 read-only model evidence refresh: approved Host-boundary discovery
+returned 1,357 candidate rows from 13 bindings, with one bounded Groq
+`HTTPError`; the restricted comparison returned only 8 Ollama rows and
+bounded `URLError` observations. The candidate was not merged into canonical
+evidence. Existing admission remains 32 static-eligible, 5 runtime-unknown,
+and 0 runtime-eligible; no generation or UNKNOWN replay was attempted. Do not
+start remote R9 until a fresh admitted generation route exists. Evidence:
+[`model-catalog-r9-refresh-20260926.json`](../spec/v2/evidence/model-catalog-r9-refresh-20260926.json).
+
 ## Current phase
 
 Phase 7後半の安全な拡張と開発運用移管。既存のKernel、Resource/Provider、Task/Scheduler、Recovery、DevFarm、Supervisor、Host Verification、Review/Integration境界は維持する。G6O1は未検証の外部Gateだが、Human決定により現行roadmapでは非ブロッキング凍結中である。

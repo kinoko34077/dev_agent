@@ -1,0 +1,55 @@
+{
+  "evidence_id": "model-catalog-r9-refresh-20260926",
+  "observed_at": "2026-09-26",
+  "source_revision": "2a5e6caea899c09b5042865076509a8aabeb6a5e",
+  "scope": "read-only Provider model discovery and existing admission diagnostic",
+  "host_discovery": {
+    "execution_boundary": "host_process",
+    "execution_boundary_source": "operator_asserted",
+    "candidate_entry_count": 1357,
+    "refreshed_binding_count": 13,
+    "failure_count": 1,
+    "failure_projection": [
+      {
+        "provider_id": "groq",
+        "provider_binding_id": "groq:account",
+        "category": "HTTPError",
+        "transport_stage": "unknown"
+      }
+    ],
+    "observed_provider_ids": [
+      "cloudflare",
+      "gemini",
+      "mistral",
+      "ollama",
+      "ollama_cloud",
+      "openrouter",
+      "sambanova",
+      "vercel"
+    ]
+  },
+  "restricted_discovery_comparison": {
+    "candidate_entry_count": 8,
+    "successful_provider_ids": ["ollama"],
+    "failure_count": 13,
+    "failure_category": "URLError",
+    "transport_stage": "unknown",
+    "interpretation": "execution-boundary observation only"
+  },
+  "canonical_admission_snapshot": {
+    "row_count": 232,
+    "static_eligible_count": 32,
+    "runtime_unknown_count": 5,
+    "runtime_eligible_count": 0,
+    "provider_counts": {"gemini": 232},
+    "candidate_not_merged": true
+  },
+  "generation": {
+    "attempted": false,
+    "unknown_replayed": false,
+    "paid_route_added": false,
+    "qualification_bypassed": false
+  },
+  "conclusion": "Discovery reachability improved the catalog observation, but no currently admitted remote generation route was established. Keep R9 remote execution blocked and wait for fresh qualification/quota/health/generation evidence.",
+  "secrets_included": false
+}

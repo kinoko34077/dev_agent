@@ -115,6 +115,8 @@ class DevelopmentPlanningBridge:
             dependencies = [task_ids[item] for item in child.dependencies]
             task: dict[str, Any] = {
                 "task_id": task_id,
+                "planning_proposal_id": proposal.proposal_id,
+                "planner_child_key": child.child_key,
                 "owner": owner,
                 "task_type": child.task_type.value,
                 "risk": child.risk.value,

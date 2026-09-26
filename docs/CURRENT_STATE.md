@@ -4,18 +4,18 @@
 
 | Field | Value |
 | --- | --- |
-| Branch | `v2/bootstrap` |
-| Remote HEAD before this implementation slice | `d89a012261abd192d42c6d9d746e302431b212fc` |
-| Latest implementation remote HEAD before this docs-only sync | `b8717ca24f5ffbde8b13aa3bb0b2bec0eba7e925` (`fix: qualify discovery transport provenance`) |
-| Latest committed implementation baseline | `b8717ca` (`fix: qualify discovery transport provenance`) |
-| Current local implementation slice | Pushed; exact-head CI green; this commit synchronizes the bounded Provider diagnostic Evidence and Current State |
-| Latest evidence baseline | `external-provider-access-diagnostic-20260924.json` |
-| Implementation/evidence baseline | `b8717ca` preserves bounded discovery transport taxonomy without overclaiming transport stage and records operator-asserted execution-boundary provenance; Provider routing/admission/retry/UNKNOWN/security boundaries remain unchanged. |
+| Branch | `phase8/production-composition-e2e` (draft PR #4; target `v2/bootstrap`) |
+| Remote HEAD before this implementation slice | `cb018b91c281aabfa841ae72291d7376ccab7d50` (`docs: record current model evidence refresh`) |
+| Latest implementation branch HEAD | `f47d3828fbe9f0126b0d9e3db9ce7b8e9c4df0f8` (`feat: execute phase8 dependent continuation`) |
+| Latest committed implementation baseline | `f47d382` (`feat: execute phase8 dependent continuation`) |
+| Current local implementation slice | One bounded production submission now parks the fresh root through the existing Operation boundary, executes the released `CODE_INTEGRATED` continuation through one existing RuntimeCoordinator cycle, and closes the root terminally; no second scheduler or queue was added |
+| Latest evidence baseline | `model-catalog-r9-refresh-20260926.json` and `phase8-production-composition-terminal-20260926.json` |
+| Implementation/evidence baseline | `f47d382` completes the deterministic local composition chain through dependent continuation and root terminal state. Provider responses remain fixture-only and formal Gate status is unchanged. |
 | Worktree | clean after this docs/evidence synchronization |
-| Local regression | `26 passed` (`python -m pytest tests/v2/test_model_catalog_admission.py -q`); exact-head CI covers the full `tests/v2` suite |
+| Local regression | `53 passed` in the affected Phase 8/runtime slice; full `tests/v2`: `1672 passed, 1 skipped` |
 | Architecture | `ARCHITECTURE_PASS` |
 | Compile | `python -m compileall -q src recovery scripts` PASS |
-| Exact-head CI | `b8717ca`: v2-core kernel 3.10/3.11 and provider-smoke all PASS. |
+| Exact-head CI | `f47d382`: v2-core kernel 3.10/3.11 and provider-smoke all PASS. |
 | Gate source | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json) and exact-head external CI; this document does not promote a Gate |
 
 The pre-consolidation and earlier milestone snapshots remain in
@@ -42,6 +42,7 @@ state. Detailed requirements and decisions stay in their owning documents.
 - Model inventory operation: the read-only catalog refresh recorded 1,297 identities with bounded provider metadata, while `diagnose_model_candidates.py --all --summary --json` reports admission reasons without exposing secrets or raw provider responses. Discovery remains observation-only; exact downstream admission is unchanged. See [`model-catalog-refresh-20260915.json`](../spec/v2/evidence/model-catalog-refresh-20260915.json).
 - 2026-09-24 read-only model evidence refresh: the explicit discovery bindings produced a create-only candidate with 8 local Ollama entries, including `qwen3.5:9b`, `gemma4:12b`, and `qwen3.5:4b`. Remote discovery bindings returned bounded `URLError` observations in this environment. The candidate was not merged into canonical evidence and grants no routing admission. The current diagnostic projection remains 232 catalog rows, 32 static-eligible, 5 runtime-unknown, and 0 final runtime-eligible Gemini rows. Evidence: [`model-catalog-r9-refresh-20260924.json`](../spec/v2/evidence/model-catalog-r9-refresh-20260924.json).
 - 2026-09-24 external Provider access diagnostic: bounded read-only model-list calls to Gemini and Cloudflare from the operator-identified restricted execution boundary stopped before a Provider response as `local_network_policy_denied` (`PermissionError` / WinError 10013, transport stage `unknown`). The discovery caller records the boundary as `operator_asserted`; it does not claim OS-level provenance. The same calls from the approved Host network boundary returned 61 Gemini and 65 Cloudflare model entries. This separates local socket policy from earlier Host-process `provider_unavailable` generation observations; discovery success does not grant runtime qualification, and no inference or UNKNOWN replay was performed. Evidence: [`external-provider-access-diagnostic-20260924.json`](../spec/v2/evidence/external-provider-access-diagnostic-20260924.json).
+- 2026-09-26 read-only model evidence refresh: the operator-asserted approved Host boundary returned 1,357 candidate model rows from 13 bindings, with one bounded Groq `HTTPError`; the restricted comparison returned only 8 Ollama rows and 13 bounded `URLError` observations. The candidate was not merged into canonical evidence. Existing admission remains 232 Gemini rows, 32 static-eligible, 5 runtime-unknown, and 0 runtime-eligible; no generation request or UNKNOWN replay was attempted. Evidence: [`model-catalog-r9-refresh-20260926.json`](../spec/v2/evidence/model-catalog-r9-refresh-20260926.json).
 - Model discovery diagnostics now accept an explicit operator-asserted execution-boundary label and project only the existing bounded transport taxonomy, without forcing an observed transport stage when the adapter did not provide one. This improves classification of `10013` without changing network policy, routing, retry, failover, reconciliation, or admission authority.
 - Latest read-only candidate diagnostic: 232 bounded Gemini rows, 32 static-eligible rows, 5 runtime-unknown rows, and 0 final runtime-eligible rows. The zero is a runtime-admission result for this snapshot, not an assertion that the model catalog is empty; no Provider request or UNKNOWN replay was performed. See [`model-candidate-diagnostic-20260923.json`](../spec/v2/evidence/model-candidate-diagnostic-20260923.json).
 - Model-candidate diagnostic projection: the 2026-09-17 snapshot (1,289 stored rows) reported `static_eligible_count=127`, `runtime_unknown_count=7`, and final runtime `eligible_count=0`. The CLI exposes separate static-result and runtime-result counters, so runtime quota/health uncertainty is not misread as an empty catalog. The 2026-09-22 refresh is recorded separately below; neither observation grants routing admission. See [`model-candidate-runtime-projection-20260917.json`](../spec/v2/evidence/model-candidate-runtime-projection-20260917.json).

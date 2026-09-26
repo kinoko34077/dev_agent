@@ -445,6 +445,21 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
             if node_type not in {"task", "step"}:
                 raise DevFarmError("node_type must be task or step")
             task["node_type"] = node_type
+        planner_identity = (raw.get("planning_proposal_id"), raw.get("planner_child_key"))
+        if (
+            any(value is not None for value in planner_identity)
+            and any(value is None for value in planner_identity)
+        ):
+            raise DevFarmError(
+                "planning_proposal_id and planner_child_key must be provided together"
+            )
+        if all(value is not None for value in planner_identity):
+            task["planning_proposal_id"] = text(
+                planner_identity[0], "planning_proposal_id", max_length=256
+            )
+            task["planner_child_key"] = text(
+                planner_identity[1], "planner_child_key", max_length=256
+            )
         assignment = raw.get("assignment", {})
         if assignment is not None:
             if not isinstance(assignment, Mapping):

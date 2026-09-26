@@ -20,6 +20,18 @@ from .scheduler.queue import DurableQueue
 from .state.sqlite_store import SQLiteStateStore
 
 
+_EXECUTION_OWNERS = frozenset({"operation", "devfarm"})
+
+
+def _normalize_execution_owner(value: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise PlanningValidationError("execution owner must be a non-empty string")
+    normalized = value.strip().lower()
+    if normalized not in _EXECUTION_OWNERS:
+        raise PlanningValidationError("unsupported execution owner")
+    return normalized
+
+
 @dataclass(frozen=True)
 class PlanningContext:
     """One caller-scoped view of durable planning state."""
@@ -77,6 +89,7 @@ def apply_proposal(
     *,
     priority: int = 0,
     context: PlanningContext,
+    execution_owner: str = "operation",
 ) -> tuple[Task, ...]:
     """Persist a finite, host-validated decomposition using existing queue/state.
 
@@ -86,7 +99,16 @@ def apply_proposal(
     order.
     """
 
+    owner = _normalize_execution_owner(execution_owner)
     children = validate_proposal(proposal, context=context)
+    expected_owner_by_key = {
+        child.child_key: (
+            "devfarm"
+            if owner == "devfarm" and not child.dependencies
+            else "operation"
+        )
+        for child in children
+    }
     parent = context.parent
     existing = context.payloads
 
@@ -103,9 +125,13 @@ def apply_proposal(
         child_key = meta.get("planner_child_key")
         if isinstance(child_key, str) and child_key.strip():
             try:
-                existing_by_key[child_key] = Task.from_persisted_dict(payload)
+                task = Task.from_persisted_dict(payload)
             except Exception:
-                pass
+                continue
+            existing_owner = task.metadata.get("execution_owner", "operation")
+            if existing_owner != expected_owner_by_key.get(child_key, "operation"):
+                raise PlanningValidationError("execution owner mismatch for existing child")
+            existing_by_key[child_key] = task
 
     result: list[Task] = []
     to_persist: list[Task] = []
@@ -118,11 +144,20 @@ def apply_proposal(
 
         # Build with deterministic task_id so a re-run produces the same UUID.
         dependencies = list(child.dependencies)
-        status = TaskStatus.WAITING_DEPENDENCY if dependencies else TaskStatus.QUEUED
+        child_owner = expected_owner_by_key[child.child_key]
+        status = TaskStatus.WAITING_DEPENDENCY if dependencies or child_owner == "devfarm" else TaskStatus.QUEUED
         metadata: dict[str, Any] = {
             "planning_proposal_id": proposal.proposal_id,
             "planner_child_key": child.child_key,
         }
+        if child_owner == "devfarm":
+            metadata.update(
+                {
+                    "execution_owner": "devfarm",
+                    "handoff_state": "HANDOFF_PENDING",
+                    "wait_reason": "devfarm_handoff",
+                }
+            )
         if dependencies:
             metadata["wait_reason"] = "planner_dependency"
             metadata["planner_dependency_types"] = {
@@ -192,7 +227,11 @@ def release_dependencies(
         child_key = metadata.get("planner_child_key")
         if isinstance(child_key, str) and child_key.strip():
             by_proposal.setdefault(current_proposal, {})[child_key] = task
-        if task.status is TaskStatus.WAITING_DEPENDENCY and metadata.get("wait_reason") == "planner_dependency":
+        if (
+            metadata.get("execution_owner") != "devfarm"
+            and task.status is TaskStatus.WAITING_DEPENDENCY
+            and metadata.get("wait_reason") == "planner_dependency"
+        ):
             waiting.append(task)
 
     changed: list[Task] = []
