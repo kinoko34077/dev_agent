@@ -434,7 +434,13 @@ def build_concrete_failure_spec(
             observed="invalid JSON object",
             expected="one JSON object matching the Host Worker response schema",
             problem="the Worker response could not be decoded as one JSON object",
-            required_correction="Return exactly one valid JSON object with no Markdown or prose. Escape every quote, backslash, and newline inside JSON strings; do not emit trailing commas or raw line breaks inside strings.",
+            required_correction=(
+                "Return exactly one valid JSON object with no Markdown, prose, or second JSON object. "
+                "The response must begin with { and end with } exactly once. Escape every quote, "
+                "backslash, and newline inside JSON strings; do not emit trailing commas or raw line "
+                "breaks inside strings. Use only this shape: "
+                "{\"file_replacements\":{\"<exact supplied path>\":[\"<complete source line>\"]}}."
+            ),
             must_preserve=preserve,
             forbidden_changes=("Markdown fences", "prose outside the JSON object", "raw newlines inside JSON strings", "unrelated files"),
             acceptance_checks=("response parses as one JSON object", "response satisfies the Host Worker schema", "file_replacements contains only supplied paths"),
