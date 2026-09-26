@@ -28,12 +28,15 @@ from tests.v2.test_devfarm_commander import _WorkerProvider, _patch, _repo
 
 
 class _LifecycleProbe:
-    def __init__(self, unloaded=()):
+    def __init__(self, unloaded=(), error=None):
         self.unloaded = tuple(unloaded)
+        self.error = error
         self.calls = 0
 
     def unload_idle(self, *, deadline_seconds=30.0):
         self.calls += 1
+        if self.error is not None:
+            raise self.error
         return self.unloaded
 
 
@@ -130,6 +133,24 @@ def test_phase8_submission_keeps_reviewer_provider_inventory_for_terminal_cleanu
     assert submission.reviewer_providers == {"reviewer": reviewer}
 
 
+def test_phase8_submission_keeps_planner_provider_inventory_for_failure_cleanup():
+    planner = object()
+    submission = Phase8ProductionSubmission(
+        operation_config=object(),
+        repository=".",
+        planner=lambda _root: None,
+        task_specs=lambda _root, _proposal: {},
+        providers=lambda _bindings: {},
+        orchestrator=object(),
+        review_proposal=lambda _packet: {},
+        final_review_decision=lambda _packet, _proposal: {},
+        target_checkout=".",
+        planner_providers={"planner": planner},
+    )
+
+    assert submission.planner_providers == {"planner": planner}
+
+
 def test_phase8_submission_cleans_up_local_models_when_execution_fails(tmp_path: Path, monkeypatch):
     repository, targets, _revision = _repo(tmp_path)
     config = OperationConfig(
@@ -203,10 +224,13 @@ def test_phase8_submission_cleans_up_local_models_when_execution_fails(tmp_path:
             },
         }
 
-    manager = _LifecycleProbe(unloaded=("qwen3.5:9b",))
+    planner_manager = _LifecycleProbe(unloaded=("qwen3.5:9b",))
+    manager = _LifecycleProbe(unloaded=("qwen3.5:9b",), error=RuntimeError("cleanup failed"))
 
     def providers(bindings):
         return {task_id: _LocalProviderProbe(manager) for task_id in bindings.values()}
+
+    planner_provider = _LocalProviderProbe(planner_manager)
 
     def fail_before_terminal_cleanup(_self):
         raise RuntimeError("synthetic production execution failure")
@@ -230,6 +254,7 @@ def test_phase8_submission_cleans_up_local_models_when_execution_fails(tmp_path:
         review_proposal=lambda _packet: {"decision": "APPROVE_INTEGRATION"},
         final_review_decision=lambda _packet, proposal: proposal,
         target_checkout=repository,
+        planner_providers={"planner": planner_provider},
         local_trial=True,
     )
 
@@ -237,6 +262,7 @@ def test_phase8_submission_cleans_up_local_models_when_execution_fails(tmp_path:
         submission.submit("run one failing production root")
 
     assert manager.calls == 1
+    assert planner_manager.calls == 1
 
 
 def test_phase8_shape_preflight_rejects_dependent_worker_before_handoff():

@@ -138,6 +138,15 @@ def _cleanup_projection_fields(value: Any) -> tuple[list[str], list[str]]:
     return unloaded, errors
 
 
+def _safe_cleanup_projection_fields(value: Any) -> tuple[list[str], list[str]]:
+    """Keep malformed cleanup diagnostics from changing execution semantics."""
+
+    try:
+        return _cleanup_projection_fields(value)
+    except (ProductionCompositionError, TypeError, ValueError):
+        return [], ["unknown:cleanup_projection_failure"]
+
+
 class Phase8ProductionComposition:
     """Expose only the production submit/observe boundary.
 
@@ -382,16 +391,22 @@ class Phase8ProductionSubmission:
                 **kwargs,
             )
         finally:
-            local_model_cleanup = self._unload_local_provider_models(
-                *provider_maps,
-                self.reviewer_providers,
-            )
+            try:
+                local_model_cleanup = self._unload_local_provider_models(
+                    *provider_maps,
+                    self.reviewer_providers,
+                )
+            except Exception:  # cleanup is diagnostic and must never mask execution
+                local_model_cleanup = {
+                    "unloaded_models": [],
+                    "errors": [{"model": "unknown", "category": "cleanup_failure"}],
+                }
             if result is not None:
                 execution = result.get("execution")
                 if not isinstance(execution, dict):
                     raise ProductionCompositionError("Phase 8 execution result is not a mapping")
-                cleanup_models, cleanup_errors = _cleanup_projection_fields(local_model_cleanup)
-                reviewer_models, reviewer_errors = _cleanup_projection_fields(
+                cleanup_models, cleanup_errors = _safe_cleanup_projection_fields(local_model_cleanup)
+                reviewer_models, reviewer_errors = _safe_cleanup_projection_fields(
                     execution.pop("reviewer_model_switch", None)
                 )
                 execution.update(
