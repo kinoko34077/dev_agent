@@ -250,6 +250,16 @@ class ModelCatalog:
             if entry.is_current(now=now)
         )
 
+    def all_entries(self) -> tuple[ModelCatalogEntry, ...]:
+        """Return stored entries, including expired observations.
+
+        Diagnostics use this read-only view to distinguish stale evidence from
+        a binding that was never represented.  Runtime routing continues to
+        use :meth:`entries`, which remains current-only.
+        """
+
+        return tuple(sorted(self._entries_by_identity.values(), key=lambda item: item.identity))
+
     def to_document(self) -> dict[str, Any]:
         return {
             "schema_version": 1,
@@ -331,3 +341,4 @@ class ModelAliasCatalog:
 
 
 __all__ = ["ModelAlias", "ModelAliasCatalog", "ModelCatalog", "ModelCatalogEntry", "ModelCatalogError"]
+
