@@ -1,3 +1,10 @@
+MethodException: 
+Line |
+   2 |  … nostics.py"); $c=$c.Replace(([char]13)+([char]10),([char]10)); [Conso …
+     |                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     | Cannot convert argument "oldChar", with value: "
+", for "Replace" to type "System.Char": "Cannot convert value "
+" to type "System.Char". Error: "String must be exactly one character long.""
 from __future__ import annotations
 
 import pytest
@@ -181,4 +188,3 @@ def test_main_tabular_output_exposes_runtime_and_gate_reason(model_evidence, cap
     ]
     assert len(row) == len(header)
     assert row[9] in {"runtime_not_probed", "runtime_unknown", "runtime_unavailable", "discovery_blocked", "benchmark_blocked", "capability_blocked", "billing_missing", "qualification_missing"}
-
