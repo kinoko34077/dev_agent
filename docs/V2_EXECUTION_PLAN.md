@@ -67,19 +67,23 @@ unchanged. Affected DevFarm coverage is `194 passed`, full `tests/v2` is
 This is local non-Gate evidence; do not treat it as a new Phase 8 live root.
 Evidence: [`devfarm-worker-contract-preflight-20260926.json`](../spec/v2/evidence/devfarm-worker-contract-preflight-20260926.json).
 
-2026-09-27 Issue #15 admission synchronization: PR #16 is integrated at
-`81e47cea6500d9bdd8ad0cdd717f9e734d5e8a3a`. Static candidate diagnostics now
-separate `RUNTIME_NOT_PROBED`, `RUNTIME_UNAVAILABLE`, `RUNTIME_UNKNOWN`, and
-`RUNTIME_ELIGIBLE`, and the exact-route evaluator delegates to the existing
-Resource/health/quota router without generation or state mutation. A read-only
-snapshot of the current local ResourceLedger found four exact static-admitted
-Gemini candidates but no matching Gemini resource/quota state, so all four are
-`RUNTIME_UNAVAILABLE` in this local snapshot. This is not a Provider generation
-result and does not establish that all configured routes are unusable. Evidence:
-[`model-runtime-admission-20260927.json`](../spec/v2/evidence/model-runtime-admission-20260927.json).
-Do not start R9 until a current actual runtime snapshot produces an exact
-free/no-charge `RUNTIME_ELIGIBLE` route and a separate fresh generation-readiness
-observation.
+2026-09-27 Issue #15 admission synchronization: PR #16 implementation is
+integrated at `81e47cea6500d9bdd8ad0cdd717f9e734d5e8a3a`; PR #17
+documentation/evidence synchronization is at `59b2c7413db3f00a0fa6c8a08a08721bd3f83d22`.
+Runtime admission is exact-identity and read-only. The current configured-pool
+composition contains 8 resources but 0 quota domains; among the four exact
+static candidates, only free-3/`gemini-3.5-flash-lite` reaches
+`RUNTIME_UNKNOWN` (exact resource present, quota observation absent), while
+the 3.6/3.8 identities are `RUNTIME_UNAVAILABLE` because their exact model
+resources are not configured. No route is `RUNTIME_ELIGIBLE`; no generation
+readiness is established. Discovery/model-list success is not runtime
+admission or generation readiness. Do not start R9 from this snapshot; first
+obtain an existing runtime-owned quota/health observation, then establish
+separate fresh generation readiness for an exact `RUNTIME_ELIGIBLE` route. If
+selecting a 3.8 identity, configure and qualify that exact binding separately.
+Evidence:
+[`model-runtime-admission-configured-pool-20260927.json`](../spec/v2/evidence/model-runtime-admission-configured-pool-20260927.json).
+Formal Gate is unchanged.
 
 ## Current phase
 
