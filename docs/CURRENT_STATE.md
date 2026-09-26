@@ -19,7 +19,7 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 
 - PR #16 is integrated at `81e47cea6500d9bdd8ad0cdd717f9e734d5e8a3a`; PR #17 synchronized the repository evidence/docs at `59b2c7413db3f00a0fa6c8a08a08721bd3f83d22`. The PR-head v2-core and provider-smoke checks were green.
 - Static diagnostics distinguish `RUNTIME_NOT_PROBED`, `RUNTIME_UNAVAILABLE`, `RUNTIME_UNKNOWN`, and `RUNTIME_ELIGIBLE`; the evaluator is read-only and delegates to existing `RoutingSnapshot` / `ResourceRouter.choose`.
-- A more informative read-only snapshot of the existing configured pool was composed in an isolated temporary state through `OperationService.open` with configured-pool opt-in. It contained 8 configured bindings/resources (Cloudflare, four Gemini lanes, two Ollama locals, and OpenRouter) but 0 quota domains and no generation call.
+- A more informative read-only snapshot of the existing configured pool was composed in an isolated temporary state through `OperationService.open` with configured-pool opt-in. It contained 8 configured bindings/resources (Cloudflare, four Gemini lanes, two Ollama locals, and OpenRouter), 6 configured quota domains, and 0 quota observations; no generation call.
 - The four exact static/billing/qualification-admitted Gemini candidates evaluated as: `gemini:worker:free-3 / gemini-3.5-flash-lite = RUNTIME_UNKNOWN` because the exact resource exists without a current quota observation; the other three 3.6/3.8 identities = `RUNTIME_UNAVAILABLE` because those exact model resources are not present in the current configured pool composition. No candidate is `RUNTIME_ELIGIBLE`; generation readiness remains unestablished.
 - The earlier local ledger snapshot with one fake resource is retained as historical evidence and is superseded for current configured-pool interpretation by [`model-runtime-admission-configured-pool-20260927.json`](../spec/v2/evidence/model-runtime-admission-configured-pool-20260927.json). Neither snapshot proves all configured Gemini credentials/routes unusable, and neither is a generation result.
 ### Verified now
@@ -32,7 +32,7 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 ### Active blockers
 
 1. Formal Phase 8 still requires a current generation-ready qualified Provider route, real Provider multi-role evidence, independent Host Verification/deterministic Integration, and exact-head CI for that benchmark revision.
-2. Issue #15 is integrated, but the current runtime-owned local snapshot has no exact Gemini Resource/health/quota match: 4 exact static/billing/qualification-admitted candidates are `RUNTIME_UNAVAILABLE` in that snapshot, with 1 non-Gemini fake resource and 0 quota domains. This is not a generation result and does not prove all configured Provider routes unusable; discovery/model-list evidence is not generation admission.
+2. Issue #15 is integrated, but the current runtime-owned local snapshot has no exact Gemini Resource/health/quota match: 4 exact static/billing/qualification-admitted candidates are `RUNTIME_UNAVAILABLE` in that snapshot, with 1 non-Gemini fake resource and 0 quota observations in that historical fixture. This is not a generation result and does not prove all configured Provider routes unusable; discovery/model-list evidence is not generation admission.
 3. Windows shared-worktree `WinError 5` during ordinary pycache writes is a local ACL/tooling boundary; verification uses a temporary pycache prefix and does not treat it as a runtime or Provider failure.
 
 ### Deferred and next action
