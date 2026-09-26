@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "evidence_type": "runtime_admission_configured_pool_snapshot",
+  "recorded_at": "2026-09-26T18:37:24.197521+00:00",
+  "revision": "59b2c7413db3f00a0fa6c8a08a08721bd3f83d22",
+  "source": {
+    "authority": "OperationService.open + ResourceLedger + ResourceRouter (temporary isolated state)",
+    "configured_pool_opt_in": true,
+    "configured_binding_count": 8,
+    "resource_count": 8,
+    "quota_domain_count": 0,
+    "generation_attempted": false,
+    "network_called": false,
+    "state_mutated": false,
+    "unknown_or_reconciliation_replayed": false
+  },
+  "resource_families": [
+    "cloudflare",
+    "gemini:worker:free-2",
+    "gemini:worker:free-3",
+    "gemini:worker:free-4",
+    "gemini:worker:free-5",
+    "ollama:local:gemma4-12b",
+    "ollama:local:qwen3.5-9b",
+    "openrouter:free"
+  ],
+  "candidate_scope": {
+    "source": "canonical current model evidence, exact static/billing/qualification-admitted routes only",
+    "candidate_count": 4,
+    "identities": [
+      {
+        "provider_id": "gemini",
+        "provider_binding_id": "gemini:worker:free-3",
+        "model_id": "gemini-3.5-flash-lite"
+      },
+      {
+        "provider_id": "gemini",
+        "provider_binding_id": "gemini:worker:free-3",
+        "model_id": "gemini-3.6-flash"
+      },
+      {
+        "provider_id": "gemini",
+        "provider_binding_id": "gemini:worker:free-3",
+        "model_id": "gemini-3.8-flash"
+      },
+      {
+        "provider_id": "gemini",
+        "provider_binding_id": "gemini:worker:free-4",
+        "model_id": "gemini-3.8-flash"
+      }
+    ]
+  },
+  "runtime_snapshot": {
+    "resource_health": "degraded_on_fresh_composition_without_quota_observation",
+    "statuses": {
+      "RUNTIME_ELIGIBLE": 0,
+      "RUNTIME_UNAVAILABLE": 3,
+      "RUNTIME_UNKNOWN": 1,
+      "RUNTIME_NOT_PROBED": 0
+    },
+    "observations": [
+      {
+        "provider_id": "gemini",
+        "provider_binding_id": "gemini:worker:free-3",
+        "model_id": "gemini-3.5-flash-lite",
+        "status": "RUNTIME_UNKNOWN",
+        "reason": "exact configured resource exists, but no current quota observation exists"
+      },
+      {
+        "provider_id": "gemini",
+        "provider_binding_id": "gemini:worker:free-3",
+        "model_id": "gemini-3.6-flash",
+        "status": "RUNTIME_UNAVAILABLE",
+        "reason": "exact model resource is absent from the current configured pool composition"
+      },
+      {
+        "provider_id": "gemini",
+        "provider_binding_id": "gemini:worker:free-3",
+        "model_id": "gemini-3.8-flash",
+        "status": "RUNTIME_UNAVAILABLE",
+        "reason": "exact model resource is absent from the current configured pool composition"
+      },
+      {
+        "provider_id": "gemini",
+        "provider_binding_id": "gemini:worker:free-4",
+        "model_id": "gemini-3.8-flash",
+        "status": "RUNTIME_UNAVAILABLE",
+        "reason": "exact model resource is absent from the current configured pool composition"
+      }
+    ]
+  },
+  "interpretation": {
+    "generation_readiness": "NOT_ESTABLISHED",
+    "blocker": "The configured pool composes eight resources but records no quota domains or current quota observations; only the exact default free-3 model resource is present among the four candidate identities.",
+    "not_proven": "This does not prove that all configured Gemini credentials or Provider routes are unusable, and it is not a Provider generation result.",
+    "next_action": "Obtain a current quota/health observation through an existing read-only runtime authority if available. Do not call generation until an exact route is RUNTIME_ELIGIBLE. If a 3.8 candidate is selected, operator-configure that exact model binding and qualify it separately."
+  }
+}
