@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "evidence_type": "gemini_generation_readiness_observation",
+  "observed_at": "2026-09-26T18:50:50.962734+00:00",
+  "source_revision": "7a34aa3a41e77f40836651dd3543e4cb7bd68593",
+  "source": {
+    "authority": "existing scripts/qualify_free_provider.py and canonical Controller -> ProviderDispatcher -> ResourceControlPlane path",
+    "provider_id": "gemini",
+    "provider_binding_id": "gemini:worker:free-3",
+    "model_id": "gemini-3.5-flash-lite",
+    "trusted_billing_profile": "no_charge_catalog",
+    "cost_minor": 0,
+    "network_allowed": true,
+    "state_written_only_to_temporary_directory": true,
+    "repository_state_mutated": false,
+    "unknown_or_reconciliation_replayed": false
+  },
+  "bounded_result": {
+    "status": "completed",
+    "qualification_scope": "text_tool_roundtrip",
+    "model_calls": 2,
+    "tool_calls": 1,
+    "provider_audit_records": 2,
+    "thought_signatures_received": 2,
+    "thought_signatures_replayed": 1,
+    "quota_observation_present": false,
+    "quota_status": "unknown_not_reported"
+  },
+  "interpretation": {
+    "generation_readiness": "OBSERVED_FOR_BOUNDED_TEXT_TOOL_ROUNDTRIP",
+    "runtime_admission": "RUNTIME_UNKNOWN",
+    "reason_runtime_not_eligible": "The configured route still lacks a fresh numeric quota observation; no quota value was fabricated.",
+    "not_proven": "This does not establish full Planner/Worker/Reviewer role readiness, current free-quota remaining, or Phase 8 LIVE_ACTIVATION.",
+    "next_action": "Use an existing runtime-owned quota observation path if one becomes available. Otherwise keep this exact route at RUNTIME_UNKNOWN and do not start R9 from generation success alone."
+  }
+}
