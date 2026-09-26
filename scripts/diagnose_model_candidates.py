@@ -1,3 +1,10 @@
+MethodException: 
+Line |
+   2 |  … didates.py"); $c=$c.Replace(([char]13)+([char]10),([char]10)); [Conso …
+     |                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     | Cannot convert argument "oldChar", with value: "
+", for "Replace" to type "System.Char": "Cannot convert value "
+" to type "System.Char". Error: "String must be exactly one character long.""
 """Print bounded, non-secret reasons why discovered models are or are not usable."""
 
 from __future__ import annotations
@@ -302,4 +309,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
