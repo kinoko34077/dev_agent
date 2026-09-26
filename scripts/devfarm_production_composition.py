@@ -196,6 +196,7 @@ class Phase8ProductionSubmission:
         review_proposal: Callable[[Mapping[str, Any]], Mapping[str, Any]],
         final_review_decision: Callable[[Mapping[str, Any], Mapping[str, Any]], Mapping[str, Any]],
         target_checkout: str | Path,
+        planner_providers: Mapping[str, Any] | None = None,
         reviewer_providers: Mapping[str, Any] | None = None,
         target_ref: str = "HEAD",
         verification_trust_level: str = "TRUSTED_HOST_EXEC",
@@ -219,6 +220,9 @@ class Phase8ProductionSubmission:
         self.orchestrator = orchestrator
         self.review_proposal = review_proposal
         self.final_review_decision = final_review_decision
+        if planner_providers is not None and not isinstance(planner_providers, Mapping):
+            raise TypeError("planner_providers must be a mapping when provided")
+        self.planner_providers = dict(planner_providers or {})
         if reviewer_providers is not None and not isinstance(reviewer_providers, Mapping):
             raise TypeError("reviewer_providers must be a mapping when provided")
         self.reviewer_providers = dict(reviewer_providers or {})
@@ -360,7 +364,59 @@ class Phase8ProductionSubmission:
         }
 
     def submit(self, objective: str, **kwargs: Any) -> dict[str, Any]:
-        """Submit one fresh root and run one bounded existing execution pass."""
+        """Submit one root and unload local models on success or failure.
+
+        The execution body deliberately remains a single bounded pass.  The
+        wrapper owns only lifecycle cleanup so a Worker/Reviewer/Integration
+        exception cannot leave an idle local model resident until the daemon's
+        keep-alive expiry.  Cleanup is best-effort evidence and never replaces
+        the original execution error.
+        """
+
+        provider_maps: list[Mapping[str, Any] | None] = [self.planner_providers]
+        result: dict[str, Any] | None = None
+        try:
+            result = self._submit_without_cleanup(
+                objective,
+                provider_maps=provider_maps,
+                **kwargs,
+            )
+        finally:
+            local_model_cleanup = self._unload_local_provider_models(
+                *provider_maps,
+                self.reviewer_providers,
+            )
+            if result is not None:
+                execution = result.get("execution")
+                if not isinstance(execution, dict):
+                    raise ProductionCompositionError("Phase 8 execution result is not a mapping")
+                cleanup_models, cleanup_errors = _cleanup_projection_fields(local_model_cleanup)
+                reviewer_models, reviewer_errors = _cleanup_projection_fields(
+                    execution.pop("reviewer_model_switch", None)
+                )
+                execution.update(
+                    {
+                        "local_model_unloaded_models": cleanup_models,
+                        "local_model_cleanup_errors": cleanup_errors,
+                        "reviewer_model_unloaded_models": reviewer_models,
+                        "reviewer_model_switch_errors": reviewer_errors,
+                    }
+                )
+        if result is None:
+            raise ProductionCompositionError("Phase 8 submission produced no result")
+        projected = _bounded_projection(result)
+        if not isinstance(projected, dict):
+            raise ProductionCompositionError("Phase 8 submission result is not bounded")
+        return projected
+
+    def _submit_without_cleanup(
+        self,
+        objective: str,
+        *,
+        provider_maps: list[Mapping[str, Any] | None],
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Run the one-shot submission body under the public cleanup wrapper."""
 
         from src.dev_agent.operation import OperationService
         from src.dev_agent.operation_runtime import RuntimeCoordinator
@@ -412,11 +468,13 @@ class Phase8ProductionSubmission:
             provider_map = self.providers(bindings)
             if not isinstance(provider_map, Mapping):
                 raise ProductionCompositionError("provider boundary must return a mapping")
+            provider_maps.append(provider_map)
             fallback_provider_map = None
             if self.fallback_providers is not None:
                 fallback_provider_map = self.fallback_providers(bindings)
                 if not isinstance(fallback_provider_map, Mapping):
                     raise ProductionCompositionError("fallback provider boundary must return a mapping")
+                provider_maps.append(fallback_provider_map)
             executor = Phase8ProductionExecutor(
                 operation=operation,
                 commander=commander,
@@ -470,15 +528,6 @@ class Phase8ProductionSubmission:
                 proposal_id=proposal.proposal_id,
                 continuation_task_id=continuation.task_id,
             )
-        local_model_cleanup = self._unload_local_provider_models(
-            provider_map,
-            fallback_provider_map,
-            self.reviewer_providers,
-        )
-        cleanup_models, cleanup_errors = _cleanup_projection_fields(local_model_cleanup)
-        reviewer_models, reviewer_errors = _cleanup_projection_fields(
-            execution.get("reviewer_model_switch")
-        )
         result = {
             "root_task_id": root.task_id,
             "run_id": run_id,
@@ -493,16 +542,10 @@ class Phase8ProductionSubmission:
                 "continuation_task_id": continuation.task_id,
                 "continuation_state": continuation.status.value,
                 "root_state": root_terminal.status.value,
-                "local_model_unloaded_models": cleanup_models,
-                "local_model_cleanup_errors": cleanup_errors,
-                "reviewer_model_unloaded_models": reviewer_models,
-                "reviewer_model_switch_errors": reviewer_errors,
+                "reviewer_model_switch": execution.get("reviewer_model_switch"),
             },
         }
-        projected = _bounded_projection(result)
-        if not isinstance(projected, dict):
-            raise ProductionCompositionError("Phase 8 submission result is not bounded")
-        return projected
+        return result
 
     def observe(self, run_id: str, **_: Any) -> dict[str, Any]:
         """Read one durable Commander projection without advancing it."""

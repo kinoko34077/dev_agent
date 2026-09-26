@@ -130,6 +130,115 @@ def test_phase8_submission_keeps_reviewer_provider_inventory_for_terminal_cleanu
     assert submission.reviewer_providers == {"reviewer": reviewer}
 
 
+def test_phase8_submission_cleans_up_local_models_when_execution_fails(tmp_path: Path, monkeypatch):
+    repository, targets, _revision = _repo(tmp_path)
+    config = OperationConfig(
+        data_dir=tmp_path / "operation-state",
+        provider_id="fake",
+        model="deterministic",
+        worker_id="phase8-failure-cleanup",
+        idle_sleep_seconds=0.01,
+    )
+
+    def planner(root: Task) -> RootPlanningProposal:
+        return RootPlanningProposal(
+            parent_task_id=root.task_id,
+            proposal_id="phase8-failure-cleanup-proposal",
+            rationale="two workers and a continuation",
+            children=(
+                ChildTaskProposal(
+                    child_key="worker-a",
+                    objective="bounded worker A",
+                    task_type=TaskType.WORKER,
+                ),
+                ChildTaskProposal(
+                    child_key="worker-b",
+                    objective="bounded worker B",
+                    task_type=TaskType.WORKER,
+                ),
+                ChildTaskProposal(
+                    child_key="continuation",
+                    objective="continue after integration",
+                    task_type=TaskType.DETERMINISTIC,
+                    suggested_owner="codex",
+                    dependencies=("worker-a", "worker-b"),
+                    dependency_types={
+                        "worker-a": PlannerDependencyType.CODE_INTEGRATED,
+                        "worker-b": PlannerDependencyType.CODE_INTEGRATED,
+                    },
+                ),
+            ),
+        )
+
+    def worker_spec(path: str) -> dict[str, object]:
+        return {
+            "manifest": {
+                "task_type": "worker",
+                "allowed_files": [path],
+                "read_files": [path],
+                "forbidden_files": [],
+                "external_provider_allowed": True,
+                "approved_provider_ids": ["ollama"],
+                "outbound_files": [path],
+                "requirements": ["keep the change narrow"],
+                "acceptance": ["the focused test passes"],
+                "test_commands": [f"python -m pytest {path} -q"],
+                "max_attempts": 1,
+                "output_contract": {},
+            },
+            "assignment": {
+                "provider_id": "ollama",
+                "provider_binding_id": "ollama:local:qwen3.5-9b",
+                "model_id": "qwen3.5:9b",
+            },
+        }
+
+    def task_specs(_root: Task, _proposal: RootPlanningProposal):
+        return {
+            "worker-a": worker_spec(targets[0]),
+            "worker-b": worker_spec(targets[1]),
+            "continuation": {
+                "owner": "codex",
+                "codex_direct_reason": "continuation is released by Operation after integration",
+            },
+        }
+
+    manager = _LifecycleProbe(unloaded=("qwen3.5:9b",))
+
+    def providers(bindings):
+        return {task_id: _LocalProviderProbe(manager) for task_id in bindings.values()}
+
+    def fail_before_terminal_cleanup(_self):
+        raise RuntimeError("synthetic production execution failure")
+
+    monkeypatch.setattr(
+        "scripts.devfarm_production_composition.Phase8ProductionExecutor.advance",
+        fail_before_terminal_cleanup,
+    )
+    submission = Phase8ProductionSubmission(
+        operation_config=config,
+        repository=repository,
+        planner=planner,
+        task_specs=task_specs,
+        providers=providers,
+        orchestrator=DevFarmOrchestrator(
+            remote_governor=RemoteConcurrencyGovernor(max_inflight=2),
+            host_governor=HostConcurrencyGovernor(worktree_verification_slots=1),
+            verification_trust_level="TRUSTED_HOST_EXEC",
+            operator_approved=True,
+        ),
+        review_proposal=lambda _packet: {"decision": "APPROVE_INTEGRATION"},
+        final_review_decision=lambda _packet, proposal: proposal,
+        target_checkout=repository,
+        local_trial=True,
+    )
+
+    with pytest.raises(RuntimeError, match="synthetic production execution failure"):
+        submission.submit("run one failing production root")
+
+    assert manager.calls == 1
+
+
 def test_phase8_shape_preflight_rejects_dependent_worker_before_handoff():
     proposal = RootPlanningProposal(
         parent_task_id="root",
