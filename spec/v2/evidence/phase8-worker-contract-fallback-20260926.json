@@ -1,0 +1,42 @@
+{
+  "evidence_id": "phase8-worker-contract-fallback-20260926",
+  "date": "2026-09-26",
+  "branch": "phase8/worker-contract-preflight-issue9",
+  "implementation_commit": "b597e17f509a93e038ea5a92f67a5ce25105a6db",
+  "scope": "Issue #9 bounded Worker contract, Phase 8 production-shape preflight, and latest-failure local fallback handoff",
+  "changes": {
+    "minimal_worker_schema": "Host binds file_replacements to the exact manifest outbound path and rejects additional replacement keys",
+    "format_handling": "Host deterministically splits embedded newline fragments in explicit line arrays and records the canonicalization rule",
+    "failure_handoff": "Concrete Worker output failures produce a fresh correction handoff through the existing rework_handoff/reassign boundary",
+    "local_fallback": "After one bounded qwen3.5:9b correction opportunity, a recurrent Worker output failure may rebind to the configured gemma4:12b provider with a fresh manifest; provider/runtime/UNKNOWN/reconciliation failures remain outside this path",
+    "phase8_shape": "Production submission rejects malformed root shape before durable planning handoff: two independent Worker children plus one Codex-owned deterministic CODE_INTEGRATED continuation"
+  },
+  "verification": {
+    "focused_tests": "144 passed",
+    "full_tests_initial": "1683 passed, 1 skipped, 3 failed",
+    "full_test_failure_disposition": "One stale assertion expected the pre-change generic schema; the two Windows/network-sensitive failures passed in the isolated rerun after the assertion was corrected",
+    "targeted_rerun": "3 passed",
+    "architecture": "ARCHITECTURE_PASS",
+    "compile": "in-memory compile PASS for 256 Python files; exact-head CI compile PASS",
+    "credential_scan": "No tracked credential found; two test-only placeholder matches were reviewed without exposing values",
+    "exact_head_ci": {
+      "v2_core": "success: run 36227765927; kernel 3.10 and 3.11; kernel 3.11 Architecture and Compile passed",
+      "provider_smoke": "success: run 36227765909"
+    }
+  },
+  "fresh_local_trial": {
+    "root_id": "949c1546-6dfc-4ff2-97b6-07678dea5300",
+    "primary": "qwen3.5:9b",
+    "fallback": "gemma4:12b only if the bounded Worker path reaches fallback eligibility",
+    "result": "Planner convergence stopped at model_output_invalid before Host planning validation and before Worker dispatch",
+    "reviewer": "not reached",
+    "integration": "not reached",
+    "dependent_continuation": "not released",
+    "unknown_replay": false,
+    "remote_generation": false,
+    "third_model": false
+  },
+  "interpretation": "The implementation closes the previously missing bounded Worker contract and latest-failure fallback seams, but the fresh local root still stopped at the Planner model-output boundary. OLLAMA_LOCAL_E2E remains PARTIAL_BLOCKED and PHASE8_LIVE_ACTIVATION remains NOT_VERIFIED.",
+  "next_action": "Do not blind-retry the same Planner input. Use a materially new Planner contract/projection fix or newly admitted remote generation evidence before the next fresh root.",
+  "secrets": "none"
+}
