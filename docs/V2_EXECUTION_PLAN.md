@@ -2,6 +2,12 @@
 
 この文書は現在の大きな順序だけを示すMain Roadmapである。詳細なGate、依存関係、完了条件は [`V2_DETAILED_ROADMAP.md`](V2_DETAILED_ROADMAP.md) を正本とする。要求は`docs/requirements/**`、decision rationaleは`spec/v2/adr/**`、観測証拠は`spec/v2/evidence/**`、Gate statusは`spec/v2/GATE_STATUS.json`を参照する。
 
+2026-09-26 Issue #10 state/evidence hygiene: the accepted `v2/bootstrap`
+baseline is now summarized at the top of `docs/CURRENT_STATE.md`; older
+chronology remains traceable through Git history, Issues/PRs, and bounded
+Evidence. `GATE_STATUS.json` blocker prose now reflects the later completed
+local L1 root without changing any machine status or promoting Phase 8.
+
 2026-09-26 Phase 8 failure-path lifecycle checkpoint: `542bdc2` extends the
 existing bounded submission boundary so known local Planner/Worker/fallback/
 Reviewer inventories are unloaded after both success and execution failure.

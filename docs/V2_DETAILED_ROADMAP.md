@@ -2,6 +2,13 @@
 
 この文書は、[V2_EXECUTION_PLAN.md](V2_EXECUTION_PLAN.md) が示す現在の大きな順序を、実装可能なGateと依存関係へ展開する詳細正本である。要求・ADR・Evidenceを複製せず、各Gateの完了条件と参照先だけを持つ。
 
+**2026-09-26 Issue #10 state/evidence hygiene:** `docs/CURRENT_STATE.md`
+now begins with a compact operational handoff, while historical chronology
+remains available through Git history, Issues/PRs, and bounded Evidence.
+`spec/v2/GATE_STATUS.json` retains the same machine statuses and now describes
+the later completed local L1 root without treating it as formal Phase 8 live
+activation.
+
 **2026-09-26 failure-path lifecycle checkpoint:** `542bdc2` hardens the
 existing Phase 8 submission boundary so supplied local Planner/Worker/
 fallback/Reviewer provider inventories are unloaded after both successful and
