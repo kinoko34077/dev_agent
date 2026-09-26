@@ -50,9 +50,10 @@ re-qualify a distinct Reviewer model, so this is
 returned 1,357 candidate rows from 13 bindings, with one bounded Groq
 `HTTPError`; the restricted comparison returned only 8 Ollama rows and
 bounded `URLError` observations. The candidate was not merged into canonical
-evidence. Existing admission remains 32 static-eligible, 5 runtime-unknown,
-and 0 runtime-eligible; no generation or UNKNOWN replay was attempted. Do not
-start remote R9 until a fresh admitted generation route exists. Evidence:
+evidence. This is discovery evidence only; it does not establish runtime
+admission or generation readiness. The post-merge exact local runtime snapshot
+is recorded separately in Issue #15 evidence. No generation or UNKNOWN replay
+was attempted. Evidence:
 [`model-catalog-r9-refresh-20260926.json`](../spec/v2/evidence/model-catalog-r9-refresh-20260926.json).
 
 2026-09-26 Issue #9 Worker contract/preflight checkpoint: `5fd89a1` adds a
@@ -65,6 +66,20 @@ unchanged. Affected DevFarm coverage is `194 passed`, full `tests/v2` is
 `1676 passed, 1 skipped`, and exact-head v2-core/provider-smoke CI is green.
 This is local non-Gate evidence; do not treat it as a new Phase 8 live root.
 Evidence: [`devfarm-worker-contract-preflight-20260926.json`](../spec/v2/evidence/devfarm-worker-contract-preflight-20260926.json).
+
+2026-09-27 Issue #15 admission synchronization: PR #16 is integrated at
+`81e47cea6500d9bdd8ad0cdd717f9e734d5e8a3a`. Static candidate diagnostics now
+separate `RUNTIME_NOT_PROBED`, `RUNTIME_UNAVAILABLE`, `RUNTIME_UNKNOWN`, and
+`RUNTIME_ELIGIBLE`, and the exact-route evaluator delegates to the existing
+Resource/health/quota router without generation or state mutation. A read-only
+snapshot of the current local ResourceLedger found four exact static-admitted
+Gemini candidates but no matching Gemini resource/quota state, so all four are
+`RUNTIME_UNAVAILABLE` in this local snapshot. This is not a Provider generation
+result and does not establish that all configured routes are unusable. Evidence:
+[`model-runtime-admission-20260927.json`](../spec/v2/evidence/model-runtime-admission-20260927.json).
+Do not start R9 until a current actual runtime snapshot produces an exact
+free/no-charge `RUNTIME_ELIGIBLE` route and a separate fresh generation-readiness
+observation.
 
 ## Current phase
 
