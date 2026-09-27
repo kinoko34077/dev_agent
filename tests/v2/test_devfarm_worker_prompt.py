@@ -72,6 +72,8 @@ def test_local_ollama_prompt_uses_only_the_complete_replacement_contract() -> No
     assert "the Host derives those facts" in prompt
     assert "Do not emit status, changed_files, tests" in prompt
     assert "The Host will validate the replacement" in prompt
+    assert "Preserve every existing public import, class, function, and constant" in prompt
+    assert "Do not delete or rename exports" in prompt
     assert "exact outbound paths" in prompt
     assert "never shorten it to a basename" in prompt
     assert "Escape source quotes and backslashes" in prompt
