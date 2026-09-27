@@ -12,6 +12,14 @@ from .model_capabilities import ModelCapabilityCatalog
 from .model_catalog import ModelAliasCatalog, ModelCatalog
 
 
+# Static evidence diagnostics must not use runtime-admission vocabulary.  A
+# missing/expired discovery row and a discovered non-text model are both
+# rejected before runtime state is consulted, so callers can distinguish a
+# catalog problem from a provider liveness observation.
+STATIC_EVIDENCE_MISSING = "STATIC_EVIDENCE_MISSING"
+STATIC_MODEL_UNSUPPORTED = "STATIC_MODEL_UNSUPPORTED"
+
+
 @dataclass(frozen=True)
 class ModelAdmission:
     """Non-authoritative model evidence ready for existing Router hard filters."""
@@ -112,9 +120,9 @@ class ModelAdmissionResolver:
         discovered = self._catalog.lookup(provider_id, provider_binding_id, model_id, now=now)
         identity = (str(provider_id), str(provider_binding_id), str(model_id))
         if discovered is None:
-            return ModelEvidenceDiagnostic(*identity, "MISSING", "-", "-", "-", "RUNTIME_UNAVAILABLE")
+            return ModelEvidenceDiagnostic(*identity, "MISSING", "-", "-", "-", STATIC_EVIDENCE_MISSING)
         if not discovered.is_text_generation_candidate():
-            return ModelEvidenceDiagnostic(*identity, "SPECIALIZED", "-", "-", "-", "RUNTIME_UNAVAILABLE")
+            return ModelEvidenceDiagnostic(*identity, "SPECIALIZED", "-", "-", "-", STATIC_MODEL_UNSUPPORTED)
         alias = self._aliases.lookup(discovered.provider_id, discovered.model_id)
         if alias is None:
             return ModelEvidenceDiagnostic(*identity, "PASS", "MISSING", "-", "-", "ALIAS_MISSING")
@@ -162,4 +170,10 @@ class ModelAdmissionResolver:
         )
 
 
-__all__ = ["ModelAdmission", "ModelAdmissionResolver", "ModelEvidenceDiagnostic"]
+__all__ = [
+    "ModelAdmission",
+    "ModelAdmissionResolver",
+    "ModelEvidenceDiagnostic",
+    "STATIC_EVIDENCE_MISSING",
+    "STATIC_MODEL_UNSUPPORTED",
+]

@@ -156,6 +156,44 @@ def test_model_admission_fails_closed_when_discovery_or_benchmark_evidence_is_no
     assert missing_benchmark.resolve("gemini", "gemini:slot-a", "gemini-3.8-flash", now=NOW) is None
 
 
+def test_static_model_evidence_diagnosis_does_not_use_runtime_unavailable_for_missing_entry():
+    from src.dev_agent.resources.model_admission import STATIC_EVIDENCE_MISSING
+
+    resolver = ModelAdmissionResolver(_model_catalog(), _aliases(), _benchmarks(), _capabilities())
+
+    diagnostic = resolver.diagnose("gemini", "gemini:slot-a", "gemini:missing", now=NOW)
+
+    assert diagnostic.result == STATIC_EVIDENCE_MISSING
+    assert diagnostic.result != "RUNTIME_UNAVAILABLE"
+
+
+def test_static_model_evidence_diagnosis_does_not_use_runtime_unavailable_for_specialized_entry():
+    from src.dev_agent.resources.model_admission import STATIC_MODEL_UNSUPPORTED
+
+    specialized = ModelCatalog.from_document(
+        {
+            "schema_version": 1,
+            "entries": [
+                {
+                    "provider_id": "gemini",
+                    "provider_binding_id": "gemini:slot-a",
+                    "model_id": "gemini-image-1",
+                    "source": "gemini.models.list",
+                    "observed_at": "2026-09-14T00:00:00+00:00",
+                    "expires_at": "2026-09-15T00:00:00+00:00",
+                    "metadata": {"supported_generation_methods": ["generateImage"]},
+                }
+            ],
+        }
+    )
+    resolver = ModelAdmissionResolver(specialized, _aliases(), _benchmarks(), _capabilities())
+
+    diagnostic = resolver.diagnose("gemini", "gemini:slot-a", "gemini-image-1", now=NOW)
+
+    assert diagnostic.result == STATIC_MODEL_UNSUPPORTED
+    assert diagnostic.result != "RUNTIME_UNAVAILABLE"
+
+
 def test_model_admission_rejects_a_discovered_model_without_an_exact_canonical_alias():
     aliases = ModelAliasCatalog.from_document({"schema_version": 1, "entries": []})
     resolver = ModelAdmissionResolver(_model_catalog(), aliases, _benchmarks(), _capabilities())
