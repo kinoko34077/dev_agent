@@ -10,6 +10,7 @@ from collections.abc import Callable, Mapping
 from typing import Any, Protocol
 
 from ..providers.base import ProviderError
+from ..resources.billing_catalog import profile_for
 from ..resources.quota_policy import classify_provider_error
 from .queue import DurableQueue, QueueItem
 
@@ -85,6 +86,7 @@ class QuotaProbeStatus(str, Enum):
     INVALID_OBSERVATION = "invalid_observation"
     STILL_BLOCKED = "still_blocked"
     REQUALIFIED = "requalified"
+    REQUALIFIED_UNKNOWN = "requalified_unknown"
 
 
 @dataclass(frozen=True)
@@ -275,17 +277,29 @@ class QuotaRequalificationCoordinator:
             return QuotaProbeResult(resource_id, domain, QuotaProbeStatus.INVALID_OBSERVATION)
         reported_block = payload.get("block_reason")
         has_reported_block = isinstance(reported_block, str) and bool(reported_block.strip())
+        unknown_requalified = False
         if not has_reported_block and not self._has_routable_headroom(payload):
             # A successful HTTP response is not sufficient to clear a quota
             # block.  The router requires a fresh positive limit/remaining
             # pair; accepting only ``unit`` or reset metadata here would wake
             # parked work into an immediate no-route loop.
-            return QuotaProbeResult(
-                resource_id,
-                domain,
-                QuotaProbeStatus.INVALID_OBSERVATION,
-                error_category="quota_headroom_unavailable",
-            )
+            try:
+                resource = self.ledger.get_resource(resource_id)
+            except (KeyError, TypeError, ValueError):
+                resource = None
+            if not isinstance(resource, Mapping) or not self._allows_unknown_recovery(resource, now=current):
+                return QuotaProbeResult(
+                    resource_id,
+                    domain,
+                    QuotaProbeStatus.INVALID_OBSERVATION,
+                    error_category="quota_headroom_unavailable",
+                )
+            # A successful post-reset probe without rate-limit headers is not
+            # fabricated headroom.  It is an explicit UNKNOWN observation,
+            # and is only admissible for a currently trusted, no-charge
+            # binding whose overage policy is hard-stop (or fixed-free).
+            payload = self._unknown_payload(domain)
+            unknown_requalified = True
         observed_at = _iso(current)
         payload["observed_at"] = observed_at
         try:
@@ -321,7 +335,8 @@ class QuotaRequalificationCoordinator:
             if self.wake_scheduler is not None and self.wake_scheduler.queue is not None
             else 0
         )
-        return QuotaProbeResult(resource_id, domain, QuotaProbeStatus.REQUALIFIED, observed_at=observed_at, observation_persisted=True, woken_tasks=woken)
+        status = QuotaProbeStatus.REQUALIFIED_UNKNOWN if unknown_requalified else QuotaProbeStatus.REQUALIFIED
+        return QuotaProbeResult(resource_id, domain, status, observed_at=observed_at, observation_persisted=True, woken_tasks=woken)
 
     @staticmethod
     def _domain(observation: Mapping[str, Any]) -> str | None:
@@ -351,6 +366,69 @@ class QuotaRequalificationCoordinator:
                 ("token_limit", "token_remaining"),
             )
         )
+
+    @staticmethod
+    def _allows_unknown_recovery(resource: Mapping[str, Any], *, now: datetime) -> bool:
+        metadata = resource.get("metadata")
+        if not isinstance(metadata, Mapping):
+            return False
+        if metadata.get("billing_authority") != "trusted_catalog":
+            return False
+        if metadata.get("no_charge_guaranteed") is not True:
+            return False
+        billing_mode = metadata.get("billing_mode")
+        overage_policy = metadata.get("overage_policy")
+        if billing_mode not in {"free_fixed", "recurring_allowance"}:
+            return False
+        if billing_mode == "recurring_allowance" and overage_policy != "hard_stop":
+            return False
+        verified_at = _parse_reset(metadata.get("billing_verified_at"))
+        expires_at = _parse_reset(metadata.get("billing_expires_at"))
+        if verified_at is None or expires_at is None or not (verified_at <= now < expires_at):
+            return False
+
+        provider_id = resource.get("provider_id")
+        provider_binding_id = resource.get("provider_binding_id") or metadata.get("provider_binding_id")
+        model_id = metadata.get("model_id")
+        if not all(isinstance(value, str) and value.strip() for value in (provider_id, provider_binding_id, model_id)):
+            return False
+        profile = profile_for(provider_id.strip(), provider_binding_id.strip(), model_id.strip())
+        if profile is None or not profile.is_current(now=now):
+            return False
+        if resource.get("cost_minor") != profile.cost_minor:
+            return False
+        if profile.price_currency is not None and resource.get("price_currency") != profile.price_currency:
+            return False
+        return (
+            metadata.get("billing_mode") == profile.billing_mode
+            and metadata.get("overage_policy") == profile.overage_policy
+            and metadata.get("no_charge_guaranteed") == profile.no_charge_guaranteed
+        )
+
+    @staticmethod
+    def _unknown_payload(domain: str) -> dict[str, Any]:
+        return {
+            "quota_domain": domain,
+            "unit": "requests",
+            "limit": None,
+            "remaining": None,
+            "consumed": None,
+            "authority": "provider",
+            "metric": "quota",
+            "window": "unknown",
+            "reset_source": "post-reset-probe-no-headers",
+            "blocked_until": None,
+            "block_reason": None,
+            "request_limit": None,
+            "request_remaining": None,
+            "token_limit": None,
+            "token_remaining": None,
+            "reset_at": None,
+            "daily_remaining": None,
+            "concurrency_limit": None,
+            "confidence": 0.0,
+            "source": "quota-requalification-probe-unknown",
+        }
 
     @staticmethod
     def _payload(raw: Mapping[str, Any], domain: str) -> dict[str, Any] | None:
