@@ -25,10 +25,8 @@ Evidence:
 D2 (bounded idle liveness), D3 (trusted no-charge post-429 recovery without
 fabricated quota), and D4 (static/runtime diagnostic vocabulary separation) are
 complete on the accepted `v2/bootstrap` line. Implementation/evidence baseline
-is `5658203`; the subsequent Current State and execution-plan synchronization is
-`429e19b5cb13bb89a96c4bbcb481b72759480d9d`. Exact-head `v2-core` (kernel
-3.10/3.11, Architecture, Compile) and `provider-smoke` pass for that docs-sync
-head. The current diagnostic remains `RUNTIME_ELIGIBLE=0`.
+is `648f015`; its exact-head `v2-core` and `provider-smoke` checks pass. The
+current diagnostic remains `RUNTIME_ELIGIBLE=0`.
 
 One bounded, no-charge `gemini:worker:free-3 / gemini-3.5-flash-lite`
 text/tool qualification completed with two model calls, one tool call, two
