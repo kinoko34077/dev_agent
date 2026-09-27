@@ -308,6 +308,124 @@ def test_phase8_executor_rebinds_latest_worker_failure_to_distinct_local_model(m
     assert reassign_calls[0]["model_id"] == "gemma4:12b"
 
 
+def test_phase8_executor_reworks_host_verification_syntax_failure_with_concrete_directive(monkeypatch, tmp_path):
+    import scripts.devfarm_production_composition as composition
+
+    commander = _FakeCommander()
+    commander.root = tmp_path
+    failed = commander._plan["tasks"][0]
+    failed.update(
+        status="REJECTED",
+        block_reason="host_verification_failed",
+        last_attempt_id="qwen-attempt-1",
+        result_ref=".devfarm/results/qwen-attempt-1.json",
+        attempt_count=1,
+        max_attempts=3,
+        manifest_history=[],
+        manifest_path=".devfarm/manifests/worker-a.json",
+        last_error="SyntaxError: unterminated triple-quoted string literal",
+    )
+    manifest = {"allowed_files": ["src/worker_a.py"], "outbound_files": ["src/worker_a.py"]}
+    monkeypatch.setattr(
+        composition,
+        "load_worker_manifest",
+        lambda _root, _task: (Path("worker-a.json"), manifest),
+    )
+    handoff_calls: list[dict[str, object]] = []
+    reassign_calls: list[dict[str, object]] = []
+
+    def rework_handoff(task_id, **kwargs):
+        handoff_calls.append({"task_id": task_id, **kwargs})
+        return {"kind": "repair_request", "task_id": task_id}
+
+    def reassign(task_id, **kwargs):
+        reassign_calls.append({"task_id": task_id, **kwargs})
+
+    commander.rework_handoff = rework_handoff
+    commander.reassign = reassign
+    primary = SimpleNamespace(
+        provider_id="ollama",
+        model_id="qwen3.5:9b",
+        provider_binding_id="ollama:local:qwen3.5-9b",
+    )
+    executor, _values = _executor(
+        commander=commander,
+        providers={"devfarm-a": primary, "devfarm-b": object()},
+    )
+
+    result = executor._repair_failed_verifications(commander.plan())
+
+    assert result == ["worker-a"]
+    handoff = handoff_calls[0]
+    assert handoff["failure_spec"].stage == "host_verification"
+    assert handoff["failure_spec"].failure_class == "format_patch"
+    assert "syntax" in handoff["repair_directive"].required_action.casefold()
+    assert handoff["repair_context"]["directive_rebound"] is True
+    assert handoff["repair_context"]["source_attempt_id"] == "qwen-attempt-1"
+    assert reassign_calls[0]["provider_binding_id"] == "ollama:local:qwen3.5-9b"
+
+
+def test_phase8_executor_rebinds_host_verification_failure_to_fallback_after_rework(monkeypatch, tmp_path):
+    import scripts.devfarm_production_composition as composition
+
+    commander = _FakeCommander()
+    commander.root = tmp_path
+    failed = commander._plan["tasks"][0]
+    failed.update(
+        status="REJECTED",
+        block_reason="host_verification_failed",
+        last_attempt_id="qwen-attempt-2",
+        result_ref=".devfarm/results/qwen-attempt-2.json",
+        attempt_count=2,
+        max_attempts=3,
+        manifest_history=[".devfarm/manifests/worker-a.json"],
+        manifest_path=".devfarm/manifests/worker-a-rework.json",
+        last_error="Host Verification test failed",
+    )
+    manifest = {"allowed_files": ["src/worker_a.py"], "outbound_files": ["src/worker_a.py"]}
+    monkeypatch.setattr(
+        composition,
+        "load_worker_manifest",
+        lambda _root, _task: (Path("worker-a-rework.json"), manifest),
+    )
+    handoff_calls: list[dict[str, object]] = []
+    reassign_calls: list[dict[str, object]] = []
+
+    def rework_handoff(task_id, **kwargs):
+        handoff_calls.append({"task_id": task_id, **kwargs})
+        return {"kind": "repair_request", "task_id": task_id}
+
+    def reassign(task_id, **kwargs):
+        reassign_calls.append({"task_id": task_id, **kwargs})
+
+    commander.rework_handoff = rework_handoff
+    commander.reassign = reassign
+    primary = SimpleNamespace(
+        provider_id="ollama",
+        model_id="qwen3.5:9b",
+        provider_binding_id="ollama:local:qwen3.5-9b",
+    )
+    fallback = SimpleNamespace(
+        provider_id="ollama",
+        model_id="gemma4:12b",
+        provider_binding_id="ollama:local:gemma4-12b",
+    )
+    executor, _values = _executor(
+        commander=commander,
+        providers={"devfarm-a": primary, "devfarm-b": object()},
+        fallback_providers={"devfarm-a": fallback},
+    )
+
+    result = executor._fallback_failed_verifications(commander.plan())
+
+    assert result == ["worker-a"]
+    assert executor.providers["devfarm-a"] is fallback
+    assert handoff_calls[0]["failure_spec"].failure_class == "semantic_test"
+    assert handoff_calls[0]["repair_context"]["fallback_from_provider"] == "ollama"
+    assert handoff_calls[0]["repair_context"]["fallback_to_provider"] == "ollama"
+    assert reassign_calls[0]["model_id"] == "gemma4:12b"
+
+
 def test_phase8_executor_rejects_incomplete_identity_before_dispatch():
     executor, values = _executor(bindings={"worker-a": "devfarm-a"})
 

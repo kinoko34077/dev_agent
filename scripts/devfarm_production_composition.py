@@ -945,6 +945,288 @@ class Phase8ProductionExecutor:
             fallback.append(str(task.get("planner_child_key")))
         return fallback
 
+    @staticmethod
+    def _host_verification_failure_input(error: str) -> dict[str, Any]:
+        """Project one bounded Host Verification failure into repair facts.
+
+        ``last_error`` is already a Host-owned bounded projection, but it is
+        not copied into the next prompt.  Only the deterministic failure
+        category is used here so a model cannot receive raw Worker output or
+        an unbounded verifier transcript.  Syntax/import failures get a
+        format-specific directive; all other verifier failures remain a
+        semantic/test repair.
+        """
+
+        normalized = error.casefold()
+        syntax_failure = any(
+            marker in normalized
+            for marker in (
+                "syntaxerror",
+                "syntax error",
+                "unterminated",
+                "importerror",
+                "import error",
+                "module not found",
+            )
+        )
+        if syntax_failure:
+            return {
+                "error_code": "WORKER_HOST_VERIFICATION_SYNTAX",
+                "failure_class": "FORMAT_PATCH",
+                "stage": "host_verification",
+                "location": "worker_source",
+                "observed": "Host Verification reported a bounded syntax or import failure",
+                "expected": "a complete importable source replacement within the supplied file scope",
+                "problem": "the Worker replacement is not syntactically importable",
+                "required_correction": (
+                    "Fix the reported Python syntax or import failure in the supplied replacement only. "
+                    "Return a complete importable source file. Preserve every existing public import, "
+                    "class, function, and constant unless the objective explicitly changes it; do not "
+                    "emit literal \\n text as source, and do not change unrelated files."
+                ),
+                "must_preserve": (
+                    "task objective",
+                    "supplied file scope",
+                    "existing public imports, classes, functions, and constants",
+                ),
+                "forbidden_changes": (
+                    "unrelated files",
+                    "test files",
+                    "public export removal or renaming",
+                    "literal escaped-newline source text",
+                ),
+                "acceptance_checks": (
+                    "the replacement parses as complete Python source",
+                    "the existing Host Verification import/test command passes",
+                    "all existing public symbols remain importable",
+                ),
+                "validator_ref": "worker:host_verification",
+            }
+        return {
+            "error_code": "WORKER_HOST_VERIFICATION_FAILED",
+            "failure_class": "SEMANTIC_TEST",
+            "stage": "host_verification",
+            "location": "host_verification",
+            "observed": "Host Verification reported a bounded semantic or test failure",
+            "expected": "the declared acceptance checks pass within the supplied file scope",
+            "problem": "the Worker replacement did not satisfy Host Verification",
+            "required_correction": (
+                "Fix the bounded Host Verification or test failure in the supplied replacement only. "
+                "Make the smallest implementation change that satisfies the declared acceptance checks. "
+                "Preserve the task objective, every existing public import, class, function, and constant, "
+                "and the supplied file scope; do not modify tests or unrelated files."
+            ),
+            "must_preserve": (
+                "task objective",
+                "supplied file scope",
+                "existing public imports, classes, functions, and constants",
+            ),
+            "forbidden_changes": (
+                "unrelated files",
+                "test files",
+                "public export removal or renaming",
+                "authority, routing, or reconciliation semantics",
+            ),
+            "acceptance_checks": (
+                "the existing Host Verification command passes",
+                "the declared task acceptance checks pass",
+                "all existing public symbols remain importable",
+            ),
+            "validator_ref": "worker:host_verification",
+        }
+
+    def _rebind_host_verification_failure(
+        self,
+        task: Mapping[str, Any],
+        *,
+        provider: Any,
+        fallback_from_provider: str | None = None,
+        fallback_to_provider: str | None = None,
+    ) -> str:
+        """Create one fresh Host Verification repair handoff for a Worker."""
+
+        rework_handoff = getattr(self.commander, "rework_handoff", None)
+        reassign = getattr(self.commander, "reassign", None)
+        if not callable(rework_handoff) or not callable(reassign):
+            raise ProductionCompositionError("Host Verification repair boundaries are unavailable")
+        task_id = task.get("task_id")
+        attempt_id = task.get("last_attempt_id")
+        provider_id = getattr(provider, "provider_id", None)
+        model_id = getattr(provider, "model_id", None) or getattr(provider, "model", None)
+        binding_id = getattr(provider, "provider_binding_id", None)
+        if not all(
+            isinstance(value, str) and value.strip()
+            for value in (task_id, attempt_id, provider_id, model_id)
+        ):
+            raise ProductionCompositionError("Host Verification failure has incomplete Worker identity")
+        error = task.get("last_error")
+        if not isinstance(error, str) or not error.strip():
+            raise ProductionCompositionError("Host Verification failure has no bounded error category")
+        try:
+            _manifest_path, manifest = load_worker_manifest(self.commander.root, task)
+            failure_spec = build_concrete_failure_spec(
+                self._host_verification_failure_input(error),
+                manifest=manifest,
+                validator_ref="worker:host_verification",
+            )
+            directive = RepairDirective.from_failure_spec(failure_spec)
+            result_ref = task.get("result_ref")
+            if not isinstance(result_ref, str) or not result_ref.strip():
+                raise ProductionCompositionError("Host Verification failure has no durable result reference")
+            repair_context: dict[str, Any] = {
+                "source_attempt_id": attempt_id,
+                "source_failure_signature": failure_spec.failure_signature,
+                "latest_failure_spec": failure_spec.to_dict(),
+                "latest_repair_directive": directive.to_dict(),
+                "current_repair": directive.to_dict(),
+                "historical_constraints": {
+                    "unresolved": [directive.required_action],
+                    "resolved_must_not_regress": list(directive.must_preserve),
+                },
+                "directive_rebound": True,
+            }
+            if fallback_from_provider is not None:
+                repair_context["fallback_from_provider"] = fallback_from_provider
+            if fallback_to_provider is not None:
+                repair_context["fallback_to_provider"] = fallback_to_provider
+            repair_context["host_verification_rework"] = True
+            handoff = rework_handoff(
+                task_id,
+                failure_evidence_reference={
+                    "kind": "worker_host_verification_failure",
+                    "path": result_ref,
+                    "attempt_id": attempt_id,
+                },
+                review_findings_reference=None,
+                required_correction=directive.required_action,
+                failure_spec=failure_spec,
+                repair_directive=directive,
+                repair_context=repair_context,
+            )
+            reassign(
+                task_id,
+                provider_id=provider_id.strip(),
+                model_id=model_id.strip(),
+                provider_binding_id=(
+                    binding_id.strip()
+                    if isinstance(binding_id, str) and binding_id.strip()
+                    else None
+                ),
+                rework_handoff=handoff,
+            )
+        except (DevFarmError, ProductionCompositionError, ValueError, TypeError) as exc:
+            raise ProductionCompositionError(
+                f"bounded Host Verification repair handoff failed for {task.get('planner_child_key', 'worker')}"
+            ) from exc
+        return str(task.get("planner_child_key"))
+
+    def _host_repair_already_attempted(self, task: Mapping[str, Any]) -> bool:
+        """Detect a prior Host repair without treating proposal rework as one."""
+
+        history = task.get("manifest_history")
+        if not isinstance(history, list) or not history:
+            return False
+        try:
+            _manifest_path, manifest = load_worker_manifest(self.commander.root, task)
+        except (DevFarmError, ProductionCompositionError, ValueError, TypeError):
+            raise ProductionCompositionError("cannot inspect prior Host Verification repair state")
+        handoff = manifest.get("rework_handoff") if isinstance(manifest, Mapping) else None
+        if not isinstance(handoff, Mapping):
+            return False
+        references = handoff.get("references") if isinstance(handoff.get("references"), Mapping) else {}
+        payload_reference = (
+            handoff.get("payload_reference")
+            if isinstance(handoff.get("payload_reference"), Mapping)
+            else {}
+        )
+        contexts = (
+            handoff.get("repair_context"),
+            payload_reference.get("repair_context"),
+            references.get("repair_context"),
+        )
+        for context in contexts:
+            if not isinstance(context, Mapping):
+                continue
+            if context.get("host_verification_rework") is True:
+                return True
+            latest_spec = context.get("latest_failure_spec")
+            if isinstance(latest_spec, Mapping) and latest_spec.get("stage") == "host_verification":
+                return True
+        return False
+
+    def _repair_failed_verifications(self, plan: Mapping[str, Any]) -> list[str]:
+        """Give one primary model attempt a concrete Host repair directive."""
+
+        repaired: list[str] = []
+        for task in self._worker_tasks(plan):
+            if task.get("status") != "REJECTED" or task.get("block_reason") != "host_verification_failed":
+                continue
+            # After this rework has produced another manifest, fallback is the
+            # next bounded action; do not repeatedly resend the same primary
+            # model with the same Host result.
+            if self._host_repair_already_attempted(task):
+                continue
+            attempt_count = task.get("attempt_count")
+            max_attempts = task.get("max_attempts")
+            if isinstance(attempt_count, int) and isinstance(max_attempts, int) and attempt_count >= max_attempts:
+                continue
+            task_id = task.get("task_id")
+            provider = self.providers.get(task_id) if isinstance(task_id, str) else None
+            if provider is None:
+                continue
+            repaired.append(self._rebind_host_verification_failure(task, provider=provider))
+        return repaired
+
+    def _fallback_failed_verifications(self, plan: Mapping[str, Any]) -> list[str]:
+        """Rebind a recurrent Host failure to the configured local fallback."""
+
+        if not self.fallback_providers:
+            return []
+        fallback: list[str] = []
+        for task in self._worker_tasks(plan):
+            if task.get("status") != "REJECTED" or task.get("block_reason") != "host_verification_failed":
+                continue
+            history = task.get("manifest_history")
+            if not isinstance(history, list) or not history:
+                continue
+            task_id = task.get("task_id")
+            if not isinstance(task_id, str) or not task_id.strip():
+                continue
+            current_provider = self.providers.get(task_id)
+            fallback_provider = self.fallback_providers.get(task_id)
+            if current_provider is None or fallback_provider is None:
+                continue
+            provider_id = getattr(fallback_provider, "provider_id", None)
+            model_id = getattr(fallback_provider, "model_id", None) or getattr(fallback_provider, "model", None)
+            binding_id = getattr(fallback_provider, "provider_binding_id", None)
+            current_provider_id = getattr(current_provider, "provider_id", None)
+            current_model_id = getattr(current_provider, "model_id", None) or getattr(current_provider, "model", None)
+            current_binding_id = getattr(current_provider, "provider_binding_id", None)
+            if not all(isinstance(value, str) and value.strip() for value in (provider_id, model_id)):
+                continue
+            if (
+                isinstance(current_provider_id, str)
+                and current_provider_id.strip() == provider_id.strip()
+                and isinstance(current_model_id, str)
+                and current_model_id.strip() == model_id.strip()
+                and (current_binding_id or current_provider_id) == (binding_id or provider_id)
+            ):
+                continue
+            attempt_count = task.get("attempt_count")
+            max_attempts = task.get("max_attempts")
+            if isinstance(attempt_count, int) and isinstance(max_attempts, int) and attempt_count >= max_attempts:
+                continue
+            current_label = current_provider_id.strip() if isinstance(current_provider_id, str) else None
+            child_key = self._rebind_host_verification_failure(
+                task,
+                provider=fallback_provider,
+                fallback_from_provider=current_label,
+                fallback_to_provider=provider_id.strip(),
+            )
+            self.providers[task_id] = fallback_provider
+            fallback.append(child_key)
+        return fallback
+
     @classmethod
     def _normalize_review_decision(cls, value: Mapping[str, Any]) -> dict[str, Any]:
         if not isinstance(value, Mapping):
@@ -1075,6 +1357,36 @@ class Phase8ProductionExecutor:
         if fallback:
             # The fallback receives a fresh immutable manifest and the latest
             # concrete directive. It is one bounded alternate-model pass.
+            step = self.commander.advance(
+                providers=self.providers,
+                orchestrator=self.orchestrator,
+                verification_trust_level=self.verification_trust_level,
+                operator_approved=self.operator_approved,
+                dispatch_timeout_seconds=self.dispatch_timeout_seconds,
+                local_trial=self.local_trial,
+            )
+            plan = self.commander.plan()
+        host_repaired = self._repair_failed_verifications(plan)
+        if host_repaired:
+            # Host Verification failures are not proposal failures, but a
+            # bounded syntax/test directive can still make the next Worker
+            # attempt strictly more informed.
+            repaired.extend(host_repaired)
+            step = self.commander.advance(
+                providers=self.providers,
+                orchestrator=self.orchestrator,
+                verification_trust_level=self.verification_trust_level,
+                operator_approved=self.operator_approved,
+                dispatch_timeout_seconds=self.dispatch_timeout_seconds,
+                local_trial=self.local_trial,
+            )
+            plan = self.commander.plan()
+        host_fallback = self._fallback_failed_verifications(plan)
+        if host_fallback:
+            # A recurrent Host failure is handed to the distinct configured
+            # fallback with the latest Host-derived directive, never as a
+            # blank retry.
+            fallback.extend(host_fallback)
             step = self.commander.advance(
                 providers=self.providers,
                 orchestrator=self.orchestrator,
