@@ -97,7 +97,12 @@ contracts remain in `docs/CODEX_SUPERVISOR.md` and
 ## Delivery
 
 Run focused tests, the full `tests/v2` regression, and relevant read-only Gate
-checks. Keep live Provider and external blockers truthful. Update the owning
-Current State/traceability document when implementation evidence changes.
+checks. Keep live Provider and external blockers truthful. Update repository
+Current State when accepted repository-level state actually changes; replace or
+retire stale projections instead of appending implementation chronology, and
+reference the establishing Issue/PR/evidence compactly when useful. Keep task
+progress, temporary blockers, commit chronology, branch/reviewer state, and
+individual verification runs in the owning Issue / PR / Actions. Durable
+requirement or design changes still update their owning canonical documents.
 When the scoped slice is verified, commit and push it to `origin/v2/bootstrap`;
 do not rewrite history or promote a Gate from an artifact alone.
