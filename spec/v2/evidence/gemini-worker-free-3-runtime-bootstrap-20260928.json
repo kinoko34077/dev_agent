@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "evidence_type": "runtime_admission_configured_pool_snapshot",
+  "recorded_at": "2026-09-27T23:23:41.449023+00:00",
+  "observed_at": "2026-09-27T23:23:41.449023+00:00",
+  "source_revision": "553fb6f7f050b511fc7d83c3a79741f43403bb05",
+  "source": {
+    "authority": "existing scripts/qualify_free_provider.py via Controller -> ProviderDispatcher -> ResourceRouter",
+    "configured_pool_opt_in": true,
+    "provider_id": "gemini",
+    "provider_binding_id": "gemini:worker:free-3",
+    "model_id": "gemini-3.5-flash-lite",
+    "trusted_billing_profile": "no_charge_catalog",
+    "cost_minor": 0,
+    "network_called": true,
+    "state_written_only_to_temporary_directory": true,
+    "repository_state_mutated": false,
+    "unknown_or_reconciliation_replayed": false,
+    "credentials_recorded": false,
+    "raw_provider_response_recorded": false
+  },
+  "runtime_snapshot": {
+    "statuses": {
+      "RUNTIME_ELIGIBLE": 0,
+      "RUNTIME_BOOTSTRAP_ADMITTED": 1,
+      "RUNTIME_UNKNOWN": 0,
+      "RUNTIME_UNAVAILABLE": 0
+    },
+    "observations": [
+      {
+        "provider_id": "gemini",
+        "provider_binding_id": "gemini:worker:free-3",
+        "model_id": "gemini-3.5-flash-lite",
+        "status": "RUNTIME_BOOTSTRAP_ADMITTED",
+        "observed_at": "2026-09-27T23:23:41.449023+00:00",
+        "source": "bounded no-charge qualification with unknown quota"
+      }
+    ]
+  },
+  "bounded_qualification": {
+    "generation_attempted": true,
+    "qualification_scope": "text_tool_roundtrip",
+    "model_calls": 2,
+    "tool_calls": 1,
+    "provider_audit_records": 2,
+    "effect_intents_succeeded": 2,
+    "thought_signatures_received": 2,
+    "thought_signatures_replayed": 1,
+    "quota_observation_present": false,
+    "quota_status": "unknown_not_reported",
+    "formal_runtime_eligible": false
+  },
+  "interpretation": {
+    "generation_liveness": "OBSERVED_FOR_BOUNDED_TEXT_TOOL_ROUNDTRIP",
+    "runtime_admission": "RUNTIME_BOOTSTRAP_ADMITTED",
+    "why_not_runtime_eligible": "The provider returned no authoritative numeric quota observation; no remaining headroom or limit was fabricated.",
+    "gate_impact": "none",
+    "next_action": "Use this as fresh non-Gate liveness evidence. Keep the exact route out of formal R9 until the accepted runtime-admission contract is satisfied."
+  }
+}

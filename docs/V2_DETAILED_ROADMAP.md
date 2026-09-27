@@ -31,15 +31,17 @@ is `5658203`; the subsequent Current State and execution-plan synchronization is
 head. The current diagnostic remains `RUNTIME_ELIGIBLE=0`.
 
 One bounded, no-charge `gemini:worker:free-3 / gemini-3.5-flash-lite`
-qualification completed with zero committed cost, but no numeric quota
-observation. It is therefore generation-liveness/non-Gate evidence only and
-does not start formal R9 or replay an UNKNOWN effect. Cloudflare discovery
-currently exposes 65 model rows, but all lack benchmark evidence in the current
+text/tool qualification completed with two model calls, one tool call, two
+provider audits, two succeeded effect intents, and zero committed cost, but no
+numeric quota observation. It is therefore observed generation-liveness and
+`RUNTIME_BOOTSTRAP_ADMITTED` non-Gate evidence only; it does not start formal
+R9 or replay an UNKNOWN effect. Cloudflare discovery currently exposes 65 model
+rows, but all lack benchmark evidence in the current
 snapshot (`static_eligible=0`); no Cloudflare generation probe was started.
 Keep qwen3.5:9b as local primary, gemma4:12b as local fallback, and use the
 trusted Gemini route only for bounded opportunistic observations while fresh
 calls succeed. Formal Phase 8 activation remains unverified. Evidence:
-[`gemini-worker-free-3-qualification-20260928.json`](../spec/v2/evidence/gemini-worker-free-3-qualification-20260928.json).
+[`gemini-worker-free-3-runtime-bootstrap-20260928.json`](../spec/v2/evidence/gemini-worker-free-3-runtime-bootstrap-20260928.json).
 
 ## 現在位置
 
