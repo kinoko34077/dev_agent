@@ -10,8 +10,8 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 | Field | Current fact |
 | --- | --- |
 | Accepted branch | `v2/bootstrap` |
-| Accepted remote head at latest integrated implementation | `95382a2` (merged PR #38 D3 post-429 quarantine recovery without fabricated quota; exact-head CI remains green) |
-| Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight and local L1 evidence; PR #13 Current State compaction; PR #16 static-vs-runtime admission semantics and read-only exact-route evaluator; PR #22 concrete invalid-JSON Worker repair directive; `8a8204c` deterministic continuation capability preflight; `af0e242` Host Verification repair/fallback convergence; `37faaf6` configured-pool runtime-evidence diagnostic compatibility; `83a81ca` evidence/docs synchronization; `c88714f` #26 blocker audit; `cfb0e2a` bounded trusted no-charge bootstrap projection; `985e449` Reviewer contract hardening and fresh non-Gate remote multi-role completion; `3a9b82b` unknown transport-stage provenance hardening; `64878bd` Host child bytecode-write boundary hardening; PR #30 D1 canonical model-evidence refresh; PR #38 D3 quota quarantine recovery |
+| Accepted remote head at latest integrated implementation | `8068007` (D4 static-diagnostic vocabulary separation; D3 remains merged at PR #38; exact-head CI for the implementation line remains green) |
+| Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight and local L1 evidence; PR #13 Current State compaction; PR #16 static-vs-runtime admission semantics and read-only exact-route evaluator; PR #22 concrete invalid-JSON Worker repair directive; `8a8204c` deterministic continuation capability preflight; `af0e242` Host Verification repair/fallback convergence; `37faaf6` configured-pool runtime-evidence diagnostic compatibility; `83a81ca` evidence/docs synchronization; `c88714f` #26 blocker audit; `cfb0e2a` bounded trusted no-charge bootstrap projection; `985e449` Reviewer contract hardening and fresh non-Gate remote multi-role completion; `3a9b82b` unknown transport-stage provenance hardening; `64878bd` Host child bytecode-write boundary hardening; PR #30 D1 canonical model-evidence refresh; PR #38 D3 quota quarantine recovery; `8068007` D4 static/runtime diagnostic vocabulary separation |
 | Formal Gate | `D9_DOGFOOD=VERIFIED`; `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`; `PHASE8_PREPARATION=PREPARATION_ONLY`; `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` |
 | Current source of truth | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json), exact-head CI, owning Issues/PRs, and bounded Evidence files |
 
@@ -21,7 +21,13 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 - The canonical four-layer set now contains catalog `1,358`, benchmark `8`, alias `992`, and capability `458` entries. The fresh 48-hour expiry preflight is PASS: static eligible `56 / 56`, the exact `gemini:worker:free-3 / gemini-3.5-flash-lite` identity is `ELIGIBLE` now and at the horizon, and no source is exhausted.
 - GitHub Actions for the reviewed head passed: [`v2-core`](https://github.com/kinoko34077/dev_agent/actions/runs/36332395197) and [`v2-provider-smoke`](https://github.com/kinoko34077/dev_agent/actions/runs/36332395159). Local targeted evidence/diagnostic tests passed `25`; the broader `tests/v2` run passed `1,724` with `1` ACL-owned skip when excluding the known protected-budget fixture module.
 - This is static evidence only. `RUNTIME_ELIGIBLE=0`, `RUNTIME_BOOTSTRAP_ADMITTED` remains non-Gate, and formal Phase 8 `LIVE_ACTIVATION=NOT_VERIFIED`; no Provider routing, quota, billing, qualification, credential, or protected Gate state was changed.
-- D1, D2, and D3 are complete for the current snapshot. #27 D4 remains the next discovery-boundary work before formal R9; no formal Gate or runtime eligibility was promoted.
+- D1, D2, D3, and D4 are complete for the current snapshot. Formal R9 remains blocked until a newly admitted `RUNTIME_ELIGIBLE` route is observed; no formal Gate or runtime eligibility was promoted.
+
+### 2026-09-28 D4 static diagnostic vocabulary separation
+
+- `8068007` changes only the read-only model-evidence diagnostic boundary: missing/expired static evidence is reported as `STATIC_EVIDENCE_MISSING`, and discovered non-text/specialized models as `STATIC_MODEL_UNSUPPORTED`.
+- `RUNTIME_UNAVAILABLE` is now reserved for an explicit runtime admission observation. This prevents a missing catalog row or static specialization from being misread as a live Provider outage; Router, quota, billing, qualification, and generation behavior are unchanged.
+- Focused admission/diagnostic verification is `45 passed`; the read-only full-catalog summary reports `56` static-eligible rows, `7` runtime-not-probed rows, and `0` runtime-unavailable observations on the current snapshot. Formal Gate and `RUNTIME_ELIGIBLE=0` remain unchanged. Detailed audit context is in Issue [#27](https://github.com/kinoko34077/dev_agent/issues/27).
 
 ### 2026-09-28 D3 post-429 quota quarantine recovery
 

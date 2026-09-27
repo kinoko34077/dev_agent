@@ -96,7 +96,7 @@ remaining is unknown. This does not establish full multi-role readiness or
 start R9. Evidence:
 [`gemini-free3-generation-readiness-20260927.json`](../spec/v2/evidence/gemini-free3-generation-readiness-20260927.json).
 
-2026-09-28 Phase 8 D3 quota/liveness checkpoint: merged PR #38 (`95382a2`) closes the post-429 quarantine deadlock without fabricating quota headroom. A reset-expired successful no-header probe is now limited to an exact current trusted no-charge hard-stop identity and returns through the existing explicit UNKNOWN/bootstrap admission path; paid, tampered, malformed, external, and reconciliation paths remain fail-closed. D3 exact-head CI is green, while `RUNTIME_ELIGIBLE=0` and `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` remain unchanged. The next serial audit slice is #27 D4; after that, resume R9 only on a newly admitted route and fresh root identity.
+2026-09-28 Phase 8 D3/D4 audit checkpoint: merged PR #38 (`95382a2`) closes the post-429 quarantine deadlock without fabricating quota headroom. A reset-expired successful no-header probe is limited to an exact current trusted no-charge hard-stop identity and returns through the existing explicit UNKNOWN/bootstrap admission path; paid, tampered, malformed, external, and reconciliation paths remain fail-closed. Commit `8068007` separates static evidence failures from runtime-unavailable observations in the read-only diagnostic. D3 exact-head CI and D4 focused verification are green, while `RUNTIME_ELIGIBLE=0` and `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` remain unchanged. The next action is a fresh model-evidence/runtime-admission refresh and R9 only if a newly admitted route exists; no prior UNKNOWN operation may be replayed.
 
 ## Current phase
 
