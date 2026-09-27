@@ -26,6 +26,9 @@ jobs:
       - run: python -m pip install -r requirements-v2-dev.txt
       - name: Verify exact checked-out HEAD
         run: python scripts/check_head.py --expected "$GITHUB_SHA"
+      - name: Admission evidence expiry (warning only)
+        continue-on-error: true
+        run: python scripts/check_evidence_expiry.py --fail-if-no-eligible-within 48
       - run: mkdir -p artifacts
       - run: python -m pytest tests/v2 -q --junitxml=artifacts/v2-core-junit-${{ matrix.python-version }}.xml
       - name: Architecture boundaries
