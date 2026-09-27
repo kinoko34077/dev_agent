@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "evidence_type": "phase8_bootstrap_admitted_non_gate_trial",
+  "recorded_at": "2026-09-27T10:24:55.0725305Z",
+  "revision": "985e449740d225c5368c47f3f49cfc368b43108e",
+  "scope": "non_gate_bootstrap_admitted_trial",
+  "runtime_admission": "RUNTIME_BOOTSTRAP_ADMITTED",
+  "formal_gate_impact": "unchanged",
+  "source": {
+    "branch": "v2/bootstrap",
+    "base_revision": "bd2551798a0996e36d207bb9bd3273ca0357f76d",
+    "isolated_execution_clone": true,
+    "clean_integration_worktree": true,
+    "codex_direct_implementation_count": 0,
+    "unknown_replayed": false,
+    "reconciliation_replayed": false,
+    "secrets_recorded": false
+  },
+  "route": {
+    "planner": {
+      "provider": "gemini",
+      "binding": "gemini:worker:free-3",
+      "model": "gemini-3.5-flash-lite",
+      "outcome": "succeeded",
+      "intelligence_tier": "L1",
+      "trusted_no_charge": true
+    },
+    "workers": {
+      "provider": "gemini",
+      "binding": "gemini:worker:free-3",
+      "model": "gemini-3.5-flash-lite",
+      "worker_count": 2,
+      "fallback_used": false,
+      "host_verification": "PASS"
+    },
+    "reviewer": {
+      "provider": "ollama",
+      "binding": "ollama:local:qwen3.5-9b",
+      "model": "qwen3.5:9b",
+      "role_independent_from_worker": true,
+      "proposal_decisions": 2,
+      "decisions": "APPROVE_INTEGRATION"
+    },
+    "gemma_fallback": {
+      "provider": "ollama",
+      "binding": "ollama:local:gemma4-12b",
+      "model": "gemma4:12b",
+      "used": false
+    }
+  },
+  "fresh_identity": {
+    "root_task_id": "73170efc-8121-4138-9eae-61ac8d469bb1",
+    "run_id": "phase8-a56e0a92da914e5e9d4c2e4d656111b9",
+    "proposal_id": "2dda4702-c654-4b96-b41d-f767d19c13b3",
+    "continuation_task_id": "eb36cb31-3e20-5a50-baa2-a65f86bfe23c"
+  },
+  "execution": {
+    "planner": "PASS",
+    "workers": ["worker-a", "worker-b"],
+    "review": ["worker-a", "worker-b"],
+    "integrated": ["worker-a", "worker-b"],
+    "repaired": [],
+    "continuation": "CODE_INTEGRATED -> completed",
+    "root": "completed",
+    "integration_revision": "e160794959a6963c4c62cb3749696e7a330eee31",
+    "local_model_unloaded": ["qwen3.5:9b"],
+    "local_model_cleanup_errors": []
+  },
+  "bounded_preflight_corrections": [
+    "worker fixture path corrected to remain outside protected authority paths",
+    "execution clone separated from clean integration worktree",
+    "shared named integration ref used so the root can resolve integration revisions",
+    "reviewer prompt made explicit about literal identities and non-empty rationale"
+  ],
+  "interpretation": {
+    "non_gate_result": "VERIFIED",
+    "phase8_live_activation": "NOT_VERIFIED",
+    "r10": "not_started",
+    "next_action": "Return to Issue #11 admission procedure; do not promote the formal Gate from this bootstrap evidence."
+  }
+}

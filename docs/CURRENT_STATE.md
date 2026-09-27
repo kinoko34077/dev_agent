@@ -10,10 +10,16 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 | Field | Current fact |
 | --- | --- |
 | Accepted branch | `v2/bootstrap` |
-| Accepted remote head at latest integrated implementation | `cfb0e2a9d21e1d6b8f8053f934490884e54d68b0` (`RUNTIME_BOOTSTRAP_ADMITTED` projection from #26; subsequent docs sync is tracked separately) |
-| Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight and local L1 evidence; PR #13 Current State compaction; PR #16 static-vs-runtime admission semantics and read-only exact-route evaluator; PR #22 concrete invalid-JSON Worker repair directive; `8a8204c` deterministic continuation capability preflight; `af0e242` Host Verification repair/fallback convergence; `37faaf6` configured-pool runtime-evidence diagnostic compatibility; `83a81ca` evidence/docs synchronization; `c88714f` #26 blocker audit; `cfb0e2a` bounded trusted no-charge bootstrap projection |
+| Accepted remote head at latest integrated implementation | `985e449740d225c5368c47f3f49cfc368b43108e` (Reviewer output-contract hardening and non-Gate bootstrap trial; subsequent docs/evidence sync is tracked separately) |
+| Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight and local L1 evidence; PR #13 Current State compaction; PR #16 static-vs-runtime admission semantics and read-only exact-route evaluator; PR #22 concrete invalid-JSON Worker repair directive; `8a8204c` deterministic continuation capability preflight; `af0e242` Host Verification repair/fallback convergence; `37faaf6` configured-pool runtime-evidence diagnostic compatibility; `83a81ca` evidence/docs synchronization; `c88714f` #26 blocker audit; `cfb0e2a` bounded trusted no-charge bootstrap projection; `985e449` Reviewer contract hardening and fresh non-Gate remote multi-role completion |
 | Formal Gate | `D9_DOGFOOD=VERIFIED`; `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`; `PHASE8_PREPARATION=PREPARATION_ONLY`; `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` |
 | Current source of truth | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json), exact-head CI, owning Issues/PRs, and bounded Evidence files |
+
+### 2026-09-27 Non-Gate bootstrap-admitted remote multi-role completion
+
+- Under the explicit Human non-Gate authorization recorded on Issue #11, a fresh isolated root used the exact trusted no-charge `gemini:worker:free-3 / gemini-3.5-flash-lite` route for Planner and two non-overlapping Workers. Both Workers passed independent Host Verification; the existing deterministic integration boundary integrated both patches and released the `CODE_INTEGRATED` dependent continuation to completion.
+- A distinct proposal-only local `qwen3.5:9b` Reviewer approved both Worker candidates. `gemma4:12b` remained an available fallback but was not used. Codex direct implementation count was `0`; no UNKNOWN or reconciliation effect was replayed; qwen was unloaded at terminal cleanup. Fresh identities and bounded execution details are recorded in [`phase8-bootstrap-admitted-nongate-20260927.json`](../spec/v2/evidence/phase8-bootstrap-admitted-nongate-20260927.json): root `73170efc-8121-4138-9eae-61ac8d469bb1`, run `phase8-a56e0a92da914e5e9d4c2e4d656111b9`, continuation `eb36cb31-3e20-5a50-baa2-a65f86bfe23c`.
+- `985e449` also makes the Reviewer prompt explicitly require literal task/attempt identities and a non-empty rationale; its changed-boundary test is `7 passed`. The bounded trial result is `RUNTIME_BOOTSTRAP_ADMITTED` / `non_gate_result=VERIFIED`, not `RUNTIME_ELIGIBLE` and not formal Phase 8 activation. `D9_DOGFOOD=VERIFIED`, `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`, `PHASE8_PREPARATION=PREPARATION_ONLY`, and `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` remain unchanged.
 
 ### 2026-09-27 Phase 8 continuation preflight and local-first trial
 
@@ -66,6 +72,7 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 
 - Deterministic local composition reaches Planner validation, two non-overlapping Workers, independent Host Verification, proposal-only review, deterministic Integration, `CODE_INTEGRATED` release, and an existing RuntimeCoordinator continuation. Provider responses are fixtures, so this is non-Gate evidence.
 - The fresh qwen3.5:9b / Gemma4:12b local L1 root at `af0e242` completed the multi-role chain with bounded Host repair/fallback, terminal continuation, and Codex direct implementation `0`; this is non-Gate evidence.
+- The fresh Gemini bootstrap-admitted root above is a separate non-Gate remote observation. It must not be merged into the formal R9 admission ledger or used to infer numeric quota headroom or stable generation liveness.
 - Worker preflight and failure-safe local model cleanup are integrated. Cleanup failures remain bounded diagnostics and cannot mask the result or original exception.
 - Discord remains a thin Core adapter. Local composition is verified; real-client typing, active NOTE/history/WAIT, CHAT/follow-up, HumanRequest/Approval, restart/offline, and Thread E2E remain unverified.
 
@@ -280,11 +287,12 @@ state. Detailed requirements and decisions stay in their owning documents.
 ## Immediate next target
 
 0. Treat the Discord implementation slice as locally verified but keep unobserved real-client UX items explicit. The read-only model-evidence refresh is complete; do not start a fresh R9 root until a current qualified remote route is admitted, and never replay an UNKNOWN operation. The local always-on/Human/Codex/self-update and conversation slices are locally verified and must not be mistaken for Phase 8 activation or Production Deployment.
-1. Use qwen3.5:9b as the primary local route and gemma4:12b as the only automatic fallback. Keep qwen3.5:4b installed but inactive for automatic routing. Fresh local roots now include distinct Gemma4 Reviewer evidence in [`phase8-local-independent-reviewer-20260926.json`](../spec/v2/evidence/phase8-local-independent-reviewer-20260926.json); preserve both local results as non-Gate evidence and do not repeat them without a changed hypothesis or newly admitted route.
-2. R9 fresh-root live trial: resume only with a newly observed eligible route/new request identity, then complete Planner, two non-overlapping Implementers, independent Reviewer proposal, dependent continuation, Host integration, and exact-head CI.
-3. `AR1` live recovery remains open and is only consumed by a natural FORMAT/PATCH or SEMANTIC/TEST failure: classify, select one bounded action, create a fresh Worker attempt, verify, review, and integrate. A first-pass success must remain a success and must not be manufactured into AR1.
-4. Keep `D9_PRODUCTION_DEPLOYMENT` deferred; do not retry the rejected OS registration without a changed Host permission context.
-5. After Phase 8 live activation, proceed to R10 weak-model convergence benchmark; then Stage 6 benchmark, formal Operation/MCP, and UI-entry readiness. Keep all Gate promotions evidence-based.
+1. Preserve the completed non-Gate Gemini bootstrap root in [`phase8-bootstrap-admitted-nongate-20260927.json`](../spec/v2/evidence/phase8-bootstrap-admitted-nongate-20260927.json). It proves the existing multi-role chain can complete on a trusted bootstrap-admitted route, but does not change `RUNTIME_ELIGIBLE=0` or the formal Gate.
+2. Use qwen3.5:9b as the primary local route and gemma4:12b as the only automatic fallback. Keep qwen3.5:4b installed but inactive for automatic routing. Preserve the existing local results as non-Gate evidence and do not repeat them without a changed hypothesis or newly admitted route.
+3. R9 fresh-root live trial: resume only with a newly observed eligible route/new request identity, or a separately authorized specification decision. If the trusted Gemini route remains usable, it may be used opportunistically for further non-Gate observation without replaying UNKNOWN effects; formal R9 still requires the current admission contract and exact-head CI.
+4. `AR1` live recovery remains open and is only consumed by a natural FORMAT/PATCH or SEMANTIC/TEST failure: classify, select one bounded action, create a fresh Worker attempt, verify, review, and integrate. A first-pass success must remain a success and must not be manufactured into AR1.
+5. Keep `D9_PRODUCTION_DEPLOYMENT` deferred; do not retry the rejected OS registration without a changed Host permission context.
+6. After Phase 8 live activation, proceed to R10 weak-model convergence benchmark; then Stage 6 benchmark, formal Operation/MCP, and UI-entry readiness. Keep all Gate promotions evidence-based.
 
 The ordered roadmap is [`docs/V2_DETAILED_ROADMAP.md`](V2_DETAILED_ROADMAP.md),
 and the compact operational procedure is [`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_DAILY_DOGFOOD.md).
@@ -312,6 +320,7 @@ and the compact operational procedure is [`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_D
 - Phase 8 Worker contract, production-shape preflight, and bounded local fallback handoff: [`phase8-worker-contract-fallback-20260926.json`](../spec/v2/evidence/phase8-worker-contract-fallback-20260926.json)
 - Phase 8 fresh local L1 root through integration and dependent continuation: [`phase8-local-e2e-20260926.json`](../spec/v2/evidence/phase8-local-e2e-20260926.json)
 - Phase 8 fresh local root with distinct proposal-only Gemma4 Reviewer and bounded terminal projection: [`phase8-local-independent-reviewer-20260926.json`](../spec/v2/evidence/phase8-local-independent-reviewer-20260926.json)
+- Phase 8 trusted no-charge bootstrap-admitted remote multi-role completion (non-Gate): [`phase8-bootstrap-admitted-nongate-20260927.json`](../spec/v2/evidence/phase8-bootstrap-admitted-nongate-20260927.json)
 - Ollama local Worker rebind follow-up: [`ollama-local-worker-rebind-followup-20260923.json`](../spec/v2/evidence/ollama-local-worker-rebind-followup-20260923.json)
 - Operational Human Proxy / Expert Assist / local self-update: [`operational-human-assist-self-update-local-20260923.json`](../spec/v2/evidence/operational-human-assist-self-update-local-20260923.json)
 - Latest read-only R9 candidate diagnostic: [`model-candidate-diagnostic-20260923.json`](../spec/v2/evidence/model-candidate-diagnostic-20260923.json)
