@@ -29,6 +29,12 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 - Changed-boundary tests are `2 passed`; Phase 8 production execution regression is `10 passed`; compile and diff checks passed. Exact-head CI for `af0e242` is green: kernel 3.10/3.11 and provider-smoke.
 - This closes the bounded local E2E slice as `OLLAMA_LOCAL_E2E=VERIFIED_NON_GATE`; it does not promote Phase 8. No exact free/no-charge remote route is currently `RUNTIME_ELIGIBLE`, so the formal Gate remains unchanged.
 
+### 2026-09-27 Runtime admission diagnostic compatibility
+
+- `37faaf6` makes the read-only `diagnose_model_candidates.py` boundary accept the existing configured-pool runtime evidence envelope (`runtime_snapshot.observations`) while preserving the strict exact-identity/status runtime contract. Bounded diagnostic-only fields such as `reason` are not promoted into runtime authority.
+- The configured-pool projection now runs successfully: the exact `gemini-3.5-flash-lite` candidate remains `RUNTIME_UNKNOWN`, the exact 3.6/3.8 candidates remain `RUNTIME_UNAVAILABLE`, and `RUNTIME_ELIGIBLE=0`. No network, generation, credential, or runtime state mutation was performed.
+- Focused diagnostic coverage is `12 passed`; exact-head CI for `37faaf6` is green: kernel 3.10/3.11 and provider-smoke.
+
 ### 2026-09-27 Issue #15 admission synchronization
 
 - PR #16 is integrated at `81e47cea6500d9bdd8ad0cdd717f9e734d5e8a3a`; PR #17 synchronized the repository evidence/docs at `59b2c7413db3f00a0fa6c8a08a08721bd3f83d22`. The PR-head v2-core and provider-smoke checks were green.
