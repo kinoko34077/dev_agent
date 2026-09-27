@@ -220,7 +220,20 @@ def test_main_accepts_configured_pool_runtime_snapshot(tmp_path, capsys):
         encoding="utf-8",
     )
 
-    assert main(["--summary", "--json", "--runtime-evidence", str(evidence)]) == 0
+    assert main(
+        [
+            "--summary",
+            "--json",
+            "--runtime-evidence",
+            str(evidence),
+            "--provider",
+            "gemini",
+            "--binding",
+            "gemini:worker:free-3",
+            "--model",
+            "gemini-3.5-flash-lite",
+        ]
+    ) == 0
 
     output = capsys.readouterr().out
     assert '"runtime_unavailable_count": 1' in output

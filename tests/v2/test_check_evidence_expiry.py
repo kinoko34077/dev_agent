@@ -18,10 +18,34 @@ _spec.loader.exec_module(check_evidence_expiry)
 
 _FREE3 = ("gemini", "gemini:worker:free-3", "gemini-3.5-flash-lite")
 _FREE3_ARG = "/".join(_FREE3)
-# A time at which the recorded evidence admits the free-3 identity statically.
-_NOW = datetime(2026, 9, 27, 8, tzinfo=timezone.utc)
 _FAR_FUTURE = datetime(2100, 1, 1, tzinfo=timezone.utc)
 _MODEL_FILES = ("model_catalog_snapshot.json", "model_benchmark_snapshot.json", "model_capability_snapshot.json")
+
+
+def _latest_observation_time() -> datetime:
+    timestamps = []
+    for name in _MODEL_FILES:
+        document = json.loads((DEFAULT_MODEL_EVIDENCE_DIRECTORY / name).read_text(encoding="utf-8"))
+
+        def collect(node) -> None:
+            if isinstance(node, dict):
+                value = node.get("observed_at")
+                if isinstance(value, str):
+                    timestamps.append(datetime.fromisoformat(value).astimezone(timezone.utc))
+                for child in node.values():
+                    collect(child)
+            elif isinstance(node, list):
+                for child in node:
+                    collect(child)
+
+        collect(document)
+    return max(timestamps) + timedelta(minutes=1)
+
+
+# Keep the fixture evaluation after the newest canonical observation. Evidence
+# refreshes legitimately move observed_at forward; the test must not encode a
+# stale wall-clock assumption that predates the refreshed snapshot.
+_NOW = _latest_observation_time()
 
 
 def _rewrite_expiries(node, value: str) -> None:
