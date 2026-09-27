@@ -10,8 +10,8 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 | Field | Current fact |
 | --- | --- |
 | Accepted branch | `v2/bootstrap` |
-| Accepted remote head at latest integrated audit | `8a8204c387d48c37f25d63deab5de1fe5f401f8d` (Phase 8 deterministic continuation capability preflight; latest implementation baseline `8a8204c387d48c37f25d63deab5de1fe5f401f8d`) |
-| Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight and local L1 evidence; PR #13 Current State compaction; PR #16 static-vs-runtime admission semantics and read-only exact-route evaluator; PR #22 concrete invalid-JSON Worker repair directive; `8a8204c` deterministic continuation capability preflight |
+| Accepted remote head at latest integrated audit | `af0e242f01af3641a1f6088e47638cb5c354ee16` (Host Verification repair/fallback convergence; latest implementation baseline `af0e242f01af3641a1f6088e47638cb5c354ee16`) |
+| Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight and local L1 evidence; PR #13 Current State compaction; PR #16 static-vs-runtime admission semantics and read-only exact-route evaluator; PR #22 concrete invalid-JSON Worker repair directive; `8a8204c` deterministic continuation capability preflight; `af0e242` Host Verification repair/fallback convergence |
 | Formal Gate | `D9_DOGFOOD=VERIFIED`; `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`; `PHASE8_PREPARATION=PREPARATION_ONLY`; `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` |
 | Current source of truth | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json), exact-head CI, owning Issues/PRs, and bounded Evidence files |
 
@@ -21,6 +21,13 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 - Focused coverage for the changed boundary is `11 passed`; `git diff --check` and focused Python compilation passed. Exact-head CI for `8a8204c` is green: [kernel 3.10/3.11](https://github.com/kinoko34077/dev_agent/actions/runs/36297957792) and [provider-smoke](https://github.com/kinoko34077/dev_agent/actions/runs/36297957861).
 - A fresh ownership-safe local root using qwen3.5:9b primary and gemma4:12b fallback reached Host Verification for both Workers, where malformed/missing-symbol model patches were correctly rejected (one missing `OllamaProvider` export; one unterminated string literal). Reviewer, integration, and dependent continuation were not claimed. No Codex direct implementation, remote generation, UNKNOWN replay, or Gate change occurred; local models were unloaded after the trial. This bounded result is recorded in Issue #11 and keeps `OLLAMA_LOCAL_E2E=PARTIAL_BLOCKED`.
 - Current configured remote admission remains unchanged: no exact free/no-charge route is `RUNTIME_ELIGIBLE`; the formal Gate remains `D9_DOGFOOD=VERIFIED`, `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`, `PHASE8_PREPARATION=PREPARATION_ONLY`, and `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED`.
+
+### 2026-09-27 Host Verification repair and local E2E completion
+
+- `af0e242` connects the existing Host Verification rejection to one bounded, Host-derived `ConcreteFailureSpec`/`RepairDirective` rework attempt. Syntax/import failures are projected as `FORMAT_PATCH`; other bounded verifier/test failures are projected as `SEMANTIC_TEST`. A recurrent Host failure is handed to the configured local fallback through a fresh manifest; provider transport, UNKNOWN, reconciliation, security, and authority failures remain outside this repair lane.
+- A fresh Ollama-only root completed the full non-Gate local chain: qwen3.5:9b Planner; two non-overlapping Workers; Worker A bounded Host repair plus Gemma4:12b fallback; Host Verification; proposal-only Reviewer/final Host decision; deterministic integration; `CODE_INTEGRATED` continuation; terminal root. Codex direct implementation count was `0`, and `ollama ps` was empty after cleanup. Evidence: [`phase8-local-host-repair-e2e-20260927.json`](../spec/v2/evidence/phase8-local-host-repair-e2e-20260927.json) and Issue #11.
+- Changed-boundary tests are `2 passed`; Phase 8 production execution regression is `10 passed`; compile and diff checks passed. Exact-head CI for `af0e242` is green: kernel 3.10/3.11 and provider-smoke.
+- This closes the bounded local E2E slice as `OLLAMA_LOCAL_E2E=VERIFIED_NON_GATE`; it does not promote Phase 8. No exact free/no-charge remote route is currently `RUNTIME_ELIGIBLE`, so the formal Gate remains unchanged.
 
 ### 2026-09-27 Issue #15 admission synchronization
 
@@ -45,7 +52,7 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 ### Verified now
 
 - Deterministic local composition reaches Planner validation, two non-overlapping Workers, independent Host Verification, proposal-only review, deterministic Integration, `CODE_INTEGRATED` release, and an existing RuntimeCoordinator continuation. Provider responses are fixtures, so this is non-Gate evidence.
-- A fresh qwen3.5:9b / Gemma4:12b local L1 root completed the multi-role chain with terminal continuation and Codex direct implementation `0`; this is non-Gate evidence.
+- The fresh qwen3.5:9b / Gemma4:12b local L1 root at `af0e242` completed the multi-role chain with bounded Host repair/fallback, terminal continuation, and Codex direct implementation `0`; this is non-Gate evidence.
 - Worker preflight and failure-safe local model cleanup are integrated. Cleanup failures remain bounded diagnostics and cannot mask the result or original exception.
 - Discord remains a thin Core adapter. Local composition is verified; real-client typing, active NOTE/history/WAIT, CHAT/follow-up, HumanRequest/Approval, restart/offline, and Thread E2E remain unverified.
 
@@ -58,7 +65,7 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 ### Deferred and next action
 
 - D9 Production Deployment (OS Guardian, Task Scheduler, reboot/deployed recovery) remains Human-deferred. R10/Stage 6/Stage 7/Stage 8 remain behind Phase 8 activation.
-- Use Issue #11 only for a fresh R9 root after materially new generation-admission evidence or a materially changed local premise. Run the complete single-root chain and exact-head CI; do not blind-retry or replay UNKNOWN effects.
+- The bounded local E2E chain is now verified as non-Gate evidence. Continue Issue #11 with the 9:1 local-first policy while independently seeking a current exact free/no-charge remote admission; run formal R9 only after that route is `RUNTIME_ELIGIBLE` and generation-ready. Do not blind-retry or replay UNKNOWN effects.
 - The chronology-heavy sections below are historical detail. The pre-compaction handoff is indexed at [`docs/archive/current-state/2026-09-26-pre-compaction.md`](archive/current-state/2026-09-26-pre-compaction.md).
 
 ## Historical detail retained from the pre-compaction snapshot
