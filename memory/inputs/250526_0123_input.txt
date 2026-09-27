@@ -1,4 +1,0 @@
-あなたについて考察して
-q
-$env:PYTHONPATH = "."; python core/main.py
-あなたについて考察して
