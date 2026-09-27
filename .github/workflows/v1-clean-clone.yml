@@ -1,0 +1,45 @@
+name: v1-clean-clone
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  clean-clone:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install minimal test dependencies
+        run: python -m pip install pytest pyyaml python-dotenv
+      - name: Runtime data directories are not tracked (#24)
+        run: |
+          for d in logs memory/inputs memory/outputs memory/context memory/summaries memory/cache; do
+            if [ -n "$(git ls-files "$d")" ]; then echo "tracked runtime data: $d"; exit 1; fi
+          done
+      - name: MemoryContext initializes and loads through real file I/O on a clean clone
+        run: python -m pytest -q tests/test_memory_context_clean_clone.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+      - name: Generated runtime files stay ignored (#24)
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          # Generate real runtime output inside the checkout.
+          python -c "import sys, types; p = types.ModuleType('memory'); p.__path__ = ['memory']; sys.modules['memory'] = p; from memory.memory_context_initializer import initialize_memory_context; initialize_memory_context()"
+          mkdir -p logs memory/inputs memory/outputs memory/summaries memory/cache
+          touch logs/run.log memory/inputs/sample.json memory/outputs/sample.json \
+                memory/summaries/sample.txt memory/cache/context_cache.json
+          git check-ignore -v logs/run.log memory/inputs/sample.json memory/outputs/sample.json \
+                memory/summaries/sample.txt memory/cache/context_cache.json \
+                memory/context/system_prompt.txt memory/context/config_snapshot.json
+          status="$(git status --porcelain --untracked-files=all)"
+          if [ -n "$status" ]; then echo "runtime output is not ignored:"; echo "$status"; exit 1; fi
