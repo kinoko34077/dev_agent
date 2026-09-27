@@ -1,6 +1,6 @@
 # Current State
 
-## Current handoff projection — Issue #10
+## Current handoff projection — Issue #11
 
 This compact projection is the current operational handoff. The detailed
 chronology below is retained for traceability and must not be read as a second
@@ -10,10 +10,17 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 | Field | Current fact |
 | --- | --- |
 | Accepted branch | `v2/bootstrap` |
-| Accepted remote head at latest integrated audit | `fbe4a766dabca5b424bb4e98cd765b404703030d` (PR #22 concrete Worker repair directive; latest implementation baseline `fbe4a766dabca5b424bb4e98cd765b404703030d`) |
-| Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight and local L1 evidence; PR #13 Current State compaction; PR #16 static-vs-runtime admission semantics and read-only exact-route evaluator; PR #22 concrete invalid-JSON Worker repair directive |
+| Accepted remote head at latest integrated audit | `8a8204c387d48c37f25d63deab5de1fe5f401f8d` (Phase 8 deterministic continuation capability preflight; latest implementation baseline `8a8204c387d48c37f25d63deab5de1fe5f401f8d`) |
+| Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight and local L1 evidence; PR #13 Current State compaction; PR #16 static-vs-runtime admission semantics and read-only exact-route evaluator; PR #22 concrete invalid-JSON Worker repair directive; `8a8204c` deterministic continuation capability preflight |
 | Formal Gate | `D9_DOGFOOD=VERIFIED`; `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`; `PHASE8_PREPARATION=PREPARATION_ONLY`; `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` |
 | Current source of truth | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json), exact-head CI, owning Issues/PRs, and bounded Evidence files |
+
+### 2026-09-27 Phase 8 continuation preflight and local-first trial
+
+- `8a8204c` adds a Host-owned Phase 8 shape check that rejects Provider capabilities on a deterministic `CODE_INTEGRATED` continuation. This prevents a malformed proposal from reaching RuntimeCoordinator and parking late on `resource:no_route`; the normal `phase8_production` composition remains Provider-independent for this continuation.
+- Focused coverage for the changed boundary is `11 passed`; `git diff --check` and focused Python compilation passed. Exact-head CI for `8a8204c` is green: [kernel 3.10/3.11](https://github.com/kinoko34077/dev_agent/actions/runs/36297957792) and [provider-smoke](https://github.com/kinoko34077/dev_agent/actions/runs/36297957861).
+- A fresh ownership-safe local root using qwen3.5:9b primary and gemma4:12b fallback reached Host Verification for both Workers, where malformed/missing-symbol model patches were correctly rejected (one missing `OllamaProvider` export; one unterminated string literal). Reviewer, integration, and dependent continuation were not claimed. No Codex direct implementation, remote generation, UNKNOWN replay, or Gate change occurred; local models were unloaded after the trial. This bounded result is recorded in Issue #11 and keeps `OLLAMA_LOCAL_E2E=PARTIAL_BLOCKED`.
+- Current configured remote admission remains unchanged: no exact free/no-charge route is `RUNTIME_ELIGIBLE`; the formal Gate remains `D9_DOGFOOD=VERIFIED`, `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`, `PHASE8_PREPARATION=PREPARATION_ONLY`, and `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED`.
 
 ### 2026-09-27 Issue #15 admission synchronization
 
