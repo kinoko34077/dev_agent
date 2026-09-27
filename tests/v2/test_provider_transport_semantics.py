@@ -101,3 +101,14 @@ def test_transport_diagnostics_preserves_explicit_boundary_category_and_safe_num
         "transport_errno": 10013,
         "transport_winerror": None,
     }
+
+
+def test_unknown_socket_denial_does_not_inherit_default_response_wait_stage():
+    error = ProviderError("provider transport failed", category="transport", retryable=True)
+    error.__cause__ = _WinSockDenied()
+
+    annotate_transport_failure(error, stage=TransportStage.RESPONSE_WAIT)
+
+    assert getattr(error, "transport_failure_category") == TransportFailureCategory.TRANSPORT_UNCLASSIFIED.value
+    assert getattr(error, "transport_stage") == TransportStage.UNKNOWN.value
+    assert getattr(error, "transport_winerror") == 10013

@@ -176,7 +176,7 @@ def _cause_stage(cause: BaseException | None) -> TransportStage | None:
         return TransportStage.TLS
     if isinstance(cause, ConnectionRefusedError):
         return TransportStage.CONNECT
-    if isinstance(cause, RemoteDisconnected):
+    if isinstance(cause, (ConnectionResetError, ConnectionAbortedError, RemoteDisconnected)):
         return TransportStage.RESPONSE_WAIT
     if isinstance(cause, BrokenPipeError):
         return TransportStage.REQUEST_SEND
@@ -197,6 +197,14 @@ def _transport_stage_for(error: BaseException, stage: TransportStage | None) -> 
     if inferred is not None:
         return inferred
     explicit = stage or _coerce_transport_stage(getattr(error, "transport_stage", None))
+    # Provider adapters initialize the transport stage to RESPONSE_WAIT before
+    # opening a socket.  That is only a last-known stage, not proof that an
+    # arbitrary OSError reached response waiting.  Preserve the useful default
+    # for timeout failures, but do not label opaque socket-policy failures
+    # (for example Windows WSAEACCES/10013) more precisely than observed.
+    cause = _transport_cause(error)
+    if explicit is TransportStage.RESPONSE_WAIT and cause is not None and cause is not error and not isinstance(cause, TimeoutError):
+        return TransportStage.UNKNOWN
     return explicit or TransportStage.UNKNOWN
 
 
