@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping
 
 from .model_runtime import (
+    RUNTIME_BOOTSTRAP_ADMITTED,
     RUNTIME_ELIGIBLE,
     RUNTIME_UNKNOWN,
     RUNTIME_UNAVAILABLE,
@@ -101,7 +102,7 @@ class RuntimeAdmissionEvaluator:
             try:
                 self._router.choose(request, snapshot=exact_snapshot)
             except NoRoute:
-                status = RUNTIME_UNAVAILABLE if any(self._resource_is_unavailable(resource) for resource in matches) else RUNTIME_UNKNOWN
+                status = self._bootstrap_status(candidate, exact_snapshot, matches)
             else:
                 status = RUNTIME_ELIGIBLE
         return RuntimeAdmissionObservation(
@@ -112,6 +113,35 @@ class RuntimeAdmissionEvaluator:
             observed_at=timestamp,
             source=self._SOURCE,
         )
+
+    def _bootstrap_status(
+        self,
+        candidate: RuntimeAdmissionCandidate,
+        exact_snapshot: RoutingSnapshot,
+        matches: tuple[Mapping[str, Any], ...],
+    ) -> str:
+        """Mirror the real dispatch path's trusted no-charge UNKNOWN bootstrap.
+
+        Production composition enables ``allow_unknown_quota`` for trusted
+        no-charge bindings.  The Router alone decides whether this exact route
+        qualifies; a selection is only accepted when the Router itself marks
+        it ``unknown_quota``.  Every other gate (qualification, billing expiry,
+        health, freshness, blocked quota) still applies unchanged.
+        """
+
+        if any(self._resource_is_unavailable(resource) for resource in matches):
+            return RUNTIME_UNAVAILABLE
+        request = RouteRequest(
+            capabilities={"text"},
+            allowed_providers={candidate.provider_id},
+            allowed_provider_binding_ids={candidate.provider_binding_id},
+            allow_unknown_quota=True,
+        )
+        try:
+            selection = self._router.choose(request, snapshot=exact_snapshot)
+        except NoRoute:
+            return RUNTIME_UNKNOWN
+        return RUNTIME_BOOTSTRAP_ADMITTED if selection.unknown_quota else RUNTIME_UNKNOWN
 
     @staticmethod
     def _resource_is_unavailable(resource: Mapping[str, Any]) -> bool:

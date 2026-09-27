@@ -79,3 +79,51 @@ def test_exact_runtime_admission_reports_missing_quota_observation_as_unknown(tm
     )
 
     assert observation.status == RUNTIME_UNKNOWN
+
+
+def _trusted_free3_ledger(tmp_path):
+    from src.dev_agent.operation import OperationProviderBinding, OperationService
+    from src.dev_agent.resources.qualification import QualificationResolver
+
+    ledger = ResourceLedger(tmp_path / "runtime-admission-bootstrap.sqlite3")
+    binding = OperationProviderBinding(
+        provider_id="gemini",
+        model="gemini-3.5-flash-lite",
+        provider_binding_id="gemini:worker:free-3",
+        quota_domain="gemini:project:free-3",
+        api_key_env="UNUSED_TEST_KEY",
+    )
+    resolver = QualificationResolver()
+    OperationService._ensure_resource(ledger, object(), binding, qualification_resolver=resolver)
+    return ledger, ResourceRouter(ledger, qualification_resolver=resolver)
+
+
+_FREE3 = RuntimeAdmissionCandidate(
+    provider_id="gemini",
+    provider_binding_id="gemini:worker:free-3",
+    model_id="gemini-3.5-flash-lite",
+)
+
+
+def test_trusted_no_charge_route_without_quota_is_bootstrap_admitted_not_eligible(tmp_path):
+    from src.dev_agent.resources.runtime_admission import RUNTIME_BOOTSTRAP_ADMITTED
+
+    ledger, router = _trusted_free3_ledger(tmp_path)
+
+    observation = RuntimeAdmissionEvaluator(router).evaluate(_FREE3, snapshot=ledger.routing_snapshot())
+
+    assert observation.status == RUNTIME_BOOTSTRAP_ADMITTED
+    assert observation.status != RUNTIME_ELIGIBLE
+
+
+def test_blocked_quota_domain_is_not_bootstrap_admitted(tmp_path):
+    ledger, router = _trusted_free3_ledger(tmp_path)
+    snapshot = ledger.routing_snapshot()
+    blocked = type(snapshot)(
+        snapshot.resources,
+        {"gemini:project:free-3": ({"quota_domain": "gemini:project:free-3", "block_reason": "rate_limit", "observed_at": "2026-09-27T00:00:00+00:00"},)},
+    )
+
+    observation = RuntimeAdmissionEvaluator(router).evaluate(_FREE3, snapshot=blocked)
+
+    assert observation.status == RUNTIME_UNKNOWN

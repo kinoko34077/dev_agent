@@ -48,6 +48,7 @@ def test_summarize_entries_returns_only_bounded_aggregate_gate_counts():
         "eligible_count": 2,
         "runtime_eligible_count": 2,
         "static_eligible_count": 2,
+        "runtime_bootstrap_admitted_count": 0,
         "runtime_unknown_count": 0,
         "runtime_not_probed_count": 0,
         "runtime_unavailable_count": 0,

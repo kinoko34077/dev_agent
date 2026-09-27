@@ -17,6 +17,7 @@ if str(ROOT) not in sys.path:
 from src.dev_agent.resources.billing_catalog import profile_for
 from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
 from src.dev_agent.resources.model_runtime import (
+    RUNTIME_BOOTSTRAP_ADMITTED,
     RUNTIME_ELIGIBLE,
     RUNTIME_NOT_PROBED,
     RUNTIME_UNAVAILABLE,
@@ -97,6 +98,8 @@ def diagnose_entries(
                 gate_reason = "qualification_missing"
             elif result == RUNTIME_NOT_PROBED:
                 gate_reason = "runtime_not_probed"
+            elif result == RUNTIME_BOOTSTRAP_ADMITTED:
+                gate_reason = "runtime_bootstrap_admitted"
             elif result == RUNTIME_UNKNOWN:
                 gate_reason = "runtime_unknown"
             elif result == RUNTIME_UNAVAILABLE:
@@ -111,7 +114,7 @@ def diagnose_entries(
                 "qualification": "PASS" if qualification is not None else "MISSING",
                 # Static snapshots do not own live health/quota.  Do not imply
                 # that a model is healthy merely because it was discovered.
-                "runtime": result if result in {RUNTIME_ELIGIBLE, RUNTIME_UNAVAILABLE, RUNTIME_UNKNOWN, RUNTIME_NOT_PROBED} else "NOT_REACHED",
+                "runtime": result if result in {RUNTIME_ELIGIBLE, RUNTIME_BOOTSTRAP_ADMITTED, RUNTIME_UNAVAILABLE, RUNTIME_UNKNOWN, RUNTIME_NOT_PROBED} else "NOT_REACHED",
                 "result": result,
             }
         )
@@ -152,6 +155,7 @@ def summarize_entries(
         "eligible_count": result_counts.get(RUNTIME_ELIGIBLE, 0) + result_counts.get("ELIGIBLE", 0),
         "runtime_eligible_count": result_counts.get(RUNTIME_ELIGIBLE, 0) + result_counts.get("ELIGIBLE", 0),
         "static_eligible_count": static_result_counts.get("ELIGIBLE", 0),
+        "runtime_bootstrap_admitted_count": result_counts.get(RUNTIME_BOOTSTRAP_ADMITTED, 0),
         "runtime_unknown_count": result_counts.get("RUNTIME_UNKNOWN", 0),
         "runtime_not_probed_count": result_counts.get(RUNTIME_NOT_PROBED, 0),
         "runtime_unavailable_count": result_counts.get(RUNTIME_UNAVAILABLE, 0),
