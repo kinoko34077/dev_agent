@@ -10,8 +10,8 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 | Field | Current fact |
 | --- | --- |
 | Accepted branch | `v2/bootstrap` |
-| Accepted remote head at latest integrated audit | `83a81caf25241403d69aa71c8cac55b4e8582944` (docs/evidence sync after configured-pool diagnostic compatibility; latest implementation baseline `37faaf68132b7f7820726da80adbe59fac46c872`) |
-| Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight and local L1 evidence; PR #13 Current State compaction; PR #16 static-vs-runtime admission semantics and read-only exact-route evaluator; PR #22 concrete invalid-JSON Worker repair directive; `8a8204c` deterministic continuation capability preflight; `af0e242` Host Verification repair/fallback convergence; `37faaf6` configured-pool runtime-evidence diagnostic compatibility; `83a81ca` evidence/docs synchronization |
+| Accepted remote head at latest integrated implementation | `cfb0e2a9d21e1d6b8f8053f934490884e54d68b0` (`RUNTIME_BOOTSTRAP_ADMITTED` projection from #26; subsequent docs sync is tracked separately) |
+| Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight and local L1 evidence; PR #13 Current State compaction; PR #16 static-vs-runtime admission semantics and read-only exact-route evaluator; PR #22 concrete invalid-JSON Worker repair directive; `8a8204c` deterministic continuation capability preflight; `af0e242` Host Verification repair/fallback convergence; `37faaf6` configured-pool runtime-evidence diagnostic compatibility; `83a81ca` evidence/docs synchronization; `c88714f` #26 blocker audit; `cfb0e2a` bounded trusted no-charge bootstrap projection |
 | Formal Gate | `D9_DOGFOOD=VERIFIED`; `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`; `PHASE8_PREPARATION=PREPARATION_ONLY`; `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` |
 | Current source of truth | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json), exact-head CI, owning Issues/PRs, and bounded Evidence files |
 
@@ -20,7 +20,7 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 - `8a8204c` adds a Host-owned Phase 8 shape check that rejects Provider capabilities on a deterministic `CODE_INTEGRATED` continuation. This prevents a malformed proposal from reaching RuntimeCoordinator and parking late on `resource:no_route`; the normal `phase8_production` composition remains Provider-independent for this continuation.
 - Focused coverage for the changed boundary is `11 passed`; `git diff --check` and focused Python compilation passed. Exact-head CI for `8a8204c` is green: [kernel 3.10/3.11](https://github.com/kinoko34077/dev_agent/actions/runs/36297957792) and [provider-smoke](https://github.com/kinoko34077/dev_agent/actions/runs/36297957861).
 - A fresh ownership-safe local root using qwen3.5:9b primary and gemma4:12b fallback reached Host Verification for both Workers, where malformed/missing-symbol model patches were correctly rejected (one missing `OllamaProvider` export; one unterminated string literal). Reviewer, integration, and dependent continuation were not claimed. No Codex direct implementation, remote generation, UNKNOWN replay, or Gate change occurred; local models were unloaded after the trial. This bounded result is recorded in Issue #11 and keeps `OLLAMA_LOCAL_E2E=PARTIAL_BLOCKED`.
-- Current configured remote admission remains unchanged: no exact free/no-charge route is `RUNTIME_ELIGIBLE`; the formal Gate remains `D9_DOGFOOD=VERIFIED`, `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`, `PHASE8_PREPARATION=PREPARATION_ONLY`, and `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED`.
+- Current configured remote admission is more precise after #26: three exact trusted no-charge routes are `RUNTIME_BOOTSTRAP_ADMITTED`, three Gemini lanes are `RUNTIME_UNKNOWN`, and no route is `RUNTIME_ELIGIBLE`. The bootstrap status is not numeric quota or generation readiness. The formal Gate remains `D9_DOGFOOD=VERIFIED`, `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`, `PHASE8_PREPARATION=PREPARATION_ONLY`, and `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED`.
 
 ### 2026-09-27 Host Verification repair and local E2E completion
 
@@ -34,6 +34,13 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 - `37faaf6` makes the read-only `diagnose_model_candidates.py` boundary accept the existing configured-pool runtime evidence envelope (`runtime_snapshot.observations`) while preserving the strict exact-identity/status runtime contract. Bounded diagnostic-only fields such as `reason` are not promoted into runtime authority.
 - The configured-pool projection now runs successfully: the exact `gemini-3.5-flash-lite` candidate remains `RUNTIME_UNKNOWN`, the exact 3.6/3.8 candidates remain `RUNTIME_UNAVAILABLE`, and `RUNTIME_ELIGIBLE=0`. No network, generation, credential, or runtime state mutation was performed.
 - Focused diagnostic coverage is `12 passed`; exact-head CI for `37faaf6` is green: kernel 3.10/3.11 and provider-smoke.
+
+### 2026-09-27 #26 admission blocker audit and bounded bootstrap projection
+
+- `c88714f` records the read-only #26 audit: Gemini has no numeric quota telemetry producer, the diagnostic evaluator was stricter than the existing trusted no-charge dispatch bootstrap, the configured candidate scope omitted telemetry-capable remote bindings, and exact 3.6/3.8 resources are absent from the current operator pool. The audit does not change credentials, billing, quota, generation, or Gate authority. Full report: [`eligible-blocker-audit-20260927.md`](audits/eligible-blocker-audit-20260927.md).
+- `cfb0e2a` adds `RUNTIME_BOOTSTRAP_ADMITTED` as a distinct read-only observation when the existing Router selects an exact trusted no-charge route only with `allow_unknown_quota=True`. It never maps that state to `RUNTIME_ELIGIBLE`, never fabricates quota headroom, and keeps qualification, billing, health, freshness, and blocked-quota gates intact.
+- A fresh isolated configured-pool projection observed 8 resources (6 remote) with `RUNTIME_BOOTSTRAP_ADMITTED=3`, `RUNTIME_UNKNOWN=3`, `RUNTIME_ELIGIBLE=0`, no network call, and no generation attempt. Evidence: [`model-runtime-admission-bootstrap-20260927.json`](../spec/v2/evidence/model-runtime-admission-bootstrap-20260927.json).
+- This fixes the diagnostic mismatch without silently changing #11's formal admission contract. Formal R9 remains pending either a current runtime-owned numeric quota/generation-ready route or an explicit Human/spec decision to authorize a separate non-Gate bootstrap-admitted trial.
 
 ### 2026-09-27 Issue #15 admission synchronization
 
@@ -65,13 +72,13 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 ### Active blockers
 
 1. Formal Phase 8 still requires a current generation-ready qualified Provider route, real Provider multi-role evidence, independent Host Verification/deterministic Integration, and exact-head CI for that benchmark revision.
-2. Issue #15 is integrated, but the current runtime-owned local snapshot has no exact Gemini Resource/health/quota match: 4 exact static/billing/qualification-admitted candidates are `RUNTIME_UNAVAILABLE` in that snapshot, with 1 non-Gemini fake resource and 0 quota observations in that historical fixture. This is not a generation result and does not prove all configured Provider routes unusable; discovery/model-list evidence is not generation admission.
+2. Issue #26 is integrated as a diagnostic-only clarification. The current isolated configured-pool projection has 3 `RUNTIME_BOOTSTRAP_ADMITTED`, 3 `RUNTIME_UNKNOWN`, and 0 `RUNTIME_ELIGIBLE` remote routes. Bootstrap admission is not a numeric quota observation or generation result; it does not authorize formal R9 under the current #11 contract.
 3. Windows shared-worktree `WinError 5` during ordinary pycache writes is a local ACL/tooling boundary; verification uses a temporary pycache prefix and does not treat it as a runtime or Provider failure.
 
 ### Deferred and next action
 
 - D9 Production Deployment (OS Guardian, Task Scheduler, reboot/deployed recovery) remains Human-deferred. R10/Stage 6/Stage 7/Stage 8 remain behind Phase 8 activation.
-- The bounded local E2E chain is now verified as non-Gate evidence. Continue Issue #11 with the 9:1 local-first policy while independently seeking a current exact free/no-charge remote admission; run formal R9 only after that route is `RUNTIME_ELIGIBLE` and generation-ready. Do not blind-retry or replay UNKNOWN effects.
+- The bounded local E2E chain is now verified as non-Gate evidence. Continue Issue #11 with the 9:1 local-first policy while independently seeking a current exact free/no-charge remote admission. Do not blind-retry or replay UNKNOWN effects. Treat `RUNTIME_BOOTSTRAP_ADMITTED` as a bounded observation only until the explicit #11 admission decision is made.
 - The chronology-heavy sections below are historical detail. The pre-compaction handoff is indexed at [`docs/archive/current-state/2026-09-26-pre-compaction.md`](archive/current-state/2026-09-26-pre-compaction.md).
 
 ## Historical detail retained from the pre-compaction snapshot

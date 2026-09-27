@@ -191,6 +191,7 @@ def test_main_summary_exposes_runtime_admission_counts(capsys):
 
     lines = capsys.readouterr().out.splitlines()
     assert any(line.startswith("runtime_eligible\t") for line in lines)
+    assert any(line.startswith("runtime_bootstrap_admitted\t") for line in lines)
     assert any(line.startswith("runtime_not_probed\t") for line in lines)
     assert any(line.startswith("runtime_unavailable\t") for line in lines)
 

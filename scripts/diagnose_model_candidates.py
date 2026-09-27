@@ -332,6 +332,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"rows\t{summary['row_count']}")
             print(f"eligible\t{summary['eligible_count']}")
             print(f"runtime_eligible\t{summary['runtime_eligible_count']}")
+            print(f"runtime_bootstrap_admitted\t{summary['runtime_bootstrap_admitted_count']}")
             print(f"runtime_not_probed\t{summary['runtime_not_probed_count']}")
             print(f"runtime_unavailable\t{summary['runtime_unavailable_count']}")
             print("result_counts\t" + json.dumps(summary["result_counts"], ensure_ascii=False, sort_keys=True))

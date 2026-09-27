@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "evidence_type": "runtime_admission_configured_pool_snapshot",
+  "recorded_at": "2026-09-27T08:19:14.448274+00:00",
+  "revision": "cfb0e2a9d21e1d6b8f8053f934490884e54d68b0",
+  "source": {
+    "authority": "OperationService.open + ResourceLedger + ResourceRouter (isolated temporary state)",
+    "configured_pool_opt_in": true,
+    "resource_count": 8,
+    "remote_resource_count": 6,
+    "persistent_state_mutated": false,
+    "network_called": false,
+    "generation_attempted": false,
+    "unknown_or_reconciliation_replayed": false
+  },
+  "runtime_snapshot": {
+    "statuses": {
+      "RUNTIME_ELIGIBLE": 0,
+      "RUNTIME_BOOTSTRAP_ADMITTED": 3,
+      "RUNTIME_UNKNOWN": 3,
+      "RUNTIME_UNAVAILABLE": 0
+    },
+    "observations": [
+      {
+        "provider_id": "cloudflare",
+        "provider_binding_id": "cloudflare",
+        "model_id": "@cf/meta/llama-3.1-8b-instruct",
+        "status": "RUNTIME_BOOTSTRAP_ADMITTED"
+      },
+      {
+        "provider_id": "gemini",
+        "provider_binding_id": "gemini:worker:free-2",
+        "model_id": "gemini-3.5-flash-lite",
+        "status": "RUNTIME_UNKNOWN"
+      },
+      {
+        "provider_id": "gemini",
+        "provider_binding_id": "gemini:worker:free-3",
+        "model_id": "gemini-3.5-flash-lite",
+        "status": "RUNTIME_BOOTSTRAP_ADMITTED"
+      },
+      {
+        "provider_id": "gemini",
+        "provider_binding_id": "gemini:worker:free-4",
+        "model_id": "gemini-3.5-flash-lite",
+        "status": "RUNTIME_UNKNOWN"
+      },
+      {
+        "provider_id": "gemini",
+        "provider_binding_id": "gemini:worker:free-5",
+        "model_id": "gemini-3.5-flash-lite",
+        "status": "RUNTIME_UNKNOWN"
+      },
+      {
+        "provider_id": "openrouter",
+        "provider_binding_id": "openrouter:free",
+        "model_id": "openrouter/free",
+        "status": "RUNTIME_BOOTSTRAP_ADMITTED"
+      }
+    ]
+  },
+  "interpretation": {
+    "generation_readiness": "NOT_ESTABLISHED",
+    "runtime_eligible_count": 0,
+    "bootstrap_admitted_meaning": "The existing Router selected an exact trusted no-charge route only with its bounded UNKNOWN-quota bootstrap. This is not numeric quota headroom and is not RUNTIME_ELIGIBLE.",
+    "formal_r9": "BLOCKED_PENDING_SPEC_OR_NUMERIC_RUNTIME_EVIDENCE",
+    "next_action": "Keep Phase 8 Gate unchanged. Either obtain a current runtime-owned quota observation for an exact route, or make the explicit Human/spec decision on whether this non-eligible bootstrap status may authorize a non-Gate R9 trial. Do not infer quota or replay UNKNOWN effects."
+  }
+}
