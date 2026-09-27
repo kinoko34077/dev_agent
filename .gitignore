@@ -18,3 +18,4 @@ memory/inputs/
 memory/outputs/
 memory/context/
 memory/summaries/
+memory/cache/

@@ -28,6 +28,10 @@ class MemoryContext:
         self.load_context()
 
     def load_context(self):
+        # memory/context/ は実行時データとして追跡対象外(#24)のため、
+        # クリーンclone直後でも初期ファイルを冪等に生成してから読み込む。
+        from memory.memory_context_initializer import initialize_memory_context
+        initialize_memory_context()
         try:
             self.system_prompt = read_file(os.path.join(MEMORY_CONTEXT_DIR, "system_prompt.txt"), "txt")
             self.config_snapshot = read_file(os.path.join(MEMORY_CONTEXT_DIR, "config_snapshot.json"), "json")

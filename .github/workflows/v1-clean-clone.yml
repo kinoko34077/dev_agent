@@ -1,0 +1,31 @@
+name: v1-clean-clone
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  clean-clone:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install minimal test dependencies
+        run: python -m pip install pytest pyyaml
+      - name: Runtime data directories are not tracked (#24)
+        run: |
+          for d in logs memory/inputs memory/outputs memory/context memory/summaries memory/cache; do
+            if [ -n "$(git ls-files "$d")" ]; then echo "tracked runtime data: $d"; exit 1; fi
+          done
+      - name: MemoryContext initializes on a clean clone
+        run: python -m pytest -q tests/test_memory_context_clean_clone.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
