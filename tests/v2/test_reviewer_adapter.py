@@ -97,6 +97,8 @@ def test_model_review_adapter_sends_compact_packet_without_raw_worker_output():
     assert "patch_sha256" in prompt
     assert "raw Worker conversation" in prompt
     assert "required_correction" in prompt
+    assert "rationale is a non-empty string" in prompt
+    assert "copy them literally" in prompt
     assert "patch" not in json.loads(prompt.split("review_packet:\n", 1)[1])
 
 

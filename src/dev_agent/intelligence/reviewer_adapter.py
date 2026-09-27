@@ -305,15 +305,21 @@ class ModelReviewAdapter:
         task_id = normalized["task_id"]
         protocol_task_id = _protocol_task_id(task_id)
         content = (
+            "MANDATORY OUTPUT CONTRACT: return exactly one raw JSON object. "
+            "The JSON is invalid unless task_id and attempt_id exactly match the packet, "
+            "decision is one of APPROVE_INTEGRATION, REWORK, REJECT, or ESCALATE, "
+            "findings and evidence_refs are arrays, required_correction is a string or null, "
+            "and rationale is a non-empty string containing one concise sentence. "
+            "Do not omit rationale or leave it empty. "
             "Generate exactly one raw JSON object matching the supplied review proposal schema. "
             "Do not emit Markdown fences, explanatory prose, comments, or trailing text. "
             "This is a proposal-only shadow review: do not approve integration, change authority, "
             "reassign a Worker, relax a Gate, or claim a human decision. Use only the compact packet; "
             "patch contents and raw Worker conversation are intentionally unavailable. "
-            "Keep `task_id` and `attempt_id` exactly equal to the packet. "
+            "Keep `task_id` and `attempt_id` exactly equal to the packet; copy them literally. "
             "Use one of `APPROVE_INTEGRATION`, `REWORK`, `REJECT`, or `ESCALATE` for `decision`. "
             "Always include `findings` and `evidence_refs` as arrays, `required_correction` as a string or null, "
-            "and a concise `rationale` string. `REWORK` requires a non-null `required_correction`. "
+            "and a non-empty concise `rationale` string. `REWORK` requires a non-null `required_correction`. "
             "Use this shape: {\"task_id\":\"...\",\"attempt_id\":\"...\",\"decision\":\"...\","
             "\"findings\":[],\"evidence_refs\":[],\"required_correction\":null,\"rationale\":\"...\"}.\n"
             "review_packet:\n"
