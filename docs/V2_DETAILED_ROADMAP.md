@@ -21,6 +21,26 @@ not a new live root or Gate promotion.
 Evidence:
 [`phase8-local-lifecycle-cleanup-20260926.json`](../spec/v2/evidence/phase8-local-lifecycle-cleanup-20260926.json).
 
+**2026-09-28 admission/audit synchronization:** D1 (static evidence refresh),
+D2 (bounded idle liveness), D3 (trusted no-charge post-429 recovery without
+fabricated quota), and D4 (static/runtime diagnostic vocabulary separation) are
+complete on the accepted `v2/bootstrap` line. Implementation/evidence baseline
+is `5658203`; the subsequent Current State and execution-plan synchronization is
+`429e19b5cb13bb89a96c4bbcb481b72759480d9d`. Exact-head `v2-core` (kernel
+3.10/3.11, Architecture, Compile) and `provider-smoke` pass for that docs-sync
+head. The current diagnostic remains `RUNTIME_ELIGIBLE=0`.
+
+One bounded, no-charge `gemini:worker:free-3 / gemini-3.5-flash-lite`
+qualification completed with zero committed cost, but no numeric quota
+observation. It is therefore generation-liveness/non-Gate evidence only and
+does not start formal R9 or replay an UNKNOWN effect. Cloudflare discovery
+currently exposes 65 model rows, but all lack benchmark evidence in the current
+snapshot (`static_eligible=0`); no Cloudflare generation probe was started.
+Keep qwen3.5:9b as local primary, gemma4:12b as local fallback, and use the
+trusted Gemini route only for bounded opportunistic observations while fresh
+calls succeed. Formal Phase 8 activation remains unverified. Evidence:
+[`gemini-worker-free-3-qualification-20260928.json`](../spec/v2/evidence/gemini-worker-free-3-qualification-20260928.json).
+
 ## 現在位置
 
 **2026-09-26 model evidence refresh:** approved Host-boundary discovery returned
