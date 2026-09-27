@@ -214,6 +214,24 @@ def test_host_process_executor_propagates_ollama_timeout_to_static_host_runtime(
     assert response.text_segments == ["180.0"]
 
 
+def test_host_process_executor_disables_bytecode_writes_in_child_runtime(tmp_path):
+    provider = _Provider(ModelResponse(provider="fake", model="fake-model", text_segments=["unused"]))
+    request = _request()
+    request.metadata["egress_manifest_sha256"] = "5" * 64
+    code = (
+        "import json,os,sys; "
+        "response=sys.argv[sys.argv.index('--response')+1]; "
+        "payload={'status':'completed','response':{"
+        "'provider':'fake','model':'fake-model','text_segments':[os.environ.get('PYTHONDONTWRITEBYTECODE')]}}; "
+        "open(response,'w',encoding='utf-8').write(json.dumps(payload))"
+    )
+    executor = HostProcessExecutor((sys.executable, "-c", code), request_dir=tmp_path, timeout_seconds=2)
+
+    response = executor(provider, request)
+
+    assert response.text_segments == ["1"]
+
+
 def test_host_process_executor_preserves_bounded_transport_diagnostics(tmp_path):
     provider = _Provider(ModelResponse(provider="fake", model="fake-model", text_segments=["unused"]))
     request = _request()

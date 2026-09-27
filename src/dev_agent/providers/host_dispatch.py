@@ -321,14 +321,19 @@ class HostProcessExecutor:
         response_path = self.request_dir / f"{token}.response.json"
         request_path.write_text(json.dumps(envelope.to_dict(), ensure_ascii=False, sort_keys=True), encoding="utf-8")
         try:
-            runtime_env = None
+            # One-shot Host runtimes must not try to create repository-local
+            # ``__pycache__`` files.  Shared Windows worktrees may deny those
+            # writes (WinError 5), and bytecode is not needed for this bounded
+            # child process.  Keep this an execution-environment safeguard;
+            # it does not alter Provider routing or task authority.
+            runtime_env = os.environ.copy()
+            runtime_env["PYTHONDONTWRITEBYTECODE"] = "1"
             if getattr(provider, "provider_id", None) == "ollama":
                 # The static Host runtime reconstructs the exact binding from
                 # its environment. Keep the child adapter's HTTP deadline
                 # aligned with the already Host-owned subprocess bound; a
                 # missing environment override would silently fall back to
                 # OllamaProvider's 30-second default after model load.
-                runtime_env = os.environ.copy()
                 runtime_env["OLLAMA_TIMEOUT_SECONDS"] = str(self.timeout_seconds)
             completed = subprocess.run(
                 [*self.command, "--request", str(request_path), "--response", str(response_path)],
