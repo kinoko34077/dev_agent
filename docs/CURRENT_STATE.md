@@ -10,10 +10,18 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 | Field | Current fact |
 | --- | --- |
 | Accepted branch | `v2/bootstrap` |
-| Accepted remote head at latest integrated implementation | `64878bd` (Host one-shot child bytecode-write boundary hardening after transport-stage provenance work; this docs/evidence sync follows it) |
-| Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight and local L1 evidence; PR #13 Current State compaction; PR #16 static-vs-runtime admission semantics and read-only exact-route evaluator; PR #22 concrete invalid-JSON Worker repair directive; `8a8204c` deterministic continuation capability preflight; `af0e242` Host Verification repair/fallback convergence; `37faaf6` configured-pool runtime-evidence diagnostic compatibility; `83a81ca` evidence/docs synchronization; `c88714f` #26 blocker audit; `cfb0e2a` bounded trusted no-charge bootstrap projection; `985e449` Reviewer contract hardening and fresh non-Gate remote multi-role completion; `3a9b82b` unknown transport-stage provenance hardening; `64878bd` Host child bytecode-write boundary hardening |
+| Accepted remote head at latest integrated implementation | `9a31603` (PR #30 D1 canonical model-evidence refresh after Host-boundary catalog and bounded benchmark refresh; this docs/evidence sync follows it) |
+| Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight and local L1 evidence; PR #13 Current State compaction; PR #16 static-vs-runtime admission semantics and read-only exact-route evaluator; PR #22 concrete invalid-JSON Worker repair directive; `8a8204c` deterministic continuation capability preflight; `af0e242` Host Verification repair/fallback convergence; `37faaf6` configured-pool runtime-evidence diagnostic compatibility; `83a81ca` evidence/docs synchronization; `c88714f` #26 blocker audit; `cfb0e2a` bounded trusted no-charge bootstrap projection; `985e449` Reviewer contract hardening and fresh non-Gate remote multi-role completion; `3a9b82b` unknown transport-stage provenance hardening; `64878bd` Host child bytecode-write boundary hardening; PR #30 D1 canonical model-evidence refresh |
 | Formal Gate | `D9_DOGFOOD=VERIFIED`; `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`; `PHASE8_PREPARATION=PREPARATION_ONLY`; `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` |
 | Current source of truth | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json), exact-head CI, owning Issues/PRs, and bounded Evidence files |
+
+### 2026-09-28 D1 canonical model-evidence refresh
+
+- PR #30 merged the reviewed static evidence refresh into `v2/bootstrap` at `9a3160332be298fed87b385451f2907aad5756af` (reviewed head `7c7551fb7150ff46ccb820744587bc870adfa398`).
+- The canonical four-layer set now contains catalog `1,358`, benchmark `8`, alias `992`, and capability `458` entries. The fresh 48-hour expiry preflight is PASS: static eligible `56 / 56`, the exact `gemini:worker:free-3 / gemini-3.5-flash-lite` identity is `ELIGIBLE` now and at the horizon, and no source is exhausted.
+- GitHub Actions for the reviewed head passed: [`v2-core`](https://github.com/kinoko34077/dev_agent/actions/runs/36332395197) and [`v2-provider-smoke`](https://github.com/kinoko34077/dev_agent/actions/runs/36332395159). Local targeted evidence/diagnostic tests passed `25`; the broader `tests/v2` run passed `1,724` with `1` ACL-owned skip when excluding the known protected-budget fixture module.
+- This is static evidence only. `RUNTIME_ELIGIBLE=0`, `RUNTIME_BOOTSTRAP_ADMITTED` remains non-Gate, and formal Phase 8 `LIVE_ACTIVATION=NOT_VERIFIED`; no Provider routing, quota, billing, qualification, credential, or protected Gate state was changed.
+- D1 is complete for the current snapshot. #27 D2/D3 remain open design/remediation work before formal R9.
 
 ### 2026-09-27 Host child bytecode-write boundary hardening
 
