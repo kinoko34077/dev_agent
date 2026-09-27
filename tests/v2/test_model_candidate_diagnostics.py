@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from scripts.diagnose_model_candidates import (
@@ -190,3 +192,33 @@ def test_main_summary_exposes_runtime_admission_counts(capsys):
     assert any(line.startswith("runtime_eligible\t") for line in lines)
     assert any(line.startswith("runtime_not_probed\t") for line in lines)
     assert any(line.startswith("runtime_unavailable\t") for line in lines)
+
+
+def test_main_accepts_configured_pool_runtime_snapshot(tmp_path, capsys):
+    evidence = tmp_path / "configured-pool.json"
+    evidence.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "evidence_type": "runtime_admission_configured_pool_snapshot",
+                "recorded_at": "2026-09-27T00:00:00+00:00",
+                "source": {"authority": "existing runtime authority"},
+                "runtime_snapshot": {
+                    "observations": [
+                        {
+                            "provider_id": "gemini",
+                            "provider_binding_id": "gemini:worker:free-3",
+                            "model_id": "gemini-3.5-flash-lite",
+                            "status": RUNTIME_UNAVAILABLE,
+                        }
+                    ]
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert main(["--summary", "--json", "--runtime-evidence", str(evidence)]) == 0
+
+    output = capsys.readouterr().out
+    assert '"runtime_unavailable_count": 1' in output

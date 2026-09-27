@@ -27,6 +27,9 @@ from src.dev_agent.resources.qualification import QualificationResolver
 
 
 MAX_DIAGNOSTIC_ROWS = 5000
+_RUNTIME_OBSERVATION_KEYS = frozenset(
+    {"provider_id", "provider_binding_id", "model_id", "status", "observed_at", "source"}
+)
 
 
 def diagnose_entries(
@@ -219,6 +222,47 @@ def _load_json_document(path: Path) -> Mapping[str, Any]:
     return value
 
 
+def _runtime_snapshot_document(document: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Normalize supported runtime evidence envelopes without inferring state.
+
+    The canonical runtime diagnostic contract is a flat ``observations``
+    array.  Configured-pool evidence additionally wraps those observations
+    under ``runtime_snapshot`` and omits per-row timestamps/source because the
+    envelope already owns them.  Accept that explicit evidence envelope at
+    this read-only CLI boundary, but do not synthesize observations for rows
+    that are absent or change their status.
+    """
+
+    if document.get("evidence_type") != "runtime_admission_configured_pool_snapshot":
+        return document
+    nested = document.get("runtime_snapshot")
+    if not isinstance(nested, Mapping):
+        raise ValueError("configured pool runtime snapshot must contain runtime_snapshot")
+    raw_entries = nested.get("observations")
+    if not isinstance(raw_entries, list):
+        raise ValueError("configured pool runtime snapshot observations must be an array")
+    recorded_at = document.get("recorded_at")
+    if not isinstance(recorded_at, str) or not recorded_at.strip():
+        raise ValueError("configured pool runtime snapshot must contain recorded_at")
+    source_document = document.get("source")
+    source_authority = source_document.get("authority") if isinstance(source_document, Mapping) else None
+    source = source_authority if isinstance(source_authority, str) and source_authority.strip() else "configured-pool-runtime-snapshot"
+    observations: list[dict[str, Any]] = []
+    for raw in raw_entries:
+        if not isinstance(raw, Mapping):
+            raise ValueError("configured pool runtime observations must be objects")
+        # Configured-pool snapshots may carry bounded diagnostic fields such
+        # as ``reason``.  The canonical runtime snapshot intentionally keeps
+        # only the exact identity/status/audit fields; do not widen that
+        # authority contract just to make this projection CLI accept an
+        # envelope.
+        observation = {key: value for key, value in raw.items() if key in _RUNTIME_OBSERVATION_KEYS}
+        observation.setdefault("observed_at", recorded_at)
+        observation.setdefault("source", source)
+        observations.append(observation)
+    return {"schema_version": 1, "observations": observations}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence-dir", type=Path, default=ROOT / "spec" / "v2" / "model_evidence")
@@ -254,7 +298,9 @@ def main(argv: list[str] | None = None) -> int:
         evidence = ModelEvidenceCatalog.load(args.evidence_dir)
         runtime_snapshot = RuntimeAdmissionSnapshot.empty()
         if args.runtime_evidence is not None:
-            runtime_snapshot = RuntimeAdmissionSnapshot.from_document(_load_json_document(args.runtime_evidence))
+            runtime_snapshot = RuntimeAdmissionSnapshot.from_document(
+                _runtime_snapshot_document(_load_json_document(args.runtime_evidence))
+            )
         rows = diagnose_entries(
             evidence,
             runtime_snapshot=runtime_snapshot,
