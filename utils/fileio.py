@@ -13,12 +13,15 @@ def _normalize_path(file_path: str) -> str:
     """
     ファイルパスを正規化し、ワークスペースルートからの相対パスを返す。
     """
-    # TODO: ワークスペースルートを取得する共通の方法を導入 (secure_check.pyと共有)
-    workspace_root = os.path.abspath("../") # 仮にutilsからの相対パスでワークスペースルートを想定
+    # ワークスペースルートは本ファイル(utils/fileio.py)の親の親=リポジトリルート。
+    # secure_check.check_permission と同じ基準にする。以前は cwd の親 ("../")
+    # を基準にしていたため、リポジトリ直下から実行すると "dev_agent/memory/..."
+    # のように正規化され、access.yaml のどのルールにも一致せず strict で拒否されていた。
+    workspace_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     abs_file_path = os.path.abspath(file_path)
 
     # ワークスペース外の場合は元のパスを返す（check_permissionで判定される）
-    if not abs_file_path.startswith(workspace_root):
+    if os.path.commonpath([abs_file_path, workspace_root]) != workspace_root:
          return file_path
 
     relative_path = os.path.relpath(abs_file_path, workspace_root)
