@@ -21,6 +21,12 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 - A distinct proposal-only local `qwen3.5:9b` Reviewer approved both Worker candidates. `gemma4:12b` remained an available fallback but was not used. Codex direct implementation count was `0`; no UNKNOWN or reconciliation effect was replayed; qwen was unloaded at terminal cleanup. Fresh identities and bounded execution details are recorded in [`phase8-bootstrap-admitted-nongate-20260927.json`](../spec/v2/evidence/phase8-bootstrap-admitted-nongate-20260927.json): root `73170efc-8121-4138-9eae-61ac8d469bb1`, run `phase8-a56e0a92da914e5e9d4c2e4d656111b9`, continuation `eb36cb31-3e20-5a50-baa2-a65f86bfe23c`.
 - `985e449` also makes the Reviewer prompt explicitly require literal task/attempt identities and a non-empty rationale; its changed-boundary test is `7 passed`. The bounded trial result is `RUNTIME_BOOTSTRAP_ADMITTED` / `non_gate_result=VERIFIED`, not `RUNTIME_ELIGIBLE` and not formal Phase 8 activation. `D9_DOGFOOD=VERIFIED`, `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`, `PHASE8_PREPARATION=PREPARATION_ONLY`, and `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` remain unchanged.
 
+### 2026-09-27 Read-only Provider catalog refresh
+
+- A Host-boundary, discovery-only refresh using the repository binding manifest produced a candidate snapshot with `1,358` model entries across `13` refreshed bindings: Cloudflare `65`, Gemini `366`, Mistral `46`, Ollama `8`, Ollama Cloud `17`, OpenRouter `458`, SambaNova `7`, and Vercel `391`. The exact `gemini:worker:free-3` binding exposed `61` model IDs, and Cloudflare exposed `65`.
+- Groq was the sole discovery failure: bounded `HTTPError`, projected as `transport_unclassified` with an unknown transport stage. No credential, raw Provider response, or endpoint payload was persisted. Evidence: [`model-catalog-r9-refresh-20260927.json`](../spec/v2/evidence/model-catalog-r9-refresh-20260927.json).
+- This is candidate-only discovery evidence. It was not merged into the canonical model catalog and does not establish quota, qualification, health, or generation readiness. The existing `RUNTIME_BOOTSTRAP_ADMITTED`/`RUNTIME_ELIGIBLE=0` interpretation and Formal Gate remain unchanged.
+
 ### 2026-09-27 Phase 8 continuation preflight and local-first trial
 
 - `8a8204c` adds a Host-owned Phase 8 shape check that rejects Provider capabilities on a deterministic `CODE_INTEGRATED` continuation. This prevents a malformed proposal from reaching RuntimeCoordinator and parking late on `resource:no_route`; the normal `phase8_production` composition remains Provider-independent for this continuation.
@@ -321,6 +327,7 @@ and the compact operational procedure is [`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_D
 - Phase 8 fresh local L1 root through integration and dependent continuation: [`phase8-local-e2e-20260926.json`](../spec/v2/evidence/phase8-local-e2e-20260926.json)
 - Phase 8 fresh local root with distinct proposal-only Gemma4 Reviewer and bounded terminal projection: [`phase8-local-independent-reviewer-20260926.json`](../spec/v2/evidence/phase8-local-independent-reviewer-20260926.json)
 - Phase 8 trusted no-charge bootstrap-admitted remote multi-role completion (non-Gate): [`phase8-bootstrap-admitted-nongate-20260927.json`](../spec/v2/evidence/phase8-bootstrap-admitted-nongate-20260927.json)
+- Read-only current Provider model catalog candidate refresh: [`model-catalog-r9-refresh-20260927.json`](../spec/v2/evidence/model-catalog-r9-refresh-20260927.json)
 - Ollama local Worker rebind follow-up: [`ollama-local-worker-rebind-followup-20260923.json`](../spec/v2/evidence/ollama-local-worker-rebind-followup-20260923.json)
 - Operational Human Proxy / Expert Assist / local self-update: [`operational-human-assist-self-update-local-20260923.json`](../spec/v2/evidence/operational-human-assist-self-update-local-20260923.json)
 - Latest read-only R9 candidate diagnostic: [`model-candidate-diagnostic-20260923.json`](../spec/v2/evidence/model-candidate-diagnostic-20260923.json)
