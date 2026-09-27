@@ -10,6 +10,7 @@ from collections.abc import Callable, Mapping
 from typing import Any, Protocol
 
 from ..providers.base import ProviderError
+from ..resources.billing_catalog import profile_for
 from ..resources.quota_policy import classify_provider_error
 from .queue import DurableQueue, QueueItem
 
@@ -73,6 +74,17 @@ def _iso(value: datetime) -> str:
 
 
 _EXTERNAL_BLOCKS = frozenset({"authorization", "permission", "blocked_external"})
+_NUMERIC_QUOTA_FIELDS = (
+    "limit",
+    "remaining",
+    "consumed",
+    "request_limit",
+    "request_remaining",
+    "token_limit",
+    "token_remaining",
+    "daily_remaining",
+    "concurrency_limit",
+)
 
 
 class QuotaProbeStatus(str, Enum):
@@ -103,6 +115,7 @@ class QuotaProbeResult:
     observation_persisted: bool = False
     woken_tasks: int = 0
     error_category: str | None = None
+    unknown_quota: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -113,6 +126,7 @@ class QuotaProbeResult:
             "observation_persisted": self.observation_persisted,
             "woken_tasks": self.woken_tasks,
             "error_category": self.error_category,
+            "unknown_quota": self.unknown_quota,
         }
 
 
@@ -275,17 +289,30 @@ class QuotaRequalificationCoordinator:
             return QuotaProbeResult(resource_id, domain, QuotaProbeStatus.INVALID_OBSERVATION)
         reported_block = payload.get("block_reason")
         has_reported_block = isinstance(reported_block, str) and bool(reported_block.strip())
+        unknown_quota = False
         if not has_reported_block and not self._has_routable_headroom(payload):
             # A successful HTTP response is not sufficient to clear a quota
-            # block.  The router requires a fresh positive limit/remaining
-            # pair; accepting only ``unit`` or reset metadata here would wake
-            # parked work into an immediate no-route loop.
-            return QuotaProbeResult(
-                resource_id,
-                domain,
-                QuotaProbeStatus.INVALID_OBSERVATION,
-                error_category="quota_headroom_unavailable",
-            )
+            # block.  The sole exception is an exact, currently trusted,
+            # no-charge hard-stop resource: its provider may expose no quota
+            # headers after reset, but the router can still admit one bounded
+            # request when the caller explicitly opts into UNKNOWN quota.
+            try:
+                resource = self.ledger.get_resource(resource_id)
+            except (KeyError, TypeError, ValueError):
+                resource = None
+            if (
+                not isinstance(resource, Mapping)
+                or self._has_numeric_quota_evidence(payload)
+                or not self._trusted_no_charge_hard_stop(resource, now=current)
+            ):
+                return QuotaProbeResult(
+                    resource_id,
+                    domain,
+                    QuotaProbeStatus.INVALID_OBSERVATION,
+                    error_category="quota_headroom_unavailable",
+                )
+            payload = self._unknown_quota_payload(payload, domain)
+            unknown_quota = True
         observed_at = _iso(current)
         payload["observed_at"] = observed_at
         try:
@@ -298,7 +325,13 @@ class QuotaRequalificationCoordinator:
         except (TypeError, ValueError, KeyError):
             persisted = False
         if not persisted:
-            return QuotaProbeResult(resource_id, domain, QuotaProbeStatus.INVALID_OBSERVATION, observed_at=observed_at)
+            return QuotaProbeResult(
+                resource_id,
+                domain,
+                QuotaProbeStatus.INVALID_OBSERVATION,
+                observed_at=observed_at,
+                unknown_quota=unknown_quota,
+            )
         refreshed = self.ledger.get_quota_observation(resource_id)
         if not isinstance(refreshed, dict) or refreshed.get("observed_at") != observed_at:
             return QuotaProbeResult(resource_id, domain, QuotaProbeStatus.INVALID_OBSERVATION, observed_at=observed_at, observation_persisted=True)
@@ -321,7 +354,87 @@ class QuotaRequalificationCoordinator:
             if self.wake_scheduler is not None and self.wake_scheduler.queue is not None
             else 0
         )
-        return QuotaProbeResult(resource_id, domain, QuotaProbeStatus.REQUALIFIED, observed_at=observed_at, observation_persisted=True, woken_tasks=woken)
+        return QuotaProbeResult(
+            resource_id,
+            domain,
+            QuotaProbeStatus.REQUALIFIED,
+            observed_at=observed_at,
+            observation_persisted=True,
+            woken_tasks=woken,
+            unknown_quota=unknown_quota,
+        )
+
+    @staticmethod
+    def _has_numeric_quota_evidence(observation: Mapping[str, Any]) -> bool:
+        """Return whether the probe supplied any quota-valued field.
+
+        ``None`` means the provider omitted that value.  Any other value,
+        including zero or malformed text, is evidence that the provider tried
+        to report quota and must therefore be validated rather than treated as
+        a no-header response.
+        """
+
+        return any(
+            field in observation and observation.get(field) is not None
+            for field in _NUMERIC_QUOTA_FIELDS
+        )
+
+    @staticmethod
+    def _trusted_no_charge_hard_stop(
+        resource: Mapping[str, Any],
+        *,
+        now: datetime,
+    ) -> bool:
+        metadata = resource.get("metadata")
+        if not isinstance(metadata, Mapping) or metadata.get("billing_authority") != "trusted_catalog":
+            return False
+        provider_id = resource.get("provider_id")
+        provider_binding_id = resource.get("provider_binding_id") or metadata.get("provider_binding_id")
+        model_id = resource.get("model_id") or metadata.get("model_id")
+        qualification_binding_id = metadata.get("qualification_binding_id") or provider_binding_id
+        if not all(isinstance(value, str) and value.strip() for value in (provider_id, qualification_binding_id, model_id)):
+            return False
+        expiry_value = metadata.get("billing_expires_at")
+        if not isinstance(expiry_value, str) or not expiry_value.strip():
+            return False
+        try:
+            expiry = datetime.fromisoformat(expiry_value)
+        except (TypeError, ValueError):
+            return False
+        expiry = _utc(expiry)
+        if _utc(now) >= expiry:
+            return False
+        profile = profile_for(provider_id.strip(), qualification_binding_id.strip(), model_id.strip())
+        if profile is None or not profile.no_charge_guaranteed or profile.overage_policy != "hard_stop":
+            return False
+        if resource.get("cost_minor") != profile.cost_minor:
+            return False
+        if profile.price_currency is not None and resource.get("price_currency") != profile.price_currency:
+            return False
+        return (
+            metadata.get("billing_mode") == profile.billing_mode
+            and metadata.get("overage_policy") == profile.overage_policy
+            and metadata.get("no_charge_guaranteed") is True
+        )
+
+    @staticmethod
+    def _unknown_quota_payload(payload: Mapping[str, Any], domain: str) -> dict[str, Any]:
+        unit = payload.get("unit")
+        if unit not in {"requests", "tokens", "neurons"}:
+            unit = "requests"
+        metric = payload.get("metric")
+        if not isinstance(metric, str) or not metric.strip() or len(metric.strip()) > 64:
+            metric = "quota"
+        window = payload.get("window")
+        if window not in {"unknown", "minute", "day", "month"}:
+            window = "unknown"
+        return {
+            "quota_domain": domain,
+            "unit": unit,
+            "metric": metric.strip().lower(),
+            "window": window,
+            "authority": "provider_probe",
+        }
 
     @staticmethod
     def _domain(observation: Mapping[str, Any]) -> str | None:

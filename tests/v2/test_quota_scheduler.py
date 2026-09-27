@@ -99,6 +99,50 @@ def _blocked_ledger(tmp_path, *, reason="rate_limit", blocked_until="2026-09-10T
     return ledger
 
 
+def _trusted_no_charge_blocked_ledger(tmp_path):
+    ledger = ResourceLedger(tmp_path / "trusted-requalification.sqlite3")
+    ledger.register_resource(
+        "gemini:worker",
+        provider_id="gemini",
+        provider_binding_id="gemini:worker",
+        native_unit="request",
+        capacity=1,
+        capabilities=["text"],
+        quota_domain="gemini-project-free-3",
+        cost_minor=0,
+        price_currency="JPY",
+        metadata={
+            "provider_binding_id": "gemini:worker",
+            "model_id": "gemini-3.5-flash-lite",
+            "billing_authority": "trusted_catalog",
+            "billing_expires_at": "2026-12-31T00:00:00+00:00",
+            "billing_mode": "recurring_allowance",
+            "overage_policy": "hard_stop",
+            "no_charge_guaranteed": True,
+            "intelligence_tier": "L1",
+        },
+    )
+    ledger.observe(
+        "gemini:worker",
+        available=1,
+        health="degraded",
+        confidence=0.0,
+        observed_at="2026-09-10T11:00:00+00:00",
+    )
+    ledger.observe_quota(
+        "gemini:worker",
+        unit="requests",
+        metric="rpd",
+        window="day",
+        request_limit=10,
+        request_remaining=0,
+        blocked_until="2026-09-10T11:59:00+00:00",
+        block_reason="rate_limit",
+        observed_at="2026-09-10T11:00:00+00:00",
+    )
+    return ledger
+
+
 def test_quota_requalification_persists_fresh_observation_and_wakes_due_tasks(tmp_path):
     ledger = _blocked_ledger(tmp_path)
     queue = DurableQueue(tmp_path / "queue.sqlite3")
@@ -235,6 +279,71 @@ def test_quota_requalification_does_not_wake_without_routable_headroom(tmp_path)
     assert result.observation_persisted is False
     assert result.woken_tasks == 0
     assert ledger.get_quota_observation("cloud")["block_reason"] == "rate_limit"
+    assert queue.snapshot("quota-task").state == "waiting"
+
+
+def test_quota_requalification_accepts_trusted_no_charge_probe_without_quota_headers(tmp_path):
+    ledger = _trusted_no_charge_blocked_ledger(tmp_path)
+    queue = DurableQueue(tmp_path / "trusted-queue.sqlite3")
+    queue.enqueue("quota-task")
+    item = queue.claim("quota-worker", lease_seconds=30)
+    scheduler = QuotaWakeScheduler(ledger, queue)
+    scheduler.park(
+        item.task_id,
+        worker_id="quota-worker",
+        state_version=item.state_version,
+        wake_at=datetime(2026, 9, 10, 11, 59, tzinfo=timezone.utc),
+        quota_domain="gemini-project-free-3",
+    )
+
+    result = QuotaRequalificationCoordinator(ledger, scheduler).probe_once(
+        "gemini:worker",
+        lambda *_: {"unit": "requests", "metric": "rpd", "window": "day"},
+        now=datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc),
+    )
+
+    assert result.status is QuotaProbeStatus.REQUALIFIED
+    assert result.unknown_quota is True
+    assert result.observation_persisted is True
+    assert result.woken_tasks == 1
+    latest = ledger.get_quota_observation("gemini:worker")
+    assert latest["block_reason"] is None
+    assert latest.get("request_limit") is None
+    assert latest.get("request_remaining") is None
+    assert queue.snapshot("quota-task").state == "queued"
+
+
+def test_quota_requalification_keeps_trusted_resource_blocked_on_reported_zero_headroom(tmp_path):
+    ledger = _trusted_no_charge_blocked_ledger(tmp_path)
+    queue = DurableQueue(tmp_path / "trusted-zero-queue.sqlite3")
+    queue.enqueue("quota-task")
+    item = queue.claim("quota-worker", lease_seconds=30)
+    scheduler = QuotaWakeScheduler(ledger, queue)
+    scheduler.park(
+        item.task_id,
+        worker_id="quota-worker",
+        state_version=item.state_version,
+        wake_at=datetime(2026, 9, 10, 11, 59, tzinfo=timezone.utc),
+        quota_domain="gemini-project-free-3",
+    )
+
+    result = QuotaRequalificationCoordinator(ledger, scheduler).probe_once(
+        "gemini:worker",
+        lambda *_: {
+            "unit": "requests",
+            "metric": "rpd",
+            "window": "day",
+            "request_limit": 10,
+            "request_remaining": 0,
+        },
+        now=datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc),
+    )
+
+    assert result.status is QuotaProbeStatus.INVALID_OBSERVATION
+    assert result.unknown_quota is False
+    assert result.observation_persisted is False
+    assert result.woken_tasks == 0
+    assert ledger.get_quota_observation("gemini:worker")["block_reason"] == "rate_limit"
     assert queue.snapshot("quota-task").state == "waiting"
 
 

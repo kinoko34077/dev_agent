@@ -6,6 +6,7 @@ import pytest
 from src.dev_agent.resources.ledger import ResourceLedger
 from src.dev_agent.resources.router import NoRoute, ResourceRouter, RouteRequest
 from src.dev_agent.resources.survival import SurvivalGovernor, SurvivalMode, SurvivalSnapshot
+from src.dev_agent.scheduler import QuotaProbeStatus, QuotaRequalificationCoordinator
 
 
 def _ledger(tmp_path):
@@ -218,6 +219,60 @@ def test_router_allows_one_explicit_unknown_quota_bootstrap_for_trusted_free_res
         RouteRequest(capabilities={"text"}, allow_unknown_quota=True)
     )
     assert selection.resource_id == "gemini:worker"
+
+
+def test_router_uses_trusted_post_reset_no_header_probe_only_for_explicit_unknown_bootstrap(tmp_path):
+    ledger = ResourceLedger(tmp_path / "post-reset-unknown-quota.sqlite3")
+    ledger.register_resource(
+        "gemini:worker",
+        provider_id="gemini",
+        provider_binding_id="gemini:worker",
+        native_unit="request",
+        capacity=1,
+        capabilities=["text"],
+        quota_domain="gemini-project-free-3",
+        cost_minor=0,
+        price_currency="JPY",
+        metadata={
+            "provider_binding_id": "gemini:worker",
+            "model_id": "gemini-3.5-flash-lite",
+            "billing_authority": "trusted_catalog",
+            "billing_expires_at": "2026-12-31T00:00:00+00:00",
+            "billing_mode": "recurring_allowance",
+            "overage_policy": "hard_stop",
+            "no_charge_guaranteed": True,
+            "intelligence_tier": "L1",
+        },
+    )
+    ledger.observe("gemini:worker", available=1, health="degraded", confidence=0.0)
+    ledger.observe_quota(
+        "gemini:worker",
+        unit="requests",
+        metric="rpd",
+        window="day",
+        request_limit=10,
+        request_remaining=0,
+        blocked_until="2000-01-01T00:00:00+00:00",
+        block_reason="rate_limit",
+    )
+
+    result = QuotaRequalificationCoordinator(ledger).probe_once(
+        "gemini:worker",
+        lambda *_: {"unit": "requests", "metric": "rpd", "window": "day"},
+    )
+
+    assert result.status is QuotaProbeStatus.REQUALIFIED
+    assert result.unknown_quota is True
+    with pytest.raises(NoRoute, match="no eligible resource"):
+        ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}))
+    selection = ResourceRouter(ledger).choose(
+        RouteRequest(capabilities={"text"}, allow_unknown_quota=True)
+    )
+    assert selection.resource_id == "gemini:worker"
+    latest = ledger.get_quota_observation("gemini:worker")
+    assert latest["block_reason"] is None
+    assert latest.get("request_limit") is None
+    assert latest.get("request_remaining") is None
 
 
 def test_router_never_bootstraps_unknown_quota_for_untrusted_zero_cost_resource(tmp_path):
