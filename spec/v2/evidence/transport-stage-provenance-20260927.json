@@ -1,0 +1,38 @@
+{
+  "evidence_id": "transport-stage-provenance-20260927",
+  "observed_at": "2026-09-27",
+  "implementation_revision": "3a9b82bdeebe67b23162d14b3d7bffa5a2a2d559",
+  "scope": "bounded Provider transport diagnostic projection",
+  "change": {
+    "unknown_socket_failure": "opaque socket or local-policy failures no longer inherit response_wait from the adapter's pre-connect default",
+    "preserved_classifications": [
+      "DNS resolve",
+      "connect refusal",
+      "connection reset/aborted",
+      "response-read timeout",
+      "explicitly observed response stage"
+    ],
+    "winerror_10013": "stage remains unknown unless a lower-level cause or explicit observation proves a later stage"
+  },
+  "verification": {
+    "focused_transport_and_adapter_tests": "48 passed",
+    "affected_boundary_regression": "35 passed",
+    "tests_v2": "1716 passed, 1 skipped",
+    "architecture": "ARCHITECTURE_PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS",
+    "known_skip": "Windows ACL-owned budget reservation test"
+  },
+  "safety": {
+    "raw_exception_text_recorded": false,
+    "credentials_recorded": false,
+    "network_request_performed": false,
+    "routing_or_retry_semantics_changed": false,
+    "unknown_or_reconciliation_replayed": false
+  },
+  "gate_impact": {
+    "RUNTIME_ELIGIBLE": "unchanged",
+    "PHASE8_LIVE_ACTIVATION": "NOT_VERIFIED",
+    "D9_PRODUCTION_DEPLOYMENT": "DEFERRED_NOT_READY"
+  }
+}

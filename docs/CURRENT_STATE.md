@@ -10,8 +10,8 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 | Field | Current fact |
 | --- | --- |
 | Accepted branch | `v2/bootstrap` |
-| Accepted remote head at latest integrated implementation | `985e449740d225c5368c47f3f49cfc368b43108e` (Reviewer output-contract hardening and non-Gate bootstrap trial; subsequent docs/evidence sync is tracked separately) |
-| Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight and local L1 evidence; PR #13 Current State compaction; PR #16 static-vs-runtime admission semantics and read-only exact-route evaluator; PR #22 concrete invalid-JSON Worker repair directive; `8a8204c` deterministic continuation capability preflight; `af0e242` Host Verification repair/fallback convergence; `37faaf6` configured-pool runtime-evidence diagnostic compatibility; `83a81ca` evidence/docs synchronization; `c88714f` #26 blocker audit; `cfb0e2a` bounded trusted no-charge bootstrap projection; `985e449` Reviewer contract hardening and fresh non-Gate remote multi-role completion |
+| Accepted remote head at latest integrated implementation | `3a9b82bdeebe67b23162d14b3d7bffa5a2a2d559` (transport-stage provenance hardening after Reviewer output-contract and non-Gate bootstrap work; this docs/evidence sync follows it) |
+| Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight and local L1 evidence; PR #13 Current State compaction; PR #16 static-vs-runtime admission semantics and read-only exact-route evaluator; PR #22 concrete invalid-JSON Worker repair directive; `8a8204c` deterministic continuation capability preflight; `af0e242` Host Verification repair/fallback convergence; `37faaf6` configured-pool runtime-evidence diagnostic compatibility; `83a81ca` evidence/docs synchronization; `c88714f` #26 blocker audit; `cfb0e2a` bounded trusted no-charge bootstrap projection; `985e449` Reviewer contract hardening and fresh non-Gate remote multi-role completion; `3a9b82b` unknown transport-stage provenance hardening |
 | Formal Gate | `D9_DOGFOOD=VERIFIED`; `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`; `PHASE8_PREPARATION=PREPARATION_ONLY`; `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` |
 | Current source of truth | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json), exact-head CI, owning Issues/PRs, and bounded Evidence files |
 
@@ -26,6 +26,12 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 - A Host-boundary, discovery-only refresh using the repository binding manifest produced a candidate snapshot with `1,358` model entries across `13` refreshed bindings: Cloudflare `65`, Gemini `366`, Mistral `46`, Ollama `8`, Ollama Cloud `17`, OpenRouter `458`, SambaNova `7`, and Vercel `391`. The exact `gemini:worker:free-3` binding exposed `61` model IDs, and Cloudflare exposed `65`.
 - Groq was the sole discovery failure: bounded `HTTPError`, projected as `transport_unclassified` with an unknown transport stage. No credential, raw Provider response, or endpoint payload was persisted. Evidence: [`model-catalog-r9-refresh-20260927.json`](../spec/v2/evidence/model-catalog-r9-refresh-20260927.json).
 - This is candidate-only discovery evidence. It was not merged into the canonical model catalog and does not establish quota, qualification, health, or generation readiness. The existing `RUNTIME_BOOTSTRAP_ADMITTED`/`RUNTIME_ELIGIBLE=0` interpretation and Formal Gate remain unchanged.
+
+### 2026-09-27 Transport-stage provenance hardening
+
+- `3a9b82b` fixes a diagnostic overstatement at the shared Provider boundary: an opaque socket/local-policy failure such as Windows `WinError 10013` no longer inherits the adapter's pre-connect `response_wait` marker. It is projected as `unknown` unless a lower-level cause or explicit observation proves a later stage; known DNS, connect refusal, connection reset/abort, response-read timeout, and explicitly recorded stages remain classified.
+- The change is diagnostic-only. It does not alter routing, retry, failover, reconciliation, credential, or Gate authority. Bounded evidence is recorded in [`transport-stage-provenance-20260927.json`](../spec/v2/evidence/transport-stage-provenance-20260927.json).
+- Verification: affected boundary `35 passed`; related adapter tests `48 passed`; full `tests/v2` `1716 passed, 1 skipped`; Architecture and compile passed. The one skip is the existing Windows ACL-owned budget reservation test. Formal `RUNTIME_ELIGIBLE=0`, `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED`, and D9 Production Deployment deferred status remain unchanged.
 
 ### 2026-09-27 Phase 8 continuation preflight and local-first trial
 
@@ -328,6 +334,7 @@ and the compact operational procedure is [`docs/CODEX_DAILY_DOGFOOD.md`](CODEX_D
 - Phase 8 fresh local root with distinct proposal-only Gemma4 Reviewer and bounded terminal projection: [`phase8-local-independent-reviewer-20260926.json`](../spec/v2/evidence/phase8-local-independent-reviewer-20260926.json)
 - Phase 8 trusted no-charge bootstrap-admitted remote multi-role completion (non-Gate): [`phase8-bootstrap-admitted-nongate-20260927.json`](../spec/v2/evidence/phase8-bootstrap-admitted-nongate-20260927.json)
 - Read-only current Provider model catalog candidate refresh: [`model-catalog-r9-refresh-20260927.json`](../spec/v2/evidence/model-catalog-r9-refresh-20260927.json)
+- Transport-stage provenance and WinError diagnostic hardening: [`transport-stage-provenance-20260927.json`](../spec/v2/evidence/transport-stage-provenance-20260927.json)
 - Ollama local Worker rebind follow-up: [`ollama-local-worker-rebind-followup-20260923.json`](../spec/v2/evidence/ollama-local-worker-rebind-followup-20260923.json)
 - Operational Human Proxy / Expert Assist / local self-update: [`operational-human-assist-self-update-local-20260923.json`](../spec/v2/evidence/operational-human-assist-self-update-local-20260923.json)
 - Latest read-only R9 candidate diagnostic: [`model-candidate-diagnostic-20260923.json`](../spec/v2/evidence/model-candidate-diagnostic-20260923.json)
