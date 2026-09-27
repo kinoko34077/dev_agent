@@ -217,6 +217,61 @@ class GeminiHttpProvider(ModelProvider):
             payload["tools"] = [{"functionDeclarations": request.tool_definitions}]
         return payload
 
+    def probe_liveness(self) -> None:
+        """Read the selected model metadata without invoking generation."""
+
+        key = self._key()
+        url = f"{self.base_url}/models/{quote(self.model, safe='')}"
+        http_request = Request(
+            url,
+            headers={"Accept": "application/json", "x-goog-api-key": key},
+            method="GET",
+        )
+        transport_stage = TransportStage.RESPONSE_WAIT
+        try:
+            with urlopen_no_redirect(http_request, timeout=self.timeout_seconds) as response:
+                transport_stage = TransportStage.RESPONSE_READ
+                raw = json.loads(_read_bounded(response).decode("utf-8"))
+        except HTTPError as exc:
+            if exc.code in REDIRECT_STATUS_CODES:
+                raise ProviderError(
+                    f"gemini endpoint attempted an HTTP {exc.code} redirect; redirects are not permitted",
+                    category="provider_http",
+                    retryable=False,
+                    http_status=exc.code,
+                ) from exc
+            detail = self._safe_error_detail(exc)
+            detail_lower = detail.lower() if detail is not None else ""
+            confirmed_unavailable = exc.code == 503 and (
+                "unavailable" in detail_lower or "high demand" in detail_lower
+            )
+            category = (
+                "rate_limit"
+                if exc.code == 429
+                else "authentication"
+                if exc.code == 401
+                else "authorization"
+                if exc.code == 403
+                else "provider_unavailable"
+                if confirmed_unavailable
+                else "provider_http"
+            )
+            suffix = f": {detail}" if detail else ""
+            raise ProviderError(
+                f"gemini liveness probe failed: HTTP {exc.code}{suffix}",
+                category=category,
+                retryable=category == "rate_limit",
+                failover_safe=category in {"rate_limit", "authentication", "authorization", "provider_unavailable"},
+                http_status=exc.code,
+            ) from exc
+        except (URLError, OSError) as exc:
+            failure = ProviderError("gemini liveness probe transport failed", category="transport", retryable=True)
+            raise annotate_transport_failure(failure, stage=transport_stage, cause=exc) from exc
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ProviderError("gemini liveness probe response decode failed", category="provider_decode", retryable=False) from exc
+        if not isinstance(raw, Mapping):
+            raise ProviderError("gemini liveness probe response decode failed", category="provider_decode", retryable=False)
+
     def request(self, request: ModelRequest) -> ModelResponse:
         key = self._key()
         url = f"{self.base_url}/models/{quote(self.model, safe='')}:generateContent"

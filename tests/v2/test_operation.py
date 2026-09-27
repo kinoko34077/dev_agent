@@ -25,6 +25,22 @@ def _config(tmp_path):
     )
 
 
+def _ollama_config(tmp_path, *, quota_domain=None, binding_id="ollama:test"):
+    return OperationConfig(
+        data_dir=tmp_path,
+        provider_pool=(
+            OperationProviderBinding(
+                provider_id="ollama",
+                model="qwen3.5:9b",
+                provider_binding_id=binding_id,
+                quota_domain=quota_domain,
+            ),
+        ),
+        worker_id="operation-ollama-test-worker",
+        idle_sleep_seconds=0.01,
+    )
+
+
 def test_submit_is_durable_and_status_reads_queue_and_events(tmp_path):
     config = _config(tmp_path)
 
@@ -367,6 +383,243 @@ def test_operation_maintenance_tick_requalifies_due_quota_and_wakes_queue(tmp_pa
         assert service.ledger.get_quota_observation("fake:default")["block_reason"] is None
         assert service.ledger.get_resource("fake:default")["observed_at"] == "2026-09-10T12:00:00+00:00"
         assert results[0]["woken_tasks"] == 1
+
+
+def test_operation_maintenance_tick_refreshes_stale_real_resource_without_generation(tmp_path):
+    config = _ollama_config(tmp_path, quota_domain="ollama-account")
+    now = datetime(2026, 9, 28, 0, 5, 1, tzinfo=timezone.utc)
+
+    with OperationService.open(config) as service:
+        service.ledger.observe(
+            "ollama:test",
+            available=1,
+            health="healthy",
+            confidence=0.7,
+            observed_at="2026-09-28T00:00:00+00:00",
+            latency_ewma_ms=42,
+            failure_ewma=0.1,
+            inflight=0,
+            concurrency_limit=1,
+        )
+        before = service.ledger.get_resource("ollama:test")
+        provider = service.dispatcher.registry.get_binding("ollama:test")
+        calls = []
+        provider.probe_liveness = lambda: calls.append("liveness")
+
+        service.maintenance_tick(now=now, max_probes=0, max_liveness_probes=1)
+
+        after = service.ledger.get_resource("ollama:test")
+        assert calls == ["liveness"]
+        assert after["observed_at"] == now.isoformat()
+        assert after["metadata"] == before["metadata"]
+        for field in (
+            "provider_id",
+            "native_unit",
+            "capabilities",
+            "sensitivity",
+            "cost_minor",
+            "price_currency",
+            "quota_domain",
+            "health",
+            "available",
+            "latency_ewma_ms",
+            "failure_ewma",
+            "circuit_open_until",
+        ):
+            assert after[field] == before[field]
+        assert service.ledger.get_quota_observation("ollama:test") is None
+
+
+def test_operation_maintenance_tick_does_not_refresh_fresh_or_unsupported_resources(tmp_path):
+    config = _ollama_config(tmp_path)
+    now = datetime(2026, 9, 28, 0, 5, 0, tzinfo=timezone.utc)
+
+    with OperationService.open(config) as service:
+        service.ledger.observe(
+            "ollama:test",
+            available=1,
+            health="healthy",
+            observed_at="2026-09-28T00:01:00+00:00",
+        )
+        provider = service.dispatcher.registry.get_binding("ollama:test")
+        provider.probe_liveness = None
+
+        service.maintenance_tick(now=now, max_probes=0, max_liveness_probes=1)
+
+        assert service.ledger.get_resource("ollama:test")["observed_at"] == "2026-09-28T00:01:00+00:00"
+
+
+def test_operation_maintenance_tick_keeps_failed_liveness_and_quota_block_fail_closed(tmp_path):
+    config = _ollama_config(tmp_path, quota_domain="ollama-account")
+    now = datetime(2026, 9, 28, 0, 5, 1, tzinfo=timezone.utc)
+
+    with OperationService.open(config) as service:
+        service.ledger.observe(
+            "ollama:test",
+            available=1,
+            health="healthy",
+            confidence=0.7,
+            observed_at="2026-09-28T00:00:00+00:00",
+        )
+        service.ledger.observe_quota(
+            "ollama:test",
+            unit="requests",
+            metric="rpm",
+            window="minute",
+            request_limit=10,
+            request_remaining=0,
+            blocked_until="2026-09-28T00:04:00+00:00",
+            block_reason="rate_limit",
+            observed_at="2026-09-28T00:00:00+00:00",
+        )
+        provider = service.dispatcher.registry.get_binding("ollama:test")
+        calls = []
+
+        def fail_liveness():
+            calls.append("liveness")
+            raise ProviderError("endpoint unavailable", category="transport", retryable=True)
+
+        provider.probe_liveness = fail_liveness
+        service.maintenance_tick(now=now, max_probes=0, max_liveness_probes=1)
+        service.maintenance_tick(now=now, max_probes=0, max_liveness_probes=1)
+
+        assert calls == ["liveness"]
+        assert service.ledger.get_resource("ollama:test")["observed_at"] == "2026-09-28T00:00:00+00:00"
+        quota = service.ledger.get_quota_observation("ollama:test")
+        assert quota["block_reason"] == "rate_limit"
+        assert quota["request_remaining"] == 0
+        assert quota["observed_at"] == "2026-09-28T00:00:00+00:00"
+
+
+def test_operation_maintenance_tick_liveness_does_not_clear_quota_block(tmp_path):
+    config = _ollama_config(tmp_path, quota_domain="ollama-account")
+    now = datetime(2026, 9, 28, 0, 5, 1, tzinfo=timezone.utc)
+
+    with OperationService.open(config) as service:
+        service.ledger.observe(
+            "ollama:test",
+            available=1,
+            health="healthy",
+            observed_at="2026-09-28T00:00:00+00:00",
+        )
+        service.ledger.observe_quota(
+            "ollama:test",
+            unit="requests",
+            metric="rpm",
+            window="minute",
+            request_limit=10,
+            request_remaining=0,
+            blocked_until="2026-09-28T00:04:00+00:00",
+            block_reason="rate_limit",
+            observed_at="2026-09-28T00:00:00+00:00",
+        )
+        service.dispatcher.registry.get_binding("ollama:test").probe_liveness = lambda: None
+
+        service.maintenance_tick(now=now, max_probes=0, max_liveness_probes=1)
+
+        assert service.ledger.get_resource("ollama:test")["observed_at"] == now.isoformat()
+        quota = service.ledger.get_quota_observation("ollama:test")
+        assert quota["block_reason"] == "rate_limit"
+        assert quota["request_remaining"] == 0
+        assert quota["observed_at"] == "2026-09-28T00:00:00+00:00"
+
+
+def test_operation_maintenance_tick_bounds_real_liveness_probes(tmp_path):
+    config = OperationConfig(
+        data_dir=tmp_path,
+        provider_pool=(
+            OperationProviderBinding(provider_id="ollama", model="qwen3.5:9b", provider_binding_id="ollama:a"),
+            OperationProviderBinding(provider_id="ollama", model="qwen3.5:9b", provider_binding_id="ollama:b"),
+        ),
+        worker_id="operation-ollama-bounded-worker",
+        idle_sleep_seconds=0.01,
+    )
+    now = datetime(2026, 9, 28, 0, 5, 1, tzinfo=timezone.utc)
+
+    with OperationService.open(config) as service:
+        for resource_id in ("ollama:a", "ollama:b"):
+            service.ledger.observe(
+                resource_id,
+                available=1,
+                health="healthy",
+                observed_at="2026-09-28T00:00:00+00:00",
+            )
+        calls = []
+        for resource_id in ("ollama:a", "ollama:b"):
+            service.dispatcher.registry.get_binding(resource_id).probe_liveness = lambda resource_id=resource_id: calls.append(resource_id)
+
+        service.maintenance_tick(now=now, max_probes=0, max_liveness_probes=1)
+
+        assert len(calls) == 1
+        assert service.ledger.get_resource(calls[0])["observed_at"] == now.isoformat()
+        other = "ollama:b" if calls[0] == "ollama:a" else "ollama:a"
+        assert service.ledger.get_resource(other)["observed_at"] == "2026-09-28T00:00:00+00:00"
+
+
+def test_operation_maintenance_tick_consumes_liveness_budget_on_failed_attempt(tmp_path):
+    config = OperationConfig(
+        data_dir=tmp_path,
+        provider_pool=(
+            OperationProviderBinding(provider_id="ollama", model="qwen3.5:9b", provider_binding_id="ollama:a"),
+            OperationProviderBinding(provider_id="ollama", model="qwen3.5:9b", provider_binding_id="ollama:b"),
+        ),
+        worker_id="operation-ollama-failed-budget-worker",
+        idle_sleep_seconds=0.01,
+    )
+    now = datetime(2026, 9, 28, 0, 5, 1, tzinfo=timezone.utc)
+
+    with OperationService.open(config) as service:
+        for resource_id in ("ollama:a", "ollama:b"):
+            service.ledger.observe(
+                resource_id,
+                available=1,
+                health="healthy",
+                observed_at="2026-09-28T00:00:00+00:00",
+            )
+        calls = []
+
+        def fail_liveness():
+            calls.append("ollama:a")
+            raise ProviderError("endpoint unavailable", category="transport", retryable=True)
+
+        service.dispatcher.registry.get_binding("ollama:a").probe_liveness = fail_liveness
+        service.dispatcher.registry.get_binding("ollama:b").probe_liveness = lambda: calls.append("ollama:b")
+
+        service.maintenance_tick(now=now, max_probes=0, max_liveness_probes=1)
+
+        assert calls == ["ollama:a"]
+        assert service.ledger.get_resource("ollama:b")["observed_at"] == "2026-09-28T00:00:00+00:00"
+
+
+def test_operation_reopen_stale_resource_recovers_route_only_after_liveness(tmp_path, monkeypatch):
+    from src.dev_agent.resources.router import NoRoute, ResourceRouter, RouteRequest
+
+    config = _ollama_config(tmp_path)
+    now = datetime(2026, 9, 28, 0, 5, 1, tzinfo=timezone.utc)
+    service = OperationService.open(config)
+    try:
+        service.ledger.observe(
+            "ollama:test",
+            available=1,
+            health="healthy",
+            observed_at="2026-09-28T00:00:00+00:00",
+        )
+    finally:
+        service.close()
+
+    monkeypatch.setattr("src.dev_agent.resources.router.time.time", lambda: now.timestamp())
+    with OperationService.open(config) as reopened:
+        router = ResourceRouter(reopened.ledger)
+        request = RouteRequest(capabilities={"text"})
+        with pytest.raises(NoRoute):
+            router.choose(request)
+
+        provider = reopened.dispatcher.registry.get_binding("ollama:test")
+        provider.probe_liveness = lambda: None
+        reopened.maintenance_tick(now=now, max_probes=0, max_liveness_probes=1)
+
+        selection = router.choose(request)
+        assert selection.resource_id == "ollama:test"
 
 
 def test_operation_maintenance_tick_skips_nonblocked_resource_before_due_probe(tmp_path):

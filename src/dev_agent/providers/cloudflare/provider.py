@@ -177,6 +177,58 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
             usage=usage,
         )
 
+    def probe_liveness(self) -> None:
+        """Use Cloudflare's account model-list endpoint without generation."""
+
+        account_id, api_token = self._credentials()
+        url = f"{self.base_url}/accounts/{quote(account_id, safe='')}/ai/models/search"
+        http_request = Request(
+            url,
+            headers={"Accept": "application/json", "Authorization": f"Bearer {api_token}"},
+            method="GET",
+        )
+        transport_stage = TransportStage.RESPONSE_WAIT
+        try:
+            with urlopen_no_redirect(http_request, timeout=self.timeout_seconds) as response:
+                transport_stage = TransportStage.RESPONSE_READ
+                raw = json.loads(_read_bounded(response).decode("utf-8"))
+        except HTTPError as exc:
+            if exc.code in REDIRECT_STATUS_CODES:
+                raise ProviderError(
+                    f"cloudflare endpoint attempted an HTTP {exc.code} redirect; redirects are not permitted",
+                    category="provider_http",
+                    retryable=False,
+                    http_status=exc.code,
+                ) from exc
+            category = "authentication" if exc.code == 401 else "authorization" if exc.code == 403 else "rate_limit" if exc.code == 429 else "provider_http"
+            raise ProviderError(
+                f"cloudflare liveness probe failed: HTTP {exc.code}",
+                category=category,
+                retryable=category == "rate_limit",
+                http_status=exc.code,
+            ) from exc
+        except (URLError, OSError) as exc:
+            failure = ProviderError("cloudflare liveness probe transport failed", category="transport", retryable=True)
+            raise annotate_transport_failure(failure, stage=transport_stage, cause=exc) from exc
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ProviderError("cloudflare liveness probe response decode failed", category="provider_decode", retryable=False) from exc
+        if not isinstance(raw, Mapping) or raw.get("success") is not True or not isinstance(raw.get("result"), list):
+            raise ProviderError("cloudflare liveness probe response decode failed", category="provider_decode", retryable=False)
+        identifiers = {
+            identifier.strip()
+            for item in raw["result"]
+            if isinstance(item, Mapping)
+            for identifier in (item.get("id", item.get("name")),)
+            if isinstance(identifier, str) and identifier.strip()
+        }
+        if self.model not in identifiers:
+            raise ProviderError(
+                "cloudflare selected model is not listed",
+                category="provider_unavailable",
+                retryable=True,
+                failover_safe=True,
+            )
+
     def request(self, request: ModelRequest) -> ModelResponse:
         account_id, api_token = self._credentials()
         model_path = quote(self.model, safe="@/._-")

@@ -122,6 +122,49 @@ def test_cloudflare_http_adapter_normalizes_rest_envelope_without_inventing_quot
     assert "quota_observation" not in response.usage
 
 
+def test_cloudflare_liveness_probe_reads_model_inventory_without_generation(monkeypatch):
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["method"] = request.method
+        captured["data"] = request.data
+        captured["headers"] = dict(request.header_items())
+        captured["timeout"] = timeout
+        return _Response({"success": True, "result": [{"id": "@cf/meta/llama-3.1-8b-instruct"}]})
+
+    monkeypatch.setattr("src.dev_agent.providers.cloudflare.provider.urlopen_no_redirect", fake_urlopen)
+    CloudflareWorkersAIHttpProvider(
+        model="@cf/meta/llama-3.1-8b-instruct",
+        account_id="account",
+        api_token="token",
+        timeout_seconds=4,
+    ).probe_liveness()
+
+    assert captured["url"].endswith("/accounts/account/ai/models/search")
+    assert captured["method"] == "GET"
+    assert captured["data"] is None
+    assert captured["headers"]["Authorization"] == "Bearer token"
+    assert captured["timeout"] == 4.0
+
+
+def test_cloudflare_liveness_fails_when_selected_model_is_missing(monkeypatch):
+    monkeypatch.setattr(
+        "src.dev_agent.providers.cloudflare.provider.urlopen_no_redirect",
+        lambda _request, **_kwargs: _Response({"success": True, "result": [{"id": "other-model"}]}),
+    )
+    provider = CloudflareWorkersAIHttpProvider(
+        model="@cf/meta/llama-3.1-8b-instruct",
+        account_id="account",
+        api_token="token",
+    )
+
+    with pytest.raises(ProviderError) as caught:
+        provider.probe_liveness()
+
+    assert caught.value.category == "provider_unavailable"
+
+
 def test_cloudflare_http_adapter_preserves_requested_binding_when_backend_reports_alias(monkeypatch):
     def fake_urlopen(_request, timeout):
         return _Response(

@@ -162,7 +162,7 @@ def test_openai_compatible_http_provider_can_probe_models_without_chat_dispatch(
         captured["method"] = request.method
         captured["headers"] = dict(request.header_items())
         captured["timeout"] = timeout
-        return _Response({"object": "list", "data": [{"id": "model-a", "owned_by": "provider"}]})
+        return _Response({"object": "list", "data": [{"id": "compatible-model", "owned_by": "provider"}]})
 
     provider = _TestProvider(model="compatible-model", api_key="secret", timeout_seconds=4, http_open=fake_urlopen)
 
@@ -172,7 +172,42 @@ def test_openai_compatible_http_provider_can_probe_models_without_chat_dispatch(
     assert captured["method"] == "GET"
     assert captured["headers"]["Authorization"] == "Bearer secret"
     assert captured["timeout"] == 4.0
-    assert models == [{"id": "model-a", "owned_by": "provider"}]
+    assert models == [{"id": "compatible-model", "owned_by": "provider"}]
+
+
+def test_openai_compatible_http_liveness_probe_reuses_models_get():
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["method"] = request.method
+        captured["data"] = request.data
+        captured["timeout"] = timeout
+        return _Response({"object": "list", "data": [{"id": "compatible-model"}]})
+
+    provider = _TestProvider(model="compatible-model", api_key="secret", timeout_seconds=4, http_open=fake_urlopen)
+
+    provider.probe_liveness()
+
+    assert captured == {
+        "url": "https://compatible.test/v1/models",
+        "method": "GET",
+        "data": None,
+        "timeout": 4.0,
+    }
+
+
+def test_openai_compatible_http_liveness_fails_when_selected_model_is_missing():
+    provider = _TestProvider(
+        model="compatible-model",
+        api_key="secret",
+        http_open=lambda _request, **_kwargs: _Response({"object": "list", "data": [{"id": "other-model"}]}),
+    )
+
+    with pytest.raises(ProviderError) as caught:
+        provider.probe_liveness()
+
+    assert caught.value.category == "provider_unavailable"
 
 
 def test_openai_compatible_http_provider_exposes_provider_neutral_quota_probe():

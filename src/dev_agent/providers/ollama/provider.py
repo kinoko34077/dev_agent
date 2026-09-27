@@ -110,3 +110,73 @@ class OllamaProvider(ModelProvider):
         finally:
             if acquired:
                 self.model_manager.release(self.model)
+
+    def probe_liveness(self) -> None:
+        """Confirm the daemon and selected model with a bounded read-only call.
+
+        Model loading and generation remain request-owned.  The lifecycle
+        manager's inventory endpoint is enough to distinguish a live daemon
+        with an installed model from a stale or missing local resource.
+        """
+
+        if self.model_manager is not None:
+            from .lifecycle import OllamaLifecycleError
+
+            try:
+                installed = self.model_manager.list_installed()
+            except OllamaLifecycleError as exc:
+                category = "provider_decode" if exc.category == "provider_decode" else "provider_unavailable"
+                raise ProviderError(
+                    "ollama liveness probe failed",
+                    category=category,
+                    retryable=category == "provider_unavailable",
+                    failover_safe=category == "provider_unavailable",
+                ) from exc
+            if not any(item.name == self.model for item in installed):
+                raise ProviderError(
+                    "ollama selected model is not installed",
+                    category="provider_unavailable",
+                    retryable=True,
+                    failover_safe=True,
+                )
+            return
+
+        http_request = Request(
+            f"{self.base_url}/api/tags",
+            headers={"Accept": "application/json"},
+            method="GET",
+        )
+        transport_stage = TransportStage.RESPONSE_WAIT
+        try:
+            with urlopen_no_redirect(http_request, timeout=self.timeout_seconds) as response:
+                transport_stage = TransportStage.RESPONSE_READ
+                raw = json.loads(_read_bounded(response).decode("utf-8"))
+        except HTTPError as exc:
+            if exc.code in REDIRECT_STATUS_CODES:
+                raise ProviderError(
+                    f"ollama endpoint attempted an HTTP {exc.code} redirect; redirects are not permitted",
+                    category="provider_http",
+                    retryable=False,
+                    http_status=exc.code,
+                ) from exc
+            raise ProviderError(
+                f"ollama liveness probe failed: HTTP {exc.code}",
+                category="provider_http",
+                retryable=False,
+                http_status=exc.code,
+            ) from exc
+        except (URLError, OSError) as exc:
+            failure = ProviderError("ollama liveness probe transport failed", category="transport", retryable=True)
+            raise annotate_transport_failure(failure, stage=transport_stage, cause=exc) from exc
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ProviderError("ollama liveness probe response decode failed", category="provider_decode", retryable=False) from exc
+
+        if not isinstance(raw, dict) or not isinstance(raw.get("models"), list):
+            raise ProviderError("ollama liveness probe response decode failed", category="provider_decode", retryable=False)
+        if not any(isinstance(item, dict) and item.get("name") == self.model for item in raw["models"]):
+            raise ProviderError(
+                "ollama selected model is not installed",
+                category="provider_unavailable",
+                retryable=True,
+                failover_safe=True,
+            )

@@ -338,3 +338,17 @@ class ModelProvider(ABC):
     @abstractmethod
     def request(self, request: ModelRequest) -> ModelResponse:
         """Return a normalized response for a normalized request."""
+
+    def probe_liveness(self) -> None:
+        """Confirm bounded provider liveness without generating model output.
+
+        Adapters may implement this with a provider-owned read-only endpoint.
+        The default is deliberately unsupported so an injected or legacy
+        adapter cannot be treated as healthy merely because it is registered.
+        """
+
+        raise ProviderError(
+            f"{self.provider_id} does not expose a bounded liveness probe",
+            category="unsupported_capability",
+            retryable=False,
+        )

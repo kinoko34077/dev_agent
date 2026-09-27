@@ -68,6 +68,70 @@ def test_ollama_response_records_explicit_zero_local_cost(monkeypatch):
     assert response.usage["cost_minor"] == 0
 
 
+def test_ollama_liveness_probe_reads_inventory_without_chat_generation(monkeypatch):
+    captured = {}
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def read(self, n: int = -1) -> bytes:
+            payload = b'{"models":[{"name":"local-test"}]}'
+            return payload if n < 0 else payload[:n]
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["method"] = request.method
+        captured["data"] = request.data
+        captured["timeout"] = timeout
+        return Response()
+
+    monkeypatch.setattr("src.dev_agent.providers.ollama.provider.urlopen_no_redirect", fake_urlopen)
+    OllamaProvider(model="local-test", timeout_seconds=4).probe_liveness()
+
+    assert captured == {
+        "url": "http://127.0.0.1:11434/api/tags",
+        "method": "GET",
+        "data": None,
+        "timeout": 4.0,
+    }
+
+
+def test_gemini_liveness_probe_reads_model_metadata_without_generation(monkeypatch):
+    captured = {}
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def read(self, n: int = -1) -> bytes:
+            payload = b'{"name":"models/gemini-test"}'
+            return payload if n < 0 else payload[:n]
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["method"] = request.method
+        captured["data"] = request.data
+        captured["headers"] = dict(request.header_items())
+        captured["timeout"] = timeout
+        return Response()
+
+    monkeypatch.setattr(gemini_provider_module, "urlopen_no_redirect", fake_urlopen)
+    GeminiHttpProvider(model="gemini-test", api_key="test-key", timeout_seconds=4).probe_liveness()
+
+    assert captured["url"].endswith("/models/gemini-test")
+    assert captured["method"] == "GET"
+    assert captured["data"] is None
+    assert captured["headers"]["X-goog-api-key"] == "test-key"
+    assert captured["timeout"] == 4.0
+
+
 def test_ollama_preflight_lifecycle_failure_is_safe_for_local_failover():
     class MissingModelManager:
         def acquire(self, *_args, **_kwargs):
