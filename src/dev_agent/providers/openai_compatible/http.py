@@ -388,6 +388,18 @@ class OpenAICompatibleHttpProvider(ModelProvider):
             models.append(dict(item))
         return models
 
+    def probe_liveness(self) -> None:
+        """Use the existing bounded models GET as a non-generation probe."""
+
+        models = self.list_models()
+        if not any(item.get("id") == self.model for item in models):
+            raise ProviderError(
+                f"{self.provider_id} selected model is not listed",
+                category="provider_unavailable",
+                retryable=True,
+                failover_safe=True,
+            )
+
     def probe_quota(self, resource_id: str, quota_domain: str) -> dict[str, Any]:
         """Return one provider-neutral quota observation from a safe probe.
 

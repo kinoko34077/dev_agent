@@ -593,6 +593,11 @@ class OperationService:
     """Compose existing v2 components for the minimum operational commands."""
 
     _DETERMINISTIC_LOCAL_REFRESH_INTERVAL_SECONDS = 60.0
+    # Keep the maintenance boundary aligned with RouteRequest's default
+    # observation freshness gate.  This is a liveness refresh, not a routing
+    # policy override: a failed or unsupported probe leaves the old row stale.
+    _PROVIDER_LIVENESS_MAX_AGE_SECONDS = 300.0
+    _PROVIDER_LIVENESS_RETRY_INTERVAL_SECONDS = 60.0
 
     def __init__(self, config: OperationConfig, *, store: SQLiteStateStore, queue: DurableQueue, ledger: ResourceLedger, control: OperationControl, controller: Controller, worker: WorkerRunner, dispatcher: ProviderDispatcher, evaluation: EvaluationCoordinator, lifecycle: TaskLifecycleCoordinator, qualification_resolver: QualificationResolver | None = None, model_admission_resolver: ModelAdmissionResolver | None = None, human_interaction_port: HumanInteractionPort | None = None) -> None:
         self.config = config
@@ -611,6 +616,7 @@ class OperationService:
         self._closed = False
         self._runtime_prepared = False
         self._last_deterministic_local_refresh_at: datetime | None = None
+        self._last_provider_liveness_probe_at: dict[str, datetime] = {}
 
     @property
     def qualification_resolver(self) -> QualificationResolver:
@@ -1785,20 +1791,23 @@ class OperationService:
         *,
         now: datetime | None = None,
         max_probes: int = 1,
+        max_liveness_probes: int = 1,
         probe: Callable[[str, str], Mapping[str, Any]] | None = None,
     ) -> list[dict[str, Any]]:
-        """Run one bounded quota maintenance pass at the operation boundary.
+        """Run one bounded liveness and quota maintenance pass.
 
-        The existing wake scheduler supplies only due quota domains.  This
-        method supplies the missing operational composition: at most
-        ``max_probes`` due resources are sent through the existing one-shot
-        requalification coordinator.  A caller may provide the adapter's
-        provider-neutral probe callback; when omitted, an adapter exposing a
-        compatible ``probe_quota(resource_id, quota_domain)`` method is used.
-        No callback means no external request is made.
+        Real resources may become stale while Operation is idle.  At most
+        ``max_liveness_probes`` stale bindings are sent through an adapter's
+        provider-neutral read-only ``probe_liveness`` capability.  A successful
+        probe refreshes only the observation row; it never creates quota
+        evidence or clears a quota block.  The existing quota wake scheduler
+        then supplies at most ``max_probes`` due resources to the one-shot
+        requalification coordinator.
         """
         if isinstance(max_probes, bool) or not isinstance(max_probes, int) or max_probes < 0:
             raise ValueError("max_probes must be a non-negative integer")
+        if isinstance(max_liveness_probes, bool) or not isinstance(max_liveness_probes, int) or max_liveness_probes < 0:
+            raise ValueError("max_liveness_probes must be a non-negative integer")
         if probe is not None and not callable(probe):
             raise TypeError("probe must be callable or None")
         current = now or datetime.now(timezone.utc)
@@ -1806,6 +1815,7 @@ class OperationService:
         coordinator = QuotaRequalificationCoordinator(self.ledger, scheduler)
         results: list[dict[str, Any]] = []
         self._refresh_deterministic_local_resources(current)
+        self._refresh_stale_provider_resources(current, max_liveness_probes)
         self._wake_human_tasks()
         # User-requested waits share the existing durable queue wake boundary;
         # RuntimeCoordinator remains the only maintenance loop.
@@ -1907,6 +1917,84 @@ class OperationService:
                 confidence=resource.get("confidence", 0.0),
                 observed_at=current.isoformat(),
             )
+
+    def _refresh_stale_provider_resources(self, now: datetime, max_probes: int) -> None:
+        """Refresh stale non-fake rows through bounded adapter liveness.
+
+        ``_ensure_resource`` intentionally remains catalog-only on reopen.  A
+        maintenance tick is the existing runtime boundary where an external
+        observation may be made.  The adapter owns the read-only endpoint;
+        this method owns only freshness selection and persistence of the
+        successful observation.  Unsupported, failed, malformed, future, or
+        circuit-open rows remain unchanged and therefore fail closed.
+        """
+
+        if max_probes == 0:
+            return
+        current = now if now.tzinfo is not None else now.replace(tzinfo=timezone.utc)
+        registry = getattr(self.controller.provider, "registry", None)
+        if registry is None:
+            return
+        attempts = 0
+        for binding in self.config.provider_bindings:
+            if attempts >= max_probes:
+                return
+            if binding.provider_id == "fake":
+                continue
+            resource_id = binding.binding_id
+            try:
+                resource = self.ledger.get_resource(resource_id)
+            except (KeyError, TypeError, ValueError):
+                continue
+            if resource.get("provider_id") == "fake":
+                continue
+            if resource.get("health") not in {"healthy", "degraded"} or resource.get("available", 0) <= 0:
+                continue
+            circuit_open_until = resource.get("circuit_open_until", 0)
+            if isinstance(circuit_open_until, (int, float)) and circuit_open_until > current.timestamp():
+                continue
+            raw_observed_at = resource.get("observed_at")
+            if not isinstance(raw_observed_at, str) or not raw_observed_at.strip():
+                continue
+            try:
+                observed_at = datetime.fromisoformat(raw_observed_at.strip())
+            except (TypeError, ValueError):
+                continue
+            if observed_at.tzinfo is None:
+                observed_at = observed_at.replace(tzinfo=timezone.utc)
+            else:
+                observed_at = observed_at.astimezone(timezone.utc)
+            age_seconds = (current - observed_at).total_seconds()
+            if age_seconds < 0 or age_seconds <= self._PROVIDER_LIVENESS_MAX_AGE_SECONDS:
+                continue
+            try:
+                provider = registry.get_binding(resource_id)
+            except Exception:
+                continue
+            callback = getattr(provider, "probe_liveness", None)
+            if not callable(callback):
+                continue
+            previous_probe = self._last_provider_liveness_probe_at.get(resource_id)
+            if previous_probe is not None and (current - previous_probe).total_seconds() < self._PROVIDER_LIVENESS_RETRY_INTERVAL_SECONDS:
+                continue
+            # Consume the bounded budget when an external attempt starts, not
+            # only after success.  A failed first probe must not fan out to
+            # every stale binding in the same maintenance tick.
+            attempts += 1
+            self._last_provider_liveness_probe_at[resource_id] = current
+            try:
+                callback()
+                self.ledger.refresh_resource_observation(
+                    resource_id,
+                    health=resource["health"],
+                    confidence=resource.get("confidence", 0.0),
+                    observed_at=current.isoformat(),
+                )
+            except Exception:
+                # A liveness observation is advisory until persisted.  Never
+                # turn a provider or malformed-ledger failure into a fresh
+                # timestamp, and do not stop unrelated maintenance work.
+                continue
 
     def prepare_runtime(self) -> None:
         """Prepare one foreground runtime without claiming a Task.
