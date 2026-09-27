@@ -311,6 +311,10 @@ class Phase8ProductionSubmission:
             raise ProductionCompositionError(
                 "Phase 8 continuation must be suggested_owner=codex"
             )
+        if continuation.required_capabilities:
+            raise ProductionCompositionError(
+                "Phase 8 deterministic continuation must not require provider capabilities"
+            )
         worker_keys = {child.child_key for child in workers}
         if set(continuation.dependencies) != worker_keys:
             raise ProductionCompositionError(

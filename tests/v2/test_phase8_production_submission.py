@@ -330,6 +330,43 @@ def test_phase8_shape_preflight_rejects_dependent_worker_before_handoff():
         Phase8ProductionSubmission.validate_phase8_root_shape(proposal)
 
 
+def test_phase8_shape_rejects_provider_capabilities_on_deterministic_continuation():
+    proposal = RootPlanningProposal(
+        parent_task_id="phase8-parent-capability-check",
+        proposal_id="phase8-continuation-capability-check",
+        rationale="deterministic continuation must not require a provider route",
+        children=(
+            ChildTaskProposal(
+                child_key="worker-a",
+                objective="implement independent change A",
+                task_type=TaskType.WORKER,
+                suggested_owner="worker",
+            ),
+            ChildTaskProposal(
+                child_key="worker-b",
+                objective="implement independent change B",
+                task_type=TaskType.WORKER,
+                suggested_owner="worker",
+            ),
+            ChildTaskProposal(
+                child_key="continuation",
+                objective="continue after both integrations",
+                task_type=TaskType.DETERMINISTIC,
+                suggested_owner="codex",
+                required_capabilities=("structured_output",),
+                dependencies=("worker-a", "worker-b"),
+                dependency_types={
+                    "worker-a": PlannerDependencyType.CODE_INTEGRATED,
+                    "worker-b": PlannerDependencyType.CODE_INTEGRATED,
+                },
+            ),
+        ),
+    )
+
+    with pytest.raises(ProductionCompositionError, match="must not require provider capabilities"):
+        Phase8ProductionSubmission.validate_phase8_root_shape(proposal)
+
+
 def test_phase8_public_driver_only_submits_and_observes(tmp_path: Path):
     repository, targets, revision = _repo(tmp_path)
     config = OperationConfig(
