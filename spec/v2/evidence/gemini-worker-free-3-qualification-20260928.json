@@ -1,0 +1,29 @@
+{
+  "status": "completed",
+  "provider": "gemini",
+  "binding": "gemini:worker:free-3",
+  "model": "gemini-3.5-flash-lite",
+  "checked_at": "2026-09-27T22:44:38.318141+00:00",
+  "event_types": [
+    "model.requested",
+    "model.responded",
+    "task.completed"
+  ],
+  "tool_result_count": 0,
+  "provider_audit_count": 1,
+  "quota_observation": null,
+  "quota_status": "unknown_not_reported",
+  "billing_authority": "trusted_catalog",
+  "qualification_scope": "text_only_unknown_quota",
+  "effect_intent_status": "succeeded",
+  "budget": {
+    "normal_committed_minor": 0,
+    "recovery_committed_minor": 0,
+    "active_reservations": 0,
+    "currency": "JPY"
+  },
+  "formal_runtime_eligible": false,
+  "gate_impact": "none",
+  "raw_response_retained": false,
+  "credentials_retained": false
+}
