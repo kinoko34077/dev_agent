@@ -49,12 +49,31 @@ def _parse(value: Any) -> datetime | None:
     return (parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)).astimezone(timezone.utc)
 
 
-def _window(expiries: list[datetime], now: datetime, horizon: datetime) -> dict[str, Any]:
+# Record-level validity start keys, in priority order.  Model evidence uses
+# observed_at, the qualification matrix tested_at, and billing verified_at.
+_START_KEYS = ("observed_at", "tested_at", "verified_at")
+Window = tuple["datetime | None", datetime]
+
+
+def _valid_at(window: Window, at: datetime) -> bool:
+    start, expires = window
+    return (start is None or start <= at) and at < expires
+
+
+def _window(windows: list[Window], now: datetime, horizon: datetime) -> dict[str, Any]:
+    """Count records whose own validity window covers now / the horizon.
+
+    A record is current only when ``start <= t < expires``; a future-dated
+    observation is not current even though its expiry is in the future.
+    """
+
+    current = [window for window in windows if _valid_at(window, now)]
     return {
-        "total": len(expiries),
-        "current": sum(1 for value in expiries if value > now),
-        "current_at_horizon": sum(1 for value in expiries if value > horizon),
-        "next_expiry": min((value for value in expiries if value > now), default=None),
+        "total": len(windows),
+        "current": len(current),
+        "current_at_horizon": sum(1 for window in windows if _valid_at(window, horizon)),
+        "not_yet_valid": sum(1 for start, _ in windows if start is not None and start > now),
+        "next_expiry": min((expires for _, expires in current), default=None),
     }
 
 
@@ -67,14 +86,24 @@ def _eligible(evidence: ModelEvidenceCatalog, at: datetime) -> int:
     )
 
 
-def _file_expiries(path: Path) -> list[datetime]:
-    found: list[datetime] = []
+def _record_window(record: Any) -> Window | None:
+    if not isinstance(record, dict):
+        return None
+    expires = _parse(record.get("expires_at"))
+    if expires is None:
+        return None
+    start = next((_parse(record.get(key)) for key in _START_KEYS if record.get(key) is not None), None)
+    return (start, expires)
+
+
+def _file_windows(path: Path) -> list[Window]:
+    found: list[Window] = []
 
     def walk(node: Any) -> None:
         if isinstance(node, dict):
-            parsed = _parse(node.get("expires_at"))
-            if parsed is not None:
-                found.append(parsed)
+            window = _record_window(node)
+            if window is not None:
+                found.append(window)
             for value in node.values():
                 walk(value)
         elif isinstance(node, list):
@@ -102,16 +131,23 @@ def build_report(
     evidence = ModelEvidenceCatalog.load(evidence_directory)
     sources: dict[str, Any] = {}
     for path in sorted(Path(evidence_directory).glob("*.json")):
-        expiries = _file_expiries(path)
-        if expiries:
-            sources[f"model_evidence/{path.name}"] = _window(expiries, now, horizon)
+        windows = _file_windows(path)
+        if windows:
+            sources[f"model_evidence/{path.name}"] = _window(windows, now, horizon)
     sources["billing_catalog"] = _window(
-        [value for value in (_parse(profile.expires_at) for profile in TRUSTED_RESOURCE_CATALOG.values()) if value is not None],
+        [
+            window
+            for window in (
+                _record_window({"verified_at": profile.verified_at, "expires_at": profile.expires_at})
+                for profile in TRUSTED_RESOURCE_CATALOG.values()
+            )
+            if window is not None
+        ],
         now,
         horizon,
     )
     if QUALIFICATION_MATRIX.exists():
-        sources["qualification_matrix"] = _window(_file_expiries(QUALIFICATION_MATRIX), now, horizon)
+        sources["qualification_matrix"] = _window(_file_windows(QUALIFICATION_MATRIX), now, horizon)
     exhausted = [name for name, window in sources.items() if window["current"] > 0 and window["current_at_horizon"] == 0]
     for window in sources.values():
         if window["next_expiry"] is not None:
