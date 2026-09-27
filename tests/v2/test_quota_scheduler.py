@@ -102,8 +102,27 @@ def _blocked_ledger(tmp_path, *, reason="rate_limit", blocked_until="2026-09-10T
     return ledger
 
 
-def _trusted_no_charge_blocked_ledger(tmp_path, *, billing_expires_at="2026-10-09T00:00:00+00:00"):
+def _trusted_no_charge_blocked_ledger(
+    tmp_path,
+    *,
+    billing_expires_at="2026-10-09T00:00:00+00:00",
+    model_id="gemini-3.5-flash-lite",
+    metadata_overrides=None,
+    cost_minor=0,
+    price_currency="JPY",
+):
     ledger = ResourceLedger(tmp_path / "trusted-requalification.sqlite3")
+    metadata = {
+        "provider_binding_id": "gemini:worker",
+        "model_id": model_id,
+        "billing_authority": "trusted_catalog",
+        "billing_mode": "recurring_allowance",
+        "overage_policy": "hard_stop",
+        "no_charge_guaranteed": True,
+        "billing_verified_at": "2026-09-09T00:00:00+00:00",
+        "billing_expires_at": billing_expires_at,
+    }
+    metadata.update(metadata_overrides or {})
     ledger.register_resource(
         "gemini:worker",
         provider_id="gemini",
@@ -111,19 +130,10 @@ def _trusted_no_charge_blocked_ledger(tmp_path, *, billing_expires_at="2026-10-0
         native_unit="request",
         capacity=1,
         capabilities=["text"],
-        cost_minor=0,
-        price_currency="JPY",
+        cost_minor=cost_minor,
+        price_currency=price_currency,
         quota_domain="project",
-        metadata={
-            "provider_binding_id": "gemini:worker",
-            "model_id": "gemini-3.5-flash-lite",
-            "billing_authority": "trusted_catalog",
-            "billing_mode": "recurring_allowance",
-            "overage_policy": "hard_stop",
-            "no_charge_guaranteed": True,
-            "billing_verified_at": "2026-09-09T00:00:00+00:00",
-            "billing_expires_at": billing_expires_at,
-        },
+        metadata=metadata,
     )
     ledger.observe("gemini:worker", available=1, health="healthy")
     ledger.observe_quota(
@@ -335,6 +345,58 @@ def test_quota_requalification_keeps_expired_trusted_profile_quarantined(tmp_pat
     assert result.status is QuotaProbeStatus.INVALID_OBSERVATION
     assert result.error_category == "quota_headroom_unavailable"
     assert ledger.get_quota_observation("gemini:worker")["block_reason"] == "rate_limit"
+
+
+@pytest.mark.parametrize(
+    ("metadata_overrides", "cost_minor", "price_currency", "model_id"),
+    (
+        ({"billing_mode": "paid"}, 0, "JPY", "gemini-3.5-flash-lite"),
+        ({"overage_policy": "billable"}, 0, "JPY", "gemini-3.5-flash-lite"),
+        ({"no_charge_guaranteed": 1}, 0, "JPY", "gemini-3.5-flash-lite"),
+        ({}, 1, "JPY", "gemini-3.5-flash-lite"),
+        ({}, 0, "USD", "gemini-3.5-flash-lite"),
+        ({}, 0, "JPY", "model-not-in-catalog"),
+    ),
+)
+def test_quota_requalification_keeps_tampered_or_paid_trust_metadata_quarantined(
+    tmp_path,
+    metadata_overrides,
+    cost_minor,
+    price_currency,
+    model_id,
+):
+    ledger = _trusted_no_charge_blocked_ledger(
+        tmp_path,
+        metadata_overrides=metadata_overrides,
+        cost_minor=cost_minor,
+        price_currency=price_currency,
+        model_id=model_id,
+    )
+
+    result = QuotaRequalificationCoordinator(ledger).probe_once(
+        "gemini:worker",
+        lambda *_: {},
+        now=datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc),
+    )
+
+    assert result.status is QuotaProbeStatus.INVALID_OBSERVATION
+    assert ledger.get_quota_observation("gemini:worker")["block_reason"] == "rate_limit"
+
+
+def test_quota_requalification_uses_qualification_binding_for_catalog_identity(tmp_path):
+    ledger = _trusted_no_charge_blocked_ledger(
+        tmp_path,
+        model_id="gemini-2.5-flash",
+        metadata_overrides={"qualification_binding_id": "gemini:qualification"},
+    )
+
+    result = QuotaRequalificationCoordinator(ledger).probe_once(
+        "gemini:worker",
+        lambda *_: {},
+        now=datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc),
+    )
+
+    assert result.status is QuotaProbeStatus.REQUALIFIED_UNKNOWN
 
 
 def test_quota_requalification_persists_conservative_cooldown_for_typed_probe_failure(tmp_path):

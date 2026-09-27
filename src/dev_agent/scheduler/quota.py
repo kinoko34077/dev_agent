@@ -389,16 +389,26 @@ class QuotaRequalificationCoordinator:
 
         provider_id = resource.get("provider_id")
         provider_binding_id = resource.get("provider_binding_id") or metadata.get("provider_binding_id")
+        qualification_binding_id = metadata.get("qualification_binding_id")
+        evidence_binding_id = (
+            qualification_binding_id.strip()
+            if isinstance(qualification_binding_id, str) and qualification_binding_id.strip()
+            else provider_binding_id
+        )
         model_id = metadata.get("model_id")
-        if not all(isinstance(value, str) and value.strip() for value in (provider_id, provider_binding_id, model_id)):
+        if not all(isinstance(value, str) and value.strip() for value in (provider_id, evidence_binding_id, model_id)):
             return False
-        profile = profile_for(provider_id.strip(), provider_binding_id.strip(), model_id.strip())
+        profile = profile_for(provider_id.strip(), evidence_binding_id.strip(), model_id.strip())
         if profile is None or not profile.is_current(now=now):
             return False
         if resource.get("cost_minor") != profile.cost_minor:
             return False
         if profile.price_currency is not None and resource.get("price_currency") != profile.price_currency:
             return False
+        # ``now`` is intentionally supplied by the bounded probe caller so
+        # every decision in this operation shares one clock sample.  Current
+        # production maintenance passes the real UTC clock; future callers
+        # must not derive it from untrusted Provider data.
         return (
             metadata.get("billing_mode") == profile.billing_mode
             and metadata.get("overage_policy") == profile.overage_policy
