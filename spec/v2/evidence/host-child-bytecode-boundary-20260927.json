@@ -1,0 +1,37 @@
+{
+  "evidence_id": "host-child-bytecode-boundary-20260927",
+  "recorded_at": "2026-09-27",
+  "branch": "v2/bootstrap",
+  "implementation_commit": "64878bd",
+  "scope": "Non-Gate local Windows shared-worktree robustness",
+  "problem": "A shared worktree may deny repository-local __pycache__ writes with WinError 5 during bounded Python child execution.",
+  "change": {
+    "boundary": "HostProcessExecutor",
+    "behavior": "Every one-shot Host child receives PYTHONDONTWRITEBYTECODE=1.",
+    "preserved": [
+      "Provider routing",
+      "timeout propagation",
+      "egress manifest validation",
+      "reconciliation semantics",
+      "Task and Gate authority"
+    ]
+  },
+  "verification": {
+    "focused_host_provider_and_devfarm_host_tests": "28 passed",
+    "in_memory_compile": "PASS",
+    "diff_check": "PASS"
+  },
+  "safety": {
+    "network_called": false,
+    "credentials_changed": false,
+    "protected_gate_changed": false,
+    "unknown_effect_replayed": false,
+    "raw_exception_or_secret_retained": false
+  },
+  "formal_gate": {
+    "runtime_eligible": "0",
+    "phase8_live_activation": "NOT_VERIFIED",
+    "d9_production_deployment": "DEFERRED_NOT_READY"
+  },
+  "interpretation": "The Host child no longer needs repository bytecode writes, reducing the known Windows ACL/tooling failure surface. This is local non-Gate robustness evidence and does not claim OS deployment or Phase 8 activation."
+}

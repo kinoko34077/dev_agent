@@ -10,10 +10,16 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 | Field | Current fact |
 | --- | --- |
 | Accepted branch | `v2/bootstrap` |
-| Accepted remote head at latest integrated implementation | `3a9b82bdeebe67b23162d14b3d7bffa5a2a2d559` (transport-stage provenance hardening after Reviewer output-contract and non-Gate bootstrap work; this docs/evidence sync follows it) |
-| Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight and local L1 evidence; PR #13 Current State compaction; PR #16 static-vs-runtime admission semantics and read-only exact-route evaluator; PR #22 concrete invalid-JSON Worker repair directive; `8a8204c` deterministic continuation capability preflight; `af0e242` Host Verification repair/fallback convergence; `37faaf6` configured-pool runtime-evidence diagnostic compatibility; `83a81ca` evidence/docs synchronization; `c88714f` #26 blocker audit; `cfb0e2a` bounded trusted no-charge bootstrap projection; `985e449` Reviewer contract hardening and fresh non-Gate remote multi-role completion; `3a9b82b` unknown transport-stage provenance hardening |
+| Accepted remote head at latest integrated implementation | `64878bd` (Host one-shot child bytecode-write boundary hardening after transport-stage provenance work; this docs/evidence sync follows it) |
+| Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight and local L1 evidence; PR #13 Current State compaction; PR #16 static-vs-runtime admission semantics and read-only exact-route evaluator; PR #22 concrete invalid-JSON Worker repair directive; `8a8204c` deterministic continuation capability preflight; `af0e242` Host Verification repair/fallback convergence; `37faaf6` configured-pool runtime-evidence diagnostic compatibility; `83a81ca` evidence/docs synchronization; `c88714f` #26 blocker audit; `cfb0e2a` bounded trusted no-charge bootstrap projection; `985e449` Reviewer contract hardening and fresh non-Gate remote multi-role completion; `3a9b82b` unknown transport-stage provenance hardening; `64878bd` Host child bytecode-write boundary hardening |
 | Formal Gate | `D9_DOGFOOD=VERIFIED`; `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`; `PHASE8_PREPARATION=PREPARATION_ONLY`; `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` |
 | Current source of truth | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json), exact-head CI, owning Issues/PRs, and bounded Evidence files |
+
+### 2026-09-27 Host child bytecode-write boundary hardening
+
+- `64878bd` sets `PYTHONDONTWRITEBYTECODE=1` for every bounded `HostProcessExecutor` child. This removes unnecessary repository-local `__pycache__` writes from the Host one-shot boundary and reduces the known shared-worktree Windows `WinError 5` ACL/tooling failure surface.
+- The change does not alter Provider routing, timeout propagation, egress validation, reconciliation, Task authority, or formal Gate state. Evidence: [`host-child-bytecode-boundary-20260927.json`](../spec/v2/evidence/host-child-bytecode-boundary-20260927.json).
+- Focused Host/DevFarm boundary verification is `28 passed`; in-memory compile and diff checks passed. This remains local non-Gate robustness evidence; `RUNTIME_ELIGIBLE=0` and `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` remain unchanged.
 
 ### 2026-09-27 Non-Gate bootstrap-admitted remote multi-role completion
 
