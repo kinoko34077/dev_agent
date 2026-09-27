@@ -96,6 +96,8 @@ remaining is unknown. This does not establish full multi-role readiness or
 start R9. Evidence:
 [`gemini-free3-generation-readiness-20260927.json`](../spec/v2/evidence/gemini-free3-generation-readiness-20260927.json).
 
+2026-09-28 Phase 8 D3 quota/liveness checkpoint: merged PR #38 (`95382a2`) closes the post-429 quarantine deadlock without fabricating quota headroom. A reset-expired successful no-header probe is now limited to an exact current trusted no-charge hard-stop identity and returns through the existing explicit UNKNOWN/bootstrap admission path; paid, tampered, malformed, external, and reconciliation paths remain fail-closed. D3 exact-head CI is green, while `RUNTIME_ELIGIBLE=0` and `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` remain unchanged. The next serial audit slice is #27 D4; after that, resume R9 only on a newly admitted route and fresh root identity.
+
 ## Current phase
 
 Phase 7後半の安全な拡張と開発運用移管。既存のKernel、Resource/Provider、Task/Scheduler、Recovery、DevFarm、Supervisor、Host Verification、Review/Integration境界は維持する。G6O1は未検証の外部Gateだが、Human決定により現行roadmapでは非ブロッキング凍結中である。
