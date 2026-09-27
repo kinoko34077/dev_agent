@@ -1,6 +1,0 @@
-こんにちは
-あなたについて考察して
-q
-$env:PYTHONPATH = "."; python core/main.py
-こんにちは
-あなたについて考察して

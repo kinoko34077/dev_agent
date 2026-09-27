@@ -11,3 +11,10 @@ __pycache__/
 # OSごとの不要ファイル
 .DS_Store
 Thumbs.db
+
+# 実行時ログ・記憶データ (#24: 公開リポジトリに追跡させない)
+logs/
+memory/inputs/
+memory/outputs/
+memory/context/
+memory/summaries/
