@@ -30,6 +30,13 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 - A fresh independent Cloudflare Critic correction request reached `provider_decode` with `reconciliation_required=true`. It is immutable and was not replayed. No Gate, credential, billing, permission, or routing authority changed. Bounded details are in [`phase8-current-host-admission-observations-20260928.json`](../spec/v2/evidence/phase8-current-host-admission-observations-20260928.json) and Issue [#40](https://github.com/kinoko34077/dev_agent/issues/40).
 - The formal interpretation remains `RUNTIME_ELIGIBLE=0` and `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED`; the next safe implementation experiment is a fresh identity with the existing local qwen Critic route, not replay of the reconciliation-required request.
 
+### 2026-09-28 Phase 8 Planner shape/liveness follow-up
+
+- A fresh `gemini:worker:free-4 / gemini-3.8-flash` Planner with the existing local `qwen3.5:9b` Critic completed one bounded response-contract repair and Host planning validation. This proves the Planner failure-to-concrete-repair path can converge on an L2-shaped route, but the observation remains `RUNTIME_BOOTSTRAP_ADMITTED` with unknown quota and is not formal R9 evidence.
+- A subsequent fresh Phase 8-shaped Planner request on the same free-4 identity returned safe `provider_unavailable`; a distinct free-5 / `gemini-3.8-flash` identity returned the same bounded `provider_unavailable`. Both stopped before Critic/Host validation, with no reconciliation requirement and no Worker dispatch.
+- The current conclusion is `Provider exists` and `Planner contract can converge`, but `current L2 generation liveness=unstable`. The successful Planner shadow is not used to start Workers after the route becomes unavailable. Evidence: [`phase8-planner-free4-qwen-critic-20260928.json`](../spec/v2/evidence/phase8-planner-free4-qwen-critic-20260928.json) and [`phase8-planner-shape-liveness-20260928.json`](../spec/v2/evidence/phase8-planner-shape-liveness-20260928.json).
+- `RUNTIME_ELIGIBLE=0` and `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` remain unchanged. Do not replay the provider-unavailable requests or the prior reconciliation-required Critic request; continue only on a newly observed stable route or the already verified local non-Gate chain.
+
 ### 2026-09-28 Gemini multi-binding runtime liveness refresh
 
 - One bounded no-charge text qualification was run against each existing Gemini binding `free-2`, `free-3`, `free-4`, and `free-5`, all using the configured `gemini-3.5-flash-lite` model. Each request completed with one provider audit, one succeeded effect intent, zero committed cost, and no UNKNOWN/reconciliation replay.

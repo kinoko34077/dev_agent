@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "evidence_type": "phase8_planner_refinement",
+  "recorded_at": "2026-09-28T10:47:55.315567+00:00",
+  "source_revision": "10a1d6a263ab272ecafe6245f43263b7df4ce936",
+  "root_identity": {
+    "parent_task_id": "e0fc4c3d-d7ae-4a10-84c5-0dd6079c3f31",
+    "proposal_id": "f0c9a255-7ef7-4ae0-9572-97e5253b8072",
+    "proposal_sha256": "fe149e14374302543edf09de2babee44aa1ce826c7b03cd1fbd9452f3727fec0"
+  },
+  "planner": {
+    "provider": "gemini",
+    "binding": "gemini:worker:free-4",
+    "model": "gemini-3.8-flash",
+    "intelligence_tier": "L2",
+    "execution_boundary": "host_process",
+    "qualification_confidence": "high",
+    "dispatch_outcome": "succeeded"
+  },
+  "critic": {
+    "provider": "ollama",
+    "binding": "ollama:local:qwen3.5-9b",
+    "model": "qwen3.5:9b",
+    "role": "planning_critic",
+    "dispatch_outcome": "succeeded",
+    "distinct_identity": true
+  },
+  "convergence": {
+    "status": "COMPLETED",
+    "refinement_rounds": 1,
+    "initial_failure_class": "format_patch",
+    "initial_failure_signature": "3397683ddf6b735d4ab3f38dbcf91a74a661ad931ae99f5b1bdd2cc6ea056851",
+    "repair_directive_hash": "03d780f3e12934e6c12abc23528fde78cc6e57a87871b2162e635584da15756f",
+    "host_validation": "passed",
+    "progress": "format_failure_to_host_validated_proposal"
+  },
+  "proposal": {
+    "child_count": 2,
+    "child_keys": ["doc-01", "test-02"],
+    "child_owners": ["worker", "worker"],
+    "non_overlapping": true
+  },
+  "admission": {
+    "quota_status": "unknown_not_reported",
+    "allow_unknown_quota": true,
+    "status": "RUNTIME_BOOTSTRAP_ADMITTED",
+    "formal_runtime_eligible": false
+  },
+  "safety": {
+    "reconciliation_required": false,
+    "unknown_effect_replayed": false,
+    "credentials_recorded": false,
+    "gate_changed": false,
+    "codex_direct_implementation": 0
+  },
+  "next_action": "Use this fresh proposal only as the input to the existing two-Worker Host/Commander path; do not treat Planner success as Phase 8 completion."
+}
