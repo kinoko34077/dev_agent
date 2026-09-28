@@ -22,6 +22,12 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 - Track C read-only audit found no strict alternate route: Cloudflare has 65 discovered models but all are `BENCHMARK_MISSING`; OpenRouter has 8 static candidates but exact billing/runtime evidence is incomplete; SambaNova has 7 discovered models but `BENCHMARK_MISSING`; Groq has no current catalog candidates. No alternate generation probe, credential change, paid route, or Gate change was performed.
 - `RUNTIME_ELIGIBLE=0` and `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` remain unchanged. Issue [#40](https://github.com/kinoko34077/dev_agent/issues/40) is the durable research handoff for the next separately authorized telemetry read or alternate-route evidence slice.
 
+### 2026-09-28 Gemini multi-binding runtime liveness refresh
+
+- One bounded no-charge text qualification was run against each existing Gemini binding `free-2`, `free-3`, `free-4`, and `free-5`, all using the configured `gemini-3.5-flash-lite` model. Each request completed with one provider audit, one succeeded effect intent, zero committed cost, and no UNKNOWN/reconciliation replay.
+- All four routes are therefore observed as `RUNTIME_BOOTSTRAP_ADMITTED` for the bounded text-only contract. None returned numeric quota telemetry (`quota_status=unknown_not_reported`), so none is `RUNTIME_ELIGIBLE`; this does not authorize formal R9 or alter the Gate. Evidence: [`gemini-free-routes-runtime-refresh-20260928.json`](../spec/v2/evidence/gemini-free-routes-runtime-refresh-20260928.json).
+- This expands safe opportunistic non-Gate fallback coverage from one observed Gemini lane to four existing lanes without changing credentials, permissions, billing, routing authority, or the local policy (`qwen3.5:9b` primary, `gemma4:12b` fallback). Use the lanes serialized and only while their time-bounded static evidence remains current.
+
 ### 2026-09-28 admission diagnostic completeness
 
 - `672ac67` closes a read-only diagnosis gap: `diagnose_model_candidates.py --summary` now evaluates the complete bounded current catalog by default. A caller that explicitly supplies `--limit` receives `diagnostic_truncated=true` when the result is partial; tabular output remains bounded by its existing default.

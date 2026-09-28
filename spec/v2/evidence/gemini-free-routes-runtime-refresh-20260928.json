@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "evidence_type": "runtime_admission_multi_binding_snapshot",
+  "recorded_at": "2026-09-28T09:20:15+00:00",
+  "source_revision": "1cfcfd2972852286e8f6b82a3d8c191aac054e7e",
+  "source": {
+    "authority": "existing scripts/qualify_free_provider.py via Controller -> ProviderDispatcher -> ResourceRouter",
+    "configured_pool_opt_in": true,
+    "provider_id": "gemini",
+    "model_id": "gemini-3.5-flash-lite",
+    "trusted_billing_profile": "no_charge_catalog",
+    "cost_minor": 0,
+    "network_called": true,
+    "state_written_only_to_temporary_directory": true,
+    "repository_state_mutated": false,
+    "unknown_or_reconciliation_replayed": false,
+    "credentials_recorded": false,
+    "raw_provider_response_recorded": false
+  },
+  "runtime_snapshot": {
+    "statuses": {
+      "RUNTIME_ELIGIBLE": 0,
+      "RUNTIME_BOOTSTRAP_ADMITTED": 4,
+      "RUNTIME_UNKNOWN": 0,
+      "RUNTIME_UNAVAILABLE": 0
+    },
+    "observations": [
+      {
+        "provider_binding_id": "gemini:worker:free-2",
+        "model_id": "gemini-3.5-flash-lite",
+        "status": "RUNTIME_BOOTSTRAP_ADMITTED",
+        "observed_at": "2026-09-28T09:19:32.167433+00:00",
+        "qualification_scope": "text_only_unknown_quota",
+        "model_calls": 1,
+        "tool_calls": 0,
+        "provider_audit_records": 1,
+        "effect_intents_succeeded": 1,
+        "thought_signatures_received": 1,
+        "quota_observation_present": false,
+        "quota_status": "unknown_not_reported"
+      },
+      {
+        "provider_binding_id": "gemini:worker:free-3",
+        "model_id": "gemini-3.5-flash-lite",
+        "status": "RUNTIME_BOOTSTRAP_ADMITTED",
+        "observed_at": "2026-09-28T09:18:03.305740+00:00",
+        "qualification_scope": "text_only_unknown_quota",
+        "model_calls": 1,
+        "tool_calls": 0,
+        "provider_audit_records": 1,
+        "effect_intents_succeeded": 1,
+        "thought_signatures_received": 1,
+        "quota_observation_present": false,
+        "quota_status": "unknown_not_reported"
+      },
+      {
+        "provider_binding_id": "gemini:worker:free-4",
+        "model_id": "gemini-3.5-flash-lite",
+        "status": "RUNTIME_BOOTSTRAP_ADMITTED",
+        "observed_at": "2026-09-28T09:19:44.970377+00:00",
+        "qualification_scope": "text_only_unknown_quota",
+        "model_calls": 1,
+        "tool_calls": 0,
+        "provider_audit_records": 1,
+        "effect_intents_succeeded": 1,
+        "thought_signatures_received": 1,
+        "quota_observation_present": false,
+        "quota_status": "unknown_not_reported"
+      },
+      {
+        "provider_binding_id": "gemini:worker:free-5",
+        "model_id": "gemini-3.5-flash-lite",
+        "status": "RUNTIME_BOOTSTRAP_ADMITTED",
+        "observed_at": "2026-09-28T09:19:57.799463+00:00",
+        "qualification_scope": "text_only_unknown_quota",
+        "model_calls": 1,
+        "tool_calls": 0,
+        "provider_audit_records": 1,
+        "effect_intents_succeeded": 1,
+        "thought_signatures_received": 1,
+        "quota_observation_present": false,
+        "quota_status": "unknown_not_reported"
+      }
+    ]
+  },
+  "interpretation": {
+    "generation_liveness": "OBSERVED_FOR_FOUR_BOUNDED_TEXT_PROBES",
+    "runtime_admission": "RUNTIME_BOOTSTRAP_ADMITTED",
+    "why_not_runtime_eligible": "None of the four Gemini responses returned authoritative numeric quota telemetry; no remaining headroom or limit was fabricated.",
+    "gate_impact": "none",
+    "next_action": "Use the four existing no-charge bindings opportunistically and serialized for non-Gate work. Keep formal R9 closed until the accepted runtime-admission contract is satisfied or a separate specification decision is recorded."
+  }
+}
