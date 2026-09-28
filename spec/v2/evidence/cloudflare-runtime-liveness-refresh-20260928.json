@@ -9,6 +9,7 @@
     "provider_id": "cloudflare",
     "provider_binding_id": "cloudflare",
     "model_id": "@cf/meta/llama-3.1-8b-instruct",
+    "quota_domain_supplied_to_probe": false,
     "trusted_billing_profile": "no_charge_catalog",
     "cost_minor": 0,
     "network_called": true,
@@ -38,7 +39,8 @@
   },
   "interpretation": {
     "generation_liveness": "OBSERVED_FOR_BOUNDED_TEXT_TOOL_ROUNDTRIP",
-    "runtime_admission": "RUNTIME_BOOTSTRAP_ADMITTED",
+    "runtime_admission": "RUNTIME_BOOTSTRAP_ADMITTED_BY_EXISTING_CONFIGURED_POOL_PROJECTION",
+    "qualification_admission_scope": "liveness_only; the qualification command did not by itself establish strict runtime admission",
     "why_not_runtime_eligible": "The response did not provide authoritative numeric quota telemetry; estimated consumption is not treated as remaining headroom.",
     "gate_impact": "none",
     "next_action": "Keep Cloudflare as a serialized non-Gate alternate candidate. Do not promote it to formal R9 until strict runtime quota evidence is available or a separate contract decision is accepted."
