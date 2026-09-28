@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "evidence_type": "phase8_host_admission_observations",
+  "recorded_at": "2026-09-28T10:35:36.0689018Z",
+  "source_revision": "10a1d6a263ab272ecafe6245f43263b7df4ce936",
+  "authority": "bounded read-only DevFarm Planner shadow; no formal Gate mutation",
+  "secrets_recorded": false,
+  "unknown_effects_replayed": false,
+  "observations": [
+    {
+      "case": "gemini_core_host_composition",
+      "parent_task_id": "09260d42-d828-4d4b-ad8a-2ac8f8912bdf",
+      "request_id": "99f2c43c-7639-4216-b549-5763ec577fd4",
+      "provider": "gemini",
+      "binding": "gemini:core",
+      "model": "gemini-3.8-flash",
+      "execution_boundary": "host_process",
+      "status": "blocked_external",
+      "category": "host_configuration",
+      "reconciliation_required": false,
+      "provider_generation_reached": false,
+      "interpretation": "The exact core identity is not present in the current configured Host pool. This is a composition/configuration blocker, not evidence that the Provider is absent or quota is exhausted."
+    },
+    {
+      "case": "configured_free3_exact_l2_request",
+      "parent_task_id": "3d9d7e6a-20d9-4b31-9b26-5fdb8d0c6114",
+      "provider": "gemini",
+      "binding": "gemini:worker:free-3",
+      "model": "gemini-3.5-flash-lite",
+      "execution_boundary": "host_process",
+      "status": "blocked_local",
+      "category": "no_route",
+      "reconciliation_required": false,
+      "provider_generation_reached": false,
+      "interpretation": "The current exact configured free-3 model is admitted as L1, so an exact L2 Planner request has no route. It must not be promoted by name or by free-tier status."
+    },
+    {
+      "case": "configured_discovered_l2_request",
+      "parent_task_id": "5c1a5a3a-5c1b-44c4-8b5c-32b08af6d0e7",
+      "request_id": "9c8de51c-e2f1-456a-95b1-c4775c35856d",
+      "provider": "gemini",
+      "binding_scope": "configured_pool_with_discovered_models",
+      "execution_boundary": "host_process",
+      "status": "failed",
+      "category": "model_output_invalid",
+      "response_contract": "invalid_json",
+      "provider_response_observed": true,
+      "reconciliation_required": false,
+      "interpretation": "At least one currently admitted L2 candidate reached Provider generation. The bounded Planner response violated the strict JSON contract; this is a model-output/convergence failure, not a transport or quota proof."
+    },
+    {
+      "case": "configured_discovered_l2_with_cloudflare_critic",
+      "parent_task_id": "a8e2b4f0-2eb2-4d7a-a8d9-9d5a6cc37da0",
+      "request_id": "6a2f71a5-067c-4224-8448-74a4b7583b73",
+      "provider": "gemini",
+      "critic_provider": "cloudflare",
+      "execution_boundary": "host_process",
+      "status": "blocked_external",
+      "category": "provider_decode",
+      "critic_invoked": true,
+      "reconciliation_required": true,
+      "interpretation": "The Critic response reached an external decode boundary with unknown effect. The request is immutable and must not be replayed. This does not establish a Provider capability failure or a formal Gate result."
+    }
+  ],
+  "formal_state": {
+    "runtime_eligible_count": 0,
+    "phase8_live_activation": "NOT_VERIFIED",
+    "gate_changed": false,
+    "next_safe_action": "Use a fresh identity with the existing local qwen3.5:9b Critic route, or resolve the explicit Host core-binding configuration decision; do not replay the reconciliation-required Critic request."
+  }
+}
