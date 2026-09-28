@@ -15,6 +15,13 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 | Formal Gate | `D9_DOGFOOD=VERIFIED`; `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`; `PHASE8_PREPARATION=PREPARATION_ONLY`; `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` |
 | Current source of truth | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json), exact-head CI, owning Issues/PRs, and bounded Evidence files |
 
+### 2026-09-28 Issue #40 Track B/C admission audit
+
+- Track B confirms the exact Gemini `gemini:worker:free-3 / gemini-3.5-flash-lite` billing and qualification windows are current (`cost_minor=0`, daily hard-stop, billing expiry 2026-10-09; high-confidence L1/text qualification expiry 2026-10-15). The latest bounded generation observation remains `RUNTIME_BOOTSTRAP_ADMITTED`, with quota `unknown_not_reported`; it is not `RUNTIME_ELIGIBLE`.
+- Official Google quota surfaces are separated: Service Usage exposes configured limits/overrides and requires `serviceusage.quotas.get`; Cloud Monitoring can expose usage time-series where the product publishes quota metrics. No separately authorized OAuth/IAM read was performed, and no remaining quota is inferred from limits, successful generation, or missing response headers. Evidence: [`r9-admission-track-bc-audit-20260928.json`](../spec/v2/evidence/r9-admission-track-bc-audit-20260928.json).
+- Track C read-only audit found no strict alternate route: Cloudflare has 65 discovered models but all are `BENCHMARK_MISSING`; OpenRouter has 8 static candidates but exact billing/runtime evidence is incomplete; SambaNova has 7 discovered models but `BENCHMARK_MISSING`; Groq has no current catalog candidates. No alternate generation probe, credential change, paid route, or Gate change was performed.
+- `RUNTIME_ELIGIBLE=0` and `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` remain unchanged. Issue [#40](https://github.com/kinoko34077/dev_agent/issues/40) is the durable research handoff for the next separately authorized telemetry read or alternate-route evidence slice.
+
 ### 2026-09-28 D1 canonical model-evidence refresh
 
 - PR #30 merged the reviewed static evidence refresh into `v2/bootstrap` at `9a3160332be298fed87b385451f2907aad5756af` (reviewed head `7c7551fb7150ff46ccb820744587bc870adfa398`).

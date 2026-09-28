@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "evidence_type": "r9_admission_track_bc_audit",
+  "recorded_at": "2026-09-28T08:45:48.588867+00:00",
+  "revision": "68d6496907d7cb555d51eb3f147e29a5268e6b25",
+  "source": {
+    "authority": "Issue #40 Track B/C read-only audit",
+    "network_generation_attempted": false,
+    "credential_or_permission_changed": false,
+    "billing_changed": false,
+    "gate_changed": false,
+    "unknown_or_reconciliation_replayed": false,
+    "raw_credentials_or_provider_payload_recorded": false
+  },
+  "track_b_gemini_quota_telemetry": {
+    "exact_route": {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-3",
+      "model_id": "gemini-3.5-flash-lite"
+    },
+    "billing": {
+      "status": "CURRENT",
+      "cost_minor": 0,
+      "billing_mode": "recurring_allowance",
+      "allowance_period": "daily",
+      "overage_policy": "hard_stop",
+      "expires_at": "2026-10-09T00:00:00+00:00"
+    },
+    "qualification": {
+      "status": "CURRENT",
+      "confidence": "high",
+      "intelligence_tier": "L1",
+      "capabilities": ["text"],
+      "expires_at": "2026-10-15T14:31:17.252849+00:00"
+    },
+    "runtime_observation": {
+      "status": "RUNTIME_BOOTSTRAP_ADMITTED",
+      "generation_liveness": "OBSERVED_FOR_BOUNDED_TEXT_TOOL_ROUNDTRIP",
+      "quota_status": "unknown_not_reported",
+      "formal_runtime_eligible": false
+    },
+    "official_telemetry_mapping": {
+      "service_usage": {
+        "role": "configured quota limits and overrides",
+        "usage_headroom": "not supplied by this API",
+        "required_permission": "serviceusage.quotas.get",
+        "authorization_scope": "cloud-platform.read-only",
+        "source": "https://docs.cloud.google.com/service-usage/docs/reference/rest/v1beta1/services.consumerQuotaMetrics/list"
+      },
+      "cloud_monitoring": {
+        "role": "usage time-series where the product publishes quota metrics",
+        "exact_route_observed": false,
+        "read_only_research_only": true,
+        "source": "https://docs.cloud.google.com/monitoring/alerts/using-quota-metrics"
+      },
+      "conclusion": "No current repository evidence proves an authoritative numeric remaining/reset observation for the exact Gemini generation lane. No remaining quota is inferred from configured limits, successful generation, or absent response telemetry."
+    }
+  },
+  "track_c_alternate_route_audit": {
+    "configured_pool": [
+      {"provider_id": "gemini", "bindings": 4, "credential_values_recorded": false},
+      {"provider_id": "openrouter", "bindings": 1, "credential_values_recorded": false},
+      {"provider_id": "cloudflare", "bindings": 1, "credential_values_recorded": false},
+      {"provider_id": "ollama", "bindings": 2, "credential_values_recorded": false}
+    ],
+    "candidates": [
+      {
+        "provider_id": "cloudflare",
+        "discovered_models": 65,
+        "static_result": "BENCHMARK_MISSING",
+        "runtime_signal": "NOT_PROBED",
+        "blocking_layer": "benchmark"
+      },
+      {
+        "provider_id": "openrouter",
+        "static_eligible_candidates": 8,
+        "billing_result": "BILLING_UNKNOWN",
+        "runtime_signal": "NOT_PROBED",
+        "blocking_layer": "exact billing/runtime evidence"
+      },
+      {
+        "provider_id": "sambanova",
+        "discovered_models": 7,
+        "static_result": "BENCHMARK_MISSING",
+        "runtime_signal": "NOT_PROBED",
+        "blocking_layer": "benchmark"
+      },
+      {
+        "provider_id": "groq",
+        "discovered_models": 0,
+        "runtime_signal": "NOT_PROBED",
+        "blocking_layer": "no current catalog candidate"
+      }
+    ],
+    "conclusion": "No alternate configured route currently satisfies the complete strict chain of static evidence, exact billing/qualification, authoritative runtime quota, and generation liveness. No alternate route was promoted or probed."
+  },
+  "formal_result": {
+    "runtime_eligible_count": 0,
+    "runtime_bootstrap_admitted_is_runtime_eligible": false,
+    "phase8_live_activation": "NOT_VERIFIED",
+    "next_action": "Obtain separately authorized read-only Gemini Monitoring evidence or a fully evidenced alternate route; otherwise retain the bounded non-Gate Gemini/local paths."
+  }
+}
