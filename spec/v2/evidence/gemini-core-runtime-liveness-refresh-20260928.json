@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "evidence_type": "runtime_liveness_single_binding",
+  "recorded_at": "2026-09-28T10:01:44.407971+00:00",
+  "source_revision": "7577c6687d74e3f6210896c10ab264e2c1794cd4",
+  "source": {
+    "authority": "existing scripts/qualify_free_provider.py via Controller -> ProviderDispatcher -> ResourceRouter",
+    "configured_pool_opt_in": true,
+    "provider_id": "gemini",
+    "provider_binding_id": "gemini:core",
+    "model_id": "gemini-3.8-flash",
+    "quota_domain_supplied_to_probe": false,
+    "trusted_billing_profile": "no_charge_catalog",
+    "cost_minor": 0,
+    "network_called": true,
+    "state_written_only_to_temporary_directory": true,
+    "repository_state_mutated": false,
+    "unknown_or_reconciliation_replayed": false,
+    "credentials_recorded": false,
+    "raw_provider_response_recorded": false
+  },
+  "observation": {
+    "status": "RUNTIME_BOOTSTRAP_ADMITTED_BY_EXISTING_CONFIGURED_POOL_PROJECTION",
+    "qualification_scope": "text_tool_roundtrip",
+    "model_calls": 2,
+    "tool_calls": 1,
+    "provider_audit_records": 2,
+    "effect_intents_succeeded": 2,
+    "thought_signatures_received": 2,
+    "thought_signatures_replayed": 1,
+    "quota_observation_present": false,
+    "quota_status": "unknown_not_reported"
+  },
+  "interpretation": {
+    "generation_liveness": "OBSERVED_FOR_ONE_BOUNDED_TEXT_TOOL_ROUNDTRIP",
+    "qualification_admission_scope": "liveness_only; this probe did not establish strict numeric quota headroom",
+    "why_not_runtime_eligible": "The Provider returned no authoritative numeric quota telemetry; no remaining headroom or limit was fabricated.",
+    "gate_impact": "none",
+    "next_action": "Keep the existing core binding available for serialized non-Gate opportunistic use. Do not start formal R9 or promote RUNTIME_ELIGIBLE without the accepted quota evidence contract."
+  }
+}
