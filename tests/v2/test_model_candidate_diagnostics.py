@@ -247,3 +247,45 @@ def test_main_accepts_configured_pool_runtime_snapshot(tmp_path, capsys):
 
     output = capsys.readouterr().out
     assert '"runtime_unavailable_count": 1' in output
+
+
+def test_main_accepts_multi_binding_runtime_snapshot(tmp_path, capsys):
+    evidence = tmp_path / "multi-binding-runtime.json"
+    evidence.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "evidence_type": "runtime_admission_multi_binding_snapshot",
+                "recorded_at": "2026-09-28T00:00:00+00:00",
+                "source": {"authority": "existing runtime authority", "provider_id": "gemini"},
+                "runtime_snapshot": {
+                    "observations": [
+                        {
+                            "provider_binding_id": "gemini:worker:free-3",
+                            "model_id": "gemini-3.8-flash",
+                            "status": RUNTIME_UNAVAILABLE,
+                        }
+                    ]
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert main(
+        [
+            "--summary",
+            "--json",
+            "--runtime-evidence",
+            str(evidence),
+            "--provider",
+            "gemini",
+            "--binding",
+            "gemini:worker:free-3",
+            "--model",
+            "gemini-3.8-flash",
+        ]
+    ) == 0
+
+    output = capsys.readouterr().out
+    assert '"runtime_unavailable_count": 1' in output

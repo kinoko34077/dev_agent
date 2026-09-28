@@ -31,6 +31,12 @@ MAX_DIAGNOSTIC_ROWS = 5000
 _RUNTIME_OBSERVATION_KEYS = frozenset(
     {"provider_id", "provider_binding_id", "model_id", "status", "observed_at", "source"}
 )
+_NESTED_RUNTIME_SNAPSHOT_EVIDENCE_TYPES = frozenset(
+    {
+        "runtime_admission_configured_pool_snapshot",
+        "runtime_admission_multi_binding_snapshot",
+    }
+)
 
 
 def diagnose_entries(
@@ -237,7 +243,7 @@ def _runtime_snapshot_document(document: Mapping[str, Any]) -> Mapping[str, Any]
     that are absent or change their status.
     """
 
-    if document.get("evidence_type") != "runtime_admission_configured_pool_snapshot":
+    if document.get("evidence_type") not in _NESTED_RUNTIME_SNAPSHOT_EVIDENCE_TYPES:
         return document
     nested = document.get("runtime_snapshot")
     if not isinstance(nested, Mapping):
@@ -251,6 +257,7 @@ def _runtime_snapshot_document(document: Mapping[str, Any]) -> Mapping[str, Any]
     source_document = document.get("source")
     source_authority = source_document.get("authority") if isinstance(source_document, Mapping) else None
     source = source_authority if isinstance(source_authority, str) and source_authority.strip() else "configured-pool-runtime-snapshot"
+    source_provider = source_document.get("provider_id") if isinstance(source_document, Mapping) else None
     observations: list[dict[str, Any]] = []
     for raw in raw_entries:
         if not isinstance(raw, Mapping):
@@ -261,6 +268,8 @@ def _runtime_snapshot_document(document: Mapping[str, Any]) -> Mapping[str, Any]
         # authority contract just to make this projection CLI accept an
         # envelope.
         observation = {key: value for key, value in raw.items() if key in _RUNTIME_OBSERVATION_KEYS}
+        if "provider_id" not in observation and isinstance(source_provider, str) and source_provider.strip():
+            observation["provider_id"] = source_provider
         observation.setdefault("observed_at", recorded_at)
         observation.setdefault("source", source)
         observations.append(observation)
