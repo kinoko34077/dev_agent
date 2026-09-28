@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "evidence_type": "diagnostic_multi_binding_runtime_envelope",
+  "recorded_at": "2026-09-28T12:20:00+00:00",
+  "revision": "06216f160f433c37cd447f0efba597a85df3337c",
+  "source": {
+    "authority": "read-only diagnose_model_candidates runtime evidence projection",
+    "network_called": false,
+    "generation_attempted": false,
+    "repository_state_mutated": false,
+    "credentials_recorded": false,
+    "raw_provider_response_recorded": false,
+    "gate_changed": false
+  },
+  "change": {
+    "behavior": "accept runtime_admission_multi_binding_snapshot envelopes with nested runtime_snapshot.observations",
+    "provider_identity": "inherited only from the bounded top-level source.provider_id when an observation omits it",
+    "preserved_contract": "only exact identity, status, observed_at, and source fields are projected into RuntimeAdmissionSnapshot"
+  },
+  "verification": {
+    "focused_tests": "tests/v2/test_model_candidate_diagnostics.py: 14 passed",
+    "compile": "scripts/diagnose_model_candidates.py: PASS",
+    "full_tests_local": "1756 passed, 1 skipped, 1 transient failure in an unrelated secret-isolation test; isolated rerun: 1 passed",
+    "exact_head_ci": {
+      "v2_core": "success; kernel 3.10 and 3.11; Architecture and Compile on 3.11",
+      "provider_smoke": "success"
+    }
+  },
+  "interpretation": {
+    "runtime_eligible": 0,
+    "formal_phase8_live_activation": "NOT_VERIFIED",
+    "non_gate_only": true,
+    "no_provider_generation_replayed": true
+  }
+}
