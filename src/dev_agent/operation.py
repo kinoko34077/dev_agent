@@ -230,8 +230,30 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
 
     bindings: list[OperationProviderBinding] = []
     default_gemini_model = env("GEMINI_MODEL") or "gemini-3.5-flash-lite"
-    if env("GEMINI_API_KEY") and env("GEMINI_PROJECT_ID"):
-        project_id = env("GEMINI_PROJECT_ID")
+    gemini_api_key = env("GEMINI_API_KEY")
+    project_id = env("GEMINI_PROJECT_ID")
+    if gemini_api_key:
+        core_project_id = (
+            f"projects/{project_id}"
+            if project_id and not project_id.startswith("projects/")
+            else project_id
+        )
+        bindings.append(
+            OperationProviderBinding(
+                provider_id="gemini",
+                model=env("GEMINI_CORE_MODEL") or "gemini-3.8-flash",
+                provider_binding_id="gemini:core",
+                quota_domain=(
+                    f"gemini:project:{project_id}"
+                    if project_id
+                    else "gemini:core-account"
+                ),
+                credential_id="gemini-core",
+                api_key_env="GEMINI_API_KEY",
+                project_id=core_project_id,
+            )
+        )
+    if gemini_api_key and project_id:
         bindings.append(
             OperationProviderBinding(
                 provider_id="gemini",

@@ -1137,6 +1137,24 @@ def test_operation_config_can_explicitly_build_configured_cloud_provider_pool(mo
     assert all("secret-not-read" not in repr(binding) for binding in bindings.values())
 
 
+def test_configured_provider_pool_exposes_core_gemini_lane_without_project_id(monkeypatch, tmp_path):
+    monkeypatch.setenv("DEV_AGENT_ENABLE_CONFIGURED_POOL", "1")
+    monkeypatch.setenv("GEMINI_API_KEY", "secret-not-read-into-config")
+    monkeypatch.delenv("GEMINI_PROJECT_ID", raising=False)
+    monkeypatch.setenv("GEMINI_CORE_MODEL", "gemini-3.8-flash")
+
+    config = OperationConfig.from_environment(data_dir=tmp_path)
+
+    bindings = {binding.binding_id: binding for binding in config.provider_bindings}
+    core = bindings["gemini:core"]
+    assert core.provider_id == "gemini"
+    assert core.model == "gemini-3.8-flash"
+    assert core.api_key_env == "GEMINI_API_KEY"
+    assert core.quota_domain == "gemini:core-account"
+    assert core.project_id is None
+    assert "secret-not-read" not in repr(core)
+
+
 def test_configured_provider_pool_includes_explicit_openrouter_free_lane(monkeypatch, tmp_path):
     monkeypatch.setenv("DEV_AGENT_ENABLE_CONFIGURED_POOL", "1")
     monkeypatch.setenv("OPENROUTER_API_KEY", "secret-not-read-into-config")
