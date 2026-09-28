@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "evidence_type": "runtime_admission_provider_liveness",
+  "recorded_at": "2026-09-28T09:28:15.266720+00:00",
+  "source_revision": "1f947efa3c303d179f7ad335dfdf16e4afcdb2ca",
+  "source": {
+    "authority": "existing scripts/qualify_free_provider.py via Controller -> ProviderDispatcher -> ResourceRouter",
+    "configured_pool_opt_in": true,
+    "provider_id": "cloudflare",
+    "provider_binding_id": "cloudflare",
+    "model_id": "@cf/meta/llama-3.1-8b-instruct",
+    "trusted_billing_profile": "no_charge_catalog",
+    "cost_minor": 0,
+    "network_called": true,
+    "state_written_only_to_temporary_directory": true,
+    "repository_state_mutated": false,
+    "unknown_or_reconciliation_replayed": false,
+    "credentials_recorded": false,
+    "raw_provider_response_recorded": false
+  },
+  "runtime_snapshot": {
+    "status": "RUNTIME_BOOTSTRAP_ADMITTED",
+    "qualification_scope": "text_tool_roundtrip",
+    "model_calls": 2,
+    "tool_calls": 1,
+    "provider_audit_records": 2,
+    "effect_intents_succeeded": 2,
+    "quota_observation_present": false,
+    "quota_status": "unknown_not_reported",
+    "event_types": [
+      "model.requested",
+      "model.responded",
+      "tool.completed",
+      "model.requested",
+      "model.responded",
+      "task.completed"
+    ]
+  },
+  "interpretation": {
+    "generation_liveness": "OBSERVED_FOR_BOUNDED_TEXT_TOOL_ROUNDTRIP",
+    "runtime_admission": "RUNTIME_BOOTSTRAP_ADMITTED",
+    "why_not_runtime_eligible": "The response did not provide authoritative numeric quota telemetry; estimated consumption is not treated as remaining headroom.",
+    "gate_impact": "none",
+    "next_action": "Keep Cloudflare as a serialized non-Gate alternate candidate. Do not promote it to formal R9 until strict runtime quota evidence is available or a separate contract decision is accepted."
+  }
+}
