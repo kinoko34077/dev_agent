@@ -196,6 +196,16 @@ def test_main_summary_exposes_runtime_admission_counts(capsys):
     assert any(line.startswith("runtime_unavailable\t") for line in lines)
 
 
+def test_main_summary_defaults_to_complete_current_catalog(capsys):
+    assert main(["--summary", "--json"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    summary = payload["summary"]
+    coverage = summary["catalog_coverage"]
+    assert summary["row_count"] == coverage["current_catalog_count"]
+    assert summary["diagnostic_truncated"] is False
+
+
 def test_main_accepts_configured_pool_runtime_snapshot(tmp_path, capsys):
     evidence = tmp_path / "configured-pool.json"
     evidence.write_text(

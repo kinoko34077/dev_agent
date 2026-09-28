@@ -284,7 +284,12 @@ def main(argv: list[str] | None = None) -> int:
         help="optional discovery candidate evidence used to report explicit promotion blockers",
     )
     limit_group = parser.add_mutually_exclusive_group()
-    limit_group.add_argument("--limit", type=int, default=200)
+    limit_group.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="bound row output; defaults to the full bounded inventory for --summary and 200 otherwise",
+    )
     limit_group.add_argument(
         "--all",
         action="store_true",
@@ -298,7 +303,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", dest="as_json")
     args = parser.parse_args(argv)
     try:
-        limit = MAX_DIAGNOSTIC_ROWS if args.all else args.limit
+        if args.all or (args.summary and args.limit is None):
+            limit = MAX_DIAGNOSTIC_ROWS
+        elif args.limit is not None:
+            limit = args.limit
+        else:
+            limit = 200
         evidence = ModelEvidenceCatalog.load(args.evidence_dir)
         runtime_snapshot = RuntimeAdmissionSnapshot.empty()
         if args.runtime_evidence is not None:
@@ -317,15 +327,27 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"status": "failed", "category": type(exc).__name__}, ensure_ascii=False))
         return 2
     if args.summary:
+        coverage = catalog_coverage(evidence)
         summary = summarize_entries(
             rows,
-            coverage=catalog_coverage(evidence),
+            coverage=coverage,
             candidate_promotion=(
                 summarize_candidate_evidence(_load_json_document(args.candidate_evidence))
                 if args.candidate_evidence is not None
                 else {"status": "NOT_PROVIDED", "reasons": []}
             ),
         )
+        scoped_count = 0
+        for entry in evidence.catalog.entries():
+            if args.provider is not None and entry.provider_id != args.provider:
+                continue
+            if args.binding is not None and entry.provider_binding_id != args.binding:
+                continue
+            if args.model is not None and entry.model_id != args.model:
+                continue
+            scoped_count += 1
+        summary["diagnostic_limit"] = limit
+        summary["diagnostic_truncated"] = len(rows) < scoped_count
         if args.as_json:
             print(json.dumps({"status": "ok", "summary": summary}, ensure_ascii=False, indent=2))
         else:
