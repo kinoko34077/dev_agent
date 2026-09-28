@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "evidence_id": "phase8-host-core-binding-planner-20260928",
+  "evidence_type": "phase8_host_core_binding_and_planner_attempt",
+  "recorded_at": "2026-09-28T11:27:14Z",
+  "source_revision": "575953573bcb070d8d659badd4ea3e45db51af84",
+  "implementation": {
+    "change": "configured_pool_exposes_gemini_core_without_project_id",
+    "binding": "gemini:core",
+    "model": "gemini-3.8-flash",
+    "credential_value_recorded": false,
+    "downstream_admission_unchanged": true
+  },
+  "verification": {
+    "focused_config_tests": "9 passed",
+    "compile": "PASS",
+    "diff_check": "PASS",
+    "exact_head_ci": {
+      "v2_core": {
+        "run_id": 36415418776,
+        "kernel_3_10": "PASS",
+        "kernel_3_11": "PASS",
+        "architecture": "PASS",
+        "compile": "PASS"
+      },
+      "provider_smoke": {
+        "run_id": 36415418701,
+        "status": "PASS"
+      }
+    }
+  },
+  "planner_attempts": [
+    {
+      "parent_task_id": "82d32c3e-b6f2-436f-83d9-15986aeb7c35",
+      "request_id": "bc6f291c-4670-457a-929c-7ee406e0a314",
+      "execution_boundary": "restricted",
+      "status": "blocked_external",
+      "category": "transport",
+      "transport_winerror": 10013,
+      "reconciliation_required": true,
+      "replayed": false
+    },
+    {
+      "parent_task_id": "fa5e563b-df3c-439c-8a83-1ec552e42839",
+      "request_id": "9ad2f019-8a1f-40d2-a359-e544d9eaf632",
+      "execution_boundary": "approved_host_process",
+      "status": "pool_exhausted",
+      "binding": "gemini:core",
+      "model": "gemini-3.8-flash",
+      "category": "provider_unavailable",
+      "host_validation": "not_run",
+      "planning_critic": "not_invoked",
+      "worker_dispatch": "not_started",
+      "reconciliation_required": false,
+      "replayed": false
+    }
+  ],
+  "admission": {
+    "status": "RUNTIME_BOOTSTRAP_ADMITTED",
+    "formal_runtime_eligible": false,
+    "quota_status": "unknown_not_reported",
+    "phase8_live_activation": "NOT_VERIFIED"
+  },
+  "safety": {
+    "gate_changed": false,
+    "credentials_changed": false,
+    "permissions_changed": false,
+    "unknown_effect_replayed": false,
+    "codex_direct_implementation": 0
+  },
+  "next_action": "Do not replay either request identity. Continue only on a newly observed stable route or the verified local non-Gate chain with a changed hypothesis."
+}
