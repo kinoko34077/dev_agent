@@ -271,10 +271,7 @@ class ProviderModelDiscovery:
         if provider == "cloudflare":
             account_id = self._required_secret(binding.account_id_env, "account_id_env")
             headers["Authorization"] = f"Bearer {self._required_secret(binding.api_key_env, 'api_key_env')}"
-            return (
-                f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/models/search"
-                "?format=openrouter&per_page=1000&hide_experimental=false&include_deprecated=false"
-            ), headers
+            return f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/models/search", headers
         if provider == "openrouter":
             headers["Authorization"] = f"Bearer {self._required_secret(binding.api_key_env, 'api_key_env')}"
             return "https://openrouter.ai/api/v1/models", headers
@@ -328,7 +325,7 @@ class ProviderModelDiscovery:
         if provider_id in {"gemini", "ollama", "ollama_cloud"}:
             raw_models = document.get("models")
         elif provider_id == "cloudflare":
-            raw_models = document.get("data")
+            raw_models = document.get("result")
         else:
             raw_models = document.get("data")
         if not isinstance(raw_models, list) or not raw_models:
@@ -341,6 +338,8 @@ class ProviderModelDiscovery:
                 identifier = raw_model.get("name")
                 if isinstance(identifier, str) and identifier.startswith("models/"):
                     identifier = identifier.removeprefix("models/")
+            elif provider_id == "cloudflare":
+                identifier = raw_model.get("name", raw_model.get("id"))
             elif provider_id in {"ollama", "ollama_cloud"}:
                 identifier = raw_model.get("model", raw_model.get("name"))
             else:
