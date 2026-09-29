@@ -181,10 +181,7 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
         """Use Cloudflare's account model-list endpoint without generation."""
 
         account_id, api_token = self._credentials()
-        url = (
-            f"{self.base_url}/accounts/{quote(account_id, safe='')}/ai/models/search"
-            "?format=openrouter&per_page=1000&hide_experimental=false&include_deprecated=false"
-        )
+        url = f"{self.base_url}/accounts/{quote(account_id, safe='')}/ai/models/search"
         http_request = Request(
             url,
             headers={"Accept": "application/json", "Authorization": f"Bearer {api_token}"},
@@ -215,13 +212,13 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
             raise annotate_transport_failure(failure, stage=transport_stage, cause=exc) from exc
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise ProviderError("cloudflare liveness probe response decode failed", category="provider_decode", retryable=False) from exc
-        if not isinstance(raw, Mapping) or not isinstance(raw.get("data"), list):
+        if not isinstance(raw, Mapping) or raw.get("success") is not True or not isinstance(raw.get("result"), list):
             raise ProviderError("cloudflare liveness probe response decode failed", category="provider_decode", retryable=False)
         identifiers = {
             identifier.strip()
-            for item in raw["data"]
+            for item in raw["result"]
             if isinstance(item, Mapping)
-            for identifier in (item.get("id", item.get("name")),)
+            for identifier in (item.get("name", item.get("id")),)
             if isinstance(identifier, str) and identifier.strip()
         }
         if self.model not in identifiers:
