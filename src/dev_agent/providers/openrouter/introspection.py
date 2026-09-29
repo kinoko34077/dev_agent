@@ -172,7 +172,19 @@ class OpenRouterIntrospectionClient:
 
     def read_state(self, *, required_parameters: set[str] | frozenset[str] | None = None) -> dict[str, Any]:
         spend_control = self.read_key_metadata()
-        credits = self.read_credits()
+        credits: dict[str, Any] | None
+        credits_status = "AVAILABLE"
+        try:
+            credits = self.read_credits()
+        except ProviderError as exc:
+            # OpenRouter documents /credits as requiring a Management key. A
+            # normal inference key must still be able to introspect itself and
+            # the model catalog, so this narrower authorization failure is not
+            # allowed to abort candidate discovery.
+            if exc.category != "authorization":
+                raise
+            credits = None
+            credits_status = "MANAGEMENT_KEY_REQUIRED"
         models = self.read_models()
         return {
             "schema_version": 1,
@@ -180,6 +192,7 @@ class OpenRouterIntrospectionClient:
             "authority": "openrouter-api",
             "spend_control": spend_control,
             "credits": credits,
+            "credits_status": credits_status,
             "zero_price_candidates": self.zero_price_candidates(models, required_parameters=required_parameters),
             "model_count": len(models),
             "admission_ready": False,
