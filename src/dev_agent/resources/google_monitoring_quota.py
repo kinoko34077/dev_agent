@@ -256,7 +256,7 @@ class GoogleMonitoringQuotaClient:
             "metrics": metrics,
             "admission_ready": False,
             "interpretation": (
-                "Authoritative first-party limit/usage time series only. No remaining quota is derived, "
+                "Authoritative first-party limit/usage time series only. No quota headroom is derived, "
                 "and this document is not a ResourceRouter quota observation until quota-domain, window, "
                 "freshness, reset, and missing-series semantics are separately accepted."
             ),
