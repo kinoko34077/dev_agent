@@ -41,25 +41,31 @@ def main() -> int:
     )
     try:
         snapshot = client.read_free_tier_snapshot(start_time=start, end_time=end)
-    except MonitoringAuthRequired:
+    except MonitoringAuthRequired as exc:
+        remote_rejection = exc.network_called
         print(
             json.dumps(
                 {
                     "schema_version": 1,
-                    "status": "AUTH_REQUIRED",
-                    "network_called": False,
+                    "status": "ACCESS_REQUIRED" if remote_rejection else "AUTH_REQUIRED",
+                    "network_called": exc.network_called,
+                    "http_status": exc.http_status,
                     "project_id": args.project_id,
                     "model_id": args.model,
                     "required_permission": MONITORING_PERMISSION,
                     "required_oauth_scope": MONITORING_READ_SCOPE,
                     "token_env": args.token_env,
-                    "next_step": "Provide an ephemeral OAuth access token with read-only Monitoring authority, then rerun this command.",
+                    "next_step": (
+                        "Verify that the supplied OAuth token has read-only Monitoring authority for this project, then rerun this command."
+                        if remote_rejection
+                        else "Provide an ephemeral OAuth access token with read-only Monitoring authority, then rerun this command."
+                    ),
                 },
                 ensure_ascii=False,
                 indent=2,
             )
         )
-        return 2
+        return 3 if remote_rejection else 2
     except MonitoringQuotaError as exc:
         print(json.dumps({"schema_version": 1, "status": "OBSERVATION_FAILED", "error": str(exc)}, ensure_ascii=False, indent=2))
         return 1
