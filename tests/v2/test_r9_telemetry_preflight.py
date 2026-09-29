@@ -1,5 +1,7 @@
 import json
 from datetime import datetime, timezone
+from io import BytesIO
+from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -54,10 +56,42 @@ def test_google_monitoring_preflight_stops_before_network_when_auth_is_missing(m
         )
 
     assert called is False
+    assert caught.value.network_called is False
+    assert caught.value.http_status is None
     assert caught.value.permission == "monitoring.timeSeries.list"
     assert caught.value.scope == "https://www.googleapis.com/auth/monitoring.read"
     assert caught.value.token_env == "DEV_AGENT_GCP_MONITORING_ACCESS_TOKEN"
     assert "token" not in str(caught.value).lower()
+
+
+def test_google_monitoring_marks_network_auth_rejection(monkeypatch):
+    monkeypatch.setenv("DEV_AGENT_GCP_MONITORING_ACCESS_TOKEN", "rejected-token")
+
+    def reject(request, timeout):
+        raise HTTPError(
+            request.full_url,
+            403,
+            "Forbidden",
+            {},
+            BytesIO(b'{"error":{"message":"permission denied"}}'),
+        )
+
+    client = GoogleMonitoringQuotaClient(
+        project_id="gemini-free-project",
+        model_id="gemini-3.8-flash",
+        opener=reject,
+    )
+
+    with pytest.raises(MonitoringAuthRequired) as caught:
+        client.read_metric(
+            FREE_TIER_REQUEST_LIMIT,
+            start_time=datetime(2026, 9, 29, 0, 0, tzinfo=timezone.utc),
+            end_time=datetime(2026, 9, 29, 0, 5, tzinfo=timezone.utc),
+        )
+
+    assert caught.value.network_called is True
+    assert caught.value.http_status == 403
+    assert "rejected-token" not in str(caught.value)
 
 
 def test_google_monitoring_reads_bounded_first_party_series_without_deriving_remaining(monkeypatch):
@@ -134,6 +168,22 @@ def test_google_monitoring_fails_closed_on_malformed_timeseries(monkeypatch):
     )
 
     with pytest.raises(MonitoringQuotaError):
+        client.read_metric(
+            FREE_TIER_REQUEST_LIMIT,
+            start_time=datetime(2026, 9, 29, 0, 0, tzinfo=timezone.utc),
+            end_time=datetime(2026, 9, 29, 0, 5, tzinfo=timezone.utc),
+        )
+
+
+def test_google_monitoring_fails_closed_when_response_is_paginated(monkeypatch):
+    monkeypatch.setenv("DEV_AGENT_GCP_MONITORING_ACCESS_TOKEN", "secret")
+    client = GoogleMonitoringQuotaClient(
+        project_id="p",
+        model_id="m",
+        opener=lambda *_args, **_kwargs: _Response({"timeSeries": [], "nextPageToken": "more"}),
+    )
+
+    with pytest.raises(MonitoringQuotaError, match="paginated"):
         client.read_metric(
             FREE_TIER_REQUEST_LIMIT,
             start_time=datetime(2026, 9, 29, 0, 0, tzinfo=timezone.utc),
