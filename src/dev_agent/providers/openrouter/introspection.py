@@ -159,6 +159,9 @@ class OpenRouterIntrospectionClient:
                 continue
             if not (_zero_price(pricing.get("prompt")) and _zero_price(pricing.get("completion"))):
                 continue
+            request_price = pricing.get("request")
+            if request_price is not None and not _zero_price(request_price):
+                continue
             candidates.append(
                 {
                     "id": model_id,
