@@ -218,9 +218,14 @@ def test_openrouter_introspection_keeps_spend_controls_separate_from_rate_quota(
                     "data": [
                         {
                             "id": "example/free-agent-model:free",
-                            "pricing": {"prompt": "0", "completion": "0"},
+                            "pricing": {"prompt": "0", "completion": "0", "request": "0"},
                             "supported_parameters": ["tools", "structured_outputs"],
                             "context_length": 131072,
+                        },
+                        {
+                            "id": "example/request-fee-model",
+                            "pricing": {"prompt": "0", "completion": "0", "request": "0.001"},
+                            "supported_parameters": ["tools"],
                         },
                         {
                             "id": "example/paid-model",
