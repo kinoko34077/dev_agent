@@ -338,6 +338,8 @@ class ProviderModelDiscovery:
                 identifier = raw_model.get("name")
                 if isinstance(identifier, str) and identifier.startswith("models/"):
                     identifier = identifier.removeprefix("models/")
+            elif provider_id == "cloudflare":
+                identifier = raw_model.get("name", raw_model.get("id"))
             elif provider_id in {"ollama", "ollama_cloud"}:
                 identifier = raw_model.get("model", raw_model.get("name"))
             else:

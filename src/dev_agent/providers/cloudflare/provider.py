@@ -218,7 +218,7 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
             identifier.strip()
             for item in raw["result"]
             if isinstance(item, Mapping)
-            for identifier in (item.get("id", item.get("name")),)
+            for identifier in (item.get("name", item.get("id")),)
             if isinstance(identifier, str) and identifier.strip()
         }
         if self.model not in identifiers:
