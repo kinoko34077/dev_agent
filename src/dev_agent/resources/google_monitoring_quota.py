@@ -49,10 +49,11 @@ class MonitoringAuthRequired(MonitoringQuotaError):
     scope = MONITORING_READ_SCOPE
     token_env = MONITORING_TOKEN_ENV
 
-    def __init__(self) -> None:
+    def __init__(self, *, network_called: bool = False) -> None:
         # Do not include the token environment name in the human-readable
         # message.  Structured callers can read token_env explicitly.
         super().__init__("Google Cloud Monitoring read authorization is required")
+        self.network_called = bool(network_called)
 
 
 def _require_text(value: str, *, name: str) -> str:
@@ -188,7 +189,7 @@ class GoogleMonitoringQuotaClient:
     def _token(self) -> str:
         token = self.access_token or os.environ.get(self.token_env)
         if not isinstance(token, str) or not token.strip():
-            raise MonitoringAuthRequired()
+            raise MonitoringAuthRequired(network_called=False)
         return token.strip()
 
     def _url(self, metric_type: str, *, start_time: datetime, end_time: datetime) -> str:
@@ -228,7 +229,7 @@ class GoogleMonitoringQuotaClient:
             if exc.code in REDIRECT_STATUS_CODES:
                 raise MonitoringQuotaError(f"Monitoring endpoint attempted HTTP {exc.code} redirect") from exc
             if exc.code in {401, 403}:
-                raise MonitoringAuthRequired() from exc
+                raise MonitoringAuthRequired(network_called=True) from exc
             raise MonitoringQuotaError(f"Monitoring request failed with HTTP {exc.code}") from exc
         except (URLError, OSError) as exc:
             raise MonitoringQuotaError("Monitoring transport failed") from exc
@@ -236,6 +237,9 @@ class GoogleMonitoringQuotaClient:
             raise MonitoringQuotaError("Monitoring response decode failed") from exc
         if not isinstance(raw, Mapping):
             raise MonitoringQuotaError("Monitoring response must be an object")
+        next_page_token = raw.get("nextPageToken")
+        if isinstance(next_page_token, str) and next_page_token.strip():
+            raise MonitoringQuotaError("Monitoring response is paginated; bounded preflight refuses partial evidence")
         return _normalize_series(raw, expected_metric_type=metric_type)
 
     def read_free_tier_snapshot(self, *, start_time: datetime, end_time: datetime) -> dict[str, Any]:
