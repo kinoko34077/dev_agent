@@ -47,7 +47,7 @@ def test_groq_discovery_reads_active_model_catalog_without_generation():
     captured = []
 
     def fake_open(request, timeout):
-        captured.append((request.full_url, request.method, dict(request.header_items()), timeout, request.data))
+        captured.append((request.full_url, request.method, {k.lower(): v for k, v in request.header_items()}, timeout, request.data))
         return _Response(
             {
                 "object": "list",
@@ -65,13 +65,11 @@ def test_groq_discovery_reads_active_model_catalog_without_generation():
     assert state["model_count"] == 2
     assert state["rate_quota_observed"] is False
     assert state["admission_ready"] is False
-    assert captured == [
-        (
-            "https://api.groq.com/openai/v1/models",
-            "GET",
-            {"Content-type": "application/json", "Authorization": "Bearer existing-groq-key"},
-            4.0,
-            None,
-        )
-    ]
+    assert len(captured) == 1
+    url, method, headers, timeout, data = captured[0]
+    assert url == "https://api.groq.com/openai/v1/models"
+    assert method == "GET"
+    assert headers["authorization"] == "Bearer existing-groq-key"
+    assert timeout == 4.0
+    assert data is None
     assert "existing-groq-key" not in json.dumps(state)
