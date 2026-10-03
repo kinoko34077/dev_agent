@@ -1,7 +1,11 @@
 name: cloudflare-evidence-c2
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - phase8/c-cloudflare-evidence-20261003
+    paths:
+      - .github/workflows/cloudflare-evidence-c2.yml
 
 permissions:
   contents: read
