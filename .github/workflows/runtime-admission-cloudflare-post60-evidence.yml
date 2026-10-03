@@ -1,0 +1,158 @@
+name: runtime-admission-cloudflare-post60-evidence
+
+on:
+  push:
+    branches:
+      - evidence/runtime-admission-cloudflare-post60-20261003
+    paths:
+      - .github/workflows/runtime-admission-cloudflare-post60-evidence.yml
+
+permissions:
+  contents: read
+
+jobs:
+  exact-route:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_MODEL: "@cf/zai-org/glm-4.7-flash"
+      DEV_AGENT_ENABLE_CONFIGURED_POOL: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install v2 dependencies
+        run: python -m pip install -r requirements-v2-dev.txt
+
+      - name: Observe exact route through normalized Operation path
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+
+          from src.dev_agent.domain.protocol import Task, TaskStatus
+          from src.dev_agent.operation import OperationConfig, OperationService
+          from src.dev_agent.resources.router import ResourceRouter
+          from src.dev_agent.resources.runtime_admission import (
+              RUNTIME_ELIGIBLE,
+              RuntimeAdmissionCandidate,
+              RuntimeAdmissionEvaluator,
+          )
+
+          def safe_quota(value):
+              if not isinstance(value, dict):
+                  return None
+              allowed = (
+                  "unit",
+                  "metric",
+                  "window",
+                  "limit",
+                  "remaining",
+                  "consumed",
+                  "authority",
+                  "confidence",
+                  "observed_at",
+                  "reset_at",
+                  "reset_source",
+                  "blocked_until",
+                  "block_reason",
+                  "source",
+              )
+              return {key: value.get(key) for key in allowed if value.get(key) is not None}
+
+          if not os.environ.get("CLOUDFLARE_API_TOKEN") or not os.environ.get("CLOUDFLARE_ACCOUNT_ID"):
+              print(json.dumps({"status": "AUTH_REQUIRED"}, sort_keys=True))
+              raise SystemExit(2)
+
+          with TemporaryDirectory(prefix="dev-agent-runtime-admission-") as directory:
+              config = OperationConfig.from_environment(data_dir=Path(directory))
+              try:
+                  with OperationService.open(config) as service:
+                      bindings = service.dispatcher.registry.bindings_for_provider("cloudflare")
+                      if len(bindings) != 1:
+                          print(json.dumps({
+                              "status": "BINDING_COUNT_UNEXPECTED",
+                              "binding_count": len(bindings),
+                          }, sort_keys=True))
+                          raise SystemExit(3)
+
+                      execution_binding = bindings[0]
+                      provider = service.dispatcher.registry.get_binding(execution_binding)
+                      model_id = getattr(provider, "model_id", None)
+                      if model_id != os.environ.get("CLOUDFLARE_MODEL"):
+                          print(json.dumps({
+                              "status": "MODEL_IDENTITY_MISMATCH",
+                              "observed_model": model_id,
+                          }, sort_keys=True))
+                          raise SystemExit(3)
+
+                      router = ResourceRouter(
+                          service.ledger,
+                          qualification_resolver=service.qualification_resolver,
+                          model_admission_resolver=service.model_admission_resolver,
+                      )
+                      evaluator = RuntimeAdmissionEvaluator(router)
+                      candidate = RuntimeAdmissionCandidate(
+                          provider_id="cloudflare",
+                          provider_binding_id=execution_binding,
+                          model_id=model_id,
+                      )
+                      before = evaluator.evaluate(
+                          candidate,
+                          snapshot=service.ledger.routing_snapshot(),
+                      )
+
+                      task = Task(
+                          objective="Reply with exactly the token READY3.",
+                          required_capabilities=["text"],
+                          limits={
+                              "max_steps": 1,
+                              "max_model_calls": 1,
+                              "max_tool_calls": 1,
+                              "max_output_tokens": 256,
+                          },
+                      )
+                      result = service.controller.run(task)
+                      audits = list(service.dispatcher.audits)
+                      after = evaluator.evaluate(
+                          candidate,
+                          snapshot=service.ledger.routing_snapshot(),
+                      )
+                      quota = service.ledger.get_quota_observation(execution_binding)
+
+                      last_audit = audits[-1] if audits else None
+                      payload = {
+                          "status": "OBSERVED",
+                          "task_status": result.status.value,
+                          "provider": "cloudflare",
+                          "credential_binding": "cloudflare:account",
+                          "execution_binding_present": bool(execution_binding),
+                          "model": model_id,
+                          "inventory_confirmed_pin": True,
+                          "admission_before": before.status,
+                          "admission_after": after.status,
+                          "dispatch_outcome": getattr(last_audit, "outcome", None),
+                          "dispatch_model": getattr(last_audit, "model_id", None),
+                          "quota": safe_quota(quota),
+                          "runtime_eligible_after": after.status == RUNTIME_ELIGIBLE,
+                      }
+                      print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+
+                      if result.status != TaskStatus.COMPLETED:
+                          raise SystemExit(4)
+              except Exception as exc:
+                  category = getattr(exc, "category", None)
+                  print(json.dumps({
+                      "status": "FAILED",
+                      "category": category or type(exc).__name__,
+                  }, sort_keys=True))
+                  raise
+          PY
