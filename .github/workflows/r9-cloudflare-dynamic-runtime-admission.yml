@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
+      DEV_AGENT_ENABLE_CONFIGURED_POOL: "1"
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
     steps:
@@ -22,72 +23,124 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Inspect bounded Gemma response shape
+      - name: Run dynamic Cloudflare runtime admission with bounded generation
         shell: bash
         run: |
           python - <<'PY'
           import json
-          from urllib.parse import quote
-          from urllib.request import Request
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
           from uuid import uuid4
 
           from src.dev_agent.domain.protocol import ModelRequest
-          from src.dev_agent.providers.cloudflare.provider import (
-              CloudflareWorkersAIHttpProvider,
-              _read_bounded,
-              urlopen_no_redirect,
+          from src.dev_agent.operation import OperationConfig, OperationService
+          from src.dev_agent.providers.base import ProviderError
+          from src.dev_agent.resources.router import RouteRequest
+          from src.dev_agent.resources.runtime_admission import (
+              RuntimeAdmissionCandidate,
+              RuntimeAdmissionEvaluator,
           )
 
-          model = "@cf/google/gemma-4-26b-a4b-it"
-          provider = CloudflareWorkersAIHttpProvider(model=model, timeout_seconds=30)
-          request = ModelRequest(
-              task_id=str(uuid4()),
-              messages=[{"role": "user", "content": "Reply with the single word ready."}],
-              requested_capabilities=["text"],
-              max_output_tokens=32,
-              cost_ceiling=0.0,
-          )
-          account_id, api_token = provider._credentials()
-          body = json.dumps(provider._payload(request), ensure_ascii=False).encode("utf-8")
-          http_request = Request(
-              f"{provider.base_url}/accounts/{quote(account_id, safe='')}/ai/run/{quote(model, safe='@/._-')}",
-              data=body,
-              headers={"Content-Type":"application/json","Authorization":"Bearer " + api_token},
-              method="POST",
-          )
-          with urlopen_no_redirect(http_request, timeout=30) as response:
-              raw = json.loads(_read_bounded(response).decode("utf-8"))
+          selected = None
+          try:
+              with TemporaryDirectory(prefix="r9-cloudflare-runtime-") as directory:
+                  service = OperationService.open(
+                      OperationConfig.from_environment(data_dir=Path(directory))
+                  )
+                  try:
+                      before = service.ledger.routing_snapshot()
+                      cloudflare_resources = [
+                          resource for resource in before.resources
+                          if resource.get("provider_id") == "cloudflare"
+                      ]
+                      selection = service.dispatcher.control.router.choose(
+                          RouteRequest(
+                              capabilities={"text"},
+                              allowed_providers={"cloudflare"},
+                              max_cost_minor=0,
+                              allow_unknown_quota=True,
+                          ),
+                          snapshot=before,
+                      )
+                      selected = {
+                          "provider_id": selection.provider_id,
+                          "provider_binding_id": selection.provider_binding_id,
+                          "model_id": selection.model_id,
+                          "unknown_quota_before": selection.unknown_quota,
+                      }
 
-          result = raw.get("result") if isinstance(raw, dict) else None
-          choices = result.get("choices") if isinstance(result, dict) else None
-          first_choice = choices[0] if isinstance(choices, list) and choices and isinstance(choices[0], dict) else None
-          message = first_choice.get("message") if isinstance(first_choice, dict) and isinstance(first_choice.get("message"), dict) else None
-          response_value = result.get("response") if isinstance(result, dict) else None
-          output_value = result.get("output") if isinstance(result, dict) else None
+                      request = ModelRequest(
+                          task_id=str(uuid4()),
+                          messages=[{"role": "user", "content": "Reply with the single word ready."}],
+                          requested_capabilities=["text"],
+                          max_output_tokens=256,
+                          cost_ceiling=0.0,
+                          metadata={
+                              "allow_unknown_quota": True,
+                              "allowed_provider_binding_ids": [selection.provider_binding_id],
+                          },
+                      )
+                      response = service.dispatcher.request(request)
 
-          def type_name(value):
-              return type(value).__name__
+                      after = service.ledger.routing_snapshot()
+                      admission = RuntimeAdmissionEvaluator(
+                          service.dispatcher.control.router
+                      ).evaluate(
+                          RuntimeAdmissionCandidate(
+                              provider_id=selection.provider_id,
+                              provider_binding_id=selection.provider_binding_id,
+                              model_id=selection.model_id,
+                          ),
+                          snapshot=after,
+                      )
 
-          summary = {
-              "status":"OBSERVED_SHAPE",
-              "root_keys": sorted(raw.keys()) if isinstance(raw, dict) else [],
-              "result_type": type_name(result),
-              "result_keys": sorted(result.keys()) if isinstance(result, dict) else [],
-              "response_type": type_name(response_value),
-              "response_keys": sorted(response_value.keys()) if isinstance(response_value, dict) else [],
-              "output_type": type_name(output_value),
-              "output_keys": sorted(output_value.keys()) if isinstance(output_value, dict) else [],
-              "choices_type": type_name(choices),
-              "choices_len": len(choices) if isinstance(choices, list) else None,
-              "first_choice_keys": sorted(first_choice.keys()) if isinstance(first_choice, dict) else [],
-              "message_keys": sorted(message.keys()) if isinstance(message, dict) else [],
-              "message_content_type": type_name(message.get("content")) if isinstance(message, dict) else None,
-              "message_content_length": len(message.get("content")) if isinstance(message, dict) and isinstance(message.get("content"), str) else None,
-              "reasoning_content_type": type_name(message.get("reasoning_content")) if isinstance(message, dict) else None,
-              "reasoning_content_length": len(message.get("reasoning_content")) if isinstance(message, dict) and isinstance(message.get("reasoning_content"), str) else None,
-              "finish_reason": first_choice.get("finish_reason") if isinstance(first_choice, dict) and isinstance(first_choice.get("finish_reason"), str) else None,
-              "usage_keys": sorted(result.get("usage").keys()) if isinstance(result, dict) and isinstance(result.get("usage"), dict) else [],
-              "completion_tokens": result.get("usage", {}).get("completion_tokens") if isinstance(result, dict) and isinstance(result.get("usage"), dict) and isinstance(result.get("usage", {}).get("completion_tokens"), int) else None,
-          }
-          print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
+                      resource = next(
+                          item for item in after.resources
+                          if item.get("resource_id") == selection.resource_id
+                      )
+                      quota_domain = resource.get("quota_domain")
+                      quota_rows = list(
+                          after.quota_observations_by_domain.get(quota_domain, ())
+                      ) if quota_domain else []
+                      allowed_quota_fields = {
+                          "unit", "metric", "window", "limit", "remaining", "consumed",
+                          "authority", "confidence", "observed_at", "reset_at",
+                          "reset_source", "blocked_until", "block_reason", "source",
+                          "quota_authority", "consumption_authority", "evidence_mode",
+                      }
+                      safe_quota = [
+                          {key: value for key, value in row.items() if key in allowed_quota_fields}
+                          for row in quota_rows
+                      ]
+                      print(json.dumps({
+                          "status": "OBSERVED",
+                          "candidate_count": len(cloudflare_resources),
+                          "candidate_models": sorted({
+                              str((item.get("metadata") or {}).get("model_id") or item.get("model_id"))
+                              for item in cloudflare_resources
+                              if ((item.get("metadata") or {}).get("model_id") or item.get("model_id"))
+                          }),
+                          "selected": selected,
+                          "response": {
+                              "provider": response.provider,
+                              "model": response.model,
+                              "finish_reason": response.finish_reason,
+                              "usage_keys": sorted(response.usage.keys()),
+                              "text_segment_count": len(response.text_segments),
+                              "tool_call_count": len(response.tool_calls),
+                          },
+                          "quota_observations": safe_quota,
+                          "runtime_admission_after": admission.status,
+                      }, ensure_ascii=False, indent=2, sort_keys=True))
+                  finally:
+                      service.close()
+          except Exception as exc:
+              print(json.dumps({
+                  "status":"FAILED",
+                  "selected":selected,
+                  "error_type":type(exc).__name__,
+                  "error_category":getattr(exc, "category", None),
+                  "message":str(exc),
+              }, ensure_ascii=False, indent=2, sort_keys=True))
+              raise
           PY
