@@ -300,7 +300,7 @@ def test_remote_binding_limit_serializes_same_quota_identity(tmp_path):
     root, manifests = _repo(tmp_path, targets)
     tracker = {"lock": threading.Lock(), "barrier": None, "active": 0, "peak": 0}
     orchestrator = DevFarmOrchestrator(
-        remote_governor=RemoteConcurrencyGovernor(max_inflight=2, per_binding_limits={"cloudflare": 1}),
+        remote_governor=RemoteConcurrencyGovernor(max_inflight=2, per_binding_limits={"cloudflare:account": 1}),
         host_governor=HostConcurrencyGovernor(worktree_verification_slots=1),
         verification_trust_level="TRUSTED_HOST_EXEC",
         operator_approved=True,
@@ -316,7 +316,7 @@ def test_remote_binding_limit_serializes_same_quota_identity(tmp_path):
 
     assert [item["status"] for item in proposals] == ["completed", "completed"]
     assert tracker["peak"] == 1
-    assert orchestrator.remote_governor.snapshot()["per_binding"]["cloudflare"]["peak"] == 1
+    assert orchestrator.remote_governor.snapshot()["per_binding"]["cloudflare:account"]["peak"] == 1
 
 
 def test_remote_binding_limits_allow_independent_quota_identities_in_parallel(tmp_path):
@@ -324,7 +324,7 @@ def test_remote_binding_limits_allow_independent_quota_identities_in_parallel(tm
     root, manifests = _repo(tmp_path, targets, provider_ids=["cloudflare", "gemini"])
     tracker = {"lock": threading.Lock(), "barrier": threading.Barrier(2), "active": 0, "peak": 0}
     orchestrator = DevFarmOrchestrator(
-        remote_governor=RemoteConcurrencyGovernor(max_inflight=2, per_binding_limits={"cloudflare": 1, "gemini:worker": 1}),
+        remote_governor=RemoteConcurrencyGovernor(max_inflight=2, per_binding_limits={"cloudflare:account": 1, "gemini:worker": 1}),
         host_governor=HostConcurrencyGovernor(worktree_verification_slots=1),
         verification_trust_level="TRUSTED_HOST_EXEC",
         operator_approved=True,
@@ -341,5 +341,5 @@ def test_remote_binding_limits_allow_independent_quota_identities_in_parallel(tm
     assert [item["status"] for item in proposals] == ["completed", "completed"]
     assert tracker["peak"] == 2
     snapshot = orchestrator.remote_governor.snapshot()["per_binding"]
-    assert snapshot["cloudflare"]["peak"] == 1
+    assert snapshot["cloudflare:account"]["peak"] == 1
     assert snapshot["gemini:worker"]["peak"] == 1
