@@ -10,12 +10,20 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 | Field | Current fact |
 | --- | --- |
 | Accepted branch | `v2/bootstrap` |
-| Accepted remote head at latest integrated docs/evidence | `f1405fb` (Gemini free-5/3.8 liveness evidence; formal Gate unchanged) |
-| Latest implementation baseline | `06216f1` (nested runtime-admission evidence diagnostic compatibility) |
-| Latest evidence baseline | `gemini-free-5-3.8-qualification-20260928.json` and `gemini-free-4-3.8-qualification-20260928.json` |
+| Accepted remote head at latest integrated docs/evidence | `78f4a560` (Gemini free-3 liveness evidence; formal Gate unchanged) |
+| Latest implementation baseline | `ad71791b` (date-stable admission regression fixtures) |
+| Latest evidence baseline | `gemini-free3-qualification-20261003.json`, `gemini-free-catalog-refresh-20261003.json`, and `cloudflare-billable-usage-preflight-20261003.json` |
 | Accepted implementation slices | PR #4 deterministic production composition; PR #12 Worker contract/preflight and local L1 evidence; PR #13 Current State compaction; PR #16 static-vs-runtime admission semantics and read-only exact-route evaluator; PR #22 concrete invalid-JSON Worker repair directive; `8a8204c` deterministic continuation capability preflight; `af0e242` Host Verification repair/fallback convergence; `37faaf6` configured-pool runtime-evidence diagnostic compatibility; `83a81ca` evidence/docs synchronization; `c88714f` #26 blocker audit; `cfb0e2a` bounded trusted no-charge bootstrap projection; `985e449` Reviewer contract hardening and fresh non-Gate remote multi-role completion; `3a9b82b` unknown transport-stage provenance hardening; `64878bd` Host child bytecode-write boundary hardening; PR #30 D1 canonical model-evidence refresh; PR #38 D3 quota quarantine recovery; `8068007` D4 static/runtime diagnostic vocabulary separation; `5658203` bounded Gemini free-route liveness evidence; `648f015` fresh Gemini runtime-bootstrap observation; `672ac67` complete-by-default admission summary; `1f947ef` four-binding Gemini liveness refresh; `fc8b051` Cloudflare liveness refresh; `7577c66` Cloudflare admission evidence precision; `1a26a45` Gemini core-binding liveness evidence sync; `10a1d6a` current admission baseline sync; `5759535` configured Gemini core lane composition; `06216f1` nested multi-binding runtime-evidence diagnostic compatibility; `phase8-current-host-admission-observations-20260928.json` and `phase8-host-core-binding-planner-20260928.json` bounded Host-boundary admission observations |
 | Formal Gate | `D9_DOGFOOD=VERIFIED`; `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`; `PHASE8_PREPARATION=PREPARATION_ONLY`; `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` |
 | Current source of truth | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json), exact-head CI, owning Issues/PRs, and bounded Evidence files |
+
+### 2026-10-03 continuation checkpoint
+
+- `v2/bootstrap` is clean at `78f4a560215d0d158db7b76f31527a902cccf700` and matches `origin/v2/bootstrap`; no open PR or unmerged repository-side change was found.
+- A bounded Gemini catalog refresh found 244 candidate rows across four existing free bindings with identical model-ID sets. This remains candidate-only catalog evidence; it does not establish qualification, quota, billing, health, or `RUNTIME_ELIGIBLE`.
+- A fresh `gemini:worker:free-3 / gemini-3.5-flash-lite` text/tool roundtrip completed with zero committed cost and no UNKNOWN/reconciliation. Quota remained `unknown_not_reported`, so the result is non-Gate `RUNTIME_BOOTSTRAP_ADMITTED` liveness only.
+- Static evidence preflight is current-eligible `56/56`, but `0/56` at the 48-hour horizon because catalog, capability, and benchmark sources expire on 2026-10-04. This is an evidence-freshness boundary, not a claim that Gemini or Cloudflare is absent.
+- Formal state remains `RUNTIME_ELIGIBLE=0`, `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED`; the next valid admission progress requires an authorized read-only evidence refresh or separately authorized quota/billing read authority.
 
 ### 2026-09-28 Issue #40 Track B/C admission audit
 
