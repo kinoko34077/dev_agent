@@ -150,6 +150,7 @@ class OperationProviderBinding:
     # materialization is opt-in and keeps the qualification identity separate.
     model_candidates: tuple[str, ...] | list[str] | None = None
     qualification_binding_id: str | None = None
+    expand_discovered_models: bool = False
 
     def __post_init__(self) -> None:
         provider_id = self.provider_id.strip().lower() if isinstance(self.provider_id, str) else ""
@@ -178,6 +179,8 @@ class OperationProviderBinding:
             raise ValueError("keep_alive must be finite")
         if self.think is not None and not isinstance(self.think, bool):
             raise ValueError("think must be a boolean or None")
+        if not isinstance(self.expand_discovered_models, bool):
+            raise ValueError("expand_discovered_models must be a boolean")
         candidates = self.model_candidates
         if candidates is not None:
             if isinstance(candidates, str) or not isinstance(candidates, (list, tuple)) or not candidates:
@@ -294,15 +297,21 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
         )
     cloudflare_account_id = env("CLOUDFLARE_ACCOUNT_ID")
     if env("CLOUDFLARE_API_TOKEN") and cloudflare_account_id:
+        cloudflare_model_pin = env("CLOUDFLARE_MODEL")
         bindings.append(
             OperationProviderBinding(
                 provider_id="cloudflare",
-                model=env("CLOUDFLARE_MODEL") or "@cf/meta/llama-3.1-8b-instruct",
-                provider_binding_id="cloudflare",
+                # The seed remains a valid concrete model for explicit
+                # construction, but normal configured operation expands the
+                # current discovered catalog when no operator pin is present.
+                model=cloudflare_model_pin or "@cf/meta/llama-3.1-8b-instruct-fp8",
+                provider_binding_id="cloudflare:account",
                 quota_domain=f"cloudflare:account:{cloudflare_account_id}",
                 credential_id="cloudflare-account",
                 api_key_env="CLOUDFLARE_API_TOKEN",
                 project_id=cloudflare_account_id,
+                qualification_binding_id="cloudflare:account",
+                expand_discovered_models=cloudflare_model_pin is None,
             )
         )
     ollama_model = env("OLLAMA_MODEL")
