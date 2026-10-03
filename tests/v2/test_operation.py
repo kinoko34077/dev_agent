@@ -1131,9 +1131,9 @@ def test_operation_config_can_explicitly_build_configured_cloud_provider_pool(mo
     assert bindings["gemini:worker:free-2"].project_id == "projects/394829782092"
     assert bindings["gemini:worker:free-2"].quota_domain == "gemini:project:394829782092"
     assert bindings["gemini:worker:free-4"].api_key_env == "GEMINI_API_KEY_4"
-    assert bindings["ollama_cloud:free"].provider_id == "ollama_cloud"
-    assert bindings["ollama_cloud:free"].api_key_env == "OLLAMA_API_KEY"
-    assert bindings["vercel:free"].api_key_env == "AI_GATEWAY_API_KEY"
+    assert bindings["ollama_cloud:account"].provider_id == "ollama_cloud"
+    assert bindings["ollama_cloud:account"].api_key_env == "OLLAMA_API_KEY"
+    assert bindings["vercel:account"].api_key_env == "AI_GATEWAY_API_KEY"
     assert all("secret-not-read" not in repr(binding) for binding in bindings.values())
 
 
@@ -1254,6 +1254,27 @@ def test_configured_provider_pool_keeps_openai_compatible_operator_pins_out_of_d
         assert binding.expand_discovered_models is False
 
 
+def test_configured_provider_pool_discovers_unpinned_ollama_cloud_and_vercel_lanes(monkeypatch, tmp_path):
+    monkeypatch.setenv("DEV_AGENT_ENABLE_CONFIGURED_POOL", "1")
+    monkeypatch.setenv("OLLAMA_API_KEY", "secret-not-read-into-config")
+    monkeypatch.setenv("AI_GATEWAY_API_KEY", "secret-not-read-into-config")
+    monkeypatch.delenv("OLLAMA_CLOUD_MODEL", raising=False)
+    monkeypatch.delenv("AI_GATEWAY_MODEL", raising=False)
+
+    config = OperationConfig.from_environment(data_dir=tmp_path)
+
+    bindings = {binding.binding_id: binding for binding in config.provider_bindings}
+    cloud = bindings["ollama_cloud:account"]
+    assert cloud.model == "gpt-oss:20b"
+    assert cloud.qualification_binding_id == "ollama_cloud:account"
+    assert cloud.expand_discovered_models is True
+    gateway = bindings["vercel:account"]
+    assert gateway.model == "alibaba/qwen-3-14b"
+    assert gateway.qualification_binding_id == "vercel:account"
+    assert gateway.expand_discovered_models is True
+    assert all("secret-not-read" not in repr(binding) for binding in bindings.values())
+
+
 def test_configured_provider_pool_includes_explicit_cloudflare_free_lane(monkeypatch, tmp_path):
     monkeypatch.setenv("DEV_AGENT_ENABLE_CONFIGURED_POOL", "1")
     monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "account-not-read-into-config")
@@ -1307,6 +1328,7 @@ def test_configured_provider_pool_exposes_preferred_local_model_and_fallback_can
         "ollama:local:gemma4-12b",
     ]
     assert all(binding.quota_domain is None and binding.credential_id is None for binding in local[:2])
+    assert all(binding.expand_discovered_models is True for binding in local[:2])
 
 
 def test_configured_local_trial_tier_projects_to_all_local_candidates(monkeypatch, tmp_path):
@@ -1376,7 +1398,7 @@ def test_configured_provider_pool_public_boundary_reads_only_non_secret_binding_
     by_id = {binding.binding_id: binding for binding in bindings}
     assert by_id["gemini:worker:free-3"].model == "gemini-3.6-flash"
     assert by_id["gemini:worker:free-3"].api_key_env == "GEMINI_API_KEY_3"
-    assert by_id["ollama_cloud:free"].model == "qwen3:8b"
+    assert by_id["ollama_cloud:account"].model == "qwen3:8b"
     assert all("secret-value" not in repr(binding) and "ollama-secret" not in repr(binding) for binding in bindings)
 
 

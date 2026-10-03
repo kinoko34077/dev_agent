@@ -89,6 +89,8 @@ _CONFIGURED_DISCOVERY_SEEDS = {
     "groq": "llama-3.3-70b-versatile",
     "mistral": "mistral-small-latest",
     "sambanova": "Meta-Llama-3.3-70B-Instruct",
+    "ollama_cloud": "gpt-oss:20b",
+    "vercel": "alibaba/qwen-3-14b",
 }
 OLLAMA_DEFAULT_MODEL = "qwen3.5:9b"
 OLLAMA_FALLBACK_MODELS = ("gemma4:12b",)
@@ -383,6 +385,9 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
                 # does not qualify the model for remote L2 routing; leaving
                 # the value unset preserves the normal non-admitted state.
                 intelligence_tier=env("OLLAMA_INTELLIGENCE_TIER"),
+                # The local daemon inventory is factual only. Installed
+                # models still pass the exact local billing/resource gates.
+                expand_discovered_models=True,
             )
         )
     ollama_critic_model = env("OLLAMA_CRITIC_MODEL")
@@ -399,28 +404,32 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
                 intelligence_tier=env("OLLAMA_CRITIC_INTELLIGENCE_TIER") or "L1",
             )
         )
-    ollama_model = env("OLLAMA_CLOUD_MODEL")
-    if env("OLLAMA_API_KEY") and ollama_model:
+    ollama_cloud_model_pin = env("OLLAMA_CLOUD_MODEL")
+    if env("OLLAMA_API_KEY"):
         bindings.append(
             OperationProviderBinding(
                 provider_id="ollama_cloud",
-                model=ollama_model,
-                provider_binding_id="ollama_cloud:free",
+                model=ollama_cloud_model_pin or _CONFIGURED_DISCOVERY_SEEDS["ollama_cloud"],
+                provider_binding_id="ollama_cloud:account",
                 quota_domain="ollama_cloud:account",
                 credential_id="ollama-cloud",
                 api_key_env="OLLAMA_API_KEY",
+                qualification_binding_id="ollama_cloud:account",
+                expand_discovered_models=ollama_cloud_model_pin is None,
             )
         )
-    vercel_model = env("AI_GATEWAY_MODEL")
-    if env("AI_GATEWAY_API_KEY") and vercel_model:
+    vercel_model_pin = env("AI_GATEWAY_MODEL")
+    if env("AI_GATEWAY_API_KEY"):
         bindings.append(
             OperationProviderBinding(
                 provider_id="vercel",
-                model=vercel_model,
-                provider_binding_id="vercel:free",
+                model=vercel_model_pin or _CONFIGURED_DISCOVERY_SEEDS["vercel"],
+                provider_binding_id="vercel:account",
                 quota_domain="vercel:account",
                 credential_id="vercel-ai-gateway",
                 api_key_env="AI_GATEWAY_API_KEY",
+                qualification_binding_id="vercel:account",
+                expand_discovered_models=vercel_model_pin is None,
             )
         )
     return tuple(bindings)
