@@ -208,4 +208,5 @@ def test_cloudflare_decoder_accepts_current_chat_completion_result_shape():
     assert response.text_segments == ["ready"]
     assert response.model == "@cf/zai-org/glm-4.7-flash"
     assert response.usage["quota_observation"]["consumed"] == 2
-    assert response.usage["quota_observation"]["quota_authority"] == "authoritative_provider"
+    assert response.usage["quota_observation"]["consumption_authority"] == "authoritative_provider"
+    assert response.usage["quota_observation"]["quota_authority"] == "derived_conservative"
