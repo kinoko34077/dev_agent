@@ -111,13 +111,13 @@ jobs:
                       )
 
                       task = Task(
-                          objective="Reply with the single word READY.",
+                          objective="Reply with exactly the token READY2.",
                           required_capabilities=["text"],
                           limits={
                               "max_steps": 1,
                               "max_model_calls": 1,
                               "max_tool_calls": 1,
-                              "max_output_tokens": 32,
+                              "max_output_tokens": 256,
                           },
                       )
                       result = service.controller.run(task)
