@@ -148,6 +148,54 @@ def test_derived_conservative_quota_can_reach_formal_runtime_eligibility(tmp_pat
     assert observation.status == RUNTIME_ELIGIBLE
 
 
+def test_cloudflare_derived_quota_reaches_admission_through_existing_resource_path(tmp_path):
+    from src.dev_agent.operation import OperationProviderBinding, OperationService
+    from src.dev_agent.resources.qualification import QualificationResolver
+
+    ledger = ResourceLedger(tmp_path / "cloudflare-runtime-admission.sqlite3")
+    resolver = QualificationResolver()
+    binding = OperationProviderBinding(
+        provider_id="cloudflare",
+        model="@cf/meta/llama-3.1-8b-instruct",
+        provider_binding_id="cloudflare",
+        quota_domain="cloudflare:account:test",
+        api_key_env="UNUSED_TEST_KEY",
+    )
+
+    # Reuse the same registration boundary that Operation opens for a real
+    # provider resource; no network call or provider response is fabricated.
+    OperationService._ensure_resource(ledger, object(), binding, qualification_resolver=resolver)
+    ledger.observe("cloudflare", available=1, health="healthy")
+    observed_at = datetime.now(timezone.utc).isoformat()
+    ledger.observe_quota(
+        "cloudflare",
+        unit="neurons",
+        limit=10_000,
+        remaining=9_700,
+        consumed=300,
+        authority="derived_conservative",
+        metric="workers_ai_neurons",
+        window="day",
+        reset_source="cloudflare_daily_utc",
+        reset_at="2026-10-04T00:00:00+00:00",
+        observed_at=observed_at,
+        source="cloudflare-neuron-estimate",
+    )
+
+    router = ResourceRouter(ledger, qualification_resolver=resolver)
+    observation = RuntimeAdmissionEvaluator(router).evaluate(
+        RuntimeAdmissionCandidate(
+            provider_id="cloudflare",
+            provider_binding_id="cloudflare",
+            model_id="@cf/meta/llama-3.1-8b-instruct",
+        ),
+        snapshot=ledger.routing_snapshot(),
+        observed_at=observed_at,
+    )
+
+    assert observation.status == RUNTIME_ELIGIBLE
+
+
 def test_blocked_quota_domain_is_not_bootstrap_admitted(tmp_path):
     ledger, router = _trusted_free3_ledger(tmp_path)
     snapshot = ledger.routing_snapshot()
