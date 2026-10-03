@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "evidence_id": "gemini-catalog-derived-candidates-20261003",
+  "recorded_at": "2026-10-03T13:53:10.07913+09:00",
+  "source_revision": "b4e9a5974c17fbde8c6ebe3c6a13754a1b91af45",
+  "evidence_kind": "candidate_alias_capability_derivation",
+  "provider": "gemini",
+  "source_evidence": "spec/v2/evidence/gemini-free-catalog-refresh-20261003.json",
+  "candidate_only": true,
+  "canonical_replaced": false,
+  "formal_gate_impact": "unchanged",
+  "catalog": {
+    "binding_count": 4,
+    "rows": 244,
+    "rows_per_binding": 61,
+    "model_id_set_sha256": "7d935c337328a306f1221f8a541dbe742943aa8e30541ae47d1d923010b10186"
+  },
+  "derived_candidates": {
+    "alias_count": 17,
+    "capability_count": 17,
+    "capability_scope": ["long_context", "text"],
+    "candidate_expiry": "2026-10-10T13:53:10.07913+09:00"
+  },
+  "admission": {
+    "runtime_eligible": false,
+    "formal_r9": false,
+    "qualification": "not established by catalog metadata",
+    "benchmark": "not established",
+    "billing": "not established",
+    "quota": "not established",
+    "health": "not established",
+    "generation_liveness": "separate evidence required"
+  },
+  "interpretation": "Gemini model discovery and bounded candidate derivation are functioning for the four existing free bindings. The candidate is not a qualification, billing, quota, health, or generation-admission record and must not replace canonical evidence or promote RUNTIME_ELIGIBLE.",
+  "next_action": "Operator-reviewed canonical evidence refresh plus independent qualification, billing/quota, health, and benchmark evidence are required before any formal R9 admission decision."
+}
