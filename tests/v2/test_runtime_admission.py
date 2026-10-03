@@ -156,8 +156,8 @@ def test_cloudflare_derived_quota_reaches_admission_through_existing_resource_pa
     resolver = QualificationResolver()
     binding = OperationProviderBinding(
         provider_id="cloudflare",
-        model="@cf/meta/llama-3.1-8b-instruct",
-        provider_binding_id="cloudflare",
+        model="@cf/zai-org/glm-4.7-flash",
+        provider_binding_id="cloudflare:account",
         quota_domain="cloudflare:account:test",
         api_key_env="UNUSED_TEST_KEY",
     )
@@ -165,10 +165,10 @@ def test_cloudflare_derived_quota_reaches_admission_through_existing_resource_pa
     # Reuse the same registration boundary that Operation opens for a real
     # provider resource; no network call or provider response is fabricated.
     OperationService._ensure_resource(ledger, object(), binding, qualification_resolver=resolver)
-    ledger.observe("cloudflare", available=1, health="healthy")
+    ledger.observe("cloudflare:account", available=1, health="healthy")
     observed_at = datetime.now(timezone.utc).isoformat()
     ledger.observe_quota(
-        "cloudflare",
+        "cloudflare:account",
         unit="neurons",
         limit=10_000,
         remaining=9_700,
@@ -186,8 +186,8 @@ def test_cloudflare_derived_quota_reaches_admission_through_existing_resource_pa
     observation = RuntimeAdmissionEvaluator(router).evaluate(
         RuntimeAdmissionCandidate(
             provider_id="cloudflare",
-            provider_binding_id="cloudflare",
-            model_id="@cf/meta/llama-3.1-8b-instruct",
+            provider_binding_id="cloudflare:account",
+            model_id="@cf/zai-org/glm-4.7-flash",
         ),
         snapshot=ledger.routing_snapshot(),
         observed_at=observed_at,

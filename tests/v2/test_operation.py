@@ -765,14 +765,14 @@ def test_operation_only_marks_exact_known_binding_and_model_as_free(tmp_path):
         known = OperationConfig(
             data_dir=tmp_path,
             provider_id="cloudflare",
-            model="@cf/meta/llama-3.1-8b-instruct",
-            provider_binding_id="cloudflare",
+            model="@cf/zai-org/glm-4.7-flash",
+            provider_binding_id="cloudflare:account",
             quota_domain="cloudflare-account",
         )
-        known_provider = type("Provider", (), {"provider_binding_id": "cloudflare", "model_id": known.model, "intelligence_tier": "L1"})()
+        known_provider = type("Provider", (), {"provider_binding_id": "cloudflare:account", "model_id": known.model, "intelligence_tier": "L1"})()
         OperationService._ensure_resource(ledger, known_provider, known)
-        assert ledger.get_resource("cloudflare")["cost_minor"] == 0
-        assert ledger.get_resource("cloudflare")["quota_domain"] == "cloudflare-account"
+        assert ledger.get_resource("cloudflare:account")["cost_minor"] == 0
+        assert ledger.get_resource("cloudflare:account")["quota_domain"] == "cloudflare-account"
 
         unknown = OperationConfig(
             data_dir=tmp_path,
@@ -798,8 +798,8 @@ def test_operation_composes_an_explicit_multi_provider_pool_with_bounded_routing
             ),
             OperationProviderBinding(
                 provider_id="cloudflare",
-                model="@cf/meta/llama-3.1-8b-instruct",
-                provider_binding_id="cloudflare",
+                model="@cf/zai-org/glm-4.7-flash",
+                provider_binding_id="cloudflare:account",
                 quota_domain="cloudflare-account",
             ),
         ),
@@ -809,11 +809,11 @@ def test_operation_composes_an_explicit_multi_provider_pool_with_bounded_routing
     with OperationService.open(config) as service:
         registry = service.controller.provider.registry
         assert registry.bindings_for_provider("gemini") == ("gemini:worker",)
-        assert registry.bindings_for_provider("cloudflare") == ("cloudflare",)
+        assert registry.bindings_for_provider("cloudflare") == ("cloudflare:account",)
         assert service.controller.intelligence_routing is True
         assert service.controller.allow_unknown_quota is True
         assert service.ledger.get_resource("gemini:worker")["quota_domain"] == "google-project"
-        assert service.ledger.get_resource("cloudflare")["quota_domain"] == "cloudflare-account"
+        assert service.ledger.get_resource("cloudflare:account")["quota_domain"] == "cloudflare-account"
 
 
 class _OperationPoolProvider(FakeProvider):
@@ -837,8 +837,8 @@ class _OperationPoolProvider(FakeProvider):
 def test_operation_dispatches_l1_task_through_pool_and_falls_back_within_tier(tmp_path, monkeypatch):
     primary = _OperationPoolProvider(
         "cloudflare",
-        "cloudflare",
-        "@cf/meta/llama-3.1-8b-instruct",
+        "cloudflare:account",
+        "@cf/zai-org/glm-4.7-flash",
         "L1",
         fail_once=True,
     )
@@ -1177,11 +1177,11 @@ def test_configured_provider_pool_includes_explicit_cloudflare_free_lane(monkeyp
     config = OperationConfig.from_environment(data_dir=tmp_path)
 
     bindings = {binding.binding_id: binding for binding in config.provider_bindings}
-    assert bindings["cloudflare"].provider_id == "cloudflare"
-    assert bindings["cloudflare"].model == "@cf/meta/llama-3.1-8b-instruct"
-    assert bindings["cloudflare"].api_key_env == "CLOUDFLARE_API_TOKEN"
-    assert bindings["cloudflare"].project_id == "account-not-read-into-config"
-    assert bindings["cloudflare"].quota_domain == "cloudflare:account:account-not-read-into-config"
+    assert bindings["cloudflare:account"].provider_id == "cloudflare"
+    assert bindings["cloudflare:account"].model == "@cf/meta/llama-3.1-8b-instruct-fp8"
+    assert bindings["cloudflare:account"].api_key_env == "CLOUDFLARE_API_TOKEN"
+    assert bindings["cloudflare:account"].project_id == "account-not-read-into-config"
+    assert bindings["cloudflare:account"].quota_domain == "cloudflare:account:account-not-read-into-config"
     assert all("secret-not-read" not in repr(binding) for binding in bindings.values())
 
 

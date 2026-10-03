@@ -12,8 +12,15 @@
       "tested_at": "2026-09-08T20:48:33+09:00",
       "expires_at": "2026-10-08T00:00:00+09:00",
       "confidence": "high",
-      "capabilities": ["text", "model_generated_tool_call", "tool_result_roundtrip", "final_response"],
-      "known_quirks": ["maxOutputTokens=8 ended with MAX_TOKENS before candidate parts; the qualification probe used 256 tokens"],
+      "capabilities": [
+        "text",
+        "model_generated_tool_call",
+        "tool_result_roundtrip",
+        "final_response"
+      ],
+      "known_quirks": [
+        "maxOutputTokens=8 ended with MAX_TOKENS before candidate parts; the qualification probe used 256 tokens"
+      ],
       "errors": []
     },
     {
@@ -27,23 +34,88 @@
       "tested_at": "2026-09-08T21:30:04+09:00",
       "expires_at": "2026-10-08T21:30:04+09:00",
       "confidence": "high",
-      "capabilities": ["text", "model_generated_tool_call", "tool_result_roundtrip", "final_response", "controller_e2e"],
-      "known_quirks": ["qwen3 may include a <think> trace in final text; qualification used a bounded 512-token response"],
+      "capabilities": [
+        "text",
+        "model_generated_tool_call",
+        "tool_result_roundtrip",
+        "final_response",
+        "controller_e2e"
+      ],
+      "known_quirks": [
+        "qwen3 may include a <think> trace in final text; qualification used a bounded 512-token response"
+      ],
       "errors": []
     },
     {
       "provider": "cloudflare",
-      "model": "@cf/meta/llama-3.1-8b-instruct",
-      "provider_binding_id": "cloudflare",
+      "model": "@cf/google/gemma-4-26b-a4b-it",
+      "provider_binding_id": "cloudflare:account",
       "intelligence_tier": "L1",
-      "role": "free cloud worker",
+      "role": "dynamic free cloud worker",
       "api_version": "Workers AI REST run",
       "adapter_version": "dev_agent CloudflareWorkersAIHttpProvider",
-      "tested_at": "2026-09-09T20:30:33+09:00",
-      "expires_at": "2026-10-09T20:30:33+09:00",
+      "tested_at": "2026-10-03T09:29:25+00:00",
+      "expires_at": "2026-11-02T09:29:25+00:00",
       "confidence": "high",
-      "capabilities": ["text", "model_generated_tool_call", "tool_result_roundtrip", "final_response", "controller_e2e"],
-      "known_quirks": ["qualification response did not report quota telemetry; quota remains unknown_not_reported"],
+      "capabilities": [
+        "text",
+        "model_generated_tool_call",
+        "tool_result_roundtrip",
+        "final_response",
+        "controller_e2e"
+      ],
+      "known_quirks": [
+        "bounded live qualification completed through model-generated tool call, tool result, and final response",
+        "quota state is derived conservatively from the daily free Neuron allowance; provider-reported Neuron consumption is retained as authoritative consumption evidence"
+      ],
+      "errors": []
+    },
+    {
+      "provider": "cloudflare",
+      "model": "@cf/nvidia/nemotron-3-120b-a12b",
+      "provider_binding_id": "cloudflare:account",
+      "intelligence_tier": "L1",
+      "role": "dynamic free cloud worker",
+      "api_version": "Workers AI REST run",
+      "adapter_version": "dev_agent CloudflareWorkersAIHttpProvider",
+      "tested_at": "2026-10-03T09:29:25+00:00",
+      "expires_at": "2026-11-02T09:29:25+00:00",
+      "confidence": "high",
+      "capabilities": [
+        "text",
+        "model_generated_tool_call",
+        "tool_result_roundtrip",
+        "final_response",
+        "controller_e2e"
+      ],
+      "known_quirks": [
+        "bounded live qualification completed through model-generated tool call, tool result, and final response",
+        "quota state is derived conservatively from the daily free Neuron allowance; provider-reported Neuron consumption is retained as authoritative consumption evidence"
+      ],
+      "errors": []
+    },
+    {
+      "provider": "cloudflare",
+      "model": "@cf/zai-org/glm-4.7-flash",
+      "provider_binding_id": "cloudflare:account",
+      "intelligence_tier": "L1",
+      "role": "dynamic free cloud worker",
+      "api_version": "Workers AI REST run",
+      "adapter_version": "dev_agent CloudflareWorkersAIHttpProvider",
+      "tested_at": "2026-10-03T09:29:25+00:00",
+      "expires_at": "2026-11-02T09:29:25+00:00",
+      "confidence": "high",
+      "capabilities": [
+        "text",
+        "model_generated_tool_call",
+        "tool_result_roundtrip",
+        "final_response",
+        "controller_e2e"
+      ],
+      "known_quirks": [
+        "bounded live qualification completed through model-generated tool call, tool result, and final response",
+        "quota state is derived conservatively from the daily free Neuron allowance; provider-reported Neuron consumption is retained as authoritative consumption evidence"
+      ],
       "errors": []
     },
     {
@@ -57,8 +129,16 @@
       "tested_at": "2026-09-09T21:41:55+09:00",
       "expires_at": "2026-10-09T21:41:55+09:00",
       "confidence": "high",
-      "capabilities": ["text", "model_generated_tool_call", "tool_result_roundtrip", "final_response", "controller_e2e"],
-      "known_quirks": ["free router qualification did not report quota telemetry; quota remains unknown_not_reported"],
+      "capabilities": [
+        "text",
+        "model_generated_tool_call",
+        "tool_result_roundtrip",
+        "final_response",
+        "controller_e2e"
+      ],
+      "known_quirks": [
+        "free router qualification did not report quota telemetry; quota remains unknown_not_reported"
+      ],
       "errors": []
     },
     {
@@ -72,8 +152,19 @@
       "tested_at": "2026-09-09T22:43:14.027814+00:00",
       "expires_at": "2026-10-09T22:43:14.027814+00:00",
       "confidence": "high",
-      "capabilities": ["text", "model_generated_tool_call", "tool_result_roundtrip", "final_response", "controller_e2e", "thought_signature_roundtrip", "durable_provider_audit", "budget_reconciliation"],
-      "known_quirks": ["Gemini 3.x thoughtSignature and model functionCall parts are replayed by the adapter-local transcript; quota remains unknown_not_reported"],
+      "capabilities": [
+        "text",
+        "model_generated_tool_call",
+        "tool_result_roundtrip",
+        "final_response",
+        "controller_e2e",
+        "thought_signature_roundtrip",
+        "durable_provider_audit",
+        "budget_reconciliation"
+      ],
+      "known_quirks": [
+        "Gemini 3.x thoughtSignature and model functionCall parts are replayed by the adapter-local transcript; quota remains unknown_not_reported"
+      ],
       "errors": []
     },
     {
@@ -87,8 +178,19 @@
       "tested_at": "2026-09-09T22:43:43.684803+00:00",
       "expires_at": "2026-10-09T22:43:43.684803+00:00",
       "confidence": "high",
-      "capabilities": ["text", "model_generated_tool_call", "tool_result_roundtrip", "final_response", "controller_e2e", "thought_signature_roundtrip", "durable_provider_audit", "budget_reconciliation"],
-      "known_quirks": ["Gemini 3.x thoughtSignature and model functionCall parts are replayed by the adapter-local transcript; quota remains unknown_not_reported"],
+      "capabilities": [
+        "text",
+        "model_generated_tool_call",
+        "tool_result_roundtrip",
+        "final_response",
+        "controller_e2e",
+        "thought_signature_roundtrip",
+        "durable_provider_audit",
+        "budget_reconciliation"
+      ],
+      "known_quirks": [
+        "Gemini 3.x thoughtSignature and model functionCall parts are replayed by the adapter-local transcript; quota remains unknown_not_reported"
+      ],
       "errors": []
     },
     {
@@ -102,8 +204,12 @@
       "tested_at": "2026-09-15T14:31:17.252849+00:00",
       "expires_at": "2026-10-15T14:31:17.252849+00:00",
       "confidence": "high",
-      "capabilities": ["text"],
-      "known_quirks": ["bounded text-only contract qualification; provider returned no numeric quota telemetry; quota remains unknown_not_reported; tool-call roundtrip was not used for this admission"],
+      "capabilities": [
+        "text"
+      ],
+      "known_quirks": [
+        "bounded text-only contract qualification; provider returned no numeric quota telemetry; quota remains unknown_not_reported; tool-call roundtrip was not used for this admission"
+      ],
       "errors": [],
       "qualification_scope": "text_only_unknown_quota"
     },
@@ -118,8 +224,12 @@
       "tested_at": "2026-09-13T15:55:44.551149+00:00",
       "expires_at": "2026-10-13T15:55:44.551149+00:00",
       "confidence": "high",
-      "capabilities": ["text"],
-      "known_quirks": ["bounded text-only contract qualification; provider returned no numeric quota telemetry; quota remains unknown_not_reported; tool-call roundtrip was not used for this admission"],
+      "capabilities": [
+        "text"
+      ],
+      "known_quirks": [
+        "bounded text-only contract qualification; provider returned no numeric quota telemetry; quota remains unknown_not_reported; tool-call roundtrip was not used for this admission"
+      ],
       "errors": [],
       "qualification_scope": "text_only_unknown_quota"
     },
@@ -134,8 +244,12 @@
       "tested_at": "2026-09-13T15:58:30.994287+00:00",
       "expires_at": "2026-10-13T15:58:30.994287+00:00",
       "confidence": "high",
-      "capabilities": ["text"],
-      "known_quirks": ["bounded text-only contract qualification; provider returned no numeric quota telemetry; quota remains unknown_not_reported; tool-call roundtrip was not used for this admission"],
+      "capabilities": [
+        "text"
+      ],
+      "known_quirks": [
+        "bounded text-only contract qualification; provider returned no numeric quota telemetry; quota remains unknown_not_reported; tool-call roundtrip was not used for this admission"
+      ],
       "errors": [],
       "qualification_scope": "text_only_unknown_quota"
     },
@@ -150,8 +264,12 @@
       "tested_at": "2026-09-13T15:59:10.377621+00:00",
       "expires_at": "2026-10-13T15:59:10.377621+00:00",
       "confidence": "high",
-      "capabilities": ["text"],
-      "known_quirks": ["bounded text-only contract qualification; provider returned no numeric quota telemetry; quota remains unknown_not_reported; tool-call roundtrip was not used for this admission"],
+      "capabilities": [
+        "text"
+      ],
+      "known_quirks": [
+        "bounded text-only contract qualification; provider returned no numeric quota telemetry; quota remains unknown_not_reported; tool-call roundtrip was not used for this admission"
+      ],
       "errors": [],
       "qualification_scope": "text_only_unknown_quota"
     },
@@ -166,11 +284,29 @@
       "tested_at": "2026-09-13T22:04:20.717922+00:00",
       "expires_at": "2026-10-13T22:04:20.717922+00:00",
       "confidence": "high",
-      "capabilities": ["text"],
-      "known_quirks": ["bounded text-only contract qualification; provider returned no numeric quota telemetry; quota remains unknown_not_reported; tool-call roundtrip was not used for this admission"],
+      "capabilities": [
+        "text"
+      ],
+      "known_quirks": [
+        "bounded text-only contract qualification; provider returned no numeric quota telemetry; quota remains unknown_not_reported; tool-call roundtrip was not used for this admission"
+      ],
       "errors": [],
       "qualification_scope": "text_only_unknown_quota"
     }
   ],
-  "entry_contract": ["provider", "model", "provider_binding_id", "intelligence_tier", "role", "api_version", "adapter_version", "tested_at", "expires_at", "confidence", "capabilities", "known_quirks", "errors"]
+  "entry_contract": [
+    "provider",
+    "model",
+    "provider_binding_id",
+    "intelligence_tier",
+    "role",
+    "api_version",
+    "adapter_version",
+    "tested_at",
+    "expires_at",
+    "confidence",
+    "capabilities",
+    "known_quirks",
+    "errors"
+  ]
 }

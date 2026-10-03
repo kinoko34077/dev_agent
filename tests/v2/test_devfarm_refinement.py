@@ -482,8 +482,8 @@ def test_apply_refinement_action_formats_one_correction_without_thinking_escalat
         required_correction="Regenerate the bounded unified diff with the exact file context.",
         assignment={
             "provider_id": "cloudflare",
-            "model_id": "@cf/meta/llama-3.1-8b-instruct",
-            "provider_binding_id": "cloudflare",
+            "model_id": "@cf/zai-org/glm-4.7-flash",
+            "provider_binding_id": "cloudflare:account",
         },
     )
 
@@ -518,8 +518,8 @@ def test_apply_refinement_action_uses_one_l1_critic_proposal_for_rework_only():
         critic_proposal=proposal,
         assignment={
             "provider_id": "cloudflare",
-            "model_id": "@cf/meta/llama-3.1-8b-instruct",
-            "provider_binding_id": "cloudflare",
+            "model_id": "@cf/zai-org/glm-4.7-flash",
+            "provider_binding_id": "cloudflare:account",
         },
     )
 

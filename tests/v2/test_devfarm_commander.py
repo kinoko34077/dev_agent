@@ -36,8 +36,8 @@ from src.dev_agent.providers.fake.provider import FakeProvider
 
 class _WorkerProvider(FakeProvider):
     provider_id = "cloudflare"
-    provider_binding_id = "cloudflare"
-    model_id = "@cf/meta/llama-3.1-8b-instruct"
+    provider_binding_id = "cloudflare:account"
+    model_id = "@cf/zai-org/glm-4.7-flash"
     intelligence_tier = "L1"
 
     def __init__(self, output):
@@ -197,14 +197,14 @@ def _plan(root, revision, targets):
                     "owner": "worker",
                     "manifest_path": ".devfarm/tasks/worker-a.json",
                     "ownership": [targets[0]],
-                    "assignment": {"provider_id": "cloudflare", "model_id": "@cf/meta/llama-3.1-8b-instruct"},
+                    "assignment": {"provider_id": "cloudflare", "model_id": "@cf/zai-org/glm-4.7-flash"},
                 },
                 {
                     "task_id": "worker-b",
                     "owner": "worker",
                     "manifest_path": ".devfarm/tasks/worker-b.json",
                     "ownership": [targets[1]],
-                    "assignment": {"provider_id": "cloudflare", "model_id": "@cf/meta/llama-3.1-8b-instruct"},
+                    "assignment": {"provider_id": "cloudflare", "model_id": "@cf/zai-org/glm-4.7-flash"},
                 },
                 {
                     "task_id": "codex-review",
@@ -308,7 +308,7 @@ def test_commander_preserves_work_address_and_rejects_duplicate_addresses(tmp_pa
                     "work_address": "5-B",
                     "manifest_path": ".devfarm/tasks/worker-a.json",
                     "ownership": [targets[0]],
-                    "assignment": {"provider_id": "cloudflare", "model_id": "@cf/meta/llama-3.1-8b-instruct"},
+                    "assignment": {"provider_id": "cloudflare", "model_id": "@cf/zai-org/glm-4.7-flash"},
                 },
                 {
                     "task_id": "codex-review",
@@ -1093,7 +1093,7 @@ def test_commander_reassigns_a_failed_worker_within_attempt_limit(tmp_path):
                     "manifest_path": ".devfarm/tasks/worker-a.json",
                     "ownership": [targets[0]],
                     "max_attempts": 2,
-                        "assignment": {"provider_id": "cloudflare", "model_id": "@cf/meta/llama-3.1-8b-instruct"},
+                        "assignment": {"provider_id": "cloudflare", "model_id": "@cf/zai-org/glm-4.7-flash"},
                 }
             ],
         },
@@ -1204,7 +1204,7 @@ def test_commander_persists_host_verification_boundary_failure(tmp_path):
                     "owner": "worker",
                     "manifest_path": ".devfarm/tasks/worker-a.json",
                     "ownership": [targets[0]],
-                        "assignment": {"provider_id": "cloudflare", "model_id": "@cf/meta/llama-3.1-8b-instruct"},
+                        "assignment": {"provider_id": "cloudflare", "model_id": "@cf/zai-org/glm-4.7-flash"},
                 }
             ],
         },
@@ -1243,7 +1243,7 @@ def test_commander_persists_verifier_result_failure_reason(tmp_path):
                     "owner": "worker",
                     "manifest_path": ".devfarm/tasks/worker-a.json",
                     "ownership": [targets[0]],
-                    "assignment": {"provider_id": "cloudflare", "model_id": "@cf/meta/llama-3.1-8b-instruct"},
+                    "assignment": {"provider_id": "cloudflare", "model_id": "@cf/zai-org/glm-4.7-flash"},
                 }
             ],
         },
@@ -1277,7 +1277,7 @@ def test_commander_clears_stale_verification_error_after_reassigned_success(tmp_
                     "manifest_path": ".devfarm/tasks/worker-a.json",
                     "ownership": [targets[0]],
                     "max_attempts": 2,
-                    "assignment": {"provider_id": "cloudflare", "model_id": "@cf/meta/llama-3.1-8b-instruct"},
+                    "assignment": {"provider_id": "cloudflare", "model_id": "@cf/zai-org/glm-4.7-flash"},
                 }
             ],
         },
@@ -1303,7 +1303,7 @@ def test_commander_clears_stale_verification_error_after_reassigned_success(tmp_
         "verification-retry-clean-run",
         "worker-a",
         provider_id="cloudflare",
-        model_id="@cf/meta/llama-3.1-8b-instruct",
+        model_id="@cf/zai-org/glm-4.7-flash",
     )
     dispatch_plan(root, "verification-retry-clean-run", providers={"worker-a": provider})
     verified = verify_plan(root, "verification-retry-clean-run", verification_trust_level="TRUSTED_HOST_EXEC", operator_approved=True)
@@ -1544,7 +1544,7 @@ def test_commander_integration_requires_git_evidence_and_records_it(tmp_path):
                     "owner": "worker",
                     "manifest_path": ".devfarm/tasks/worker-a.json",
                     "ownership": [targets[0]],
-                        "assignment": {"provider_id": "cloudflare", "model_id": "@cf/meta/llama-3.1-8b-instruct"},
+                        "assignment": {"provider_id": "cloudflare", "model_id": "@cf/zai-org/glm-4.7-flash"},
                 }
             ],
         },
@@ -1675,7 +1675,7 @@ def test_commander_reissues_dependent_manifest_from_integration_revision(tmp_pat
                     "owner": "worker",
                     "manifest_path": ".devfarm/tasks/worker-a.json",
                     "ownership": [targets[0]],
-                        "assignment": {"provider_id": "cloudflare", "model_id": "@cf/meta/llama-3.1-8b-instruct"},
+                        "assignment": {"provider_id": "cloudflare", "model_id": "@cf/zai-org/glm-4.7-flash"},
                 },
                 {
                     "task_id": "worker-b",
@@ -1683,7 +1683,7 @@ def test_commander_reissues_dependent_manifest_from_integration_revision(tmp_pat
                     "dependencies": ["worker-a"],
                     "manifest_path": original_manifest,
                     "ownership": [targets[1]],
-                    "assignment": {"provider_id": "cloudflare", "model_id": "@cf/meta/llama-3.1-8b-instruct"},
+                    "assignment": {"provider_id": "cloudflare", "model_id": "@cf/zai-org/glm-4.7-flash"},
                 },
             ],
         },

@@ -35,6 +35,8 @@ _ALLOWED_METADATA_KEYS = frozenset(
         "input_modalities",
         "output_modalities",
         "supported_parameters",
+        "task_name",
+        "tags",
     }
 )
 
@@ -150,6 +152,15 @@ class ModelCatalogEntry:
             return True
         if self.metadata.get("deprecated") is True or not self.supports_generation_method("generateContent"):
             return False
+        if self.provider_id == "cloudflare":
+            task_name = self.metadata.get("task_name")
+            if isinstance(task_name, str) and task_name.strip() != "Text Generation":
+                return False
+            tags = self.metadata.get("tags")
+            if isinstance(tags, list):
+                blocked_tags = {"moderation", "safety", "content-filtering", "guardrails"}
+                if any(isinstance(tag, str) and tag.strip().lower() in blocked_tags for tag in tags):
+                    return False
         if self.provider_id == "openrouter":
             for field_name in ("input_modalities", "output_modalities"):
                 modalities = self.metadata.get(field_name)

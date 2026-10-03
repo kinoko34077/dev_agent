@@ -150,6 +150,7 @@ class OperationProviderBinding:
     # materialization is opt-in and keeps the qualification identity separate.
     model_candidates: tuple[str, ...] | list[str] | None = None
     qualification_binding_id: str | None = None
+    expand_discovered_models: bool = False
 
     def __post_init__(self) -> None:
         provider_id = self.provider_id.strip().lower() if isinstance(self.provider_id, str) else ""
@@ -178,6 +179,8 @@ class OperationProviderBinding:
             raise ValueError("keep_alive must be finite")
         if self.think is not None and not isinstance(self.think, bool):
             raise ValueError("think must be a boolean or None")
+        if not isinstance(self.expand_discovered_models, bool):
+            raise ValueError("expand_discovered_models must be a boolean")
         candidates = self.model_candidates
         if candidates is not None:
             if isinstance(candidates, str) or not isinstance(candidates, (list, tuple)) or not candidates:
@@ -294,15 +297,21 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
         )
     cloudflare_account_id = env("CLOUDFLARE_ACCOUNT_ID")
     if env("CLOUDFLARE_API_TOKEN") and cloudflare_account_id:
+        cloudflare_model_pin = env("CLOUDFLARE_MODEL")
         bindings.append(
             OperationProviderBinding(
                 provider_id="cloudflare",
-                model=env("CLOUDFLARE_MODEL") or "@cf/meta/llama-3.1-8b-instruct",
-                provider_binding_id="cloudflare",
+                # The seed remains a valid concrete model for explicit
+                # construction, but normal configured operation expands the
+                # current discovered catalog when no operator pin is present.
+                model=cloudflare_model_pin or "@cf/meta/llama-3.1-8b-instruct-fp8",
+                provider_binding_id="cloudflare:account",
                 quota_domain=f"cloudflare:account:{cloudflare_account_id}",
                 credential_id="cloudflare-account",
                 api_key_env="CLOUDFLARE_API_TOKEN",
                 project_id=cloudflare_account_id,
+                qualification_binding_id="cloudflare:account",
+                expand_discovered_models=cloudflare_model_pin is None,
             )
         )
     ollama_model = env("OLLAMA_MODEL")
@@ -1337,9 +1346,10 @@ class OperationService:
     def _ensure_resource(ledger: ResourceLedger, provider: Any, config: OperationConfig | OperationProviderBinding, *, qualification_resolver: QualificationResolver | None = None) -> None:
         binding_id = getattr(provider, "provider_binding_id", None) or config.binding_id
         model_id = getattr(provider, "model_id", None) or config.model
-        profile = _operation_resource_profile(config.provider_id, binding_id, model_id)
+        evidence_binding_id = getattr(config, "credential_binding_id", None) or binding_id
+        profile = _operation_resource_profile(config.provider_id, evidence_binding_id, model_id)
         resolver = qualification_resolver or QualificationResolver()
-        qualification = resolver.resolve(config.provider_id, binding_id, model_id)
+        qualification = resolver.resolve(config.provider_id, evidence_binding_id, model_id)
         tier = getattr(provider, "intelligence_tier", None) or (profile.intelligence_tier if profile else None) or _inferred_tier(config, qualification_resolver=resolver)
         try:
             existing = ledger.get_resource(binding_id)
@@ -1349,9 +1359,14 @@ class OperationService:
             metadata = existing.get("metadata") if isinstance(existing.get("metadata"), dict) else {}
             existing_model = metadata.get("model_id")
             existing_binding = existing.get("provider_binding_id") or metadata.get("provider_binding_id")
+            existing_evidence_binding = metadata.get("qualification_binding_id") or existing_binding
             if existing["provider_id"] != config.provider_id or existing_binding != binding_id or (existing_model is not None and existing_model != model_id):
                 raise OperationError(
                     f"resource binding already belongs to another provider/model: {binding_id}"
+                )
+            if existing_evidence_binding != evidence_binding_id:
+                raise OperationError(
+                    f"resource qualification binding differs: {binding_id}"
                 )
             existing_domain = existing.get("quota_domain")
             if config.quota_domain is not None and existing_domain not in {None, config.quota_domain}:
@@ -1426,6 +1441,7 @@ class OperationService:
         price_currency = profile.price_currency if profile is not None else None
         resource_metadata = {
             "provider_binding_id": binding_id,
+            "qualification_binding_id": evidence_binding_id,
             "model_id": model_id,
         }
         if config.provider_id == "ollama":

@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from scripts.devfarm_errors import DevFarmError
-from src.dev_agent.resources.billing_catalog import TRUSTED_RESOURCE_CATALOG
+from src.dev_agent.resources.billing_catalog import profile_for as trusted_billing_profile_for
 from src.dev_agent.resources.provider_policy import is_local_provider as _is_local_provider
 from src.dev_agent.resources.qualification import QualificationError, QualificationResolver
 from src.dev_agent.providers.base import ModelProvider
@@ -127,7 +127,7 @@ class DevFarmActivationPolicy:
                 normalized_provider, normalized_model, binding_id, tier, True, True,
                 capability_expiry, False, None, None, False, "binding_not_qualified",
             )
-        profile = TRUSTED_RESOURCE_CATALOG.get((normalized_provider, binding_id, normalized_model))
+        profile = trusted_billing_profile_for(normalized_provider, binding_id, normalized_model)
         if profile is None:
             return DevFarmWorkerEligibility(
                 normalized_provider, normalized_model, binding_id, tier, True, True,

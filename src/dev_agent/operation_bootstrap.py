@@ -14,11 +14,14 @@ from typing import Any, Callable
 from .intelligence.coordination import EvaluationCoordinator
 from .intelligence.lifecycle import TaskLifecycleCoordinator
 from .providers.dispatch import ProviderDispatcher
+from .providers.model_discovery import ModelDiscoveryBinding, ProviderModelDiscovery
 from .providers.registry import ProviderRegistry
 from .resources.budget import BudgetGovernor
 from .resources.control import ResourceControlPlane
 from .resources.ledger import ResourceLedger
 from .resources.model_admission import ModelAdmissionResolver
+from .resources.model_candidates import materialize_provider_bindings
+from .resources.model_catalog import ModelCatalog
 from .resources.model_evidence import ModelEvidenceCatalog
 from .resources.qualification import QualificationResolver
 from .resources.router import ResourceRouter
@@ -73,14 +76,86 @@ def open_components(
         control = OperationControl(config.queue_path)
         qualification_resolver = QualificationResolver()
         model_admission_resolver = None
+        model_catalog = None
         model_evidence_directory = getattr(config, "model_evidence_directory", None)
+        configured_bindings = tuple(config.provider_bindings)
+        dynamic_discovery_requested = any(
+            bool(getattr(binding, "expand_discovered_models", False))
+            for binding in configured_bindings
+        )
         if model_evidence_directory is not None:
-            model_admission_resolver = ModelEvidenceCatalog.load(model_evidence_directory).resolver
+            model_evidence = ModelEvidenceCatalog.load(model_evidence_directory)
+            model_catalog = model_evidence.catalog
+            model_admission_resolver = model_evidence.resolver
+        elif dynamic_discovery_requested:
+            # Dynamic configured bindings opt into the reviewed repository
+            # catalog for candidate identity only. Discovery still grants no
+            # routing authority: qualification, billing, privacy, quota and
+            # health gates remain mandatory below.
+            model_catalog = ModelEvidenceCatalog.load_default().catalog
         ensure_budget(ledger)
+
+        runtime_bindings: list[Any] = []
+        for binding in configured_bindings:
+            if not bool(getattr(binding, "expand_discovered_models", False)):
+                runtime_bindings.append(binding)
+                continue
+
+            candidate_catalog = model_catalog
+            # Refresh the factual candidate set at Operation startup through
+            # the common discovery contract. A live model list grants no
+            # execution authority; every row still passes exact
+            # qualification/billing/quota/health gates below. If the
+            # read-only refresh is unavailable, only the still-current
+            # reviewed catalog may serve as fallback.
+            try:
+                live = ProviderModelDiscovery().discover(
+                    ModelDiscoveryBinding.from_operation_binding(binding)
+                )
+                candidate_catalog = ModelCatalog.from_document(live.to_document())
+            except Exception:
+                candidate_catalog = model_catalog
+            if candidate_catalog is None:
+                continue
+            for candidate in materialize_provider_bindings(
+                binding,
+                candidate_catalog,
+                expand_discovered_models=True,
+            ):
+                evidence_binding_id = candidate.credential_binding_id
+                # The seed model must not bypass current discovery merely
+                # because it is present in configuration.
+                if candidate_catalog.lookup(
+                    candidate.provider_id,
+                    evidence_binding_id,
+                    candidate.model,
+                ) is None:
+                    continue
+                qualification = qualification_resolver.resolve(
+                    candidate.provider_id,
+                    evidence_binding_id,
+                    candidate.model,
+                )
+                if qualification is None:
+                    continue
+                profile = resource_profile(
+                    candidate.provider_id,
+                    evidence_binding_id,
+                    candidate.model,
+                )
+                if profile is None or not profile.no_charge_guaranteed or not profile.is_current():
+                    continue
+                if model_admission_resolver is not None and model_admission_resolver.resolve(
+                    candidate.provider_id,
+                    evidence_binding_id,
+                    candidate.model,
+                ) is None:
+                    continue
+                runtime_bindings.append(candidate)
 
         providers: list[Any] = []
         trusted_free_binding_present = False
-        for binding in config.provider_bindings:
+        for binding in runtime_bindings:
             try:
                 accepts_resolver = "qualification_resolver" in inspect.signature(build_provider).parameters
             except (TypeError, ValueError):
@@ -91,8 +166,14 @@ def open_components(
                 else build_provider(binding)
             )
             ensure_resource(ledger, provider, binding, qualification_resolver=qualification_resolver)
-            profile = resource_profile(binding.provider_id, binding.binding_id, binding.model)
-            trusted_free_binding_present = trusted_free_binding_present or bool(profile is not None and profile.no_charge_guaranteed)
+            profile = resource_profile(
+                binding.provider_id,
+                binding.credential_binding_id,
+                binding.model,
+            )
+            trusted_free_binding_present = trusted_free_binding_present or bool(
+                profile is not None and profile.no_charge_guaranteed and profile.is_current()
+            )
             providers.append(provider)
 
         resource_control = ResourceControlPlane(

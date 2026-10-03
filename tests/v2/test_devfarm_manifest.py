@@ -57,7 +57,7 @@ class _CapturingWorkerProvider(_WorkerProvider):
 def test_devfarm_provider_uses_factory_and_explicit_activation_allowlist():
     policy = DevFarmActivationPolicy()
     assert not policy.is_active("cloudflare")
-    assert policy.is_active("cloudflare", "@cf/meta/llama-3.1-8b-instruct")
+    assert policy.is_active("cloudflare", "@cf/zai-org/glm-4.7-flash")
     assert not policy.is_active("cloudflare", "arbitrary-unqualified-model")
     assert not policy.is_active("gemini")
     assert policy.eligibility_for(
@@ -70,10 +70,10 @@ def test_devfarm_provider_uses_factory_and_explicit_activation_allowlist():
     assert not policy.is_active("openrouter")
     assert not policy.is_active("mistral")
 
-    cloudflare = _provider("cloudflare", "@cf/meta/llama-3.1-8b-instruct", 4)
+    cloudflare = _provider("cloudflare", "@cf/zai-org/glm-4.7-flash", 4, "cloudflare:account")
     assert isinstance(cloudflare, CloudflareWorkersAIHttpProvider)
-    assert cloudflare.model == "@cf/meta/llama-3.1-8b-instruct"
-    assert cloudflare.provider_binding_id == "cloudflare"
+    assert cloudflare.model == "@cf/zai-org/glm-4.7-flash"
+    assert cloudflare.provider_binding_id == "cloudflare:account"
 
     openrouter = _provider("openrouter", "openrouter/free", 4)
     assert isinstance(openrouter, OpenRouterHttpProvider)
@@ -517,14 +517,14 @@ def test_worker_egress_dry_run_reports_destination_and_digests_without_source(tm
         workspace,
         manifest_path,
         provider_id="cloudflare",
-        model="@cf/meta/llama-3.1-8b-instruct",
+        model="@cf/zai-org/glm-4.7-flash",
     )
 
     assert summary["status"] == "ready"
     assert summary["network_requested"] is False
     assert summary["source_content_emitted"] is False
     assert summary["provider_id"] == "cloudflare"
-    assert summary["provider_binding_id"] == "cloudflare"
+    assert summary["provider_binding_id"] == "cloudflare:account"
     assert summary["egress_manifest"]["decision"] == "ALLOW"
     assert summary["egress_manifest"]["files"][0]["sha256"]
     serialized = json.dumps(summary, ensure_ascii=False)
@@ -543,7 +543,7 @@ def test_worker_egress_dry_run_cli_is_read_only(tmp_path, capsys):
             "--provider",
             "cloudflare",
             "--model",
-            "@cf/meta/llama-3.1-8b-instruct",
+            "@cf/zai-org/glm-4.7-flash",
             "--egress-dry-run",
         ]
     ) == 0

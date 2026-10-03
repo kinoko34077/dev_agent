@@ -306,8 +306,8 @@ def test_stage5_existing_commander_runs_two_role_instances_through_review_and_in
             "role_generation": 1,
             "assignment": {
                 "provider_id": "cloudflare",
-                "provider_binding_id": "cloudflare",
-                "model_id": "@cf/meta/llama-3.1-8b-instruct",
+                "provider_binding_id": "cloudflare:account",
+                "model_id": "@cf/zai-org/glm-4.7-flash",
             },
         }
         for letter, target in zip(("a", "b"), targets)

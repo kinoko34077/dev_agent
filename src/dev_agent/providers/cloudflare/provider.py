@@ -46,7 +46,11 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
     # the response does not report neurons directly; they are never treated
     # as an authoritative remaining quota.
     _NEURON_RATES_PER_MILLION = {
-        "@cf/meta/llama-3.1-8b-instruct": (25455, 75455),
+        "@cf/meta/llama-3.1-8b-instruct": (25_455, 75_455),
+        "@cf/meta/llama-3.1-8b-instruct-fp8": (13_778, 26_128),
+        "@cf/zai-org/glm-4.7-flash": (5_500, 36_400),
+        "@cf/google/gemma-4-26b-a4b-it": (9_091, 27_273),
+        "@cf/nvidia/nemotron-3-120b-a12b": (45_455, 136_364),
     }
 
     def __init__(
@@ -136,11 +140,20 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
         reset_at = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
         period_id = now.date().isoformat()
         reported = usage.get("neurons")
-        if isinstance(reported, int) and not isinstance(reported, bool) and reported >= 0:
+        if (
+            isinstance(reported, (int, float))
+            and not isinstance(reported, bool)
+            and math.isfinite(float(reported))
+            and reported >= 0
+        ):
             return {
                 "unit": "neurons",
-                "consumed": reported,
+                "consumed": math.ceil(float(reported)),
+                # A provider-reported neuron count is authoritative for the
+                # observed consumption. Conservative local reconstruction is
+                # reserved for token-derived estimates, not this observation.
                 "authority": "provider",
+                "consumption_authority": "authoritative_provider",
                 "quota_authority": "authoritative_provider",
                 "evidence_mode": "authoritative_provider",
                 "limit": cls.FREE_NEURON_ALLOWANCE,
@@ -209,11 +222,28 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
         result = raw.get("result")
         if not isinstance(result, Mapping):
             raise ProviderError("cloudflare response decode failed: result is missing", category="provider_decode", retryable=False)
-        message = result.get("message") if isinstance(result.get("message"), Mapping) else result
-        calls = cls._tool_calls(message.get("tool_calls"), request)
-        text = message.get("response")
-        if text is None:
+
+        # Workers AI currently exposes two documented/observed result shapes:
+        # the legacy direct result envelope and an OpenAI-compatible
+        # chat-completions result nested under the same {success,result}
+        # account API envelope. Normalize both without using model-name
+        # heuristics.
+        choices = result.get("choices")
+        if isinstance(choices, list) and choices and isinstance(choices[0], Mapping):
+            choice = choices[0]
+            message = choice.get("message")
+            if not isinstance(message, Mapping):
+                raise ProviderError("cloudflare response decode failed: choice message is missing", category="provider_decode", retryable=False)
+            calls = cls._tool_calls(message.get("tool_calls"), request)
             text = message.get("content")
+            finish_reason = choice.get("finish_reason")
+        else:
+            message = result.get("message") if isinstance(result.get("message"), Mapping) else result
+            calls = cls._tool_calls(message.get("tool_calls"), request)
+            text = message.get("response")
+            if text is None:
+                text = message.get("content")
+            finish_reason = result.get("finish_reason")
         if text is not None and not isinstance(text, str):
             raise ProviderError("cloudflare response decode failed: response is not text", category="provider_decode", retryable=False)
         usage = dict(result.get("usage")) if isinstance(result.get("usage"), Mapping) else {}
@@ -229,7 +259,7 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
         return ModelResponse(
             provider="cloudflare",
             model=requested_model or model_name,
-            finish_reason=str(result.get("finish_reason") or "stop"),
+            finish_reason=str(finish_reason or "stop"),
             text_segments=[text] if text else [],
             tool_calls=calls,
             usage=usage,

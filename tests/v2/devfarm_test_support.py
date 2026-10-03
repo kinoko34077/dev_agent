@@ -8,8 +8,8 @@ from src.dev_agent.providers.fake.provider import FakeProvider
 
 class _WorkerProvider(FakeProvider):
     provider_id = "cloudflare"
-    provider_binding_id = "cloudflare"
-    model_id = "@cf/meta/llama-3.1-8b-instruct"
+    provider_binding_id = "cloudflare:account"
+    model_id = "@cf/zai-org/glm-4.7-flash"
     intelligence_tier = "L1"
 
     def __init__(self, output: dict):
@@ -27,8 +27,8 @@ class _WorkerProvider(FakeProvider):
 
 class _RawWorkerProvider(FakeProvider):
     provider_id = "cloudflare"
-    provider_binding_id = "cloudflare"
-    model_id = "@cf/meta/llama-3.1-8b-instruct"
+    provider_binding_id = "cloudflare:account"
+    model_id = "@cf/zai-org/glm-4.7-flash"
     intelligence_tier = "L1"
 
     def __init__(self, text: str):

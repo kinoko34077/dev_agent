@@ -18,8 +18,8 @@ from src.dev_agent.resources.router import NoRoute, ResourceRouter, RouteRequest
 def test_qualified_tool_evidence_projects_to_tool_call_for_operation_resource(tmp_path):
     config = OperationProviderBinding(
         provider_id="cloudflare",
-        model="@cf/meta/llama-3.1-8b-instruct",
-        provider_binding_id="cloudflare",
+        model="@cf/zai-org/glm-4.7-flash",
+        provider_binding_id="cloudflare:account",
         quota_domain="account:test",
         intelligence_tier="L1",
     )
@@ -27,15 +27,15 @@ def test_qualified_tool_evidence_projects_to_tool_call_for_operation_resource(tm
         "QualifiedProvider",
         (),
         {
-            "provider_binding_id": "cloudflare",
-            "model_id": "@cf/meta/llama-3.1-8b-instruct",
+            "provider_binding_id": "cloudflare:account",
+            "model_id": "@cf/zai-org/glm-4.7-flash",
             "intelligence_tier": "L1",
         },
     )()
 
     with ResourceLedger(tmp_path / "resources.sqlite3") as ledger:
         OperationService._ensure_resource(ledger, provider, config)
-        resource = ledger.get_resource("cloudflare")
+        resource = ledger.get_resource("cloudflare:account")
 
     assert "text" in resource["capabilities"]
     assert "tool_call" in resource["capabilities"]

@@ -108,6 +108,26 @@ def _metadata_for(provider_id: str, raw_model: Mapping[str, Any]) -> Mapping[str
             metadata["thinking_supported"] = raw_model["thinking"]
         if isinstance(raw_model.get("deprecated"), bool):
             metadata["deprecated"] = raw_model["deprecated"]
+    elif provider_id == "cloudflare":
+        task = raw_model.get("task")
+        task = task if isinstance(task, Mapping) else {}
+        task_name = _bounded_string(task.get("name"))
+        if task_name is not None:
+            metadata["task_name"] = task_name
+        tags = raw_model.get("tags")
+        if isinstance(tags, list):
+            bounded_tags: list[str] = []
+            for raw_tag in tags:
+                if isinstance(raw_tag, Mapping):
+                    value = _bounded_string(raw_tag.get("name") or raw_tag.get("id"))
+                else:
+                    value = _bounded_string(raw_tag)
+                if value is not None and value not in bounded_tags:
+                    bounded_tags.append(value)
+                if len(bounded_tags) >= _MAX_METADATA_ITEMS:
+                    break
+            if bounded_tags:
+                metadata["tags"] = bounded_tags
     elif provider_id == "openrouter":
         context_length = _bounded_positive_int(raw_model.get("context_length"))
         if context_length is not None:
@@ -150,6 +170,31 @@ class ModelDiscoveryBinding:
         if not 0 < float(self.timeout_seconds) <= 120:
             raise ValueError("timeout_seconds must be from 0 to 120")
         object.__setattr__(self, "timeout_seconds", float(self.timeout_seconds))
+
+    @classmethod
+    def from_operation_binding(cls, binding: Any) -> "ModelDiscoveryBinding":
+        """Normalize one configured Operation binding for model discovery.
+
+        Discovery is a provider-adapter concern, so provider-specific endpoint
+        details stay here instead of leaking into Operation composition.  The
+        returned value contains only credential references and bounded
+        connection metadata; it never copies secret values.
+        """
+
+        provider_id = _text(getattr(binding, "provider_id", None), "provider_id").lower()
+        credential_binding_id = getattr(binding, "credential_binding_id", None)
+        if not isinstance(credential_binding_id, str) or not credential_binding_id.strip():
+            credential_binding_id = getattr(binding, "binding_id", None)
+        api_key_env = getattr(binding, "api_key_env", None)
+        account_id_env = "CLOUDFLARE_ACCOUNT_ID" if provider_id == "cloudflare" else None
+        timeout_seconds = getattr(binding, "timeout_seconds", 20.0)
+        return cls(
+            provider_id=provider_id,
+            provider_binding_id=_text(credential_binding_id, "credential_binding_id"),
+            api_key_env=api_key_env,
+            account_id_env=account_id_env,
+            timeout_seconds=min(float(timeout_seconds), 120.0),
+        )
 
 
 @dataclass(frozen=True)
