@@ -77,7 +77,6 @@ def test_cloudflare_dynamic_billing_policy_allows_free_and_denies_paid_required_
         "cloudflare",
         "cloudflare:account",
         "@cf/zai-org/glm-4.7-flash",
-        now=NOW,
     )
     assert free_profile is not None
     assert free_profile.no_charge_guaranteed is True
