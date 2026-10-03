@@ -1,0 +1,108 @@
+name: cloudflare-evidence-c1
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  c1-model-discovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify credential references are present
+        shell: bash
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo '{"status":"AUTH_REQUIRED","missing":"CLOUDFLARE_API_TOKEN"}'
+            exit 2
+          fi
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo '{"status":"AUTH_REQUIRED","missing":"CLOUDFLARE_ACCOUNT_ID"}'
+            exit 2
+          fi
+          echo '{"status":"AUTH_REFERENCES_PRESENT"}'
+
+      - name: Create ephemeral Cloudflare-only binding
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["RUNNER_TEMP"]) / "cloudflare-only.json"
+          path.write_text(
+              json.dumps(
+                  {
+                      "schema_version": 1,
+                      "bindings": [
+                          {
+                              "provider_id": "cloudflare",
+                              "provider_binding_id": "cloudflare:account",
+                              "api_key_env": "CLOUDFLARE_API_TOKEN",
+                              "account_id_env": "CLOUDFLARE_ACCOUNT_ID",
+                          }
+                      ],
+                  }
+              ),
+              encoding="utf-8",
+          )
+          PY
+
+      - name: C1 read-only model discovery
+        shell: bash
+        run: |
+          python scripts/refresh_model_catalog.py \
+            --bindings "$RUNNER_TEMP/cloudflare-only.json" \
+            --output "$RUNNER_TEMP/cloudflare-models.json" \
+            --execution-boundary host_process
+
+      - name: Emit sanitized C1 evidence summary
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          configured = "@cf/meta/llama-3.1-8b-instruct"
+          doc = json.loads((Path(os.environ["RUNNER_TEMP"]) / "cloudflare-models.json").read_text(encoding="utf-8"))
+          entries = [
+              entry
+              for entry in doc.get("entries", [])
+              if entry.get("provider_id") == "cloudflare"
+              and entry.get("provider_binding_id") == "cloudflare:account"
+          ]
+          dispatch_ids = sorted(
+              {
+                  entry.get("model_id")
+                  for entry in entries
+                  if isinstance(entry.get("model_id"), str) and entry["model_id"].startswith("@cf/")
+              }
+          )
+          matches = [entry for entry in entries if entry.get("model_id") == configured]
+          summary = {
+              "status": "OBSERVED",
+              "provider": "cloudflare",
+              "provider_binding_id": "cloudflare:account",
+              "entry_count": len(entries),
+              "dispatch_identity_count": len(dispatch_ids),
+              "dispatch_identities": dispatch_ids,
+              "configured_model": configured,
+              "configured_model_present": bool(matches),
+              "configured_model_entry": matches[0] if matches else None,
+              "refreshed_bindings": doc.get("refreshed_bindings", []),
+              "discovery_failures": doc.get("discovery_failures", []),
+          }
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          PY
