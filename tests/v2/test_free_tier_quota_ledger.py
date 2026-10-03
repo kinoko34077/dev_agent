@@ -203,3 +203,30 @@ def test_control_plane_quota_error_hard_stops_latest_conservative_period(tmp_pat
     state = ledger.get_conservative_quota("cloudflare-free", period_id="2026-10-03")
     assert state["exhausted"] is True
     assert state["blocked_until"] == "2026-10-04T00:00:00+00:00"
+
+
+def test_local_conservative_exhaustion_projects_blocked_quota_observation(tmp_path):
+    ledger = _ledger(tmp_path)
+    payload = {
+        "quota_observation": {
+            "unit": "neurons",
+            "limit": 100,
+            "consumed": 90,
+            "quota_authority": "derived_conservative",
+            "evidence_mode": "derived_conservative",
+            "period_id": "2026-10-03",
+            "reset_at": "2026-10-04T00:00:00+00:00",
+            "reset_source": "cloudflare_daily_utc",
+            "metric": "workers_ai_neurons",
+            "window": "day",
+        }
+    }
+    assert ledger.ingest_quota_observation("cloudflare-free", payload, accounting_key="response-1")
+
+    payload["quota_observation"]["consumed"] = 20
+    assert not ledger.ingest_quota_observation("cloudflare-free", payload, accounting_key="response-2")
+
+    observation = ledger.get_quota_observation("cloudflare-free")
+    assert observation["remaining"] == 0
+    assert observation["block_reason"] == "local_conservative_limit"
+    assert observation["blocked_until"] == "2026-10-04T00:00:00+00:00"

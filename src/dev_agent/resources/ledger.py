@@ -771,7 +771,33 @@ class ResourceLedger:
                     observed_at=payload.get("observed_at") or observed_at,
                     source=payload.get("source", source),
                 )
-            except (TypeError, ValueError, KeyError, FreeTierQuotaExhausted):
+            except FreeTierQuotaExhausted:
+                # The durable ledger is authoritative for the conservative
+                # ceiling.  Project its exhausted state into the normal
+                # observation view as well, otherwise Router could retain a
+                # stale positive-headroom observation after a local debit
+                # crosses the allowance.
+                current = self.get_latest_conservative_quota(resource_id)
+                if current is not None:
+                    self.observe_quota(
+                        resource_id,
+                        unit=current["unit"],
+                        limit=current["allowance_limit"],
+                        remaining=0,
+                        consumed=current["consumed"],
+                        authority="derived_conservative",
+                        metric=payload.get("metric", "workers_ai_neurons"),
+                        window=payload.get("window", "day"),
+                        reset_source=current["reset_source"],
+                        blocked_until=current["reset_at"],
+                        block_reason="local_conservative_limit",
+                        reset_at=current["reset_at"],
+                        confidence=payload.get("confidence", 0.25),
+                        observed_at=payload.get("observed_at") or observed_at,
+                        source=payload.get("source", source),
+                    )
+                return False
+            except (TypeError, ValueError, KeyError):
                 return False
             return True
         fields = (
