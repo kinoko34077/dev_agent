@@ -209,9 +209,12 @@ def test_cloudflare_decoder_accepts_current_chat_completion_result_shape():
 
     assert response.text_segments == ["ready"]
     assert response.model == "@cf/zai-org/glm-4.7-flash"
-    assert response.usage["quota_observation"]["consumed"] == 2
-    assert response.usage["quota_observation"]["consumption_authority"] == "authoritative_provider"
-    assert response.usage["quota_observation"]["quota_authority"] == "authoritative_provider"
+    observation = response.usage["quota_observation"]
+    assert observation["consumed"] == 2
+    assert observation["consumption_authority"] == "authoritative_provider"
+    assert observation["quota_authority"] == "derived_conservative"
+    assert observation["evidence_mode"] == "derived_conservative"
+    assert "remaining" not in observation
 
 
 def test_current_canonical_cloudflare_catalog_materializes_only_exact_qualified_free_candidates():
