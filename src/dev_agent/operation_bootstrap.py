@@ -122,32 +122,38 @@ def open_components(
                 candidate_catalog,
                 expand_discovered_models=True,
             ):
-                evidence_binding_id = candidate.credential_binding_id
+                # Discovery/static catalog identity may differ from the
+                # qualification/billing lane (for example OpenRouter's
+                # account catalog versus its reviewed free lane).  Keep both
+                # identities explicit instead of making one stand in for the
+                # other.
+                catalog_binding_id = binding.binding_id
+                qualification_binding_id = candidate.credential_binding_id
                 # The seed model must not bypass current discovery merely
                 # because it is present in configuration.
                 if candidate_catalog.lookup(
                     candidate.provider_id,
-                    evidence_binding_id,
+                    catalog_binding_id,
                     candidate.model,
                 ) is None:
                     continue
                 qualification = qualification_resolver.resolve(
                     candidate.provider_id,
-                    evidence_binding_id,
+                    qualification_binding_id,
                     candidate.model,
                 )
                 if qualification is None:
                     continue
                 profile = resource_profile(
                     candidate.provider_id,
-                    evidence_binding_id,
+                    qualification_binding_id,
                     candidate.model,
                 )
                 if profile is None or not profile.no_charge_guaranteed or not profile.is_current():
                     continue
                 if model_admission_resolver is not None and model_admission_resolver.resolve(
                     candidate.provider_id,
-                    evidence_binding_id,
+                    catalog_binding_id,
                     candidate.model,
                 ) is None:
                     continue
