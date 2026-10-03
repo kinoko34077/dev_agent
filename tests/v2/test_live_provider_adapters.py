@@ -259,8 +259,13 @@ def test_cloudflare_provider_reported_neurons_are_authoritative_when_present(mon
     response = CloudflareWorkersAIHttpProvider(
         model="@cf/meta/llama-3.1-8b-instruct", account_id="account", api_token="token"
     ).request(request)
-    assert response.usage["quota_observation"]["consumed"] == 321
-    assert response.usage["quota_observation"]["quota_authority"] == "authoritative_provider"
+    observation = response.usage["quota_observation"]
+    assert observation["consumed"] == 321
+    assert observation["authority"] == "provider"
+    assert observation["consumption_authority"] == "authoritative_provider"
+    assert observation["quota_authority"] == "derived_conservative"
+    assert observation["evidence_mode"] == "derived_conservative"
+    assert "remaining" not in observation
 
 
 def test_cloudflare_daily_allocation_error_is_typed_as_quota_exhaustion(monkeypatch):
