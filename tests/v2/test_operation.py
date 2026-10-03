@@ -1155,18 +1155,53 @@ def test_configured_provider_pool_exposes_core_gemini_lane_without_project_id(mo
     assert "secret-not-read" not in repr(core)
 
 
-def test_configured_provider_pool_includes_explicit_openrouter_free_lane(monkeypatch, tmp_path):
+def test_configured_provider_pool_discovers_unpinned_gemini_lanes(monkeypatch, tmp_path):
+    monkeypatch.setenv("DEV_AGENT_ENABLE_CONFIGURED_POOL", "1")
+    monkeypatch.setenv("GEMINI_API_KEY_3", "secret-not-read-into-config")
+    monkeypatch.delenv("GEMINI_MODEL", raising=False)
+    monkeypatch.delenv("GEMINI_MODEL_3", raising=False)
+
+    config = OperationConfig.from_environment(data_dir=tmp_path)
+
+    lane = next(item for item in config.provider_bindings if item.binding_id == "gemini:worker:free-3")
+    assert lane.model == "gemini-3.5-flash-lite"
+    assert lane.expand_discovered_models is True
+
+    monkeypatch.setenv("GEMINI_MODEL_3", "gemini-operator-pin")
+    pinned_config = OperationConfig.from_environment(data_dir=tmp_path / "pinned")
+    pinned = next(item for item in pinned_config.provider_bindings if item.binding_id == "gemini:worker:free-3")
+    assert pinned.model == "gemini-operator-pin"
+    assert pinned.expand_discovered_models is False
+
+
+def test_configured_provider_pool_includes_openrouter_account_discovery_lane(monkeypatch, tmp_path):
     monkeypatch.setenv("DEV_AGENT_ENABLE_CONFIGURED_POOL", "1")
     monkeypatch.setenv("OPENROUTER_API_KEY", "secret-not-read-into-config")
 
     config = OperationConfig.from_environment(data_dir=tmp_path)
 
     bindings = {binding.binding_id: binding for binding in config.provider_bindings}
-    assert bindings["openrouter:free"].provider_id == "openrouter"
-    assert bindings["openrouter:free"].model == "openrouter/free"
-    assert bindings["openrouter:free"].api_key_env == "OPENROUTER_API_KEY"
-    assert bindings["openrouter:free"].quota_domain == "openrouter:account"
+    assert bindings["openrouter:account"].provider_id == "openrouter"
+    assert bindings["openrouter:account"].model == "openrouter/free"
+    assert bindings["openrouter:account"].api_key_env == "OPENROUTER_API_KEY"
+    assert bindings["openrouter:account"].quota_domain == "openrouter:account"
+    assert bindings["openrouter:account"].qualification_binding_id == "openrouter:free"
+    assert bindings["openrouter:account"].expand_discovered_models is True
     assert all("secret-not-read" not in repr(binding) for binding in bindings.values())
+
+
+def test_configured_provider_pool_keeps_explicit_openrouter_pin_out_of_dynamic_discovery(monkeypatch, tmp_path):
+    monkeypatch.setenv("DEV_AGENT_ENABLE_CONFIGURED_POOL", "1")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "secret-not-read-into-config")
+    monkeypatch.setenv("OPENROUTER_MODEL", "provider/pinned-model")
+
+    config = OperationConfig.from_environment(data_dir=tmp_path)
+
+    pinned = next(item for item in config.provider_bindings if item.provider_id == "openrouter")
+    assert pinned.binding_id == "openrouter:account"
+    assert pinned.model == "provider/pinned-model"
+    assert pinned.qualification_binding_id == "openrouter:free"
+    assert pinned.expand_discovered_models is False
 
 
 def test_configured_provider_pool_includes_explicit_cloudflare_free_lane(monkeypatch, tmp_path):

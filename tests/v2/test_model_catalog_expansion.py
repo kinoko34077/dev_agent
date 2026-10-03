@@ -230,6 +230,89 @@ def test_discovery_expansion_materializes_distinct_execution_bindings_for_one_cr
     assert all(candidate.binding_id != candidate.qualification_binding_id for candidate in candidates)
 
 
+def test_discovery_expansion_keeps_catalog_and_qualification_bindings_separate():
+    catalog = ModelCatalog.from_document(
+        {
+            "schema_version": 1,
+            "entries": [
+                {
+                    "provider_id": "openrouter",
+                    "provider_binding_id": "openrouter:account",
+                    "model_id": "openrouter/free",
+                    "source": "openrouter.models.list",
+                    "observed_at": "2026-09-14T00:00:00+00:00",
+                    "expires_at": "2026-09-15T00:00:00+00:00",
+                    "metadata": {"modality": "text->text"},
+                }
+            ],
+        }
+    )
+    binding = OperationProviderBinding(
+        provider_id="openrouter",
+        provider_binding_id="openrouter:account",
+        qualification_binding_id="openrouter:free",
+        model="openrouter/free",
+        api_key_env="OPENROUTER_API_KEY",
+    )
+
+    candidates = materialize_provider_bindings(
+        binding,
+        catalog,
+        expand_discovered_models=True,
+        now=NOW,
+    )
+
+    assert len(candidates) == 1
+    assert candidates[0].credential_binding_id == "openrouter:free"
+    # A single discovered model keeps the exact account binding; the
+    # qualification/billing lane remains the separate reviewed free identity.
+    assert candidates[0].binding_id == "openrouter:account"
+
+
+def test_discovery_expansion_preserves_seed_before_bounded_aggregator_catalog():
+    entries = [
+        {
+            "provider_id": "openrouter",
+            "provider_binding_id": "openrouter:account",
+            "model_id": "openrouter/free",
+            "source": "openrouter.models.list",
+            "observed_at": "2026-09-14T00:00:00+00:00",
+            "expires_at": "2026-09-15T00:00:00+00:00",
+            "metadata": {"modality": "text->text"},
+        }
+    ]
+    entries.extend(
+        {
+            "provider_id": "openrouter",
+            "provider_binding_id": "openrouter:account",
+            "model_id": f"provider/model-{index:03d}",
+            "source": "openrouter.models.list",
+            "observed_at": "2026-09-14T00:00:00+00:00",
+            "expires_at": "2026-09-15T00:00:00+00:00",
+            "metadata": {"modality": "text->text"},
+        }
+        for index in range(140)
+    )
+    catalog = ModelCatalog.from_document({"schema_version": 1, "entries": entries})
+    binding = OperationProviderBinding(
+        provider_id="openrouter",
+        provider_binding_id="openrouter:account",
+        qualification_binding_id="openrouter:free",
+        model="openrouter/free",
+        api_key_env="OPENROUTER_API_KEY",
+    )
+
+    candidates = materialize_provider_bindings(
+        binding,
+        catalog,
+        expand_discovered_models=True,
+        now=NOW,
+    )
+
+    assert len(candidates) == 128
+    assert candidates[0].model == "openrouter/free"
+
+
 def test_benchmark_discovery_uses_exact_or_date_suffixed_model_identity_only():
     document = {
         "data": [

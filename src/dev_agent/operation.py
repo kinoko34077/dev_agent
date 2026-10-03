@@ -227,15 +227,19 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
     """Build an explicit opt-in pool from configured, non-secret binding metadata.
 
     Presence of a credential alone never activates this path.  The caller must
-    opt in, and cloud models still require a model name before construction.
-    Qualification and billing admission remain exact downstream authorities.
+    opt in.  A model value is retained as a bounded construction seed because
+    the binding contract is concrete, but an unpinned cloud lane opts into
+    discovery and the seed is admitted only when the current catalog and all
+    downstream qualification/billing authorities accept it.
     """
 
     bindings: list[OperationProviderBinding] = []
-    default_gemini_model = env("GEMINI_MODEL") or "gemini-3.5-flash-lite"
+    gemini_model_pin = env("GEMINI_MODEL")
+    default_gemini_model = gemini_model_pin or "gemini-3.5-flash-lite"
     gemini_api_key = env("GEMINI_API_KEY")
     project_id = env("GEMINI_PROJECT_ID")
     if gemini_api_key:
+        core_model_pin = env("GEMINI_CORE_MODEL")
         core_project_id = (
             f"projects/{project_id}"
             if project_id and not project_id.startswith("projects/")
@@ -244,7 +248,7 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
         bindings.append(
             OperationProviderBinding(
                 provider_id="gemini",
-                model=env("GEMINI_CORE_MODEL") or "gemini-3.8-flash",
+                model=core_model_pin or "gemini-3.8-flash",
                 provider_binding_id="gemini:core",
                 quota_domain=(
                     f"gemini:project:{project_id}"
@@ -254,6 +258,7 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
                 credential_id="gemini-core",
                 api_key_env="GEMINI_API_KEY",
                 project_id=core_project_id,
+                expand_discovered_models=core_model_pin is None,
             )
         )
     if gemini_api_key and project_id:
@@ -266,33 +271,42 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
                 credential_id="gemini-primary",
                 api_key_env="GEMINI_API_KEY",
                 project_id=f"projects/{project_id}" if project_id and not project_id.startswith("projects/") else project_id,
+                expand_discovered_models=gemini_model_pin is None,
             )
         )
     for slot, project_number in _CONFIGURED_GEMINI_PROJECTS.items():
         env_name = f"GEMINI_API_KEY_{slot}"
         if not env(env_name):
             continue
+        slot_model_pin = env(f"GEMINI_MODEL_{slot}") or gemini_model_pin
         bindings.append(
             OperationProviderBinding(
                 provider_id="gemini",
-                model=env(f"GEMINI_MODEL_{slot}") or default_gemini_model,
+                model=slot_model_pin or default_gemini_model,
                 provider_binding_id=f"gemini:worker:free-{slot}",
                 quota_domain=f"gemini:project:{project_number}",
                 credential_id=f"gemini-key-{slot}",
                 api_key_env=env_name,
                 project_id=f"projects/{project_number}",
+                expand_discovered_models=slot_model_pin is None,
             )
         )
-    openrouter_model = env("OPENROUTER_MODEL") or "openrouter/free"
+    openrouter_model_pin = env("OPENROUTER_MODEL")
+    openrouter_model = openrouter_model_pin or "openrouter/free"
     if env("OPENROUTER_API_KEY"):
         bindings.append(
             OperationProviderBinding(
                 provider_id="openrouter",
                 model=openrouter_model,
-                provider_binding_id="openrouter:free",
+                # The account lane is the discovery/static-catalog identity;
+                # the reviewed free lane remains the exact billing and
+                # qualification identity below.
+                provider_binding_id="openrouter:account",
                 quota_domain="openrouter:account",
                 credential_id="openrouter-free",
                 api_key_env="OPENROUTER_API_KEY",
+                qualification_binding_id="openrouter:free",
+                expand_discovered_models=openrouter_model_pin is None,
             )
         )
     cloudflare_account_id = env("CLOUDFLARE_ACCOUNT_ID")

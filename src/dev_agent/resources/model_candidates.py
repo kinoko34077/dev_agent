@@ -34,13 +34,18 @@ def materialize_provider_bindings(
 ) -> tuple[Any, ...]:
     """Expand one credential binding into bounded execution candidates.
 
-    The original ``provider_binding_id`` remains the exact qualification and
-    billing lane via ``credential_binding_id``.  Each expanded candidate gets
-    a distinct registry identity so two models sharing one credential do not
-    collide in ProviderRegistry or durable dispatch intents.
+    The original ``provider_binding_id`` remains the discovery/catalog lane.
+    ``credential_binding_id`` remains the exact qualification and billing
+    lane.  Each expanded candidate gets a distinct registry identity so two
+    models sharing one credential do not collide in ProviderRegistry or
+    durable dispatch intents.
     """
 
-    if not hasattr(binding, "candidate_model_ids") or not hasattr(binding, "credential_binding_id"):
+    if (
+        not hasattr(binding, "candidate_model_ids")
+        or not hasattr(binding, "credential_binding_id")
+        or not hasattr(binding, "binding_id")
+    ):
         raise TypeError("binding must be an OperationProviderBinding-like object")
     if catalog is not None and not isinstance(catalog, ModelCatalog):
         raise TypeError("catalog must be a ModelCatalog or None")
@@ -53,10 +58,17 @@ def materialize_provider_bindings(
             raise ValueError("catalog is required when expand_discovered_models is true")
         models.update(
             entry.model_id
-            for entry in catalog.entries_for_binding(binding.provider_id, base_binding_id, now=now)
+            for entry in catalog.entries_for_binding(binding.provider_id, binding.binding_id, now=now)
             if entry.is_text_generation_candidate(min_input_token_limit=min_input_token_limit)
         )
-    ordered_models = tuple(sorted(models))[:128]
+    # Keep the operator/configuration seed visible even when an aggregator
+    # returns more than the bounded candidate limit.  Downstream admission
+    # still decides whether the seed is usable; this only prevents a sorted
+    # catalog page from silently evicting it before admission runs.
+    ordered_models = (
+        binding.model,
+        *sorted(model for model in models if model != binding.model),
+    )[:128]
     if not ordered_models:
         return ()
     if len(ordered_models) == 1 and ordered_models[0] == binding.model and binding.model_candidates is None:
