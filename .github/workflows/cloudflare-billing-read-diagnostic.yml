@@ -1,0 +1,58 @@
+name: cloudflare-billing-read-diagnostic
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  billing-read-diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compare standard Billing Read with restricted billable usage
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from urllib.error import HTTPError, URLError
+          from urllib.request import Request, urlopen
+
+          token = os.environ.get("CLOUDFLARE_API_TOKEN", "")
+          account_id = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "")
+          if not token or not account_id:
+              print(json.dumps({"status":"AUTH_REQUIRED"}))
+              raise SystemExit(2)
+
+          def probe(path):
+              req = Request(
+                  "https://api.cloudflare.com/client/v4" + path,
+                  headers={"Accept":"application/json","Authorization":"Bearer " + token},
+                  method="GET",
+              )
+              try:
+                  with urlopen(req, timeout=15) as response:
+                      return {"http_status": response.status, "reachable": True}
+              except HTTPError as exc:
+                  return {"http_status": exc.code, "reachable": True}
+              except URLError:
+                  return {"http_status": None, "reachable": False}
+
+          result = {
+              "billing_profile": probe(f"/accounts/{account_id}/billing/profile"),
+              "billable_usage_v2": probe(f"/accounts/{account_id}/billable/usage"),
+          }
+          print(json.dumps(result, indent=2, sort_keys=True))
+          if result["billing_profile"]["http_status"] != 200:
+              raise SystemExit(3)
+          PY
