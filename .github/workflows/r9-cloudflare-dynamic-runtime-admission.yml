@@ -1,0 +1,135 @@
+name: r9-cloudflare-dynamic-runtime-admission
+
+on:
+  push:
+    branches:
+      - phase8/r9-runtime-admission-20261003
+    paths:
+      - .github/workflows/r9-cloudflare-dynamic-runtime-admission.yml
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-admission:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DEV_AGENT_ENABLE_CONFIGURED_POOL: "1"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run dynamic Cloudflare admission and one bounded liveness call
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          from uuid import uuid4
+
+          from src.dev_agent.domain.protocol import ModelRequest
+          from src.dev_agent.operation import OperationConfig, OperationService
+          from src.dev_agent.resources.router import RouteRequest
+          from src.dev_agent.resources.runtime_admission import (
+              RuntimeAdmissionCandidate,
+              RuntimeAdmissionEvaluator,
+          )
+
+          with TemporaryDirectory(prefix="r9-cloudflare-runtime-") as directory:
+              service = OperationService.open(
+                  OperationConfig.from_environment(data_dir=Path(directory))
+              )
+              try:
+                  before = service.ledger.routing_snapshot()
+                  cloudflare_resources = [
+                      resource for resource in before.resources
+                      if resource.get("provider_id") == "cloudflare"
+                  ]
+
+                  selection = service.dispatcher.control.router.choose(
+                      RouteRequest(
+                          capabilities={"text"},
+                          allowed_providers={"cloudflare"},
+                          max_cost_minor=0,
+                          allow_unknown_quota=True,
+                      ),
+                      snapshot=before,
+                  )
+                  if not selection.provider_binding_id or not selection.model_id:
+                      raise RuntimeError("router selected an incomplete Cloudflare identity")
+
+                  request = ModelRequest(
+                      task_id=str(uuid4()),
+                      messages=[{"role": "user", "content": "Reply with the single word ready."}],
+                      requested_capabilities=["text"],
+                      max_output_tokens=32,
+                      cost_ceiling=0.0,
+                      metadata={
+                          "allow_unknown_quota": True,
+                          "allowed_provider_binding_ids": [selection.provider_binding_id],
+                      },
+                  )
+                  response = service.dispatcher.request(request)
+
+                  after = service.ledger.routing_snapshot()
+                  admission = RuntimeAdmissionEvaluator(
+                      service.dispatcher.control.router
+                  ).evaluate(
+                      RuntimeAdmissionCandidate(
+                          provider_id=selection.provider_id,
+                          provider_binding_id=selection.provider_binding_id,
+                          model_id=selection.model_id,
+                      ),
+                      snapshot=after,
+                  )
+
+                  resource = next(
+                      item for item in after.resources
+                      if item.get("resource_id") == selection.resource_id
+                  )
+                  quota_domain = resource.get("quota_domain")
+                  quota_rows = list(after.quota_observations_by_domain.get(quota_domain, ())) if quota_domain else []
+                  safe_quota = []
+                  allowed_quota_fields = {
+                      "unit", "metric", "window", "limit", "remaining", "consumed",
+                      "authority", "confidence", "observed_at", "reset_at",
+                      "reset_source", "blocked_until", "block_reason", "source",
+                  }
+                  for row in quota_rows:
+                      safe_quota.append({
+                          key: value for key, value in row.items()
+                          if key in allowed_quota_fields
+                      })
+
+                  result = {
+                      "status": "OBSERVED",
+                      "candidate_count": len(cloudflare_resources),
+                      "candidate_models": sorted({
+                          str((item.get("metadata") or {}).get("model_id") or item.get("model_id"))
+                          for item in cloudflare_resources
+                          if ((item.get("metadata") or {}).get("model_id") or item.get("model_id"))
+                      }),
+                      "selected": {
+                          "provider_id": selection.provider_id,
+                          "provider_binding_id": selection.provider_binding_id,
+                          "model_id": selection.model_id,
+                          "unknown_quota_before": selection.unknown_quota,
+                      },
+                      "response": {
+                          "provider": response.provider,
+                          "model": response.model,
+                          "finish_reason": response.finish_reason,
+                          "usage_keys": sorted(response.usage.keys()),
+                      },
+                      "quota_observations": safe_quota,
+                      "runtime_admission_after": admission.status,
+                  }
+                  print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+              finally:
+                  service.close()
+          PY
