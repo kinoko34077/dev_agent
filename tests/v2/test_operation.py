@@ -1204,6 +1204,56 @@ def test_configured_provider_pool_keeps_explicit_openrouter_pin_out_of_dynamic_d
     assert pinned.expand_discovered_models is False
 
 
+def test_configured_provider_pool_includes_discovery_only_openai_compatible_lanes(monkeypatch, tmp_path):
+    monkeypatch.setenv("DEV_AGENT_ENABLE_CONFIGURED_POOL", "1")
+    monkeypatch.setenv("GROQ_API_KEY", "secret-not-read-into-config")
+    monkeypatch.setenv("MISTRAL_API_KEY", "secret-not-read-into-config")
+    monkeypatch.setenv("SAMBANOVA_API_KEY", "secret-not-read-into-config")
+    for name in ("GROQ_MODEL", "MISTRAL_MODEL", "SAMBANOVA_MODEL"):
+        monkeypatch.delenv(name, raising=False)
+
+    config = OperationConfig.from_environment(data_dir=tmp_path)
+
+    bindings = {binding.binding_id: binding for binding in config.provider_bindings}
+    expected = {
+        "groq:account": ("groq", "llama-3.3-70b-versatile", "GROQ_API_KEY"),
+        "mistral:account": ("mistral", "mistral-small-latest", "MISTRAL_API_KEY"),
+        "sambanova:account": ("sambanova", "Meta-Llama-3.3-70B-Instruct", "SAMBANOVA_API_KEY"),
+    }
+    for binding_id, (provider_id, seed_model, api_key_env) in expected.items():
+        binding = bindings[binding_id]
+        assert (binding.provider_id, binding.model, binding.api_key_env) == (
+            provider_id,
+            seed_model,
+            api_key_env,
+        )
+        assert binding.quota_domain == f"{provider_id}:account"
+        assert binding.credential_binding_id == binding_id
+        assert binding.expand_discovered_models is True
+        assert "secret-not-read" not in repr(binding)
+
+
+def test_configured_provider_pool_keeps_openai_compatible_operator_pins_out_of_discovery(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("DEV_AGENT_ENABLE_CONFIGURED_POOL", "1")
+    monkeypatch.setenv("GROQ_API_KEY", "secret-not-read-into-config")
+    monkeypatch.setenv("MISTRAL_API_KEY", "secret-not-read-into-config")
+    monkeypatch.setenv("SAMBANOVA_API_KEY", "secret-not-read-into-config")
+    monkeypatch.setenv("GROQ_MODEL", "groq/operator-model")
+    monkeypatch.setenv("MISTRAL_MODEL", "mistral/operator-model")
+    monkeypatch.setenv("SAMBANOVA_MODEL", "sambanova/operator-model")
+
+    config = OperationConfig.from_environment(data_dir=tmp_path)
+
+    bindings = {binding.binding_id: binding for binding in config.provider_bindings}
+    for provider_id in ("groq", "mistral", "sambanova"):
+        binding = bindings[f"{provider_id}:account"]
+        assert binding.model == f"{provider_id}/operator-model"
+        assert binding.qualification_binding_id == f"{provider_id}:account"
+        assert binding.expand_discovered_models is False
+
+
 def test_configured_provider_pool_includes_explicit_cloudflare_free_lane(monkeypatch, tmp_path):
     monkeypatch.setenv("DEV_AGENT_ENABLE_CONFIGURED_POOL", "1")
     monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "account-not-read-into-config")

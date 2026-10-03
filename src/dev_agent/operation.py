@@ -82,6 +82,14 @@ _CONFIGURED_GEMINI_PROJECTS = {
     "4": "497456937770",
     "5": "691705059831",
 }
+# These are bounded construction seeds only.  An unpinned lane expands from
+# the current provider discovery catalog; the seed is never routing or billing
+# authority and still has to pass the existing downstream admission gates.
+_CONFIGURED_DISCOVERY_SEEDS = {
+    "groq": "llama-3.3-70b-versatile",
+    "mistral": "mistral-small-latest",
+    "sambanova": "Meta-Llama-3.3-70B-Instruct",
+}
 OLLAMA_DEFAULT_MODEL = "qwen3.5:9b"
 OLLAMA_FALLBACK_MODELS = ("gemma4:12b",)
 
@@ -326,6 +334,26 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
                 project_id=cloudflare_account_id,
                 qualification_binding_id="cloudflare:account",
                 expand_discovered_models=cloudflare_model_pin is None,
+            )
+        )
+    for provider_id, api_key_env, model_env in (
+        ("groq", "GROQ_API_KEY", "GROQ_MODEL"),
+        ("mistral", "MISTRAL_API_KEY", "MISTRAL_MODEL"),
+        ("sambanova", "SAMBANOVA_API_KEY", "SAMBANOVA_MODEL"),
+    ):
+        if not env(api_key_env):
+            continue
+        model_pin = env(model_env)
+        bindings.append(
+            OperationProviderBinding(
+                provider_id=provider_id,
+                model=model_pin or _CONFIGURED_DISCOVERY_SEEDS[provider_id],
+                provider_binding_id=f"{provider_id}:account",
+                quota_domain=f"{provider_id}:account",
+                credential_id=f"{provider_id}-account",
+                api_key_env=api_key_env,
+                qualification_binding_id=f"{provider_id}:account",
+                expand_discovered_models=model_pin is None,
             )
         )
     ollama_model = env("OLLAMA_MODEL")
