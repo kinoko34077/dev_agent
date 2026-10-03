@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+from src.dev_agent.domain.protocol import ModelRequest
 from src.dev_agent.operation import configured_provider_pool_from_environment
 from src.dev_agent.providers.cloudflare.provider import CloudflareWorkersAIHttpProvider
 from src.dev_agent.providers.model_discovery import ModelDiscoveryBinding, ProviderModelDiscovery
@@ -178,3 +179,33 @@ def test_current_cloudflare_free_candidates_have_conservative_neuron_rates():
     assert CloudflareWorkersAIHttpProvider.neurons_for_usage(
         "@cf/nvidia/nemotron-3-120b-a12b", 1_000_000, 1_000_000
     ) == 181_819
+
+
+def test_cloudflare_decoder_accepts_current_chat_completion_result_shape():
+    request = ModelRequest(messages=[{"role": "user", "content": "ready"}])
+    response = CloudflareWorkersAIHttpProvider._decode(
+        {
+            "success": True,
+            "result": {
+                "model": "@cf/zai-org/glm-4.7-flash",
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {"role": "assistant", "content": "ready"},
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 2,
+                    "neurons": 1.25,
+                },
+            },
+        },
+        request,
+        "@cf/zai-org/glm-4.7-flash",
+    )
+
+    assert response.text_segments == ["ready"]
+    assert response.model == "@cf/zai-org/glm-4.7-flash"
+    assert response.usage["quota_observation"]["consumed"] == 2
+    assert response.usage["quota_observation"]["quota_authority"] == "authoritative_provider"
