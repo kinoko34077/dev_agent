@@ -3,328 +3,173 @@
   "entries": [
     {
       "provider_id": "cloudflare",
-      "model_id": "01564c52-8717-47dc-8efd-907a2ca18301",
-      "canonical_model_id": "cloudflare/01564c52-8717-47dc-8efd-907a2ca18301"
+      "model_id": "@cf/aisingapore/gemma-sea-lion-v4-27b-it",
+      "canonical_model_id": "cloudflare/@cf/aisingapore/gemma-sea-lion-v4-27b-it"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "01bc2fb0-4bca-4598-b985-d2584a3f46c0",
-      "canonical_model_id": "cloudflare/01bc2fb0-4bca-4598-b985-d2584a3f46c0"
+      "model_id": "@cf/cloudflare/clef",
+      "canonical_model_id": "cloudflare/@cf/cloudflare/clef"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "02c16efa-29f5-4304-8e6c-3d188889f875",
-      "canonical_model_id": "cloudflare/02c16efa-29f5-4304-8e6c-3d188889f875"
+      "model_id": "@cf/cloudflare/clef-flash",
+      "canonical_model_id": "cloudflare/@cf/cloudflare/clef-flash"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "06455e78-19f7-487b-93cd-c05a3dd07813",
-      "canonical_model_id": "cloudflare/06455e78-19f7-487b-93cd-c05a3dd07813"
+      "model_id": "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
+      "canonical_model_id": "cloudflare/@cf/deepseek-ai/deepseek-r1-distill-qwen-32b"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "0e372c11-8720-46c9-a02d-666188a22dae",
-      "canonical_model_id": "cloudflare/0e372c11-8720-46c9-a02d-666188a22dae"
+      "model_id": "@cf/deepseek-ai/deepseek-v4-flash-0731",
+      "canonical_model_id": "cloudflare/@cf/deepseek-ai/deepseek-v4-flash-0731"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "1161560b-87f9-4795-afb3-a905cf21bcf8",
-      "canonical_model_id": "cloudflare/1161560b-87f9-4795-afb3-a905cf21bcf8"
+      "model_id": "@cf/deepseek-ai/deepseek-v4-pro-0813",
+      "canonical_model_id": "cloudflare/@cf/deepseek-ai/deepseek-v4-pro-0813"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "145337e7-cec3-4ebb-8e78-16ddfc75e580",
-      "canonical_model_id": "cloudflare/145337e7-cec3-4ebb-8e78-16ddfc75e580"
+      "model_id": "@cf/google/gemma-2b-it-lora",
+      "canonical_model_id": "cloudflare/@cf/google/gemma-2b-it-lora"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "15631501-2742-4346-a469-22fe202188a2",
-      "canonical_model_id": "cloudflare/15631501-2742-4346-a469-22fe202188a2"
+      "model_id": "@cf/google/gemma-4-26b-a4b-it",
+      "canonical_model_id": "cloudflare/@cf/google/gemma-4-26b-a4b-it"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "188a4e1e-253e-46d0-9616-0bf8c149763f",
-      "canonical_model_id": "cloudflare/188a4e1e-253e-46d0-9616-0bf8c149763f"
+      "model_id": "@cf/google/gemma-7b-it-lora",
+      "canonical_model_id": "cloudflare/@cf/google/gemma-7b-it-lora"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "1f55679f-009e-4456-aa4f-049a62b4b6a0",
-      "canonical_model_id": "cloudflare/1f55679f-009e-4456-aa4f-049a62b4b6a0"
+      "model_id": "@cf/ibm-granite/granite-4.0-h-micro",
+      "canonical_model_id": "cloudflare/@cf/ibm-granite/granite-4.0-h-micro"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "200f0812-148c-48c1-915d-fb3277a94a08",
-      "canonical_model_id": "cloudflare/200f0812-148c-48c1-915d-fb3277a94a08"
+      "model_id": "@cf/meta-llama/llama-2-7b-chat-hf-lora",
+      "canonical_model_id": "cloudflare/@cf/meta-llama/llama-2-7b-chat-hf-lora"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "2169496d-9c0e-4e49-8399-c44ee66bff7d",
-      "canonical_model_id": "cloudflare/2169496d-9c0e-4e49-8399-c44ee66bff7d"
+      "model_id": "@cf/meta/llama-3.1-8b-instruct-fp8",
+      "canonical_model_id": "cloudflare/@cf/meta/llama-3.1-8b-instruct-fp8"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "22338608-b54d-4f04-884e-ab06f3dbbf3e",
-      "canonical_model_id": "cloudflare/22338608-b54d-4f04-884e-ab06f3dbbf3e"
+      "model_id": "@cf/meta/llama-3.2-11b-vision-instruct",
+      "canonical_model_id": "cloudflare/@cf/meta/llama-3.2-11b-vision-instruct"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "2cbc033b-ded8-4e02-bbb2-47cf05d5cfe5",
-      "canonical_model_id": "cloudflare/2cbc033b-ded8-4e02-bbb2-47cf05d5cfe5"
+      "model_id": "@cf/meta/llama-3.2-1b-instruct",
+      "canonical_model_id": "cloudflare/@cf/meta/llama-3.2-1b-instruct"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "2d50837b-2dc7-4994-a690-a38e25c16d74",
-      "canonical_model_id": "cloudflare/2d50837b-2dc7-4994-a690-a38e25c16d74"
+      "model_id": "@cf/meta/llama-3.2-3b-instruct",
+      "canonical_model_id": "cloudflare/@cf/meta/llama-3.2-3b-instruct"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "31690291-ebdc-4f98-bcfc-a44844e215b7",
-      "canonical_model_id": "cloudflare/31690291-ebdc-4f98-bcfc-a44844e215b7"
+      "model_id": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "canonical_model_id": "cloudflare/@cf/meta/llama-3.3-70b-instruct-fp8-fast"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "328adb49-4a7d-43e3-a2d5-802ae8100fe7",
-      "canonical_model_id": "cloudflare/328adb49-4a7d-43e3-a2d5-802ae8100fe7"
+      "model_id": "@cf/meta/llama-4-scout-17b-16e-instruct",
+      "canonical_model_id": "cloudflare/@cf/meta/llama-4-scout-17b-16e-instruct"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "337170b7-bd2f-4631-9a57-688b579cf6d3",
-      "canonical_model_id": "cloudflare/337170b7-bd2f-4631-9a57-688b579cf6d3"
+      "model_id": "@cf/mistral/mistral-7b-instruct-v0.2-lora",
+      "canonical_model_id": "cloudflare/@cf/mistral/mistral-7b-instruct-v0.2-lora"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "3ae8936e-593e-4fb2-85ee-95dd8a057588",
-      "canonical_model_id": "cloudflare/3ae8936e-593e-4fb2-85ee-95dd8a057588"
+      "model_id": "@cf/mistralai/mistral-small-3.1-24b-instruct",
+      "canonical_model_id": "cloudflare/@cf/mistralai/mistral-small-3.1-24b-instruct"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "4090e54c-eee4-4221-b410-10c1c0f92f17",
-      "canonical_model_id": "cloudflare/4090e54c-eee4-4221-b410-10c1c0f92f17"
+      "model_id": "@cf/moonshotai/kimi-k2.6",
+      "canonical_model_id": "cloudflare/@cf/moonshotai/kimi-k2.6"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "41ca173f-72d5-4420-8915-49e835d2676e",
-      "canonical_model_id": "cloudflare/41ca173f-72d5-4420-8915-49e835d2676e"
+      "model_id": "@cf/moonshotai/kimi-k2.7-code",
+      "canonical_model_id": "cloudflare/@cf/moonshotai/kimi-k2.7-code"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "429b9e8b-d99e-44de-91ad-706cf8183658",
-      "canonical_model_id": "cloudflare/429b9e8b-d99e-44de-91ad-706cf8183658"
+      "model_id": "@cf/nvidia/nemotron-3-120b-a12b",
+      "canonical_model_id": "cloudflare/@cf/nvidia/nemotron-3-120b-a12b"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "43dbadb4-2b0a-47e9-8479-34a49b971f1e",
-      "canonical_model_id": "cloudflare/43dbadb4-2b0a-47e9-8479-34a49b971f1e"
+      "model_id": "@cf/openai/gpt-oss-120b",
+      "canonical_model_id": "cloudflare/@cf/openai/gpt-oss-120b"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "4edc7dfe-de78-4156-890c-85b79227694e",
-      "canonical_model_id": "cloudflare/4edc7dfe-de78-4156-890c-85b79227694e"
+      "model_id": "@cf/openai/gpt-oss-20b",
+      "canonical_model_id": "cloudflare/@cf/openai/gpt-oss-20b"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "51b71d5b-8bc0-4489-a107-95e542b69914",
-      "canonical_model_id": "cloudflare/51b71d5b-8bc0-4489-a107-95e542b69914"
+      "model_id": "@cf/qwen/qwen2.5-coder-32b-instruct",
+      "canonical_model_id": "cloudflare/@cf/qwen/qwen2.5-coder-32b-instruct"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "57fbd08a-a4c4-411c-910d-b9459ff36c20",
-      "canonical_model_id": "cloudflare/57fbd08a-a4c4-411c-910d-b9459ff36c20"
+      "model_id": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "canonical_model_id": "cloudflare/@cf/qwen/qwen3-30b-a3b-fp8"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "5cdffa8e-1b1e-48e8-85f1-ab9b943cdd32",
-      "canonical_model_id": "cloudflare/5cdffa8e-1b1e-48e8-85f1-ab9b943cdd32"
+      "model_id": "@cf/qwen/qwen3.8-27b",
+      "canonical_model_id": "cloudflare/@cf/qwen/qwen3.8-27b"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "60920ed4-cf72-449a-a0f3-a38456b78262",
-      "canonical_model_id": "cloudflare/60920ed4-cf72-449a-a0f3-a38456b78262"
+      "model_id": "@cf/qwen/qwq-32b",
+      "canonical_model_id": "cloudflare/@cf/qwen/qwq-32b"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "617e7ec3-bf8d-4088-a863-4f89582d91b5",
-      "canonical_model_id": "cloudflare/617e7ec3-bf8d-4088-a863-4f89582d91b5"
+      "model_id": "@cf/swiss-ai/apertus-v1.5-8b",
+      "canonical_model_id": "cloudflare/@cf/swiss-ai/apertus-v1.5-8b"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "6d52253a-b731-4a03-b203-cde2d4fae871",
-      "canonical_model_id": "cloudflare/6d52253a-b731-4a03-b203-cde2d4fae871"
+      "model_id": "@cf/utter-project/eurollm-9b-it",
+      "canonical_model_id": "cloudflare/@cf/utter-project/eurollm-9b-it"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "724608fa-983e-495d-b95c-340d6b7e78be",
-      "canonical_model_id": "cloudflare/724608fa-983e-495d-b95c-340d6b7e78be"
+      "model_id": "@cf/zai-org/glm-4.7-flash",
+      "canonical_model_id": "cloudflare/@cf/zai-org/glm-4.7-flash"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "7276b330-b4ae-4662-81d1-3a8bea8368f8",
-      "canonical_model_id": "cloudflare/7276b330-b4ae-4662-81d1-3a8bea8368f8"
+      "model_id": "@cf/zai-org/glm-5.2",
+      "canonical_model_id": "cloudflare/@cf/zai-org/glm-5.2"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "7912c0ab-542e-44b9-b9ee-3113d226a8b5",
-      "canonical_model_id": "cloudflare/7912c0ab-542e-44b9-b9ee-3113d226a8b5"
+      "model_id": "@cf/zai-org/glm-5.3",
+      "canonical_model_id": "cloudflare/@cf/zai-org/glm-5.3"
     },
     {
       "provider_id": "cloudflare",
-      "model_id": "7952d0cc-cb00-4e10-be02-667565c2ee0f",
-      "canonical_model_id": "cloudflare/7952d0cc-cb00-4e10-be02-667565c2ee0f"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "7a143886-c9bb-4a1c-be95-377b1973bc3b",
-      "canonical_model_id": "cloudflare/7a143886-c9bb-4a1c-be95-377b1973bc3b"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "7ed8d8e8-6040-4680-843a-aef402d6b013",
-      "canonical_model_id": "cloudflare/7ed8d8e8-6040-4680-843a-aef402d6b013"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "7f797b20-3eb0-44fd-b571-6cbbaa3c423b",
-      "canonical_model_id": "cloudflare/7f797b20-3eb0-44fd-b571-6cbbaa3c423b"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "7f9a76e1-d120-48dd-a565-101d328bbb02",
-      "canonical_model_id": "cloudflare/7f9a76e1-d120-48dd-a565-101d328bbb02"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "86b3e51a-4b05-43fa-a403-0f27821919d2",
-      "canonical_model_id": "cloudflare/86b3e51a-4b05-43fa-a403-0f27821919d2"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "8a5d00bd-de28-4a28-b37a-ce46d01ebaeb",
-      "canonical_model_id": "cloudflare/8a5d00bd-de28-4a28-b37a-ce46d01ebaeb"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "906a57fd-b018-4d6c-a43e-a296d4cc5839",
-      "canonical_model_id": "cloudflare/906a57fd-b018-4d6c-a43e-a296d4cc5839"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "95666467-f984-4211-b48a-7c246dd4adb7",
-      "canonical_model_id": "cloudflare/95666467-f984-4211-b48a-7c246dd4adb7"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "9b9c87c6-d4b7-494c-b177-87feab5904db",
-      "canonical_model_id": "cloudflare/9b9c87c6-d4b7-494c-b177-87feab5904db"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "9e087485-23dc-47fa-997d-f5bfafc0c7cc",
-      "canonical_model_id": "cloudflare/9e087485-23dc-47fa-997d-f5bfafc0c7cc"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "a226909f-eef8-4265-a3a0-90db0422762e",
-      "canonical_model_id": "cloudflare/a226909f-eef8-4265-a3a0-90db0422762e"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "a2a2afba-b609-4325-8c41-5791ce962239",
-      "canonical_model_id": "cloudflare/a2a2afba-b609-4325-8c41-5791ce962239"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "a9abaef0-3031-47ad-8790-d311d8684c6c",
-      "canonical_model_id": "cloudflare/a9abaef0-3031-47ad-8790-d311d8684c6c"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "ad01ab83-baf8-4e7b-8fed-a0a219d4eb45",
-      "canonical_model_id": "cloudflare/ad01ab83-baf8-4e7b-8fed-a0a219d4eb45"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "af274959-cb47-4ba8-9d8e-5a0a58b6b402",
-      "canonical_model_id": "cloudflare/af274959-cb47-4ba8-9d8e-5a0a58b6b402"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "bc2b61f6-7eb3-4cdf-94f5-ffc128bd6aa4",
-      "canonical_model_id": "cloudflare/bc2b61f6-7eb3-4cdf-94f5-ffc128bd6aa4"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "c05fea67-c5a9-49ca-a7ab-446a0d62cb7a",
-      "canonical_model_id": "cloudflare/c05fea67-c5a9-49ca-a7ab-446a0d62cb7a"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "c1c12ce4-c36a-4aa6-8da4-f63ba4b8984d",
-      "canonical_model_id": "cloudflare/c1c12ce4-c36a-4aa6-8da4-f63ba4b8984d"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "c29c7295-ff20-4b9b-bdcc-25136c19b21d",
-      "canonical_model_id": "cloudflare/c29c7295-ff20-4b9b-bdcc-25136c19b21d"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "c5255b94-2161-4779-bd25-54f061829a2a",
-      "canonical_model_id": "cloudflare/c5255b94-2161-4779-bd25-54f061829a2a"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "c58c317b-0c15-4bda-abb6-93e275f282d9",
-      "canonical_model_id": "cloudflare/c58c317b-0c15-4bda-abb6-93e275f282d9"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "c837b2ac-4d9b-4d37-8811-34de60f0c44f",
-      "canonical_model_id": "cloudflare/c837b2ac-4d9b-4d37-8811-34de60f0c44f"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "cb254e3b-372b-4d4e-8526-ada79940427a",
-      "canonical_model_id": "cloudflare/cb254e3b-372b-4d4e-8526-ada79940427a"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "cc80437b-9a8d-4f1a-9c77-9aaf0d226922",
-      "canonical_model_id": "cloudflare/cc80437b-9a8d-4f1a-9c77-9aaf0d226922"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "d9dc8363-66f4-4bb0-8641-464ee7bfc131",
-      "canonical_model_id": "cloudflare/d9dc8363-66f4-4bb0-8641-464ee7bfc131"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "e580c765-810c-4da3-936c-a2808892f14c",
-      "canonical_model_id": "cloudflare/e580c765-810c-4da3-936c-a2808892f14c"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "e8e8abe4-a372-4c13-815f-4688ba655c8e",
-      "canonical_model_id": "cloudflare/e8e8abe4-a372-4c13-815f-4688ba655c8e"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "eaf31752-a074-441f-8b70-d593255d2811",
-      "canonical_model_id": "cloudflare/eaf31752-a074-441f-8b70-d593255d2811"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "eed32bc1-8775-4985-89ce-dd1405508ad8",
-      "canonical_model_id": "cloudflare/eed32bc1-8775-4985-89ce-dd1405508ad8"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "f9f2250b-1048-4a52-9910-d0bf976616a1",
-      "canonical_model_id": "cloudflare/f9f2250b-1048-4a52-9910-d0bf976616a1"
-    },
-    {
-      "provider_id": "cloudflare",
-      "model_id": "fe8904cf-e20e-4884-b829-ed7cec0a01cb",
-      "canonical_model_id": "cloudflare/fe8904cf-e20e-4884-b829-ed7cec0a01cb"
+      "model_id": "@cf/zai-org/glm-5.3-flash",
+      "canonical_model_id": "cloudflare/@cf/zai-org/glm-5.3-flash"
     },
     {
       "provider_id": "gemini",
