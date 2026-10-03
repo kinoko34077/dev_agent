@@ -19,6 +19,22 @@ _DEFAULT_EXPIRES_AT = "2026-10-09T00:00:00+00:00"
 _BILLING_MODES = frozenset({"free_fixed", "recurring_allowance", "recurring_credit", "paid", "unknown"})
 _OVERAGE_POLICIES = frozenset({"hard_stop", "billable", "unknown"})
 
+# Current Cloudflare Workers AI pricing policy (reviewed 2026-10-03 against
+# the provider's 2026-10-01 pricing page). Workers Free receives the shared
+# 10,000 Neuron/day allowance, but these exact frontier models require a paid
+# billing method and must never inherit the free binding-level wildcard.
+_CLOUDFLARE_PAID_BILLING_REQUIRED_MODELS = frozenset({
+    "@cf/moonshotai/kimi-k2.6",
+    "@cf/moonshotai/kimi-k2.7-code",
+    "@cf/zai-org/glm-5.2",
+    "@cf/zai-org/glm-5.3",
+    "@cf/zai-org/glm-5.3-flash",
+    "@cf/deepseek-ai/deepseek-v4-flash-0731",
+    "@cf/deepseek-ai/deepseek-v4-pro-0813",
+})
+_CLOUDFLARE_FREE_POLICY_VERIFIED_AT = "2026-10-03T00:00:00+00:00"
+_CLOUDFLARE_FREE_POLICY_EXPIRES_AT = "2026-10-10T00:00:00+00:00"
+
 
 @dataclass(frozen=True)
 class TrustedResourceProfile:
@@ -118,6 +134,25 @@ _TRUSTED_RESOURCE_CATALOG: dict[tuple[str, str, str], TrustedResourceProfile] = 
     ),
     ("cloudflare", "cloudflare:qualification", "@cf/meta/llama-3.1-8b-instruct"): TrustedResourceProfile(
         "cloudflare", "cloudflare:qualification", "@cf/meta/llama-3.1-8b-instruct", 0, "JPY", True, "L1", billing_mode="recurring_allowance", allowance_period="daily", overage_policy="hard_stop"
+    ),
+    # Dynamic Cloudflare execution uses the account credential lane.  This
+    # wildcard is a short-lived, reviewed Workers-Free billing fact; the
+    # resolver below denies the provider's explicit paid-only exceptions
+    # before applying it. Discovery alone still grants no routing authority.
+    ("cloudflare", "cloudflare:account", "*"): TrustedResourceProfile(
+        "cloudflare",
+        "cloudflare:account",
+        "*",
+        0,
+        "JPY",
+        True,
+        None,
+        source="cloudflare_workers_ai_pricing_2026-10-01",
+        verified_at=_CLOUDFLARE_FREE_POLICY_VERIFIED_AT,
+        expires_at=_CLOUDFLARE_FREE_POLICY_EXPIRES_AT,
+        billing_mode="recurring_allowance",
+        allowance_period="daily",
+        overage_policy="hard_stop",
     ),
     ("openrouter", "openrouter:free", "openrouter/free"): TrustedResourceProfile(
         "openrouter", "openrouter:free", "openrouter/free", 0, "JPY", True, "L1"
@@ -223,11 +258,18 @@ class BillingResolver:
     def profile_for(self, provider_id: str, provider_binding_id: str, model_id: str) -> TrustedResourceProfile | None:
         """Return current facts only for an exact provider/binding/model identity."""
 
+        if (
+            provider_id == "cloudflare"
+            and provider_binding_id == "cloudflare:account"
+            and model_id in _CLOUDFLARE_PAID_BILLING_REQUIRED_MODELS
+        ):
+            return None
         profile = self._catalog.get((provider_id, provider_binding_id, model_id))
         if profile is None:
             # A wildcard is an explicit binding-level billing policy, never a
-            # provider-wide or model-name inference.  Qualification and model
-            # evidence remain exact downstream gates.
+            # provider-wide or model-name inference. Qualification and model
+            # evidence remain exact downstream gates. Provider-specific paid
+            # exceptions are rejected above before the wildcard is considered.
             profile = self._catalog.get((provider_id, provider_binding_id, "*"))
         return profile if profile is not None and profile.is_current() else None
 
