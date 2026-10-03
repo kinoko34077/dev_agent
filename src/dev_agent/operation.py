@@ -1346,9 +1346,10 @@ class OperationService:
     def _ensure_resource(ledger: ResourceLedger, provider: Any, config: OperationConfig | OperationProviderBinding, *, qualification_resolver: QualificationResolver | None = None) -> None:
         binding_id = getattr(provider, "provider_binding_id", None) or config.binding_id
         model_id = getattr(provider, "model_id", None) or config.model
-        profile = _operation_resource_profile(config.provider_id, binding_id, model_id)
+        evidence_binding_id = getattr(config, "credential_binding_id", None) or binding_id
+        profile = _operation_resource_profile(config.provider_id, evidence_binding_id, model_id)
         resolver = qualification_resolver or QualificationResolver()
-        qualification = resolver.resolve(config.provider_id, binding_id, model_id)
+        qualification = resolver.resolve(config.provider_id, evidence_binding_id, model_id)
         tier = getattr(provider, "intelligence_tier", None) or (profile.intelligence_tier if profile else None) or _inferred_tier(config, qualification_resolver=resolver)
         try:
             existing = ledger.get_resource(binding_id)
@@ -1358,9 +1359,14 @@ class OperationService:
             metadata = existing.get("metadata") if isinstance(existing.get("metadata"), dict) else {}
             existing_model = metadata.get("model_id")
             existing_binding = existing.get("provider_binding_id") or metadata.get("provider_binding_id")
+            existing_evidence_binding = metadata.get("qualification_binding_id") or existing_binding
             if existing["provider_id"] != config.provider_id or existing_binding != binding_id or (existing_model is not None and existing_model != model_id):
                 raise OperationError(
                     f"resource binding already belongs to another provider/model: {binding_id}"
+                )
+            if existing_evidence_binding != evidence_binding_id:
+                raise OperationError(
+                    f"resource qualification binding differs: {binding_id}"
                 )
             existing_domain = existing.get("quota_domain")
             if config.quota_domain is not None and existing_domain not in {None, config.quota_domain}:
@@ -1435,6 +1441,7 @@ class OperationService:
         price_currency = profile.price_currency if profile is not None else None
         resource_metadata = {
             "provider_binding_id": binding_id,
+            "qualification_binding_id": evidence_binding_id,
             "model_id": model_id,
         }
         if config.provider_id == "ollama":
