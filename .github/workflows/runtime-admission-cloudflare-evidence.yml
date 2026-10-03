@@ -116,7 +116,7 @@ jobs:
                           limits={
                               "max_steps": 1,
                               "max_model_calls": 1,
-                              "max_tool_calls": 0,
+                              "max_tool_calls": 1,
                               "max_output_tokens": 32,
                           },
                       )
