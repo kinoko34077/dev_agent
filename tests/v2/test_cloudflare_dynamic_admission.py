@@ -7,6 +7,8 @@ from src.dev_agent.providers.model_discovery import ModelDiscoveryBinding, Provi
 from src.dev_agent.resources.billing_catalog import profile_for
 from src.dev_agent.resources.model_candidates import materialize_provider_bindings
 from src.dev_agent.resources.model_catalog import ModelCatalog, ModelCatalogEntry
+from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
+from src.dev_agent.resources.qualification import QualificationResolver
 
 
 NOW = datetime(2026, 10, 3, 9, 0, tzinfo=timezone.utc)
@@ -210,3 +212,45 @@ def test_cloudflare_decoder_accepts_current_chat_completion_result_shape():
     assert response.usage["quota_observation"]["consumed"] == 2
     assert response.usage["quota_observation"]["consumption_authority"] == "authoritative_provider"
     assert response.usage["quota_observation"]["quota_authority"] == "derived_conservative"
+
+
+def test_current_canonical_cloudflare_catalog_materializes_only_exact_qualified_free_candidates():
+    binding = next(
+        item
+        for item in configured_provider_pool_from_environment(
+            {
+                "CLOUDFLARE_API_TOKEN": "token",
+                "CLOUDFLARE_ACCOUNT_ID": "account",
+            }.get
+        )
+        if item.provider_id == "cloudflare"
+    )
+    catalog = ModelEvidenceCatalog.load_default().catalog
+    qualification = QualificationResolver()
+    admitted = []
+    for candidate in materialize_provider_bindings(
+        binding,
+        catalog,
+        expand_discovered_models=True,
+        now=NOW,
+    ):
+        evidence_binding = candidate.credential_binding_id
+        if catalog.lookup(candidate.provider_id, evidence_binding, candidate.model, now=NOW) is None:
+            continue
+        if qualification.resolve(
+            candidate.provider_id,
+            evidence_binding,
+            candidate.model,
+            now=NOW,
+        ) is None:
+            continue
+        profile = profile_for(candidate.provider_id, evidence_binding, candidate.model)
+        if profile is None or not profile.no_charge_guaranteed:
+            continue
+        admitted.append(candidate.model)
+
+    assert set(admitted) == {
+        "@cf/zai-org/glm-4.7-flash",
+        "@cf/google/gemma-4-26b-a4b-it",
+        "@cf/nvidia/nemotron-3-120b-a12b",
+    }
