@@ -2,7 +2,11 @@ from datetime import datetime, timezone
 
 import pytest
 
+from src.dev_agent.providers.base import ProviderError
+from src.dev_agent.resources.budget import BudgetAuthority, BudgetGovernor, BudgetPolicy
+from src.dev_agent.resources.control import DispatchReservation, ResourceControlPlane
 from src.dev_agent.resources.ledger import ResourceLedger
+from src.dev_agent.resources.router import ResourceRouter
 
 
 def _ledger(tmp_path):
@@ -156,3 +160,46 @@ def test_provider_observation_debits_ledger_projects_remaining_and_is_idempotent
     state = ledger.get_conservative_quota("cloudflare-free", period_id="2026-10-03")
     assert state["consumed"] == 177
     assert ledger.get_quota_observation("cloudflare-free")["remaining"] == 9_823
+
+
+def test_control_plane_quota_error_hard_stops_latest_conservative_period(tmp_path):
+    ledger = _ledger(tmp_path)
+    ledger.configure_conservative_quota(
+        "cloudflare-free",
+        unit="neurons",
+        allowance_limit=10_000,
+        period_id="2026-10-03",
+        reset_at="2026-10-04T00:00:00+00:00",
+        reset_source="cloudflare_daily_utc",
+    )
+    policy = BudgetPolicy(hard_cap_minor=0, recovery_reserve_minor=0)
+    BudgetAuthority.configure(ledger, policy)
+    governor = BudgetGovernor(ledger, policy)
+    budget = governor.reserve("task-1", "cloudflare-free", estimated_cost_minor=0)
+    reservation = DispatchReservation(
+        budget,
+        "cloudflare",
+        provider_binding_id="cloudflare:free",
+        model_id="@cf/example/model",
+        billing_mode="recurring_allowance",
+        overage_policy="hard_stop",
+        no_charge_guaranteed=True,
+    )
+
+    ResourceControlPlane(ResourceRouter(ledger), governor).record_provider_error(
+        "cloudflare",
+        reservation,
+        ProviderError(
+            "daily allocation exhausted",
+            category="quota",
+            retryable=False,
+            quota_metric="daily_neurons",
+            quota_window="day_utc",
+            quota_reset_at="2026-10-04T00:00:00+00:00",
+            quota_reset_source="cloudflare_daily_utc",
+        ),
+    )
+
+    state = ledger.get_conservative_quota("cloudflare-free", period_id="2026-10-03")
+    assert state["exhausted"] is True
+    assert state["blocked_until"] == "2026-10-04T00:00:00+00:00"
