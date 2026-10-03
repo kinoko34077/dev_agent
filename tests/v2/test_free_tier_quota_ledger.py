@@ -4,6 +4,7 @@ import pytest
 
 from src.dev_agent.domain.protocol import ModelResponse
 from src.dev_agent.providers.base import ProviderError
+from src.dev_agent.providers.cloudflare.provider import CloudflareWorkersAIHttpProvider
 from src.dev_agent.resources.budget import BudgetAuthority, BudgetGovernor, BudgetPolicy
 from src.dev_agent.resources.control import DispatchReservation, ResourceControlPlane
 from src.dev_agent.resources.ledger import ResourceLedger
@@ -166,6 +167,35 @@ def test_provider_observation_debits_ledger_projects_remaining_and_is_idempotent
     assert observation["remaining"] == 9_823
     assert observation["authority"] == "derived_conservative"
     assert observation["source"] == "provider-response"
+
+
+def test_cloudflare_provider_neurons_feed_conservative_remaining_ledger(tmp_path):
+    ledger = _ledger(tmp_path)
+    observation = CloudflareWorkersAIHttpProvider._neuron_observation(
+        "@cf/zai-org/glm-4.7-flash",
+        {"neurons": 4},
+    )
+    assert observation is not None
+    assert observation["consumption_authority"] == "authoritative_provider"
+    assert observation["quota_authority"] == "derived_conservative"
+    assert "remaining" not in observation
+
+    assert ledger.ingest_quota_observation(
+        "cloudflare-free",
+        {"quota_observation": observation},
+        accounting_key="live-response-1",
+    )
+
+    state = ledger.get_conservative_quota(
+        "cloudflare-free",
+        period_id=observation["period_id"],
+    )
+    assert state["consumed"] == 4
+    assert state["remaining"] == 9_996
+
+    routed = ledger.get_quota_observation("cloudflare-free")
+    assert routed["remaining"] == 9_996
+    assert routed["authority"] == "derived_conservative"
 
 
 def test_control_plane_quota_error_hard_stops_latest_conservative_period(tmp_path):
