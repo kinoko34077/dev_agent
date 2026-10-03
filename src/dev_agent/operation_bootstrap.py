@@ -81,6 +81,7 @@ def open_components(
         configured_bindings = tuple(config.provider_bindings)
         dynamic_discovery_requested = any(
             bool(getattr(binding, "expand_discovered_models", False))
+            or bool(getattr(binding, "require_current_model_discovery", False))
             for binding in configured_bindings
         )
         if model_evidence_directory is not None:
@@ -97,11 +98,18 @@ def open_components(
 
         runtime_bindings: list[Any] = []
         for binding in configured_bindings:
-            if not bool(getattr(binding, "expand_discovered_models", False)):
+            requires_current_discovery = bool(
+                getattr(binding, "require_current_model_discovery", False)
+            )
+            expands_discovered_models = bool(
+                getattr(binding, "expand_discovered_models", False)
+            )
+            if not requires_current_discovery and not expands_discovered_models:
                 runtime_bindings.append(binding)
                 continue
 
             candidate_catalog = model_catalog
+            discovery_succeeded = False
             # Refresh the factual candidate set at Operation startup through
             # the common discovery contract. A live model list grants no
             # execution authority; every row still passes exact
@@ -113,14 +121,20 @@ def open_components(
                     ModelDiscoveryBinding.from_operation_binding(binding)
                 )
                 candidate_catalog = ModelCatalog.from_document(live.to_document())
+                discovery_succeeded = True
             except Exception:
-                candidate_catalog = model_catalog
+                # A configured exact pin is valid only when the current
+                # provider inventory confirms it. A stale pin must not fall
+                # back to the reviewed static catalog or direct construction.
+                candidate_catalog = None if requires_current_discovery else model_catalog
+            if requires_current_discovery and not discovery_succeeded:
+                continue
             if candidate_catalog is None:
                 continue
             for candidate in materialize_provider_bindings(
                 binding,
                 candidate_catalog,
-                expand_discovered_models=True,
+                expand_discovered_models=expands_discovered_models,
             ):
                 # Discovery/static catalog identity may differ from the
                 # qualification/billing lane (for example OpenRouter's

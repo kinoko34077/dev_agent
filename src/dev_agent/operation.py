@@ -161,6 +161,11 @@ class OperationProviderBinding:
     model_candidates: tuple[str, ...] | list[str] | None = None
     qualification_binding_id: str | None = None
     expand_discovered_models: bool = False
+    # Environment-configured pins must be checked against the provider's
+    # current inventory before becoming runtime bindings. Keep this separate
+    # from expansion so an operator can pin one exact model without silently
+    # accepting a stale or removed identity.
+    require_current_model_discovery: bool = False
 
     def __post_init__(self) -> None:
         provider_id = self.provider_id.strip().lower() if isinstance(self.provider_id, str) else ""
@@ -191,6 +196,8 @@ class OperationProviderBinding:
             raise ValueError("think must be a boolean or None")
         if not isinstance(self.expand_discovered_models, bool):
             raise ValueError("expand_discovered_models must be a boolean")
+        if not isinstance(self.require_current_model_discovery, bool):
+            raise ValueError("require_current_model_discovery must be a boolean")
         candidates = self.model_candidates
         if candidates is not None:
             if isinstance(candidates, str) or not isinstance(candidates, (list, tuple)) or not candidates:
@@ -268,6 +275,7 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
                 credential_id="gemini-core",
                 api_key_env="GEMINI_API_KEY",
                 project_id=core_project_id,
+                require_current_model_discovery=core_model_pin is not None,
                 expand_discovered_models=core_model_pin is None,
             )
         )
@@ -281,6 +289,7 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
                 credential_id="gemini-primary",
                 api_key_env="GEMINI_API_KEY",
                 project_id=f"projects/{project_id}" if project_id and not project_id.startswith("projects/") else project_id,
+                require_current_model_discovery=gemini_model_pin is not None,
                 expand_discovered_models=gemini_model_pin is None,
             )
         )
@@ -298,6 +307,7 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
                 credential_id=f"gemini-key-{slot}",
                 api_key_env=env_name,
                 project_id=f"projects/{project_number}",
+                require_current_model_discovery=slot_model_pin is not None,
                 expand_discovered_models=slot_model_pin is None,
             )
         )
@@ -316,6 +326,7 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
                 credential_id="openrouter-free",
                 api_key_env="OPENROUTER_API_KEY",
                 qualification_binding_id="openrouter:free",
+                require_current_model_discovery=openrouter_model_pin is not None,
                 expand_discovered_models=openrouter_model_pin is None,
             )
         )
@@ -335,6 +346,7 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
                 api_key_env="CLOUDFLARE_API_TOKEN",
                 project_id=cloudflare_account_id,
                 qualification_binding_id="cloudflare:account",
+                require_current_model_discovery=cloudflare_model_pin is not None,
                 expand_discovered_models=cloudflare_model_pin is None,
             )
         )
@@ -355,6 +367,7 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
                 credential_id=f"{provider_id}-account",
                 api_key_env=api_key_env,
                 qualification_binding_id=f"{provider_id}:account",
+                require_current_model_discovery=model_pin is not None,
                 expand_discovered_models=model_pin is None,
             )
         )
@@ -415,6 +428,7 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
                 credential_id="ollama-cloud",
                 api_key_env="OLLAMA_API_KEY",
                 qualification_binding_id="ollama_cloud:account",
+                require_current_model_discovery=ollama_cloud_model_pin is not None,
                 expand_discovered_models=ollama_cloud_model_pin is None,
             )
         )
@@ -429,6 +443,7 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
                 credential_id="vercel-ai-gateway",
                 api_key_env="AI_GATEWAY_API_KEY",
                 qualification_binding_id="vercel:account",
+                require_current_model_discovery=vercel_model_pin is not None,
                 expand_discovered_models=vercel_model_pin is None,
             )
         )

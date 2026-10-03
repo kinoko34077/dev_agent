@@ -1172,6 +1172,7 @@ def test_configured_provider_pool_discovers_unpinned_gemini_lanes(monkeypatch, t
     pinned = next(item for item in pinned_config.provider_bindings if item.binding_id == "gemini:worker:free-3")
     assert pinned.model == "gemini-operator-pin"
     assert pinned.expand_discovered_models is False
+    assert pinned.require_current_model_discovery is True
 
 
 def test_configured_provider_pool_includes_openrouter_account_discovery_lane(monkeypatch, tmp_path):
@@ -1202,6 +1203,7 @@ def test_configured_provider_pool_keeps_explicit_openrouter_pin_out_of_dynamic_d
     assert pinned.model == "provider/pinned-model"
     assert pinned.qualification_binding_id == "openrouter:free"
     assert pinned.expand_discovered_models is False
+    assert pinned.require_current_model_discovery is True
 
 
 def test_configured_provider_pool_includes_discovery_only_openai_compatible_lanes(monkeypatch, tmp_path):
