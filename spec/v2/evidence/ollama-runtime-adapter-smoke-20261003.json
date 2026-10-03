@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "evidence_id": "ollama-runtime-adapter-smoke-20261003",
+  "recorded_at": "2026-10-03T06:02:25Z",
+  "source_revision": "cb3a39016584fdbac82c75656abf698f52261fc6",
+  "evidence_kind": "local_provider_adapter_runtime_smoke",
+  "execution_boundary": "approved_local_host_execution",
+  "provider": "ollama",
+  "ollama_version": "0.33.3",
+  "installed_models": [
+    "gemma4:12b",
+    "qwen3.5:4b",
+    "qwen3.5:9b",
+    "qwen3:8b",
+    "gemma3:12b",
+    "qwen3:0.6b",
+    "Ninja-v1-NSFW-128k-Q8_0.gguf:latest",
+    "phi:2.7b"
+  ],
+  "installed_model_count": 8,
+  "runtime": {
+    "base_url": "http://127.0.0.1:11434",
+    "loaded_before": [],
+    "primary_model": "qwen3.5:9b",
+    "keep_alive": "10m",
+    "loaded_observation": {
+      "model": "qwen3.5:9b",
+      "size_vram": 5490081790,
+      "context_length": 4096
+    },
+    "raw_http_response": "READY",
+    "dev_agent_adapter_response": {
+      "provider": "ollama",
+      "model": "qwen3.5:9b",
+      "text_segments": ["ADAPTER_READY"],
+      "tool_calls": 0,
+      "finish_reason": "stop"
+    },
+    "unload": {
+      "keep_alive": 0,
+      "result": "unload",
+      "loaded_after": []
+    }
+  },
+  "admission": {
+    "runtime_eligible": false,
+    "formal_r9": false,
+    "qualification": "not established by this smoke",
+    "quota": "not applicable to local zero-cost smoke",
+    "billing": "local_zero_cost",
+    "gate_impact": "unchanged"
+  },
+  "interpretation": "The approved local Host boundary reached the Ollama daemon, observed the installed catalog, completed one bounded qwen3.5:9b response through the real dev_agent OllamaProvider, and unloaded the model. This is provider/lifecycle evidence only; it is not a Phase 8 live-activation or formal R9 admission record.",
+  "secrets": "none recorded"
+}
