@@ -1,7 +1,11 @@
 name: cloudflare-billing-read-diagnostic
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - phase8/c-cloudflare-evidence-20261003
+    paths:
+      - .github/workflows/cloudflare-billing-read-diagnostic.yml
 
 permissions:
   contents: read
