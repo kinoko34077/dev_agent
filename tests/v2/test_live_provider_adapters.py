@@ -239,7 +239,7 @@ def test_cloudflare_neuron_conversion_fails_closed_for_unknown_model_or_usage():
     ) is None
 
 
-def test_cloudflare_provider_reported_neurons_are_authoritative_when_present(monkeypatch):
+def test_cloudflare_provider_reported_neuron_consumption_is_authoritative_but_remaining_is_derived(monkeypatch):
     monkeypatch.setattr(
         "src.dev_agent.providers.cloudflare.provider.urlopen_no_redirect",
         lambda _request, **_kwargs: _Response(
@@ -259,8 +259,11 @@ def test_cloudflare_provider_reported_neurons_are_authoritative_when_present(mon
     response = CloudflareWorkersAIHttpProvider(
         model="@cf/meta/llama-3.1-8b-instruct", account_id="account", api_token="token"
     ).request(request)
-    assert response.usage["quota_observation"]["consumed"] == 321
-    assert response.usage["quota_observation"]["quota_authority"] == "authoritative_provider"
+    quota = response.usage["quota_observation"]
+    assert quota["consumed"] == 321
+    assert quota["consumption_authority"] == "authoritative_provider"
+    assert quota["quota_authority"] == "derived_conservative"
+    assert quota["evidence_mode"] == "derived_conservative"
 
 
 def test_cloudflare_daily_allocation_error_is_typed_as_quota_exhaustion(monkeypatch):
