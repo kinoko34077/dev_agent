@@ -87,7 +87,6 @@ def test_cloudflare_dynamic_billing_policy_allows_free_and_denies_paid_required_
         "cloudflare",
         "cloudflare:account",
         "@cf/zai-org/glm-5.3",
-        now=NOW,
     ) is None
 
 
