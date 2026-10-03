@@ -46,7 +46,11 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
     # the response does not report neurons directly; they are never treated
     # as an authoritative remaining quota.
     _NEURON_RATES_PER_MILLION = {
-        "@cf/meta/llama-3.1-8b-instruct": (25455, 75455),
+        "@cf/meta/llama-3.1-8b-instruct": (25_455, 75_455),
+        "@cf/meta/llama-3.1-8b-instruct-fp8": (13_778, 26_128),
+        "@cf/zai-org/glm-4.7-flash": (5_500, 36_400),
+        "@cf/google/gemma-4-26b-a4b-it": (9_091, 27_273),
+        "@cf/nvidia/nemotron-3-120b-a12b": (45_455, 136_364),
     }
 
     def __init__(
