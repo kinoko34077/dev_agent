@@ -102,24 +102,19 @@ def open_components(
                 continue
 
             candidate_catalog = model_catalog
-            if binding.provider_id == "cloudflare":
-                # Refresh the factual candidate set at Operation startup. A
-                # live model list grants no execution authority; every row
-                # still passes exact qualification/billing/quota/health gates
-                # below. If the read-only refresh is unavailable, only the
-                # still-current reviewed catalog may serve as fallback.
-                try:
-                    live = ProviderModelDiscovery().discover(
-                        ModelDiscoveryBinding(
-                            provider_id="cloudflare",
-                            provider_binding_id=binding.credential_binding_id,
-                            api_key_env=binding.api_key_env,
-                            account_id_env="CLOUDFLARE_ACCOUNT_ID",
-                        )
-                    )
-                    candidate_catalog = ModelCatalog.from_document(live.to_document())
-                except Exception:
-                    candidate_catalog = model_catalog
+            # Refresh the factual candidate set at Operation startup through
+            # the common discovery contract. A live model list grants no
+            # execution authority; every row still passes exact
+            # qualification/billing/quota/health gates below. If the
+            # read-only refresh is unavailable, only the still-current
+            # reviewed catalog may serve as fallback.
+            try:
+                live = ProviderModelDiscovery().discover(
+                    ModelDiscoveryBinding.from_operation_binding(binding)
+                )
+                candidate_catalog = ModelCatalog.from_document(live.to_document())
+            except Exception:
+                candidate_catalog = model_catalog
             if candidate_catalog is None:
                 continue
             for candidate in materialize_provider_bindings(

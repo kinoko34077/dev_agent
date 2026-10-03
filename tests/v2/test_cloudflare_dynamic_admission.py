@@ -11,7 +11,7 @@ from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
 from src.dev_agent.resources.qualification import QualificationResolver
 
 
-NOW = datetime(2026, 10, 3, 9, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 10, 3, 12, 0, tzinfo=timezone.utc)
 
 
 def test_cloudflare_discovery_preserves_bounded_task_and_tags():

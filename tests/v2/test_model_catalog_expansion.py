@@ -84,6 +84,52 @@ def _catalog_document():
     }
 
 
+def test_operation_binding_normalizes_into_provider_neutral_discovery_binding():
+    binding = OperationProviderBinding(
+        provider_id="cloudflare",
+        model="@cf/example/model",
+        provider_binding_id="cloudflare:account",
+        api_key_env="CLOUDFLARE_API_TOKEN",
+        timeout_seconds=30,
+    )
+
+    discovery_binding = ModelDiscoveryBinding.from_operation_binding(binding)
+
+    assert discovery_binding.provider_id == "cloudflare"
+    assert discovery_binding.provider_binding_id == "cloudflare:account"
+    assert discovery_binding.api_key_env == "CLOUDFLARE_API_TOKEN"
+    assert discovery_binding.account_id_env == "CLOUDFLARE_ACCOUNT_ID"
+    assert discovery_binding.timeout_seconds == 30.0
+
+
+@pytest.mark.parametrize(
+    ("provider_id", "binding_id", "api_key_env", "account_id_env"),
+    [
+        ("gemini", "gemini:worker", "GEMINI_API_KEY", None),
+        ("openrouter", "openrouter:free", "OPENROUTER_API_KEY", None),
+        ("ollama", "ollama:local:qwen", None, None),
+        ("ollama_cloud", "ollama_cloud:free", "OLLAMA_CLOUD_API_KEY", None),
+        ("vercel", "vercel:account", None, None),
+    ],
+)
+def test_operation_binding_discovery_descriptor_preserves_provider_lane(
+    provider_id, binding_id, api_key_env, account_id_env
+):
+    binding = OperationProviderBinding(
+        provider_id=provider_id,
+        model="example-model",
+        provider_binding_id=binding_id,
+        api_key_env=api_key_env,
+    )
+
+    discovery_binding = ModelDiscoveryBinding.from_operation_binding(binding)
+
+    assert discovery_binding.provider_id == provider_id
+    assert discovery_binding.provider_binding_id == binding_id
+    assert discovery_binding.api_key_env == api_key_env
+    assert discovery_binding.account_id_env == account_id_env
+
+
 def test_gemini_discovery_preserves_bounded_metadata_and_catalog_round_trip():
     discovery = ProviderModelDiscovery(secret_getter=lambda _name: "secret")
     result = discovery.discover(
