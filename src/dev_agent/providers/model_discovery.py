@@ -108,6 +108,26 @@ def _metadata_for(provider_id: str, raw_model: Mapping[str, Any]) -> Mapping[str
             metadata["thinking_supported"] = raw_model["thinking"]
         if isinstance(raw_model.get("deprecated"), bool):
             metadata["deprecated"] = raw_model["deprecated"]
+    elif provider_id == "cloudflare":
+        task = raw_model.get("task")
+        task = task if isinstance(task, Mapping) else {}
+        task_name = _bounded_string(task.get("name"))
+        if task_name is not None:
+            metadata["task_name"] = task_name
+        tags = raw_model.get("tags")
+        if isinstance(tags, list):
+            bounded_tags: list[str] = []
+            for raw_tag in tags:
+                if isinstance(raw_tag, Mapping):
+                    value = _bounded_string(raw_tag.get("name") or raw_tag.get("id"))
+                else:
+                    value = _bounded_string(raw_tag)
+                if value is not None and value not in bounded_tags:
+                    bounded_tags.append(value)
+                if len(bounded_tags) >= _MAX_METADATA_ITEMS:
+                    break
+            if bounded_tags:
+                metadata["tags"] = bounded_tags
     elif provider_id == "openrouter":
         context_length = _bounded_positive_int(raw_model.get("context_length"))
         if context_length is not None:
