@@ -35,7 +35,7 @@ def test_qualified_tool_evidence_projects_to_tool_call_for_operation_resource(tm
 
     with ResourceLedger(tmp_path / "resources.sqlite3") as ledger:
         OperationService._ensure_resource(ledger, provider, config)
-        resource = ledger.get_resource("cloudflare")
+        resource = ledger.get_resource("cloudflare:account")
 
     assert "text" in resource["capabilities"]
     assert "tool_call" in resource["capabilities"]

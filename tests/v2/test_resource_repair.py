@@ -10,7 +10,7 @@ from recovery.validate_resources import legacy_resource_metadata, validate_resou
 MODEL = "@cf/zai-org/glm-4.7-flash"
 
 
-def _resolver(*, expires_at: str = "2026-10-01T00:00:00+00:00") -> QualificationResolver:
+def _resolver(*, expires_at: str = "2026-11-02T00:00:00+00:00") -> QualificationResolver:
     return QualificationResolver(
         entries=[
             {
@@ -18,7 +18,7 @@ def _resolver(*, expires_at: str = "2026-10-01T00:00:00+00:00") -> Qualification
                 "provider_binding_id": "cloudflare:account",
                 "model": MODEL,
                 "intelligence_tier": "L1",
-                "tested_at": "2026-09-01T00:00:00+00:00",
+                "tested_at": "2026-10-03T09:29:25+00:00",
                 "expires_at": expires_at,
                 "confidence": "high",
                 "capabilities": [
@@ -59,7 +59,7 @@ def test_legacy_resource_is_reported_without_startup_style_mutation(tmp_path):
         plan = plan_resource_repairs(
             ledger,
             _resolver(),
-            now=datetime(2026, 9, 11, tzinfo=timezone.utc),
+            now=datetime(2026, 10, 3, 12, tzinfo=timezone.utc),
         )
 
         assert len(plan) == 1
@@ -81,7 +81,7 @@ def test_explicit_resource_repair_updates_projection_and_records_before_after_au
             ledger,
             _resolver(),
             operator_ref="operator:test",
-            now=datetime(2026, 9, 11, tzinfo=timezone.utc),
+            now=datetime(2026, 10, 3, 12, tzinfo=timezone.utc),
         )
 
         assert result[0].status == "repaired"
@@ -115,7 +115,7 @@ def test_resource_repair_fails_closed_for_expired_or_unidentified_resource(tmp_p
         plans = plan_resource_repairs(
             ledger,
             _resolver(expires_at="2026-09-01T00:00:00+00:00"),
-            now=datetime(2026, 9, 11, tzinfo=timezone.utc),
+            now=datetime(2026, 10, 3, 12, tzinfo=timezone.utc),
         )
 
         by_id = {item.resource_id: item for item in plans}

@@ -273,7 +273,7 @@ def test_operation_lifecycle_runs_l1_alternate_then_reviewed_l2(tmp_path, monkey
             provider_binding_id="gemini:worker",
         )
         assert alternate.transition.task.status is TaskStatus.RUNNING
-        assert providers["cloudflare"].requests[0].metadata["allowed_intelligence_tiers"] == ["L1"]
+        assert providers["cloudflare:account"].requests[0].metadata["allowed_intelligence_tiers"] == ["L1"]
 
         second = service.evaluate_task(
             EvaluationEvidence(

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Any, Mapping
 from uuid import uuid4
 
-from .billing_catalog import TRUSTED_RESOURCE_CATALOG
+from .billing_catalog import profile_for as trusted_billing_profile_for
 from .ledger import ResourceLedger
 from . import provider_policy
 from .qualification import QualificationResolver
@@ -59,7 +59,7 @@ def _safe_projection(resource: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _profile_for(provider_id: str, binding_id: str, model_id: str, *, now: datetime):
-    profile = TRUSTED_RESOURCE_CATALOG.get((provider_id, binding_id, model_id))
+    profile = trusted_billing_profile_for(provider_id, binding_id, model_id)
     if profile is None:
         return None, "no exact trusted billing profile"
     if not profile.is_current(now=now):

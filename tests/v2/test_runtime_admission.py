@@ -165,10 +165,10 @@ def test_cloudflare_derived_quota_reaches_admission_through_existing_resource_pa
     # Reuse the same registration boundary that Operation opens for a real
     # provider resource; no network call or provider response is fabricated.
     OperationService._ensure_resource(ledger, object(), binding, qualification_resolver=resolver)
-    ledger.observe("cloudflare", available=1, health="healthy")
+    ledger.observe("cloudflare:account", available=1, health="healthy")
     observed_at = datetime.now(timezone.utc).isoformat()
     ledger.observe_quota(
-        "cloudflare",
+        "cloudflare:account",
         unit="neurons",
         limit=10_000,
         remaining=9_700,

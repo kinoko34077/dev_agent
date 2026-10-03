@@ -211,7 +211,7 @@ def test_cloudflare_decoder_accepts_current_chat_completion_result_shape():
     assert response.model == "@cf/zai-org/glm-4.7-flash"
     assert response.usage["quota_observation"]["consumed"] == 2
     assert response.usage["quota_observation"]["consumption_authority"] == "authoritative_provider"
-    assert response.usage["quota_observation"]["quota_authority"] == "derived_conservative"
+    assert response.usage["quota_observation"]["quota_authority"] == "authoritative_provider"
 
 
 def test_current_canonical_cloudflare_catalog_materializes_only_exact_qualified_free_candidates():

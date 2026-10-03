@@ -771,8 +771,8 @@ def test_operation_only_marks_exact_known_binding_and_model_as_free(tmp_path):
         )
         known_provider = type("Provider", (), {"provider_binding_id": "cloudflare:account", "model_id": known.model, "intelligence_tier": "L1"})()
         OperationService._ensure_resource(ledger, known_provider, known)
-        assert ledger.get_resource("cloudflare")["cost_minor"] == 0
-        assert ledger.get_resource("cloudflare")["quota_domain"] == "cloudflare-account"
+        assert ledger.get_resource("cloudflare:account")["cost_minor"] == 0
+        assert ledger.get_resource("cloudflare:account")["quota_domain"] == "cloudflare-account"
 
         unknown = OperationConfig(
             data_dir=tmp_path,
