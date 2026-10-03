@@ -1,3 +1,4 @@
+# retry-after-human-cloudflare-permission-update: 2026-10-03
 name: cloudflare-evidence-c2
 
 on:
