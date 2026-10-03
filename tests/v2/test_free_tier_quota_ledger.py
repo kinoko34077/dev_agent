@@ -147,6 +147,8 @@ def test_provider_observation_debits_ledger_projects_remaining_and_is_idempotent
             "unit": "neurons",
             "limit": 10_000,
             "consumed": 177,
+            "authority": "provider",
+            "consumption_authority": "authoritative_provider",
             "quota_authority": "derived_conservative",
             "evidence_mode": "derived_conservative",
             "period_id": "2026-10-03",
@@ -160,7 +162,10 @@ def test_provider_observation_debits_ledger_projects_remaining_and_is_idempotent
     assert ledger.ingest_quota_observation("cloudflare-free", payload, accounting_key="reservation-1")
     state = ledger.get_conservative_quota("cloudflare-free", period_id="2026-10-03")
     assert state["consumed"] == 177
-    assert ledger.get_quota_observation("cloudflare-free")["remaining"] == 9_823
+    observation = ledger.get_quota_observation("cloudflare-free")
+    assert observation["remaining"] == 9_823
+    assert observation["authority"] == "derived_conservative"
+    assert observation["source"] == "provider-response"
 
 
 def test_control_plane_quota_error_hard_stops_latest_conservative_period(tmp_path):
