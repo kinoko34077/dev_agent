@@ -1,7 +1,9 @@
 import hashlib
 import json
 import subprocess
+import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
 
@@ -85,6 +87,18 @@ def _git(cwd, *args):
         text=True,
         check=True,
     )
+
+
+def test_commander_script_entrypoint_bootstraps_repository_imports():
+    repo_root = Path(__file__).resolve().parents[2]
+    result = subprocess.run(
+        [sys.executable, "scripts/devfarm_commander.py"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def _patch(path):

@@ -14,8 +14,13 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import sys
 from typing import Any, Mapping, Sequence
 import uuid
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from scripts.devfarm_contracts import validate_manifest, validate_result
 from scripts.devfarm_errors import DevFarmError
