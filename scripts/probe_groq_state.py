@@ -10,6 +10,12 @@ inference response headers, not the Models API.
 from __future__ import annotations
 
 import json
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.groq.introspection import GroqIntrospectionClient

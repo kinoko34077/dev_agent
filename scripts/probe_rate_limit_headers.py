@@ -11,8 +11,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from pathlib import Path
+import sys
 from urllib.error import HTTPError, URLError
 from urllib.request import Request
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from src.dev_agent.providers.openai_compatible.http import urlopen_no_redirect
 

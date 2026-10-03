@@ -1,6 +1,9 @@
 import json
 from datetime import datetime, timezone
 from io import BytesIO
+from pathlib import Path
+import subprocess
+import sys
 from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlparse
 
@@ -17,6 +20,36 @@ from src.dev_agent.resources.google_monitoring_quota import (
     MonitoringAuthRequired,
     MonitoringQuotaError,
 )
+
+
+@pytest.mark.parametrize(
+    "script_name",
+    (
+        "probe_cloudflare_billable_usage.py",
+        "probe_gemini_monitoring_quota.py",
+        "probe_groq_state.py",
+        "probe_mistral_state.py",
+        "probe_openrouter_state.py",
+        "probe_rate_limit_headers.py",
+    ),
+)
+def test_telemetry_probe_scripts_are_importable_as_direct_scripts(script_name):
+    repo_root = Path(__file__).resolve().parents[2]
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import runpy, sys; runpy.run_path(sys.argv[1], run_name='telemetry_probe_import')",
+            str(repo_root / "scripts" / script_name),
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "ModuleNotFoundError" not in result.stderr
 
 
 class _Response:
