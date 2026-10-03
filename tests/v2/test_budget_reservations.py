@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 import inspect
 import multiprocessing
 import os
@@ -9,6 +10,12 @@ from src.dev_agent.domain.protocol import RecoveryTaskAuthority, Task
 from src.dev_agent.resources.budget import BudgetAuthority, BudgetExceeded, BudgetGovernor, BudgetPolicy, ResourceUnavailable, UnknownPrice
 from src.dev_agent.resources.ledger import BudgetPeriod, MoneyAmount, ResourceLedger, ResourcePrice, _BUDGET_ADMIN_TOKEN
 from tests.v2.resource_test_support import governor, ledger, reserve_in_process
+
+
+def _next_budget_period(period):
+    start = datetime.fromisoformat(period.ends_at)
+    end = start.replace(year=start.year + 1, month=1) if start.month == 12 else start.replace(month=start.month + 1)
+    return BudgetPeriod(start.strftime("%Y-%m"), start.isoformat(), end.isoformat())
 
 
 def test_resource_price_currency_is_normalized_before_budget_matching(tmp_path):
@@ -40,7 +47,7 @@ def test_budget_configuration_cannot_drop_below_committed_or_abandon_unknown_res
         BudgetAuthority.configure(resource_ledger, BudgetPolicy(hard_cap_minor=30, recovery_reserve_minor=20, period=resource_governor.period))
 
     resource_governor.mark_unknown(reservation.reservation_id)
-    next_period = BudgetPeriod("2026-10", "2026-10-01T00:00:00+00:00", "2026-11-01T00:00:00+00:00")
+    next_period = _next_budget_period(resource_governor.period)
     with pytest.raises(ValueError, match="reservations are active"):
         BudgetAuthority.configure(resource_ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20, period=next_period))
 
@@ -290,16 +297,16 @@ def test_budget_governor_cannot_overwrite_persisted_hard_cap(tmp_path):
 def test_budget_rollover_is_admin_only_and_preserves_caps(tmp_path):
     resource_ledger = ledger(tmp_path)
     resource_governor = governor(resource_ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20))
-    next_period = BudgetPeriod("2026-10", "2026-10-01T00:00:00+00:00", "2026-11-01T00:00:00+00:00")
+    next_period = _next_budget_period(resource_governor.period)
 
     BudgetAuthority.rollover(resource_ledger, next_period)
 
     config = resource_ledger.budget_config()
-    assert config["period_id"] == "2026-10"
+    assert config["period_id"] == next_period.period_id
     assert config["hard_cap_minor"] == 100
     assert config["recovery_reserve_minor"] == 20
-    assert BudgetGovernor(resource_ledger).period.period_id == "2026-10"
-    assert resource_governor.period.period_id == "2026-09"
+    assert BudgetGovernor(resource_ledger).period.period_id == next_period.period_id
+    assert resource_governor.period.period_id != next_period.period_id
 
     with pytest.raises(BudgetExceeded, match="period is stale"):
         resource_governor.reserve("stale-task", "remote-gemini", estimated_cost_minor=1)
@@ -311,7 +318,7 @@ def test_budget_rollover_rejects_active_reservations_and_backwards_period(tmp_pa
     resource_ledger = ledger(tmp_path)
     resource_governor = governor(resource_ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=20))
     resource_governor.reserve("task", "remote-gemini", estimated_cost_minor=10)
-    next_period = BudgetPeriod("2026-10", "2026-10-01T00:00:00+00:00", "2026-11-01T00:00:00+00:00")
+    next_period = _next_budget_period(resource_governor.period)
     with pytest.raises(ValueError, match="active"):
         BudgetAuthority.rollover(resource_ledger, next_period)
 

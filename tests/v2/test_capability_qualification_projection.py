@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -243,7 +243,8 @@ def _qualification_resource(ledger, *, capabilities=("text", "tool_call")):
 
 
 def test_router_uses_current_qualification_for_existing_resource(tmp_path):
-    resolver = QualificationResolver(entries=[_qualification_entry(expires_at="2026-10-01T00:00:00+00:00")])
+    future_expiry = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+    resolver = QualificationResolver(entries=[_qualification_entry(expires_at=future_expiry)])
     with ResourceLedger(tmp_path / "resources.sqlite3") as ledger:
         _qualification_resource(ledger)
         router = ResourceRouter(ledger, qualification_resolver=resolver)
