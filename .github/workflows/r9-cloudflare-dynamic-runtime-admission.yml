@@ -82,7 +82,12 @@ jobs:
               "first_choice_keys": sorted(first_choice.keys()) if isinstance(first_choice, dict) else [],
               "message_keys": sorted(message.keys()) if isinstance(message, dict) else [],
               "message_content_type": type_name(message.get("content")) if isinstance(message, dict) else None,
+              "message_content_length": len(message.get("content")) if isinstance(message, dict) and isinstance(message.get("content"), str) else None,
+              "reasoning_content_type": type_name(message.get("reasoning_content")) if isinstance(message, dict) else None,
+              "reasoning_content_length": len(message.get("reasoning_content")) if isinstance(message, dict) and isinstance(message.get("reasoning_content"), str) else None,
+              "finish_reason": first_choice.get("finish_reason") if isinstance(first_choice, dict) and isinstance(first_choice.get("finish_reason"), str) else None,
               "usage_keys": sorted(result.get("usage").keys()) if isinstance(result, dict) and isinstance(result.get("usage"), dict) else [],
+              "completion_tokens": result.get("usage", {}).get("completion_tokens") if isinstance(result, dict) and isinstance(result.get("usage"), dict) and isinstance(result.get("usage", {}).get("completion_tokens"), int) else None,
           }
           print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
           PY
