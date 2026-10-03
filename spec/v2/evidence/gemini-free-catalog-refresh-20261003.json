@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "evidence_type": "candidate_model_catalog_refresh",
+  "recorded_at": "2026-10-03T04:54:06.747226+00:00",
+  "source_revision": "ad71791bccb6b6fd549d79dd0447072ffaaa24d3",
+  "provider": "gemini",
+  "scope": "read_only_existing_free_bindings",
+  "execution_boundary": "operator_requested_host_process",
+  "canonical_catalog_replaced": false,
+  "network_called": true,
+  "refreshed_bindings": [
+    {
+      "provider_binding_id": "gemini:worker:free-2",
+      "model_count": 61,
+      "model_ids_sha256": "7d935c337328a306f1221f8a541dbe742943aa8e30541ae47d1d923010b10186"
+    },
+    {
+      "provider_binding_id": "gemini:worker:free-3",
+      "model_count": 61,
+      "model_ids_sha256": "7d935c337328a306f1221f8a541dbe742943aa8e30541ae47d1d923010b10186"
+    },
+    {
+      "provider_binding_id": "gemini:worker:free-4",
+      "model_count": 61,
+      "model_ids_sha256": "7d935c337328a306f1221f8a541dbe742943aa8e30541ae47d1d923010b10186"
+    },
+    {
+      "provider_binding_id": "gemini:worker:free-5",
+      "model_count": 61,
+      "model_ids_sha256": "7d935c337328a306f1221f8a541dbe742943aa8e30541ae47d1d923010b10186"
+    }
+  ],
+  "discovery_failures": [],
+  "admission": {
+    "qualification_observed": false,
+    "billing_observed": false,
+    "quota_observed": false,
+    "generation_liveness_observed": false,
+    "runtime_eligible": false,
+    "formal_r9_authorized": false
+  },
+  "formal_gate_impact": "unchanged",
+  "secrets_recorded": false,
+  "unknown_or_reconciliation_replayed": false,
+  "interpretation": "Fresh candidate catalog discovery succeeded for four existing Gemini free bindings. This proves only model-list reachability and candidate identity refresh; it does not prove generation liveness, quota, qualification, billing, runtime admission, or formal Phase 8 eligibility."
+}
