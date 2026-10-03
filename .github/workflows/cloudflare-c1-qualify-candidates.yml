@@ -1,3 +1,4 @@
+# retry-after-current-envelope-fix: 2026-10-03
 name: cloudflare-c1-qualify-candidates
 
 on:
