@@ -95,13 +95,18 @@ jobs:
               }
           )
           matches = [entry for entry in entries if entry.get("model_id") == configured]
+          sources = sorted({entry.get("source") for entry in entries if isinstance(entry.get("source"), str)})
+          observed_at = sorted({entry.get("observed_at") for entry in entries if isinstance(entry.get("observed_at"), str)})
+          expires_at = sorted({entry.get("expires_at") for entry in entries if isinstance(entry.get("expires_at"), str)})
           summary = {
               "status": "OBSERVED",
               "provider": "cloudflare",
               "provider_binding_id": "cloudflare:account",
               "entry_count": len(entries),
               "dispatch_identity_count": len(dispatch_ids),
-              "dispatch_identities": dispatch_ids,
+              "source": sources,
+              "observed_at": observed_at,
+              "expires_at": expires_at,
               "configured_model": configured,
               "configured_model_present": bool(matches),
               "configured_model_entry": matches[0] if matches else None,
