@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -182,6 +183,55 @@ def test_composition_routes_legacy_qualified_l1_without_model_evidence(monkeypat
     assert response.provider == "openrouter"
     assert response.model == "openrouter/free"
     assert response.parts == ["ok"]
+
+
+def test_composition_routes_with_explicit_fresh_quota_observation(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-only-secret")
+    qualification = _QualificationResolver("L1").resolve("openrouter", "openrouter:free", "openrouter/free")
+    profile = profile_for("openrouter", "openrouter:free", "openrouter/free")
+    request = ModelRequest(
+        task_id=str(uuid4()),
+        messages=[{"role": "user", "content": "bounded test"}],
+        requested_capabilities=["text"],
+        metadata={
+            "intelligence_routing": "bounded",
+            "allowed_intelligence_tiers": ["L1"],
+        },
+    )
+    observed_at = datetime.now(timezone.utc).isoformat()
+
+    with compose_resource_pool(
+        ((_binding(), qualification, profile),),
+        resolver=_QualificationResolver("L1"),
+        model_admission_resolver=_missing_model_evidence_resolver(),
+        provider_builder=lambda *, binding: _RespondingProvider(),
+        quota_observations={
+            "devfarm-shadow:openrouter:free": {
+                "quota_domain": "openrouter:account",
+                "unit": "requests",
+                "limit": 100,
+                "remaining": 99,
+                "consumed": 1,
+                "metric": "requests",
+                "window": "day",
+                "reset_at": "2026-10-05T00:00:00+00:00",
+                "observed_at": observed_at,
+                "source": "test-admission-observation",
+            }
+        },
+    ) as runtime:
+        response = runtime.dispatcher.request_with_execution(
+            request,
+            execute=lambda provider, _request, _late: ModelResponse(
+                provider=provider.provider_id,
+                model=provider.model_id,
+                parts=["ok"],
+                usage={"cost_minor": 0},
+            ),
+        )
+
+    assert response.provider == "openrouter"
+    assert response.model == "openrouter/free"
 
 
 def test_composition_rejects_l2_when_model_evidence_disappears():

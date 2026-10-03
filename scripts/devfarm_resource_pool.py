@@ -286,13 +286,24 @@ def compose_resource_pool(
     resource_id_prefix: str = "devfarm-shadow",
     provider_builder: Callable[..., ModelProvider] | None = None,
     router_factory: type[ResourceRouter] = ResourceRouter,
+    quota_observations: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> Iterator[ResourcePoolRuntime]:
-    """Compose the existing ledger/router/dispatcher for one bounded call."""
+    """Compose the existing ledger/router/dispatcher for one bounded call.
+
+    ``quota_observations`` carries already-observed, provider-neutral quota
+    evidence into the temporary ledger.  It is deliberately an explicit
+    caller-owned input: this helper never invents headroom or enables
+    unknown-quota routing.  The observation is still validated by
+    ``ResourceLedger.ingest_quota_observation`` against the composed resource
+    and therefore retains the normal quota-domain and freshness checks.
+    """
 
     if not admitted:
         raise ResourcePoolError("resource pool must not be empty")
     if not isinstance(resource_id_prefix, str) or not resource_id_prefix.strip():
         raise ResourcePoolError("resource_id_prefix must be non-empty")
+    if quota_observations is not None and not isinstance(quota_observations, Mapping):
+        raise ResourcePoolError("quota_observations must be a mapping or None")
     builder = provider_builder or build_provider
 
     with TemporaryDirectory(prefix=f"{resource_id_prefix}-") as directory:
@@ -389,6 +400,18 @@ def compose_resource_pool(
                     },
                 )
                 ledger.observe(resource_id, available=1, health="healthy", concurrency_limit=1)
+                if quota_observations is not None and resource_id in quota_observations:
+                    observation = quota_observations[resource_id]
+                    if not isinstance(observation, Mapping):
+                        raise ResourcePoolError(f"quota observation for {resource_id} must be a mapping")
+                    accepted = ledger.ingest_quota_observation(
+                        resource_id,
+                        {"quota_observation": dict(observation)},
+                        observed_at=observation.get("observed_at") if isinstance(observation.get("observed_at"), str) else None,
+                        source=observation.get("source", "admission-observation") if isinstance(observation.get("source", "admission-observation"), str) else "admission-observation",
+                    )
+                    if not accepted:
+                        raise ResourcePoolError(f"invalid quota observation for {resource_id}")
             policy = BudgetPolicy(hard_cap_minor=0, recovery_reserve_minor=0)
             BudgetAuthority.configure(ledger, policy)
             control = ResourceControlPlane(
