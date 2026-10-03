@@ -7,6 +7,7 @@ from src.dev_agent.providers.model_discovery import ModelDiscoveryBinding, Provi
 from src.dev_agent.resources.billing_catalog import profile_for
 from src.dev_agent.resources.model_candidates import materialize_provider_bindings
 from src.dev_agent.resources.model_catalog import ModelCatalog, ModelCatalogEntry
+from src.dev_agent.resources.ledger import ResourceLedger
 from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
 from src.dev_agent.resources.qualification import QualificationResolver
 
@@ -211,7 +212,76 @@ def test_cloudflare_decoder_accepts_current_chat_completion_result_shape():
     assert response.model == "@cf/zai-org/glm-4.7-flash"
     assert response.usage["quota_observation"]["consumed"] == 2
     assert response.usage["quota_observation"]["consumption_authority"] == "authoritative_provider"
-    assert response.usage["quota_observation"]["quota_authority"] == "authoritative_provider"
+    assert response.usage["quota_observation"]["quota_authority"] == "derived_conservative"
+    assert response.usage["quota_observation"]["evidence_mode"] == "derived_conservative"
+
+
+def test_provider_reported_cloudflare_neurons_project_conservative_remaining(tmp_path):
+    model = "@cf/google/gemma-4-26b-a4b-it"
+    request = ModelRequest(messages=[{"role": "user", "content": "ready"}])
+    response = CloudflareWorkersAIHttpProvider._decode(
+        {
+            "success": True,
+            "result": {
+                "model": model,
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {"role": "assistant", "content": "ready"},
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 2,
+                    "neurons": 1.25,
+                },
+            },
+        },
+        request,
+        model,
+    )
+
+    ledger = ResourceLedger(tmp_path / "cloudflare-reported-neurons.sqlite3")
+    try:
+        ledger.register_resource(
+            "cloudflare-gemma",
+            provider_id="cloudflare",
+            provider_binding_id="cloudflare:account::model::gemma",
+            native_unit="request",
+            capacity=1,
+            capabilities=["text"],
+            sensitivity="normal",
+            cost_minor=0,
+            quota_domain="cloudflare:account:test",
+            metadata={
+                "provider_binding_id": "cloudflare:account::model::gemma",
+                "model_id": model,
+                "billing_mode": "recurring_allowance",
+                "overage_policy": "hard_stop",
+                "no_charge_guaranteed": True,
+            },
+        )
+        ledger.observe("cloudflare-gemma", available=1, health="healthy")
+
+        assert ledger.ingest_quota_observation(
+            "cloudflare-gemma",
+            response.usage,
+            accounting_key="provider-response-1",
+        )
+
+        observation = ledger.get_quota_observation("cloudflare-gemma")
+        assert observation["limit"] == 10_000
+        assert observation["consumed"] == 2
+        assert observation["remaining"] == 9_998
+        assert observation["authority"] == "derived_conservative"
+
+        conservative = ledger.get_latest_conservative_quota("cloudflare-gemma")
+        assert conservative is not None
+        assert conservative["consumed"] == 2
+        assert conservative["remaining"] == 9_998
+        assert conservative["quota_authority"] == "derived_conservative"
+    finally:
+        ledger.close()
 
 
 def test_current_canonical_cloudflare_catalog_materializes_only_exact_qualified_free_candidates():
