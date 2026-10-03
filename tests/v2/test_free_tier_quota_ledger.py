@@ -6,7 +6,7 @@ from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.resources.budget import BudgetAuthority, BudgetGovernor, BudgetPolicy
 from src.dev_agent.resources.control import DispatchReservation, ResourceControlPlane
 from src.dev_agent.resources.ledger import ResourceLedger
-from src.dev_agent.resources.router import ResourceRouter
+from src.dev_agent.resources.router import NoRoute, ResourceRouter, RouteRequest
 
 
 def _ledger(tmp_path):
@@ -230,3 +230,44 @@ def test_local_conservative_exhaustion_projects_blocked_quota_observation(tmp_pa
     assert observation["remaining"] == 0
     assert observation["block_reason"] == "local_conservative_limit"
     assert observation["blocked_until"] == "2026-10-04T00:00:00+00:00"
+
+
+def test_router_rejects_route_after_local_conservative_exhaustion(tmp_path):
+    ledger = ResourceLedger(tmp_path / "router-quota.sqlite3")
+    ledger.register_resource(
+        "fake-free",
+        provider_id="fake",
+        provider_binding_id="fake:free",
+        native_unit="request",
+        capacity=1,
+        capabilities=["text"],
+        quota_domain="fake-account",
+        cost_minor=0,
+        metadata={
+            "model_id": "fake-model",
+            "billing_mode": "recurring_allowance",
+            "overage_policy": "hard_stop",
+            "no_charge_guaranteed": True,
+        },
+    )
+    ledger.observe("fake-free", available=1, health="healthy")
+    payload = {
+        "quota_observation": {
+            "unit": "requests",
+            "limit": 1,
+            "consumed": 1,
+            "quota_authority": "derived_conservative",
+            "evidence_mode": "derived_conservative",
+            "period_id": "2026-10-03",
+            "reset_at": "2026-10-04T00:00:00+00:00",
+            "reset_source": "fake_daily_utc",
+            "metric": "fake_requests",
+            "window": "day",
+        }
+    }
+    assert ledger.ingest_quota_observation("fake-free", payload, accounting_key="request-1")
+
+    with pytest.raises(NoRoute):
+        ResourceRouter(ledger).choose(
+            RouteRequest(capabilities={"text"}, allowed_providers={"fake"})
+        )
