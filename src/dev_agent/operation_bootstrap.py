@@ -14,12 +14,14 @@ from typing import Any, Callable
 from .intelligence.coordination import EvaluationCoordinator
 from .intelligence.lifecycle import TaskLifecycleCoordinator
 from .providers.dispatch import ProviderDispatcher
+from .providers.model_discovery import ModelDiscoveryBinding, ProviderModelDiscovery
 from .providers.registry import ProviderRegistry
 from .resources.budget import BudgetGovernor
 from .resources.control import ResourceControlPlane
 from .resources.ledger import ResourceLedger
 from .resources.model_admission import ModelAdmissionResolver
 from .resources.model_candidates import materialize_provider_bindings
+from .resources.model_catalog import ModelCatalog
 from .resources.model_evidence import ModelEvidenceCatalog
 from .resources.qualification import QualificationResolver
 from .resources.router import ResourceRouter
@@ -98,17 +100,37 @@ def open_components(
             if not bool(getattr(binding, "expand_discovered_models", False)):
                 runtime_bindings.append(binding)
                 continue
-            if model_catalog is None:
+
+            candidate_catalog = model_catalog
+            if binding.provider_id == "cloudflare":
+                # Refresh the factual candidate set at Operation startup. A
+                # live model list grants no execution authority; every row
+                # still passes exact qualification/billing/quota/health gates
+                # below. If the read-only refresh is unavailable, only the
+                # still-current reviewed catalog may serve as fallback.
+                try:
+                    live = ProviderModelDiscovery().discover(
+                        ModelDiscoveryBinding(
+                            provider_id="cloudflare",
+                            provider_binding_id=binding.credential_binding_id,
+                            api_key_env=binding.api_key_env,
+                            account_id_env="CLOUDFLARE_ACCOUNT_ID",
+                        )
+                    )
+                    candidate_catalog = ModelCatalog.from_document(live.to_document())
+                except Exception:
+                    candidate_catalog = model_catalog
+            if candidate_catalog is None:
                 continue
             for candidate in materialize_provider_bindings(
                 binding,
-                model_catalog,
+                candidate_catalog,
                 expand_discovered_models=True,
             ):
                 evidence_binding_id = candidate.credential_binding_id
                 # The seed model must not bypass current discovery merely
                 # because it is present in configuration.
-                if model_catalog.lookup(
+                if candidate_catalog.lookup(
                     candidate.provider_id,
                     evidence_binding_id,
                     candidate.model,
