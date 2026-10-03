@@ -35,6 +35,8 @@ _ALLOWED_METADATA_KEYS = frozenset(
         "input_modalities",
         "output_modalities",
         "supported_parameters",
+        "task_name",
+        "tags",
     }
 )
 
