@@ -140,10 +140,15 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
         reset_at = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
         period_id = now.date().isoformat()
         reported = usage.get("neurons")
-        if isinstance(reported, int) and not isinstance(reported, bool) and reported >= 0:
+        if (
+            isinstance(reported, (int, float))
+            and not isinstance(reported, bool)
+            and math.isfinite(float(reported))
+            and reported >= 0
+        ):
             return {
                 "unit": "neurons",
-                "consumed": reported,
+                "consumed": math.ceil(float(reported)),
                 "authority": "provider",
                 "quota_authority": "authoritative_provider",
                 "evidence_mode": "authoritative_provider",
@@ -213,11 +218,28 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
         result = raw.get("result")
         if not isinstance(result, Mapping):
             raise ProviderError("cloudflare response decode failed: result is missing", category="provider_decode", retryable=False)
-        message = result.get("message") if isinstance(result.get("message"), Mapping) else result
-        calls = cls._tool_calls(message.get("tool_calls"), request)
-        text = message.get("response")
-        if text is None:
+
+        # Workers AI currently exposes two documented/observed result shapes:
+        # the legacy direct result envelope and an OpenAI-compatible
+        # chat-completions result nested under the same {success,result}
+        # account API envelope. Normalize both without using model-name
+        # heuristics.
+        choices = result.get("choices")
+        if isinstance(choices, list) and choices and isinstance(choices[0], Mapping):
+            choice = choices[0]
+            message = choice.get("message")
+            if not isinstance(message, Mapping):
+                raise ProviderError("cloudflare response decode failed: choice message is missing", category="provider_decode", retryable=False)
+            calls = cls._tool_calls(message.get("tool_calls"), request)
             text = message.get("content")
+            finish_reason = choice.get("finish_reason")
+        else:
+            message = result.get("message") if isinstance(result.get("message"), Mapping) else result
+            calls = cls._tool_calls(message.get("tool_calls"), request)
+            text = message.get("response")
+            if text is None:
+                text = message.get("content")
+            finish_reason = result.get("finish_reason")
         if text is not None and not isinstance(text, str):
             raise ProviderError("cloudflare response decode failed: response is not text", category="provider_decode", retryable=False)
         usage = dict(result.get("usage")) if isinstance(result.get("usage"), Mapping) else {}
@@ -233,7 +255,7 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
         return ModelResponse(
             provider="cloudflare",
             model=requested_model or model_name,
-            finish_reason=str(result.get("finish_reason") or "stop"),
+            finish_reason=str(finish_reason or "stop"),
             text_segments=[text] if text else [],
             tool_calls=calls,
             usage=usage,
