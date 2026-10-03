@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "evidence_type": "cloudflare_billable_usage_preflight",
+  "recorded_at": "2026-10-03T04:29:05Z",
+  "source_revision": "2ef69a54767e1dbea3cd4c2d8b10322921e87d7f",
+  "secrets_recorded": false,
+  "credentials_retained": false,
+  "provider": "cloudflare",
+  "endpoint": "/accounts/{account_id}/billable/usage",
+  "endpoint_status": "Alpha/Restricted",
+  "network_called": true,
+  "status": "ACCESS_REQUIRED_OR_RESTRICTED",
+  "required_permission": "Account > Billing > Read",
+  "strict_remaining_observed": false,
+  "runtime_admission_impact": "unchanged",
+  "gate_impact": "none",
+  "unknown_or_reconciliation": false,
+  "next_action": "Obtain separate Human-authorized Billing Read/endpoint access, or keep Track C blocked without changing permissions."
+}
