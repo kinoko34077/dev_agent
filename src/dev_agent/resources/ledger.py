@@ -615,6 +615,59 @@ class ResourceLedger:
             source=source,
         )
 
+    def quarantine_latest_conservative_quota(
+        self,
+        resource_id: str,
+        *,
+        reason: str = "usage_unbounded",
+        observed_at: str | None = None,
+        source: str = "provider-response-quarantine",
+    ) -> dict[str, Any] | None:
+        """Block a conservative route when response usage cannot be bounded.
+
+        A successful response remains a known external outcome, but a route
+        whose conservative ledger cannot account for that response must not
+        retain stale positive headroom.  Project the quarantine through the
+        normal quota-observation table so ResourceRouter sees the block until
+        the documented reset boundary.
+        """
+        try:
+            current = self.get_latest_conservative_quota(resource_id)
+        except (KeyError, ValueError):
+            # Ordinary resources do not participate in the conservative
+            # free-tier ledger.  Their missing quota telemetry remains the
+            # existing non-quota observation path.
+            return None
+        if current is None:
+            return None
+        state = self.mark_latest_conservative_quota_exhausted(
+            resource_id,
+            reason=reason,
+            blocked_until=current["reset_at"],
+            observed_at=observed_at,
+            source=source,
+        )
+        if state is None:
+            return None
+        self.observe_quota(
+            resource_id,
+            unit=state["unit"],
+            limit=state["allowance_limit"],
+            remaining=0,
+            consumed=state["consumed"],
+            authority="derived_conservative",
+            metric="workers_ai_neurons",
+            window="day",
+            reset_source=state["reset_source"],
+            blocked_until=state["reset_at"],
+            block_reason=reason,
+            reset_at=state["reset_at"],
+            confidence=0.25,
+            observed_at=observed_at,
+            source=source,
+        )
+        return state
+
     def claim_unknown_quota_admission(
         self,
         quota_domain: str,

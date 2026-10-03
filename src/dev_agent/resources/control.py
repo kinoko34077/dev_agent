@@ -258,11 +258,20 @@ class ResourceControlPlane:
             reservation.budget.resource_id,
             health="healthy",
         )
-        return self.governor.ledger.ingest_quota_observation(
+        quota_observed = self.governor.ledger.ingest_quota_observation(
             reservation.budget.resource_id,
             response.usage,
             accounting_key=reservation.budget.reservation_id,
         )
+        if not quota_observed:
+            # A conservative free-tier route must not keep stale positive
+            # headroom when the successful response carries no bounded usage.
+            # The response is already known, so quarantine the route instead
+            # of turning this into UNKNOWN or retrying the external effect.
+            self.governor.ledger.quarantine_latest_conservative_quota(
+                reservation.budget.resource_id,
+            )
+        return quota_observed
 
     def mark_dispatching(self, reservation: DispatchReservation) -> None:
         self.governor.mark_dispatching(reservation.budget.reservation_id)

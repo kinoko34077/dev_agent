@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+from src.dev_agent.domain.protocol import ModelResponse
 from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.resources.budget import BudgetAuthority, BudgetGovernor, BudgetPolicy
 from src.dev_agent.resources.control import DispatchReservation, ResourceControlPlane
@@ -271,3 +272,74 @@ def test_router_rejects_route_after_local_conservative_exhaustion(tmp_path):
         ResourceRouter(ledger).choose(
             RouteRequest(capabilities={"text"}, allowed_providers={"fake"})
         )
+
+
+def test_conservative_route_quarantines_unbounded_response_usage(tmp_path):
+    ledger = _ledger(tmp_path)
+    reset_at = "2026-10-04T00:00:00+00:00"
+    ledger.configure_conservative_quota(
+        "cloudflare-free",
+        unit="neurons",
+        allowance_limit=10_000,
+        period_id="2026-10-03",
+        reset_at=reset_at,
+        reset_source="cloudflare_daily_utc",
+    )
+    ledger.observe_quota(
+        "cloudflare-free",
+        unit="neurons",
+        limit=10_000,
+        remaining=9_900,
+        consumed=100,
+        authority="derived_conservative",
+        metric="workers_ai_neurons",
+        window="day",
+        reset_source="cloudflare_daily_utc",
+        reset_at=reset_at,
+    )
+    policy = BudgetPolicy(hard_cap_minor=0, recovery_reserve_minor=0)
+    BudgetAuthority.configure(ledger, policy)
+    governor = BudgetGovernor(ledger, policy)
+    budget = governor.reserve("task-unbounded-usage", "cloudflare-free", estimated_cost_minor=0)
+    reservation = DispatchReservation(
+        budget,
+        "cloudflare",
+        provider_binding_id="cloudflare:free",
+        model_id="@cf/example/model",
+        billing_mode="recurring_allowance",
+        overage_policy="hard_stop",
+        no_charge_guaranteed=True,
+    )
+
+    observed = ResourceControlPlane(ResourceRouter(ledger), governor).observe_provider_response(
+        reservation,
+        ModelResponse(
+            provider="cloudflare",
+            model="@cf/example/model",
+            text_segments=["ok"],
+            usage={"cost_minor": 0},
+        ),
+    )
+
+    assert observed is False
+    quota = ledger.get_quota_observation("cloudflare-free")
+    assert quota is not None
+    assert quota["remaining"] == 0
+    assert quota["block_reason"] == "usage_unbounded"
+    assert quota["blocked_until"] == reset_at
+
+
+def test_quarantine_is_noop_for_non_conservative_resources(tmp_path):
+    ledger = ResourceLedger(tmp_path / "ordinary.sqlite3")
+    ledger.register_resource(
+        "ordinary",
+        provider_id="ordinary-provider",
+        native_unit="request",
+        capacity=1,
+        capabilities=["text"],
+        quota_domain="ordinary-account",
+        cost_minor=1,
+        metadata={"billing_mode": "payg", "overage_policy": "operator_controlled"},
+    )
+
+    assert ledger.quarantine_latest_conservative_quota("ordinary") is None
