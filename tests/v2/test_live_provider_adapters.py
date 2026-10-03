@@ -1,4 +1,6 @@
 import json
+from io import BytesIO
+from urllib.error import HTTPError
 
 import pytest
 
@@ -217,9 +219,75 @@ def test_cloudflare_http_adapter_marks_neuron_usage_as_estimated(monkeypatch):
     quota = response.usage["quota_observation"]
     assert quota["unit"] == "neurons"
     assert quota["consumed"] == 177
-    assert quota["authority"] == "estimated"
+    assert quota["authority"] == "derived_conservative"
+    assert quota["quota_authority"] == "derived_conservative"
+    assert quota["evidence_mode"] == "derived_conservative"
+    assert quota["limit"] == 10_000
+    assert quota["window"] == "day"
+    assert quota["reset_source"] == "cloudflare_daily_utc"
     assert quota["source"] == "cloudflare-neuron-estimate"
     assert quota["confidence"] < 1
+
+
+def test_cloudflare_neuron_conversion_fails_closed_for_unknown_model_or_usage():
+    assert CloudflareWorkersAIHttpProvider.neurons_for_usage(
+        "@cf/meta/llama-3.1-8b-instruct", 1000, 2000
+    ) == 177
+    assert CloudflareWorkersAIHttpProvider.neurons_for_usage("@cf/unknown/model", 1000, 2000) is None
+    assert CloudflareWorkersAIHttpProvider.neurons_for_usage(
+        "@cf/meta/llama-3.1-8b-instruct", -1, 2000
+    ) is None
+
+
+def test_cloudflare_provider_reported_neurons_are_authoritative_when_present(monkeypatch):
+    monkeypatch.setattr(
+        "src.dev_agent.providers.cloudflare.provider.urlopen_no_redirect",
+        lambda _request, **_kwargs: _Response(
+            {
+                "success": True,
+                "result": {
+                    "response": "cloud answer",
+                    "usage": {"neurons": 321, "prompt_tokens": 1, "completion_tokens": 1},
+                },
+            }
+        ),
+    )
+    request = ModelRequest(
+        task_id="00000000-0000-0000-0000-000000000001",
+        messages=[{"role": "user", "content": "hello"}],
+    )
+    response = CloudflareWorkersAIHttpProvider(
+        model="@cf/meta/llama-3.1-8b-instruct", account_id="account", api_token="token"
+    ).request(request)
+    assert response.usage["quota_observation"]["consumed"] == 321
+    assert response.usage["quota_observation"]["quota_authority"] == "authoritative_provider"
+
+
+def test_cloudflare_daily_allocation_error_is_typed_as_quota_exhaustion(monkeypatch):
+    def quota_error(_request, **_kwargs):
+        raise HTTPError(
+            "https://api.cloudflare.com/client/v4/accounts/account/ai/run/model",
+            429,
+            "quota exhausted",
+            {},
+            BytesIO(json.dumps({"errors": [{"code": 3036}]}).encode("utf-8")),
+        )
+
+    monkeypatch.setattr("src.dev_agent.providers.cloudflare.provider.urlopen_no_redirect", quota_error)
+    request = ModelRequest(
+        task_id="00000000-0000-0000-0000-000000000001",
+        messages=[{"role": "user", "content": "hello"}],
+    )
+
+    with pytest.raises(ProviderError) as caught:
+        CloudflareWorkersAIHttpProvider(
+            model="@cf/meta/llama-3.1-8b-instruct", account_id="account", api_token="token"
+        ).request(request)
+
+    assert caught.value.category == "quota"
+    assert caught.value.retryable is False
+    assert caught.value.quota_metric == "daily_neurons"
+    assert caught.value.quota_window == "day_utc"
 
 
 def test_groq_live_http_adapter_fails_closed_when_credentials_are_missing(monkeypatch):

@@ -21,6 +21,7 @@ from .health import ProviderHealthStore
 from .observations import QuotaObservationStore, ResourceObservationStore
 from .quota_store import QuotaAdmissionStore, UnknownQuotaAdmission
 from .quota_policy import QuotaBlockDecision
+from .free_tier import FreeTierQuotaExhausted, FreeTierQuotaStore
 from . import schema as resource_schema
 
 
@@ -139,6 +140,7 @@ class ResourceLedger:
         self._observation_store = ResourceObservationStore(self.connection, self._lock)
         self._quota_store = QuotaObservationStore(self.connection, self._lock)
         self._quota_admission_store = QuotaAdmissionStore(self.connection, self._lock)
+        self._free_tier_store = FreeTierQuotaStore(self.connection, self._lock)
         self._health_store = ProviderHealthStore(self.connection, self._lock)
         self._budget_store = BudgetReservationStore(self.connection, self._lock)
         resource_schema.ensure_schema(self.connection, schema_version=self.SCHEMA_VERSION)
@@ -452,6 +454,167 @@ class ResourceLedger:
     def get_quota_observation(self, resource_id: str) -> dict[str, Any] | None:
         return self._quota_store.get_latest(resource_id)
 
+    def _free_tier_identity(self, resource_id: str) -> tuple[dict[str, Any], str, str, str, str]:
+        resource = self.get_resource(resource_id)
+        metadata = resource.get("metadata") if isinstance(resource.get("metadata"), dict) else {}
+        if (
+            metadata.get("no_charge_guaranteed") is not True
+            or metadata.get("billing_mode") != "recurring_allowance"
+            or metadata.get("overage_policy") != "hard_stop"
+        ):
+            raise ValueError("free-tier conservative quota requires an independently established no-charge route")
+        provider_id = resource.get("provider_id")
+        binding_id = metadata.get("provider_binding_id") or provider_id
+        model_id = metadata.get("model_id")
+        quota_domain = resource.get("quota_domain")
+        if not all(isinstance(value, str) and value.strip() for value in (provider_id, binding_id, model_id, quota_domain)):
+            raise ValueError("free-tier conservative quota requires provider, binding, model, and quota-domain identity")
+        return resource, provider_id.strip(), binding_id.strip(), model_id.strip(), quota_domain.strip()
+
+    def configure_conservative_quota(
+        self,
+        resource_id: str,
+        *,
+        unit: str,
+        allowance_limit: int | float,
+        period_id: str,
+        reset_at: str,
+        reset_source: str,
+        observed_at: str | None = None,
+        source: str = "documented-free-tier-policy",
+    ) -> dict[str, Any]:
+        """Configure a derived-conservative period for an admitted no-charge route."""
+        _, provider_id, binding_id, model_id, quota_domain = self._free_tier_identity(resource_id)
+        timestamp = observed_at or _now()
+        return self._free_tier_store.configure(
+            provider_id=provider_id,
+            binding_id=binding_id,
+            model_id=model_id,
+            quota_domain=quota_domain,
+            unit=unit,
+            allowance_limit=allowance_limit,
+            period_id=period_id,
+            reset_at=reset_at,
+            reset_source=reset_source,
+            observed_at=timestamp,
+            source=source,
+        )
+
+    def get_conservative_quota(self, resource_id: str, *, period_id: str) -> dict[str, Any] | None:
+        _, provider_id, binding_id, model_id, quota_domain = self._free_tier_identity(resource_id)
+        return self._free_tier_store.get(
+            provider_id=provider_id,
+            binding_id=binding_id,
+            model_id=model_id,
+            quota_domain=quota_domain,
+            period_id=period_id,
+        )
+
+    def get_latest_conservative_quota(self, resource_id: str) -> dict[str, Any] | None:
+        _, provider_id, binding_id, model_id, quota_domain = self._free_tier_identity(resource_id)
+        return self._free_tier_store.latest_for_identity(
+            provider_id=provider_id,
+            binding_id=binding_id,
+            model_id=model_id,
+            quota_domain=quota_domain,
+        )
+
+    def debit_conservative_quota(
+        self,
+        resource_id: str,
+        *,
+        consumed: int | float,
+        period_id: str,
+        observed_at: str | None = None,
+        source: str = "derived-conservative-usage",
+        debit_key: str | None = None,
+    ) -> dict[str, Any]:
+        _, provider_id, binding_id, model_id, quota_domain = self._free_tier_identity(resource_id)
+        return self._free_tier_store.debit(
+            provider_id=provider_id,
+            binding_id=binding_id,
+            model_id=model_id,
+            quota_domain=quota_domain,
+            period_id=period_id,
+            consumed=consumed,
+            observed_at=observed_at or _now(),
+            source=source,
+            debit_key=debit_key,
+        )
+
+    def reset_conservative_quota_if_due(
+        self,
+        resource_id: str,
+        *,
+        period_id: str,
+        next_period_id: str,
+        next_reset_at: str,
+        now: datetime,
+        source: str = "documented-free-tier-reset",
+    ) -> dict[str, Any]:
+        current = self.get_conservative_quota(resource_id, period_id=period_id)
+        if current is None:
+            raise KeyError(period_id)
+        reset_at = datetime.fromisoformat(current["reset_at"].replace("Z", "+00:00"))
+        if now.tzinfo is None:
+            raise ValueError("now must include a timezone")
+        if now.astimezone(timezone.utc) < reset_at:
+            return current
+        return self.configure_conservative_quota(
+            resource_id,
+            unit=current["unit"],
+            allowance_limit=current["allowance_limit"],
+            period_id=next_period_id,
+            reset_at=next_reset_at,
+            reset_source=current["reset_source"],
+            observed_at=now.astimezone(timezone.utc).isoformat(),
+            source=source,
+        )
+
+    def mark_conservative_quota_exhausted(
+        self,
+        resource_id: str,
+        *,
+        period_id: str,
+        blocked_until: str,
+        reason: str,
+        observed_at: str | None = None,
+        source: str = "provider-quota-exhaustion",
+    ) -> dict[str, Any]:
+        _, provider_id, binding_id, model_id, quota_domain = self._free_tier_identity(resource_id)
+        return self._free_tier_store.mark_exhausted(
+            provider_id=provider_id,
+            binding_id=binding_id,
+            model_id=model_id,
+            quota_domain=quota_domain,
+            period_id=period_id,
+            blocked_until=blocked_until,
+            reason=reason,
+            observed_at=observed_at or _now(),
+            source=source,
+        )
+
+    def mark_latest_conservative_quota_exhausted(
+        self,
+        resource_id: str,
+        *,
+        reason: str,
+        blocked_until: str | None = None,
+        observed_at: str | None = None,
+        source: str = "provider-quota-exhaustion",
+    ) -> dict[str, Any] | None:
+        current = self.get_latest_conservative_quota(resource_id)
+        if current is None:
+            return None
+        return self.mark_conservative_quota_exhausted(
+            resource_id,
+            period_id=current["period_id"],
+            blocked_until=blocked_until or current["reset_at"],
+            reason=reason,
+            observed_at=observed_at,
+            source=source,
+        )
+
     def claim_unknown_quota_admission(
         self,
         quota_domain: str,
@@ -541,6 +704,7 @@ class ResourceLedger:
         *,
         observed_at: str | None = None,
         source: str = "provider-response",
+        accounting_key: str | None = None,
     ) -> bool:
         """Ingest the provider-neutral quota observation in response usage.
 
@@ -559,6 +723,57 @@ class ResourceLedger:
             payload = usage.get("quota")
         if not isinstance(payload, Mapping):
             return False
+        if payload.get("quota_authority") == "derived_conservative" or payload.get("evidence_mode") == "derived_conservative":
+            try:
+                period_id = payload.get("period_id")
+                reset_at = payload.get("reset_at")
+                allowance_limit = payload.get("limit")
+                consumed = payload.get("consumed")
+                reset_source = payload.get("reset_source")
+                if not all(isinstance(value, str) and value.strip() for value in (period_id, reset_at, reset_source)):
+                    return False
+                if isinstance(allowance_limit, bool) or not isinstance(allowance_limit, (int, float)):
+                    return False
+                if isinstance(consumed, bool) or not isinstance(consumed, (int, float)) or consumed <= 0:
+                    return False
+                self.configure_conservative_quota(
+                    resource_id,
+                    unit=payload.get("unit", "neurons"),
+                    allowance_limit=allowance_limit,
+                    period_id=period_id,
+                    reset_at=reset_at,
+                    reset_source=reset_source,
+                    observed_at=payload.get("observed_at") or observed_at,
+                    source=payload.get("source", source),
+                )
+                state = self.debit_conservative_quota(
+                    resource_id,
+                    consumed=consumed,
+                    period_id=period_id,
+                    observed_at=payload.get("observed_at") or observed_at,
+                    source=payload.get("source", source),
+                    debit_key=accounting_key,
+                )
+                self.observe_quota(
+                    resource_id,
+                    unit=state["unit"],
+                    limit=state["allowance_limit"],
+                    remaining=state["remaining"],
+                    consumed=state["consumed"],
+                    authority="derived_conservative",
+                    metric=payload.get("metric", "workers_ai_neurons"),
+                    window=payload.get("window", "day"),
+                    reset_source=state["reset_source"],
+                    blocked_until=state.get("blocked_until"),
+                    block_reason=state.get("block_reason"),
+                    reset_at=state["reset_at"],
+                    confidence=payload.get("confidence", 0.25),
+                    observed_at=payload.get("observed_at") or observed_at,
+                    source=payload.get("source", source),
+                )
+            except (TypeError, ValueError, KeyError, FreeTierQuotaExhausted):
+                return False
+            return True
         fields = (
             "unit",
             "limit",

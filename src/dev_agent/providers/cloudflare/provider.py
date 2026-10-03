@@ -7,6 +7,7 @@ adapter exposes only the normalized Provider contract to the Kernel.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from datetime import datetime, timedelta, timezone
 import json
 import math
 import os
@@ -38,6 +39,8 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
     """
 
     provider_id = "cloudflare"
+    FREE_NEURON_ALLOWANCE = 10_000
+    FREE_NEURON_RESET_SOURCE = "cloudflare_daily_utc"
     # Cloudflare publishes model-specific token prices and a common neuron
     # price.  These constants are intentionally an estimate for models where
     # the response does not report neurons directly; they are never treated
@@ -97,21 +100,76 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
             payload["tools"] = [{"type": "function", "function": dict(definition)} for definition in request.tool_definitions]
         return payload
 
+    @staticmethod
+    def _error_code(error: HTTPError) -> str | None:
+        """Read only the bounded Cloudflare error code, never the raw body."""
+        try:
+            payload = json.loads(_read_bounded(error).decode("utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            return None
+        if not isinstance(payload, Mapping) or not isinstance(payload.get("errors"), list):
+            return None
+        for item in payload["errors"]:
+            if isinstance(item, Mapping) and isinstance(item.get("code"), (int, str)):
+                return str(item["code"])
+        return None
+
     @classmethod
-    def _neuron_observation(cls, model: str, usage: Mapping[str, Any]) -> dict[str, Any] | None:
+    def neurons_for_usage(cls, model: str, prompt_tokens: int, completion_tokens: int) -> int | None:
+        """Return a conservative whole-Neuron debit for an exact model.
+
+        A missing model-specific rate is intentionally not guessed.  The
+        caller must then stop or use another independently admitted route.
+        ``ceil`` prevents fractional usage from being under-debited.
+        """
         rates = cls._NEURON_RATES_PER_MILLION.get(model)
-        prompt_tokens = usage.get("prompt_tokens")
-        completion_tokens = usage.get("completion_tokens")
         if rates is None or any(
             isinstance(value, bool) or not isinstance(value, int) or value < 0
             for value in (prompt_tokens, completion_tokens)
         ):
             return None
-        consumed = math.ceil((prompt_tokens * rates[0] + completion_tokens * rates[1]) / 1_000_000)
+        return math.ceil((prompt_tokens * rates[0] + completion_tokens * rates[1]) / 1_000_000)
+
+    @classmethod
+    def _neuron_observation(cls, model: str, usage: Mapping[str, Any]) -> dict[str, Any] | None:
+        now = datetime.now(timezone.utc)
+        reset_at = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        period_id = now.date().isoformat()
+        reported = usage.get("neurons")
+        if isinstance(reported, int) and not isinstance(reported, bool) and reported >= 0:
+            return {
+                "unit": "neurons",
+                "consumed": reported,
+                "authority": "provider",
+                "quota_authority": "authoritative_provider",
+                "evidence_mode": "authoritative_provider",
+                "limit": cls.FREE_NEURON_ALLOWANCE,
+                "metric": "workers_ai_neurons",
+                "window": "day",
+                "reset_source": cls.FREE_NEURON_RESET_SOURCE,
+                "period_id": period_id,
+                "reset_at": reset_at.isoformat(),
+                "source": "cloudflare-provider-neurons",
+                "confidence": 1.0,
+            }
+        rates = cls._NEURON_RATES_PER_MILLION.get(model)
+        prompt_tokens = usage.get("prompt_tokens")
+        completion_tokens = usage.get("completion_tokens")
+        consumed = cls.neurons_for_usage(model, prompt_tokens, completion_tokens) if isinstance(prompt_tokens, int) and isinstance(completion_tokens, int) else None
+        if rates is None or consumed is None:
+            return None
         return {
             "unit": "neurons",
             "consumed": consumed,
-            "authority": "estimated",
+            "authority": "derived_conservative",
+            "quota_authority": "derived_conservative",
+            "evidence_mode": "derived_conservative",
+            "limit": cls.FREE_NEURON_ALLOWANCE,
+            "metric": "workers_ai_neurons",
+            "window": "day",
+            "reset_source": cls.FREE_NEURON_RESET_SOURCE,
+            "period_id": period_id,
+            "reset_at": reset_at.isoformat(),
             "source": "cloudflare-neuron-estimate",
             "confidence": 0.25,
         }
@@ -200,6 +258,16 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
                     retryable=False,
                     http_status=exc.code,
                 ) from exc
+            if exc.code == 429 and self._error_code(exc) == "3036":
+                raise ProviderError(
+                    "cloudflare daily free neuron allocation exhausted",
+                    category="quota",
+                    retryable=False,
+                    http_status=exc.code,
+                    quota_metric="daily_neurons",
+                    quota_window="day_utc",
+                    quota_reset_source=self.FREE_NEURON_RESET_SOURCE,
+                ) from exc
             category = "authentication" if exc.code == 401 else "authorization" if exc.code == 403 else "rate_limit" if exc.code == 429 else "provider_http"
             raise ProviderError(
                 f"cloudflare liveness probe failed: HTTP {exc.code}",
@@ -253,6 +321,16 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
                     category="provider_http",
                     retryable=False,
                     http_status=exc.code,
+                ) from exc
+            if exc.code == 429 and self._error_code(exc) == "3036":
+                raise ProviderError(
+                    "cloudflare daily free neuron allocation exhausted",
+                    category="quota",
+                    retryable=False,
+                    http_status=exc.code,
+                    quota_metric="daily_neurons",
+                    quota_window="day_utc",
+                    quota_reset_source=self.FREE_NEURON_RESET_SOURCE,
                 ) from exc
             category = "authentication" if exc.code == 401 else "authorization" if exc.code == 403 else "rate_limit" if exc.code == 429 else "provider_http"
             raise ProviderError(f"cloudflare {category}: HTTP {exc.code}", category=category, retryable=category == "rate_limit", http_status=exc.code) from exc

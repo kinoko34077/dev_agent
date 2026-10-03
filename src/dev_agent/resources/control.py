@@ -258,7 +258,11 @@ class ResourceControlPlane:
             reservation.budget.resource_id,
             health="healthy",
         )
-        return self.governor.ledger.ingest_quota_observation(reservation.budget.resource_id, response.usage)
+        return self.governor.ledger.ingest_quota_observation(
+            reservation.budget.resource_id,
+            response.usage,
+            accounting_key=reservation.budget.reservation_id,
+        )
 
     def mark_dispatching(self, reservation: DispatchReservation) -> None:
         self.governor.mark_dispatching(reservation.budget.reservation_id)
@@ -285,6 +289,13 @@ class ResourceControlPlane:
         decision = classify_provider_error(provider_id, error)
         if decision is not None:
             self.governor.ledger.record_quota_block(reservation.budget.resource_id, decision)
+            if category == "quota":
+                self.governor.ledger.mark_latest_conservative_quota_exhausted(
+                    reservation.budget.resource_id,
+                    reason=decision.block_reason,
+                    blocked_until=decision.blocked_until,
+                    source="provider-quota-exhaustion",
+                )
         if category in {"transport", "rate_limit", "quota", "provider_unavailable"} or requires_reconciliation:
             self.record_provider_failure(
                 provider_id,

@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import sqlite3
 
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 12
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS resources (
@@ -123,6 +123,37 @@ CREATE TABLE IF NOT EXISTS resource_repairs (
     after_json TEXT NOT NULL,
     reason TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS free_tier_quota_ledgers (
+    ledger_key TEXT PRIMARY KEY,
+    provider_id TEXT NOT NULL,
+    binding_id TEXT NOT NULL,
+    model_id TEXT NOT NULL,
+    quota_domain TEXT NOT NULL,
+    unit TEXT NOT NULL,
+    period_id TEXT NOT NULL,
+    allowance_limit REAL NOT NULL,
+    consumed REAL NOT NULL DEFAULT 0,
+    reset_at TEXT NOT NULL,
+    reset_source TEXT NOT NULL,
+    quota_authority TEXT NOT NULL,
+    evidence_mode TEXT NOT NULL,
+    exhausted INTEGER NOT NULL DEFAULT 0,
+    blocked_until TEXT,
+    block_reason TEXT,
+    observed_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    source TEXT NOT NULL,
+    UNIQUE(provider_id, binding_id, model_id, quota_domain, period_id)
+);
+CREATE INDEX IF NOT EXISTS idx_free_tier_quota_identity
+    ON free_tier_quota_ledgers(provider_id, binding_id, model_id, quota_domain, period_id);
+CREATE TABLE IF NOT EXISTS free_tier_quota_debits (
+    debit_key TEXT PRIMARY KEY,
+    ledger_key TEXT NOT NULL,
+    consumed REAL NOT NULL,
+    observed_at TEXT NOT NULL,
+    source TEXT NOT NULL
 );
 """
 
@@ -286,6 +317,49 @@ def ensure_schema(connection: sqlite3.Connection, *, schema_version: int = SCHEM
                 )"""
             )
             connection.execute("UPDATE resource_schema_meta SET value='10' WHERE key='schema_version'")
+            current = 10
+        if current < 11:
+            connection.execute(
+                """CREATE TABLE IF NOT EXISTS free_tier_quota_ledgers (
+                    ledger_key TEXT PRIMARY KEY,
+                    provider_id TEXT NOT NULL,
+                    binding_id TEXT NOT NULL,
+                    model_id TEXT NOT NULL,
+                    quota_domain TEXT NOT NULL,
+                    unit TEXT NOT NULL,
+                    period_id TEXT NOT NULL,
+                    allowance_limit REAL NOT NULL,
+                    consumed REAL NOT NULL DEFAULT 0,
+                    reset_at TEXT NOT NULL,
+                    reset_source TEXT NOT NULL,
+                    quota_authority TEXT NOT NULL,
+                    evidence_mode TEXT NOT NULL,
+                    exhausted INTEGER NOT NULL DEFAULT 0,
+                    blocked_until TEXT,
+                    block_reason TEXT,
+                    observed_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    UNIQUE(provider_id, binding_id, model_id, quota_domain, period_id)
+                )"""
+            )
+            connection.execute(
+                """CREATE INDEX IF NOT EXISTS idx_free_tier_quota_identity
+                   ON free_tier_quota_ledgers(provider_id, binding_id, model_id, quota_domain, period_id)"""
+            )
+            connection.execute("UPDATE resource_schema_meta SET value='11' WHERE key='schema_version'")
+            current = 11
+        if current < 12:
+            connection.execute(
+                """CREATE TABLE IF NOT EXISTS free_tier_quota_debits (
+                    debit_key TEXT PRIMARY KEY,
+                    ledger_key TEXT NOT NULL,
+                    consumed REAL NOT NULL,
+                    observed_at TEXT NOT NULL,
+                    source TEXT NOT NULL
+                )"""
+            )
+            connection.execute("UPDATE resource_schema_meta SET value='12' WHERE key='schema_version'")
         connection.commit()
     except Exception:
         connection.rollback()

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from src.dev_agent.resources.ledger import ResourceLedger
 from src.dev_agent.resources.router import ResourceRouter
 from src.dev_agent.resources.runtime_admission import (
@@ -114,6 +116,36 @@ def test_trusted_no_charge_route_without_quota_is_bootstrap_admitted_not_eligibl
 
     assert observation.status == RUNTIME_BOOTSTRAP_ADMITTED
     assert observation.status != RUNTIME_ELIGIBLE
+
+
+def test_derived_conservative_quota_can_reach_formal_runtime_eligibility(tmp_path):
+    ledger, router = _trusted_free3_ledger(tmp_path)
+    resource = ledger.get_resource("gemini:worker:free-3")
+    ledger.observe(resource["resource_id"], available=1, health="healthy")
+    observed_at = datetime.now(timezone.utc).isoformat()
+    reset_at = (datetime.now(timezone.utc) + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    ledger.observe_quota(
+        resource["resource_id"],
+        unit="neurons",
+        limit=10_000,
+        remaining=9_823,
+        consumed=177,
+        authority="derived_conservative",
+        metric="workers_ai_neurons",
+        window="day",
+        reset_source="cloudflare_daily_utc",
+        reset_at=reset_at,
+        observed_at=observed_at,
+        source="cloudflare-neuron-estimate",
+    )
+
+    observation = RuntimeAdmissionEvaluator(router).evaluate(
+        _FREE3,
+        snapshot=ledger.routing_snapshot(),
+        observed_at="2026-10-03T12:01:00+00:00",
+    )
+
+    assert observation.status == RUNTIME_ELIGIBLE
 
 
 def test_blocked_quota_domain_is_not_bootstrap_admitted(tmp_path):

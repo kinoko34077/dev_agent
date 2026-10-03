@@ -8,7 +8,10 @@ import math
 import json
 
 
-SCHEMA_VERSION = 10
+# Keep the recovery validator aligned with the ResourceLedger schema authority.
+# Recovery remains runtime-independent, so this bounded mirror must be advanced
+# whenever a durable resource-ledger migration is accepted.
+SCHEMA_VERSION = 12
 
 
 def validate_resource_ledger(path: str | Path) -> tuple[bool, str]:
