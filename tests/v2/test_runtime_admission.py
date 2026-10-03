@@ -156,8 +156,8 @@ def test_cloudflare_derived_quota_reaches_admission_through_existing_resource_pa
     resolver = QualificationResolver()
     binding = OperationProviderBinding(
         provider_id="cloudflare",
-        model="@cf/meta/llama-3.1-8b-instruct",
-        provider_binding_id="cloudflare",
+        model="@cf/zai-org/glm-4.7-flash",
+        provider_binding_id="cloudflare:account",
         quota_domain="cloudflare:account:test",
         api_key_env="UNUSED_TEST_KEY",
     )
@@ -186,8 +186,8 @@ def test_cloudflare_derived_quota_reaches_admission_through_existing_resource_pa
     observation = RuntimeAdmissionEvaluator(router).evaluate(
         RuntimeAdmissionCandidate(
             provider_id="cloudflare",
-            provider_binding_id="cloudflare",
-            model_id="@cf/meta/llama-3.1-8b-instruct",
+            provider_binding_id="cloudflare:account",
+            model_id="@cf/zai-org/glm-4.7-flash",
         ),
         snapshot=ledger.routing_snapshot(),
         observed_at=observed_at,

@@ -26,8 +26,8 @@ def test_orchestrator_uses_shared_repository_json_reader():
 
 class _ConcurrentProvider(FakeProvider):
     provider_id = "cloudflare"
-    provider_binding_id = "cloudflare"
-    model_id = "@cf/meta/llama-3.1-8b-instruct"
+    provider_binding_id = "cloudflare:account"
+    model_id = "@cf/zai-org/glm-4.7-flash"
     intelligence_tier = "L1"
 
     def __init__(self, output, tracker=None, provider_id="cloudflare"):
@@ -38,8 +38,8 @@ class _ConcurrentProvider(FakeProvider):
             self.provider_binding_id = "gemini:worker"
             self.model_id = "gemini-3.5-flash-lite"
         else:
-            self.provider_binding_id = "cloudflare"
-            self.model_id = "@cf/meta/llama-3.1-8b-instruct"
+            self.provider_binding_id = "cloudflare:account"
+            self.model_id = "@cf/zai-org/glm-4.7-flash"
 
     def request(self, request: ModelRequest) -> ModelResponse:
         if self.tracker is not None:

@@ -427,8 +427,8 @@ def test_phase8_public_driver_only_submits_and_observes(tmp_path: Path):
             },
             "assignment": {
                 "provider_id": "cloudflare",
-                "provider_binding_id": "cloudflare",
-                "model_id": "@cf/meta/llama-3.1-8b-instruct",
+                "provider_binding_id": "cloudflare:account",
+                "model_id": "@cf/zai-org/glm-4.7-flash",
             },
         }
 

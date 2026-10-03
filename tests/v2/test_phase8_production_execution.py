@@ -507,8 +507,8 @@ def test_phase8_executor_composes_real_operation_and_commander_boundaries(tmp_pa
             },
             "assignment": {
                 "provider_id": "cloudflare",
-                "provider_binding_id": "cloudflare",
-                "model_id": "@cf/meta/llama-3.1-8b-instruct",
+                "provider_binding_id": "cloudflare:account",
+                "model_id": "@cf/zai-org/glm-4.7-flash",
             },
         }
 

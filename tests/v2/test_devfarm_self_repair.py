@@ -22,8 +22,8 @@ from src.dev_agent.providers.fake.provider import FakeProvider
 
 class _WorkerProvider(FakeProvider):
     provider_id = "cloudflare"
-    provider_binding_id = "cloudflare"
-    model_id = "@cf/meta/llama-3.1-8b-instruct"
+    provider_binding_id = "cloudflare:account"
+    model_id = "@cf/zai-org/glm-4.7-flash"
 
     def __init__(self, output: dict[str, object]) -> None:
         self.output = output
@@ -125,7 +125,7 @@ def test_approved_repair_adapter_uses_real_supervisor_host_integration(tmp_path:
                     "ownership": ["tests/v2/repair_target.py"],
                     "assignment": {
                         "provider_id": "cloudflare",
-                        "model_id": "@cf/meta/llama-3.1-8b-instruct",
+                        "model_id": "@cf/zai-org/glm-4.7-flash",
                     },
                 }
             ],

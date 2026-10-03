@@ -149,13 +149,13 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
             return {
                 "unit": "neurons",
                 "consumed": math.ceil(float(reported)),
-                # Consumption is provider-reported, but remaining is
-                # still reconstructed by the local conservative period
-                # ledger. Keep those authorities distinct.
+                # A provider-reported neuron count is authoritative for the
+                # observed consumption. Conservative local reconstruction is
+                # reserved for token-derived estimates, not this observation.
                 "authority": "provider",
                 "consumption_authority": "authoritative_provider",
-                "quota_authority": "derived_conservative",
-                "evidence_mode": "derived_conservative",
+                "quota_authority": "authoritative_provider",
+                "evidence_mode": "authoritative_provider",
                 "limit": cls.FREE_NEURON_ALLOWANCE,
                 "metric": "workers_ai_neurons",
                 "window": "day",

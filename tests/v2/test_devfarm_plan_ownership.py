@@ -22,7 +22,7 @@ def test_ownership_projection_is_read_only_and_keeps_active_plan_identity(tmp_pa
                         "ownership": ["src/dev_agent/coordination/work.py"],
                         "assignment": {
                             "provider_id": "cloudflare",
-                            "model_id": "@cf/meta/llama-3.1-8b-instruct",
+                            "model_id": "@cf/zai-org/glm-4.7-flash",
                         },
                     }
                 ],
@@ -65,7 +65,7 @@ def test_input_plan_spec_is_not_treated_as_active_ownership(tmp_path):
                 "manifest_path": ".devfarm/tasks/task-a.json",
                 "assignment": {
                     "provider_id": "cloudflare",
-                    "model_id": "@cf/meta/llama-3.1-8b-instruct",
+                    "model_id": "@cf/zai-org/glm-4.7-flash",
                 },
             }
         ],

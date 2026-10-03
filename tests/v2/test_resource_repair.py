@@ -7,7 +7,7 @@ from src.dev_agent.resources.repair import apply_resource_repairs, plan_resource
 from recovery.validate_resources import legacy_resource_metadata, validate_resource_ledger
 
 
-MODEL = "@cf/meta/llama-3.1-8b-instruct"
+MODEL = "@cf/zai-org/glm-4.7-flash"
 
 
 def _resolver(*, expires_at: str = "2026-10-01T00:00:00+00:00") -> QualificationResolver:
@@ -15,7 +15,7 @@ def _resolver(*, expires_at: str = "2026-10-01T00:00:00+00:00") -> Qualification
         entries=[
             {
                 "provider": "cloudflare",
-                "provider_binding_id": "cloudflare",
+                "provider_binding_id": "cloudflare:account",
                 "model": MODEL,
                 "intelligence_tier": "L1",
                 "tested_at": "2026-09-01T00:00:00+00:00",
@@ -36,7 +36,7 @@ def _legacy_resource(ledger: ResourceLedger) -> None:
     ledger.register_resource(
         "cloudflare",
         provider_id="cloudflare",
-        provider_binding_id="cloudflare",
+        provider_binding_id="cloudflare:account",
         native_unit="request",
         capacity=1,
         capabilities=["text"],
@@ -44,7 +44,7 @@ def _legacy_resource(ledger: ResourceLedger) -> None:
         cost_minor=0,
         price_currency="JPY",
         quota_domain="account-1",
-        metadata={"provider_binding_id": "cloudflare", "model_id": MODEL},
+        metadata={"provider_binding_id": "cloudflare:account", "model_id": MODEL},
     )
     ledger.observe("cloudflare", available=1, health="healthy", confidence=0.8)
 
