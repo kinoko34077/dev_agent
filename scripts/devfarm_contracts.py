@@ -17,6 +17,8 @@ from typing import Any, Mapping
 from scripts.devfarm_errors import DevFarmError
 from src.dev_agent.security.protected_paths import PROTECTED_AUTHORITY_PATHS, is_protected_path
 from src.dev_agent.intelligence.convergence import ConcreteFailureSpec, RepairDirective
+from src.dev_agent.domain.execution import CanonicalExecutionBinding
+from src.dev_agent.domain.protocol import ProtocolError
 
 
 def sha256_text(value: str) -> str:
@@ -176,6 +178,15 @@ def _revision(value: Any, name: str) -> str:
     return revision
 
 
+def _canonical_execution(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise DevFarmError("canonical_execution must be an object")
+    try:
+        return CanonicalExecutionBinding.from_dict(value).to_dict()
+    except ProtocolError as exc:
+        raise DevFarmError(f"invalid canonical_execution: {exc}") from exc
+
+
 def validate_manifest(value: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise DevFarmError("manifest must be an object")
@@ -263,6 +274,8 @@ def validate_manifest(value: Mapping[str, Any]) -> dict[str, Any]:
         "max_attempts": value["max_attempts"],
         "output_contract": output_contract,
     }
+    if value.get("canonical_execution") is not None:
+        normalized["canonical_execution"] = _canonical_execution(value["canonical_execution"])
     rework_handoff = value.get("rework_handoff")
     if rework_handoff is not None:
         if not isinstance(rework_handoff, Mapping):

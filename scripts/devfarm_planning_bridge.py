@@ -18,6 +18,7 @@ from scripts.devfarm_contracts import validate_manifest
 from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_commander import validate_plan
 from src.dev_agent.coordination import WorkAddress
+from src.dev_agent.domain.execution import CanonicalExecutionBinding, ExecutionLifecycleStage
 from src.dev_agent.domain.protocol import RiskLevel, Task, TaskType
 from src.dev_agent.intelligence.planner import (
     PlannerDependencyType,
@@ -25,6 +26,7 @@ from src.dev_agent.intelligence.planner import (
     RootPlanningProposal,
     RootPlanningValidator,
 )
+from src.dev_agent.operation_planning import canonical_child_task_id
 
 
 class PlanningBridgeError(DevFarmError):
@@ -112,6 +114,18 @@ class DevelopmentPlanningBridge:
             if reason is not None:
                 corrections.append(f"{child.child_key}: owner corrected to codex ({reason})")
             task_id = task_ids[child.child_key]
+            canonical_binding = CanonicalExecutionBinding(
+                logical_execution_id=canonical_child_task_id(proposal.proposal_id, child.child_key),
+                proposal_id=proposal.proposal_id,
+                child_key=child.child_key,
+                executor_kind="devfarm_worker" if owner == "worker" else "operation",
+                backend_task_id=task_id if owner == "worker" else None,
+                stage=(
+                    ExecutionLifecycleStage.HANDOFF_PENDING
+                    if owner == "worker"
+                    else ExecutionLifecycleStage.READY
+                ),
+            )
             dependencies = [task_ids[item] for item in child.dependencies]
             task: dict[str, Any] = {
                 "task_id": task_id,
@@ -133,6 +147,7 @@ class DevelopmentPlanningBridge:
                     "planner_worker_candidate" if owner == "worker" else "planner_suggested_codex"
                 ),
                 "assignment": dict(raw_spec.get("assignment", {})) if isinstance(raw_spec.get("assignment", {}), Mapping) else {},
+                "canonical_execution": canonical_binding.to_dict(),
             }
             if raw_spec.get("work_address") is not None:
                 task["work_address"] = self._safe_work_address(raw_spec["work_address"])
@@ -155,6 +170,7 @@ class DevelopmentPlanningBridge:
                 manifest["task_type"] = child.task_type.value
                 manifest["objective"] = child.objective
                 manifest["base_revision"] = base_revision
+                manifest["canonical_execution"] = canonical_binding.to_dict()
                 try:
                     normalized_manifest = validate_manifest(manifest)
                 except DevFarmError as exc:

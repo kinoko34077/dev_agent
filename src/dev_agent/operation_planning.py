@@ -8,6 +8,7 @@ from uuid import NAMESPACE_URL, uuid5
 
 from .domain.protocol import Event as ProtocolEvent
 from .domain.protocol import Task, TaskStatus
+from .domain.execution import CanonicalExecutionBinding, operation_lifecycle_stage
 from .domain.wait import attach_wait_condition, condition_from_task_metadata
 from .intelligence.planner import (
     ChildTaskProposal,
@@ -83,6 +84,12 @@ def _child_task_id(proposal_id: str, child_key: str) -> str:
     return str(uuid5(NAMESPACE_URL, f"dev-agent:child:{proposal_id}:{child_key}"))
 
 
+def canonical_child_task_id(proposal_id: str, child_key: str) -> str:
+    """Return the stable logical execution identity for one planner child."""
+
+    return _child_task_id(proposal_id, child_key)
+
+
 def apply_proposal(
     store: SQLiteStateStore,
     queue: DurableQueue,
@@ -147,9 +154,21 @@ def apply_proposal(
         dependencies = list(child.dependencies)
         child_owner = expected_owner_by_key[child.child_key]
         status = TaskStatus.WAITING_DEPENDENCY if dependencies or child_owner == "devfarm" else TaskStatus.QUEUED
+        task_id = canonical_child_task_id(proposal.proposal_id, child.child_key)
+        canonical_executor = "devfarm_worker" if child_owner == "devfarm" else "operation"
         metadata: dict[str, Any] = {
             "planning_proposal_id": proposal.proposal_id,
             "planner_child_key": child.child_key,
+            "canonical_execution": CanonicalExecutionBinding(
+                logical_execution_id=task_id,
+                proposal_id=proposal.proposal_id,
+                child_key=child.child_key,
+                executor_kind=canonical_executor,
+                stage=operation_lifecycle_stage(
+                    status,
+                    handoff_pending=child_owner == "devfarm",
+                ),
+            ).to_dict(),
         }
         if child_owner == "devfarm":
             metadata.update(
@@ -171,7 +190,7 @@ def apply_proposal(
                 condition_from_task_metadata(status, metadata),
             )
         task = Task(
-            task_id=_child_task_id(proposal.proposal_id, child.child_key),
+            task_id=task_id,
             objective=child.objective,
             parent_task_id=parent.task_id,
             root_task_id=parent.task_id,

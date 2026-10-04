@@ -85,6 +85,9 @@ def test_bridge_returns_host_validated_candidate_without_writing_devfarm(tmp_pat
     assert manifest["task_id"] == task["task_id"]
     assert manifest["objective"] == "implement the narrow change"
     assert manifest["base_revision"] == "abc123"
+    assert task["canonical_execution"]["logical_execution_id"]
+    assert task["canonical_execution"]["backend_task_id"] == task["task_id"]
+    assert task["canonical_execution"] == manifest["canonical_execution"]
     assert task["delegation_reason"] == "planner_worker_candidate"
 
 

@@ -12,6 +12,7 @@ from __future__ import annotations
 import pytest
 
 from src.dev_agent.domain.protocol import TaskStatus, TaskType
+from src.dev_agent.domain.execution import ExecutionLifecycleStage
 from src.dev_agent.intelligence.planner import (
     ChildTaskProposal,
     PlanningValidationError,
@@ -211,6 +212,9 @@ def test_devfarm_owned_children_are_durable_but_not_operation_queued(tmp_path):
         implementation, continuation = children
         assert implementation.metadata["execution_owner"] == "devfarm"
         assert implementation.metadata["handoff_state"] == "HANDOFF_PENDING"
+        assert implementation.metadata["canonical_execution"]["logical_execution_id"] == implementation.task_id
+        assert implementation.metadata["canonical_execution"]["executor_kind"] == "devfarm_worker"
+        assert implementation.metadata["canonical_execution"]["stage"] == ExecutionLifecycleStage.HANDOFF_PENDING.value
         assert implementation.metadata["wait_reason"] == "devfarm_handoff"
         assert "execution_owner" not in continuation.metadata
         assert continuation.metadata["wait_reason"] == "planner_dependency"

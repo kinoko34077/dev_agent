@@ -19,6 +19,8 @@ from scripts.devfarm_repository import read_json, repository_path
 from scripts.devfarm_review_protocol import normalize_review_decision
 from scripts.devfarm_supervisor_protocol import normalize_supervisor_metadata
 from src.dev_agent.coordination import WorkAddress, allocate_work_address
+from src.dev_agent.domain.execution import CanonicalExecutionBinding
+from src.dev_agent.domain.protocol import ProtocolError
 from src.dev_agent.security.protected_paths import is_protected_path
 
 
@@ -362,6 +364,14 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
         normalized_role_id = None if role_values[0] is None else role_id(role_values[0])
         normalized_role_instance_id = None if role_values[1] is None else role_instance_id(role_values[1])
         normalized_role_generation = None if role_values[2] is None else role_generation(role_values[2])
+        canonical_execution = None
+        if raw.get("canonical_execution") is not None:
+            try:
+                canonical_execution = CanonicalExecutionBinding.from_dict(raw["canonical_execution"])
+            except ProtocolError as exc:
+                raise DevFarmError(f"invalid canonical_execution for task: {task_id}") from exc
+            if owner == "worker" and canonical_execution.backend_task_id not in {None, task_id}:
+                raise DevFarmError(f"canonical_execution backend task_id does not match plan task: {task_id}")
         if owner == "worker":
             if normalized_manifest_path is None:
                 raise DevFarmError(f"worker task requires manifest_path: {task_id}")
@@ -370,6 +380,12 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
                 manifest = validate_manifest(read_json(manifest_file))
                 if manifest["task_id"] != task_id:
                     raise DevFarmError(f"manifest task_id does not match plan task: {task_id}")
+                manifest_binding = manifest.get("canonical_execution")
+                if canonical_execution is not None:
+                    if manifest_binding is None:
+                        raise DevFarmError(f"manifest is missing canonical_execution: {task_id}")
+                    if canonical_execution.to_dict() != manifest_binding:
+                        raise DevFarmError(f"manifest canonical_execution does not match plan task: {task_id}")
                 if not ownership:
                     ownership = list(manifest["allowed_files"])
                 if not set(manifest["allowed_files"]).issubset(set(ownership)):
@@ -419,6 +435,8 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
             task["work_address"] = str(parsed_address)
         if address_parent is not None:
             task["work_address_parent"] = address_parent
+        if canonical_execution is not None:
+            task["canonical_execution"] = canonical_execution.to_dict()
         if normalized_role_id is not None:
             task["role_id"] = normalized_role_id
             task["role_instance_id"] = normalized_role_instance_id

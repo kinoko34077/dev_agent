@@ -28,7 +28,8 @@ from scripts.devfarm_planning_bridge import DevelopmentPlanningBridge
 from scripts.devfarm_refinement import build_concrete_failure_spec
 from scripts.devfarm_repository import resolved_revision
 from scripts.devfarm_supervisor import CodexSupervisedCommanderRun
-from src.dev_agent.domain.protocol import Task, TaskType
+from src.dev_agent.domain.execution import CanonicalExecutionBinding
+from src.dev_agent.domain.protocol import ProtocolError, Task, TaskType
 from src.dev_agent.intelligence.convergence import RepairDirective
 from src.dev_agent.intelligence.planner import PlannerDependencyType, RootPlanningProposal
 
@@ -484,6 +485,16 @@ class Phase8ProductionSubmission:
                 run_id=run_id,
                 bindings=bindings,
             )
+            operation_children = tuple(
+                operation.store.load_task(task_id)
+                for payload in operation.store.snapshot().get("tasks", {}).values()
+                if isinstance(payload, Mapping)
+                and isinstance(payload.get("metadata"), Mapping)
+                and payload["metadata"].get("planning_proposal_id") == proposal.proposal_id
+                and isinstance((task_id := payload.get("task_id")), str)
+            )
+            operation_children = tuple(task for task in operation_children if task is not None)
+            _development_task_links(proposal, operation_children, commander.plan()["tasks"])
             provider_map = self.providers(bindings)
             if not isinstance(provider_map, Mapping):
                 raise ProductionCompositionError("provider boundary must return a mapping")
@@ -1325,6 +1336,36 @@ class Phase8ProductionExecutor:
             "continuation_ready": False,
         }
 
+    def _project_devfarm_lifecycle(self, plan: Mapping[str, Any]) -> None:
+        """Project stable DevFarm observations onto the Operation binding."""
+
+        projector = getattr(self.operation, "record_devfarm_lifecycle_observation", None)
+        if not callable(projector):
+            # Keep the narrow executor usable with pre-canonical test doubles;
+            # the production OperationService always exposes this boundary.
+            return
+
+        for task in self._worker_tasks(plan):
+            status = task.get("status")
+            child_key = task.get("planner_child_key")
+            task_id = task.get("task_id")
+            if status not in {"DISPATCHED", "PROPOSED", "HOST_VERIFIED"}:
+                continue
+            if not isinstance(child_key, str) or child_key not in self.bindings:
+                raise ProductionCompositionError("DevFarm lifecycle task has no stable child binding")
+            if not isinstance(task_id, str) or not task_id.strip():
+                raise ProductionCompositionError("DevFarm lifecycle task has no durable task identity")
+            try:
+                projector(
+                    proposal_id=self.proposal_id,
+                    child_key=child_key,
+                    devfarm_run_id=self.devfarm_run_id,
+                    devfarm_task_id=task_id,
+                    devfarm_status=status,
+                )
+            except Exception as exc:
+                raise ProductionCompositionError("DevFarm lifecycle projection failed closed") from exc
+
     def advance(self) -> dict[str, Any]:
         """Run one existing DevFarm pass and return bounded evidence."""
 
@@ -1396,6 +1437,7 @@ class Phase8ProductionExecutor:
                 local_trial=self.local_trial,
             )
             plan = self.commander.plan()
+        self._project_devfarm_lifecycle(plan)
         workers = self._validate_worker_identity(plan)
         integrated: list[str] = []
         reviewed: list[str] = []
@@ -1499,6 +1541,7 @@ class _DevelopmentTaskLink:
     child_key: str
     operation_task_id: str
     commander_task_id: str
+    logical_execution_id: str | None = None
 
 
 def _development_task_links(
@@ -1554,6 +1597,30 @@ def _development_task_links(
         task_id = task.get("task_id")
         if not isinstance(task_id, str) or not task_id.strip():
             raise ProductionCompositionError("Commander task has no durable task_id")
+        operation_task = operation_by_key[child_key]
+        operation_binding = operation_task.metadata.get("canonical_execution")
+        commander_binding = task.get("canonical_execution")
+        if (operation_binding is None) != (commander_binding is None):
+            raise ProductionCompositionError("canonical execution binding is missing from one projection")
+        if operation_binding is not None:
+            try:
+                operation_binding = CanonicalExecutionBinding.from_dict(operation_binding)
+                commander_binding = CanonicalExecutionBinding.from_dict(commander_binding)
+            except ProtocolError as exc:
+                raise ProductionCompositionError("canonical execution binding is invalid") from exc
+            if operation_binding.logical_execution_id != operation_task.task_id:
+                raise ProductionCompositionError("Operation canonical execution identity does not match task")
+            if commander_binding.backend_task_id not in {None, task_id}:
+                raise ProductionCompositionError("Commander canonical backend identity does not match task")
+            for field_name in ("logical_execution_id", "proposal_id", "child_key", "executor_kind"):
+                if getattr(operation_binding, field_name) != getattr(commander_binding, field_name):
+                    raise ProductionCompositionError(f"canonical execution {field_name} identity mismatch")
+            if (
+                operation_binding.backend_task_id is not None
+                and commander_binding.backend_task_id is not None
+                and operation_binding.backend_task_id != commander_binding.backend_task_id
+            ):
+                raise ProductionCompositionError("canonical execution backend identity mismatch")
         commander_by_key[child_key] = task
 
     if set(operation_by_key) != set(expected_keys):
@@ -1566,6 +1633,13 @@ def _development_task_links(
             child_key=child_key,
             operation_task_id=operation_by_key[child_key].task_id,
             commander_task_id=str(commander_by_key[child_key]["task_id"]),
+            logical_execution_id=(
+                CanonicalExecutionBinding.from_dict(
+                    operation_by_key[child_key].metadata["canonical_execution"]
+                ).logical_execution_id
+                if isinstance(operation_by_key[child_key].metadata.get("canonical_execution"), Mapping)
+                else None
+            ),
         )
         for child_key in expected_keys
     )

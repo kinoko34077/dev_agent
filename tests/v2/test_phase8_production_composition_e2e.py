@@ -5,6 +5,7 @@ import inspect
 import pytest
 
 from src.dev_agent.domain.protocol import Task, TaskStatus, TaskType
+from src.dev_agent.domain.execution import ExecutionLifecycleStage
 from src.dev_agent.intelligence.planner import ChildTaskProposal, PlannerDependencyType, RootPlanningProposal
 from src.dev_agent.operation import OperationConfig, OperationError, OperationService
 
@@ -302,6 +303,9 @@ def test_phase8_devfarm_handoff_claims_all_children_without_operation_queue(tmp_
             assert task.metadata["handoff_state"] == "DEVFARM_OWNED"
             assert task.metadata["devfarm_run_id"] == "devfarm-run-1"
             assert task.metadata["devfarm_task_id"] == f"devfarm-task-{task.metadata['planner_child_key'][-1]}"
+            assert task.metadata["canonical_execution"]["logical_execution_id"] == task.task_id
+            assert task.metadata["canonical_execution"]["backend_task_id"] == task.metadata["devfarm_task_id"]
+            assert task.metadata["canonical_execution"]["stage"] == ExecutionLifecycleStage.HANDED_OFF.value
             with pytest.raises(KeyError):
                 service.queue.snapshot(task.task_id)
 
@@ -325,6 +329,49 @@ def test_phase8_devfarm_handoff_claims_all_children_without_operation_queue(tmp_
             with pytest.raises(KeyError):
                 service.queue.snapshot(task.task_id)
 
+
+def test_phase8_devfarm_lifecycle_observation_is_idempotent_and_monotonic(tmp_path):
+    config = _handoff_config(tmp_path)
+    root = OperationService.submit(config, "phase8 lifecycle observation")
+    proposal = _handoff_proposal(root.task_id)
+
+    with OperationService.open(config) as service:
+        children = service.apply_planning_proposal(proposal, execution_owner="devfarm")
+        service.handoff_planning_children_to_devfarm(
+            proposal_id=proposal.proposal_id,
+            run_id="devfarm-lifecycle-run",
+            bindings={"worker-a": "devfarm-task-a", "worker-b": "devfarm-task-b"},
+        )
+        for status, expected in (
+            ("DISPATCHED", ExecutionLifecycleStage.ATTEMPT_ACTIVE.value),
+            ("PROPOSED", ExecutionLifecycleStage.RESULT_RECEIVED.value),
+            ("HOST_VERIFIED", ExecutionLifecycleStage.HOST_VERIFIED.value),
+        ):
+            observed = service.record_devfarm_lifecycle_observation(
+                proposal_id=proposal.proposal_id,
+                child_key="worker-a",
+                devfarm_run_id="devfarm-lifecycle-run",
+                devfarm_task_id="devfarm-task-a",
+                devfarm_status=status,
+            )
+            assert observed.metadata["canonical_execution"]["stage"] == expected
+
+        replay = service.record_devfarm_lifecycle_observation(
+            proposal_id=proposal.proposal_id,
+            child_key="worker-a",
+            devfarm_run_id="devfarm-lifecycle-run",
+            devfarm_task_id="devfarm-task-a",
+            devfarm_status="HOST_VERIFIED",
+        )
+        assert replay.task_id == children[0].task_id
+        with pytest.raises(OperationError, match="lifecycle"):
+            service.record_devfarm_lifecycle_observation(
+                proposal_id=proposal.proposal_id,
+                child_key="worker-a",
+                devfarm_run_id="devfarm-lifecycle-run",
+                devfarm_task_id="devfarm-task-a",
+                devfarm_status="DISPATCHED",
+            )
 
 def test_phase8_devfarm_handoff_rejects_partial_or_conflicting_binding_without_mutation(tmp_path):
     config = _handoff_config(tmp_path)
@@ -463,6 +510,7 @@ def test_phase8_devfarm_integration_evidence_releases_operation_continuation_onc
         released = service.store.load_task(continuation.task_id)
         assert integrated.metadata["integration_status"] == "INTEGRATED"
         assert integrated.metadata["integration_revision"] == "a" * 40
+        assert integrated.metadata["canonical_execution"]["stage"] == ExecutionLifecycleStage.INTEGRATED.value
         assert released.status is TaskStatus.QUEUED
         assert service.queue.snapshot(continuation.task_id).state == "queued"
         assert service.store.has_event(worker.task_id, "task.devfarm_integration_recorded")

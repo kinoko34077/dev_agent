@@ -13,13 +13,13 @@ of ``UNSPECIFIED``, ``VALUE`` or ``EXPLICIT_NONE``.
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 import hashlib
 import json
 from typing import Any, Generic, TypeVar
 
-from .protocol import IntelligenceTier, ModelRequest, ModelResponse, ProtocolError, RiskLevel, TaskType
+from .protocol import IntelligenceTier, ModelRequest, ModelResponse, ProtocolError, RiskLevel, TaskStatus, TaskType
 
 
 T = TypeVar("T")
@@ -129,6 +129,213 @@ class UnsupportedCapabilityError(ProtocolError):
             raise ValueError("capabilities must contain at least one non-empty name")
         self.capabilities = normalized
         super().__init__(f"unsupported execution capabilities: {', '.join(normalized)}")
+
+
+class ExecutionLifecycleStage(str, Enum):
+    """One provider-neutral lifecycle vocabulary for executable work.
+
+    Operation and DevFarm keep their own storage/projection formats at their
+    boundaries, but observations crossing that boundary use these stages.
+    This is deliberately a vocabulary, not a second scheduler or state store.
+    """
+
+    CREATED = "created"
+    READY = "ready"
+    HANDOFF_PENDING = "handoff_pending"
+    HANDED_OFF = "handed_off"
+    ATTEMPT_ACTIVE = "attempt_active"
+    RESULT_RECEIVED = "result_received"
+    HOST_VERIFIED = "host_verified"
+    REVIEWED = "reviewed"
+    INTEGRATED = "integrated"
+    COMPLETED = "completed"
+    WAITING = "waiting"
+    FAILED = "failed"
+    BLOCKED = "blocked"
+
+
+_LIFECYCLE_ORDER = {
+    ExecutionLifecycleStage.CREATED: 0,
+    ExecutionLifecycleStage.READY: 1,
+    ExecutionLifecycleStage.HANDOFF_PENDING: 2,
+    ExecutionLifecycleStage.HANDED_OFF: 3,
+    ExecutionLifecycleStage.ATTEMPT_ACTIVE: 4,
+    ExecutionLifecycleStage.WAITING: 4,
+    ExecutionLifecycleStage.RESULT_RECEIVED: 5,
+    ExecutionLifecycleStage.HOST_VERIFIED: 6,
+    ExecutionLifecycleStage.REVIEWED: 7,
+    ExecutionLifecycleStage.INTEGRATED: 8,
+    ExecutionLifecycleStage.COMPLETED: 9,
+    ExecutionLifecycleStage.FAILED: 9,
+    ExecutionLifecycleStage.BLOCKED: 4,
+}
+
+
+def operation_lifecycle_stage(
+    status: TaskStatus | str,
+    *,
+    handoff_pending: bool = False,
+) -> ExecutionLifecycleStage:
+    """Project an Operation ``TaskStatus`` into the canonical vocabulary."""
+
+    try:
+        normalized = status if isinstance(status, TaskStatus) else TaskStatus(status)
+    except (TypeError, ValueError) as exc:
+        raise ProtocolError("unsupported Operation lifecycle status") from exc
+    if normalized is TaskStatus.WAITING_DEPENDENCY and handoff_pending:
+        return ExecutionLifecycleStage.HANDOFF_PENDING
+    if normalized in {TaskStatus.QUEUED, TaskStatus.PLANNING, TaskStatus.READY}:
+        return ExecutionLifecycleStage.READY
+    if normalized is TaskStatus.RUNNING:
+        return ExecutionLifecycleStage.ATTEMPT_ACTIVE
+    if normalized in {
+        TaskStatus.WAITING_DEPENDENCY,
+        TaskStatus.WAITING_APPROVAL,
+        TaskStatus.WAITING_HUMAN,
+        TaskStatus.WAITING_RECONCILIATION,
+    }:
+        return ExecutionLifecycleStage.WAITING
+    if normalized in {TaskStatus.BLOCKED_QUOTA, TaskStatus.BLOCKED_BUDGET}:
+        return ExecutionLifecycleStage.BLOCKED
+    if normalized is TaskStatus.COMPLETED:
+        return ExecutionLifecycleStage.COMPLETED
+    if normalized in {TaskStatus.FAILED, TaskStatus.CANCELLED}:
+        return ExecutionLifecycleStage.FAILED
+    raise ProtocolError("unsupported Operation lifecycle status")
+
+
+def devfarm_lifecycle_stage(status: str) -> ExecutionLifecycleStage:
+    """Project a Commander/DevFarm status into the canonical vocabulary."""
+
+    if not isinstance(status, str) or not status.strip():
+        raise ProtocolError("DevFarm lifecycle status must be a non-empty string")
+    normalized = status.strip().upper()
+    mapping = {
+        "PLANNED": ExecutionLifecycleStage.CREATED,
+        "READY": ExecutionLifecycleStage.READY,
+        "DISPATCHED": ExecutionLifecycleStage.ATTEMPT_ACTIVE,
+        "PROPOSED": ExecutionLifecycleStage.RESULT_RECEIVED,
+        "HOST_VERIFIED": ExecutionLifecycleStage.HOST_VERIFIED,
+        "INTEGRATED": ExecutionLifecycleStage.INTEGRATED,
+        "REJECTED": ExecutionLifecycleStage.FAILED,
+        "BLOCKED": ExecutionLifecycleStage.BLOCKED,
+        "SUPERSEDED": ExecutionLifecycleStage.FAILED,
+    }
+    try:
+        return mapping[normalized]
+    except KeyError as exc:
+        raise ProtocolError("unsupported DevFarm lifecycle status") from exc
+
+
+def _bounded_identity(value: Any, name: str) -> str:
+    if not isinstance(value, str) or not value.strip() or len(value.strip()) > 256:
+        raise ProtocolError(f"{name} must be a bounded non-empty string")
+    return value.strip()
+
+
+@dataclass(frozen=True)
+class CanonicalExecutionBinding:
+    """Stable identity joining one logical execution to a backend projection."""
+
+    logical_execution_id: str
+    proposal_id: str
+    child_key: str
+    executor_kind: str
+    backend_task_id: str | None = None
+    stage: ExecutionLifecycleStage = ExecutionLifecycleStage.CREATED
+
+    def __post_init__(self) -> None:
+        for name in ("logical_execution_id", "proposal_id", "child_key", "executor_kind"):
+            object.__setattr__(self, name, _bounded_identity(getattr(self, name), name))
+        if self.backend_task_id is not None:
+            object.__setattr__(self, "backend_task_id", _bounded_identity(self.backend_task_id, "backend_task_id"))
+        try:
+            stage = self.stage if isinstance(self.stage, ExecutionLifecycleStage) else ExecutionLifecycleStage(self.stage)
+        except (TypeError, ValueError) as exc:
+            raise ProtocolError("stage must be a supported execution lifecycle stage") from exc
+        object.__setattr__(self, "stage", stage)
+
+    @classmethod
+    def for_child(
+        cls,
+        *,
+        logical_execution_id: str,
+        proposal_id: str,
+        child_key: str,
+        executor_kind: str,
+    ) -> "CanonicalExecutionBinding":
+        return cls(
+            logical_execution_id=logical_execution_id,
+            proposal_id=proposal_id,
+            child_key=child_key,
+            executor_kind=executor_kind,
+        )
+
+    def with_backend_task(self, backend_task_id: str) -> "CanonicalExecutionBinding":
+        backend_task_id = _bounded_identity(backend_task_id, "backend_task_id")
+        if self.backend_task_id is not None and self.backend_task_id != backend_task_id:
+            raise ProtocolError("conflicting backend task identity")
+        return replace(
+            self,
+            backend_task_id=backend_task_id,
+            stage=ExecutionLifecycleStage.HANDED_OFF,
+        )
+
+    def with_stage(self, stage: ExecutionLifecycleStage | str) -> "CanonicalExecutionBinding":
+        return replace(self, stage=stage)
+
+    def to_dict(self) -> dict[str, Any]:
+        result = {
+            "logical_execution_id": self.logical_execution_id,
+            "proposal_id": self.proposal_id,
+            "child_key": self.child_key,
+            "executor_kind": self.executor_kind,
+            "stage": self.stage.value,
+        }
+        if self.backend_task_id is not None:
+            result["backend_task_id"] = self.backend_task_id
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> "CanonicalExecutionBinding":
+        if not isinstance(data, Mapping):
+            raise ProtocolError("canonical execution binding must be an object")
+        return cls(
+            logical_execution_id=data.get("logical_execution_id"),
+            proposal_id=data.get("proposal_id"),
+            child_key=data.get("child_key"),
+            executor_kind=data.get("executor_kind"),
+            backend_task_id=data.get("backend_task_id"),
+            stage=data.get("stage", ExecutionLifecycleStage.CREATED),
+        )
+
+    def merge_observation(self, observation: "CanonicalExecutionBinding") -> "CanonicalExecutionBinding":
+        """Merge a replayed observation, rejecting identity/lifecycle conflicts."""
+
+        if not isinstance(observation, CanonicalExecutionBinding):
+            raise ProtocolError("canonical execution observation must use the binding type")
+        for name in ("logical_execution_id", "proposal_id", "child_key", "executor_kind"):
+            if getattr(self, name) != getattr(observation, name):
+                raise ProtocolError(f"canonical execution {name} identity conflict")
+        if self.backend_task_id is not None and observation.backend_task_id is not None:
+            if self.backend_task_id != observation.backend_task_id:
+                raise ProtocolError("conflicting backend task identity")
+        if self.stage in {ExecutionLifecycleStage.INTEGRATED, ExecutionLifecycleStage.COMPLETED} and observation.stage is not self.stage:
+            raise ProtocolError("terminal lifecycle cannot regress or change")
+        current_rank = _LIFECYCLE_ORDER[self.stage]
+        observed_rank = _LIFECYCLE_ORDER[observation.stage]
+        if observed_rank < current_rank:
+            raise ProtocolError("canonical execution lifecycle regression")
+        if observed_rank == current_rank and observation.stage is not self.stage:
+            raise ProtocolError("canonical execution lifecycle stage conflict")
+        return CanonicalExecutionBinding(
+            logical_execution_id=self.logical_execution_id,
+            proposal_id=self.proposal_id,
+            child_key=self.child_key,
+            executor_kind=self.executor_kind,
+            backend_task_id=self.backend_task_id or observation.backend_task_id,
+            stage=observation.stage if observed_rank > current_rank else self.stage,
+        )
 
 
 def _presence_from_metadata(metadata: Mapping[str, Any], key: str, transform=lambda value: value) -> FieldPresence[Any]:
@@ -422,11 +629,15 @@ CanonicalExecutionResult = ModelResponse
 
 
 __all__ = [
+    "CanonicalExecutionBinding",
     "CanonicalExecutionRequest",
     "CanonicalExecutionResult",
+    "ExecutionLifecycleStage",
     "ExecutionRequirement",
     "FieldPresence",
     "PresenceState",
     "RouteConstraints",
     "UnsupportedCapabilityError",
+    "devfarm_lifecycle_stage",
+    "operation_lifecycle_stage",
 ]

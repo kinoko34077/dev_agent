@@ -31,6 +31,7 @@
           "attempt_count": {"type": "integer", "minimum": 0},
           "worker_candidate": {"type": "boolean"},
           "delegation_reason": {"type": "string", "maxLength": 1000},
+          "canonical_execution": {"$ref": "#/$defs/canonical_execution"},
           "last_attempt_id": {"type": "string"},
           "result_ref": {"type": "string"},
           "last_result_status": {"type": "string"},
@@ -71,6 +72,18 @@
         "provider_id": {"type": "string"},
         "provider_binding_id": {"type": "string"},
         "model_id": {"type": "string"}
+      }
+    },
+    "canonical_execution": {
+      "type": "object",
+      "required": ["logical_execution_id", "proposal_id", "child_key", "executor_kind", "stage"],
+      "properties": {
+        "logical_execution_id": {"type": "string", "minLength": 1, "maxLength": 256},
+        "proposal_id": {"type": "string", "minLength": 1, "maxLength": 256},
+        "child_key": {"type": "string", "minLength": 1, "maxLength": 256},
+        "executor_kind": {"type": "string", "minLength": 1, "maxLength": 256},
+        "backend_task_id": {"type": ["string", "null"], "maxLength": 256},
+        "stage": {"type": "string", "minLength": 1, "maxLength": 64}
       }
     },
     "supervisor": {

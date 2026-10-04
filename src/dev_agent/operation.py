@@ -26,7 +26,8 @@ from .operation_planning import (
     validate_proposal as _validate_planning_proposal,
 )
 
-from .domain.protocol import Event as ProtocolEvent, ModelRequest, RiskLevel, Task, TaskStatus, TaskType
+from .domain.protocol import Event as ProtocolEvent, ModelRequest, ProtocolError, RiskLevel, Task, TaskStatus, TaskType
+from .domain.execution import CanonicalExecutionBinding, devfarm_lifecycle_stage
 from .domain.wait import attach_wait_condition, condition_from_task_metadata
 from .human import HumanInteractionPort, SQLiteHumanInteractionPort
 from .providers.dispatch import ProviderDispatcher
@@ -1047,9 +1048,26 @@ class OperationService:
             if task.status is not TaskStatus.WAITING_DEPENDENCY:
                 raise OperationError("planner child is not waiting at the handoff boundary")
             handoff_state = metadata.get("handoff_state")
+            raw_binding = metadata.get("canonical_execution")
+            if not isinstance(raw_binding, Mapping):
+                raise OperationError("planner child has no canonical execution binding")
+            try:
+                binding = CanonicalExecutionBinding.from_dict(raw_binding)
+            except ProtocolError as exc:
+                raise OperationError("planner child has an invalid canonical execution binding") from exc
+            if (
+                binding.logical_execution_id != task.task_id
+                or binding.proposal_id != normalized_proposal_id
+                or binding.child_key != child_key
+            ):
+                raise OperationError("planner child canonical execution identity mismatch")
             if handoff_state == "DEVFARM_OWNED":
                 if metadata.get("devfarm_run_id") != normalized_run_id or metadata.get("devfarm_task_id") != devfarm_task_id:
                     raise OperationError("conflicting DevFarm handoff identity")
+                try:
+                    binding.merge_observation(binding.with_backend_task(devfarm_task_id))
+                except ProtocolError as exc:
+                    raise OperationError("conflicting canonical DevFarm handoff identity") from exc
             elif handoff_state != "HANDOFF_PENDING":
                 raise OperationError("planner child has an invalid handoff state")
             try:
@@ -1068,6 +1086,12 @@ class OperationService:
             metadata["handoff_state"] = "DEVFARM_OWNED"
             metadata["devfarm_run_id"] = normalized_run_id
             metadata["devfarm_task_id"] = normalized[child_key]
+            try:
+                metadata["canonical_execution"] = CanonicalExecutionBinding.from_dict(
+                    metadata["canonical_execution"]
+                ).with_backend_task(normalized[child_key]).to_dict()
+            except ProtocolError as exc:
+                raise OperationError("canonical DevFarm handoff binding is invalid") from exc
             event = ProtocolEvent(
                 event_id=str(
                     uuid5(
@@ -1338,15 +1362,27 @@ class OperationService:
             "verified_patch_digest": normalized_digest,
             "integration_evidence_source": normalized_source,
         }
+        raw_binding = metadata.get("canonical_execution")
+        if not isinstance(raw_binding, Mapping):
+            raise OperationError("integrated child has no canonical execution binding")
+        try:
+            binding = CanonicalExecutionBinding.from_dict(raw_binding)
+            integrated_binding = binding.with_backend_task(normalized_task_id).with_stage("integrated")
+            merged_binding = binding.merge_observation(integrated_binding)
+        except ProtocolError as exc:
+            raise OperationError("integration evidence conflicts with canonical lifecycle") from exc
         if metadata.get("integration_status") == "INTEGRATED":
             if any(metadata.get(key) != value for key, value in evidence.items()):
                 raise OperationError("conflicting integration evidence replay")
+            if metadata.get("canonical_execution") != merged_binding.to_dict():
+                raise OperationError("conflicting canonical lifecycle replay")
             released = _release_planner_dependencies(self.store, self.queue, proposal_id=normalized_proposal_id)
             return (task, *released)
         if metadata.get("integration_status") is not None:
             raise OperationError("Operation child already has a non-integrated result")
 
         metadata.update(evidence)
+        metadata["canonical_execution"] = merged_binding.to_dict()
         event = ProtocolEvent(
             event_id=str(
                 uuid5(
@@ -1369,6 +1405,99 @@ class OperationService:
         self.store.commit_transition(task=task, event=event)
         released = _release_planner_dependencies(self.store, self.queue, proposal_id=normalized_proposal_id)
         return (task, *released)
+
+    def record_devfarm_lifecycle_observation(
+        self,
+        *,
+        proposal_id: str,
+        child_key: str,
+        devfarm_run_id: str,
+        devfarm_task_id: str,
+        devfarm_status: str,
+    ) -> Task:
+        """Project one accepted DevFarm status onto the canonical binding.
+
+        This records lifecycle meaning on the existing Operation child without
+        creating a second task state machine.  Replayed observations are
+        idempotent; mismatched identities or lifecycle regressions fail closed.
+        Only statuses after the explicit DevFarm handoff are accepted here.
+        """
+
+        def bounded_text(value: Any, name: str, maximum: int) -> str:
+            if not isinstance(value, str) or not value.strip() or len(value.strip()) > maximum:
+                raise OperationError(f"DevFarm lifecycle {name} is invalid")
+            return value.strip()
+
+        normalized_proposal_id = bounded_text(proposal_id, "proposal_id", 256)
+        normalized_child_key = bounded_text(child_key, "child_key", 256)
+        normalized_run_id = bounded_text(devfarm_run_id, "devfarm_run_id", 256)
+        normalized_task_id = bounded_text(devfarm_task_id, "devfarm_task_id", 256)
+        normalized_status = bounded_text(devfarm_status, "devfarm_status", 32).upper()
+        if normalized_status not in {"DISPATCHED", "PROPOSED", "HOST_VERIFIED", "INTEGRATED", "REJECTED", "BLOCKED"}:
+            raise OperationError("DevFarm lifecycle status is not an accepted observation")
+        try:
+            observed_stage = devfarm_lifecycle_stage(normalized_status)
+        except ProtocolError as exc:
+            raise OperationError("DevFarm lifecycle status is unsupported") from exc
+
+        payloads = self.store.snapshot().get("tasks", {})
+        if not isinstance(payloads, Mapping):
+            raise OperationError("durable lifecycle state is unavailable")
+        matches: list[Task] = []
+        for payload in payloads.values():
+            if not isinstance(payload, dict):
+                continue
+            metadata = payload.get("metadata")
+            if not isinstance(metadata, dict):
+                continue
+            if metadata.get("planning_proposal_id") != normalized_proposal_id or metadata.get("planner_child_key") != normalized_child_key:
+                continue
+            try:
+                matches.append(Task.from_persisted_dict(payload))
+            except Exception as exc:
+                raise OperationError("mapped Operation child is invalid") from exc
+        if len(matches) != 1:
+            raise OperationError("DevFarm lifecycle has an ambiguous Operation mapping")
+
+        task = matches[0]
+        metadata = task.metadata
+        if metadata.get("execution_owner") != "devfarm" or metadata.get("handoff_state") != "DEVFARM_OWNED":
+            raise OperationError("DevFarm lifecycle targets a child without an active handoff")
+        if metadata.get("devfarm_run_id") != normalized_run_id or metadata.get("devfarm_task_id") != normalized_task_id:
+            raise OperationError("DevFarm lifecycle identity does not match the durable handoff")
+        raw_binding = metadata.get("canonical_execution")
+        if not isinstance(raw_binding, Mapping):
+            raise OperationError("DevFarm lifecycle child has no canonical execution binding")
+        try:
+            binding = CanonicalExecutionBinding.from_dict(raw_binding)
+            observation = binding.with_backend_task(normalized_task_id).with_stage(observed_stage)
+            merged = binding.merge_observation(observation)
+        except ProtocolError as exc:
+            raise OperationError("DevFarm lifecycle observation conflicts with canonical binding") from exc
+        if merged == binding:
+            return task
+
+        metadata["canonical_execution"] = merged.to_dict()
+        event = ProtocolEvent(
+            event_id=str(
+                uuid5(
+                    NAMESPACE_URL,
+                    f"dev-agent:devfarm-lifecycle:{normalized_run_id}:{normalized_task_id}:{normalized_status}",
+                )
+            ),
+            task_id=task.task_id,
+            event_type="task.devfarm_lifecycle_observed",
+            payload={
+                "proposal_id": normalized_proposal_id,
+                "child_key": normalized_child_key,
+                "devfarm_run_id": normalized_run_id,
+                "devfarm_task_id": normalized_task_id,
+                "devfarm_status": normalized_status,
+                "canonical_stage": merged.stage.value,
+            },
+        )
+        self.store.commit_transition(task=task, event=event)
+        return task
 
     def release_planner_dependencies(self, *, proposal_id: str | None = None) -> tuple[Task, ...]:
         """Release or terminalize validated planner children from durable state.
