@@ -385,6 +385,12 @@ _GATE_VALUE_PATHS = {
     "PHASE8_PREPARATION": ("phase8_preparation", "status"),
     "PHASE8_LIVE_ACTIVATION": ("phase8_preparation", "live_activation"),
 }
+_STATE_PROJECTION_PATHS = frozenset(
+    {
+        "docs/CURRENT_STATE.md",
+        "docs/superpowers/plans/2026-10-04-semantic-coherence-checks.md",
+    }
+)
 
 
 def _git_text(root: Path, *args: str) -> str | None:
@@ -554,10 +560,7 @@ def check_state_projection_consistency(root: Path | None = None) -> dict[str, An
     projection_only = None
     if accepted_head and current_head and accepted_head.lower() != current_head.lower():
         changed_paths = _git_changed_paths(repository_root, accepted_head, current_head)
-        projection_only = changed_paths is not None and changed_paths <= {
-            "docs/CURRENT_STATE.md",
-            "docs/superpowers/plans/2026-10-04-semantic-coherence-checks.md",
-        }
+        projection_only = changed_paths is not None and changed_paths <= _STATE_PROJECTION_PATHS
     return _state_projection_status(
         current_head=current_head,
         accepted_head=accepted_head,
