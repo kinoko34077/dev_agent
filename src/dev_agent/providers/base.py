@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Mapping, Sequence
 from enum import Enum
 from http.client import RemoteDisconnected
+import hashlib
 import re
 import socket
 import ssl
@@ -56,6 +58,9 @@ class ProviderError(RuntimeError):
         self.quota_window = quota_window
         self.quota_reset_at = quota_reset_at
         self.quota_reset_source = quota_reset_source
+        # Provider decoders may attach a bounded structural projection.  Raw
+        # response bodies and exception text must never be stored here.
+        self.decode_diagnostics: dict[str, Any] | None = None
 
     @property
     def requires_reconciliation(self) -> bool:
@@ -97,6 +102,167 @@ class TransportStage(str, Enum):
     REQUEST_SEND = "request_send"
     RESPONSE_WAIT = "response_wait"
     RESPONSE_READ = "response_read"
+
+
+_DECODE_MAX_KEYS = 32
+_DECODE_MAX_NODES = 64
+_DECODE_MAX_DEPTH = 3
+_DECODE_MAX_LABEL = 64
+
+
+def _safe_decode_label(value: Any) -> str:
+    """Return a bounded structural label without retaining arbitrary text."""
+
+    if isinstance(value, str):
+        label = value.strip()
+    else:
+        label = type(value).__name__
+    if not label:
+        return "<empty>"
+    label = label[:_DECODE_MAX_LABEL]
+    return label if re.fullmatch(r"[A-Za-z0-9_.:-]+", label) else "<redacted>"
+
+
+def _decode_value_kind(value: Any) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, int) and not isinstance(value, bool):
+        return "integer"
+    if isinstance(value, float):
+        return "number"
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, bytes):
+        return "bytes"
+    if isinstance(value, Mapping):
+        return "object"
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return "array"
+    return "other"
+
+
+def _bounded_decode_size(value: Any, *, depth: int = 0) -> int:
+    """Estimate response size without serializing or retaining response data."""
+
+    if depth > _DECODE_MAX_DEPTH:
+        return 0
+    if isinstance(value, (bytes, bytearray)):
+        return min(len(value), 1_000_000)
+    if isinstance(value, str):
+        return min(len(value.encode("utf-8", errors="replace")), 1_000_000)
+    if isinstance(value, Mapping):
+        total = 2
+        for index, (key, item) in enumerate(value.items()):
+            if index >= _DECODE_MAX_KEYS:
+                total += 64
+                break
+            total += min(len(str(key).encode("utf-8", errors="replace")), _DECODE_MAX_LABEL)
+            total += _bounded_decode_size(item, depth=depth + 1)
+        return min(total, 1_000_000)
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        total = 2
+        for index, item in enumerate(value):
+            if index >= _DECODE_MAX_KEYS:
+                total += 64
+                break
+            total += _bounded_decode_size(item, depth=depth + 1)
+        return min(total, 1_000_000)
+    return len(type(value).__name__)
+
+
+def _decode_size_bucket(size: int) -> str:
+    if size <= 0:
+        return "empty"
+    if size <= 256:
+        return "tiny"
+    if size <= 4_096:
+        return "small"
+    if size <= 16_384:
+        return "medium"
+    if size <= 65_536:
+        return "large"
+    return "oversized"
+
+
+def project_decode_structure(
+    raw: Any,
+    *,
+    decoder_branch: str,
+    http_status: int | None = None,
+    content_type: str | None = None,
+) -> dict[str, Any]:
+    """Project bounded response shape facts without exposing response data."""
+
+    nodes: list[dict[str, str]] = []
+    truncated = False
+
+    def visit(value: Any, path: str, depth: int) -> None:
+        nonlocal truncated
+        if len(nodes) >= _DECODE_MAX_NODES:
+            truncated = True
+            return
+        nodes.append({"path": path, "kind": _decode_value_kind(value)})
+        if depth >= _DECODE_MAX_DEPTH:
+            return
+        if isinstance(value, Mapping):
+            for index, (key, item) in enumerate(value.items()):
+                if index >= _DECODE_MAX_KEYS:
+                    truncated = True
+                    break
+                safe_key = _safe_decode_label(key)
+                visit(item, f"{path}.{safe_key}" if path else safe_key, depth + 1)
+        elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+            for index, item in enumerate(value[:_DECODE_MAX_KEYS]):
+                visit(item, f"{path}[{index}]", depth + 1)
+            if len(value) > _DECODE_MAX_KEYS:
+                truncated = True
+
+    visit(raw, "", 0)
+    top_level_keys: list[str] = []
+    if isinstance(raw, Mapping):
+        for index, key in enumerate(raw.keys()):
+            if index >= _DECODE_MAX_KEYS:
+                truncated = True
+                break
+            top_level_keys.append(_safe_decode_label(key))
+    top_level_keys = sorted(set(top_level_keys))
+    shape = "|".join(f"{item['path']}={item['kind']}" for item in nodes)
+    normalized_content_type = None
+    if isinstance(content_type, str) and content_type.strip():
+        normalized_content_type = content_type.split(";", 1)[0].strip().lower()[:64]
+    safe_status = http_status if isinstance(http_status, int) and not isinstance(http_status, bool) else None
+    return {
+        "decoder_branch": _safe_decode_label(decoder_branch),
+        "http_status": safe_status,
+        "content_type": normalized_content_type,
+        "top_level_keys": top_level_keys,
+        "value_kinds": nodes,
+        "nested_paths": [item["path"] for item in nodes if item["path"]],
+        "size_bucket": _decode_size_bucket(_bounded_decode_size(raw)),
+        "schema_fingerprint": hashlib.sha256(shape.encode("utf-8")).hexdigest()[:16],
+        "truncated": truncated,
+    }
+
+
+def attach_decode_diagnostics(
+    error: ProviderError,
+    raw: Any,
+    *,
+    decoder_branch: str,
+    http_status: int | None = None,
+    content_type: str | None = None,
+) -> ProviderError:
+    """Attach only a bounded structural projection to a decode failure."""
+
+    error.decode_diagnostics = project_decode_structure(
+        raw,
+        decoder_branch=decoder_branch,
+        http_status=http_status,
+        content_type=content_type,
+    )
+    return error
 
 
 _SAFE_TRANSPORT_TYPE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")

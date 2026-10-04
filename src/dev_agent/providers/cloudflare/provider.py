@@ -17,7 +17,7 @@ from urllib.parse import quote
 from urllib.request import Request
 
 from ...domain.protocol import ModelRequest, ModelResponse, ProtocolError, ToolCall
-from ..base import ModelProvider, ProviderError, TransportStage, annotate_transport_failure
+from ..base import ModelProvider, ProviderError, TransportStage, annotate_transport_failure, attach_decode_diagnostics
 from ..openai_compatible import OpenAICompatibleProvider
 from ..openai_compatible.http import REDIRECT_STATUS_CODES, _read_bounded, urlopen_no_redirect
 
@@ -218,6 +218,15 @@ class CloudflareWorkersAIHttpProvider(ModelProvider):
 
     @classmethod
     def _decode(cls, raw: Any, request: ModelRequest, model: str | None = None) -> ModelResponse:
+        try:
+            return cls._decode_unannotated(raw, request, model)
+        except ProviderError as error:
+            if error.category == "provider_decode" and error.decode_diagnostics is None:
+                attach_decode_diagnostics(error, raw, decoder_branch="cloudflare.chat_completion")
+            raise
+
+    @classmethod
+    def _decode_unannotated(cls, raw: Any, request: ModelRequest, model: str | None = None) -> ModelResponse:
         if not isinstance(raw, Mapping) or raw.get("success") is not True:
             raise ProviderError("cloudflare provider returned an unsuccessful response", category="provider_http", retryable=False)
         result = raw.get("result")

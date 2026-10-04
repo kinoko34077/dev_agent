@@ -15,6 +15,7 @@ from dataclasses import replace
 import json
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,14 +32,18 @@ from src.dev_agent.domain.execution import (  # noqa: E402
     devfarm_lifecycle_stage,
     operation_lifecycle_stage,
 )
-from src.dev_agent.domain.protocol import IntelligenceTier, ModelRequest, ProtocolError, RiskLevel, TaskStatus  # noqa: E402
+from src.dev_agent.domain.protocol import IntelligenceTier, ModelRequest, ProtocolError, RiskLevel, Task, TaskStatus, TaskType  # noqa: E402
 from src.dev_agent.domain.wait import WAIT_CONDITION_REGISTRY, WaitReplayPolicy  # noqa: E402
+from src.dev_agent.providers.base import ProviderError  # noqa: E402
 from src.dev_agent.providers.cloudflare.provider import CloudflareWorkersAIHttpProvider  # noqa: E402
 from src.dev_agent.providers.gemini.decoder import decode_generate_content  # noqa: E402
+from src.dev_agent.intelligence.policy import TaskIntelligencePolicy  # noqa: E402
+from src.dev_agent.intelligence.role_manifest import builtin_role_manifests  # noqa: E402
 from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog  # noqa: E402
 from src.dev_agent.resources.model_funnel import FunnelReport, build_funnel_report  # noqa: E402
 from src.dev_agent.resources.model_runtime import RuntimeAdmissionSnapshot  # noqa: E402
 from src.dev_agent.resources.qualification import QualificationResolver  # noqa: E402
+from src.dev_agent.resources.tier_authority import production_tier_authority  # noqa: E402
 
 
 def _result(name: str, *, violations: list[str] | None = None, **details: Any) -> dict[str, Any]:
@@ -238,6 +243,136 @@ def check_provider_normalization() -> dict[str, Any]:
     )
 
 
+def check_provider_decode_diagnostics() -> dict[str, Any]:
+    """Ensure malformed Provider envelopes yield bounded shape facts only."""
+
+    required = {
+        "decoder_branch",
+        "http_status",
+        "content_type",
+        "top_level_keys",
+        "value_kinds",
+        "nested_paths",
+        "size_bucket",
+        "schema_fingerprint",
+    }
+    violations: list[str] = []
+    request = ModelRequest(messages=[{"role": "user", "content": "bounded diagnostic fixture"}])
+    errors: list[tuple[str, ProviderError]] = []
+    try:
+        decode_generate_content(
+            {"candidates": [], "private": {"value": "redacted-secret-fixture"}},
+            model="gemini-test",
+            request_id=request.request_id,
+        )
+    except ProviderError as error:
+        errors.append(("gemini", error))
+    try:
+        CloudflareWorkersAIHttpProvider._decode(
+            {"success": True, "result": None, "private": {"value": "redacted-secret-fixture"}},
+            request,
+            model="cloudflare-test",
+        )
+    except ProviderError as error:
+        errors.append(("cloudflare", error))
+    for provider, error in errors:
+        diagnostics = error.decode_diagnostics
+        if not isinstance(diagnostics, Mapping):
+            violations.append(f"missing:{provider}")
+            continue
+        missing = sorted(required - set(diagnostics))
+        violations.extend(f"{provider}:missing:{key}" for key in missing)
+        encoded = json.dumps(diagnostics, ensure_ascii=False, sort_keys=True)
+        if "redacted-secret-fixture" in encoded:
+            violations.append(f"{provider}:raw_payload_retained")
+        if len(encoded) > 6_000:
+            violations.append(f"{provider}:diagnostic_unbounded")
+    if {provider for provider, _ in errors} != {"gemini", "cloudflare"}:
+        violations.append("provider_decode_branch_not_observed")
+    return _result(
+        "provider_decode_structure",
+        violations=violations,
+        providers_checked=["cloudflare", "gemini"],
+        raw_payload_retained=False,
+        diagnostic_fields=sorted(required),
+    )
+
+
+def check_role_preflight_dispatch_equivalence() -> dict[str, Any]:
+    """Compare role preflight with the canonical request used for dispatch."""
+
+    role_task_types = {
+        "planner": TaskType.REASONING,
+        "implementer": TaskType.WORKER,
+        "reviewer": TaskType.REASONING,
+    }
+    manifests = builtin_role_manifests()
+    policy = TaskIntelligencePolicy()
+    violations: list[str] = []
+    checked: list[str] = []
+    for role in sorted(role_task_types):
+        task = Task(
+            objective=f"coherence {role} task",
+            task_type=role_task_types[role],
+            required_capabilities=[],
+            metadata={"execution_role": role},
+        )
+        decision = policy.decide(task)
+        try:
+            admission = manifests[role].validate_task(task, decision)
+        except Exception as exc:
+            violations.append(f"preflight:{role}:{type(exc).__name__}")
+            continue
+        request = ModelRequest(
+            task_id=task.task_id,
+            messages=[{"role": "user", "content": "bounded role projection"}],
+            metadata={
+                "execution_role": role,
+                "task_type": task.task_type.value,
+                "minimum_intelligence_tier": decision.minimum_tier.value,
+                "maximum_intelligence_tier": decision.maximum_tier.value,
+                "risk": task.risk.value,
+            },
+        )
+        requirement = ExecutionRequirement.from_model_request(request)
+        if requirement.role != admission.role_id:
+            violations.append(f"role:{role}")
+        if requirement.task_type.value != admission.task_type:
+            violations.append(f"task_type:{role}")
+        if requirement.minimum_intelligence_tier is not admission.intelligence_tier:
+            violations.append(f"tier:{role}")
+        if requirement.risk is not admission.risk or requirement.sensitivity != admission.sensitivity:
+            violations.append(f"classification:{role}")
+        checked.append(role)
+    return _result(
+        "role_preflight_dispatch_equivalence",
+        violations=violations,
+        roles_checked=checked,
+        canonical_projection="ExecutionRequirement",
+        provider_selection_included=False,
+    )
+
+
+def check_tier_authority_conflicts() -> dict[str, Any]:
+    """Ensure conflicting exact-route tier evidence is rejected."""
+
+    decision = production_tier_authority.resolve(
+        provider_id="gemini",
+        provider_binding_id="gemini:account-a",
+        model_id="gemini-test",
+        qualification=SimpleNamespace(intelligence_tier="L1"),
+        model_admission=SimpleNamespace(intelligence_tier="L2"),
+    )
+    conflict_rejected = not decision.eligible and decision.reason == "TIER_EVIDENCE_CONFLICT"
+    return _result(
+        "exact_route_tier_authority",
+        violations=[] if conflict_rejected else ["tier_evidence_conflict_not_rejected"],
+        conflict_rejected=conflict_rejected,
+        decision_reason=decision.reason,
+        exact_identity=["gemini", "gemini:account-a", "gemini-test"],
+    )
+
+
 def check_report(report: Mapping[str, Any]) -> tuple[str, ...]:
     """Return bounded check names that failed in a generated report."""
 
@@ -261,6 +396,9 @@ def build_report(*, funnel_report: FunnelReport | None = None) -> dict[str, Any]
         _check_field_presence(),
         check_lifecycle_projection(),
         check_provider_normalization(),
+        check_provider_decode_diagnostics(),
+        check_role_preflight_dispatch_equivalence(),
+        check_tier_authority_conflicts(),
     ]
     if funnel_report is not None:
         checks.append(check_funnel_invariants(funnel_report))

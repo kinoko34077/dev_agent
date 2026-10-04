@@ -72,6 +72,25 @@
 - [ ] **Step 4: Verify exact-head CI for the implementation/evidence head.**
 - [ ] **Step 5: Decide whether #73 is accepted or needs another bounded slice; do not start #65 until all required coherence checks are covered and the Issue says so.**
 
+### Task 4: Add bounded Provider decode-structure diagnostics
+
+**Files:** `src/dev_agent/providers/base.py`, `src/dev_agent/providers/gemini/decoder.py`, `src/dev_agent/providers/cloudflare/provider.py`, `tests/v2/test_provider_decode_diagnostics.py`
+
+**Approach:** Extend the existing `ProviderError` boundary with an optional,
+bounded structural projection. The projection may contain transport metadata,
+bounded top-level keys, value kinds, nested paths, a size bucket, a schema
+fingerprint, and a decoder branch, but never raw response values or exception
+text. Attach it only to provider-decode failures; transport, quota,
+authentication, and reconciliation paths remain unchanged.
+
+**TDD:** Add failing Gemini/Cloudflare malformed-envelope tests first; then
+implement the projection helper and attach it at the existing decoder failure
+boundaries. Verify that equivalent malformed shapes produce useful bounded
+facts and that secret-shaped values are absent.
+
+**Constraints:** Reuse `ProviderError`; do not add a provider registry, decode
+store, retry path, or network call. Keep reconciliation semantics unchanged.
+
 ## Known follow-up gaps
 
 This plan intentionally does not invent a second Current State generator, provider

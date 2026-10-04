@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from ...domain.protocol import ModelResponse, ToolCall
-from ..base import ProviderError
+from ..base import ProviderError, attach_decode_diagnostics
 from .transcript import extract_model_parts
 
 
@@ -15,7 +15,8 @@ def decode_generate_content(raw: Mapping[str, Any], *, model: str, request_id: s
         candidate = raw["candidates"][0]
         parts = extract_model_parts(raw)
     except (KeyError, IndexError, TypeError, ValueError) as exc:
-        raise ProviderError(f"gemini response decode failed: missing candidate content: {exc}", category="provider_decode", retryable=False) from exc
+        failure = ProviderError("gemini response decode failed: missing candidate content", category="provider_decode", retryable=False)
+        raise attach_decode_diagnostics(failure, raw, decoder_branch="gemini.generate_content") from exc
     text_segments: list[str] = []
     calls: list[ToolCall] = []
     try:
@@ -26,8 +27,10 @@ def decode_generate_content(raw: Mapping[str, Any], *, model: str, request_id: s
                 function = part["functionCall"]
                 calls.append(ToolCall(tool_name=function["name"], arguments=function.get("args", {}), provider_call_id=function.get("id"), originating_request_id=request_id))
     except (KeyError, TypeError, ValueError) as exc:
-        raise ProviderError(f"gemini response decode failed: invalid part: {exc}", category="provider_decode", retryable=False) from exc
+        failure = ProviderError("gemini response decode failed: invalid part", category="provider_decode", retryable=False)
+        raise attach_decode_diagnostics(failure, raw, decoder_branch="gemini.generate_content") from exc
     if not text_segments and not calls:
-        raise ProviderError("gemini response decode failed: no text or function call", category="provider_decode", retryable=False)
+        failure = ProviderError("gemini response decode failed: no text or function call", category="provider_decode", retryable=False)
+        raise attach_decode_diagnostics(failure, raw, decoder_branch="gemini.generate_content")
     usage = raw.get("usageMetadata", {})
     return ModelResponse(provider="gemini", model=model, finish_reason=candidate.get("finishReason", "stop"), text_segments=text_segments, tool_calls=calls, usage=usage)

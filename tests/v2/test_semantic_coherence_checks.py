@@ -8,7 +8,10 @@ from scripts.check_semantic_coherence import (
     build_report,
     check_funnel_invariants,
     check_lifecycle_projection,
+    check_provider_decode_diagnostics,
     check_provider_normalization,
+    check_role_preflight_dispatch_equivalence,
+    check_tier_authority_conflicts,
     check_wait_wake_coverage,
 )
 from src.dev_agent.resources.model_funnel import FunnelCandidate, FunnelReport
@@ -118,6 +121,28 @@ def test_provider_adapters_normalize_equivalent_semantics_without_raw_payload():
     assert result["providers_checked"] == ["cloudflare", "gemini"]
     assert "raw" not in result
     assert "content" not in result
+
+
+def test_provider_decode_diagnostics_are_structural_and_secret_free():
+    result = check_provider_decode_diagnostics()
+
+    assert result["status"] == "PASS"
+    assert result["providers_checked"] == ["cloudflare", "gemini"]
+    assert result["raw_payload_retained"] is False
+
+
+def test_role_preflight_and_dispatch_use_one_canonical_projection():
+    result = check_role_preflight_dispatch_equivalence()
+
+    assert result["status"] == "PASS"
+    assert result["roles_checked"] == ["implementer", "planner", "reviewer"]
+
+
+def test_exact_route_tier_conflicts_fail_closed():
+    result = check_tier_authority_conflicts()
+
+    assert result["status"] == "PASS"
+    assert result["conflict_rejected"] is True
 
 
 def test_build_report_is_bounded_and_marks_gate_as_unchanged():
