@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "evidence_id": "model-evidence-refresh-r9-capability-benchmark-20261005",
+  "recorded_at": "2026-10-05T00:00:00+00:00",
+  "repository_revision": "a95505dcdecaa121bf2d77aeaa2c9a5d9a818659",
+  "evidence_kind": "operator_reviewed_model_evidence_refresh",
+  "network_calls": true,
+  "generation_calls": false,
+  "gate_impact": "unchanged",
+  "source": {
+    "discovery": {
+      "kind": "approved_host_read_only_model_discovery_candidate",
+      "entry_count": 1385,
+      "binding_count": 13,
+      "sha256": "37913FB806FBBB9F6B76B3C0FF01A4D8FD316334DFAAC336FEBA56422F6D990F"
+    },
+    "capability_candidate": {
+      "producer": "scripts/rebuild_model_evidence.py",
+      "entry_count": 500,
+      "sha256": "DB55A19CEB4BB0A4B1E0961996E4621737DF08323E8A1457CDFE303FB98DD957",
+      "source_semantics": "discovery_metadata_only; no billing, quota, qualification, health, or liveness inference"
+    },
+    "alias_candidate": {
+      "producer": "scripts/rebuild_model_evidence.py",
+      "entry_count": 984,
+      "sha256": "066E445B0F8802297633638C132DC7892B7CD6065BDD5C352F68EC6E14663353"
+    },
+    "benchmark_candidate": {
+      "producer": "scripts/refresh_model_benchmarks.py",
+      "source": "openrouter.api.v1.benchmarks",
+      "entry_count": 87,
+      "sha256": "63289384A355110EF329149F3EBB35CA93D382181A12E0F3F60977E623A5DD73",
+      "ttl": "7d",
+      "confidence": "medium"
+    }
+  },
+  "exact_current_qualified_identities": [
+    {
+      "provider_id": "cloudflare",
+      "provider_binding_id": "cloudflare:account",
+      "model_id": "@cf/google/gemma-4-26b-a4b-it",
+      "qualification_tier": "L1"
+    },
+    {
+      "provider_id": "cloudflare",
+      "provider_binding_id": "cloudflare:account",
+      "model_id": "@cf/nvidia/nemotron-3-120b-a12b",
+      "qualification_tier": "L1"
+    },
+    {
+      "provider_id": "cloudflare",
+      "provider_binding_id": "cloudflare:account",
+      "model_id": "@cf/zai-org/glm-4.7-flash",
+      "qualification_tier": "L1"
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:core",
+      "model_id": "gemini-3.8-flash",
+      "qualification_tier": "L2"
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker",
+      "model_id": "gemini-3.5-flash-lite",
+      "qualification_tier": "L1"
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-3",
+      "model_id": "gemini-3.5-flash-lite",
+      "qualification_tier": "L1"
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-3",
+      "model_id": "gemini-3.6-flash",
+      "qualification_tier": null
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-3",
+      "model_id": "gemini-3.8-flash",
+      "qualification_tier": null
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-4",
+      "model_id": "gemini-3.8-flash",
+      "qualification_tier": null
+    },
+    {
+      "provider_id": "gemini",
+      "provider_binding_id": "gemini:worker:free-5",
+      "model_id": "gemini-3.8-flash",
+      "qualification_tier": null
+    }
+  ],
+  "pre_refresh_projection": {
+    "canonical_capability_state": "expired_for_exact_gemini_candidates",
+    "canonical_benchmark_state": "8_of_8_expired",
+    "formal_supply": 0,
+    "static_supply": 0
+  },
+  "candidate_projection": {
+    "current_discovery": 1385,
+    "static_eligible": 141,
+    "formal_supply": 0,
+    "runtime_status": "RUNTIME_NOT_PROBED",
+    "remaining_boundary": "fresh no-charge runtime admission/liveness/quota observation required"
+  },
+  "safety": {
+    "canonical_replacement": true,
+    "provider_generation": false,
+    "unknown_replay": false,
+    "cloudflare_reconciliation_replay": false,
+    "paid_fallback": false,
+    "credential_mutation": false,
+    "gate_mutation": false
+  },
+  "next_action": "After canonical replacement, rerun Stage C. If an exact formal route is statically eligible, perform one fresh no-charge Stage D runtime admission; otherwise keep #65 PRECHECK_BLOCKED."
+}

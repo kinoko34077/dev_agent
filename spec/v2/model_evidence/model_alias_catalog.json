@@ -803,8 +803,23 @@
     },
     {
       "provider_id": "openrouter",
+      "model_id": "anthropic/claude-sonnet-5.5",
+      "canonical_model_id": "anthropic/claude-sonnet-5.5"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-sonnet-5.5:batch",
+      "canonical_model_id": "anthropic/claude-sonnet-5.5:batch"
+    },
+    {
+      "provider_id": "openrouter",
       "model_id": "anthropic/claude-sonnet-5:batch",
       "canonical_model_id": "anthropic/claude-sonnet-5:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "apodex/apodex-1.1-mini:free",
+      "canonical_model_id": "apodex/apodex-1.1-mini:free"
     },
     {
       "provider_id": "openrouter",
@@ -910,11 +925,6 @@
       "provider_id": "openrouter",
       "model_id": "deepseek/deepseek-r1-0528",
       "canonical_model_id": "deepseek/deepseek-r1-0528"
-    },
-    {
-      "provider_id": "openrouter",
-      "model_id": "deepseek/deepseek-r1-distill-llama-70b",
-      "canonical_model_id": "deepseek/deepseek-r1-distill-llama-70b"
     },
     {
       "provider_id": "openrouter",
@@ -1173,11 +1183,6 @@
     },
     {
       "provider_id": "openrouter",
-      "model_id": "inclusionai/ling-3.0-flash-fin:free",
-      "canonical_model_id": "inclusionai/ling-3.0-flash-fin:free"
-    },
-    {
-      "provider_id": "openrouter",
       "model_id": "inclusionai/ling-3.0-flash-sante:free",
       "canonical_model_id": "inclusionai/ling-3.0-flash-sante:free"
     },
@@ -1185,6 +1190,11 @@
       "provider_id": "openrouter",
       "model_id": "inclusionai/ling-3.0-flash-vl",
       "canonical_model_id": "inclusionai/ling-3.0-flash-vl"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "inclusionai/ling-3.1-flash",
+      "canonical_model_id": "inclusionai/ling-3.1-flash"
     },
     {
       "provider_id": "openrouter",
@@ -1513,6 +1523,16 @@
     },
     {
       "provider_id": "openrouter",
+      "model_id": "nex-agi/nex-n2.5-mini",
+      "canonical_model_id": "nex-agi/nex-n2.5-mini"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "nex-agi/nex-n2.5-pro",
+      "canonical_model_id": "nex-agi/nex-n2.5-pro"
+    },
+    {
+      "provider_id": "openrouter",
       "model_id": "nousresearch/hermes-3-llama-3.1-405b",
       "canonical_model_id": "nousresearch/hermes-3-llama-3.1-405b"
     },
@@ -1570,6 +1590,11 @@
       "provider_id": "openrouter",
       "model_id": "nvidia/nemotron-3.5-lightning:free",
       "canonical_model_id": "nvidia/nemotron-3.5-lightning:free"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "nvidia/switchyard",
+      "canonical_model_id": "nvidia/switchyard"
     },
     {
       "provider_id": "openrouter",
@@ -1960,6 +1985,16 @@
       "provider_id": "openrouter",
       "model_id": "openai/gpt-6-sol:batch",
       "canonical_model_id": "openai/gpt-6-sol:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-6.1-sol",
+      "canonical_model_id": "openai/gpt-6.1-sol"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-6.1-sol-pro",
+      "canonical_model_id": "openai/gpt-6.1-sol-pro"
     },
     {
       "provider_id": "openrouter",
@@ -2548,6 +2583,11 @@
     },
     {
       "provider_id": "openrouter",
+      "model_id": "unbiased/pareto-26.10-preview",
+      "canonical_model_id": "unbiased/pareto-26.10-preview"
+    },
+    {
+      "provider_id": "openrouter",
       "model_id": "undi95/remm-slerp-l2-13b",
       "canonical_model_id": "undi95/remm-slerp-l2-13b"
     },
@@ -2830,11 +2870,6 @@
       "provider_id": "sambanova",
       "model_id": "Meta-Llama-3.3-70B-Instruct",
       "canonical_model_id": "sambanova/Meta-Llama-3.3-70B-Instruct"
-    },
-    {
-      "provider_id": "sambanova",
-      "model_id": "MiniMax-M2.7",
-      "canonical_model_id": "sambanova/MiniMax-M2.7"
     },
     {
       "provider_id": "sambanova",
@@ -3193,6 +3228,11 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "anthropic/claude-sonnet-5.5",
+      "canonical_model_id": "anthropic/claude-sonnet-5.5"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "arcee-ai/trinity-large-thinking",
       "canonical_model_id": "arcee-ai/trinity-large-thinking"
     },
@@ -3348,6 +3388,16 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "convaiinnovations/laya",
+      "canonical_model_id": "convaiinnovations/laya"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "convaiinnovations/laya-free",
+      "canonical_model_id": "convaiinnovations/laya-free"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "deepseek/deepseek-r1",
       "canonical_model_id": "deepseek/deepseek-r1"
     },
@@ -3400,6 +3450,11 @@
       "provider_id": "vercel",
       "model_id": "deepseek/deepseek-v4.1-flash",
       "canonical_model_id": "deepseek/deepseek-v4.1-flash"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "deepseek/deepseek-v4.1-flash-fast",
+      "canonical_model_id": "deepseek/deepseek-v4.1-flash-fast"
     },
     {
       "provider_id": "vercel",
@@ -3638,6 +3693,16 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "inclusionai/ling-3.1-flash",
+      "canonical_model_id": "inclusionai/ling-3.1-flash"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "inclusionai/ling-3.1-flash-free",
+      "canonical_model_id": "inclusionai/ling-3.1-flash-free"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "inference-net/schematron-v2-small",
       "canonical_model_id": "inference-net/schematron-v2-small"
     },
@@ -3690,6 +3755,11 @@
       "provider_id": "vercel",
       "model_id": "klingai/kling-v3.0-t2v",
       "canonical_model_id": "klingai/kling-v3.0-t2v"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "liquid/d1",
+      "canonical_model_id": "liquid/d1"
     },
     {
       "provider_id": "vercel",
@@ -3755,6 +3825,41 @@
       "provider_id": "vercel",
       "model_id": "meta/muse-spark-1.3-contributor",
       "canonical_model_id": "meta/muse-spark-1.3-contributor"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "microsoft/mai-transcribe-1.5",
+      "canonical_model_id": "microsoft/mai-transcribe-1.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "microsoft/mai-transcribe-2",
+      "canonical_model_id": "microsoft/mai-transcribe-2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "microsoft/mai-transcribe-2-streaming",
+      "canonical_model_id": "microsoft/mai-transcribe-2-streaming"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "microsoft/mai-voice-2",
+      "canonical_model_id": "microsoft/mai-voice-2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "microsoft/mai-voice-2-flash",
+      "canonical_model_id": "microsoft/mai-voice-2-flash"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "microsoft/mai-voice-2.1",
+      "canonical_model_id": "microsoft/mai-voice-2.1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "microsoft/mai-voice-2.1-flash",
+      "canonical_model_id": "microsoft/mai-voice-2.1-flash"
     },
     {
       "provider_id": "vercel",
@@ -4208,6 +4313,16 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "openai/gpt-6.1-sol",
+      "canonical_model_id": "openai/gpt-6.1-sol"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-6.1-sol-fast",
+      "canonical_model_id": "openai/gpt-6.1-sol-fast"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "openai/gpt-image-1",
       "canonical_model_id": "openai/gpt-image-1"
     },
@@ -4365,16 +4480,6 @@
       "provider_id": "vercel",
       "model_id": "perplexity/sonar",
       "canonical_model_id": "perplexity/sonar"
-    },
-    {
-      "provider_id": "vercel",
-      "model_id": "perplexity/sonar-pro",
-      "canonical_model_id": "perplexity/sonar-pro"
-    },
-    {
-      "provider_id": "vercel",
-      "model_id": "perplexity/sonar-reasoning-pro",
-      "canonical_model_id": "perplexity/sonar-reasoning-pro"
     },
     {
       "provider_id": "vercel",
@@ -4558,6 +4663,11 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "spacexai/grok-imagine-video-1.5-lite",
+      "canonical_model_id": "spacexai/grok-imagine-video-1.5-lite"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "spacexai/grok-stt",
       "canonical_model_id": "spacexai/grok-stt"
     },
@@ -4575,11 +4685,6 @@
       "provider_id": "vercel",
       "model_id": "spacexai/grok-voice-think-fast-2.0",
       "canonical_model_id": "spacexai/grok-voice-think-fast-2.0"
-    },
-    {
-      "provider_id": "vercel",
-      "model_id": "stealth/pixel-canary",
-      "canonical_model_id": "stealth/pixel-canary"
     },
     {
       "provider_id": "vercel",
@@ -4645,6 +4750,16 @@
       "provider_id": "vercel",
       "model_id": "voyage/rerank-2.5-lite",
       "canonical_model_id": "voyage/rerank-2.5-lite"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "voyage/rerank-3",
+      "canonical_model_id": "voyage/rerank-3"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "voyage/rerank-3-lite",
+      "canonical_model_id": "voyage/rerank-3-lite"
     },
     {
       "provider_id": "vercel",

@@ -21,7 +21,11 @@ from src.dev_agent.resources.model_runtime import (
 )
 
 
-DIAGNOSTIC_NOW = datetime(2026, 10, 3, 23, 0, tzinfo=timezone.utc)
+# Keep the deterministic diagnostic clock inside the current reviewed evidence
+# window.  The canonical evidence refresh is intentionally time-bounded; a
+# clock before the refresh's observed_at would make every row look expired and
+# hide the runtime-not-probed cases these tests exercise.
+DIAGNOSTIC_NOW = datetime(2026, 10, 5, 0, 0, tzinfo=timezone.utc)
 
 
 @pytest.fixture(scope="module")

@@ -1,0 +1,52 @@
+{
+  "evidence_type": "r9_stage_d_runtime_admission_observation",
+  "observed_at": "2026-10-04T17:14:27.938588+00:00",
+  "repository_revision": "a95505dcdecaa121bf2d77aeaa2c9a5d9a818659",
+  "branch": "v2/bootstrap",
+  "network_calls": true,
+  "generation_attempted": true,
+  "gate_impact": "unchanged",
+  "route": {
+    "provider": "gemini",
+    "binding": "gemini:core",
+    "model": "gemini-3.8-flash",
+    "intelligence_tier": "L2",
+    "quota_domain": "gemini:core-account",
+    "no_charge_required": true
+  },
+  "probes": [
+    {
+      "mode": "strict_quota_admission",
+      "parent_task_id": "fa656c17-4e09-4293-ad6e-d548a6007e18",
+      "provider_request_id": null,
+      "status": "blocked_external",
+      "category": "no_route",
+      "provider_called": false,
+      "reconciliation_required": false,
+      "observation": "The existing fail-closed route rejected the binding before Provider dispatch because current quota telemetry was absent."
+    },
+    {
+      "mode": "explicit_unknown_quota_bootstrap",
+      "parent_task_id": "e44240b9-1380-461c-9aa3-16d29ca6b7a6",
+      "provider_request_id": "7f91bde2-d323-4185-8e6c-9fd273185d8d",
+      "status": "pool_exhausted",
+      "category": "provider_unavailable",
+      "provider_called": true,
+      "failover_safe": true,
+      "reconciliation_required": false,
+      "observation": "The fresh Provider attempt returned the canonical pre-effect unavailable classification; no Planner response was accepted."
+    }
+  ],
+  "runtime_admission": {
+    "status": "RUNTIME_UNAVAILABLE",
+    "formal_eligible": false,
+    "reason": "Fresh Provider liveness/generation was unavailable and quota remained unobserved."
+  },
+  "formal_supply": 0,
+  "independent_exact_route_supply": 0,
+  "r9_root_created": false,
+  "no_unknown_replay": true,
+  "no_paid_fallback": true,
+  "no_credential_or_gate_mutation": true,
+  "next_action": "Keep #65 PRECHECK_BLOCKED at WO-1. Do not retry either request identity or create an R9 root until a new safe admission/liveness signal justifies a fresh observation."
+}
