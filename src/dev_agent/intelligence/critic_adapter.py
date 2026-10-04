@@ -190,6 +190,7 @@ class ModelCriticAdapter:
             f"{json.dumps(normalized, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}"
         )
         metadata = {
+            "execution_role": "critic",
             "dev_agent_task_id": task_id,
             "dev_agent_attempt_id": attempt_id,
             "refinement_mode": "critic",

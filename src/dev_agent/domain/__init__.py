@@ -20,6 +20,15 @@ from .protocol import (
     ToolResultStatus,
     dumps,
 )
+from .execution import (
+    CanonicalExecutionRequest,
+    CanonicalExecutionResult,
+    ExecutionRequirement,
+    FieldPresence,
+    PresenceState,
+    RouteConstraints,
+    UnsupportedCapabilityError,
+)
 
 __all__ = [
     "Event",
@@ -40,4 +49,11 @@ __all__ = [
     "ToolResult",
     "ToolResultStatus",
     "dumps",
+    "CanonicalExecutionRequest",
+    "CanonicalExecutionResult",
+    "ExecutionRequirement",
+    "FieldPresence",
+    "PresenceState",
+    "RouteConstraints",
+    "UnsupportedCapabilityError",
 ]

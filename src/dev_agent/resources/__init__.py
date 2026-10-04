@@ -33,6 +33,8 @@ _LAZY_EXPORTS = {
     "ResourceRouter": (".router", "ResourceRouter"),
     "RouteRequest": (".router", "RouteRequest"),
     "RouteSelection": (".router", "RouteSelection"),
+    "EffectiveRouteDecision": (".router", "EffectiveRouteDecision"),
+    "RouteDecisionCode": (".router", "RouteDecisionCode"),
     "RoutingSnapshot": (".snapshot", "RoutingSnapshot"),
     "SurvivalGovernor": (".survival", "SurvivalGovernor"),
     "SurvivalMode": (".survival", "SurvivalMode"),

@@ -463,6 +463,7 @@ class ModelPlanningAdapter:
             self.proposal_profile,
         )
         metadata = {
+            "execution_role": "planner",
             "planning_mode": "proposal_only",
             "authority": "host_validation_required",
             "planner_response_encoding": "strict_json_text",

@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from enum import Enum
 import math
 import time
-from typing import Protocol
+from typing import Any, Protocol
 
+from ..domain.execution import ExecutionRequirement
 from .billing_catalog import profile_for
 from . import provider_policy
 from .model_admission import ModelAdmissionResolver
@@ -43,6 +45,54 @@ class RouteRequest:
     allowed_provider_binding_ids: set[str] | frozenset[str] | tuple[str, ...] | None = None
     excluded_provider_binding_ids: set[str] | frozenset[str] | tuple[str, ...] = field(default_factory=set)
     prefer_diversity: bool = False
+
+    @classmethod
+    def from_execution_requirement(
+        cls,
+        requirement: ExecutionRequirement,
+        *,
+        provider_id: str | None = None,
+        excluded_resource_ids: set[str] | frozenset[str] | tuple[str, ...] = (),
+        max_cost_minor: int | None = None,
+    ) -> "RouteRequest":
+        """Project one canonical requirement into the existing Router contract.
+
+        This is intentionally a projection, not a second routing authority.
+        Provider-specific request options remain in adapters; only bounded
+        host-owned constraints enter ``RouteRequest``.
+        """
+
+        if not isinstance(requirement, ExecutionRequirement):
+            raise TypeError("requirement must be an ExecutionRequirement")
+        constraints = requirement.route_constraints
+
+        def _value(presence, default=None, explicit_none=None):
+            if presence.is_value:
+                return presence.payload
+            if presence.is_explicit_none:
+                return explicit_none
+            return default
+
+        effective_cost = max_cost_minor
+        if effective_cost is None:
+            effective_cost = _value(constraints.max_cost_minor)
+        return cls(
+            capabilities=set(requirement.required_capabilities) or {"text"},
+            sensitivity=requirement.sensitivity,
+            allowed_providers=({provider_id} if provider_id is not None else _value(constraints.allowed_providers)),
+            max_cost_minor=effective_cost,
+            max_latency_ms=_value(constraints.max_latency_ms),
+            excluded_resource_ids=set(excluded_resource_ids),
+            max_observation_age_seconds=_value(constraints.max_observation_age_seconds, 300.0, None),
+            max_quota_observation_age_seconds=_value(constraints.max_quota_observation_age_seconds, 300.0, None),
+            allow_unknown_quota=bool(_value(constraints.allow_unknown_quota, False, False)),
+            allowed_intelligence_tiers=requirement.allowed_tier_values(),
+            task_fit=_value(constraints.task_fit),
+            minimum_task_fit_score=_value(constraints.minimum_task_fit_score),
+            allowed_provider_binding_ids=_value(constraints.allowed_provider_binding_ids),
+            excluded_provider_binding_ids=_value(constraints.excluded_provider_binding_ids, ()),
+            prefer_diversity=bool(_value(constraints.prefer_diversity, False, False)),
+        )
 
     def __post_init__(self) -> None:
         if not isinstance(self.allow_unknown_quota, bool):
@@ -113,6 +163,78 @@ class RouteSelection:
     model_id: str | None = None
     quota_domain: str | None = None
     unknown_quota: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "resource_id": self.resource_id,
+            "provider_id": self.provider_id,
+            "native_unit": self.native_unit,
+            "estimated_cost_minor": self.estimated_cost_minor,
+            "price_currency": self.price_currency,
+            "provider_binding_id": self.provider_binding_id,
+            "model_id": self.model_id,
+            "quota_domain": self.quota_domain,
+            "unknown_quota": self.unknown_quota,
+        }
+
+
+class RouteDecisionCode(str, Enum):
+    """Bounded reason vocabulary for a canonical effective-route decision."""
+
+    ELIGIBLE = "ELIGIBLE"
+    NO_ELIGIBLE_ROUTE = "NO_ELIGIBLE_ROUTE"
+    UNSUPPORTED_CAPABILITY = "UNSUPPORTED_CAPABILITY"
+    INTELLIGENCE_TIER_UNSATISFIED = "INTELLIGENCE_TIER_UNSATISFIED"
+    PRIVACY_POLICY_UNSATISFIED = "PRIVACY_POLICY_UNSATISFIED"
+    BILLING_POLICY_UNSATISFIED = "BILLING_POLICY_UNSATISFIED"
+    QUOTA_UNAVAILABLE = "QUOTA_UNAVAILABLE"
+    HEALTH_UNAVAILABLE = "HEALTH_UNAVAILABLE"
+
+
+@dataclass(frozen=True)
+class EffectiveRouteDecision:
+    """Canonical, bounded projection of one deterministic route decision."""
+
+    eligible: bool
+    selection: RouteSelection | None
+    reasons: tuple[RouteDecisionCode, ...]
+    requirement_digest: str
+    evidence: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.eligible, bool):
+            raise TypeError("eligible must be a boolean")
+        if self.eligible and self.selection is None:
+            raise ValueError("an eligible decision requires a selection")
+        if not self.eligible and self.selection is not None:
+            raise ValueError("an ineligible decision cannot contain a selection")
+        if not self.reasons:
+            raise ValueError("route decision requires at least one reason")
+        normalized = tuple(reason if isinstance(reason, RouteDecisionCode) else RouteDecisionCode(reason) for reason in self.reasons)
+        object.__setattr__(self, "reasons", normalized)
+        if not isinstance(self.requirement_digest, str) or not self.requirement_digest:
+            raise ValueError("requirement_digest must be a non-empty string")
+        if not isinstance(self.evidence, dict):
+            raise TypeError("evidence must be a bounded dictionary")
+        object.__setattr__(self, "evidence", dict(self.evidence))
+
+    @property
+    def reason_codes(self) -> tuple[str, ...]:
+        return tuple(reason.value for reason in self.reasons)
+
+    def require_selection(self) -> RouteSelection:
+        if self.selection is None:
+            raise NoRoute(f"no eligible resource ({'; '.join(self.reason_codes)})")
+        return self.selection
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "eligible": self.eligible,
+            "selection": self.selection.to_dict() if self.selection is not None else None,
+            "reasons": list(self.reason_codes),
+            "requirement_digest": self.requirement_digest,
+            "evidence": dict(self.evidence),
+        }
 
 
 _SENSITIVITY = {"public": 0, "normal": 1, "internal": 2, "sensitive": 3}
@@ -236,6 +358,163 @@ class ResourceRouter:
 
     def choose(self, request: RouteRequest, *, snapshot: RoutingSnapshot | None = None) -> RouteSelection:
         return self._choose_from_snapshot(request, self.snapshot() if snapshot is None else snapshot)
+
+    def decide(
+        self,
+        requirement: ExecutionRequirement,
+        *,
+        route_request: RouteRequest | None = None,
+        snapshot: RoutingSnapshot | None = None,
+    ) -> EffectiveRouteDecision:
+        """Return an auditable route decision without dispatching a provider."""
+
+        if not isinstance(requirement, ExecutionRequirement):
+            raise TypeError("requirement must be an ExecutionRequirement")
+        effective_snapshot = self.snapshot() if snapshot is None else snapshot
+        request = route_request or RouteRequest.from_execution_requirement(requirement)
+        try:
+            selection = self._choose_from_snapshot(request, effective_snapshot)
+        except NoRoute:
+            return EffectiveRouteDecision(
+                eligible=False,
+                selection=None,
+                reasons=self._diagnose_no_route(request, effective_snapshot),
+                requirement_digest=requirement.digest(),
+            )
+        return EffectiveRouteDecision(
+            eligible=True,
+            selection=selection,
+            reasons=(RouteDecisionCode.ELIGIBLE,),
+            requirement_digest=requirement.digest(),
+            evidence=self._route_evidence(selection, effective_snapshot),
+        )
+
+    @staticmethod
+    def _route_evidence(selection: RouteSelection, snapshot: RoutingSnapshot) -> dict[str, Any]:
+        for resource in snapshot.resources:
+            if resource.get("resource_id") != selection.resource_id:
+                continue
+            return {
+                "resource_id": selection.resource_id,
+                "provider_id": selection.provider_id,
+                "provider_binding_id": selection.provider_binding_id,
+                "model_id": selection.model_id,
+                "health": resource.get("health"),
+                "observed_at": resource.get("observed_at"),
+                "quota_domain": selection.quota_domain,
+            }
+        return {
+            "resource_id": selection.resource_id,
+            "provider_id": selection.provider_id,
+            "provider_binding_id": selection.provider_binding_id,
+            "model_id": selection.model_id,
+            "quota_domain": selection.quota_domain,
+        }
+
+    def _diagnose_no_route(self, request: RouteRequest, snapshot: RoutingSnapshot) -> tuple[RouteDecisionCode, ...]:
+        """Project a bounded reason without duplicating candidate authority.
+
+        The Router remains the sole eligibility authority.  This diagnostic is
+        intentionally conservative: if the rejected candidate cannot be
+        attributed to one observable hard gate, it reports only
+        ``NO_ELIGIBLE_ROUTE`` rather than guessing.
+        """
+
+        resources = []
+        for resource in snapshot.resources:
+            if resource.get("resource_id") in request.excluded_resource_ids:
+                continue
+            if request.allowed_providers is not None and resource.get("provider_id") not in request.allowed_providers:
+                continue
+            metadata = resource.get("metadata") if isinstance(resource.get("metadata"), dict) else {}
+            binding_id = resource.get("provider_binding_id") or metadata.get("provider_binding_id") or resource.get("provider_id")
+            if request.allowed_provider_binding_ids is not None and binding_id not in request.allowed_provider_binding_ids:
+                continue
+            if binding_id in request.excluded_provider_binding_ids:
+                continue
+            resources.append(resource)
+        if not resources:
+            return (RouteDecisionCode.NO_ELIGIBLE_ROUTE,)
+
+        capability_resources = [
+            resource
+            for resource in resources
+            if request.capabilities.issubset(set(resource.get("capabilities") or ()))
+        ]
+        if not capability_resources:
+            return (RouteDecisionCode.UNSUPPORTED_CAPABILITY,)
+
+        if request.allowed_intelligence_tiers is not None:
+            tier_resources = []
+            for resource in capability_resources:
+                metadata = resource.get("metadata") if isinstance(resource.get("metadata"), dict) else {}
+                if metadata.get("intelligence_tier") in request.allowed_intelligence_tiers:
+                    tier_resources.append(resource)
+            if not tier_resources:
+                return (RouteDecisionCode.INTELLIGENCE_TIER_UNSATISFIED,)
+            capability_resources = tier_resources
+
+        privacy_resources = []
+        for resource in capability_resources:
+            sensitivity = resource.get("sensitivity")
+            if not provider_policy.is_local_provider(str(resource.get("provider_id", ""))) and _SENSITIVITY.get(sensitivity, 0) > _SENSITIVITY["normal"]:
+                sensitivity = "normal"
+            if _SENSITIVITY.get(sensitivity, -1) >= _SENSITIVITY[request.sensitivity]:
+                privacy_resources.append(resource)
+        if not privacy_resources:
+            return (RouteDecisionCode.PRIVACY_POLICY_UNSATISFIED,)
+        capability_resources = privacy_resources
+
+        healthy = [
+            resource
+            for resource in capability_resources
+            if resource.get("health") in {"healthy", "degraded"}
+            and isinstance(resource.get("available"), (int, float))
+            and resource.get("available") > 0
+            and float(resource.get("circuit_open_until") or 0) <= time.time()
+        ]
+        if not healthy:
+            return (RouteDecisionCode.HEALTH_UNAVAILABLE,)
+        capability_resources = healthy
+
+        if all(resource.get("quota_domain") for resource in capability_resources):
+            fresh = [
+                resource
+                for resource in capability_resources
+                if self._fresh_domain_quota_ratio(
+                    str(resource["quota_domain"]),
+                    request.max_quota_observation_age_seconds,
+                    snapshot.quota_observations_by_domain,
+                ) is not None
+            ]
+            if not fresh:
+                return (RouteDecisionCode.QUOTA_UNAVAILABLE,)
+
+        trusted_billing = [
+            resource
+            for resource in capability_resources
+            if (resource.get("metadata") or {}).get("billing_authority") == "trusted_catalog"
+        ]
+        if trusted_billing and len(trusted_billing) == len(capability_resources):
+            now = datetime.now(timezone.utc)
+            billing_unavailable = True
+            for resource in trusted_billing:
+                metadata = resource.get("metadata") if isinstance(resource.get("metadata"), dict) else {}
+                expires_at = metadata.get("billing_expires_at")
+                if not expires_at:
+                    continue
+                try:
+                    expiry = datetime.fromisoformat(str(expires_at))
+                    if expiry.tzinfo is None:
+                        expiry = expiry.replace(tzinfo=timezone.utc)
+                except (TypeError, ValueError):
+                    continue
+                if now < expiry:
+                    billing_unavailable = False
+                    break
+            if billing_unavailable:
+                return (RouteDecisionCode.BILLING_POLICY_UNSATISFIED,)
+        return (RouteDecisionCode.NO_ELIGIBLE_ROUTE,)
 
     def _choose_from_snapshot(self, request: RouteRequest, snapshot: RoutingSnapshot) -> RouteSelection:
         if request.sensitivity not in _SENSITIVITY:

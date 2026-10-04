@@ -326,6 +326,7 @@ class ModelReviewAdapter:
             f"{json.dumps(normalized, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}"
         )
         metadata = {
+            "execution_role": "reviewer",
             "dev_agent_task_id": task_id,
             "review_mode": "shadow",
             "authority": "host_validation_required",

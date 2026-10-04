@@ -5,10 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
+from ..domain.execution import ExecutionRequirement
 from ..domain.protocol import ModelRequest, ModelResponse
 from .budget import BudgetExceeded, BudgetGovernor, BudgetReconciliationRequired, BudgetReservation, MaintenanceActive, ResourceUnavailable, UnknownPrice
 from .ledger import MoneyAmount
-from .router import NoRoute, ResourceRouter, RouteRequest, RouteSelection
+from .router import EffectiveRouteDecision, NoRoute, ResourceRouter, RouteRequest, RouteSelection
 from .quota_policy import classify_provider_error
 from .ledger import unknown_quota_wake_reason
 
@@ -93,25 +94,41 @@ class ResourceControlPlane:
         than silently falling back to an unbounded provider-name lookup.
         """
 
-        metadata = request.metadata
-        allowed_tiers = None
-        if metadata.get("intelligence_routing") == "bounded":
-            if "allowed_intelligence_tiers" not in metadata:
-                raise ValueError("bounded intelligence routing requires allowed_intelligence_tiers")
-            allowed_tiers = metadata["allowed_intelligence_tiers"]
-        return RouteRequest(
-            capabilities=set(request.requested_capabilities) or {"text"},
-            sensitivity=request.sensitivity,
-            allowed_providers={provider_id} if provider_id is not None else None,
+        requirement = ExecutionRequirement.from_model_request(request)
+        return RouteRequest.from_execution_requirement(
+            requirement,
+            provider_id=provider_id,
+            excluded_resource_ids=excluded_resource_ids,
             max_cost_minor=max_cost_minor,
-            excluded_resource_ids=set(excluded_resource_ids),
-            allow_unknown_quota=metadata.get("allow_unknown_quota") is True,
-            allowed_intelligence_tiers=allowed_tiers,
-            task_fit=metadata.get("task_fit"),
-            minimum_task_fit_score=metadata.get("minimum_task_fit_score"),
-            allowed_provider_binding_ids=metadata.get("allowed_provider_binding_ids"),
-            excluded_provider_binding_ids=metadata.get("excluded_provider_binding_ids", ()),
-            prefer_diversity=metadata.get("prefer_diversity") is True,
+        )
+
+    def effective_route(
+        self,
+        request: ModelRequest,
+        *,
+        provider_id: str | None = None,
+        excluded_resource_ids: set[str] | frozenset[str] | tuple[str, ...] = (),
+        max_cost_minor: int | None = None,
+        snapshot=None,
+    ) -> EffectiveRouteDecision:
+        """Return the canonical route projection before any reservation/call."""
+
+        if not isinstance(request, ModelRequest):
+            raise TypeError("request must be a ModelRequest")
+        try:
+            requirement = ExecutionRequirement.from_model_request(request)
+            route_request = RouteRequest.from_execution_requirement(
+                requirement,
+                provider_id=provider_id,
+                excluded_resource_ids=excluded_resource_ids,
+                max_cost_minor=max_cost_minor,
+            )
+        except (TypeError, ValueError) as exc:
+            raise DispatchDenied("invalid_request", str(exc)) from exc
+        return self.router.decide(
+            requirement,
+            route_request=route_request,
+            snapshot=self.routing_snapshot() if snapshot is None else snapshot,
         )
 
     def select_route(
@@ -132,23 +149,18 @@ class ResourceControlPlane:
 
         if not isinstance(request, ModelRequest):
             raise TypeError("request must be a ModelRequest")
-        try:
-            route_request = self._route_request(
-                request,
-                excluded_resource_ids=excluded_resource_ids,
-                max_cost_minor=max_cost_minor,
-            )
-        except ValueError as exc:
-            raise DispatchDenied("invalid_request", str(exc)) from exc
-        return self.router.choose(
-            route_request,
-            snapshot=self.routing_snapshot() if snapshot is None else snapshot,
+        decision = self.effective_route(
+            request,
+            excluded_resource_ids=excluded_resource_ids,
+            max_cost_minor=max_cost_minor,
+            snapshot=snapshot,
         )
+        return decision.require_selection()
 
     def reserve_for_provider(self, task_id: str, provider_id: str, request: ModelRequest, *, intent_key: str | None = None) -> DispatchReservation:
         self._ensure_dispatch_allowed()
         try:
-            selection = self.router.choose(self._route_request(request, provider_id))
+            selection = self.effective_route(request, provider_id=provider_id).require_selection()
             return self.reserve_selection(task_id, selection, intent_key=intent_key)
         except NoRoute as exc:
             raise DispatchDenied("no_route", str(exc)) from exc
