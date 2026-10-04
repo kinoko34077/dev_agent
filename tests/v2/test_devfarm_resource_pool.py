@@ -5,13 +5,17 @@ from uuid import uuid4
 import pytest
 
 from scripts.devfarm_resource_pool import ResourcePoolError, admit_resource_pool, build_provider, compose_resource_pool
+from src.dev_agent.domain.execution import ExecutionRequirement
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.operation import OperationProviderBinding
 from src.dev_agent.resources.billing_catalog import profile_for
+from src.dev_agent.resources.budget import BudgetGovernor, BudgetPolicy
+from src.dev_agent.resources.control import ResourceControlPlane
 from src.dev_agent.resources.model_admission import ModelAdmissionResolver
 from src.dev_agent.resources.model_benchmarks import BenchmarkCatalog
 from src.dev_agent.resources.model_capabilities import ModelCapabilityCatalog
 from src.dev_agent.resources.model_catalog import ModelAliasCatalog, ModelCatalog
+from src.dev_agent.resources.router import ResourceRouter
 
 
 class _QualificationResolver:
@@ -183,6 +187,50 @@ def test_composition_routes_legacy_qualified_l1_without_model_evidence(monkeypat
     assert response.provider == "openrouter"
     assert response.model == "openrouter/free"
     assert response.parts == ["ok"]
+
+
+def test_operation_and_devfarm_compositions_share_canonical_effective_route():
+    binding = OperationProviderBinding(
+        provider_id="ollama",
+        provider_binding_id="ollama:local:qwen3.5-9b",
+        model="qwen3.5:9b",
+        base_url="http://127.0.0.1:11434",
+        intelligence_tier="L1",
+    )
+    qualification = SimpleNamespace(intelligence_tier="L1", routing_capabilities=frozenset({"text"}))
+    profile = profile_for("ollama", binding.binding_id, binding.model)
+    request = ModelRequest(
+        task_id=str(uuid4()),
+        messages=[{"role": "user", "content": "bounded route identity"}],
+        requested_capabilities=["text"],
+        metadata={
+            "task_type": "worker",
+            "execution_role": "implementer",
+            "minimum_intelligence_tier": "L1",
+            "intelligence_routing": "bounded",
+            "allowed_intelligence_tiers": ["L1"],
+        },
+    )
+
+    with compose_resource_pool(
+        ((binding, qualification, profile),),
+        resolver=_QualificationResolver("L1"),
+        provider_builder=lambda *, binding: _Provider(),
+    ) as runtime:
+        # This is the same control-plane boundary used by the Operation
+        # dispatcher; the DevFarm composition exposes it through its existing
+        # dispatcher rather than creating a second router.
+        operation_control = ResourceControlPlane(
+            ResourceRouter(runtime.ledger),
+            BudgetGovernor(runtime.ledger, BudgetPolicy(hard_cap_minor=0, recovery_reserve_minor=0)),
+        )
+        operation_decision = operation_control.effective_route(request)
+        devfarm_decision = runtime.dispatcher.control.effective_route(request)
+
+    assert operation_decision.to_dict() == devfarm_decision.to_dict()
+    assert operation_decision.selection is not None
+    assert operation_decision.selection.provider_id == "ollama"
+    assert operation_decision.selection.model_id == "qwen3.5:9b"
 
 
 def test_composition_routes_with_explicit_fresh_quota_observation(monkeypatch):

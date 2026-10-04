@@ -12,6 +12,8 @@ from src.dev_agent.domain.execution import (
     UnsupportedCapabilityError,
 )
 from src.dev_agent.domain.protocol import IntelligenceTier, ModelRequest, ModelResponse
+from src.dev_agent.providers.cloudflare.provider import CloudflareWorkersAIHttpProvider
+from src.dev_agent.providers.gemini.decoder import decode_generate_content
 from src.dev_agent.resources.budget import BudgetAuthority, BudgetGovernor, BudgetPolicy
 from src.dev_agent.resources.control import ResourceControlPlane
 from src.dev_agent.resources.ledger import ResourceLedger
@@ -165,3 +167,59 @@ def test_model_request_defaults_optional_requirement_fields_to_unspecified():
     assert requirement.quota_policy.state is PresenceState.UNSPECIFIED
     assert requirement.freshness_policy.state is PresenceState.UNSPECIFIED
     assert requirement.feature_requirements == {}
+
+
+def test_supported_provider_adapters_normalize_equivalent_response_semantics():
+    request = ModelRequest(
+        task_id=str(uuid4()),
+        messages=[{"role": "user", "content": "bounded canonical request"}],
+        requested_capabilities=["text"],
+        response_schema={"type": "object"},
+        metadata={
+            "task_type": "worker",
+            "execution_role": "implementer",
+            "minimum_intelligence_tier": "L1",
+            "intelligence_routing": "bounded",
+            "allowed_intelligence_tiers": ["L1"],
+            "execution_features": {
+                "seed": {"state": "VALUE", "value": 42},
+            },
+        },
+    )
+
+    gemini_response = decode_generate_content(
+        {
+            "candidates": [
+                {
+                    "content": {"parts": [{"text": "ready"}]},
+                    "finishReason": "STOP",
+                }
+            ],
+        },
+        model="gemini-test",
+        request_id=request.request_id,
+    )
+    cloudflare_response = CloudflareWorkersAIHttpProvider._decode(
+        {
+            "success": True,
+            "result": {
+                "model": "cloudflare-test",
+                "choices": [
+                    {
+                        "message": {"content": "ready"},
+                        "finish_reason": "stop",
+                    }
+                ],
+            },
+        },
+        request,
+        model="cloudflare-test",
+    )
+
+    requirement = ExecutionRequirement.from_model_request(request)
+    assert isinstance(gemini_response, CanonicalExecutionResult)
+    assert isinstance(cloudflare_response, CanonicalExecutionResult)
+    assert gemini_response.text_segments == cloudflare_response.text_segments == ["ready"]
+    assert gemini_response.finish_reason.lower() == cloudflare_response.finish_reason.lower() == "stop"
+    assert requirement.feature_requirements["seed"] == FieldPresence.value(42)
+    assert requirement.digest() == ExecutionRequirement.from_model_request(ModelRequest.from_dict(request.to_dict())).digest()
