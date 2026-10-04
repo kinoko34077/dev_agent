@@ -38,6 +38,44 @@ class ProductionCompositionError(ValueError):
     """A production projection cannot be joined without ambiguity."""
 
 
+def _assert_canonical_projection_consistency(
+    operation_binding: CanonicalExecutionBinding,
+    commander_binding: CanonicalExecutionBinding,
+) -> None:
+    """Reject contradictory canonical projections at the composition seam.
+
+    The two records are durable projections in different stores, but they
+    must not carry different meanings for the same logical execution.  The
+    immutable identity and every fact that has been observed on both sides
+    are compared here.  A missing fact is allowed while a transition is
+    still being projected; a conflicting fact is not.
+    """
+
+    for field_name in ("logical_execution_id", "proposal_id", "child_key", "executor_kind", "backend_task_id"):
+        left = getattr(operation_binding, field_name)
+        right = getattr(commander_binding, field_name)
+        if left != right:
+            raise ProductionCompositionError(
+                f"canonical execution {field_name} projection mismatch"
+            )
+    if operation_binding.stage is not commander_binding.stage:
+        raise ProductionCompositionError("canonical execution lifecycle stage projection mismatch")
+    for field_name in (
+        "attempt_id",
+        "result_ref",
+        "verification_id",
+        "review_decision_id",
+        "integration_revision",
+        "dependency_satisfied",
+    ):
+        left = getattr(operation_binding, field_name)
+        right = getattr(commander_binding, field_name)
+        if left is not None and right is not None and left != right:
+            raise ProductionCompositionError(
+                f"canonical execution {field_name} projection mismatch"
+            )
+
+
 _MAX_PROJECTION_DEPTH = 3
 _MAX_PROJECTION_ITEMS = 64
 _MAX_PROJECTION_TEXT = 2048
@@ -485,6 +523,10 @@ class Phase8ProductionSubmission:
                 run_id=run_id,
                 bindings=bindings,
             )
+            # Complete the same handoff transition in the existing DevFarm
+            # plan projection.  This is idempotent and remains a projection;
+            # it does not create a second queue or lifecycle authority.
+            commander.record_handoff(bindings)
             operation_children = tuple(
                 operation.store.load_task(task_id)
                 for payload in operation.store.snapshot().get("tasks", {}).values()
@@ -1356,7 +1398,7 @@ class Phase8ProductionExecutor:
             if not isinstance(task_id, str) or not task_id.strip():
                 raise ProductionCompositionError("DevFarm lifecycle task has no durable task identity")
             try:
-                projector(
+                observed_task = projector(
                     proposal_id=self.proposal_id,
                     child_key=child_key,
                     devfarm_run_id=self.devfarm_run_id,
@@ -1368,6 +1410,16 @@ class Phase8ProductionExecutor:
                     review_decision_id=task.get("review_decision_id"),
                     integration_revision=task.get("integration_revision"),
                 )
+                operation_binding = observed_task.metadata.get("canonical_execution")
+                commander_binding = task.get("canonical_execution")
+                if isinstance(operation_binding, Mapping) and isinstance(commander_binding, Mapping):
+                    try:
+                        _assert_canonical_projection_consistency(
+                            CanonicalExecutionBinding.from_dict(operation_binding),
+                            CanonicalExecutionBinding.from_dict(commander_binding),
+                        )
+                    except ProtocolError as exc:
+                        raise ProductionCompositionError("canonical execution lifecycle projection is invalid") from exc
             except Exception as exc:
                 raise ProductionCompositionError("DevFarm lifecycle projection failed closed") from exc
 
@@ -1517,6 +1569,31 @@ class Phase8ProductionExecutor:
             )
             if not isinstance(changes, Sequence) or isinstance(changes, (str, bytes)):
                 raise ProductionCompositionError("Operation integration boundary returned an invalid result")
+            operation_integrated = next(
+                (
+                    item
+                    for item in changes
+                    if isinstance(item, Task)
+                    and item.metadata.get("planner_child_key") == child_key
+                ),
+                None,
+            )
+            commander_binding = integrated_task.get("canonical_execution")
+            operation_binding = (
+                operation_integrated.metadata.get("canonical_execution")
+                if operation_integrated is not None
+                else None
+            )
+            if isinstance(operation_binding, Mapping) != isinstance(commander_binding, Mapping):
+                raise ProductionCompositionError("integrated canonical execution projection is missing")
+            if isinstance(operation_binding, Mapping) and isinstance(commander_binding, Mapping):
+                try:
+                    _assert_canonical_projection_consistency(
+                        CanonicalExecutionBinding.from_dict(operation_binding),
+                        CanonicalExecutionBinding.from_dict(commander_binding),
+                    )
+                except ProtocolError as exc:
+                    raise ProductionCompositionError("integrated canonical execution projection is invalid") from exc
             operation_changes.extend(self._operation_change_projection(item) for item in changes)
             integrated.append(child_key)
             plan = self.commander.plan()
@@ -1617,15 +1694,7 @@ def _development_task_links(
                 raise ProductionCompositionError("Operation canonical execution identity does not match task")
             if commander_binding.backend_task_id not in {None, task_id}:
                 raise ProductionCompositionError("Commander canonical backend identity does not match task")
-            for field_name in ("logical_execution_id", "proposal_id", "child_key", "executor_kind"):
-                if getattr(operation_binding, field_name) != getattr(commander_binding, field_name):
-                    raise ProductionCompositionError(f"canonical execution {field_name} identity mismatch")
-            if (
-                operation_binding.backend_task_id is not None
-                and commander_binding.backend_task_id is not None
-                and operation_binding.backend_task_id != commander_binding.backend_task_id
-            ):
-                raise ProductionCompositionError("canonical execution backend identity mismatch")
+            _assert_canonical_projection_consistency(operation_binding, commander_binding)
         commander_by_key[child_key] = task
 
     if set(operation_by_key) != set(expected_keys):

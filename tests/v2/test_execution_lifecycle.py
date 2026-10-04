@@ -224,6 +224,44 @@ def test_dependency_release_records_canonical_satisfaction():
     assert task["canonical_execution"]["dependency_satisfied"] is True
 
 
+def test_waiting_dependency_wake_starts_ready_canonical_attempt():
+    waiting = CanonicalExecutionBinding.for_child(
+        logical_execution_id="dependent-waiting",
+        proposal_id="proposal-1",
+        child_key="dependent",
+        executor_kind="operation",
+    ).with_observation(
+        stage=ExecutionLifecycleStage.WAITING,
+        dependency_satisfied=False,
+    )
+    plan = {
+        "run_id": "waiting-dependency-wake-run",
+        "objective": "wake one canonical dependent execution",
+        "base_revision": "a" * 40,
+        "tasks": [
+            {
+                "task_id": "dependency",
+                "owner": "codex",
+                "status": "INTEGRATED",
+            },
+            {
+                "task_id": "dependent",
+                "owner": "codex",
+                "status": "PLANNED",
+                "dependencies": ["dependency"],
+                "canonical_execution": waiting.to_dict(),
+            },
+        ],
+    }
+
+    refreshed = refresh_plan(plan)
+
+    task = refreshed["tasks"][1]
+    assert task["status"] == "READY"
+    assert task["canonical_execution"]["stage"] == ExecutionLifecycleStage.READY.value
+    assert task["canonical_execution"]["dependency_satisfied"] is True
+
+
 def test_plan_reload_projects_compatibility_status_from_canonical_fact(tmp_path):
     binding = CanonicalExecutionBinding.for_child(
         logical_execution_id="worker-a",

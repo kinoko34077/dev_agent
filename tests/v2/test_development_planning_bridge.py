@@ -123,6 +123,50 @@ def test_bridge_candidate_can_use_existing_manifest_and_plan_boundaries(tmp_path
     assert created["tasks"][0]["manifest_path"] == candidate.manifests[0][0]
 
 
+def test_bridge_marks_operation_owned_dependent_child_waiting(tmp_path):
+    parent = _parent()
+    proposal = RootPlanningProposal(
+        parent_task_id=parent.task_id,
+        rationale="keep the canonical dependency stage aligned across projections",
+        children=(
+            ChildTaskProposal(
+                child_key="implementation",
+                objective="implement the narrow change",
+                task_type=TaskType.WORKER,
+            ),
+            ChildTaskProposal(
+                child_key="continuation",
+                objective="continue after the implementation is integrated",
+                task_type=TaskType.DETERMINISTIC,
+                suggested_owner="codex",
+                dependencies=("implementation",),
+                dependency_types={
+                    "implementation": PlannerDependencyType.CODE_INTEGRATED,
+                },
+            ),
+        ),
+    )
+
+    candidate = DevelopmentPlanningBridge(tmp_path).build_candidate(
+        parent,
+        proposal,
+        run_id="planner-dependent-canonical-stage",
+        base_revision="abc123",
+        task_specs={
+            "implementation": _manifest_spec(),
+            "continuation": {
+                "owner": "codex",
+                "codex_direct_reason": "continuation is released by Operation after integration",
+            },
+        },
+    )
+
+    continuation = next(
+        task for task in candidate.plan["tasks"] if task["planner_child_key"] == "continuation"
+    )
+    assert continuation["canonical_execution"]["stage"] == "waiting"
+
+
 def test_bridge_allocates_child_work_address_from_resume_parent(tmp_path):
     parent = _parent()
     proposal = RootPlanningProposal(

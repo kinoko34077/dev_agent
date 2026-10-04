@@ -302,6 +302,10 @@ def refresh_plan(value: Mapping[str, Any]) -> dict[str, Any]:
                     "READY",
                     stage=ready_stage,
                     dependency_satisfied=True,
+                    reset_attempt=(
+                        binding is not None
+                        and binding.stage is ExecutionLifecycleStage.WAITING
+                    ),
                 )
                 changed = True
     _project_plan_status(plan)

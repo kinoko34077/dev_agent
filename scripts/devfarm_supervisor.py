@@ -37,6 +37,7 @@ from scripts.devfarm_commander import (
     summarize_delegation,
 )
 from scripts.devfarm_plan_state import CommanderPlanStore, record_result, refresh_plan, set_task_lifecycle
+from src.dev_agent.domain.execution import CanonicalExecutionBinding, ExecutionLifecycleStage
 from scripts.devfarm_plan_queries import latest_rework_decision as query_latest_rework_decision
 from scripts.devfarm_resume import providers_for_resume as compose_providers_for_resume
 from scripts.devfarm_review_protocol import normalize_review_decision, normalize_review_packet
@@ -112,6 +113,77 @@ class SupervisorStep:
         }
 
 
+def _canonical_supervisor_action(plan: Mapping[str, Any]) -> tuple[str, str]:
+    """Derive the next Supervisor action from the durable plan projection.
+
+    Supervisor metadata is a durable heartbeat/read projection, not a second
+    lifecycle authority.  On restart, stale metadata must not cause a worker
+    to be dispatched again or a review/integration action to be skipped.  The
+    plan has already projected its compatibility statuses from canonical
+    execution facts before this helper is called.
+    """
+
+    tasks = plan.get("tasks", [])
+    decisions = plan.get("review_decisions", [])
+    if not isinstance(tasks, Sequence) or isinstance(tasks, (str, bytes)):
+        raise DevFarmError("Commander plan tasks are unavailable")
+    if not isinstance(decisions, Sequence) or isinstance(decisions, (str, bytes)):
+        raise DevFarmError("Commander review decisions are unavailable")
+
+    def current_attempt(task: Mapping[str, Any]) -> Any:
+        return task.get("last_attempt_id")
+
+    def decision_matches(item: Mapping[str, Any], *, decision: str, require_unintegrated: bool = False) -> bool:
+        if item.get("decision") != decision:
+            return False
+        for task in tasks:
+            if not isinstance(task, Mapping):
+                continue
+            if task.get("task_id") != item.get("task_id"):
+                continue
+            if current_attempt(task) != item.get("attempt_id"):
+                continue
+            if require_unintegrated and task.get("status") == "INTEGRATED":
+                continue
+            return True
+        return False
+
+    if tasks and all(isinstance(task, Mapping) and task.get("status") == "INTEGRATED" for task in tasks):
+        return "COMPLETED", "stop"
+    if any(
+        isinstance(item, Mapping) and decision_matches(item, decision="ESCALATE")
+        for item in decisions
+    ):
+        return "HUMAN_DECISION_REQUIRED", "resolve_escalation"
+    if any(
+        isinstance(item, Mapping) and decision_matches(item, decision="REWORK")
+        for item in decisions
+    ):
+        return "ACTIVE", "rework_worker"
+    if any(
+        isinstance(item, Mapping) and decision_matches(item, decision="APPROVE_INTEGRATION", require_unintegrated=True)
+        for item in decisions
+    ):
+        return "INTEGRATING", "integrate_verified_worker"
+    if any(isinstance(task, Mapping) and task.get("status") == "HOST_VERIFIED" for task in tasks):
+        return "REVIEWING", "review_host_verified"
+    if any(
+        isinstance(task, Mapping) and task.get("status") in {"DISPATCHED", "PROPOSED"}
+        for task in tasks
+    ):
+        return "WAITING_FOR_WORKER", "wait_for_worker"
+    if any(
+        isinstance(task, Mapping)
+        and task.get("owner") == "codex"
+        and task.get("status") in {"PLANNED", "READY", "ACTIVE"}
+        for task in tasks
+    ):
+        return "ACTIVE", "execute_codex_task"
+    if plan.get("status") in {"BLOCKED", "REJECTED"}:
+        return "BLOCKED", "resolve_blocker"
+    return "ACTIVE", "advance"
+
+
 class CodexSupervisedCommanderRun:
     """Manage one bounded supervisor pass over a durable Commander plan."""
 
@@ -128,8 +200,12 @@ class CodexSupervisedCommanderRun:
 
         return self.store.active_ownership(run_id=self.run_id)
 
-    def _step(self, plan: Mapping[str, Any]) -> SupervisorStep:
+    def _step(self, plan: Mapping[str, Any], *, reconstruct: bool = False) -> SupervisorStep:
         metadata = normalize_supervisor_metadata(plan.get("supervisor"))
+        if reconstruct:
+            status, next_action = _canonical_supervisor_action(plan)
+            metadata["status"] = status
+            metadata["next_action"] = next_action
         return SupervisorStep(
             run_id=plan["run_id"],
             plan_revision=plan["plan_revision"],
@@ -324,7 +400,51 @@ class CodexSupervisedCommanderRun:
         return self._step(saved)
 
     def status(self) -> SupervisorStep:
-        return self._step(self.store.load(self.run_id))
+        # Reconstruct the actionable projection from canonical task facts on
+        # every fresh status read.  This is a read/recovery projection only;
+        # it does not claim work or create a scheduler.
+        return self._step(self.store.load(self.run_id), reconstruct=True)
+
+    def record_handoff(self, bindings: Mapping[str, str]) -> SupervisorStep:
+        """Record the existing Operation->DevFarm handoff in plan facts.
+
+        Operation owns the durable handoff transaction.  This idempotent
+        projection closes the same transition in the DevFarm plan so a
+        restart cannot observe ``HANDOFF_PENDING`` on one side and
+        ``HANDED_OFF`` on the other.
+        """
+
+        if not isinstance(bindings, Mapping) or not bindings:
+            raise DevFarmError("handoff bindings must be a non-empty mapping")
+        plan = self.store.load(self.run_id)
+        normalized = {str(key).strip(): str(value).strip() for key, value in bindings.items()}
+        if any(not key or not value for key, value in normalized.items()):
+            raise DevFarmError("handoff bindings must contain bounded identities")
+        changed = False
+        for task in plan["tasks"]:
+            if task.get("owner") != "worker":
+                continue
+            child_key = task.get("planner_child_key")
+            if child_key not in normalized:
+                raise DevFarmError("handoff bindings do not cover the exact Worker set")
+            binding = task.get("canonical_execution")
+            if not isinstance(binding, Mapping):
+                raise DevFarmError("Worker handoff is missing canonical execution facts")
+            try:
+                current = CanonicalExecutionBinding.from_dict(binding)
+                if current.backend_task_id != normalized[child_key]:
+                    raise ValueError("backend task identity does not match handoff")
+                observed = current.with_observation(stage=ExecutionLifecycleStage.HANDED_OFF)
+                merged = current.merge_observation(observed)
+            except Exception as exc:
+                raise DevFarmError("Worker handoff canonical facts conflict") from exc
+            if merged.to_dict() != dict(binding):
+                set_task_lifecycle(task, "READY", stage=ExecutionLifecycleStage.HANDED_OFF)
+                changed = True
+        if changed:
+            plan = refresh_plan(plan)
+            plan = self.store.save(plan, expected_revision=plan["plan_revision"])
+        return self._step(plan, reconstruct=True)
 
     def advance(
         self,

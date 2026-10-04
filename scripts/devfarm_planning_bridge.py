@@ -114,17 +114,23 @@ class DevelopmentPlanningBridge:
             if reason is not None:
                 corrections.append(f"{child.child_key}: owner corrected to codex ({reason})")
             task_id = task_ids[child.child_key]
+            # The canonical stage must describe the same dependency wait that
+            # Operation already owns.  Worker children remain at the explicit
+            # handoff boundary, while an Operation-owned dependent child is
+            # waiting until its CODE_INTEGRATED prerequisites are released.
+            if owner == "worker":
+                initial_stage = ExecutionLifecycleStage.HANDOFF_PENDING
+            elif child.dependencies:
+                initial_stage = ExecutionLifecycleStage.WAITING
+            else:
+                initial_stage = ExecutionLifecycleStage.READY
             canonical_binding = CanonicalExecutionBinding(
                 logical_execution_id=canonical_child_task_id(proposal.proposal_id, child.child_key),
                 proposal_id=proposal.proposal_id,
                 child_key=child.child_key,
                 executor_kind="devfarm_worker" if owner == "worker" else "operation",
                 backend_task_id=task_id if owner == "worker" else None,
-                stage=(
-                    ExecutionLifecycleStage.HANDOFF_PENDING
-                    if owner == "worker"
-                    else ExecutionLifecycleStage.READY
-                ),
+                stage=initial_stage,
             )
             dependencies = [task_ids[item] for item in child.dependencies]
             task: dict[str, Any] = {

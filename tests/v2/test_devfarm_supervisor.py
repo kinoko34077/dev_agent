@@ -19,6 +19,7 @@ from scripts.devfarm_supervisor_protocol import (
 from scripts.devfarm_supervisor import CodexSupervisedCommanderRun, main as supervisor_main
 from scripts.devfarm_supervisor import _providers_for_resume
 from scripts.devfarm_commander import create_plan
+from src.dev_agent.domain.execution import CanonicalExecutionBinding, ExecutionLifecycleStage
 
 
 def _plan(**overrides):
@@ -254,6 +255,51 @@ def test_supervisor_exposes_codex_owned_ready_task_action_without_sleep(tmp_path
 
     assert step.status == "ACTIVE"
     assert step.next_action == "execute_codex_task"
+
+
+def test_supervisor_restart_reconstructs_next_action_from_canonical_stage(tmp_path):
+    binding = CanonicalExecutionBinding.for_child(
+        logical_execution_id="task-001",
+        proposal_id="proposal-001",
+        child_key="worker-a",
+        executor_kind="operation",
+    ).with_observation(
+        stage=ExecutionLifecycleStage.HOST_VERIFIED,
+        attempt_id="attempt-001",
+        verification_id="verification-001",
+    )
+    create_plan(
+        tmp_path,
+        _plan(
+            tasks=[
+                {
+                    "task_id": "task-001",
+                    "owner": "codex",
+                    "status": "READY",
+                    "ownership": [],
+                    "dependencies": [],
+                    "assignment": {"owner": "codex"},
+                    "canonical_execution": binding.to_dict(),
+                }
+            ],
+            ownership=[{"task_id": "task-001", "paths": []}],
+            assignments=[{"task_id": "task-001", "owner": "codex"}],
+            dependencies=[{"task_id": "task-001", "depends_on": []}],
+            supervisor={"status": "ACTIVE", "next_action": "advance"},
+        ),
+    )
+    first = CodexSupervisedCommanderRun(tmp_path, "supervisor-test-001")
+    first.create()
+
+    # Simulate a process restart with stale heartbeat metadata.  The task
+    # status is deliberately stale too; CommanderPlanStore projects it from
+    # the canonical binding before the new Supervisor reads it.
+    second = CodexSupervisedCommanderRun(tmp_path, "supervisor-test-001")
+    resumed = second.status()
+
+    assert resumed.status == "REVIEWING"
+    assert resumed.next_action == "review_host_verified"
+    assert second.plan()["tasks"][0]["status"] == "HOST_VERIFIED"
 
 
 def test_supervisor_resume_preserves_assigned_worker_binding(tmp_path, monkeypatch):

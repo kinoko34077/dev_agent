@@ -5,7 +5,7 @@ import inspect
 import pytest
 
 from src.dev_agent.domain.protocol import Task, TaskStatus, TaskType
-from src.dev_agent.domain.execution import ExecutionLifecycleStage
+from src.dev_agent.domain.execution import CanonicalExecutionBinding, ExecutionLifecycleStage
 from src.dev_agent.intelligence.planner import ChildTaskProposal, PlannerDependencyType, RootPlanningProposal
 from src.dev_agent.operation import OperationConfig, OperationError, OperationService
 
@@ -248,6 +248,43 @@ def test_phase8_composition_rejects_missing_commander_child_identity():
 
     with pytest.raises(ProductionCompositionError, match="missing planner children"):
         _development_task_links(proposal, operation_children, commander_tasks[:1])
+
+
+def test_phase8_composition_rejects_contradictory_canonical_lifecycle_projection():
+    from scripts.devfarm_production_composition import (
+        ProductionCompositionError,
+        _development_task_links,
+    )
+
+    proposal, operation_children, commander_tasks = _composition_inputs()
+    operation_children = tuple(
+        Task(
+            task_id=task.task_id,
+            objective=task.objective,
+            task_type=task.task_type,
+            metadata={
+                **task.metadata,
+                "canonical_execution": CanonicalExecutionBinding.for_child(
+                    logical_execution_id=task.task_id,
+                    proposal_id=proposal.proposal_id,
+                    child_key=task.metadata["planner_child_key"],
+                    executor_kind="devfarm_worker",
+                ).with_backend_task(commander_tasks[index]["task_id"])
+                .to_dict(),
+            },
+        )
+        for index, task in enumerate(operation_children)
+    )
+    contradictory = [dict(task) for task in commander_tasks]
+    contradictory[0]["canonical_execution"] = CanonicalExecutionBinding.for_child(
+        logical_execution_id=operation_children[0].task_id,
+        proposal_id=proposal.proposal_id,
+        child_key="worker-a",
+        executor_kind="devfarm_worker",
+    ).with_backend_task(contradictory[0]["task_id"]).with_stage(ExecutionLifecycleStage.ATTEMPT_ACTIVE).to_dict()
+
+    with pytest.raises(ProductionCompositionError, match="lifecycle stage projection mismatch"):
+        _development_task_links(proposal, operation_children, tuple(contradictory))
 
 
 def _handoff_config(tmp_path):
