@@ -16,6 +16,7 @@ if str(ROOT) not in sys.path:
 
 from src.dev_agent.resources.billing_catalog import profile_for
 from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
+from src.dev_agent.resources.model_funnel import build_funnel_report
 from src.dev_agent.resources.model_runtime import (
     RUNTIME_BOOTSTRAP_ADMITTED,
     RUNTIME_ELIGIBLE,
@@ -376,6 +377,19 @@ def main(argv: list[str] | None = None) -> int:
                 else {"status": "NOT_PROVIDED", "reasons": []}
             ),
         )
+        funnel = build_funnel_report(
+            evidence,
+            runtime_snapshot=runtime_snapshot,
+            now=diagnostic_now,
+            provider_id=args.provider,
+            provider_binding_id=args.binding,
+            model_id=args.model,
+            limit=MAX_DIAGNOSTIC_ROWS,
+        )
+        summary["funnel"] = {
+            "coverage": funnel.coverage,
+            "qualification_candidates": [candidate.to_dict() for candidate in funnel.qualification_candidates],
+        }
         scoped_count = 0
         for entry in evidence.catalog.entries(now=diagnostic_now):
             if args.provider is not None and entry.provider_id != args.provider:
@@ -396,6 +410,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"runtime_bootstrap_admitted\t{summary['runtime_bootstrap_admitted_count']}")
             print(f"runtime_not_probed\t{summary['runtime_not_probed_count']}")
             print(f"runtime_unavailable\t{summary['runtime_unavailable_count']}")
+            print(f"funnel_formal_supply\t{summary['funnel']['coverage']['overall']['formal_supply_count']}")
+            print(f"qualification_candidates\t{summary['funnel']['coverage']['qualification_candidate_count']}")
             print("result_counts\t" + json.dumps(summary["result_counts"], ensure_ascii=False, sort_keys=True))
             print("provider_counts\t" + json.dumps(summary["provider_counts"], ensure_ascii=False, sort_keys=True))
     elif args.as_json:
