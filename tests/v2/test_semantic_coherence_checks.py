@@ -189,6 +189,23 @@ def test_state_projection_does_not_fail_when_ci_history_is_shallow():
     assert result["ancestor_verification"] == "LIMITED_SHALLOW_HISTORY"
 
 
+def test_state_projection_accepts_docs_only_sync_head():
+    from scripts.check_semantic_coherence import _state_projection_status
+
+    result = _state_projection_status(
+        current_head="a" * 40,
+        accepted_head="b" * 40,
+        implementation_head="b" * 40,
+        gate_values={"D9_DOGFOOD": "VERIFIED"},
+        projected_gate_values={"D9_DOGFOOD": "VERIFIED"},
+        ancestor_checks={"accepted_head": True, "implementation_head": True},
+        projection_only=True,
+    )
+
+    assert result["status"] == "PASS"
+    assert result["sync_required"] is False
+
+
 def test_build_report_is_bounded_and_marks_gate_as_unchanged():
     report = build_report(funnel_report=_report(_candidate()))
 

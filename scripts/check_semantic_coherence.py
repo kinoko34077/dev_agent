@@ -402,6 +402,29 @@ def _git_text(root: Path, *args: str) -> str | None:
     return completed.stdout.strip()
 
 
+def _git_changed_paths(root: Path, base: str, head: str) -> set[str] | None:
+    try:
+        completed = subprocess.run(
+            [
+                "git",
+                "-c",
+                f"safe.directory={root.as_posix()}",
+                "diff",
+                "--name-only",
+                base,
+                head,
+            ],
+            cwd=root,
+            capture_output=True,
+            check=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return {line.strip().replace("\\", "/") for line in completed.stdout.splitlines() if line.strip()}
+
+
 def _state_head_from_text(text: str, label: str) -> str | None:
     for line in text.splitlines()[:80]:
         if label not in line:
@@ -420,6 +443,7 @@ def _state_projection_status(
     gate_values: Mapping[str, str],
     projected_gate_values: Mapping[str, str],
     ancestor_checks: Mapping[str, bool | None],
+    projection_only: bool | None = None,
 ) -> dict[str, Any]:
     """Evaluate a prose projection without making it a second authority."""
 
@@ -453,9 +477,13 @@ def _state_projection_status(
             if any(value is None for value in ancestor_checks.values())
             else "COMPLETE"
         ),
-        sync_required=current_head.lower() not in {
-            value.lower() for value in (accepted_head, implementation_head) if value
-        },
+        projection_only=projection_only,
+        sync_required=(
+            current_head.lower() not in {
+                value.lower() for value in (accepted_head, implementation_head) if value
+            }
+            and projection_only is not True
+        ),
     )
 
 
@@ -523,6 +551,13 @@ def check_state_projection_consistency(root: Path | None = None) -> dict[str, An
             ancestor_checks[name] = None
         else:
             ancestor_checks[name] = False
+    projection_only = None
+    if accepted_head and current_head and accepted_head.lower() != current_head.lower():
+        changed_paths = _git_changed_paths(repository_root, accepted_head, current_head)
+        projection_only = changed_paths is not None and changed_paths <= {
+            "docs/CURRENT_STATE.md",
+            "docs/superpowers/plans/2026-10-04-semantic-coherence-checks.md",
+        }
     return _state_projection_status(
         current_head=current_head,
         accepted_head=accepted_head,
@@ -530,6 +565,7 @@ def check_state_projection_consistency(root: Path | None = None) -> dict[str, An
         gate_values=gate_values,
         projected_gate_values=projected_gate_values,
         ancestor_checks=ancestor_checks,
+        projection_only=projection_only,
     )
 
 

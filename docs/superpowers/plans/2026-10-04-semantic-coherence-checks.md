@@ -66,11 +66,11 @@
 - Modify: Issue #73 via the Issue-first reporting boundary
 - Modify: `docs/superpowers/plans/2026-10-04-semantic-coherence-checks.md` checkboxes as execution progresses
 
-- [ ] **Step 1: Record RED, implementation, focused GREEN, CLI report, and global judgment in #73.**
-- [ ] **Step 2: Update Current State once with the accepted implementation SHA, checks, remaining gaps, and the unchanged Gate.**
-- [ ] **Step 3: Commit and push the verified implementation slice.**
-- [ ] **Step 4: Verify exact-head CI for the implementation/evidence head.**
-- [ ] **Step 5: Decide whether #73 is accepted or needs another bounded slice; do not start #65 until all required coherence checks are covered and the Issue says so.**
+- [x] **Step 1: Record RED, implementation, focused GREEN, CLI report, and global judgment in #73.**
+- [x] **Step 2: Update Current State once with the accepted implementation SHA, checks, remaining gaps, and the unchanged Gate.**
+- [x] **Step 3: Commit and push the verified implementation slice.**
+- [x] **Step 4: Verify exact-head CI for the implementation/evidence head.**
+- [x] **Step 5: Decide whether #73 is accepted or needs another bounded slice; do not start #65 until all required coherence checks are covered and the Issue says so.**
 
 ### Task 4: Add bounded Provider decode-structure diagnostics
 
