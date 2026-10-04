@@ -12,7 +12,10 @@ from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
 from src.dev_agent.resources.qualification import QualificationResolver
 
 
-NOW = datetime(2026, 10, 3, 12, 0, tzinfo=timezone.utc)
+# Keep catalog/admission assertions inside the current reviewed evidence
+# window.  The canonical catalog is refreshed with bounded expiry, so a test
+# clock before that refresh would incorrectly make every exact candidate stale.
+NOW = datetime(2026, 10, 5, 0, 0, tzinfo=timezone.utc)
 
 
 def test_cloudflare_discovery_preserves_bounded_task_and_tags():
