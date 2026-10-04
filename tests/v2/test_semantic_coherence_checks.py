@@ -173,6 +173,22 @@ def test_state_projection_marks_unaccepted_head_as_sync_required():
     assert result["sync_required"] is True
 
 
+def test_state_projection_does_not_fail_when_ci_history_is_shallow():
+    from scripts.check_semantic_coherence import _state_projection_status
+
+    result = _state_projection_status(
+        current_head="a" * 40,
+        accepted_head="b" * 40,
+        implementation_head="b" * 40,
+        gate_values={"D9_DOGFOOD": "VERIFIED"},
+        projected_gate_values={"D9_DOGFOOD": "VERIFIED"},
+        ancestor_checks={"accepted_head": None, "implementation_head": None},
+    )
+
+    assert result["status"] == "PASS"
+    assert result["ancestor_verification"] == "LIMITED_SHALLOW_HISTORY"
+
+
 def test_build_report_is_bounded_and_marks_gate_as_unchanged():
     report = build_report(funnel_report=_report(_candidate()))
 

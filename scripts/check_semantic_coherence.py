@@ -419,7 +419,7 @@ def _state_projection_status(
     implementation_head: str | None,
     gate_values: Mapping[str, str],
     projected_gate_values: Mapping[str, str],
-    ancestor_checks: Mapping[str, bool],
+    ancestor_checks: Mapping[str, bool | None],
 ) -> dict[str, Any]:
     """Evaluate a prose projection without making it a second authority."""
 
@@ -434,7 +434,7 @@ def _state_projection_status(
             violations.append(f"{name}_missing")
         elif not re.fullmatch(r"[0-9a-f]{7,40}", value, flags=re.IGNORECASE):
             violations.append(f"{name}_invalid")
-        elif not ancestor_checks.get(name, False):
+        elif ancestor_checks.get(name) is False:
             violations.append(f"{name}_not_ancestor")
     for key, value in gate_values.items():
         if projected_gate_values.get(key) != value:
@@ -448,6 +448,11 @@ def _state_projection_status(
         implementation_head=implementation_head,
         projected_gate_values=dict(projected_gate_values),
         gate_values=dict(gate_values),
+        ancestor_verification=(
+            "LIMITED_SHALLOW_HISTORY"
+            if any(value is None for value in ancestor_checks.values())
+            else "COMPLETE"
+        ),
         sync_required=current_head.lower() not in {
             value.lower() for value in (accepted_head, implementation_head) if value
         },
@@ -487,26 +492,37 @@ def check_state_projection_consistency(root: Path | None = None) -> dict[str, An
         if match:
             projected_gate_values[gate] = match.group(1)
 
-    ancestor_checks: dict[str, bool] = {}
+    ancestor_checks: dict[str, bool | None] = {}
     for name, value in (("accepted_head", accepted_head), ("implementation_head", implementation_head)):
         if not value or not current_head:
             ancestor_checks[name] = False
             continue
-        result = subprocess.run(
-            [
-                "git",
-                "-c",
-                f"safe.directory={repository_root.as_posix()}",
-                "merge-base",
-                "--is-ancestor",
-                value,
-                current_head,
-            ],
-            cwd=repository_root,
-            capture_output=True,
-            timeout=5,
-        )
-        ancestor_checks[name] = result.returncode == 0
+        try:
+            result = subprocess.run(
+                [
+                    "git",
+                    "-c",
+                    f"safe.directory={repository_root.as_posix()}",
+                    "merge-base",
+                    "--is-ancestor",
+                    value,
+                    current_head,
+                ],
+                cwd=repository_root,
+                capture_output=True,
+                timeout=5,
+            )
+        except (OSError, subprocess.SubprocessError):
+            ancestor_checks[name] = None
+            continue
+        if result.returncode == 0:
+            ancestor_checks[name] = True
+        elif result.returncode == 1:
+            ancestor_checks[name] = False
+        elif _git_text(repository_root, "rev-parse", "--is-shallow-repository") == "true":
+            ancestor_checks[name] = None
+        else:
+            ancestor_checks[name] = False
     return _state_projection_status(
         current_head=current_head,
         accepted_head=accepted_head,
