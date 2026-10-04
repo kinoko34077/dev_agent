@@ -11,6 +11,7 @@ from scripts.check_semantic_coherence import (
     check_provider_decode_diagnostics,
     check_provider_normalization,
     check_role_preflight_dispatch_equivalence,
+    check_state_projection_consistency,
     check_tier_authority_conflicts,
     check_wait_wake_coverage,
 )
@@ -143,6 +144,33 @@ def test_exact_route_tier_conflicts_fail_closed():
 
     assert result["status"] == "PASS"
     assert result["conflict_rejected"] is True
+
+
+def test_state_projection_consistency_keeps_gate_authority_machine_owned():
+    result = check_state_projection_consistency()
+
+    assert result["status"] == "PASS"
+    assert result["gate_authority"] == "spec/v2/GATE_STATUS.json"
+    assert result["current_head"]
+    assert result["accepted_head"]
+    assert result["implementation_head"]
+    assert isinstance(result["sync_required"], bool)
+
+
+def test_state_projection_marks_unaccepted_head_as_sync_required():
+    from scripts.check_semantic_coherence import _state_projection_status
+
+    result = _state_projection_status(
+        current_head="a" * 40,
+        accepted_head="b" * 40,
+        implementation_head="b" * 40,
+        gate_values={"D9_DOGFOOD": "VERIFIED"},
+        projected_gate_values={"D9_DOGFOOD": "VERIFIED"},
+        ancestor_checks={"accepted_head": True, "implementation_head": True},
+    )
+
+    assert result["status"] == "PASS"
+    assert result["sync_required"] is True
 
 
 def test_build_report_is_bounded_and_marks_gate_as_unchanged():

@@ -91,10 +91,31 @@ facts and that secret-shaped values are absent.
 **Constraints:** Reuse `ProviderError`; do not add a provider registry, decode
 store, retry path, or network call. Keep reconciliation semantics unchanged.
 
+- [x] RED tests fail at collection before the projection exists.
+- [x] Bounded diagnostics are attached only to decoder failures.
+- [x] Affected provider/decode/coherence scope passes (`113 passed` before the
+  state-projection slice; the decode/coherence subset passes after it).
+
+### Task 5: Detect Current State / Gate projection drift
+
+Add a read-only check to the same semantic-coherence report. It resolves the
+current Git head and the two documented Current State baselines with a
+command-local `safe.directory`, verifies that the documented heads are valid
+ancestors, and compares the prose Gate line with `spec/v2/GATE_STATUS.json`.
+The machine-readable Gate remains authoritative. A newer unrecorded working
+head is reported as `sync_required` rather than being treated as a semantic
+failure, so implementation can be committed before the single Current State
+sync commit.
+
+- [x] RED test covers the missing check and an unaccepted head marked for sync.
+- [x] State projection check is included in the bounded CLI report.
+- [x] Local focused test, Architecture, Compile, diff, and credential checks
+  pass.
+
 ## Known follow-up gaps
 
 This plan intentionally does not invent a second Current State generator, provider
-diagnostic persistence store, or live admission route. If the first checker exposes
-an actual missing contract (especially safe decode diagnostics or accepted-head
-provenance), open or continue the smallest follow-up slice under #73 before any R9
-rerun.
+diagnostic persistence store, or live admission route. The remaining release work
+is durable Issue/Current State synchronization, exact-head CI for the final
+implementation/evidence head, and the global decision whether every #73 acceptance
+item is sufficiently covered before any R9 rerun.

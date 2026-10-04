@@ -14,6 +14,8 @@ from collections.abc import Mapping
 from dataclasses import replace
 import json
 from pathlib import Path
+import re
+import subprocess
 import sys
 from types import SimpleNamespace
 from typing import Any
@@ -373,6 +375,148 @@ def check_tier_authority_conflicts() -> dict[str, Any]:
     )
 
 
+_STATE_HEAD_LABELS = {
+    "accepted_head": "Accepted remote head at latest integrated implementation/evidence",
+    "implementation_head": "Latest implementation baseline",
+}
+_GATE_VALUE_PATHS = {
+    "D9_DOGFOOD": ("phase7_dogfood", "status"),
+    "D9_PRODUCTION_DEPLOYMENT": ("phase7_production_deployment", "status"),
+    "PHASE8_PREPARATION": ("phase8_preparation", "status"),
+    "PHASE8_LIVE_ACTIVATION": ("phase8_preparation", "live_activation"),
+}
+
+
+def _git_text(root: Path, *args: str) -> str | None:
+    try:
+        completed = subprocess.run(
+            ["git", "-c", f"safe.directory={root.as_posix()}", *args],
+            cwd=root,
+            capture_output=True,
+            check=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return completed.stdout.strip()
+
+
+def _state_head_from_text(text: str, label: str) -> str | None:
+    for line in text.splitlines()[:80]:
+        if label not in line:
+            continue
+        match = re.search(r"`([0-9a-f]{7,40})`", line, flags=re.IGNORECASE)
+        if match:
+            return match.group(1).lower()
+    return None
+
+
+def _state_projection_status(
+    *,
+    current_head: str,
+    accepted_head: str | None,
+    implementation_head: str | None,
+    gate_values: Mapping[str, str],
+    projected_gate_values: Mapping[str, str],
+    ancestor_checks: Mapping[str, bool],
+) -> dict[str, Any]:
+    """Evaluate a prose projection without making it a second authority."""
+
+    violations: list[str] = []
+    if not re.fullmatch(r"[0-9a-f]{40}", current_head, flags=re.IGNORECASE):
+        violations.append("current_head_invalid")
+    for name, value in (
+        ("accepted_head", accepted_head),
+        ("implementation_head", implementation_head),
+    ):
+        if not value:
+            violations.append(f"{name}_missing")
+        elif not re.fullmatch(r"[0-9a-f]{7,40}", value, flags=re.IGNORECASE):
+            violations.append(f"{name}_invalid")
+        elif not ancestor_checks.get(name, False):
+            violations.append(f"{name}_not_ancestor")
+    for key, value in gate_values.items():
+        if projected_gate_values.get(key) != value:
+            violations.append(f"gate_projection:{key}")
+    return _result(
+        "state_projection_consistency",
+        violations=violations,
+        gate_authority="spec/v2/GATE_STATUS.json",
+        current_head=current_head,
+        accepted_head=accepted_head,
+        implementation_head=implementation_head,
+        projected_gate_values=dict(projected_gate_values),
+        gate_values=dict(gate_values),
+        sync_required=current_head.lower() not in {
+            value.lower() for value in (accepted_head, implementation_head) if value
+        },
+    )
+
+
+def check_state_projection_consistency(root: Path | None = None) -> dict[str, Any]:
+    """Detect stale/invalid Current State markers against machine-owned state."""
+
+    repository_root = root or ROOT
+    current_head = _git_text(repository_root, "rev-parse", "HEAD") or ""
+    state_path = repository_root / "docs" / "CURRENT_STATE.md"
+    gate_path = repository_root / "spec" / "v2" / "GATE_STATUS.json"
+    try:
+        state_text = state_path.read_text(encoding="utf-8")
+        gate_document = json.loads(gate_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return _result(
+            "state_projection_consistency",
+            violations=["state_projection_source_unreadable"],
+            gate_authority="spec/v2/GATE_STATUS.json",
+            sync_required=True,
+        )
+
+    accepted_head = _state_head_from_text(state_text, _STATE_HEAD_LABELS["accepted_head"])
+    implementation_head = _state_head_from_text(state_text, _STATE_HEAD_LABELS["implementation_head"])
+    tracks = gate_document.get("development_tracks", {})
+    gate_values: dict[str, str] = {}
+    for gate, (track, field) in _GATE_VALUE_PATHS.items():
+        value = tracks.get(track, {}).get(field) if isinstance(tracks, Mapping) else None
+        if isinstance(value, str):
+            gate_values[gate] = value
+
+    projected_gate_values: dict[str, str] = {}
+    for gate in _GATE_VALUE_PATHS:
+        match = re.search(rf"{re.escape(gate)}=([A-Z_]+)", state_text[:12_000])
+        if match:
+            projected_gate_values[gate] = match.group(1)
+
+    ancestor_checks: dict[str, bool] = {}
+    for name, value in (("accepted_head", accepted_head), ("implementation_head", implementation_head)):
+        if not value or not current_head:
+            ancestor_checks[name] = False
+            continue
+        result = subprocess.run(
+            [
+                "git",
+                "-c",
+                f"safe.directory={repository_root.as_posix()}",
+                "merge-base",
+                "--is-ancestor",
+                value,
+                current_head,
+            ],
+            cwd=repository_root,
+            capture_output=True,
+            timeout=5,
+        )
+        ancestor_checks[name] = result.returncode == 0
+    return _state_projection_status(
+        current_head=current_head,
+        accepted_head=accepted_head,
+        implementation_head=implementation_head,
+        gate_values=gate_values,
+        projected_gate_values=projected_gate_values,
+        ancestor_checks=ancestor_checks,
+    )
+
+
 def check_report(report: Mapping[str, Any]) -> tuple[str, ...]:
     """Return bounded check names that failed in a generated report."""
 
@@ -399,6 +543,7 @@ def build_report(*, funnel_report: FunnelReport | None = None) -> dict[str, Any]
         check_provider_decode_diagnostics(),
         check_role_preflight_dispatch_equivalence(),
         check_tier_authority_conflicts(),
+        check_state_projection_consistency(),
     ]
     if funnel_report is not None:
         checks.append(check_funnel_invariants(funnel_report))
