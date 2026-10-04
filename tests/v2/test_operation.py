@@ -70,6 +70,8 @@ def test_submit_delayed_uses_existing_durable_wait_boundary(tmp_path):
     assert status["queue_state"] == "waiting"
     assert task.metadata["wait_reason"] == "user_delay"
     assert task.metadata["requested_duration_seconds"] == 20
+    assert status["wait_condition"]["kind"] == "user_delay"
+    assert status["wait_condition"]["wake_authority"] == "runtime_maintenance"
 
 
 def test_status_separates_queue_claims_from_logical_execution_attempts(tmp_path):

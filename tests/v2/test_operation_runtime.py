@@ -126,6 +126,25 @@ def test_runtime_coordinator_wakes_due_user_delay_without_early_claim(tmp_path):
     assert time.time() >= requested["wake_at_epoch"]
 
 
+def test_runtime_maintenance_wakes_named_maintenance_waits(tmp_path):
+    config = _config(tmp_path)
+
+    with RuntimeCoordinator.open(config, revision="test-revision", instance_id="runtime-maintenance") as runtime:
+        task = OperationService.submit(config, "resume after maintenance")
+        item = runtime.operation.queue.claim("maintenance-test-worker", lease_seconds=30)
+        assert item.task_id == task.task_id
+        runtime.operation.queue.defer_for_event(
+            task.task_id,
+            worker_id="maintenance-test-worker",
+            state_version=item.state_version,
+            reason="maintenance",
+        )
+
+        runtime.operation.maintenance_tick(max_probes=0, max_liveness_probes=0)
+
+        assert runtime.operation.queue.snapshot(task.task_id).state == "queued"
+
+
 def test_runtime_coordinator_restart_preserves_durable_waiting_state(tmp_path):
     from src.dev_agent.domain.protocol import Task
     from src.dev_agent.scheduler.queue import DurableQueue

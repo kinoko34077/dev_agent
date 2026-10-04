@@ -27,6 +27,7 @@ from .operation_planning import (
 )
 
 from .domain.protocol import Event as ProtocolEvent, ModelRequest, RiskLevel, Task, TaskStatus, TaskType
+from .domain.wait import attach_wait_condition, condition_from_task_metadata
 from .human import HumanInteractionPort, SQLiteHumanInteractionPort
 from .providers.dispatch import ProviderDispatcher
 from .providers.factory import ProviderDefinition, ProviderFactory
@@ -1147,6 +1148,11 @@ class OperationService:
             "execution_owner": "devfarm",
             "wait_reason": "planner_children",
         }
+        parent.metadata["wait_reason"] = "planner_children"
+        parent.metadata = attach_wait_condition(
+            parent.metadata,
+            condition_from_task_metadata(parent.status, parent.metadata),
+        )
         event = ProtocolEvent(
             event_id=str(uuid5(NAMESPACE_URL, f"dev-agent/planning/{normalized_proposal_id}/{normalized_parent_id}/parked")),
             event_type="task.planning_root_parked",
@@ -1651,6 +1657,10 @@ class OperationService:
                     "requested_duration_seconds": delay_seconds,
                 },
             )
+            task.metadata = attach_wait_condition(
+                task.metadata,
+                condition_from_task_metadata(task.status, task.metadata),
+            )
             store.save_task(task)
             queue.enqueue(task.task_id, priority=priority, max_attempts=task.limits.max_retries + 1)
             queue.defer_queued_until(task.task_id, wake_at=wake_at, reason=wait_reason.strip())
@@ -1704,6 +1714,10 @@ class OperationService:
                 task.metadata["wait_until_epoch"] = wake_at_epoch
                 task.metadata["user_delay_seconds"] = delay_seconds
                 task.metadata["wait_accepted_at_epoch"] = accepted_at_epoch
+                task.metadata = attach_wait_condition(
+                    task.metadata,
+                    condition_from_task_metadata(task.status, task.metadata),
+                )
                 store.save_task(task)
                 queue.defer_queued_until(
                     task.task_id,
@@ -1819,6 +1833,15 @@ class OperationService:
             selected_model = selected_model or response.get("model")
         state = task.status.value
         waiting = state in {TaskStatus.WAITING_DEPENDENCY.value, TaskStatus.WAITING_APPROVAL.value, TaskStatus.WAITING_HUMAN.value, TaskStatus.WAITING_RECONCILIATION.value, TaskStatus.BLOCKED_QUOTA.value, TaskStatus.BLOCKED_BUDGET.value}
+        wait_condition = None
+        if waiting:
+            try:
+                wait_condition = condition_from_task_metadata(task.status, task.metadata).to_dict()
+            except ValueError:
+                # A legacy/corrupt projection must remain visible as a
+                # waiting task; the Worker/maintenance path still owns the
+                # fail-closed decision rather than status rendering.
+                wait_condition = None
         return {
             "task_id": task.task_id,
             "state": state,
@@ -1836,6 +1859,7 @@ class OperationService:
             "max_claim_streak": item.max_attempts if item is not None else 0,
             "active": state in {TaskStatus.QUEUED.value, TaskStatus.PLANNING.value, TaskStatus.READY.value, TaskStatus.RUNNING.value},
             "waiting": waiting,
+            "wait_condition": wait_condition,
             "completed": state == TaskStatus.COMPLETED.value,
             "failed": state == TaskStatus.FAILED.value,
             "reconciliation": state == TaskStatus.WAITING_RECONCILIATION.value,
@@ -1935,6 +1959,12 @@ class OperationService:
         results: list[dict[str, Any]] = []
         self._refresh_deterministic_local_resources(current)
         self._refresh_stale_provider_resources(current, max_liveness_probes)
+        # Maintenance waits are event-owned by this existing Runtime
+        # maintenance boundary.  Once the durable resource-control fence is
+        # clear, wake only the explicitly named maintenance family; no timer
+        # or second scheduler is introduced.
+        if not self.ledger.maintenance_enabled():
+            self.queue.wake_waiting(reason="maintenance")
         self._wake_human_tasks()
         # User-requested waits share the existing durable queue wake boundary;
         # RuntimeCoordinator remains the only maintenance loop.

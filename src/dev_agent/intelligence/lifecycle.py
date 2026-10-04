@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from uuid import NAMESPACE_URL, uuid5
 
 from ..domain.protocol import Event, Task, TaskStatus
+from ..domain.wait import attach_wait_condition, condition_from_task_metadata
 from ..human import HumanRequest, HumanResponse
 from .evaluator import EvaluatorDecision
 from .loop import EvaluationDispatchCycle, EvaluationDispatchStatus
@@ -193,6 +194,12 @@ class TaskLifecycleCoordinator:
             return TaskLifecycleTransition(task=task, event=event, replayed=True)
         self._ensure_transition_allowed(task.status, TaskStatus.WAITING_HUMAN)
         task.status = TaskStatus.WAITING_HUMAN
+        task.metadata["wait_reason"] = "human"
+        task.metadata["human_request_id"] = request.request_id
+        task.metadata = attach_wait_condition(
+            task.metadata,
+            condition_from_task_metadata(task.status, task.metadata),
+        )
         self._store.commit_transition(task=task, event=event, human_request=request, lease_proof=lease_proof)
         return TaskLifecycleTransition(task=task, event=event)
 
@@ -248,6 +255,17 @@ class TaskLifecycleCoordinator:
             return TaskLifecycleTransition(task=task, event=event, replayed=True)
         self._ensure_transition_allowed(task.status, target)
         task.status = target
+        default_reasons = {
+            TaskStatus.WAITING_HUMAN: "human",
+            TaskStatus.WAITING_APPROVAL: "approval",
+            TaskStatus.WAITING_RECONCILIATION: "reconciliation",
+        }
+        if target in default_reasons:
+            task.metadata["wait_reason"] = default_reasons[target]
+            task.metadata = attach_wait_condition(
+                task.metadata,
+                condition_from_task_metadata(task.status, task.metadata),
+            )
         self._store.commit_transition(task=task, event=event, lease_proof=lease_proof)
         return TaskLifecycleTransition(task=task, event=event)
 

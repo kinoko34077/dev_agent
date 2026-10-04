@@ -8,6 +8,7 @@ from uuid import NAMESPACE_URL, uuid5
 
 from .domain.protocol import Event as ProtocolEvent
 from .domain.protocol import Task, TaskStatus
+from .domain.wait import attach_wait_condition, condition_from_task_metadata
 from .intelligence.planner import (
     ChildTaskProposal,
     PlannerDependencyType,
@@ -164,6 +165,11 @@ def apply_proposal(
                 dependency: child.dependency_types.get(dependency, PlannerDependencyType.TASK_COMPLETED).value
                 for dependency in dependencies
             }
+        if status is TaskStatus.WAITING_DEPENDENCY:
+            metadata = attach_wait_condition(
+                metadata,
+                condition_from_task_metadata(status, metadata),
+            )
         task = Task(
             task_id=_child_task_id(proposal.proposal_id, child.child_key),
             objective=child.objective,

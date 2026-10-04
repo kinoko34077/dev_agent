@@ -9,6 +9,7 @@ import re
 from typing import Final
 
 from ..domain.protocol import Task, TaskStatus
+from ..domain.wait import attach_wait_condition, condition_from_task_metadata
 from ..scheduler.queue import DurableQueue
 
 
@@ -94,6 +95,10 @@ def defer_user_delay(
     task.metadata["wait_reason"] = USER_DELAY_REASON
     task.metadata["wait_until_epoch"] = wake_epoch
     task.metadata["user_delay_seconds"] = request.seconds
+    task.metadata = attach_wait_condition(
+        task.metadata,
+        condition_from_task_metadata(task.status, task.metadata),
+    )
     return wake_epoch
 
 

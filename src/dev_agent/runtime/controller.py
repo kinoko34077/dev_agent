@@ -15,6 +15,7 @@ from uuid import NAMESPACE_URL, uuid5
 
 from ..domain.protocol import Event as ProtocolEvent
 from ..domain.protocol import ModelRequest, ModelResponse, Step, StepStatus, Task, TaskStatus, ToolCall, ToolResult, ToolResultStatus
+from ..domain.wait import attach_wait_condition, condition_from_task_metadata
 from ..providers.base import ModelProvider, ProviderError
 from ..security.event_artifacts import EventArtifactStore
 from ..security.audit import AuditRecorder
@@ -170,6 +171,13 @@ class Controller:
         self.store.commit_transition(task=task, step=step, checkpoint=checkpoint, events=events, tool_result=tool_result, lease_proof=self._active_lease_proof())
 
     @staticmethod
+    def _attach_wait_condition(task: Task) -> None:
+        """Persist the canonical wait meaning alongside legacy metadata."""
+
+        condition = condition_from_task_metadata(task.status, task.metadata)
+        task.metadata = attach_wait_condition(task.metadata, condition)
+
+    @staticmethod
     def _kernel_operation_key(task: Task, step: Step, call: ToolCall, index: int, *, effective_arguments: dict[str, Any] | None = None) -> str:
         canonical = json.dumps({"tool_name": call.tool_name, "arguments": effective_arguments if effective_arguments is not None else call.arguments}, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:24]
@@ -225,6 +233,8 @@ class Controller:
             "source": "provider_request",
         }
         task.status = TaskStatus.WAITING_RECONCILIATION
+        task.metadata["wait_reason"] = "reconciliation"
+        self._attach_wait_condition(task)
         event = self._event_record(
             task,
             "task.waiting_reconciliation",
@@ -241,14 +251,22 @@ class Controller:
     def _block_budget(self, task: Task, state: dict[str, Any], *, step: Step, message: str) -> None:
         step.status = StepStatus.WAITING
         state["active_step"] = step.to_dict()
+        task.metadata["wait_reason"] = "budget"
         task.status = TaskStatus.BLOCKED_BUDGET
+        self._attach_wait_condition(task)
         event = self._event_record(task, "task.blocked_budget", {"category": "budget", "message": message}, step_id=step.step_id)
         self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "blocked_budget", state), events=[event])
 
     def _block_quota(self, task: Task, state: dict[str, Any], *, step: Step, message: str) -> None:
         step.status = StepStatus.WAITING
         state["active_step"] = step.to_dict()
+        quota_domain = task.metadata.get("quota_domain")
+        if isinstance(quota_domain, str) and quota_domain.strip():
+            task.metadata["wait_reason"] = f"quota:{quota_domain.strip()}"
+        else:
+            task.metadata["wait_reason"] = "quota"
         task.status = TaskStatus.BLOCKED_QUOTA
+        self._attach_wait_condition(task)
         event = self._event_record(task, "task.blocked_quota", {"category": "quota", "message": message}, step_id=step.step_id)
         self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "blocked_quota", state), events=[event])
 
@@ -272,6 +290,7 @@ class Controller:
         else:
             task.metadata.pop("wait_until_epoch", None)
         task.status = TaskStatus.WAITING_DEPENDENCY
+        self._attach_wait_condition(task)
         event = self._event_record(
             task,
             "task.waiting_resource",
@@ -285,6 +304,7 @@ class Controller:
         state["active_step"] = step.to_dict()
         task.metadata["wait_reason"] = "maintenance"
         task.status = TaskStatus.WAITING_DEPENDENCY
+        self._attach_wait_condition(task)
         event = self._event_record(
             task,
             "task.waiting_maintenance",
@@ -587,7 +607,10 @@ class Controller:
                         "arguments_hash": arguments_hash,
                     }
                     state.pop("approval_id", None)
+                    task.metadata["wait_reason"] = "approval"
+                    task.metadata["approval_id"] = approval_reference
                     task.status = TaskStatus.WAITING_APPROVAL
+                    self._attach_wait_condition(task)
                     waiting_event = self._event_record(
                         task,
                         "task.waiting_approval",
@@ -615,6 +638,9 @@ class Controller:
                     waiting_payload = {"tool_call_id": call.call_id, "tool_name": call.tool_name, "cause": error.get("cause")}
                     if cancellation_state is not None:
                         waiting_payload["cancellation_state"] = cancellation_state
+                    task.metadata["wait_reason"] = "reconciliation"
+                    task.metadata["provider_request_id"] = call.provider_call_id
+                    self._attach_wait_condition(task)
                     waiting_event = self._event_record(task, "task.waiting_reconciliation", waiting_payload, step_id=step.step_id)
                     self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "waiting_reconciliation", state), events=[tool_event, waiting_event], tool_result=result)
                     return
@@ -1198,7 +1224,10 @@ class Controller:
             "checkpoint_revision": frame.get("checkpoint_revision"),
             "resume_from": frame.get("resume_from"),
         }
+        task.metadata["wait_reason"] = "interrupt"
+        task.metadata["interrupt_child_task_id"] = request.get("child_task_id")
         task.status = TaskStatus.WAITING_DEPENDENCY
+        self._attach_wait_condition(task)
         event = self._event_record(
             task,
             "task.waiting_interrupt",
@@ -1249,6 +1278,7 @@ class Controller:
         task.metadata["user_delay_seconds"] = seconds
         task.metadata["wait_accepted_at_epoch"] = float(accepted_at)
         task.status = TaskStatus.WAITING_DEPENDENCY
+        self._attach_wait_condition(task)
         event = self._event_record(
             task,
             "task.waiting_user_delay",
@@ -1272,6 +1302,9 @@ class Controller:
         step.status = StepStatus.WAITING
         state["active_step"] = step.to_dict()
         state["provider_reconciliation"] = {"cause": cause, "request_id": request_id, "status": "unknown"}
+        task.metadata["wait_reason"] = "reconciliation"
+        task.metadata["provider_request_id"] = request_id
         task.status = TaskStatus.WAITING_RECONCILIATION
+        self._attach_wait_condition(task)
         event = self._event_record(task, "task.waiting_reconciliation", {"category": "reconciliation_required", "cause": cause, "message": message, "source": "provider_request"}, step_id=step.step_id, request_id=request_id)
         self._commit(task=task, step=step, checkpoint=self._checkpoint_payload(task, step, "waiting_reconciliation", state), events=[event])

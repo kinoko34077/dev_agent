@@ -29,6 +29,15 @@ from .execution import (
     RouteConstraints,
     UnsupportedCapabilityError,
 )
+from .wait import (
+    WAIT_CONDITION_REGISTRY,
+    WaitCondition,
+    WaitKind,
+    WaitRegistryEntry,
+    WaitReplayPolicy,
+    attach_wait_condition,
+    condition_from_task_metadata,
+)
 
 __all__ = [
     "Event",
@@ -56,4 +65,11 @@ __all__ = [
     "PresenceState",
     "RouteConstraints",
     "UnsupportedCapabilityError",
+    "WAIT_CONDITION_REGISTRY",
+    "WaitCondition",
+    "WaitKind",
+    "WaitRegistryEntry",
+    "WaitReplayPolicy",
+    "attach_wait_condition",
+    "condition_from_task_metadata",
 ]

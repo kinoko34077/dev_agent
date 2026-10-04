@@ -5,6 +5,7 @@ from __future__ import annotations
 from threading import Event, Thread
 
 from ..domain.protocol import Task, TaskStatus
+from ..domain.wait import condition_from_task_metadata
 from ..runtime.controller import Controller, ExecutionContext
 from .queue import DurableQueue, QueueEmpty, StaleLease
 
@@ -113,9 +114,10 @@ class WorkerRunner:
                 # Waiting states require an external event (approval, budget
                 # replenishment, or reconciliation).  Requeueing immediately
                 # can duplicate an ambiguous external effect or spin forever.
-                wait_reason = result.metadata.get("wait_reason") if isinstance(result.metadata, dict) else None
-                wait_until = result.metadata.get("wait_until_epoch") if isinstance(result.metadata, dict) else None
-                if isinstance(wait_until, (int, float)) and not isinstance(wait_until, bool) and wait_reason:
+                condition = condition_from_task_metadata(result.status, result.metadata)
+                wait_reason = condition.queue_reason
+                wait_until = condition.deadline_epoch
+                if wait_until is not None and wait_reason:
                     self.queue.defer_until(
                         item.task_id,
                         worker_id=self.worker_id,
@@ -123,21 +125,19 @@ class WorkerRunner:
                         wake_at=wait_until,
                         reason=wait_reason,
                     )
-                elif (
-                    isinstance(wait_reason, str)
-                    and (
-                        wait_reason == "resource:provider_execution_saturated"
-                        or wait_reason.startswith("resource:provider_execution_saturated:")
-                    )
-                ):
+                else:
+                    # Every deferred status has a typed event/manual wake
+                    # owner.  Keeping the named reason in the queue prevents
+                    # a restart from turning a wait into an unobservable
+                    # parked row, while preserving reconciliation no-replay.
+                    if not wait_reason:
+                        raise RuntimeError(f"durable wait has no queue wake reason: {result.task_id}")
                     self.queue.defer_for_event(
                         item.task_id,
                         worker_id=self.worker_id,
                         state_version=item.state_version,
                         reason=wait_reason,
                     )
-                else:
-                    self.queue.defer(item.task_id, worker_id=self.worker_id, state_version=item.state_version)
             else:
                 self.queue.fail(item.task_id, worker_id=self.worker_id, state_version=item.state_version, retry=result.status not in {TaskStatus.FAILED, TaskStatus.CANCELLED}, max_attempts=max_attempts, execution_attempt=True)
         except StaleLease:
