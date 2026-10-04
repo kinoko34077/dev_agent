@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 
 import pytest
 
@@ -20,13 +21,16 @@ from src.dev_agent.resources.model_runtime import (
 )
 
 
+DIAGNOSTIC_NOW = datetime(2026, 10, 3, 23, 0, tzinfo=timezone.utc)
+
+
 @pytest.fixture(scope="module")
 def model_evidence() -> ModelEvidenceCatalog:
     return ModelEvidenceCatalog.load_default()
 
 
 def test_diagnose_entries_accepts_the_bounded_full_inventory_limit(model_evidence):
-    rows = diagnose_entries(model_evidence, limit=MAX_DIAGNOSTIC_ROWS)
+    rows = diagnose_entries(model_evidence, limit=MAX_DIAGNOSTIC_ROWS, now=DIAGNOSTIC_NOW)
 
     assert rows
 
@@ -80,7 +84,7 @@ def test_summarize_entries_separates_static_candidates_from_runtime_unknown():
 
 
 def test_static_candidate_without_runtime_snapshot_is_not_probed(model_evidence):
-    rows = diagnose_entries(model_evidence, limit=MAX_DIAGNOSTIC_ROWS)
+    rows = diagnose_entries(model_evidence, limit=MAX_DIAGNOSTIC_ROWS, now=DIAGNOSTIC_NOW)
 
     statically_eligible = [row for row in rows if row["static_result"] == "ELIGIBLE"]
     not_probed = [row for row in statically_eligible if row["result"] == RUNTIME_NOT_PROBED]
@@ -89,7 +93,11 @@ def test_static_candidate_without_runtime_snapshot_is_not_probed(model_evidence)
 
 
 def test_explicit_runtime_snapshot_distinguishes_unavailable_from_not_probed(model_evidence):
-    candidate = next(row for row in diagnose_entries(model_evidence, limit=MAX_DIAGNOSTIC_ROWS) if row["result"] == RUNTIME_NOT_PROBED)
+    candidate = next(
+        row
+        for row in diagnose_entries(model_evidence, limit=MAX_DIAGNOSTIC_ROWS, now=DIAGNOSTIC_NOW)
+        if row["result"] == RUNTIME_NOT_PROBED
+    )
     snapshot = RuntimeAdmissionSnapshot.from_document(
         {
             "schema_version": 1,
@@ -105,7 +113,7 @@ def test_explicit_runtime_snapshot_distinguishes_unavailable_from_not_probed(mod
             ],
         }
     )
-    rows = diagnose_entries(model_evidence, runtime_snapshot=snapshot, limit=MAX_DIAGNOSTIC_ROWS)
+    rows = diagnose_entries(model_evidence, runtime_snapshot=snapshot, limit=MAX_DIAGNOSTIC_ROWS, now=DIAGNOSTIC_NOW)
     observed = next(row for row in rows if row["provider_binding_id"] == candidate["provider_binding_id"] and row["model_id"] == candidate["model_id"])
     assert observed["result"] == RUNTIME_UNAVAILABLE
     assert observed["gate_reason"] == "runtime_unavailable"
@@ -155,14 +163,14 @@ def test_candidate_evidence_exposes_not_promoted_reasons():
 
 
 def test_catalog_coverage_reports_stale_storage_separately(model_evidence):
-    coverage = catalog_coverage(model_evidence)
+    coverage = catalog_coverage(model_evidence, now=DIAGNOSTIC_NOW)
     assert coverage["stored_catalog_count"] >= coverage["current_catalog_count"]
     assert "stale_or_expired_count" in coverage
     assert isinstance(coverage["stale_or_expired_provider_binding_counts"], dict)
 
 
 def test_main_tabular_output_exposes_runtime_and_gate_reason(model_evidence, capsys):
-    assert main(["--limit", "1"]) == 0
+    assert main(["--limit", "1", "--now", DIAGNOSTIC_NOW.isoformat()]) == 0
 
     lines = capsys.readouterr().out.splitlines()
     assert len(lines) >= 2
@@ -187,7 +195,7 @@ def test_main_tabular_output_exposes_runtime_and_gate_reason(model_evidence, cap
 
 
 def test_main_summary_exposes_runtime_admission_counts(capsys):
-    assert main(["--all", "--summary"]) == 0
+    assert main(["--all", "--summary", "--now", DIAGNOSTIC_NOW.isoformat()]) == 0
 
     lines = capsys.readouterr().out.splitlines()
     assert any(line.startswith("runtime_eligible\t") for line in lines)
@@ -197,7 +205,7 @@ def test_main_summary_exposes_runtime_admission_counts(capsys):
 
 
 def test_main_summary_defaults_to_complete_current_catalog(capsys):
-    assert main(["--summary", "--json"]) == 0
+    assert main(["--summary", "--json", "--now", DIAGNOSTIC_NOW.isoformat()]) == 0
 
     payload = json.loads(capsys.readouterr().out)
     summary = payload["summary"]
@@ -242,6 +250,8 @@ def test_main_accepts_configured_pool_runtime_snapshot(tmp_path, capsys):
             "gemini:worker:free-3",
             "--model",
             "gemini-3.5-flash-lite",
+            "--now",
+            DIAGNOSTIC_NOW.isoformat(),
         ]
     ) == 0
 
@@ -284,6 +294,8 @@ def test_main_accepts_multi_binding_runtime_snapshot(tmp_path, capsys):
             "gemini:worker:free-3",
             "--model",
             "gemini-3.8-flash",
+            "--now",
+            DIAGNOSTIC_NOW.isoformat(),
         ]
     ) == 0
 

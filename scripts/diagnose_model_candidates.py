@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import sys
@@ -37,6 +37,27 @@ _NESTED_RUNTIME_SNAPSHOT_EVIDENCE_TYPES = frozenset(
         "runtime_admission_multi_binding_snapshot",
     }
 )
+
+
+def _parse_diagnostic_now(value: str | None) -> datetime | None:
+    """Parse an explicit observation time for reproducible diagnostics.
+
+    This is a read-only diagnostic control.  It does not extend evidence
+    validity or promote a route; it only makes the time used for expiry
+    evaluation visible and replayable.
+    """
+
+    if value is None:
+        return None
+    text = value.strip()
+    if not text:
+        raise ValueError("--now must be a timezone-aware ISO-8601 timestamp")
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    parsed = datetime.fromisoformat(text)
+    if parsed.tzinfo is None:
+        raise ValueError("--now must include a timezone offset")
+    return parsed.astimezone(timezone.utc)
 
 
 def diagnose_entries(
@@ -292,6 +313,13 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         help="optional discovery candidate evidence used to report explicit promotion blockers",
     )
+    parser.add_argument(
+        "--now",
+        help=(
+            "optional timezone-aware ISO-8601 observation time for reproducible "
+            "expiry diagnostics; it does not extend or promote evidence"
+        ),
+    )
     limit_group = parser.add_mutually_exclusive_group()
     limit_group.add_argument(
         "--limit",
@@ -318,6 +346,7 @@ def main(argv: list[str] | None = None) -> int:
             limit = args.limit
         else:
             limit = 200
+        diagnostic_now = _parse_diagnostic_now(args.now)
         evidence = ModelEvidenceCatalog.load(args.evidence_dir)
         runtime_snapshot = RuntimeAdmissionSnapshot.empty()
         if args.runtime_evidence is not None:
@@ -331,12 +360,13 @@ def main(argv: list[str] | None = None) -> int:
             provider_binding_id=args.binding,
             model_id=args.model,
             limit=limit,
+            now=diagnostic_now,
         )
     except Exception as exc:
         print(json.dumps({"status": "failed", "category": type(exc).__name__}, ensure_ascii=False))
         return 2
     if args.summary:
-        coverage = catalog_coverage(evidence)
+        coverage = catalog_coverage(evidence, now=diagnostic_now)
         summary = summarize_entries(
             rows,
             coverage=coverage,
@@ -347,7 +377,7 @@ def main(argv: list[str] | None = None) -> int:
             ),
         )
         scoped_count = 0
-        for entry in evidence.catalog.entries():
+        for entry in evidence.catalog.entries(now=diagnostic_now):
             if args.provider is not None and entry.provider_id != args.provider:
                 continue
             if args.binding is not None and entry.provider_binding_id != args.binding:

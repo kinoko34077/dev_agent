@@ -130,6 +130,17 @@ def _canonical_supervisor_action(plan: Mapping[str, Any]) -> tuple[str, str]:
     if not isinstance(decisions, Sequence) or isinstance(decisions, (str, bytes)):
         raise DevFarmError("Commander review decisions are unavailable")
 
+    # Plans written before the canonical lifecycle field was introduced still
+    # rely on their durable supervisor projection. Preserve that compatibility
+    # boundary; only a plan carrying canonical facts can be reconstructed from
+    # the canonical lifecycle on restart.
+    if not any(
+        isinstance(task, Mapping) and isinstance(task.get("canonical_execution"), Mapping)
+        for task in tasks
+    ):
+        metadata = normalize_supervisor_metadata(plan.get("supervisor"))
+        return str(metadata["status"]), str(metadata["next_action"])
+
     def current_attempt(task: Mapping[str, Any]) -> Any:
         return task.get("last_attempt_id")
 
