@@ -11,6 +11,7 @@ from .billing_catalog import profile_for as trusted_billing_profile_for
 from .ledger import ResourceLedger
 from . import provider_policy
 from .qualification import QualificationResolver
+from .tier_authority import production_tier_authority
 
 
 @dataclass(frozen=True)
@@ -55,6 +56,7 @@ def _safe_projection(resource: Mapping[str, Any]) -> dict[str, Any]:
         "allowance_period": metadata.get("allowance_period"),
         "privacy_profile": metadata.get("privacy_profile"),
         "intelligence_tier": metadata.get("intelligence_tier"),
+        "intelligence_tier_source": metadata.get("intelligence_tier_source"),
     }
 
 
@@ -93,7 +95,16 @@ def _plan_one(resource: Mapping[str, Any], resolver: QualificationResolver, *, n
         return ResourceRepairPlan(resource_id, "blocked", before, before, "qualification is expired or unqualified")
     resource_sensitivity = provider_policy.max_sensitivity(provider_id)
     resource_privacy_profile = provider_policy.privacy_profile(provider_id)
-    tier = qualification.intelligence_tier if qualification is not None else profile.intelligence_tier
+    tier_decision = production_tier_authority.resolve(
+        provider_id=provider_id,
+        provider_binding_id=binding_id,
+        model_id=model_id,
+        qualification=qualification,
+        profile=profile,
+    )
+    if not tier_decision.eligible:
+        return ResourceRepairPlan(resource_id, "blocked", before, before, tier_decision.reason.lower())
+    tier = tier_decision.tier
     capabilities = sorted(qualification.routing_capabilities if qualification is not None else {"text"})
     after = {
         "provider_id": provider_id,
@@ -117,6 +128,7 @@ def _plan_one(resource: Mapping[str, Any], resolver: QualificationResolver, *, n
         "allowance_period": profile.allowance_period,
         "privacy_profile": resource_privacy_profile,
         "intelligence_tier": tier,
+        "intelligence_tier_source": tier_decision.source,
     }
     status = "current" if before == after else "repairable"
     return ResourceRepairPlan(resource_id, status, before, after)
@@ -172,6 +184,7 @@ def apply_resource_repairs(
                 "billing_verified_at": plan.after["billing_verified_at"],
                 "billing_expires_at": plan.after["billing_expires_at"],
                 "privacy_profile": plan.after["privacy_profile"],
+                "intelligence_tier_source": plan.after["intelligence_tier_source"],
             }
         )
         if plan.after["allowance_amount"] is not None:

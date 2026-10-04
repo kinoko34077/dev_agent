@@ -16,6 +16,7 @@ from .model_admission import ModelAdmissionResolver
 from .model_benchmarks import CANONICAL_TASK_FITS
 from .qualification import QualificationResolver
 from .snapshot import RoutingSnapshot
+from .tier_authority import production_tier_authority
 
 
 class NoRoute(RuntimeError):
@@ -272,6 +273,74 @@ class ResourceRouter:
         """Return the optional runtime-scoped discovery/benchmark evidence view."""
         return self._model_admission_resolver
 
+    def _resolve_tier_evidence(
+        self,
+        resource: dict[str, Any],
+        metadata: dict[str, Any],
+        provider_binding_id: Any,
+        evidence_binding_id: Any,
+        model_id: Any,
+    ):
+        """Resolve qualification, model evidence, and the canonical tier once.
+
+        Both selection and bounded no-route diagnostics use this helper so a
+        persisted tier cannot be interpreted differently by the two paths.
+        """
+
+        qualification = None
+        model_admission = None
+        provider_id = str(resource["provider_id"])
+        if provider_policy.requires_qualification(provider_id):
+            effective_binding = provider_binding_id.strip() if isinstance(provider_binding_id, str) else ""
+            if not effective_binding:
+                return None, None, None
+            try:
+                qualification = self._qualification_resolver.resolve(
+                    provider_id,
+                    evidence_binding_id,
+                    (model_id or "").strip(),
+                )
+            except (ValueError, TypeError):
+                qualification = None
+            if qualification is None:
+                return None, None, None
+
+        if self._model_admission_resolver is not None:
+            if (
+                not isinstance(provider_binding_id, str)
+                or not provider_binding_id.strip()
+                or not isinstance(model_id, str)
+                or not model_id.strip()
+            ):
+                return None, None, None
+            try:
+                model_admission = self._model_admission_resolver.resolve(
+                    provider_id,
+                    evidence_binding_id,
+                    model_id.strip(),
+                )
+            except (TypeError, ValueError):
+                model_admission = None
+            if model_admission is None:
+                return None, None, None
+
+        decision = production_tier_authority.resolve(
+            provider_id=provider_id,
+            provider_binding_id=str(provider_binding_id),
+            model_id=str(model_id or ""),
+            configured_tier=metadata.get("configured_intelligence_tier"),
+            persisted_tier=metadata.get("intelligence_tier") or resource.get("intelligence_tier"),
+            qualification=qualification,
+            model_admission=model_admission,
+            profile=profile_for(
+                provider_id,
+                str(evidence_binding_id),
+                str(model_id or ""),
+            ),
+            allow_legacy_missing_model=not bool(isinstance(model_id, str) and model_id.strip()),
+        )
+        return qualification, model_admission, decision
+
     @staticmethod
     def _quota_ratio(observation: dict[str, object]) -> float | None:
         ratios: list[float] = []
@@ -448,7 +517,22 @@ class ResourceRouter:
             tier_resources = []
             for resource in capability_resources:
                 metadata = resource.get("metadata") if isinstance(resource.get("metadata"), dict) else {}
-                if metadata.get("intelligence_tier") in request.allowed_intelligence_tiers:
+                provider_binding_id = resource.get("provider_binding_id") or metadata.get("provider_binding_id") or resource.get("provider_id")
+                model_id = resource.get("model_id") or metadata.get("model_id")
+                qualification_binding_id = metadata.get("qualification_binding_id") or provider_binding_id
+                evidence_binding_id = (
+                    qualification_binding_id.strip()
+                    if isinstance(qualification_binding_id, str) and qualification_binding_id.strip()
+                    else provider_binding_id
+                )
+                _qualification, _model_admission, tier_decision = self._resolve_tier_evidence(
+                    resource,
+                    metadata,
+                    provider_binding_id,
+                    evidence_binding_id,
+                    model_id,
+                )
+                if tier_decision is not None and tier_decision.eligible and tier_decision.tier in request.allowed_intelligence_tiers:
                     tier_resources.append(resource)
             if not tier_resources:
                 return (RouteDecisionCode.INTELLIGENCE_TIER_UNSATISFIED,)
@@ -541,56 +625,32 @@ class ResourceRouter:
             if provider_binding_id in request.excluded_provider_binding_ids:
                 continue
             effective_capabilities = set(resource["capabilities"])
-            effective_tier = metadata.get("intelligence_tier")
             task_fit_score: float | None = None
             # Provider-based runtime authority: provider_policy is the sole
             # gate.  The persisted qualification_required flag is not the
             # gate: it may be absent on legacy rows, and remote providers
             # must always present a current qualification record at route time.
-            requires_qualification = provider_policy.requires_qualification(resource["provider_id"])
-            if requires_qualification:
-                _eff_binding = provider_binding_id.strip() if isinstance(provider_binding_id, str) else ""
-                if not _eff_binding:
-                    continue
-                try:
-                    qualification = self._qualification_resolver.resolve(
-                        resource["provider_id"],
-                        evidence_binding_id,
-                        (model_id or "").strip(),
-                    )
-                except (ValueError, TypeError):
-                    # Real resolver raises ValueError when model_id is empty.
-                    # Treat as fail-closed: no exact identity, no route.
-                    qualification = None
-                if qualification is None:
-                    continue
+            qualification, model_admission, tier_decision = self._resolve_tier_evidence(
+                resource,
+                metadata,
+                provider_binding_id,
+                evidence_binding_id,
+                model_id,
+            )
+            if tier_decision is None or not tier_decision.eligible:
+                continue
+            effective_tier = tier_decision.tier
+            if qualification is not None:
                 # Catalog capabilities remain operator-owned.  Qualification
                 # can only narrow the effective routing view, never grant a
                 # capability that the persisted resource did not allow.
                 effective_capabilities &= set(qualification.routing_capabilities)
-                # Only override the tier when the qualification record has an
-                # explicit opinion; otherwise keep the resource's own tier.
-                if qualification.intelligence_tier is not None:
-                    effective_tier = qualification.intelligence_tier
             # Model discovery, benchmark intelligence, and adapter capability
             # facts are a separate evidence stack.  Once explicitly composed
             # into this Router, a resource must have exact current evidence;
             # name similarity or legacy resource labels cannot promote it.
-            if self._model_admission_resolver is not None:
-                if not isinstance(provider_binding_id, str) or not provider_binding_id.strip() or not isinstance(model_id, str) or not model_id.strip():
-                    continue
-                try:
-                    model_admission = self._model_admission_resolver.resolve(
-                        resource["provider_id"],
-                        evidence_binding_id,
-                        model_id.strip(),
-                    )
-                except (TypeError, ValueError):
-                    model_admission = None
-                if model_admission is None:
-                    continue
+            if model_admission is not None:
                 effective_capabilities &= set(model_admission.capabilities)
-                effective_tier = model_admission.intelligence_tier
                 if request.task_fit is not None:
                     task_fit_score = model_admission.task_fit.get(request.task_fit)
                     if task_fit_score is None:

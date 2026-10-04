@@ -42,6 +42,7 @@ from .resources.ledger import ResourceLedger, unknown_quota_wake_reason
 from .resources.model_admission import ModelAdmissionResolver
 from .resources.provider_policy import is_local_provider as _is_local_provider, max_sensitivity as _provider_max_sensitivity, privacy_profile as _provider_privacy_profile, requires_qualification as _requires_qualification
 from .resources.qualification import QualificationResolver
+from .resources.tier_authority import production_tier_authority
 from .scheduler.queue import DurableQueue
 from .scheduler.quota import QuotaRequalificationCoordinator, QuotaWakeScheduler
 from .scheduler.worker import WorkerRunner
@@ -668,19 +669,22 @@ def _inferred_tier(config: OperationConfig | OperationProviderBinding, *, qualif
     The explicit field remains useful for the local/debug configuration, while
     normal provider bindings use the exact qualification/catalog identity.
     """
-    if config.intelligence_tier:
-        return config.intelligence_tier
     binding_id = getattr(config, "binding_id", None) or getattr(config, "provider_binding_id", None)
     model_id = getattr(config, "model", None)
     provider_id = getattr(config, "provider_id", None)
     if binding_id and model_id and provider_id:
         resolver = qualification_resolver or QualificationResolver()
         qualification = resolver.resolve(provider_id, binding_id, model_id)
-        if qualification is not None and qualification.intelligence_tier is not None:
-            return qualification.intelligence_tier
         profile = _operation_resource_profile(provider_id, binding_id, model_id)
-        if profile is not None and profile.intelligence_tier is not None:
-            return profile.intelligence_tier
+        decision = production_tier_authority.resolve(
+            provider_id=provider_id,
+            provider_binding_id=binding_id,
+            model_id=model_id,
+            configured_tier=getattr(config, "intelligence_tier", None),
+            qualification=qualification,
+            profile=profile,
+        )
+        return decision.tier
     if config.provider_id == "fake":
         return "L1"
     return None
@@ -1416,7 +1420,15 @@ class OperationService:
         profile = _operation_resource_profile(config.provider_id, evidence_binding_id, model_id)
         resolver = qualification_resolver or QualificationResolver()
         qualification = resolver.resolve(config.provider_id, evidence_binding_id, model_id)
-        tier = getattr(provider, "intelligence_tier", None) or (profile.intelligence_tier if profile else None) or _inferred_tier(config, qualification_resolver=resolver)
+        tier_decision = production_tier_authority.resolve(
+            provider_id=config.provider_id,
+            provider_binding_id=binding_id,
+            model_id=model_id,
+            configured_tier=getattr(config, "intelligence_tier", None),
+            qualification=qualification,
+            profile=profile,
+        )
+        tier = tier_decision.tier
         try:
             existing = ledger.get_resource(binding_id)
         except KeyError:
@@ -1523,6 +1535,9 @@ class OperationService:
         resource_metadata["qualification_required"] = _requires_qualification(config.provider_id)
         if tier:
             resource_metadata["intelligence_tier"] = tier
+        if getattr(config, "intelligence_tier", None) is not None:
+            resource_metadata["configured_intelligence_tier"] = config.intelligence_tier
+        resource_metadata["intelligence_tier_source"] = tier_decision.source
         if profile is not None:
             resource_metadata["billing_authority"] = "trusted_catalog"
             resource_metadata["billing_mode"] = profile.billing_mode

@@ -47,6 +47,7 @@ from src.dev_agent.resources.model_admission import ModelAdmissionResolver
 from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
 from src.dev_agent.resources.qualification import QualificationResolver
 from src.dev_agent.resources.router import ResourceRouter
+from src.dev_agent.resources.tier_authority import production_tier_authority
 from scripts.devfarm_resource_pool import (
     ResourcePoolError,
     admit_resource_pool,
@@ -404,10 +405,18 @@ def run_shadow(
         raise PlannerShadowInputError("execution_boundary must be in_process or host_process")
 
     def _effective_tier(binding: OperationProviderBinding, qualification: object) -> str | None:
+        admission = None
         if model_admission_resolver is not None:
             admission = model_admission_resolver.resolve(binding.provider_id, binding.credential_binding_id, binding.model)
-            return None if admission is None else admission.intelligence_tier
-        return getattr(qualification, "intelligence_tier", None)
+        decision = production_tier_authority.resolve(
+            provider_id=binding.provider_id,
+            provider_binding_id=binding.credential_binding_id,
+            model_id=binding.model,
+            configured_tier=binding.intelligence_tier,
+            qualification=qualification,
+            model_admission=admission,
+        )
+        return decision.tier if decision.eligible else None
 
     with ExitStack() as pool_stack:
         resource_pool = pool_stack.enter_context(

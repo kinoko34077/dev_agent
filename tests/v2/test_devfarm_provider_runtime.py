@@ -75,6 +75,16 @@ def test_validate_worker_provider_allows_explicit_local_trial_only() -> None:
     assert eligibility.reason == "local_trial"
 
 
+def test_validate_worker_provider_rejects_unqualified_local_high_tier() -> None:
+    provider = OllamaProvider(model="qwen3.5:9b", base_url="http://127.0.0.1:11434", think=False)
+    provider.provider_binding_id = "ollama:local:qwen3.5-9b"
+    provider.model_id = "qwen3.5:9b"
+    provider.intelligence_tier = "L2"
+
+    with pytest.raises(DevFarmError, match="tier requires explicit"):
+        validate_worker_provider(provider, allow_local=True)
+
+
 def test_build_worker_provider_requires_explicit_local_trial_opt_in() -> None:
     binding = "ollama:local:qwen3.5-9b"
     with pytest.raises(DevFarmError, match="not active"):

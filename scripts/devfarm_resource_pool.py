@@ -31,6 +31,7 @@ from src.dev_agent.resources.qualification import QualificationResolver
 from src.dev_agent.resources.model_admission import ModelAdmissionResolver
 from src.dev_agent.resources.ledger import ResourceLedger
 from src.dev_agent.resources.provider_policy import privacy_profile, requires_qualification
+from src.dev_agent.resources.tier_authority import production_tier_authority
 
 
 @dataclass(frozen=True)
@@ -212,8 +213,14 @@ def admit_resource_pool(
             )
             if profile is None or (no_charge_required and not profile.no_charge_guaranteed):
                 continue
-            effective_tier = binding.intelligence_tier or profile.intelligence_tier
-            if effective_tier != required_tier:
+            tier_decision = production_tier_authority.resolve(
+                provider_id=binding.provider_id,
+                provider_binding_id=binding.credential_binding_id,
+                model_id=binding.model,
+                configured_tier=binding.intelligence_tier,
+                profile=profile,
+            )
+            if not tier_decision.eligible or tier_decision.tier != required_tier:
                 continue
             local_capabilities = frozenset({"text"})
             if not requested_capabilities.issubset(local_capabilities):
@@ -221,7 +228,7 @@ def admit_resource_pool(
             admitted.append(
                 (
                     binding,
-                    _LocalQualification(effective_tier, local_capabilities),
+                    _LocalQualification(tier_decision.tier, local_capabilities),
                     profile,
                 )
             )
@@ -238,12 +245,20 @@ def admit_resource_pool(
         if qualification is None:
             continue
         model_admission = _resolved_model_admission(binding, model_admission_resolver, now=now)
-        effective_tier = (
-            model_admission.intelligence_tier
-            if model_admission is not None
-            else getattr(qualification, "intelligence_tier", None)
+        tier_decision = production_tier_authority.resolve(
+            provider_id=binding.provider_id,
+            provider_binding_id=binding.credential_binding_id,
+            model_id=binding.model,
+            configured_tier=binding.intelligence_tier,
+            qualification=qualification,
+            model_admission=model_admission,
+            profile=profile_lookup(
+                binding.provider_id,
+                binding.credential_binding_id,
+                binding.model,
+            ),
         )
-        if effective_tier != required_tier:
+        if not tier_decision.eligible or tier_decision.tier != required_tier:
             continue
         qualification_capabilities = frozenset(getattr(qualification, "routing_capabilities", ()))
         if not requested_capabilities.issubset(qualification_capabilities):
@@ -361,11 +376,18 @@ def compose_resource_pool(
                         else frozenset(getattr(qualification, "routing_capabilities", ()))
                     )
                 )
-                effective_tier = (
-                    model_admission.intelligence_tier
-                    if model_admission is not None
-                    else qualification.intelligence_tier
+                tier_decision = production_tier_authority.resolve(
+                    provider_id=binding.provider_id,
+                    provider_binding_id=binding.credential_binding_id,
+                    model_id=binding.model,
+                    configured_tier=binding.intelligence_tier,
+                    qualification=qualification,
+                    model_admission=model_admission,
+                    profile=_profile,
                 )
+                if not tier_decision.eligible or tier_decision.tier is None:
+                    raise ResourcePoolError("production tier evidence changed after admission")
+                effective_tier = tier_decision.tier
                 concrete.append(builder(binding=binding))
                 resource_id = f"{resource_id_prefix}:{binding.binding_id}"
                 routing_priority = ollama_local_routing_priority(binding.model) if binding.provider_id == "ollama" else None
@@ -386,6 +408,7 @@ def compose_resource_pool(
                         "qualification_binding_id": binding.credential_binding_id,
                         "model_id": binding.model,
                         "intelligence_tier": effective_tier,
+                        "intelligence_tier_source": tier_decision.source,
                         "privacy_profile": privacy_profile(binding.provider_id),
                         "qualification_required": requires_qualification(binding.provider_id),
                         "billing_authority": "trusted_catalog",

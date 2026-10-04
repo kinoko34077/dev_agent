@@ -18,6 +18,7 @@ from src.dev_agent.resources.provider_policy import is_local_provider as _is_loc
 from src.dev_agent.resources.qualification import QualificationError, QualificationResolver
 from src.dev_agent.providers.base import ModelProvider
 from src.dev_agent.resources.provider_policy import validate_provider_instance_authority
+from src.dev_agent.resources.tier_authority import production_tier_authority
 
 
 @dataclass(frozen=True)
@@ -120,7 +121,28 @@ class DevFarmActivationPolicy:
                 False,
                 "capability_unqualified_or_expired",
             )
-        tier = qualification.intelligence_tier
+        tier_decision = production_tier_authority.resolve(
+            provider_id=normalized_provider,
+            provider_binding_id=binding_id,
+            model_id=normalized_model,
+            qualification=qualification,
+        )
+        if not tier_decision.eligible or tier_decision.tier != "L1":
+            return DevFarmWorkerEligibility(
+                normalized_provider,
+                normalized_model,
+                binding_id,
+                tier_decision.tier,
+                True,
+                False,
+                qualification.expires_at,
+                False,
+                None,
+                None,
+                False,
+                "capability_unqualified_or_expired",
+            )
+        tier = tier_decision.tier
         capability_expiry = qualification.expires_at
         if normalized_binding is not None and normalized_binding != binding_id:
             return DevFarmWorkerEligibility(
@@ -225,6 +247,17 @@ def validate_worker_provider(
             )
         if normalized_tier is None:
             raise DevFarmError("local Worker trial requires an explicit intelligence tier")
+        tier_decision = production_tier_authority.resolve(
+            provider_id=normalized_provider,
+            provider_binding_id=normalized_binding,
+            model_id=normalized_model,
+            configured_tier=normalized_tier,
+        )
+        if not tier_decision.eligible or tier_decision.tier != normalized_tier:
+            raise DevFarmError(
+                "local Worker trial intelligence tier requires explicit supported evidence: "
+                f"{normalized_tier}"
+            )
         eligibility = DevFarmWorkerEligibility(
             normalized_provider,
             normalized_model,
