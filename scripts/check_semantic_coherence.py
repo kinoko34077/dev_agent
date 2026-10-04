@@ -1,0 +1,306 @@
+"""Run bounded, read-only semantic-coherence checks for the v2 authorities.
+
+This is a diagnostic projection, not a router, scheduler, lifecycle store, or
+Gate authority.  It composes the existing canonical contracts so a new wait,
+route, adapter, or projection cannot silently introduce a second meaning.
+The optional model funnel input is loaded from reviewed local snapshots only;
+the command never contacts a Provider or mutates admission state.
+"""
+
+from __future__ import annotations
+
+import argparse
+from collections.abc import Mapping
+from dataclasses import replace
+import json
+from pathlib import Path
+import sys
+from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from src.dev_agent.domain.execution import (  # noqa: E402
+    CanonicalExecutionBinding,
+    ExecutionLifecycleStage,
+    ExecutionRequirement,
+    FieldPresence,
+    PresenceState,
+    UnsupportedCapabilityError,
+    devfarm_lifecycle_stage,
+    operation_lifecycle_stage,
+)
+from src.dev_agent.domain.protocol import IntelligenceTier, ModelRequest, ProtocolError, RiskLevel, TaskStatus  # noqa: E402
+from src.dev_agent.domain.wait import WAIT_CONDITION_REGISTRY, WaitReplayPolicy  # noqa: E402
+from src.dev_agent.providers.cloudflare.provider import CloudflareWorkersAIHttpProvider  # noqa: E402
+from src.dev_agent.providers.gemini.decoder import decode_generate_content  # noqa: E402
+from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog  # noqa: E402
+from src.dev_agent.resources.model_funnel import FunnelReport, build_funnel_report  # noqa: E402
+from src.dev_agent.resources.model_runtime import RuntimeAdmissionSnapshot  # noqa: E402
+from src.dev_agent.resources.qualification import QualificationResolver  # noqa: E402
+
+
+def _result(name: str, *, violations: list[str] | None = None, **details: Any) -> dict[str, Any]:
+    bounded = list(violations or [])[:32]
+    value: dict[str, Any] = {
+        "name": name,
+        "status": "FAIL" if bounded else "PASS",
+        "violations": bounded,
+    }
+    value.update(details)
+    return value
+
+
+def check_wait_wake_coverage() -> dict[str, Any]:
+    """Ensure every durable deferred status has one typed wake authority."""
+
+    deferred = {
+        status
+        for status in TaskStatus
+        if status.name.startswith("WAITING_") or status.name.startswith("BLOCKED_")
+    }
+    registered = set(WAIT_CONDITION_REGISTRY)
+    missing = sorted((status.value for status in deferred - registered))
+    extra = sorted((status.value for status in registered - deferred))
+    unbound: list[str] = []
+    for status, entry in WAIT_CONDITION_REGISTRY.items():
+        if not entry.kind.value or not entry.wake_authority or not entry.wake_predicate:
+            unbound.append(status.value)
+        if status is TaskStatus.WAITING_RECONCILIATION and entry.replay_policy is not WaitReplayPolicy.NO_EXTERNAL_REPLAY:
+            unbound.append(f"{status.value}:replay_policy")
+    return _result(
+        "wait_wake_coverage",
+        violations=[
+            *(f"missing:{value}" for value in missing),
+            *(f"unexpected:{value}" for value in extra),
+            *(f"unbound:{value}" for value in unbound),
+        ],
+        deferred_statuses=sorted(status.value for status in deferred),
+        registered_statuses=sorted(status.value for status in registered),
+        missing_statuses=missing,
+        extra_entries=extra,
+        unbound_entries=unbound,
+    )
+
+
+def check_funnel_invariants(report: FunnelReport) -> dict[str, Any]:
+    """Validate formal-supply and role-scoped exact-route projections."""
+
+    if not isinstance(report, FunnelReport):
+        raise TypeError("report must be a FunnelReport")
+    violations: list[str] = []
+    identities: set[tuple[str, str, str]] = set()
+    formal_rows = []
+    for row in report.rows:
+        if row.identity in identities:
+            violations.append(f"duplicate_identity:{row.identity!r}")
+        identities.add(row.identity)
+        if row.formal_supply:
+            formal_rows.append(row)
+            if row.discovery_status != "CURRENT":
+                violations.append(f"formal_supply_discovery:{row.identity!r}")
+            if row.static_result != "ELIGIBLE":
+                violations.append(f"formal_supply_static:{row.identity!r}")
+            if row.qualification_status != "CURRENT_HIGH_CONFIDENCE":
+                violations.append(f"formal_supply_qualification:{row.identity!r}")
+            if row.billing_status != "CURRENT":
+                violations.append(f"formal_supply_billing:{row.identity!r}")
+            if row.runtime_status != "RUNTIME_ELIGIBLE":
+                violations.append(f"formal_supply_runtime:{row.identity!r}")
+    if report.coverage.get("independent_route_basis") not in {None, "provider_id+provider_binding_id; quota domains are not inferred"}:
+        violations.append("unexpected_route_independence_basis")
+
+    roles = sorted({role for row in report.rows for role in row.task_fit})
+    role_supply: dict[str, dict[str, Any]] = {}
+    for role in roles:
+        selected = [row for row in formal_rows if role in row.task_fit]
+        routes = {(row.provider_id, row.provider_binding_id) for row in selected}
+        projected = report.supply_for(role=role)
+        if projected["independent_route_count"] != len(routes):
+            violations.append(f"role_route_count:{role}")
+        role_supply[role] = {
+            "formal_supply_count": len(selected),
+            "independent_route_count": len(routes),
+            "basis": projected["independence_basis"],
+        }
+
+    return _result(
+        "model_funnel_invariants",
+        violations=violations,
+        formal_supply_count=len(formal_rows),
+        independent_route_count=len({(row.provider_id, row.provider_binding_id) for row in formal_rows}),
+        role_supply=role_supply,
+    )
+
+
+def _check_field_presence() -> dict[str, Any]:
+    unspecified = FieldPresence.unspecified()
+    value = FieldPresence.value(42)
+    explicit_none = FieldPresence.explicit_none()
+    violations: list[str] = []
+    if {unspecified.state, value.state, explicit_none.state} != {
+        PresenceState.UNSPECIFIED,
+        PresenceState.VALUE,
+        PresenceState.EXPLICIT_NONE,
+    }:
+        violations.append("presence_states_collapsed")
+    requirement = ExecutionRequirement(
+        role="implementer",
+        minimum_intelligence_tier=IntelligenceTier.L1,
+        risk=RiskLevel.NORMAL,
+        required_capabilities=("text",),
+        feature_requirements={"seed": value, "thinking": explicit_none},
+    )
+    try:
+        requirement.require_supported_capabilities({"text"})
+    except UnsupportedCapabilityError as exc:
+        if exc.code != "UNSUPPORTED_CAPABILITY" or exc.capabilities != ("seed",):
+            violations.append("unsupported_capability_not_typed")
+    else:
+        violations.append("unsupported_capability_was_silently_dropped")
+    return _result(
+        "field_presence_and_capability",
+        violations=violations,
+        states=[unspecified.state.value, value.state.value, explicit_none.state.value],
+        explicit_none_is_requirement=False,
+    )
+
+
+def check_lifecycle_projection() -> dict[str, Any]:
+    """Check shared projection pairs and fail-closed contradiction handling."""
+
+    pairs = (
+        (TaskStatus.READY, "READY"),
+        (TaskStatus.RUNNING, "DISPATCHED"),
+        (TaskStatus.BLOCKED_QUOTA, "BLOCKED"),
+        (TaskStatus.FAILED, "REJECTED"),
+    )
+    violations = [
+        f"projection:{operation.value}!={devfarm}"
+        for operation, devfarm in pairs
+        if operation_lifecycle_stage(operation) is not devfarm_lifecycle_stage(devfarm)
+    ]
+    binding = CanonicalExecutionBinding.for_child(
+        logical_execution_id="coherence-execution",
+        proposal_id="coherence-proposal",
+        child_key="worker",
+        executor_kind="devfarm_worker",
+    ).with_observation(stage=ExecutionLifecycleStage.INTEGRATED, attempt_id="attempt-1")
+    contradiction_rejected = False
+    try:
+        binding.merge_observation(binding.with_stage(ExecutionLifecycleStage.ATTEMPT_ACTIVE))
+    except ProtocolError:
+        contradiction_rejected = True
+    if not contradiction_rejected:
+        violations.append("lifecycle_contradiction_accepted")
+    return _result(
+        "canonical_lifecycle_projection",
+        violations=violations,
+        projection_pairs_checked=len(pairs),
+        contradiction_rejected=contradiction_rejected,
+    )
+
+
+def check_provider_normalization() -> dict[str, Any]:
+    """Verify materially different Provider envelopes enter one canonical result."""
+
+    request = ModelRequest(
+        messages=[{"role": "user", "content": "bounded semantic coherence fixture"}],
+        requested_capabilities=["text"],
+    )
+    gemini = decode_generate_content(
+        {"candidates": [{"content": {"parts": [{"text": "ready"}]}, "finishReason": "STOP"}]},
+        model="gemini-test",
+        request_id=request.request_id,
+    )
+    cloudflare = CloudflareWorkersAIHttpProvider._decode(
+        {
+            "success": True,
+            "result": {
+                "model": "cloudflare-test",
+                "choices": [{"message": {"content": "ready"}, "finish_reason": "stop"}],
+            },
+        },
+        request,
+        model="cloudflare-test",
+    )
+    violations: list[str] = []
+    if gemini.text_segments != cloudflare.text_segments:
+        violations.append("text_semantics_differ")
+    if gemini.finish_reason.lower() != cloudflare.finish_reason.lower():
+        violations.append("finish_reason_semantics_differ")
+    return _result(
+        "provider_protocol_normalization",
+        violations=violations,
+        providers_checked=["cloudflare", "gemini"],
+        canonical_fields=["text_segments", "finish_reason", "provider", "model"],
+    )
+
+
+def check_report(report: Mapping[str, Any]) -> tuple[str, ...]:
+    """Return bounded check names that failed in a generated report."""
+
+    checks = report.get("checks") if isinstance(report, Mapping) else None
+    if not isinstance(checks, list):
+        return ("report_checks_missing",)
+    return tuple(
+        str(item.get("name"))
+        for item in checks
+        if isinstance(item, Mapping) and item.get("status") != "PASS"
+    )[:32]
+
+
+def build_report(*, funnel_report: FunnelReport | None = None) -> dict[str, Any]:
+    """Build a bounded machine-readable report without external effects."""
+
+    if funnel_report is not None and not isinstance(funnel_report, FunnelReport):
+        raise TypeError("funnel_report must be a FunnelReport or None")
+    checks = [
+        check_wait_wake_coverage(),
+        _check_field_presence(),
+        check_lifecycle_projection(),
+        check_provider_normalization(),
+    ]
+    if funnel_report is not None:
+        checks.append(check_funnel_invariants(funnel_report))
+    failures = check_report({"checks": checks})
+    return {
+        "schema_version": 1,
+        "status": "FAIL" if failures else "PASS",
+        "checks": checks,
+        "failed_checks": list(failures),
+        "network_calls": False,
+        "gate_impact": "UNCHANGED",
+        "gate_authority": "spec/v2/GATE_STATUS.json",
+        "funnel_included": funnel_report is not None,
+    }
+
+
+def _load_local_funnel() -> FunnelReport:
+    return build_funnel_report(
+        ModelEvidenceCatalog.load_default(),
+        runtime_snapshot=RuntimeAdmissionSnapshot.empty(),
+        qualification_resolver=QualificationResolver(),
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--with-model-funnel",
+        action="store_true",
+        help="include the reviewed local model-evidence funnel; never contacts a Provider",
+    )
+    args = parser.parse_args(argv)
+    try:
+        report = build_report(funnel_report=_load_local_funnel() if args.with_model_funnel else None)
+    except Exception as exc:
+        print(json.dumps({"status": "FAIL", "category": type(exc).__name__}, ensure_ascii=False))
+        return 1
+    print(json.dumps(report, ensure_ascii=False, sort_keys=True))
+    return 0 if report["status"] == "PASS" else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
