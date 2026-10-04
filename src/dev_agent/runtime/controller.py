@@ -663,7 +663,6 @@ class Controller:
         try:
             intelligence = self.intelligence_policy.decide(task)
             request_metadata = {
-                "execution_role": task.metadata.get("execution_role", task.task_type.value),
                 "task_type": task.task_type.value,
                 "risk": task.risk.value,
                 "minimum_intelligence_tier": intelligence.minimum_tier.value,
@@ -674,6 +673,12 @@ class Controller:
                 "requires_human_approval": intelligence.requires_human_approval,
                 "intelligence_policy_reasons": list(intelligence.reasons),
             }
+            # The canonical requirement derives the default role from
+            # ``task_type``.  Preserve the legacy request shape unless a
+            # planner/reviewer/etc. explicitly supplies a distinct role.
+            execution_role = task.metadata.get("execution_role")
+            if execution_role:
+                request_metadata["execution_role"] = execution_role
             if self.allow_unknown_quota:
                 request_metadata["allow_unknown_quota"] = True
             if self.intelligence_routing:
