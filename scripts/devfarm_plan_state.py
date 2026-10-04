@@ -22,6 +22,8 @@ from scripts.devfarm_workspace import init_farm
 from scripts import devfarm_plan_validation as plan_validation
 from scripts.devfarm_plan_ownership import load_ownership_projections, plan_paths
 from scripts.devfarm_repository import read_json
+from src.dev_agent.domain.execution import CanonicalExecutionBinding, ExecutionLifecycleStage
+from src.dev_agent.domain.protocol import ProtocolError
 
 
 _DEPENDENCY_COMPLETE = plan_validation.DEPENDENCY_COMPLETE
@@ -42,31 +44,104 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def refresh_plan(value: Mapping[str, Any]) -> dict[str, Any]:
-    """Release dependency-ready tasks without dispatching or mutating code."""
+_UNSET = object()
 
-    plan = deepcopy(validate_plan(value))
-    by_id = {task["task_id"]: task for task in plan["tasks"]}
-    changed = True
-    while changed:
-        changed = False
-        for task in plan["tasks"]:
-            dependency_statuses = [by_id[item]["status"] for item in task["dependencies"]]
-            if task["status"] == "BLOCKED" and task.get("block_reason") == "dependency_failed":
-                if all(status in _DEPENDENCY_COMPLETE for status in dependency_statuses):
-                    task["status"] = "READY"
-                    task.pop("block_reason", None)
-                    changed = True
-                continue
-            if task["status"] != "PLANNED":
-                continue
-            if any(status in _DEPENDENCY_FAILURE for status in dependency_statuses):
-                task["status"] = "BLOCKED"
-                task["block_reason"] = "dependency_failed"
-                changed = True
-            elif all(status in _DEPENDENCY_COMPLETE for status in dependency_statuses):
-                task["status"] = "READY"
-                changed = True
+
+def _task_binding(task: Mapping[str, Any]) -> CanonicalExecutionBinding | None:
+    raw = task.get("canonical_execution")
+    if raw is None:
+        return None
+    try:
+        binding = CanonicalExecutionBinding.from_dict(raw)
+    except ProtocolError as exc:
+        raise DevFarmError("task canonical_execution is invalid") from exc
+    # A DevFarm task is a backend projection and may have a different task
+    # UUID from the Operation logical execution.  The production composition
+    # joins those projections by the validated planning proposal/child key;
+    # rejecting that deliberate split here would recreate the duplicated
+    # lifecycle authority that #71 is removing.
+    return binding
+
+
+def _stage_for_plan_status(status: str) -> ExecutionLifecycleStage:
+    mapping = {
+        "PLANNED": ExecutionLifecycleStage.CREATED,
+        "READY": ExecutionLifecycleStage.READY,
+        "DISPATCHED": ExecutionLifecycleStage.ATTEMPT_ACTIVE,
+        "PROPOSED": ExecutionLifecycleStage.RESULT_RECEIVED,
+        "HOST_VERIFIED": ExecutionLifecycleStage.HOST_VERIFIED,
+        "REJECTED": ExecutionLifecycleStage.FAILED,
+        "BLOCKED": ExecutionLifecycleStage.BLOCKED,
+        "INTEGRATED": ExecutionLifecycleStage.INTEGRATED,
+        "SUPERSEDED": ExecutionLifecycleStage.FAILED,
+    }
+    try:
+        return mapping[status.upper()]
+    except (AttributeError, KeyError) as exc:
+        raise DevFarmError(f"unsupported canonical plan status: {status}") from exc
+
+
+def _compatibility_status_for_binding(
+    task: Mapping[str, Any],
+    binding: CanonicalExecutionBinding,
+) -> str | None:
+    """Project the canonical lifecycle into the legacy Commander status.
+
+    Commander status remains a compatibility/read projection.  The canonical
+    binding is the durable lifecycle fact, so a restarted process must not
+    resume from an older status field when the binding already records a later
+    accepted observation.  ``WAITING`` has no distinct Commander status and
+    therefore preserves the existing bounded projection.
+    """
+
+    current = task.get("status")
+    if binding.stage is ExecutionLifecycleStage.WAITING:
+        return current if isinstance(current, str) else None
+    if binding.stage in {
+        ExecutionLifecycleStage.CREATED,
+    }:
+        return "PLANNED"
+    if binding.stage in {
+        ExecutionLifecycleStage.READY,
+        ExecutionLifecycleStage.HANDOFF_PENDING,
+        ExecutionLifecycleStage.HANDED_OFF,
+    }:
+        return "READY"
+    if binding.stage is ExecutionLifecycleStage.ATTEMPT_ACTIVE:
+        return "DISPATCHED"
+    if binding.stage is ExecutionLifecycleStage.RESULT_RECEIVED:
+        return "PROPOSED"
+    if binding.stage is ExecutionLifecycleStage.HOST_VERIFIED:
+        return "HOST_VERIFIED"
+    if binding.stage is ExecutionLifecycleStage.REVIEWED:
+        return "HOST_VERIFIED"
+    if binding.stage is ExecutionLifecycleStage.INTEGRATED:
+        return "INTEGRATED"
+    if binding.stage is ExecutionLifecycleStage.COMPLETED:
+        return "INTEGRATED"
+    if binding.stage is ExecutionLifecycleStage.BLOCKED:
+        return "BLOCKED"
+    if binding.stage is ExecutionLifecycleStage.FAILED:
+        # SUPERSEDED is a narrower compatibility reason than FAILED, and the
+        # canonical stage deliberately does not encode that policy detail.
+        return "SUPERSEDED" if current == "SUPERSEDED" else "REJECTED"
+    raise DevFarmError(f"unsupported canonical lifecycle stage: {binding.stage}")
+
+
+def _project_compatibility_status(task: dict[str, Any]) -> None:
+    binding = _task_binding(task)
+    if binding is None:
+        return
+    projected = _compatibility_status_for_binding(task, binding)
+    if projected is not None:
+        task["status"] = projected
+        if projected != "BLOCKED" and task.get("block_reason") == "dependency_failed":
+            task.pop("block_reason", None)
+
+
+def _project_plan_status(plan: dict[str, Any]) -> None:
+    """Project the parent Commander status from the task compatibility view."""
+
     statuses = [task["status"] for task in plan["tasks"]]
     if statuses and all(status in {"INTEGRATED", "SUPERSEDED"} for status in statuses) and "SUPERSEDED" in statuses:
         plan["status"] = "SUPERSEDED"
@@ -86,6 +161,150 @@ def refresh_plan(value: Mapping[str, Any]) -> dict[str, Any]:
         plan["status"] = "REJECTED"
     else:
         plan["status"] = "PLANNED"
+
+
+def _merge_task_binding(
+    task: dict[str, Any],
+    *,
+    stage: ExecutionLifecycleStage | str,
+    attempt_id: str | None | object = _UNSET,
+    result_ref: str | None | object = _UNSET,
+    verification_id: str | None | object = _UNSET,
+    review_decision_id: str | None | object = _UNSET,
+    integration_revision: str | None | object = _UNSET,
+    dependency_satisfied: bool | None | object = _UNSET,
+    reset_attempt: bool = False,
+) -> None:
+    binding = _task_binding(task)
+    if binding is None:
+        return
+    if reset_attempt:
+        try:
+            binding = binding.for_retry()
+        except ProtocolError as exc:
+            raise DevFarmError("canonical execution cannot be retried") from exc
+    observation_values: dict[str, Any] = {"stage": stage}
+    for name, value in (
+        ("attempt_id", attempt_id),
+        ("result_ref", result_ref),
+        ("verification_id", verification_id),
+        ("review_decision_id", review_decision_id),
+        ("integration_revision", integration_revision),
+        ("dependency_satisfied", dependency_satisfied),
+    ):
+        if value is not _UNSET:
+            observation_values[name] = value
+    observation = binding.with_observation(**observation_values)
+    try:
+        merged = binding.merge_observation(observation)
+    except ProtocolError as exc:
+        raise DevFarmError("canonical execution lifecycle observation conflicts") from exc
+    task["canonical_execution"] = merged.to_dict()
+
+
+def set_task_lifecycle(
+    task: dict[str, Any],
+    status: str,
+    *,
+    stage: ExecutionLifecycleStage | str | None = None,
+    attempt_id: str | None | object = _UNSET,
+    result_ref: str | None | object = _UNSET,
+    verification_id: str | None | object = _UNSET,
+    review_decision_id: str | None | object = _UNSET,
+    integration_revision: str | None | object = _UNSET,
+    dependency_satisfied: bool | None | object = _UNSET,
+    reset_attempt: bool = False,
+) -> None:
+    """Update the DevFarm status projection and canonical lifecycle fact.
+
+    ``status`` remains a compatibility projection for existing Commander
+    callers.  When a canonical binding exists, the binding is updated first
+    and is the lifecycle fact that survives restart and replay.
+    """
+
+    task["status"] = status
+    _merge_task_binding(
+        task,
+        stage=stage or _stage_for_plan_status(status),
+        attempt_id=attempt_id,
+        result_ref=result_ref,
+        verification_id=verification_id,
+        review_decision_id=review_decision_id,
+        integration_revision=integration_revision,
+        dependency_satisfied=dependency_satisfied,
+        reset_attempt=reset_attempt,
+    )
+
+
+def observe_task_lifecycle(
+    task: dict[str, Any],
+    *,
+    stage: ExecutionLifecycleStage | str,
+    attempt_id: str | None | object = _UNSET,
+    result_ref: str | None | object = _UNSET,
+    verification_id: str | None | object = _UNSET,
+    review_decision_id: str | None | object = _UNSET,
+    integration_revision: str | None | object = _UNSET,
+    dependency_satisfied: bool | None | object = _UNSET,
+) -> None:
+    """Merge an accepted canonical observation without changing plan status."""
+
+    _merge_task_binding(
+        task,
+        stage=stage,
+        attempt_id=attempt_id,
+        result_ref=result_ref,
+        verification_id=verification_id,
+        review_decision_id=review_decision_id,
+        integration_revision=integration_revision,
+        dependency_satisfied=dependency_satisfied,
+    )
+
+
+def refresh_plan(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Release dependency-ready tasks without dispatching or mutating code."""
+
+    plan = deepcopy(validate_plan(value))
+    for task in plan["tasks"]:
+        _project_compatibility_status(task)
+    by_id = {task["task_id"]: task for task in plan["tasks"]}
+    changed = True
+    while changed:
+        changed = False
+        for task in plan["tasks"]:
+            dependency_statuses = [by_id[item]["status"] for item in task["dependencies"]]
+            if task["status"] == "BLOCKED" and task.get("block_reason") == "dependency_failed":
+                if all(status in _DEPENDENCY_COMPLETE for status in dependency_statuses):
+                    set_task_lifecycle(
+                        task,
+                        "READY",
+                        dependency_satisfied=True,
+                        reset_attempt=True,
+                    )
+                    task.pop("block_reason", None)
+                    changed = True
+                continue
+            if task["status"] != "PLANNED":
+                continue
+            if any(status in _DEPENDENCY_FAILURE for status in dependency_statuses):
+                set_task_lifecycle(task, "BLOCKED", dependency_satisfied=False)
+                task["block_reason"] = "dependency_failed"
+                changed = True
+            elif all(status in _DEPENDENCY_COMPLETE for status in dependency_statuses):
+                binding = _task_binding(task)
+                ready_stage = (
+                    ExecutionLifecycleStage.HANDOFF_PENDING
+                    if binding is not None and binding.stage is ExecutionLifecycleStage.HANDOFF_PENDING
+                    else ExecutionLifecycleStage.READY
+                )
+                set_task_lifecycle(
+                    task,
+                    "READY",
+                    stage=ready_stage,
+                    dependency_satisfied=True,
+                )
+                changed = True
+    _project_plan_status(plan)
     plan["updated_at"] = _now()
     return plan
 
@@ -170,7 +389,11 @@ class CommanderPlanStore:
         path = self.path_for(run_id)
         if not path.is_file():
             raise DevFarmError(f"Commander plan does not exist: {run_id}")
-        return validate_plan(_read_json(path), root=self.root)
+        plan = validate_plan(_read_json(path), root=self.root)
+        for task in plan["tasks"]:
+            _project_compatibility_status(task)
+        _project_plan_status(plan)
+        return plan
 
     def save(self, value: Mapping[str, Any], *, expected_revision: int | None = None) -> dict[str, Any]:
         plan = validate_plan(value, root=self.root)
@@ -297,7 +520,9 @@ def record_result(
 __all__ = [
     "CommanderPlanStore",
     "PlanConflictError",
+    "observe_task_lifecycle",
     "record_result",
     "refresh_plan",
+    "set_task_lifecycle",
     "validate_plan",
 ]

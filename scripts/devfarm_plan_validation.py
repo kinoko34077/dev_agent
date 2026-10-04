@@ -177,6 +177,18 @@ def timestamp(value: Any, name: str) -> str:
     return result
 
 
+def _canonical_execution_identity(binding: CanonicalExecutionBinding) -> tuple[str | None, ...]:
+    """Return the immutable identity shared by plan and manifest projections."""
+
+    return (
+        binding.logical_execution_id,
+        binding.proposal_id,
+        binding.child_key,
+        binding.executor_kind,
+        binding.backend_task_id,
+    )
+
+
 def dependency_records(value: Any, tasks: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     if value is None:
         return [{"task_id": task["task_id"], "depends_on": list(task["dependencies"])} for task in tasks]
@@ -384,8 +396,16 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
                 if canonical_execution is not None:
                     if manifest_binding is None:
                         raise DevFarmError(f"manifest is missing canonical_execution: {task_id}")
-                    if canonical_execution.to_dict() != manifest_binding:
-                        raise DevFarmError(f"manifest canonical_execution does not match plan task: {task_id}")
+                    try:
+                        normalized_manifest_binding = CanonicalExecutionBinding.from_dict(manifest_binding)
+                    except ProtocolError as exc:
+                        raise DevFarmError(f"manifest canonical_execution is invalid: {task_id}") from exc
+                    if _canonical_execution_identity(canonical_execution) != _canonical_execution_identity(
+                        normalized_manifest_binding
+                    ):
+                        raise DevFarmError(
+                            f"manifest canonical_execution identity does not match plan task: {task_id}"
+                        )
                 if not ownership:
                     ownership = list(manifest["allowed_files"])
                 if not set(manifest["allowed_files"]).issubset(set(ownership)):

@@ -1362,6 +1362,11 @@ class Phase8ProductionExecutor:
                     devfarm_run_id=self.devfarm_run_id,
                     devfarm_task_id=task_id,
                     devfarm_status=status,
+                    attempt_id=task.get("last_attempt_id"),
+                    result_ref=task.get("result_ref"),
+                    verification_id=task.get("verification_id"),
+                    review_decision_id=task.get("review_decision_id"),
+                    integration_revision=task.get("integration_revision"),
                 )
             except Exception as exc:
                 raise ProductionCompositionError("DevFarm lifecycle projection failed closed") from exc

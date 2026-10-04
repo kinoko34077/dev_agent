@@ -36,7 +36,7 @@ from scripts.devfarm_commander import (
     verify_plan,
     summarize_delegation,
 )
-from scripts.devfarm_plan_state import CommanderPlanStore, record_result, refresh_plan
+from scripts.devfarm_plan_state import CommanderPlanStore, record_result, refresh_plan, set_task_lifecycle
 from scripts.devfarm_plan_queries import latest_rework_decision as query_latest_rework_decision
 from scripts.devfarm_resume import providers_for_resume as compose_providers_for_resume
 from scripts.devfarm_review_protocol import normalize_review_decision, normalize_review_packet
@@ -230,7 +230,12 @@ class CodexSupervisedCommanderRun:
             # delta; the old verified attempt remains historical evidence.
             if not normalized.get("required_correction"):
                 raise DevFarmError("REWORK requires required_correction")
-            task["status"] = "REJECTED"
+            set_task_lifecycle(
+                task,
+                "REJECTED",
+                attempt_id=attempt_id,
+                review_decision_id=normalized["decision_id"],
+            )
             task["block_reason"] = "review_rework_required"
             correction = normalized.get("required_correction")
             task["last_error"] = correction
@@ -243,7 +248,12 @@ class CodexSupervisedCommanderRun:
                 attempt_id=attempt_id,
             )
         elif normalized["decision"] == "REJECT":
-            task["status"] = "REJECTED"
+            set_task_lifecycle(
+                task,
+                "REJECTED",
+                attempt_id=attempt_id,
+                review_decision_id=normalized["decision_id"],
+            )
             task["block_reason"] = "review_rejected"
             record_result(
                 plan,
@@ -252,6 +262,14 @@ class CodexSupervisedCommanderRun:
                 "rejected",
                 task.get("result_ref"),
                 attempt_id=attempt_id,
+            )
+        if normalized["decision"] == "APPROVE_INTEGRATION":
+            set_task_lifecycle(
+                task,
+                "HOST_VERIFIED",
+                stage="reviewed",
+                attempt_id=attempt_id,
+                review_decision_id=normalized["decision_id"],
             )
         plan["review_decisions"].append(normalized)
         # Keep the Plan projection consistent with the task terminal change;

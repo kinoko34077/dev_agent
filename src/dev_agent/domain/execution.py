@@ -160,14 +160,14 @@ _LIFECYCLE_ORDER = {
     ExecutionLifecycleStage.HANDOFF_PENDING: 2,
     ExecutionLifecycleStage.HANDED_OFF: 3,
     ExecutionLifecycleStage.ATTEMPT_ACTIVE: 4,
-    ExecutionLifecycleStage.WAITING: 4,
+    ExecutionLifecycleStage.WAITING: 4.5,
     ExecutionLifecycleStage.RESULT_RECEIVED: 5,
     ExecutionLifecycleStage.HOST_VERIFIED: 6,
     ExecutionLifecycleStage.REVIEWED: 7,
     ExecutionLifecycleStage.INTEGRATED: 8,
     ExecutionLifecycleStage.COMPLETED: 9,
     ExecutionLifecycleStage.FAILED: 9,
-    ExecutionLifecycleStage.BLOCKED: 4,
+    ExecutionLifecycleStage.BLOCKED: 4.5,
 }
 
 
@@ -235,7 +235,13 @@ def _bounded_identity(value: Any, name: str) -> str:
 
 @dataclass(frozen=True)
 class CanonicalExecutionBinding:
-    """Stable identity joining one logical execution to a backend projection."""
+    """Stable identity and bounded facts for one logical execution.
+
+    The binding is the small canonical fact envelope shared by Operation and
+    DevFarm.  It is not a second queue or state store.  The optional fields
+    after ``stage`` describe the current attempt and the authorities that have
+    observed it; provider/backend-native payloads remain outside this type.
+    """
 
     logical_execution_id: str
     proposal_id: str
@@ -243,12 +249,32 @@ class CanonicalExecutionBinding:
     executor_kind: str
     backend_task_id: str | None = None
     stage: ExecutionLifecycleStage = ExecutionLifecycleStage.CREATED
+    attempt_id: str | None = None
+    result_ref: str | None = None
+    verification_id: str | None = None
+    review_decision_id: str | None = None
+    integration_revision: str | None = None
+    dependency_satisfied: bool | None = None
+
+    _UNSET = object()
 
     def __post_init__(self) -> None:
         for name in ("logical_execution_id", "proposal_id", "child_key", "executor_kind"):
             object.__setattr__(self, name, _bounded_identity(getattr(self, name), name))
         if self.backend_task_id is not None:
             object.__setattr__(self, "backend_task_id", _bounded_identity(self.backend_task_id, "backend_task_id"))
+        for name in (
+            "attempt_id",
+            "result_ref",
+            "verification_id",
+            "review_decision_id",
+            "integration_revision",
+        ):
+            value = getattr(self, name)
+            if value is not None:
+                object.__setattr__(self, name, _bounded_identity(value, name))
+        if self.dependency_satisfied is not None and not isinstance(self.dependency_satisfied, bool):
+            raise ProtocolError("dependency_satisfied must be a boolean when present")
         try:
             stage = self.stage if isinstance(self.stage, ExecutionLifecycleStage) else ExecutionLifecycleStage(self.stage)
         except (TypeError, ValueError) as exc:
@@ -284,6 +310,55 @@ class CanonicalExecutionBinding:
     def with_stage(self, stage: ExecutionLifecycleStage | str) -> "CanonicalExecutionBinding":
         return replace(self, stage=stage)
 
+    def with_observation(
+        self,
+        *,
+        stage: ExecutionLifecycleStage | str | None = None,
+        attempt_id: str | None | object = _UNSET,
+        result_ref: str | None | object = _UNSET,
+        verification_id: str | None | object = _UNSET,
+        review_decision_id: str | None | object = _UNSET,
+        integration_revision: str | None | object = _UNSET,
+        dependency_satisfied: bool | None | object = _UNSET,
+    ) -> "CanonicalExecutionBinding":
+        """Return an immutable observation without mutating prior evidence.
+
+        ``_UNSET`` means that an observation did not speak about a fact;
+        explicit ``None`` is useful for a fresh attempt because it clears
+        facts that belonged to the prior attempt.
+        """
+
+        values: dict[str, Any] = {}
+        if stage is not None:
+            values["stage"] = stage
+        for name, value in (
+            ("attempt_id", attempt_id),
+            ("result_ref", result_ref),
+            ("verification_id", verification_id),
+            ("review_decision_id", review_decision_id),
+            ("integration_revision", integration_revision),
+            ("dependency_satisfied", dependency_satisfied),
+        ):
+            if value is not self._UNSET:
+                values[name] = value
+        return replace(self, **values)
+
+    def for_retry(self) -> "CanonicalExecutionBinding":
+        """Start a new mutable attempt without erasing immutable identity."""
+
+        if self.stage in {ExecutionLifecycleStage.INTEGRATED, ExecutionLifecycleStage.COMPLETED}:
+            raise ProtocolError("integrated execution cannot be retried")
+        return replace(
+            self,
+            stage=ExecutionLifecycleStage.READY,
+            attempt_id=None,
+            result_ref=None,
+            verification_id=None,
+            review_decision_id=None,
+            integration_revision=None,
+            dependency_satisfied=None,
+        )
+
     def to_dict(self) -> dict[str, Any]:
         result = {
             "logical_execution_id": self.logical_execution_id,
@@ -294,6 +369,18 @@ class CanonicalExecutionBinding:
         }
         if self.backend_task_id is not None:
             result["backend_task_id"] = self.backend_task_id
+        for name in (
+            "attempt_id",
+            "result_ref",
+            "verification_id",
+            "review_decision_id",
+            "integration_revision",
+        ):
+            value = getattr(self, name)
+            if value is not None:
+                result[name] = value
+        if self.dependency_satisfied is not None:
+            result["dependency_satisfied"] = self.dependency_satisfied
         return result
 
     @classmethod
@@ -307,6 +394,12 @@ class CanonicalExecutionBinding:
             executor_kind=data.get("executor_kind"),
             backend_task_id=data.get("backend_task_id"),
             stage=data.get("stage", ExecutionLifecycleStage.CREATED),
+            attempt_id=data.get("attempt_id"),
+            result_ref=data.get("result_ref"),
+            verification_id=data.get("verification_id"),
+            review_decision_id=data.get("review_decision_id"),
+            integration_revision=data.get("integration_revision"),
+            dependency_satisfied=data.get("dependency_satisfied"),
         )
 
     def merge_observation(self, observation: "CanonicalExecutionBinding") -> "CanonicalExecutionBinding":
@@ -320,14 +413,70 @@ class CanonicalExecutionBinding:
         if self.backend_task_id is not None and observation.backend_task_id is not None:
             if self.backend_task_id != observation.backend_task_id:
                 raise ProtocolError("conflicting backend task identity")
-        if self.stage in {ExecutionLifecycleStage.INTEGRATED, ExecutionLifecycleStage.COMPLETED} and observation.stage is not self.stage:
-            raise ProtocolError("terminal lifecycle cannot regress or change")
+        if self.stage in {ExecutionLifecycleStage.INTEGRATED, ExecutionLifecycleStage.COMPLETED}:
+            if observation.attempt_id != self.attempt_id or observation.stage is not self.stage:
+                raise ProtocolError("terminal lifecycle cannot change attempt or stage")
+        if (
+            self.attempt_id is not None
+            and observation.attempt_id is not None
+            and observation.attempt_id != self.attempt_id
+        ):
+            if observation.stage not in {
+                ExecutionLifecycleStage.READY,
+                ExecutionLifecycleStage.HANDOFF_PENDING,
+                ExecutionLifecycleStage.HANDED_OFF,
+                ExecutionLifecycleStage.ATTEMPT_ACTIVE,
+            }:
+                raise ProtocolError("fresh attempt must begin before result or verification")
+            return CanonicalExecutionBinding(
+                logical_execution_id=self.logical_execution_id,
+                proposal_id=self.proposal_id,
+                child_key=self.child_key,
+                executor_kind=self.executor_kind,
+                backend_task_id=self.backend_task_id or observation.backend_task_id,
+                stage=observation.stage,
+                attempt_id=observation.attempt_id,
+                result_ref=observation.result_ref,
+                verification_id=observation.verification_id,
+                review_decision_id=observation.review_decision_id,
+                integration_revision=observation.integration_revision,
+                dependency_satisfied=observation.dependency_satisfied,
+            )
         current_rank = _LIFECYCLE_ORDER[self.stage]
         observed_rank = _LIFECYCLE_ORDER[observation.stage]
         if observed_rank < current_rank:
             raise ProtocolError("canonical execution lifecycle regression")
         if observed_rank == current_rank and observation.stage is not self.stage:
             raise ProtocolError("canonical execution lifecycle stage conflict")
+        fact_values: dict[str, Any] = {}
+        for name in (
+            "attempt_id",
+            "result_ref",
+            "verification_id",
+            "review_decision_id",
+            "integration_revision",
+        ):
+            current = getattr(self, name)
+            observed = getattr(observation, name)
+            if current is not None and observed is not None and current != observed:
+                label = {
+                    "result_ref": "result reference",
+                    "verification_id": "verification identity",
+                    "review_decision_id": "review decision identity",
+                    "integration_revision": "integration revision",
+                }.get(name, name.replace("_", " "))
+                raise ProtocolError(f"conflicting {label}")
+            fact_values[name] = current or observed
+        current_dependency = self.dependency_satisfied
+        observed_dependency = observation.dependency_satisfied
+        if current_dependency is True and observed_dependency is False:
+            raise ProtocolError("dependency satisfaction cannot regress")
+        if current_dependency is True or observed_dependency is True:
+            fact_values["dependency_satisfied"] = True
+        elif current_dependency is False or observed_dependency is False:
+            fact_values["dependency_satisfied"] = False
+        else:
+            fact_values["dependency_satisfied"] = None
         return CanonicalExecutionBinding(
             logical_execution_id=self.logical_execution_id,
             proposal_id=self.proposal_id,
@@ -335,6 +484,7 @@ class CanonicalExecutionBinding:
             executor_kind=self.executor_kind,
             backend_task_id=self.backend_task_id or observation.backend_task_id,
             stage=observation.stage if observed_rank > current_rank else self.stage,
+            **fact_values,
         )
 
 

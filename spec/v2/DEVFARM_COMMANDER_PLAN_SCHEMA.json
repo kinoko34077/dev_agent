@@ -83,7 +83,13 @@
         "child_key": {"type": "string", "minLength": 1, "maxLength": 256},
         "executor_kind": {"type": "string", "minLength": 1, "maxLength": 256},
         "backend_task_id": {"type": ["string", "null"], "maxLength": 256},
-        "stage": {"type": "string", "minLength": 1, "maxLength": 64}
+        "stage": {"type": "string", "minLength": 1, "maxLength": 64},
+        "attempt_id": {"type": ["string", "null"], "maxLength": 256},
+        "result_ref": {"type": ["string", "null"], "maxLength": 256},
+        "verification_id": {"type": ["string", "null"], "maxLength": 256},
+        "review_decision_id": {"type": ["string", "null"], "maxLength": 256},
+        "integration_revision": {"type": ["string", "null"], "maxLength": 256},
+        "dependency_satisfied": {"type": ["boolean", "null"]}
       }
     },
     "supervisor": {

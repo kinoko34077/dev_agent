@@ -29,7 +29,7 @@ from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_artifacts import write_immutable_text
 from scripts.devfarm_manifests import load_worker_manifest
 from scripts.devfarm_plan_queries import require_approved_review_decision, require_task, result_reference
-from scripts.devfarm_plan_state import CommanderPlanStore, record_result, refresh_plan
+from scripts.devfarm_plan_state import CommanderPlanStore, record_result, refresh_plan, set_task_lifecycle
 from scripts.devfarm_repository import git, git_diff_digest, git_process, read_json, repository_path, resolved_revision
 
 
@@ -328,7 +328,13 @@ def integrate_worker(
             raise DevFarmError("Codex integration digest does not match the integration revision")
     else:
         raise DevFarmError("unsupported plan task owner")
-    task["status"] = "INTEGRATED"
+    set_task_lifecycle(
+        task,
+        "INTEGRATED",
+        attempt_id=source_attempt_id,
+        result_ref=task.get("result_ref"),
+        integration_revision=integration_commit,
+    )
     task["integration_note"] = note
     task["target_ref"] = target_ref
     task["integration_revision"] = integration_commit

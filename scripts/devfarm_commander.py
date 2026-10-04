@@ -30,6 +30,7 @@ from scripts import devfarm_plan_validation as plan_validation
 from scripts.devfarm_plan_state import (
     CommanderPlanStore,
     PlanConflictError,
+    set_task_lifecycle,
     record_result,
     refresh_plan,
 )
@@ -114,12 +115,27 @@ def _apply_proposal_result(plan: dict[str, Any], task: dict[str, Any], result: M
     task["last_result_status"] = status
     task.pop("stale_result_attempt_id", None)
     if status == "completed" and result.get("changed_files"):
-        task["status"] = "PROPOSED"
+        set_task_lifecycle(
+            task,
+            "PROPOSED",
+            result_ref=result_ref,
+            attempt_id=task.get("last_attempt_id"),
+        )
     elif status == "blocked_external":
-        task["status"] = "BLOCKED"
+        set_task_lifecycle(
+            task,
+            "BLOCKED",
+            result_ref=result_ref,
+            attempt_id=task.get("last_attempt_id"),
+        )
         task["block_reason"] = "provider_unavailable"
     else:
-        task["status"] = "REJECTED"
+        set_task_lifecycle(
+            task,
+            "REJECTED",
+            result_ref=result_ref,
+            attempt_id=task.get("last_attempt_id"),
+        )
         task["block_reason"] = "proposal_failed"
     failure_summary = _bounded_result_error(result)
     if failure_summary is not None:
@@ -172,11 +188,11 @@ def dispatch_plan(
         if not isinstance(provider, ModelProvider):
             raise DevFarmError(f"no ModelProvider supplied for worker task: {task['task_id']}")
         if task["attempt_count"] >= task["max_attempts"]:
-            task["status"] = "BLOCKED"
+            set_task_lifecycle(task, "BLOCKED")
             task["block_reason"] = "attempt_limit_reached"
             continue
         ready.append((task, manifest_path, provider))
-        task["status"] = "DISPATCHED"
+        set_task_lifecycle(task, "DISPATCHED")
         task["attempt_count"] += 1
         started_at = datetime.now(timezone.utc)
         task["dispatch_id"] = uuid.uuid4().hex
@@ -208,7 +224,7 @@ def dispatch_plan(
         plan = store.load(run_id)
         for task, _manifest_path, _provider in ready:
             current = _task(plan, task["task_id"])
-            current["status"] = "BLOCKED"
+            set_task_lifecycle(current, "BLOCKED")
             current["block_reason"] = "proposal_dispatch_error"
             current["last_error"] = str(exc)[:1000]
         return store.save(refresh_plan(plan))
@@ -268,7 +284,6 @@ def collect_plan(root: str | Path, run_id: str) -> dict[str, Any]:
         )
         if task["status"] != "INTEGRATED":
             if result["status"] == "completed" and host_verified and accepted and has_verification_record:
-                task["status"] = "HOST_VERIFIED"
                 patch_path = (
                     root_path
                     / ".devfarm"
@@ -280,18 +295,40 @@ def collect_plan(root: str | Path, run_id: str) -> dict[str, Any]:
                 )
                 if patch_path.is_file():
                     task["verified_patch_digest"] = hashlib.sha256(patch_path.read_bytes()).hexdigest()
+                set_task_lifecycle(
+                    task,
+                    "HOST_VERIFIED",
+                    result_ref=attempt_ref,
+                    attempt_id=task.get("last_attempt_id"),
+                    verification_id=verification_id,
+                )
                 task.pop("block_reason", None)
                 task.pop("last_error", None)
                 record_result(plan, task["task_id"], "host_verification", result["status"], attempt_ref, attempt_id=task.get("last_attempt_id"))
             elif result["status"] == "completed":
-                task["status"] = "PROPOSED"
+                set_task_lifecycle(
+                    task,
+                    "PROPOSED",
+                    result_ref=attempt_ref,
+                    attempt_id=task.get("last_attempt_id"),
+                )
                 record_result(plan, task["task_id"], "proposal", result["status"], attempt_ref, attempt_id=task.get("last_attempt_id"))
             elif result["status"] == "blocked_external":
-                task["status"] = "BLOCKED"
+                set_task_lifecycle(
+                    task,
+                    "BLOCKED",
+                    result_ref=attempt_ref,
+                    attempt_id=task.get("last_attempt_id"),
+                )
                 task["block_reason"] = "provider_unavailable"
                 record_result(plan, task["task_id"], "proposal", result["status"], attempt_ref, attempt_id=task.get("last_attempt_id"))
             else:
-                task["status"] = "REJECTED"
+                set_task_lifecycle(
+                    task,
+                    "REJECTED",
+                    result_ref=attempt_ref,
+                    attempt_id=task.get("last_attempt_id"),
+                )
                 task["block_reason"] = "proposal_failed"
                 record_result(plan, task["task_id"], "proposal", result["status"], attempt_ref, attempt_id=task.get("last_attempt_id"))
     return store.save(refresh_plan(plan))
@@ -350,7 +387,12 @@ def verify_plan(
         plan = store.load(run_id)
         for task in selected:
             current = _task(plan, task["task_id"])
-            current["status"] = "REJECTED"
+            set_task_lifecycle(
+                current,
+                "REJECTED",
+                result_ref=_result_ref(current["task_id"], current.get("last_attempt_id")),
+                attempt_id=current.get("last_attempt_id"),
+            )
             current["last_result_status"] = "failed"
             current["block_reason"] = "host_verification_failed"
             current["last_error"] = str(exc)[:1000]
@@ -376,10 +418,16 @@ def verify_plan(
             and isinstance(attempt_id, str) and bool(attempt_id.strip())
             and (root_path / ".devfarm" / "results" / current["task_id"] / "attempts" / attempt_id / "verification" / f"{verification_id}.json").is_file()
         )
-        current["status"] = "HOST_VERIFIED" if has_verification_record else "REJECTED"
         current["last_result_status"] = result.get("status")
         if attempt_id is not None:
             current["last_attempt_id"] = _text(attempt_id, "attempt_id", max_length=101)
+        set_task_lifecycle(
+            current,
+            "HOST_VERIFIED" if has_verification_record else "REJECTED",
+            result_ref=_result_ref(current["task_id"], current.get("last_attempt_id")),
+            attempt_id=current.get("last_attempt_id"),
+            verification_id=verification_id if has_verification_record else None,
+        )
         if accepted:
             if current["status"] == "HOST_VERIFIED" and isinstance(attempt_id, str) and attempt_id.strip():
                 patch_path = (
@@ -454,7 +502,7 @@ def supersede_plan(root: str | Path, run_id: str, *, reason: str) -> dict[str, A
     for task in plan["tasks"]:
         if task["status"] == "INTEGRATED":
             continue
-        task["status"] = "SUPERSEDED"
+        set_task_lifecycle(task, "SUPERSEDED")
         task["block_reason"] = "superseded"
         task["last_error"] = normalized_reason
         record_result(plan, task["task_id"], "supersession", "superseded")
@@ -550,7 +598,12 @@ def recover_orphaned_dispatches(
                 )
         if latest_is_current or (attempt_result is not None and attempt_result.is_file()):
             continue
-        task["status"] = "BLOCKED"
+        set_task_lifecycle(
+            task,
+            "BLOCKED",
+            attempt_id=attempt_id if isinstance(attempt_id, str) else None,
+            result_ref=_result_ref(task["task_id"], attempt_id if isinstance(attempt_id, str) else None),
+        )
         task["block_reason"] = "orphaned_dispatch"
         task["dispatch_recovery"] = "reconciliation_required"
         task["last_error"] = "dispatch deadline expired without a result artifact"
@@ -603,7 +656,7 @@ def reassign_task(
             item.clear()
             item.update(assignment)
             break
-    task["status"] = "READY"
+    set_task_lifecycle(task, "READY", reset_attempt=True)
     if rework_handoff is not None:
         new_manifest_path = _write_rework_manifest(
             Path(root).resolve(),

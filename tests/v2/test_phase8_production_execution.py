@@ -607,6 +607,16 @@ def test_phase8_executor_composes_real_operation_and_commander_boundaries(tmp_pa
         ]
         assert result["integrated"] == ["worker-a", "worker-b"], {"result": result, "tasks": diagnostics}
         assert result["continuation_ready"] is True
+        for task in plan["tasks"]:
+            if task["owner"] != "worker":
+                continue
+            binding = task["canonical_execution"]
+            assert binding["stage"] == "integrated"
+            assert binding["attempt_id"] == task["last_attempt_id"]
+            assert binding["result_ref"] == task["result_ref"]
+            assert binding["verification_id"]
+            assert binding["review_decision_id"]
+            assert binding["integration_revision"] == task["integration_revision"]
         continuation = next(
             task
             for payload in operation.store.snapshot()["tasks"].values()

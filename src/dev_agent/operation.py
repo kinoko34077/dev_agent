@@ -1367,7 +1367,19 @@ class OperationService:
             raise OperationError("integrated child has no canonical execution binding")
         try:
             binding = CanonicalExecutionBinding.from_dict(raw_binding)
-            integrated_binding = binding.with_backend_task(normalized_task_id).with_stage("integrated")
+            integrated_binding = binding
+            if integrated_binding.backend_task_id is None:
+                integrated_binding = integrated_binding.with_backend_task(normalized_task_id)
+            elif integrated_binding.backend_task_id != normalized_task_id:
+                raise ProtocolError("conflicting backend task identity")
+            integrated_binding = integrated_binding.with_observation(
+                stage="integrated",
+                attempt_id=normalized_attempt,
+                result_ref=metadata.get("result_ref"),
+                verification_id=metadata.get("verification_id"),
+                review_decision_id=metadata.get("review_decision_id"),
+                integration_revision=normalized_revision,
+            )
             merged_binding = binding.merge_observation(integrated_binding)
         except ProtocolError as exc:
             raise OperationError("integration evidence conflicts with canonical lifecycle") from exc
@@ -1414,6 +1426,11 @@ class OperationService:
         devfarm_run_id: str,
         devfarm_task_id: str,
         devfarm_status: str,
+        attempt_id: str | None = None,
+        result_ref: str | None = None,
+        verification_id: str | None = None,
+        review_decision_id: str | None = None,
+        integration_revision: str | None = None,
     ) -> Task:
         """Project one accepted DevFarm status onto the canonical binding.
 
@@ -1433,6 +1450,16 @@ class OperationService:
         normalized_run_id = bounded_text(devfarm_run_id, "devfarm_run_id", 256)
         normalized_task_id = bounded_text(devfarm_task_id, "devfarm_task_id", 256)
         normalized_status = bounded_text(devfarm_status, "devfarm_status", 32).upper()
+        normalized_facts: dict[str, str] = {}
+        for name, value in (
+            ("attempt_id", attempt_id),
+            ("result_ref", result_ref),
+            ("verification_id", verification_id),
+            ("review_decision_id", review_decision_id),
+            ("integration_revision", integration_revision),
+        ):
+            if value is not None:
+                normalized_facts[name] = bounded_text(value, name, 256)
         if normalized_status not in {"DISPATCHED", "PROPOSED", "HOST_VERIFIED", "INTEGRATED", "REJECTED", "BLOCKED"}:
             raise OperationError("DevFarm lifecycle status is not an accepted observation")
         try:
@@ -1470,7 +1497,12 @@ class OperationService:
             raise OperationError("DevFarm lifecycle child has no canonical execution binding")
         try:
             binding = CanonicalExecutionBinding.from_dict(raw_binding)
-            observation = binding.with_backend_task(normalized_task_id).with_stage(observed_stage)
+            observation = binding
+            if observation.backend_task_id is None:
+                observation = observation.with_backend_task(normalized_task_id)
+            elif observation.backend_task_id != normalized_task_id:
+                raise ProtocolError("conflicting backend task identity")
+            observation = observation.with_observation(stage=observed_stage, **normalized_facts)
             merged = binding.merge_observation(observation)
         except ProtocolError as exc:
             raise OperationError("DevFarm lifecycle observation conflicts with canonical binding") from exc
