@@ -24,6 +24,6 @@
 - [x] Implement the pure `model_funnel` projection using existing evidence and runtime contracts.
 - [x] Expose funnel coverage and bounded qualification candidates through `diagnose_model_candidates.py --summary --json` without network access.
 - [x] Run focused model-evidence tests and repair only failures (`62 passed`).
-- [ ] Update Issue #72 with RED/GREEN checkpoints and the accepted scope/evidence.
-- [ ] Synchronize `docs/CURRENT_STATE.md` once the slice is accepted, preserving formal Gate and external-provider blockers.
+- [x] Update Issue #72 with RED/GREEN checkpoints and the accepted scope/evidence.
+- [x] Synchronize `docs/CURRENT_STATE.md` once the slice is accepted, preserving formal Gate and external-provider blockers.
 - [ ] Run the required release-boundary checks, commit, push, and verify exact-head CI.
