@@ -29,12 +29,20 @@ def main() -> int:
         observation = CloudflareSubscriptionsClient().read_subscriptions()
     except ProviderError as exc:
         if exc.category == "authentication":
+            # Local credential absence and a remote HTTP 401 are different
+            # observations; never claim no network call after a 401.
+            remote_rejection = exc.http_status is not None
             print(json.dumps({
-                "status": "AUTH_REQUIRED", "network_called": False,
+                "status": "AUTH_REJECTED" if remote_rejection else "AUTH_REQUIRED",
+                "network_called": remote_rejection,
                 "existing_env": ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN"],
-                "next_step": "Existing authorized account ID and Billing Read token required; do not widen privileges.",
+                "next_step": (
+                    "Existing supplied credentials were rejected; human must check read authority, without rotating automatically."
+                    if remote_rejection else
+                    "Existing authorized account ID and Billing Read token required; do not widen privileges."
+                ),
             }, sort_keys=True))
-            return 2
+            return 3 if remote_rejection else 2
         if exc.category == "authorization":
             print(json.dumps({
                 "status": "ACCESS_REQUIRED", "network_called": True,
