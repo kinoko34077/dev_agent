@@ -169,3 +169,18 @@ def _historical_billing_review_clock(request, monkeypatch):
             return review_instant.astimezone(tz)
 
     monkeypatch.setattr(billing_catalog, "datetime", _HistoricalBillingDatetime)
+
+    # The development Worker activation policy also captures a default
+    # observation time in its constructor, separately from billing lookup.
+    # Inject the same historical observation only when a non-security test
+    # has not explicitly supplied a clock; preserve explicit expiry tests.
+    from scripts.devfarm_worker_admission import DevFarmActivationPolicy
+
+    original_activation_init = DevFarmActivationPolicy.__init__
+
+    def _fixture_activation_init(self, *args, **kwargs):
+        if kwargs.get("now") is None:
+            kwargs["now"] = review_instant
+        return original_activation_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(DevFarmActivationPolicy, "__init__", _fixture_activation_init)
