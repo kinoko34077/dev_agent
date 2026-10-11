@@ -180,3 +180,37 @@ def test_security_billing_clock_remains_real():
     # The current published Gemini free billing claim expired on Oct 9.
     # Security-marked tests never receive the historical synthetic clock.
     assert profile_for("gemini", "gemini:core", "gemini-3.8-flash") is None
+
+def test_cloudflare_public_pricing_review_cannot_renew_account_billing_authority():
+    # Independently reading a Free-plan public pricing page cannot prove the
+    # configured Cloudflare account is Free or that paid overage is disabled.
+    from src.dev_agent.resources.billing_catalog import TRUSTED_RESOURCE_CATALOG
+
+    wildcard = TRUSTED_RESOURCE_CATALOG[("cloudflare", "cloudflare:account", "*")]
+    assert wildcard.expires_at == "2026-10-10T00:00:00+00:00"
+    assert wildcard.is_current(now=datetime(2026, 10, 11, tzinfo=timezone.utc)) is False
+    assert wildcard.no_charge_guaranteed is True
+    assert wildcard.billing_mode == "recurring_allowance"
+    assert wildcard.overage_policy == "hard_stop"
+
+
+@pytest.mark.parametrize(
+    "paid_model",
+    (
+        "@cf/moonshotai/kimi-k2.6",
+        "@cf/moonshotai/kimi-k2.7-code",
+        "@cf/zai-org/glm-5.2",
+        "@cf/zai-org/glm-5.3",
+        "@cf/zai-org/glm-5.3-flash",
+        "@cf/deepseek-ai/deepseek-v4-flash-0731",
+        "@cf/deepseek-ai/deepseek-v4-pro-0813",
+    ),
+)
+def test_cloudflare_paid_only_models_never_inherit_reviewed_free_wildcard(paid_model, monkeypatch):
+    from src.dev_agent.resources.billing_catalog import BillingResolver, TRUSTED_RESOURCE_CATALOG, TrustedResourceProfile
+
+    # Exercise the paid-model denial even after the public-policy review window
+    # expires; an expired wildcard must not make this security regression vacuous.
+    monkeypatch.setattr(TrustedResourceProfile, "is_current", lambda self, **_: True)
+    resolver = BillingResolver(TRUSTED_RESOURCE_CATALOG)
+    assert resolver.profile_for("cloudflare", "cloudflare:account", paid_model) is None
