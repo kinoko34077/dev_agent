@@ -170,6 +170,12 @@ def _historical_billing_review_clock(request, monkeypatch):
 
     monkeypatch.setattr(billing_catalog, "datetime", _HistoricalBillingDatetime)
 
+    # Routing independently rechecks trusted billing expiration at dispatch.
+    # Its module-specific datetime is isolated for fixture-based admissions;
+    # live quota/health age calculations use time.time() unchanged.
+    import src.dev_agent.resources.router as router_module
+    monkeypatch.setattr(router_module, "datetime", _HistoricalBillingDatetime)
+
     # The development Worker activation policy also captures a default
     # observation time in its constructor, separately from billing lookup.
     # Inject the same historical observation only when a non-security test
