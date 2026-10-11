@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import re
 from typing import Any
 
 from ...domain.protocol import ModelResponse, ToolCall
 from ..base import ProviderError, attach_decode_diagnostics
 from .transcript import extract_model_parts
+
+
+# Diagnostic identity values are bounded, model-shaped identifiers only.
+# Arbitrary Provider body fields are never copied to durable error records.
+_SAFE_GEMINI_MODEL_ID = re.compile(r"^(?:models/)?gemini-[A-Za-z0-9][A-Za-z0-9._-]{0,100}$")
 
 
 def decode_generate_content(raw: Mapping[str, Any], *, model: str, request_id: str | None = None) -> ModelResponse:
@@ -23,7 +29,15 @@ def decode_generate_content(raw: Mapping[str, Any], *, model: str, request_id: s
             raise attach_decode_diagnostics(failure, raw, decoder_branch="gemini.model_version_invalid")
         if resolved_model.strip() != model:
             failure = ProviderError("gemini response model identity differs from selected model", category="provider_decode", retryable=False)
-            raise attach_decode_diagnostics(failure, raw, decoder_branch="gemini.model_version_mismatch")
+            attach_decode_diagnostics(failure, raw, decoder_branch="gemini.model_version_mismatch")
+            # Preserve safe identity deltas for operator-led source review,
+            # but never include arbitrary or oversized upstream body strings.
+            if failure.decode_diagnostics is not None:
+                if isinstance(model, str) and _SAFE_GEMINI_MODEL_ID.fullmatch(model):
+                    failure.decode_diagnostics["selected_model_id"] = model
+                if _SAFE_GEMINI_MODEL_ID.fullmatch(resolved_model.strip()):
+                    failure.decode_diagnostics["effective_model_id"] = resolved_model.strip()
+            raise failure
     try:
         candidate = raw["candidates"][0]
         parts = extract_model_parts(raw)
