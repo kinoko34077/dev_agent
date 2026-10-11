@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib
 import json
 from urllib.error import HTTPError
 from io import BytesIO
@@ -165,3 +164,24 @@ def test_cli_missing_authority_returns_redacted_boundary(monkeypatch, capsys):
     assert result["status"] == "AUTH_REQUIRED"
     assert result["network_called"] is False
     assert "admission_ready" not in result
+
+
+def test_cli_remote_401_is_not_misreported_as_no_network(monkeypatch, capsys):
+    from scripts import probe_cloudflare_subscriptions
+
+    class _Rejected:
+        def read_subscriptions(self):
+            raise ProviderError(
+                "do not reflect upstream details",
+                category="authentication",
+                retryable=False,
+                http_status=401,
+            )
+
+    monkeypatch.setattr(probe_cloudflare_subscriptions, "CloudflareSubscriptionsClient", _Rejected)
+    assert probe_cloudflare_subscriptions.main() == 3
+    output = capsys.readouterr().out
+    result = json.loads(output)
+    assert result["status"] == "AUTH_REJECTED"
+    assert result["network_called"] is True
+    assert "upstream details" not in output
