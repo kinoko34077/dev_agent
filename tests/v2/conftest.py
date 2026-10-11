@@ -159,6 +159,10 @@ def _historical_billing_review_clock(request, monkeypatch):
         return
     import src.dev_agent.resources.billing_catalog as billing_catalog
 
+    # Historical positive fixtures intentionally represent the Oct 5 review.
+    # If canonical fixture profiles are renewed or replaced, revisit this
+    # instant and the dependent synthetic expectations rather than extending
+    # real billing authority to keep tests green.
     review_instant = datetime(2026, 10, 5, 12, 0, tzinfo=timezone.utc)
 
     class _HistoricalBillingDatetime(datetime):
