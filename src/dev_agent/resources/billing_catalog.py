@@ -19,10 +19,14 @@ _DEFAULT_EXPIRES_AT = "2026-10-09T00:00:00+00:00"
 _BILLING_MODES = frozenset({"free_fixed", "recurring_allowance", "recurring_credit", "paid", "unknown"})
 _OVERAGE_POLICIES = frozenset({"hard_stop", "billable", "unknown"})
 
-# Current Cloudflare Workers AI pricing policy (reviewed 2026-10-03 against
-# the provider's 2026-10-01 pricing page). Workers Free receives the shared
-# 10,000 Neuron/day allowance, but these exact frontier models require a paid
-# billing method and must never inherit the free binding-level wildcard.
+# Cloudflare Workers AI published pricing (last updated 2026-10-09,
+# independently rechecked 2026-10-11):
+# https://developers.cloudflare.com/workers-ai/platform/pricing/
+# Workers Free has a hard-stop 10,000 Neuron/day allowance and no paid
+# overage; the seven models below require paid billing or prepaid credits.
+# This source review is a *public plan policy*, not fresh account entitlement,
+# quota remaining, runtime health, qualification, or a Provider observation.
+# Never inherit the binding wildcard for the paid-only exceptions.
 _CLOUDFLARE_PAID_BILLING_REQUIRED_MODELS = frozenset({
     "@cf/moonshotai/kimi-k2.6",
     "@cf/moonshotai/kimi-k2.7-code",
@@ -32,8 +36,8 @@ _CLOUDFLARE_PAID_BILLING_REQUIRED_MODELS = frozenset({
     "@cf/deepseek-ai/deepseek-v4-flash-0731",
     "@cf/deepseek-ai/deepseek-v4-pro-0813",
 })
-_CLOUDFLARE_FREE_POLICY_VERIFIED_AT = "2026-10-03T00:00:00+00:00"
-_CLOUDFLARE_FREE_POLICY_EXPIRES_AT = "2026-10-10T00:00:00+00:00"
+_CLOUDFLARE_FREE_POLICY_VERIFIED_AT = "2026-10-11T12:00:00+00:00"
+_CLOUDFLARE_FREE_POLICY_EXPIRES_AT = "2026-10-18T12:00:00+00:00"
 
 
 @dataclass(frozen=True)
@@ -147,7 +151,7 @@ _TRUSTED_RESOURCE_CATALOG: dict[tuple[str, str, str], TrustedResourceProfile] = 
         "JPY",
         True,
         None,
-        source="cloudflare_workers_ai_pricing_2026-10-01",
+        source="cloudflare_workers_ai_pricing_2026-10-09_reviewed_2026-10-11",
         verified_at=_CLOUDFLARE_FREE_POLICY_VERIFIED_AT,
         expires_at=_CLOUDFLARE_FREE_POLICY_EXPIRES_AT,
         billing_mode="recurring_allowance",
