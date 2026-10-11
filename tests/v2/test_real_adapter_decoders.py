@@ -419,3 +419,58 @@ def _id():
     from uuid import uuid4
 
     return str(uuid4())
+
+
+
+def test_gemini_model_version_exact_match_preserves_selected_identity():
+    raw = {
+        "modelVersion": "gemini-3.8-flash",
+        "candidates": [{"content": {"parts": [{"text": "OK"}]}, "finishReason": "STOP"}],
+        "usageMetadata": {"totalTokenCount": 1},
+    }
+    result = decode_generate_content(raw, model="gemini-3.8-flash")
+    assert result.model == "gemini-3.8-flash"
+    assert result.text_segments == ["OK"]
+
+
+@pytest.mark.parametrize(
+    ("selected", "effective"),
+    (
+        ("gemini-3.7-flash", "gemini-3.8-flash"),
+        ("gemini-3.5-flash", "gemini-3.6-flash"),
+        ("gemini-3.8-flash", "gemini-3.6-flash"),
+    ),
+)
+def test_gemini_internal_model_migration_cannot_inherit_selected_identity(selected, effective):
+    raw = {
+        "modelVersion": effective,
+        "candidates": [{"content": {"parts": [{"text": "OK"}]}, "finishReason": "STOP"}],
+    }
+    with pytest.raises(ProviderError, match="model identity differs") as raised:
+        decode_generate_content(raw, model=selected)
+    error = raised.value
+    assert error.category == "provider_decode"
+    assert error.retryable is False
+    assert error.failover_safe is False
+    # This response followed a Provider-side generation: never automatically
+    # replay or silently move to another model after this decode failure.
+    assert error.requires_reconciliation is True
+
+
+@pytest.mark.parametrize("malformed", ("", " ", 123, [], {}))
+def test_gemini_malformed_effective_model_version_fails_closed(malformed):
+    raw = {
+        "modelVersion": malformed,
+        "candidates": [{"content": {"parts": [{"text": "OK"}]}}],
+    }
+    with pytest.raises(ProviderError, match="invalid model version") as raised:
+        decode_generate_content(raw, model="gemini-3.8-flash")
+    assert raised.value.category == "provider_decode"
+    assert raised.value.requires_reconciliation is True
+
+
+def test_gemini_legacy_fixture_without_optional_model_version_remains_compatible():
+    raw = {"candidates": [{"content": {"parts": [{"text": "legacy"}]}}]}
+    response = decode_generate_content(raw, model="gemini-test")
+    assert response.text_segments == ["legacy"]
+    assert response.model == "gemini-test"
