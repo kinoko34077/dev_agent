@@ -139,3 +139,83 @@ def _stub_provider_class_identity(request, monkeypatch):
 
     monkeypatch.setattr(_provider_policy_mod, "validate_provider_class_identity", _noop_class_identity_check)
     monkeypatch.setattr(_provider_policy_mod, "validate_transport_identity", _noop_transport_identity_check)
+
+
+
+
+def _historical_review_clock():
+    # Test-only historical positive admission fixture; review and update when
+    # the canonical fixture evidence changes. No real wall clock is modified.
+    reviewed_at = datetime(2026, 10, 5, 12, 0, tzinfo=timezone.utc)
+
+    class _ReviewedDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            if tz is None:
+                return reviewed_at.replace(tzinfo=None)
+            return reviewed_at.astimezone(tz)
+
+    return _ReviewedDatetime, reviewed_at
+
+
+@pytest.fixture
+def historical_qualification_review_clock(monkeypatch):
+    """Opt-in for tests that explicitly model the 2026-10-05 qualification."""
+    import src.dev_agent.resources.qualification as qualification_module
+    historical_datetime, _ = _historical_review_clock()
+    monkeypatch.setattr(qualification_module, "datetime", historical_datetime)
+
+
+@pytest.fixture
+def historical_repair_review_clock(monkeypatch):
+    """Opt-in for test-only legacy resource migration at historical review time."""
+    import src.dev_agent.resources.repair as repair_module
+    historical_datetime, _ = _historical_review_clock()
+    monkeypatch.setattr(repair_module, "datetime", historical_datetime)
+
+@pytest.fixture(autouse=True)
+def _historical_billing_review_clock(request, monkeypatch):
+    """Keep non-security fixture admissions independent of the wall clock.
+
+    Tests composing the published, dated trusted billing catalog as fixture
+    input must not begin failing when those historical review windows expire.
+    Production callers and security tests still use the real clock. This
+    touches only the billing module's imported datetime name in the current
+    pytest process; it does not change trusted profiles, expiry values,
+    qualification evidence, actual quotas, or the Python/system clock.
+
+    Expiry/security tests using explicit is_current(now=...) retain their
+    exact boundary behavior. Security-marked tests opt out completely.
+    """
+    if request.node.get_closest_marker("security"):
+        return
+    import src.dev_agent.resources.billing_catalog as billing_catalog
+
+    # Historical positive fixtures intentionally represent the Oct 5 review.
+    # If canonical fixture profiles are renewed or replaced, revisit this
+    # instant and the dependent synthetic expectations rather than extending
+    # real billing authority to keep tests green.
+    _HistoricalBillingDatetime, review_instant = _historical_review_clock()
+
+    monkeypatch.setattr(billing_catalog, "datetime", _HistoricalBillingDatetime)
+
+    # Routing independently rechecks trusted billing expiration at dispatch.
+    # Its module-specific datetime is isolated for fixture-based admissions;
+    # live quota/health age calculations use time.time() unchanged.
+    import src.dev_agent.resources.router as router_module
+    monkeypatch.setattr(router_module, "datetime", _HistoricalBillingDatetime)
+
+    # The development Worker activation policy also captures a default
+    # observation time in its constructor, separately from billing lookup.
+    # Inject the same historical observation only when a non-security test
+    # has not explicitly supplied a clock; preserve explicit expiry tests.
+    from scripts.devfarm_worker_admission import DevFarmActivationPolicy
+
+    original_activation_init = DevFarmActivationPolicy.__init__
+
+    def _fixture_activation_init(self, *args, **kwargs):
+        if kwargs.get("now") is None:
+            kwargs["now"] = review_instant
+        return original_activation_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(DevFarmActivationPolicy, "__init__", _fixture_activation_init)
