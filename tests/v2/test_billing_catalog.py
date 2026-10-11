@@ -142,3 +142,37 @@ def test_local_ollama_candidates_have_exact_zero_cost_catalog_profiles(binding_i
     assert profile.price_currency == "JPY"
     assert profile.quota_required is False
     assert profile.no_charge_guaranteed is True
+
+
+
+def test_historical_fixture_clock_preserves_explicit_expiry_denial():
+    # The fixture can model an earlier accepted test setup without changing
+    # how the production profile evaluates an explicit future observation.
+    profile = TrustedResourceProfile(
+        provider_id="fixture",
+        provider_binding_id="fixture:binding",
+        model_id="fixture-model",
+        cost_minor=0,
+        price_currency="JPY",
+        quota_required=False,
+        verified_at="2026-10-01T00:00:00+00:00",
+        expires_at="2026-10-09T00:00:00+00:00",
+    )
+    assert profile.is_current() is True
+    assert profile.is_current(now=datetime(2026, 10, 11, tzinfo=timezone.utc)) is False
+
+
+@pytest.mark.security
+def test_security_billing_clock_remains_real():
+    # The broad test-only fixture cannot alter security test expiry decisions.
+    profile = TrustedResourceProfile(
+        provider_id="fixture",
+        provider_binding_id="fixture:binding",
+        model_id="fixture-model",
+        cost_minor=0,
+        price_currency="JPY",
+        quota_required=False,
+        verified_at="2026-10-01T00:00:00+00:00",
+        expires_at="2026-10-09T00:00:00+00:00",
+    )
+    assert profile.is_current() == profile.is_current(now=datetime.now(timezone.utc))
