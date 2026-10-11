@@ -176,6 +176,14 @@ def _historical_billing_review_clock(request, monkeypatch):
     import src.dev_agent.resources.router as router_module
     monkeypatch.setattr(router_module, "datetime", _HistoricalBillingDatetime)
 
+    # Qualification and legacy-repair fixture inputs carry separately dated
+    # historical evidence.  Their default observation clocks must agree with
+    # the fixture's reviewed instant; callers with explicit now remain exact.
+    import src.dev_agent.resources.qualification as qualification_module
+    import src.dev_agent.resources.repair as repair_module
+    monkeypatch.setattr(qualification_module, "datetime", _HistoricalBillingDatetime)
+    monkeypatch.setattr(repair_module, "datetime", _HistoricalBillingDatetime)
+
     # The development Worker activation policy also captures a default
     # observation time in its constructor, separately from billing lookup.
     # Inject the same historical observation only when a non-security test
