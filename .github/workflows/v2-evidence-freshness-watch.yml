@@ -1,0 +1,46 @@
+# Minimal default-branch schedule bridge for the maintained v2 line (#81).
+# The legacy main runtime is not built or executed by this workflow.
+# This job has no Provider credentials, outbound Provider calls, write token,
+# model generation, billing renewal, runtime route admission, or Gate effects.
+name: v2-evidence-freshness-watch
+
+on:
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v2-evidence-freshness-watch
+  cancel-in-progress: false
+
+jobs:
+  offline-expiry-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout maintained v2 (never legacy main runtime)
+        uses: actions/checkout@v4
+        with:
+          ref: v2/bootstrap
+          persist-credentials: false
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-v2-dev.txt
+      - name: Install offline verifier dependencies
+        run: python -m pip install -r requirements-v2-dev.txt
+      - name: Read-only exact v2 evidence expiry report (warning only)
+        continue-on-error: true
+        run: python scripts/check_evidence_expiry.py --fail-if-no-eligible-within 48
+      - name: Record observation boundary
+        if: always()
+        run: |
+          echo "### Maintained v2 evidence freshness — read-only" >> "$GITHUB_STEP_SUMMARY"
+          echo "Source: checkout of protected \`v2/bootstrap\` at the run time; not an authority promotion." >> "$GITHUB_STEP_SUMMARY"
+          echo "The expiry report is warning-only: it does not refresh factual source observations, account quota, billing eligibility, qualification, health, or runtime availability." >> "$GITHUB_STEP_SUMMARY"
+          echo "See dev_agent issue #81 for reviewed renewal and #65 for formal admission." >> "$GITHUB_STEP_SUMMARY"
