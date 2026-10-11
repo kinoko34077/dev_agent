@@ -36,7 +36,11 @@ _CLOUDFLARE_PAID_BILLING_REQUIRED_MODELS = frozenset({
     "@cf/deepseek-ai/deepseek-v4-flash-0731",
     "@cf/deepseek-ai/deepseek-v4-pro-0813",
 })
-_CLOUDFLARE_FREE_POLICY_VERIFIED_AT = "2026-10-11T12:00:00+00:00"
+# The original review began on Oct 3 and remains valid for historical
+# as-of test observations. Oct 11 is a fresh *recheck* of unchanged
+# policy, not a reason to move the start date and invalidate old fixtures.
+# The new review horizon below stays bounded to Oct 18.
+_CLOUDFLARE_FREE_POLICY_VERIFIED_AT = "2026-10-03T00:00:00+00:00"
 _CLOUDFLARE_FREE_POLICY_EXPIRES_AT = "2026-10-18T12:00:00+00:00"
 
 
