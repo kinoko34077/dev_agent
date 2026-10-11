@@ -39,6 +39,7 @@ python scripts/probe_cloudflare_subscriptions.py
 ```
 
 - `AUTH_REQUIRED`: existing `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` are absent; **no network call**; do not generate or request new credentials automatically.
+- `AUTH_REJECTED`: an existing credential was sent but the subscription endpoint returned HTTP 401. The probe reports that a network attempt occurred, without printing upstream error text or token.
 - `ACCESS_REQUIRED`: the GET subscription API refused current scope (official Cloudflare API requires Account Billing Read or Write); do not elevate permissions automatically.
 - `OBSERVED_UNVERIFIED`: bounded redacted list of plan-name **hints** and lifecycle states. No account ID, API token, subscription ID, price, raw plan strings or Cloudflare response body is emitted.
 
