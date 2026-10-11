@@ -141,6 +141,38 @@ def _stub_provider_class_identity(request, monkeypatch):
     monkeypatch.setattr(_provider_policy_mod, "validate_transport_identity", _noop_transport_identity_check)
 
 
+
+
+def _historical_review_clock():
+    # Test-only historical positive admission fixture; review and update when
+    # the canonical fixture evidence changes. No real wall clock is modified.
+    reviewed_at = datetime(2026, 10, 5, 12, 0, tzinfo=timezone.utc)
+
+    class _ReviewedDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            if tz is None:
+                return reviewed_at.replace(tzinfo=None)
+            return reviewed_at.astimezone(tz)
+
+    return _ReviewedDatetime, reviewed_at
+
+
+@pytest.fixture
+def historical_qualification_review_clock(monkeypatch):
+    """Opt-in for tests that explicitly model the 2026-10-05 qualification."""
+    import src.dev_agent.resources.qualification as qualification_module
+    historical_datetime, _ = _historical_review_clock()
+    monkeypatch.setattr(qualification_module, "datetime", historical_datetime)
+
+
+@pytest.fixture
+def historical_repair_review_clock(monkeypatch):
+    """Opt-in for test-only legacy resource migration at historical review time."""
+    import src.dev_agent.resources.repair as repair_module
+    historical_datetime, _ = _historical_review_clock()
+    monkeypatch.setattr(repair_module, "datetime", historical_datetime)
+
 @pytest.fixture(autouse=True)
 def _historical_billing_review_clock(request, monkeypatch):
     """Keep non-security fixture admissions independent of the wall clock.
@@ -163,14 +195,7 @@ def _historical_billing_review_clock(request, monkeypatch):
     # If canonical fixture profiles are renewed or replaced, revisit this
     # instant and the dependent synthetic expectations rather than extending
     # real billing authority to keep tests green.
-    review_instant = datetime(2026, 10, 5, 12, 0, tzinfo=timezone.utc)
-
-    class _HistoricalBillingDatetime(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            if tz is None:
-                return review_instant.replace(tzinfo=None)
-            return review_instant.astimezone(tz)
+    _HistoricalBillingDatetime, review_instant = _historical_review_clock()
 
     monkeypatch.setattr(billing_catalog, "datetime", _HistoricalBillingDatetime)
 
@@ -179,14 +204,6 @@ def _historical_billing_review_clock(request, monkeypatch):
     # live quota/health age calculations use time.time() unchanged.
     import src.dev_agent.resources.router as router_module
     monkeypatch.setattr(router_module, "datetime", _HistoricalBillingDatetime)
-
-    # Qualification and legacy-repair fixture inputs carry separately dated
-    # historical evidence.  Their default observation clocks must agree with
-    # the fixture's reviewed instant; callers with explicit now remain exact.
-    import src.dev_agent.resources.qualification as qualification_module
-    import src.dev_agent.resources.repair as repair_module
-    monkeypatch.setattr(qualification_module, "datetime", _HistoricalBillingDatetime)
-    monkeypatch.setattr(repair_module, "datetime", _HistoricalBillingDatetime)
 
     # The development Worker activation policy also captures a default
     # observation time in its constructor, separately from billing lookup.
