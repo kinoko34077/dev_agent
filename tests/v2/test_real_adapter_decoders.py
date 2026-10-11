@@ -455,6 +455,9 @@ def test_gemini_internal_model_migration_cannot_inherit_selected_identity(select
     # This response followed a Provider-side generation: never automatically
     # replay or silently move to another model after this decode failure.
     assert error.requires_reconciliation is True
+    assert error.decode_diagnostics is not None
+    assert error.decode_diagnostics["selected_model_id"] == selected
+    assert error.decode_diagnostics["effective_model_id"] == effective
 
 
 @pytest.mark.parametrize("malformed", (None, "", " ", 123, [], {}))
@@ -474,3 +477,20 @@ def test_gemini_legacy_fixture_without_optional_model_version_remains_compatible
     response = decode_generate_content(raw, model="gemini-test")
     assert response.text_segments == ["legacy"]
     assert response.model == "gemini-test"
+
+
+
+def test_gemini_mismatched_untrusted_oversized_version_does_not_leak_raw_diagnostics():
+    hostile = "gemini-" + ("x" * 400)
+    raw = {
+        "modelVersion": hostile,
+        "candidates": [{"content": {"parts": [{"text": "response"}]}}],
+    }
+    with pytest.raises(ProviderError, match="model identity differs") as raised:
+        decode_generate_content(raw, model="gemini-3.8-flash")
+    error = raised.value
+    assert error.requires_reconciliation is True
+    assert error.decode_diagnostics is not None
+    assert error.decode_diagnostics["selected_model_id"] == "gemini-3.8-flash"
+    assert "effective_model_id" not in error.decode_diagnostics
+    assert hostile not in str(error.decode_diagnostics)
