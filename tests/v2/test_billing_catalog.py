@@ -175,7 +175,8 @@ def test_security_billing_clock_remains_real():
         verified_at="2026-10-01T00:00:00+00:00",
         expires_at="2026-10-09T00:00:00+00:00",
     )
-    assert profile.is_current() == profile.is_current(now=datetime.now(timezone.utc))
+    assert profile.is_current() is False
+    assert profile.is_current(now=datetime.now(timezone.utc)) is False
     # The current published Gemini free billing claim expired on Oct 9.
     # Security-marked tests never receive the historical synthetic clock.
     assert profile_for("gemini", "gemini:core", "gemini-3.8-flash") is None
