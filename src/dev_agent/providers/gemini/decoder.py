@@ -11,6 +11,19 @@ from .transcript import extract_model_parts
 
 
 def decode_generate_content(raw: Mapping[str, Any], *, model: str, request_id: str | None = None) -> ModelResponse:
+    # Gemini may internally migrate a deprecated request model without any
+    # HTTP redirect.  A successful payload cannot inherit the pinned model's
+    # reviewed qualification/billing identity if the Provider reports a
+    # different effective modelVersion.  This is a post-Provider decode error:
+    # preserve reconciliation-required/no-replay semantics.
+    resolved_model = raw.get("modelVersion")
+    if resolved_model is not None:
+        if not isinstance(resolved_model, str) or not resolved_model.strip():
+            failure = ProviderError("gemini response decode failed: invalid model version", category="provider_decode", retryable=False)
+            raise attach_decode_diagnostics(failure, raw, decoder_branch="gemini.model_version_invalid")
+        if resolved_model.strip() != model:
+            failure = ProviderError("gemini response model identity differs from selected model", category="provider_decode", retryable=False)
+            raise attach_decode_diagnostics(failure, raw, decoder_branch="gemini.model_version_mismatch")
     try:
         candidate = raw["candidates"][0]
         parts = extract_model_parts(raw)
