@@ -8,7 +8,7 @@ import shutil
 
 import pytest
 
-from src.dev_agent.resources.billing_catalog import TRUSTED_RESOURCE_CATALOG
+from src.dev_agent.resources.billing_catalog import TRUSTED_RESOURCE_CATALOG, TrustedResourceProfile
 from src.dev_agent.resources.model_evidence import DEFAULT_MODEL_EVIDENCE_DIRECTORY
 
 _SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "check_evidence_expiry.py"
@@ -236,3 +236,54 @@ def test_future_observed_evidence_is_not_current_nor_exhausted(tmp_path):
         assert source["next_expiry"] is None
     assert not any(name.startswith("model_evidence/") for name in report["sources_exhausted_at_horizon"])
     assert report["static_eligible_now"] == 0  # consistent with the resolver's own window check
+
+
+def test_expired_billing_catalog_is_explicitly_reported_even_with_fresh_models(tmp_path):
+    # Model evidence may remain current after every billing authority expires.
+    # This must not appear as a successful preflight.
+    fresh_models = _evidence_expiring_at(tmp_path, _NOW + timedelta(days=120))
+    after_billing_expiry = max(
+        datetime.fromisoformat(profile.expires_at) for profile in TRUSTED_RESOURCE_CATALOG.values()
+    ) + timedelta(minutes=1)
+    report = _report(fresh_models, now=after_billing_expiry, horizon_hours=48, identities=())
+
+    assert report["static_eligible_now"] > 0
+    assert report["sources"]["billing_catalog"]["current"] == 0
+    assert "billing_catalog_no_current_facts" in report["failures"]
+    assert "billing_catalog_no_current_facts_at_horizon" in report["failures"]
+    assert all(not row["fact_current_now"] for row in report["billing_profiles"])
+    assert all(not row["trusted_no_charge_now"] for row in report["billing_profiles"])
+
+
+def test_billing_diagnostic_keeps_exact_identity_and_separates_future_expiry(monkeypatch):
+    # Use independent synthetic reviewed facts; this diagnostic regression
+    # must not depend on the mutable production billing profile inventory.
+    now = datetime(2026, 10, 5, 12, tzinfo=timezone.utc)
+    reviewed = (now - timedelta(days=1)).isoformat()
+    early_expiry = (now + timedelta(hours=10)).isoformat()
+    late_expiry = (now + timedelta(days=10)).isoformat()
+    profiles = {
+        ("synthetic", "synthetic:first", "text-a"): TrustedResourceProfile(
+            "synthetic", "synthetic:first", "text-a", 0, "JPY", True,
+            verified_at=reviewed, expires_at=early_expiry,
+            billing_mode="recurring_allowance", overage_policy="hard_stop",
+        ),
+        ("synthetic", "synthetic:second", "text-b"): TrustedResourceProfile(
+            "synthetic", "synthetic:second", "text-b", 0, "JPY", True,
+            verified_at=reviewed, expires_at=late_expiry,
+            billing_mode="recurring_allowance", overage_policy="hard_stop",
+        ),
+    }
+    monkeypatch.setattr(check_evidence_expiry, "TRUSTED_RESOURCE_CATALOG", profiles)
+    report = check_evidence_expiry.build_report(now=now, horizon_hours=48)
+    actual = {
+        (row["provider_id"], row["provider_binding_id"], row["model_id"]): row
+        for row in report["billing_profiles"]
+    }
+    assert set(actual) == set(profiles)
+    assert all(row["fact_current_now"] for row in actual.values())
+    assert actual[("synthetic", "synthetic:first", "text-a")]["fact_current_at_horizon"] is False
+    assert actual[("synthetic", "synthetic:first", "text-a")]["trusted_no_charge_at_horizon"] is False
+    assert actual[("synthetic", "synthetic:second", "text-b")]["trusted_no_charge_at_horizon"] is True
+    assert "billing_catalog_no_current_facts" not in report["failures"]
+    assert "billing_catalog_no_current_facts_at_horizon" not in report["failures"]

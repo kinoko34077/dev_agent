@@ -134,18 +134,35 @@ def build_report(
         windows = _file_windows(path)
         if windows:
             sources[f"model_evidence/{path.name}"] = _window(windows, now, horizon)
-    sources["billing_catalog"] = _window(
-        [
-            window
-            for window in (
-                _record_window({"verified_at": profile.verified_at, "expires_at": profile.expires_at})
-                for profile in TRUSTED_RESOURCE_CATALOG.values()
-            )
-            if window is not None
-        ],
-        now,
-        horizon,
-    )
+    # A policy catalog may still contain rows after every reviewed fact has
+    # expired.  Make that condition explicit without renewing any evidence.
+    # This exact-identity projection is advisory and never a routing grant.
+    billing_windows: list[Window] = []
+    billing_profiles: list[dict[str, Any]] = []
+    for (provider_id, provider_binding_id, model_id), profile in sorted(TRUSTED_RESOURCE_CATALOG.items()):
+        window = _record_window({"verified_at": profile.verified_at, "expires_at": profile.expires_at})
+        if window is not None:
+            billing_windows.append(window)
+        current_now = window is not None and _valid_at(window, now)
+        current_at_horizon = window is not None and _valid_at(window, horizon)
+        billing_profiles.append(
+            {
+                "provider_id": provider_id,
+                "provider_binding_id": provider_binding_id,
+                "model_id": model_id,
+                "source": profile.source,
+                "verified_at": profile.verified_at,
+                "expires_at": profile.expires_at,
+                "billing_mode": profile.billing_mode,
+                "overage_policy": profile.overage_policy,
+                "fact_current_now": current_now,
+                "fact_current_at_horizon": current_at_horizon,
+                # Never expose an expired no-charge claim as present authority.
+                "trusted_no_charge_now": current_now and profile.no_charge_guaranteed,
+                "trusted_no_charge_at_horizon": current_at_horizon and profile.no_charge_guaranteed,
+            }
+        )
+    sources["billing_catalog"] = _window(billing_windows, now, horizon)
     if QUALIFICATION_MATRIX.exists():
         sources["qualification_matrix"] = _window(_file_windows(QUALIFICATION_MATRIX), now, horizon)
     exhausted = [name for name, window in sources.items() if window["current"] > 0 and window["current_at_horizon"] == 0]
@@ -165,6 +182,10 @@ def build_report(
     eligible_now = _eligible(evidence, now)
     eligible_at_horizon = _eligible(evidence, horizon)
     failures: list[str] = []
+    if billing_profiles and not any(row["fact_current_now"] for row in billing_profiles):
+        failures.append("billing_catalog_no_current_facts")
+    if billing_profiles and not any(row["fact_current_at_horizon"] for row in billing_profiles):
+        failures.append("billing_catalog_no_current_facts_at_horizon")
     if eligible_at_horizon == 0:
         failures.append("no_static_eligible_at_horizon")
     failures.extend(f"source_exhausted:{name}" for name in exhausted)
@@ -180,6 +201,7 @@ def build_report(
         "static_eligible_now": eligible_now,
         "static_eligible_at_horizon": eligible_at_horizon,
         "sources": sources,
+        "billing_profiles": billing_profiles,
         "sources_exhausted_at_horizon": exhausted,
         "required_identities": identities,
         "failures": failures,
