@@ -207,8 +207,11 @@ def test_cloudflare_public_free_policy_review_is_bounded_and_expires():
         "@cf/deepseek-ai/deepseek-v4-pro-0813",
     ),
 )
-def test_cloudflare_paid_only_models_never_inherit_reviewed_free_wildcard(paid_model):
-    from src.dev_agent.resources.billing_catalog import BillingResolver, TRUSTED_RESOURCE_CATALOG
+def test_cloudflare_paid_only_models_never_inherit_reviewed_free_wildcard(paid_model, monkeypatch):
+    from src.dev_agent.resources.billing_catalog import BillingResolver, TRUSTED_RESOURCE_CATALOG, TrustedResourceProfile
 
+    # Exercise the paid-model denial even after the public-policy review window
+    # expires; an expired wildcard must not make this security regression vacuous.
+    monkeypatch.setattr(TrustedResourceProfile, "is_current", lambda self: True)
     resolver = BillingResolver(TRUSTED_RESOURCE_CATALOG)
     assert resolver.profile_for("cloudflare", "cloudflare:account", paid_model) is None
