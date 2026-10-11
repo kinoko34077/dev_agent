@@ -236,3 +236,41 @@ def test_future_observed_evidence_is_not_current_nor_exhausted(tmp_path):
         assert source["next_expiry"] is None
     assert not any(name.startswith("model_evidence/") for name in report["sources_exhausted_at_horizon"])
     assert report["static_eligible_now"] == 0  # consistent with the resolver's own window check
+
+
+def test_expired_billing_catalog_is_explicitly_reported_even_with_fresh_models(tmp_path):
+    # Model evidence may remain current after every billing authority expires.
+    # This must not appear as a successful preflight.
+    fresh_models = _evidence_expiring_at(tmp_path, _NOW + timedelta(days=120))
+    after_billing_expiry = max(
+        datetime.fromisoformat(profile.expires_at) for profile in TRUSTED_RESOURCE_CATALOG.values()
+    ) + timedelta(minutes=1)
+    report = _report(fresh_models, now=after_billing_expiry, horizon_hours=48, identities=())
+
+    assert report["static_eligible_now"] > 0
+    assert report["sources"]["billing_catalog"]["current"] == 0
+    assert "billing_catalog_no_current_facts" in report["failures"]
+    assert "billing_catalog_no_current_facts_at_horizon" in report["failures"]
+    assert all(not row["fact_current_now"] for row in report["billing_profiles"])
+    assert all(not row["trusted_no_charge_now"] for row in report["billing_profiles"])
+
+
+def test_billing_diagnostic_keeps_exact_identity_and_separates_future_expiry():
+    valid_time = max(
+        datetime.fromisoformat(profile.verified_at) for profile in TRUSTED_RESOURCE_CATALOG.values()
+    ) + timedelta(minutes=1)
+    report = check_evidence_expiry.build_report(now=valid_time, horizon_hours=24 * 40)
+    actual = {
+        (row["provider_id"], row["provider_binding_id"], row["model_id"]): row
+        for row in report["billing_profiles"]
+    }
+    assert len(actual) == len(TRUSTED_RESOURCE_CATALOG)
+    assert all(row["fact_current_now"] for row in actual.values())
+    # A reviewed fact can be valid now and expire before the horizon.  Its
+    # historical zero-overage classification must never imply current authority.
+    cloudflare = actual[("cloudflare", "cloudflare:account", "*")]
+    assert cloudflare["fact_current_now"] is True
+    assert cloudflare["fact_current_at_horizon"] is False
+    assert cloudflare["trusted_no_charge_at_horizon"] is False
+    assert "billing_catalog_no_current_facts" not in report["failures"]
+    assert "billing_catalog_no_current_facts_at_horizon" in report["failures"]
