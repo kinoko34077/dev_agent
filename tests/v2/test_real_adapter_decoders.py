@@ -457,7 +457,7 @@ def test_gemini_internal_model_migration_cannot_inherit_selected_identity(select
     assert error.requires_reconciliation is True
 
 
-@pytest.mark.parametrize("malformed", ("", " ", 123, [], {}))
+@pytest.mark.parametrize("malformed", (None, "", " ", 123, [], {}))
 def test_gemini_malformed_effective_model_version_fails_closed(malformed):
     raw = {
         "modelVersion": malformed,
