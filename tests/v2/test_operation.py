@@ -836,7 +836,7 @@ class _OperationPoolProvider(FakeProvider):
         return ModelResponse(provider=self.provider_id, model=self.model_id, text_segments=["pool-success"])
 
 
-def test_operation_dispatches_l1_task_through_pool_and_falls_back_within_tier(tmp_path, monkeypatch):
+def test_operation_dispatches_l1_task_through_pool_and_falls_back_within_tier(tmp_path, monkeypatch, historical_qualification_review_clock):
     primary = _OperationPoolProvider(
         "cloudflare",
         "cloudflare:account",

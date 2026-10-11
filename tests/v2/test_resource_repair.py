@@ -125,7 +125,7 @@ def test_resource_repair_fails_closed_for_expired_or_unidentified_resource(tmp_p
         assert "model identity" in by_id["missing-identity"].reason
 
 
-def test_resource_cli_migrate_requires_explicit_apply_and_operator_audit(tmp_path, capsys):
+def test_resource_cli_migrate_requires_explicit_apply_and_operator_audit(tmp_path, capsys, historical_repair_review_clock):
     from src.dev_agent.cli import main
 
     resource_path = tmp_path / "resources.sqlite3"
