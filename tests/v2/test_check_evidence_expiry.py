@@ -8,7 +8,7 @@ import shutil
 
 import pytest
 
-from src.dev_agent.resources.billing_catalog import TRUSTED_RESOURCE_CATALOG
+from src.dev_agent.resources.billing_catalog import TRUSTED_RESOURCE_CATALOG, TrustedResourceProfile
 from src.dev_agent.resources.model_evidence import DEFAULT_MODEL_EVIDENCE_DIRECTORY
 
 _SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "check_evidence_expiry.py"
@@ -255,22 +255,35 @@ def test_expired_billing_catalog_is_explicitly_reported_even_with_fresh_models(t
     assert all(not row["trusted_no_charge_now"] for row in report["billing_profiles"])
 
 
-def test_billing_diagnostic_keeps_exact_identity_and_separates_future_expiry():
-    valid_time = max(
-        datetime.fromisoformat(profile.verified_at) for profile in TRUSTED_RESOURCE_CATALOG.values()
-    ) + timedelta(minutes=1)
-    report = check_evidence_expiry.build_report(now=valid_time, horizon_hours=24 * 40)
+def test_billing_diagnostic_keeps_exact_identity_and_separates_future_expiry(monkeypatch):
+    # Use independent synthetic reviewed facts; this diagnostic regression
+    # must not depend on the mutable production billing profile inventory.
+    now = datetime(2026, 10, 5, 12, tzinfo=timezone.utc)
+    reviewed = (now - timedelta(days=1)).isoformat()
+    early_expiry = (now + timedelta(hours=10)).isoformat()
+    late_expiry = (now + timedelta(days=10)).isoformat()
+    profiles = {
+        ("synthetic", "synthetic:first", "text-a"): TrustedResourceProfile(
+            "synthetic", "synthetic:first", "text-a", 0, "JPY", True,
+            verified_at=reviewed, expires_at=early_expiry,
+            billing_mode="recurring_allowance", overage_policy="hard_stop",
+        ),
+        ("synthetic", "synthetic:second", "text-b"): TrustedResourceProfile(
+            "synthetic", "synthetic:second", "text-b", 0, "JPY", True,
+            verified_at=reviewed, expires_at=late_expiry,
+            billing_mode="recurring_allowance", overage_policy="hard_stop",
+        ),
+    }
+    monkeypatch.setattr(check_evidence_expiry, "TRUSTED_RESOURCE_CATALOG", profiles)
+    report = check_evidence_expiry.build_report(now=now, horizon_hours=48)
     actual = {
         (row["provider_id"], row["provider_binding_id"], row["model_id"]): row
         for row in report["billing_profiles"]
     }
-    assert len(actual) == len(TRUSTED_RESOURCE_CATALOG)
+    assert set(actual) == set(profiles)
     assert all(row["fact_current_now"] for row in actual.values())
-    # A reviewed fact can be valid now and expire before the horizon.  Its
-    # historical zero-overage classification must never imply current authority.
-    cloudflare = actual[("cloudflare", "cloudflare:account", "*")]
-    assert cloudflare["fact_current_now"] is True
-    assert cloudflare["fact_current_at_horizon"] is False
-    assert cloudflare["trusted_no_charge_at_horizon"] is False
+    assert actual[("synthetic", "synthetic:first", "text-a")]["fact_current_at_horizon"] is False
+    assert actual[("synthetic", "synthetic:first", "text-a")]["trusted_no_charge_at_horizon"] is False
+    assert actual[("synthetic", "synthetic:second", "text-b")]["trusted_no_charge_at_horizon"] is True
     assert "billing_catalog_no_current_facts" not in report["failures"]
-    assert "billing_catalog_no_current_facts_at_horizon" in report["failures"]
+    assert "billing_catalog_no_current_facts_at_horizon" not in report["failures"]
