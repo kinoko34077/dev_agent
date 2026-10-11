@@ -164,7 +164,7 @@ def test_gemini_unclassified_503_remains_unknown_and_cannot_fail_over(monkeypatc
     assert raised.value.requires_reconciliation is True
 
 
-def test_planner_pool_admission_keeps_exact_l2_and_does_not_downgrade_to_l1():
+def test_planner_pool_admission_keeps_exact_l2_and_does_not_downgrade_to_l1(historical_qualification_review_clock):
     resolver = QualificationResolver()
     admitted = admit_planner_pool(
         (

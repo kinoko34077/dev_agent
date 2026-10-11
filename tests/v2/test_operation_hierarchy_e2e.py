@@ -168,7 +168,7 @@ class _OperationTierProvider(FakeProvider):
         )
 
 
-def test_operation_lifecycle_runs_l1_alternate_then_reviewed_l2(tmp_path, monkeypatch):
+def test_operation_lifecycle_runs_l1_alternate_then_reviewed_l2(tmp_path, monkeypatch, historical_qualification_review_clock):
     config = OperationConfig(
         data_dir=tmp_path,
         provider_id="fake",
