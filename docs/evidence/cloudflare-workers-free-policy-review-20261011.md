@@ -29,3 +29,17 @@ Models such as `@cf/zai-org/glm-4.7-flash` may be offered on Workers Free accord
 - Whether this account's selected model is still discovered/qualified and meets current benchmark/capability evidence; **UNKNOWN**. The accepted catalog/capability/benchmark observations expired on Oct 11.
 
 **Disposition:** do **not** renew `src/dev_agent/resources/billing_catalog.py` Cloudflare wildcard runtime review window (accepted expiry **2026-10-10T00:00:00Z**) based solely on this public page. Keep unknown account plans/paid-overage risk fail-closed. The 2026-10-18 date is solely the next review of **public pricing**, not a runtime admission deadline or trusted positive entitlement. #65 WO-1 stays `PRECHECK_BLOCKED`, formal route supply 0. No Provider call or credential was used in this review.
+
+## Read-only account-plan observation route (F3, #81 / PR #92)
+
+The public plan review above cannot establish the actual Cloudflare billing mode. Where an **already-authorized** Billing Read credential exists, an operator can run:
+
+```sh
+python scripts/probe_cloudflare_subscriptions.py
+```
+
+- `AUTH_REQUIRED`: existing `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` are absent; **no network call**; do not generate or request new credentials automatically.
+- `ACCESS_REQUIRED`: the GET subscription API refused current scope (official Cloudflare API requires Account Billing Read or Write); do not elevate permissions automatically.
+- `OBSERVED_UNVERIFIED`: bounded redacted list of plan-name **hints** and lifecycle states. No account ID, API token, subscription ID, price, raw plan strings or Cloudflare response body is emitted.
+
+The official endpoint is [List Subscriptions (GET)](https://developers.cloudflare.com/api/resources/accounts/subresources/subscriptions/methods/get/). `OBSERVED_UNVERIFIED` is **not** proof of zero overage: human review must match the exact Workers AI account, whether Workers Paid and AI Gateway prepaid/unified billing are enabled, current daily usage and separate model/qualification evidence. Even `WORKERS_FREE_LABEL_ONLY` or an empty list never authorizes renewal of `TRUSTED_RESOURCE_CATALOG` or Phase 8 admission. The probe does not run automatically in GitHub Actions and does not call any model.
