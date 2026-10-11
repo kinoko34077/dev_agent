@@ -259,7 +259,7 @@ def test_model_planner_can_require_an_exact_l2_route_without_model_name_inferenc
     assert request.metadata["allowed_intelligence_tiers"] == ["L2"]
 
 
-def test_model_planner_can_use_existing_dispatcher_for_exact_qualified_l2(tmp_path):
+def test_model_planner_can_use_existing_dispatcher_for_exact_qualified_l2(tmp_path, historical_qualification_review_clock):
     parent_task_id = str(uuid4())
     # This tests a previously reviewed synthetic route, not today's expired
     # production billing/qualification authority. Keep the mock evidence
