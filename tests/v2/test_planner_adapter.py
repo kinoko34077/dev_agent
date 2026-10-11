@@ -261,7 +261,10 @@ def test_model_planner_can_require_an_exact_l2_route_without_model_name_inferenc
 
 def test_model_planner_can_use_existing_dispatcher_for_exact_qualified_l2(tmp_path):
     parent_task_id = str(uuid4())
-    now = datetime.now(timezone.utc)
+    # This tests a previously reviewed synthetic route, not today's expired
+    # production billing/qualification authority. Keep the mock evidence
+    # inside the same fixed historical clock as non-security fixture routing.
+    now = datetime(2026, 10, 5, 12, 0, tzinfo=timezone.utc)
     qualification = QualificationResolver(
         entries=[
             {
