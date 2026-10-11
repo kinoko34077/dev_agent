@@ -139,3 +139,33 @@ def _stub_provider_class_identity(request, monkeypatch):
 
     monkeypatch.setattr(_provider_policy_mod, "validate_provider_class_identity", _noop_class_identity_check)
     monkeypatch.setattr(_provider_policy_mod, "validate_transport_identity", _noop_transport_identity_check)
+
+
+@pytest.fixture(autouse=True)
+def _historical_billing_review_clock(request, monkeypatch):
+    """Keep non-security fixture admissions independent of the wall clock.
+
+    Tests composing the published, dated trusted billing catalog as fixture
+    input must not begin failing when those historical review windows expire.
+    Production callers and security tests still use the real clock. This
+    touches only the billing module's imported datetime name in the current
+    pytest process; it does not change trusted profiles, expiry values,
+    qualification evidence, actual quotas, or the Python/system clock.
+
+    Expiry/security tests using explicit is_current(now=...) retain their
+    exact boundary behavior. Security-marked tests opt out completely.
+    """
+    if request.node.get_closest_marker("security"):
+        return
+    import src.dev_agent.resources.billing_catalog as billing_catalog
+
+    review_instant = datetime(2026, 10, 5, 12, 0, tzinfo=timezone.utc)
+
+    class _HistoricalBillingDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            if tz is None:
+                return review_instant.replace(tzinfo=None)
+            return review_instant.astimezone(tz)
+
+    monkeypatch.setattr(billing_catalog, "datetime", _HistoricalBillingDatetime)
