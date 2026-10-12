@@ -38,7 +38,7 @@ jobs:
             # 17:00–21:00 JST is 08:00–12:00 UTC. Late/dropped cron
             # events must not turn this into an unintended annual run.
             utc_now="$(date -u +%Y-%m-%dT%H:%M)"
-            if [[ "$utc_now" < "2026-10-12T08:00" || "$utc_now" >= "2026-10-12T12:00" ]]; then
+            if [[ "$utc_now" < "2026-10-12T08:00" || "$utc_now" > "2026-10-12T11:59" ]]; then
               run_check=false
               echo "One-off diagnostic skipped: outside the authorized 2026-10-12 17:00–21:00 JST window." >> "$GITHUB_STEP_SUMMARY"
             fi
