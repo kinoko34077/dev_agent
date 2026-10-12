@@ -7,6 +7,9 @@ name: v2-evidence-freshness-watch
 on:
   schedule:
     - cron: "23 5 * * *"
+    # One extra diagnostic on 2026-10-12 at 18:23 JST (09:23 UTC).
+    # Cron has no year field: the job's date/window guard makes later years no-op.
+    - cron: "23 9 12 10 *"
   workflow_dispatch:
   pull_request:
     branches: [main]
@@ -24,22 +27,42 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Guard October 12 one-off diagnostic (normal schedule unchanged)
+        id: one_off
+        shell: bash
+        env:
+          TRIGGER_CRON: ${{ github.event.schedule }}
+        run: |
+          run_check=true
+          if [[ "$TRIGGER_CRON" == "23 9 12 10 *" ]]; then
+            # 17:00–21:00 JST is 08:00–12:00 UTC. Late/dropped cron
+            # events must not turn this into an unintended annual run.
+            utc_now="$(date -u +%Y-%m-%dT%H:%M)"
+            if [[ "$utc_now" < "2026-10-12T08:00" || "$utc_now" > "2026-10-12T11:59" ]]; then
+              run_check=false
+              echo "One-off diagnostic skipped: outside the authorized 2026-10-12 17:00–21:00 JST window." >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+          echo "run_check=$run_check" >> "$GITHUB_OUTPUT"
       - name: Checkout maintained v2 (never legacy main runtime)
+        if: steps.one_off.outputs.run_check == 'true'
         uses: actions/checkout@v4
         with:
           ref: v2/bootstrap
           persist-credentials: false
       - name: Python
+        if: steps.one_off.outputs.run_check == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       # This verifier imports only Python stdlib and repository-owned modules.
       # Avoid repeated PyPI installs and shared pip caches in a scheduled job.
       - name: Read-only exact v2 evidence expiry report (warning only)
+        if: steps.one_off.outputs.run_check == 'true'
         continue-on-error: true
         run: python scripts/check_evidence_expiry.py --fail-if-no-eligible-within 48
       - name: Record observation boundary
-        if: always()
+        if: always() && steps.one_off.outputs.run_check == 'true'
         run: |
           echo "### Maintained v2 evidence freshness — read-only" >> "$GITHUB_STEP_SUMMARY"
           echo "Source: checkout of protected \`v2/bootstrap\` at the run time; not an authority promotion." >> "$GITHUB_STEP_SUMMARY"
