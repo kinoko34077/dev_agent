@@ -68,16 +68,40 @@ wake、Provider routing、retryは既存Operationへ委譲する。待機中のL
 python scripts/devfarm_runtime_coordinator.py health --data-dir .dev_agent
 ```
 
-安全なbounded smoke:
+隔離されたbounded smoke:
 
 ```text
-python scripts/devfarm_runtime_coordinator.py serve --data-dir .dev_agent \
+python -c "import tempfile; print(tempfile.mkdtemp(prefix='dev-agent-runtime-smoke-'))"
+python scripts/devfarm_runtime_coordinator.py serve --data-dir <fresh-empty-temp-dir> \
   --provider fake --model deterministic --max-cycles 2
 ```
+
+1行目が表示した新規空directoryを`<fresh-empty-temp-dir>`へ指定する。実データのある
+`.dev_agent`をfake Providerのsmokeに使わない。このsmokeは空状態で既存Coordinatorの
+有限loopを確認するだけで、durable queueの復旧・実Task実行・Provider資格を証明しない。
+一時directoryはprocess終了後にのみ、不要と確認できた場合に削除する。
 
 通常のforeground運用では`serve`から`--max-cycles`と`--max-runtime-seconds`を外す。
 OS startup、Task Scheduler/Windows Service登録、配備後Guardian livenessは別のProduction
 Deployment trackであり、このCoordinatorのlocal Evidenceからは昇格しない。
+
+### Stale peer / DEGRADEDからの安全な再開
+
+`health`はProviderを開かないread-only projectionである。`DEGRADED`なら、`observed_at`と
+`lease_until`、peer generation / PID、Task状態を照合する。lease期限切れやPID不在だけで、
+作業・queue・外部効果が安全に再開可能とは推定しない。旧processが同じhostで停止済みか、
+nonterminal Task・in-flight operation・UNKNOWN/reconciliationが残っていないかを既存の
+正本で確認する。
+
+Coordinatorにはhealth表示だけを修復するrecovery-only commandはない。`expire_peer_leases`
+はdurable stateを書き換えるため、診断目的で実行しない。`once`は新しいpeer generationを
+開いた後、既存Operation境界を1回実行し、READY Taskをclaimまたは処理する可能性がある。
+`serve`も既存loopをforegroundで継続する実行操作であり、health resetとして使わない。
+
+再開する場合は、旧process停止・対象Taskとeffect状態・競合generationを確認し、Providerを
+使うTaskならexact routeの現在のadmissionも確認してから、許可されたTaskに対するboundedな
+既存入口を選ぶ。単にstale healthを消す目的では起動しない。条件が揃わなければ`DEGRADED`
+を記録したままにし、独立して安全な作業だけを続ける。
 
 ## PlanとWorker
 
