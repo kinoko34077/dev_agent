@@ -411,16 +411,16 @@ def build_concrete_failure_spec(
             stage="worker_output_validation",
             location="worker_output",
             observed="output contains fields outside the minimal Worker contract",
-            expected="only file_replacements and optional notes",
+            expected="only file_replacements",
             problem="the minimal Worker output contains unsupported fields",
             required_correction=(
-                "Return exactly one JSON object with file_replacements and, optionally, notes. "
-                "Remove every other top-level field, including output_contract."
+                "Return exactly one JSON object with file_replacements only. "
+                "Remove every other top-level field, including notes, status, and output_contract."
             ),
             must_preserve=preserve,
             forbidden_changes=("adding metadata fields", "changing file scope"),
             acceptance_checks=(
-                "top-level keys are file_replacements and optional notes",
+                "the only top-level key is file_replacements",
                 "file_replacements contains only supplied outbound paths",
             ),
             validator_refs=(validator_ref,),
@@ -499,6 +499,50 @@ def build_concrete_failure_spec(
             acceptance_checks=(
                 "file_replacements must contain at least one allowed replacement",
                 "every replacement key is an exact supplied outbound path",
+            ),
+            validator_refs=(validator_ref,),
+        )
+    elif "minimal worker file replacements must be line arrays" in normalized:
+        spec = ConcreteFailureSpec(
+            failure_class="FORMAT_PATCH",
+            stage="worker_output_validation",
+            location="file_replacements",
+            observed="replacement value is a text string",
+            expected="array<string> with one source line per item",
+            problem="minimal Worker replacements must use the host-bounded line-array format",
+            required_correction=(
+                "Return file_replacements as an object whose value is an array of complete source-line strings, "
+                "one line per item. The Host joins those lines and adds the final LF."
+            ),
+            must_preserve=preserve,
+            forbidden_changes=("changing the supplied path", "switching to a unified diff", "changing unrelated content"),
+            acceptance_checks=(
+                "replacement is an array of source-line strings",
+                "each array element contains no LF or CR",
+            ),
+            validator_refs=(validator_ref,),
+        )
+    elif "file replacement must end with a newline" in normalized:
+        target_path = next(
+            (path for path in outbound_files if normalized.endswith(f": {path.casefold()}")),
+            None,
+        )
+        spec = ConcreteFailureSpec(
+            failure_class="FORMAT_PATCH",
+            stage="worker_output_validation",
+            location=f"file_replacements.{target_path}" if target_path else "file_replacements",
+            observed="replacement text does not end with LF",
+            expected="an array of source-line strings that materializes with a final LF",
+            problem="the file replacement is missing its required final newline",
+            required_correction=(
+                "Return the replacement as an array of complete source-line strings, one line per item. "
+                "The Host joins those lines and adds the final LF; do not return plain text without a final LF."
+            ),
+            must_preserve=preserve,
+            forbidden_changes=("changing the supplied path", "changing unrelated content", "switching to a unified diff"),
+            acceptance_checks=(
+                "replacement is an array of source-line strings",
+                "materialized replacement ends with LF",
             ),
             validator_refs=(validator_ref,),
         )

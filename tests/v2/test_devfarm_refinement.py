@@ -178,6 +178,32 @@ def test_build_concrete_failure_spec_turns_worker_contract_facts_into_directive(
     assert RepairDirective.from_failure_spec(spec).completion_condition
 
 
+def test_build_concrete_failure_spec_gives_actionable_missing_final_newline_repair():
+    spec = build_concrete_failure_spec(
+        "file replacement must end with a newline: docs/example.md",
+        manifest={"allowed_files": ["docs/example.md"], "outbound_files": ["docs/example.md"]},
+    )
+
+    assert spec.location == "file_replacements.docs/example.md"
+    assert spec.observed == "replacement text does not end with LF"
+    assert "array of complete source-line strings" in spec.required_correction
+    assert "adds the final LF" in spec.required_correction
+    assert "materialized replacement ends with LF" in spec.acceptance_checks
+
+
+def test_build_concrete_failure_spec_requires_line_array_for_minimal_worker():
+    spec = build_concrete_failure_spec(
+        "minimal Worker file replacements must be line arrays",
+        manifest={"allowed_files": ["docs/example.md"], "outbound_files": ["docs/example.md"]},
+    )
+
+    assert spec.location == "file_replacements"
+    assert spec.observed == "replacement value is a text string"
+    assert spec.expected == "array<string> with one source line per item"
+    assert "Host joins those lines and adds the final LF" in spec.required_correction
+    assert "replacement is an array of source-line strings" in spec.acceptance_checks
+
+
 def test_build_concrete_failure_spec_describes_assumptions_array_mismatch():
     spec = build_concrete_failure_spec("assumptions must be a list")
 

@@ -312,6 +312,8 @@ def _materialize_file_replacements(
     root: Path,
     manifest: Mapping[str, Any],
     replacements: Mapping[str, Any],
+    *,
+    require_single_line_items: bool = False,
 ) -> tuple[str, list[str], str, tuple[str, ...]]:
     """Turn bounded complete-file output into a Host-generated unified diff.
 
@@ -355,6 +357,11 @@ def _materialize_file_replacements(
                 raise DevFarmError(f"file replacement has too many lines: {normalized_path}")
             if any(not isinstance(line, str) for line in replacement):
                 raise DevFarmError(f"file replacement lines must be strings: {normalized_path}")
+            if require_single_line_items and any("\r" in line or "\n" in line for line in replacement):
+                raise DevFarmError(
+                    "minimal Worker line-array items must not contain newlines: "
+                    f"{normalized_path}"
+                )
             # Models commonly serialize the final newline as an extra empty
             # line.  Canonicalize that transport artifact before generating a
             # patch; git's whitespace=error must still reject real blank
@@ -385,6 +392,8 @@ def _materialize_file_replacements(
                 replacement += "\n"
             encodings.add("lines")
         elif isinstance(replacement, str):
+            if require_single_line_items:
+                raise DevFarmError("minimal Worker file replacements must be line arrays")
             encodings.add("text")
         else:
             raise DevFarmError(f"file replacement content must be text or lines: {normalized_path}")
@@ -500,7 +509,7 @@ _provider = build_worker_provider
 
 # Compatibility export retained for tests and older in-process callers.  The
 # shared schema is used for both local Ollama and explicit remote minimal mode.
-_OLLAMA_WORKER_RESPONSE_SCHEMA = minimal_worker_output_schema()
+_OLLAMA_WORKER_RESPONSE_SCHEMA = minimal_worker_output_schema(line_array_only=True)
 
 
 def inspect_worker_egress(
@@ -959,7 +968,10 @@ def run_worker(
             **({"allow_unknown_quota": True} if _eligibility.billing_admitted else {}),
         },
         response_schema=(
-            minimal_worker_output_schema(allowed_paths=manifest["outbound_files"])
+            minimal_worker_output_schema(
+                allowed_paths=manifest["outbound_files"],
+                line_array_only=True,
+            )
             if output_mode == "minimal_file_replacement"
             else None
         ),
@@ -1068,8 +1080,6 @@ def run_worker(
                     "minimal worker output contains unsupported fields: "
                     + ", ".join(unsupported)
                 )
-            if "notes" in output and not isinstance(output["notes"], str):
-                raise DevFarmError("minimal worker notes must be a string")
         patch = output.get("patch", "")
         if not isinstance(patch, str):
             raise DevFarmError("worker patch must be a string")
@@ -1077,6 +1087,8 @@ def run_worker(
         if output_mode == "minimal_file_replacement":
             if not isinstance(replacement_value, Mapping) or not replacement_value:
                 raise DevFarmError("minimal Worker must provide non-empty file_replacements")
+            if any(not isinstance(value, list) for value in replacement_value.values()):
+                raise DevFarmError("minimal Worker file replacements must be line arrays")
             if patch:
                 raise DevFarmError("minimal Worker must not provide a unified patch")
         host_generated_paths: list[str] = []
@@ -1097,6 +1109,7 @@ def run_worker(
                     root,
                     manifest,
                     replacement_value,
+                    require_single_line_items=output_mode == "minimal_file_replacement",
                 )
                 output = {**output, "patch": patch}
         patch_normalizations: list[str] = []

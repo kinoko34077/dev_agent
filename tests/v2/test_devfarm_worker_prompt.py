@@ -66,6 +66,9 @@ def test_local_ollama_prompt_uses_only_the_complete_replacement_contract() -> No
     )
 
     assert "file_replacements is REQUIRED" in prompt
+    assert '"file_replacements":{"<exact path>"' in prompt
+    assert "notes is optional" not in prompt
+    assert "`notes` as a path" not in prompt
     assert "Do not emit" in prompt
     assert "patch" in prompt
     assert "complete line 1" in prompt
@@ -98,7 +101,10 @@ def test_local_ollama_prompt_contains_the_exact_host_owned_output_schema() -> No
         "test_commands": [],
         "output_contract": {"format": "json"},
     }
-    schema = minimal_worker_output_schema(allowed_paths=manifest["outbound_files"])
+    schema = minimal_worker_output_schema(
+        allowed_paths=manifest["outbound_files"],
+        line_array_only=True,
+    )
 
     prompt = build_worker_prompt(
         manifest,

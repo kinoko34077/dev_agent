@@ -119,7 +119,10 @@ def build_worker_prompt(
         }
     if local_ollama or minimal_proposal:
         mode_label = "local Ollama trial" if local_ollama else "bounded change-proposal mode"
-        response_schema = minimal_worker_output_schema(allowed_paths=manifest["outbound_files"])
+        response_schema = minimal_worker_output_schema(
+            allowed_paths=manifest["outbound_files"],
+            line_array_only=True,
+        )
         return (
             _repair_prefix(manifest)
             + f"You are a bounded development worker in {mode_label}. Return exactly one JSON object. "
@@ -127,15 +130,15 @@ def build_worker_prompt(
             "requested change and never request credentials, run commands, or claim "
             "tests you did not run. file_replacements is REQUIRED; it is the only required "
             "output key. "
-            "notes is optional and concise. Do not emit status, changed_files, tests, "
+            "Do not emit status, changed_files, tests, "
             "known_issues, assumptions, patch, files, diff, reason, or commit_message; "
             "the Host derives those facts. file_replacements MUST contain exactly one "
             f"complete replacement for one of these exact outbound paths: {json.dumps(manifest['outbound_files'], ensure_ascii=False)}. "
             "Copy the path key byte-for-byte from that list after slash normalization; "
             "never shorten it to a basename, add `./`, use an absolute path, or use "
-            "`notes` as a path. Use this exact shape: "
+            "any other key. Use this exact shape: "
             '{"file_replacements":{"<exact path>":["<complete line 1>",'
-            '"<complete line 2>"]},"notes":"optional"}. The replacement value MUST '
+            '"<complete line 2>"]}}. The replacement value MUST '
             "be an array of complete source lines: every array element is one line "
             "and MUST NOT contain a newline character or \\n escape. The host joins "
             "the lines and adds one final newline. Escape source quotes and backslashes "

@@ -14,7 +14,7 @@ from src.dev_agent.providers.base import ModelProvider, transport_failure_metada
 
 FULL_WORKER_OUTPUT_MODE = "full_result"
 MINIMAL_WORKER_OUTPUT_MODE = "minimal_file_replacement"
-MINIMAL_WORKER_OUTPUT_KEYS = frozenset({"file_replacements", "notes"})
+MINIMAL_WORKER_OUTPUT_KEYS = frozenset({"file_replacements"})
 
 
 def worker_output_mode(
@@ -46,22 +46,24 @@ def worker_output_mode(
 def minimal_worker_output_schema(
     *,
     allowed_paths: Sequence[str] | None = None,
+    line_array_only: bool = False,
 ) -> dict[str, Any]:
     """Return the strict provider schema for a Host-owned change proposal.
 
     When the Host knows the outbound paths, bind the replacement object to
     those exact keys.  This prevents a structured-output provider from
-    treating metadata such as ``notes`` as a source path before the existing
+    treating unrelated metadata as a source path before the existing
     Host path validator gets a chance to reject it.
     """
 
-    replacement_value = {
+    line_array_schema = {
+        "type": "array",
+        "items": {"type": "string", "pattern": "^[^\\r\\n]*$"},
+    }
+    replacement_value = line_array_schema if line_array_only else {
         "oneOf": [
             {"type": "string"},
-            {
-                "type": "array",
-                "items": {"type": "string", "pattern": "^[^\\r\\n]*$"},
-            },
+            line_array_schema,
         ]
     }
     if allowed_paths is None:
@@ -94,7 +96,6 @@ def minimal_worker_output_schema(
         "type": "object",
         "properties": {
             "file_replacements": replacement_object,
-            "notes": {"type": "string"},
         },
         "required": ["file_replacements"],
         "additionalProperties": False,
