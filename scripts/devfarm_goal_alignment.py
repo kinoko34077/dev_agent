@@ -155,6 +155,9 @@ def evaluate_goal_preflight(packet: Mapping[str, Any]) -> dict[str, Any]:
     missing = sorted(set(requirements) - set(records))
     if missing:
         unresolved.extend(missing)
+    # An AI-only hypothetical purpose is not an accepted basis for "ALIGNED".
+    if not any(_object(g, "goal").get("kind") != "inferred_hypothesis" for g in goal_items):
+        unresolved.append("accepted_goal_missing")
 
     reuse = _object(payload["reuse"], "reuse")
     if set(reuse) != {"status", "reason", "proposal_quote", "capability_ref", "capability_quote"}:
