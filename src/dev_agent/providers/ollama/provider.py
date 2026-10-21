@@ -65,7 +65,11 @@ class OllamaProvider(ModelProvider):
             from .lifecycle import OllamaLifecycleError
 
             try:
-                self.model_manager.acquire(self.model, keep_alive=self.keep_alive)
+                self.model_manager.acquire(
+                    self.model,
+                    keep_alive=self.keep_alive,
+                    deadline_seconds=self.timeout_seconds,
+                )
                 acquired = True
             except OllamaLifecycleError as exc:
                 # Lifecycle admission happens before /api/chat.  No external
