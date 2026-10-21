@@ -126,3 +126,73 @@ def test_no_goal_preflight_keeps_existing_plan_flow(tmp_path, monkeypatch):
     plan = tmp_path / "plan.json"
     plan.write_text("{}", encoding="utf-8")
     assert devfarm_main(["plan", str(plan), "--root", str(tmp_path)]) == 0
+
+
+def test_goal_check_is_bound_to_exact_commander_plan(tmp_path, monkeypatch, capsys):
+    from scripts import devfarm_commander
+    from scripts.devfarm_goal_alignment import canonical_plan_proposal
+    submitted = []
+    monkeypatch.setattr(devfarm_commander, "create_plan",
+                        lambda root, spec: submitted.append(spec) or {"created": True})
+    spec = {
+        "run_id": "test-m2-goal-linkage",
+        "objective": "Existing settings switch the realtime DSP model",
+        "base_revision": "a" * 40,
+        "tasks": [
+            {"task_id": "t1", "owner": "codex",
+             "objective": "Integrate the supported Rust realtime DSP model"},
+        ],
+    }
+    plan_file = tmp_path / "plan.json"
+    plan_file.write_text(json.dumps(spec), encoding="utf-8")
+    proposal = canonical_plan_proposal(spec)
+    evidence = example(proposal=proposal)
+    packet_file = tmp_path / "goal.json"
+    packet_file.write_text(json.dumps(evidence), encoding="utf-8")
+
+    assert devfarm_main(["goal-plan-text", str(plan_file)]) == 0
+    assert capsys.readouterr().out.strip() == proposal
+    assert devfarm_main(["plan", str(plan_file), "--goal-check", str(packet_file),
+                         "--root", str(tmp_path)]) == 0
+    assert submitted == [spec]
+
+    # Reusing a positive report for a different implementation task is forbidden.
+    spec["tasks"][0]["objective"] = "Create an isolated 1.5-second offline demo instead"
+    plan_file.write_text(json.dumps(spec), encoding="utf-8")
+    with pytest.raises(SystemExit) as err:
+        devfarm_main(["plan", str(plan_file), "--goal-check", str(packet_file),
+                     "--root", str(tmp_path)])
+    assert err.value.code == 2
+    assert submitted == [dict(
+        run_id="test-m2-goal-linkage",
+        objective="Existing settings switch the realtime DSP model",
+        base_revision="a" * 40,
+        tasks=[{"task_id": "t1", "owner": "codex",
+                "objective": "Integrate the supported Rust realtime DSP model"}]
+    )]
+
+
+def test_exact_plan_binding_cannot_ignore_other_tasks_or_objective():
+    from scripts.devfarm_goal_alignment import (
+        GoalAlignmentError, canonical_plan_proposal, evaluate_plan_goal_preflight,
+    )
+    spec = {"objective": "Use realtime DSP path", "tasks": [
+        {"task_id": "a", "description": "Implement realtime DSP"}]}
+    packet = example(proposal=canonical_plan_proposal(spec))
+    assert evaluate_plan_goal_preflight(packet, spec)["disposition"] == "ALIGNED"
+    for other in (
+        {**spec, "objective": "Build offline preview"},
+        {**spec, "tasks": [
+            {"task_id": "a", "description": "Implement realtime DSP"},
+            {"task_id": "b", "description": "Replace it with offline preview"}]},
+    ):
+        with pytest.raises(GoalAlignmentError):
+            evaluate_plan_goal_preflight(packet, other)
+
+
+def test_plan_canonicalization_ignores_json_key_order_not_value_changes():
+    from scripts.devfarm_goal_alignment import canonical_plan_proposal
+    assert canonical_plan_proposal({"objective": "a", "tasks": [1]}) == canonical_plan_proposal(
+        {"tasks": [1], "objective": "a"})
+    assert canonical_plan_proposal({"objective": "a", "tasks": [1]}) != canonical_plan_proposal(
+        {"objective": "a", "tasks": [2]})
