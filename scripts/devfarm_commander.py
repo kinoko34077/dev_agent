@@ -486,8 +486,33 @@ def supersede_plan(root: str | Path, run_id: str, *, reason: str) -> dict[str, A
     store = CommanderPlanStore(root_path)
     plan = store.load(run_id)
     normalized_reason = _text(reason, "reason", max_length=1000)
-    if plan["status"] in {"INTEGRATED", "SUPERSEDED"}:
+    if plan["status"] == "INTEGRATED":
         raise DevFarmError(f"Commander plan is already terminal: {run_id}")
+    if plan["status"] == "SUPERSEDED":
+        in_flight = [
+            task["task_id"]
+            for task in plan["tasks"]
+            if task["status"] in {"DISPATCHED", "PROPOSED", "HOST_VERIFIED"}
+        ]
+        if in_flight:
+            raise DevFarmError(
+                "cannot reconcile superseded plan with in-flight or host-verified tasks: "
+                + ", ".join(in_flight)
+            )
+        if any(task["status"] not in {"INTEGRATED", "SUPERSEDED"} for task in plan["tasks"]):
+            raise DevFarmError(
+                f"superseded Commander plan has nonterminal tasks: {run_id}"
+            )
+        supervisor = dict(plan.get("supervisor") or {})
+        if (
+            supervisor.get("status") == "COMPLETED"
+            and supervisor.get("next_action") == "stop"
+        ):
+            return plan
+        supervisor["status"] = "COMPLETED"
+        supervisor["next_action"] = "stop"
+        plan["supervisor"] = supervisor
+        return store.save(plan, expected_revision=plan["plan_revision"])
     in_flight = [
         task["task_id"]
         for task in plan["tasks"]
@@ -510,6 +535,12 @@ def supersede_plan(root: str | Path, run_id: str, *, reason: str) -> dict[str, A
     if not changed:
         raise DevFarmError(f"Commander plan has no supersedable tasks: {run_id}")
     plan = refresh_plan(plan)
+    if plan["status"] != "SUPERSEDED":
+        raise DevFarmError(f"supersession did not reach terminal plan state: {run_id}")
+    supervisor = dict(plan.get("supervisor") or {})
+    supervisor["status"] = "COMPLETED"
+    supervisor["next_action"] = "stop"
+    plan["supervisor"] = supervisor
     return store.save(plan, expected_revision=plan["plan_revision"])
 
 

@@ -1139,7 +1139,60 @@ def test_commander_can_explicitly_supersede_a_terminal_plan_and_release_ownershi
     assert superseded["status"] == "SUPERSEDED"
     assert superseded["tasks"][0]["status"] == "SUPERSEDED"
     assert superseded["tasks"][0]["last_error"] == "worker input manifest referenced a missing test file"
+    assert superseded["supervisor"]["status"] == "COMPLETED"
+    assert superseded["supervisor"]["next_action"] == "stop"
     assert list_active_ownership(root) == []
+
+
+def test_commander_reconciles_legacy_superseded_supervisor_projection_idempotently(tmp_path):
+    root, _targets, revision = _repo(tmp_path)
+    create_plan(
+        root,
+        {
+            "run_id": "legacy-superseded-run",
+            "objective": "reconcile stale terminal supervisor metadata",
+            "base_revision": revision,
+            "tasks": [
+                {
+                    "task_id": "codex-task",
+                    "owner": "codex",
+                    "status": "REJECTED",
+                    "ownership": ["docs/terminal.md"],
+                    "max_attempts": 1,
+                }
+            ],
+        },
+    )
+    supersede_plan(root, "legacy-superseded-run", reason="replaced by a newer plan")
+
+    store = CommanderPlanStore(root)
+    legacy = store.load("legacy-superseded-run")
+    legacy["supervisor"]["status"] = "ACTIVE"
+    legacy["supervisor"]["next_action"] = "execute_codex_task"
+    store.save(legacy, expected_revision=legacy["plan_revision"])
+    before = store.load("legacy-superseded-run")
+    expected_history = (before["tasks"], before["results"])
+
+    reconciled = supersede_plan(
+        root,
+        "legacy-superseded-run",
+        reason="reconcile terminal projection only",
+    )
+
+    assert reconciled["status"] == "SUPERSEDED"
+    assert (reconciled["tasks"], reconciled["results"]) == expected_history
+    assert reconciled["supervisor"]["status"] == "COMPLETED"
+    assert reconciled["supervisor"]["next_action"] == "stop"
+    status = CodexSupervisedCommanderRun(root, "legacy-superseded-run").status()
+    assert status.status == "COMPLETED"
+    assert status.next_action == "stop"
+
+    unchanged = supersede_plan(
+        root,
+        "legacy-superseded-run",
+        reason="already reconciled",
+    )
+    assert unchanged["plan_revision"] == reconciled["plan_revision"]
 
 
 def test_commander_reassign_with_rework_creates_immutable_manifest_revision(tmp_path):
