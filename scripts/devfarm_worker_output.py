@@ -380,7 +380,11 @@ def build_worker_metrics(
         "request_id": request.request_id,
         "elapsed_ms": max(0, int(elapsed_ms)),
         "usage": safe_usage(getattr(response, "usage", {})),
-        "finish_reason": _safe_finish_reason(getattr(response, "finish_reason", None)),
+        "finish_reason": (
+            "not_observed"
+            if response is None
+            else _safe_finish_reason(getattr(response, "finish_reason", None))
+        ),
         "attempt_count": 1,
         "host_verified": False,
         "host_verified_test_count": 0,
