@@ -6,7 +6,11 @@ import pytest
 
 from scripts.devfarm import DevFarmError, validate_manifest
 from scripts.devfarm_worker import run_worker
-from scripts.devfarm_worker_output import minimal_worker_output_schema, worker_output_mode
+from scripts.devfarm_worker_output import (
+    MINIMAL_WORKER_OUTPUT_KEYS,
+    minimal_worker_output_schema,
+    worker_output_mode,
+)
 from tests.v2.devfarm_test_support import _WorkerProvider, _workspace
 
 
@@ -24,11 +28,21 @@ def test_worker_output_mode_is_manifest_selectable_and_fail_closed() -> None:
 
 
 def test_minimal_worker_schema_binds_file_replacement_keys_to_host_paths() -> None:
-    schema = minimal_worker_output_schema(allowed_paths=("src/example.py",))
+    schema = minimal_worker_output_schema(
+        allowed_paths=("src/example.py",),
+        line_array_only=True,
+    )
 
     replacement = schema["properties"]["file_replacements"]
     assert replacement["additionalProperties"] is False
     assert set(replacement["properties"]) == {"src/example.py"}
+    assert replacement["properties"]["src/example.py"]["type"] == "array"
+    assert "oneOf" not in replacement["properties"]["src/example.py"]
+    assert set(schema["properties"]) == {"file_replacements"}
+    assert MINIMAL_WORKER_OUTPUT_KEYS == frozenset({"file_replacements"})
+
+    compatible_schema = minimal_worker_output_schema(allowed_paths=("src/example.py",))
+    assert "oneOf" in compatible_schema["properties"]["file_replacements"]["properties"]["src/example.py"]
 
 
 def test_manifest_rejects_unknown_worker_output_mode(tmp_path) -> None:
@@ -73,7 +87,32 @@ def test_remote_worker_can_use_explicit_minimal_change_proposal(tmp_path) -> Non
     ]
 
 
-def test_minimal_proposal_contract_rejects_extra_fields_without_fallback(tmp_path) -> None:
+def test_minimal_worker_contract_rejects_text_replacement_and_emits_line_array_repair(tmp_path) -> None:
+    root, manifest_path = _workspace(tmp_path, prepare=False)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["output_contract"] = {"format": "json", "mode": "minimal_file_replacement"}
+    manifest["approved_provider_ids"] = ["cloudflare"]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    provider = _WorkerProvider(
+        {
+            "file_replacements": {
+                "tests/v2/test_target.py": "def test_target():\n    assert True\n    return None\n"
+            }
+        }
+    )
+
+    result = run_worker(root, manifest_path, provider=provider)
+
+    assert result["status"] == "failed"
+    assert result["worker_metrics"]["proposal_preflight"]["error_code"] == "WORKER_OUTPUT_SCHEMA"
+    assert result["failure_spec"]["location"] == "file_replacements"
+    assert "array of complete source-line strings" in result["repair_directive"]["required_action"]
+
+
+@pytest.mark.parametrize("extra_field, extra_value", [("status", "completed"), ("notes", "optional commentary")])
+def test_minimal_proposal_contract_rejects_extra_fields_without_fallback(
+    tmp_path, extra_field: str, extra_value: str
+) -> None:
     root, manifest_path = _workspace(tmp_path, prepare=False)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["output_contract"] = {
@@ -84,7 +123,7 @@ def test_minimal_proposal_contract_rejects_extra_fields_without_fallback(tmp_pat
     provider = _WorkerProvider(
         {
             "file_replacements": {"tests/v2/test_target.py": "def test_target():\n    assert True\n"},
-            "status": "completed",
+            extra_field: extra_value,
         }
     )
 

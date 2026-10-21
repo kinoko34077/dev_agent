@@ -256,7 +256,6 @@ def test_run_worker_requests_bounded_json_schema_for_local_ollama(tmp_path, monk
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     output = {
         "file_replacements": {"tests/v2/test_target.py": ["def test_target():", "    assert True", "    return None"]},
-        "notes": "local minimal structured output",
     }
     provider = OllamaProvider(model="qwen3.5:9b", base_url="http://127.0.0.1:11434")
     provider.provider_binding_id = "ollama:local:qwen3.5-9b"
@@ -277,10 +276,11 @@ def test_run_worker_requests_bounded_json_schema_for_local_ollama(tmp_path, monk
     assert result["status"] == "completed"
     assert requests[0].response_schema["type"] == "object"
     assert requests[0].max_output_tokens == 8192
-    assert set(requests[0].response_schema["properties"]) == {"file_replacements", "notes"}
+    assert set(requests[0].response_schema["properties"]) == {"file_replacements"}
     assert requests[0].response_schema["properties"]["file_replacements"]["minProperties"] == 1
     replacement_schema = requests[0].response_schema["properties"]["file_replacements"]["properties"]["tests/v2/test_target.py"]
-    assert replacement_schema["oneOf"][1]["items"]["pattern"] == "^[^\\r\\n]*$"
+    assert replacement_schema["type"] == "array"
+    assert replacement_schema["items"]["pattern"] == "^[^\\r\\n]*$"
     assert requests[0].response_schema["properties"]["file_replacements"]["additionalProperties"] is False
     assert requests[0].response_schema["properties"]["file_replacements"]["maxProperties"] == 1
     assert requests[0].response_schema["required"] == ["file_replacements"]
