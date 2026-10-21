@@ -214,6 +214,47 @@ def test_host_process_executor_propagates_ollama_timeout_to_static_host_runtime(
     assert response.text_segments == ["180.0"]
 
 
+def test_host_process_executor_propagates_selected_ollama_tier_to_static_host_runtime(tmp_path):
+    provider = OllamaProvider(model="qwen3.5:9b", timeout_seconds=10.0)
+    provider.provider_binding_id = "ollama:local:qwen3.5-9b"
+    provider.intelligence_tier = "L1"
+    request = _request()
+    request.metadata["egress_manifest_sha256"] = "8" * 64
+    code = (
+        "import json,os,sys; "
+        "response=sys.argv[sys.argv.index('--response')+1]; "
+        "value=os.environ.get('OLLAMA_INTELLIGENCE_TIER') or 'missing'; "
+        "payload={'status':'completed','response':{"
+        "'provider':'ollama','model':'qwen3.5:9b','text_segments':[value]}}; "
+        "open(response,'w',encoding='utf-8').write(json.dumps(payload))"
+    )
+    executor = HostProcessExecutor((sys.executable, "-c", code), request_dir=tmp_path, timeout_seconds=10)
+
+    response = executor(provider, request)
+
+    assert response.text_segments == ["L1"]
+
+
+def test_host_process_executor_does_not_override_ollama_tier_for_non_ollama_provider(tmp_path, monkeypatch):
+    monkeypatch.setenv("OLLAMA_INTELLIGENCE_TIER", "existing-local-setting")
+    provider = _Provider(ModelResponse(provider="fake", model="fake-model", text_segments=["unused"]))
+    request = _request()
+    request.metadata["egress_manifest_sha256"] = "9" * 64
+    code = (
+        "import json,os,sys; "
+        "response=sys.argv[sys.argv.index('--response')+1]; "
+        "value=os.environ.get('OLLAMA_INTELLIGENCE_TIER') or 'missing'; "
+        "payload={'status':'completed','response':{"
+        "'provider':'fake','model':'fake-model','text_segments':[value]}}; "
+        "open(response,'w',encoding='utf-8').write(json.dumps(payload))"
+    )
+    executor = HostProcessExecutor((sys.executable, "-c", code), request_dir=tmp_path, timeout_seconds=10)
+
+    response = executor(provider, request)
+
+    assert response.text_segments == ["existing-local-setting"]
+
+
 def test_host_process_executor_disables_bytecode_writes_in_child_runtime(tmp_path):
     provider = _Provider(ModelResponse(provider="fake", model="fake-model", text_segments=["unused"]))
     request = _request()

@@ -335,6 +335,7 @@ class HostProcessExecutor:
                 # missing environment override would silently fall back to
                 # OllamaProvider's 30-second default after model load.
                 runtime_env["OLLAMA_TIMEOUT_SECONDS"] = str(self.timeout_seconds)
+                runtime_env["OLLAMA_INTELLIGENCE_TIER"] = envelope.intelligence_tier
             completed = subprocess.run(
                 [*self.command, "--request", str(request_path), "--response", str(response_path)],
                 stdin=subprocess.DEVNULL,
