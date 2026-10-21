@@ -146,6 +146,45 @@ def test_ollama_preflight_lifecycle_failure_is_safe_for_local_failover():
     assert caught.value.requires_reconciliation is False
 
 
+@pytest.mark.parametrize(
+    "lifecycle_category",
+    ["model_missing", "load_failure", "timeout", "transport", "provider_decode"],
+)
+def test_ollama_preflight_failure_preserves_only_bounded_lifecycle_category(
+    monkeypatch, lifecycle_category
+):
+    raw_detail = "private daemon response must not escape"
+    chat_called = False
+
+    class FailingModelManager:
+        def acquire(self, *_args, **_kwargs):
+            raise OllamaLifecycleError(raw_detail, category=lifecycle_category)
+
+    def unexpected_chat(*_args, **_kwargs):
+        nonlocal chat_called
+        chat_called = True
+        raise AssertionError("/api/chat must not be called after preflight failure")
+
+    monkeypatch.setattr(
+        "src.dev_agent.providers.ollama.provider.urlopen_no_redirect",
+        unexpected_chat,
+    )
+    provider = OllamaProvider(
+        model="gemma4:12b",
+        model_manager=FailingModelManager(),
+    )
+
+    with pytest.raises(ProviderError) as caught:
+        provider.request(ModelRequest(task_id=_id(), messages=[{"role": "user", "content": "x"}]))
+
+    assert caught.value.category == "provider_unavailable"
+    assert caught.value.failover_safe is True
+    assert caught.value.requires_reconciliation is False
+    assert f"lifecycle_category={lifecycle_category}" in str(caught.value)
+    assert raw_detail not in str(caught.value)
+    assert chat_called is False
+
+
 def test_ollama_post_boundary_transport_failure_still_requires_reconciliation(monkeypatch):
     monkeypatch.setattr(
         "src.dev_agent.providers.ollama.provider.urlopen_no_redirect",

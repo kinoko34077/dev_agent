@@ -24,6 +24,7 @@ from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.cloudflare import CloudflareWorkersAIHttpProvider
 from src.dev_agent.providers.gemini import GeminiHttpProvider
 from src.dev_agent.providers.ollama.provider import OllamaProvider
+from src.dev_agent.providers.ollama.lifecycle import OllamaLifecycleError
 from src.dev_agent.providers.openrouter import OpenRouterHttpProvider
 from tests.v2.devfarm_test_support import _RawWorkerProvider, _WorkerProvider, _workspace, _patch
 
@@ -286,6 +287,48 @@ def test_run_worker_requests_bounded_json_schema_for_local_ollama(tmp_path, monk
     assert requests[0].response_schema["additionalProperties"] is False
     assert "only required output key is file_replacements" in requests[0].messages[1]["content"]
     assert requests[0].messages[2]["role"] == "user"
+
+
+def test_run_worker_persists_only_allowlisted_ollama_lifecycle_diagnostic(tmp_path, monkeypatch):
+    root, manifest_path = _workspace(tmp_path, prepare=False)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["approved_provider_ids"] = ["ollama"]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    raw_detail = "sensitive daemon detail must stay private"
+    chat_calls = []
+
+    class FailingModelManager:
+        def acquire(self, *_args, **_kwargs):
+            raise OllamaLifecycleError(raw_detail, category="timeout")
+
+    provider = OllamaProvider(model="qwen3.5:9b", model_manager=FailingModelManager())
+    provider.provider_binding_id = "ollama:local:qwen3.5-9b"
+    provider.intelligence_tier = "L1"
+    monkeypatch.setattr(
+        "src.dev_agent.providers.ollama.provider.urlopen_no_redirect",
+        lambda *args, **kwargs: chat_calls.append((args, kwargs)),
+    )
+
+    result = run_worker(root, manifest_path, provider=provider, local_trial=True)
+
+    assert result["status"] == "failed"
+    assert result["worker_metrics"]["provider_failure_category"] == "provider_unavailable"
+    assert result["worker_metrics"]["failover_safe"] is True
+    assert result["worker_metrics"]["reconciliation_required"] is False
+    assert "failure_spec" not in result
+    notes_path = (
+        root
+        / ".devfarm"
+        / "results"
+        / manifest["task_id"]
+        / "attempts"
+        / result["attempt_id"]
+        / "notes.md"
+    )
+    notes = notes_path.read_text(encoding="utf-8")
+    assert "lifecycle_category=timeout" in notes
+    assert raw_detail not in notes
+    assert chat_calls == []
 
 
 def test_worker_prompt_makes_patch_and_test_claim_boundaries_explicit(tmp_path):

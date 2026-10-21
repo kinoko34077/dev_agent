@@ -15,6 +15,11 @@ if TYPE_CHECKING:
     from .lifecycle import OllamaModelManager
 
 
+_PRECHAT_FAILOVER_LIFECYCLE_CATEGORIES = frozenset(
+    {"model_missing", "load_failure", "timeout", "transport", "provider_decode"}
+)
+
+
 class OllamaProvider(ModelProvider):
     provider_id = "ollama"
 
@@ -68,8 +73,17 @@ class OllamaProvider(ModelProvider):
                 # model, failed preload, or local daemon timeout may safely
                 # move to another already-admitted local binding.  Once chat
                 # starts, transport remains reconciliation-required below.
-                if exc.category in {"model_missing", "load_failure", "timeout", "transport", "provider_decode"}:
-                    raise ProviderError("ollama model lifecycle unavailable", category="provider_unavailable", retryable=True, failover_safe=True) from exc
+                if exc.category in _PRECHAT_FAILOVER_LIFECYCLE_CATEGORIES:
+                    # Keep the provider-level outcome generic for routing, but
+                    # retain only the fixed lifecycle category in bounded
+                    # Worker notes. Never expose daemon exception text.
+                    raise ProviderError(
+                        "ollama model lifecycle unavailable; "
+                        f"lifecycle_category={exc.category}",
+                        category="provider_unavailable",
+                        retryable=True,
+                        failover_safe=True,
+                    ) from exc
                 raise ProviderError("ollama model lifecycle state failure", category="provider_decode", retryable=False) from exc
         try:
             try:
