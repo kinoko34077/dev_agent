@@ -75,7 +75,8 @@ def test_an_inferred_goal_cannot_rewrite_fixed_conditions():
                                                   "reason": "Unconfirmed assessor inference"}
     case["assessments"][0]["finding"] = "contradicts"
     result = evaluate_goal_preflight(case)
-    assert result["disposition"] == "ALIGNED"
+    assert result["disposition"] == "NEEDS_EVIDENCE"
+    assert "accepted_goal_missing" in result["unresolved"]
     assert "goal:0" in result["hypothesis_only"]
 
 
