@@ -18,7 +18,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.devfarm_errors import DevFarmError
-from scripts.devfarm_goal_alignment import GoalAlignmentError, evaluate_goal_preflight
+from scripts.devfarm_goal_alignment import (GoalAlignmentError, evaluate_goal_preflight,
+    evaluate_plan_goal_preflight, canonical_plan_proposal)
 from scripts.devfarm_contracts import (
     MAX_ACCEPTANCE,
     MAX_ACCEPTANCE_CHARS,
@@ -62,6 +63,8 @@ def main(argv: list[str] | None = None) -> int:
     plan.add_argument("--goal-check", type=Path, help="optional source-anchored preflight packet before plan creation")
     goal_check = sub.add_parser("goal-check", help="review proposal against sourced user purpose (advisory only)")
     goal_check.add_argument("packet", type=Path)
+    plan_text = sub.add_parser("goal-plan-text", help="show exact canonical plan text for source-backed review")
+    plan_text.add_argument("spec", type=Path)
     dispatch = sub.add_parser("dispatch", help="dispatch READY worker tasks as remote proposals")
     dispatch.add_argument("run_id")
     dispatch.add_argument("--provider")
@@ -130,14 +133,17 @@ def main(argv: list[str] | None = None) -> int:
             result = evaluate_goal_preflight(read_json(args.packet))
             print(json.dumps(result, ensure_ascii=False, indent=2))
             return 0 if result["disposition"] == "ALIGNED" else 1
+        elif args.command == "goal-plan-text":
+            print(canonical_plan_proposal(read_json(args.spec)))
         elif args.command == "plan":
+            plan_value = read_json(args.spec)
             if args.goal_check is not None:
-                result = evaluate_goal_preflight(read_json(args.goal_check))
+                result = evaluate_plan_goal_preflight(read_json(args.goal_check), plan_value)
                 if result["disposition"] != "ALIGNED":
                     raise DevFarmError(f"optional goal preflight did not align: {result['disposition']}; see goal-check")
             from scripts.devfarm_commander import create_plan
 
-            print(json.dumps(create_plan(args.root, read_json(args.spec)), ensure_ascii=False, indent=2))
+            print(json.dumps(create_plan(args.root, plan_value), ensure_ascii=False, indent=2))
         elif args.command == "dispatch":
             from scripts.devfarm_commander import dispatch_cli
 
