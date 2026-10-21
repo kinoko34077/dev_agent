@@ -411,16 +411,16 @@ def build_concrete_failure_spec(
             stage="worker_output_validation",
             location="worker_output",
             observed="output contains fields outside the minimal Worker contract",
-            expected="only file_replacements and optional notes",
+            expected="only file_replacements",
             problem="the minimal Worker output contains unsupported fields",
             required_correction=(
-                "Return exactly one JSON object with file_replacements and, optionally, notes. "
-                "Remove every other top-level field, including output_contract."
+                "Return exactly one JSON object with file_replacements only. "
+                "Remove every other top-level field, including notes, status, and output_contract."
             ),
             must_preserve=preserve,
             forbidden_changes=("adding metadata fields", "changing file scope"),
             acceptance_checks=(
-                "top-level keys are file_replacements and optional notes",
+                "the only top-level key is file_replacements",
                 "file_replacements contains only supplied outbound paths",
             ),
             validator_refs=(validator_ref,),

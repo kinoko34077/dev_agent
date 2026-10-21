@@ -312,6 +312,8 @@ def _materialize_file_replacements(
     root: Path,
     manifest: Mapping[str, Any],
     replacements: Mapping[str, Any],
+    *,
+    require_single_line_items: bool = False,
 ) -> tuple[str, list[str], str, tuple[str, ...]]:
     """Turn bounded complete-file output into a Host-generated unified diff.
 
@@ -355,6 +357,11 @@ def _materialize_file_replacements(
                 raise DevFarmError(f"file replacement has too many lines: {normalized_path}")
             if any(not isinstance(line, str) for line in replacement):
                 raise DevFarmError(f"file replacement lines must be strings: {normalized_path}")
+            if require_single_line_items and any("\r" in line or "\n" in line for line in replacement):
+                raise DevFarmError(
+                    "minimal Worker line-array items must not contain newlines: "
+                    f"{normalized_path}"
+                )
             # Models commonly serialize the final newline as an extra empty
             # line.  Canonicalize that transport artifact before generating a
             # patch; git's whitespace=error must still reject real blank
@@ -385,6 +392,8 @@ def _materialize_file_replacements(
                 replacement += "\n"
             encodings.add("lines")
         elif isinstance(replacement, str):
+            if require_single_line_items:
+                raise DevFarmError("minimal Worker file replacements must be line arrays")
             encodings.add("text")
         else:
             raise DevFarmError(f"file replacement content must be text or lines: {normalized_path}")
@@ -1100,6 +1109,7 @@ def run_worker(
                     root,
                     manifest,
                     replacement_value,
+                    require_single_line_items=output_mode == "minimal_file_replacement",
                 )
                 output = {**output, "patch": patch}
         patch_normalizations: list[str] = []
