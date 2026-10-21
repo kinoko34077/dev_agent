@@ -65,7 +65,11 @@ def test_ollama_response_records_explicit_zero_local_cost(monkeypatch):
 
     monkeypatch.setattr("src.dev_agent.providers.ollama.provider.urlopen_no_redirect", lambda request, timeout: Response())
     response = OllamaProvider(model="local-test").request(ModelRequest(task_id=_id(), messages=[{"role": "user", "content": "x"}]))
-    assert response.usage["cost_minor"] == 0
+    assert response.usage == {
+        "prompt_tokens": 1,
+        "completion_tokens": 2,
+        "cost_minor": 0,
+    }
 
 
 def test_ollama_liveness_probe_reads_inventory_without_chat_generation(monkeypatch):

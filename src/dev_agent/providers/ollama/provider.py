@@ -112,7 +112,18 @@ class OllamaProvider(ModelProvider):
                 function = item["function"]
                 calls.append(ToolCall(tool_name=function["name"], arguments=function.get("arguments", {}), provider_call_id=item.get("id"), originating_request_id=request.request_id))
             text = message.get("content", "")
-            usage = {key: raw[key] for key in ("prompt_eval_count", "eval_count", "total_duration") if key in raw}
+            # Ollama's protocol names its token counters differently from the
+            # provider-neutral ModelResponse usage contract. Normalize them at
+            # the adapter boundary so Worker metrics can retain the counts
+            # without learning Ollama-specific fields.
+            usage: dict[str, int] = {}
+            for source_key, target_key in (
+                ("prompt_eval_count", "prompt_tokens"),
+                ("eval_count", "completion_tokens"),
+            ):
+                count = raw.get(source_key)
+                if isinstance(count, int) and not isinstance(count, bool) and count >= 0:
+                    usage[target_key] = count
             # Ollama is a local, non-billed resource in the Phase 6 router.
             # Emit an explicit zero charge so the budget lifecycle can
             # reconcile the dispatch instead of treating absent billing data
