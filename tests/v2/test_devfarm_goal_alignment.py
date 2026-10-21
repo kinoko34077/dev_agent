@@ -65,6 +65,14 @@ def test_source_digest_and_quotes_are_verified():
         evaluate_goal_preflight(case)
 
 
+def test_source_digest_preserves_leading_and_trailing_whitespace():
+    case = example()
+    case["sources"][0]["text"] = "\n" + case["sources"][0]["text"] + "\n"
+    case["sources"][0]["sha256"] = hashlib.sha256(case["sources"][0]["text"].encode()).hexdigest()
+    result = evaluate_goal_preflight(case)
+    assert result["source_refs"][0]["sha256"] == case["sources"][0]["sha256"]
+
+
 def test_an_inferred_goal_cannot_rewrite_fixed_conditions():
     case = example()
     case["goal_context"]["fixed_constraints"][0]["kind"] = "inferred_hypothesis"

@@ -36,6 +36,13 @@ def _text(value: object, name: str, *, max_length: int = 4096) -> str:
     return value.strip()
 
 
+def _source_body(value: object, name: str) -> str:
+    """Validate source content without normalizing bytes used for its digest."""
+    if not isinstance(value, str) or not value.strip() or len(value) > 100_000:
+        raise GoalAlignmentError(f"{name} must be nonempty source text (max 100000)")
+    return value
+
+
 def _bounded(value: object, name: str, limit: int) -> list[Any]:
     if not isinstance(value, list) or len(value) > limit:
         raise GoalAlignmentError(f"{name} must be a list of at most {limit} entries")
@@ -54,7 +61,7 @@ def _docs(raw: object) -> tuple[dict[str, str], list[dict[str, str]]]:
         if set(item) != {"ref", "text", "sha256"}:
             raise GoalAlignmentError("source requires only ref, text and sha256")
         ref = _text(item["ref"], "source.ref", max_length=500)
-        body = _text(item["text"], "source.text", max_length=100_000)
+        body = _source_body(item["text"], "source.text")
         digest = _text(item["sha256"], "source.sha256", max_length=64)
         if ref in source_text or digest != _sha256(body):
             raise GoalAlignmentError("source identity duplicated or digest does not match supplied text")
