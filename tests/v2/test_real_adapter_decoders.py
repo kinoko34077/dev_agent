@@ -72,6 +72,47 @@ def test_ollama_response_records_explicit_zero_local_cost(monkeypatch):
     }
 
 
+def test_ollama_provider_forwards_configured_timeout_to_model_acquisition(monkeypatch):
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def read(self, n: int = -1) -> bytes:
+            data = b'{"model":"local-test","done_reason":"stop","message":{"role":"assistant","content":"ok"}}'
+            return data if n < 0 else data[:n]
+
+    class RecordingModelManager:
+        def __init__(self):
+            self.acquire_args = None
+            self.released = []
+
+        def acquire(self, model, *, keep_alive=None, deadline_seconds=120.0):
+            self.acquire_args = (model, keep_alive, deadline_seconds)
+
+        def release(self, model):
+            self.released.append(model)
+
+    manager = RecordingModelManager()
+    monkeypatch.setattr(
+        "src.dev_agent.providers.ollama.provider.urlopen_no_redirect",
+        lambda request, timeout: Response(),
+    )
+    provider = OllamaProvider(
+        model="local-test",
+        timeout_seconds=240.0,
+        keep_alive="10m",
+        model_manager=manager,
+    )
+
+    provider.request(ModelRequest(task_id=_id(), messages=[{"role": "user", "content": "x"}]))
+
+    assert manager.acquire_args == ("local-test", "10m", 240.0)
+    assert manager.released == ["local-test"]
+
+
 def test_ollama_liveness_probe_reads_inventory_without_chat_generation(monkeypatch):
     captured = {}
 
