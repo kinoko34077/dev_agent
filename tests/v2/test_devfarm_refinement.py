@@ -195,6 +195,23 @@ def test_build_concrete_failure_spec_describes_non_string_replacement_line():
     assert "every replacement line is a string" in spec.acceptance_checks
 
 
+def test_build_concrete_failure_spec_describes_empty_minimal_replacements():
+    spec = build_concrete_failure_spec(
+        "minimal Worker must provide non-empty file_replacements",
+        manifest={
+            "allowed_files": ["docs/CODEX_DAILY_DOGFOOD.md"],
+            "outbound_files": ["docs/CODEX_DAILY_DOGFOOD.md"],
+        },
+    )
+
+    assert spec.location == "file_replacements"
+    assert spec.observed == "missing or empty replacement object"
+    assert spec.expected == "a non-empty object containing the exact allowed path"
+    assert "file_replacements must contain at least one allowed replacement" in spec.acceptance_checks
+    assert "complete replacement" in spec.required_correction
+    assert "docs/CODEX_DAILY_DOGFOOD.md" in spec.required_correction
+
+
 def test_build_concrete_failure_spec_describes_invalid_json_contract():
     spec = build_concrete_failure_spec("worker response JSON is invalid: malformed")
 

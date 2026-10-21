@@ -398,6 +398,11 @@ def build_concrete_failure_spec(
         for item in ((manifest or {}).get("allowed_files", ()) if isinstance(manifest, Mapping) else ())
         if isinstance(item, str) and item.strip()
     )
+    outbound_files = tuple(
+        item.strip()
+        for item in ((manifest or {}).get("outbound_files", ()) if isinstance(manifest, Mapping) else ())
+        if isinstance(item, str) and item.strip()
+    )
     preserve = ("task objective", "supplied file scope")
     forbidden = ("unrelated files", "new output fields")
     if "unsupported fields" in normalized or "additional field" in normalized:
@@ -472,6 +477,29 @@ def build_concrete_failure_spec(
             must_preserve=preserve,
             forbidden_changes=forbidden,
             acceptance_checks=("assumptions is an array", "every assumption is a string"),
+            validator_refs=(validator_ref,),
+        )
+    elif "non-empty" in normalized and "file_replacements" in normalized:
+        replacement_paths = outbound_files or allowed_files
+        path_scope = ", ".join(replacement_paths) if replacement_paths else "the exact supplied outbound path"
+        spec = ConcreteFailureSpec(
+            failure_class="FORMAT_PATCH",
+            stage="worker_output_validation",
+            location="file_replacements",
+            observed="missing or empty replacement object",
+            expected="a non-empty object containing the exact allowed path",
+            problem="minimal file_replacements must contain at least one replacement",
+            required_correction=(
+                "Return a complete replacement for exactly one supplied outbound path: "
+                f"{path_scope}. Put it under file_replacements as an object key and provide "
+                "the full replacement as an array of complete source-line strings."
+            ),
+            must_preserve=preserve,
+            forbidden_changes=("returning an empty file_replacements object", "adding an unapproved path", "changing unrelated content"),
+            acceptance_checks=(
+                "file_replacements must contain at least one allowed replacement",
+                "every replacement key is an exact supplied outbound path",
+            ),
             validator_refs=(validator_ref,),
         )
     elif "file replacement lines must be strings" in normalized:
