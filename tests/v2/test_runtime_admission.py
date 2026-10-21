@@ -83,9 +83,52 @@ def test_exact_runtime_admission_reports_missing_quota_observation_as_unknown(tm
     assert observation.status == RUNTIME_UNKNOWN
 
 
-def _trusted_free3_ledger(tmp_path):
+def _trusted_free3_ledger(tmp_path, monkeypatch):
     from src.dev_agent.operation import OperationProviderBinding, OperationService
+    from src.dev_agent import operation as operation_module
+    from src.dev_agent.resources import router as router_module
+    from src.dev_agent.resources.billing_catalog import TrustedResourceProfile
     from src.dev_agent.resources.qualification import QualificationResolver
+
+    observed_at = datetime.now(timezone.utc)
+    tested_at = (observed_at - timedelta(minutes=1)).isoformat()
+    expires_at = (observed_at + timedelta(days=7)).isoformat()
+    profile = TrustedResourceProfile(
+        "gemini",
+        "gemini:worker:free-3",
+        "gemini-3.5-flash-lite",
+        0,
+        "JPY",
+        True,
+        "L1",
+        source="runtime_admission_test_fixture",
+        verified_at=tested_at,
+        expires_at=expires_at,
+        billing_mode="recurring_allowance",
+        allowance_period="daily",
+        overage_policy="hard_stop",
+    )
+    qualification = QualificationResolver(entries=[{
+        "provider": "gemini",
+        "provider_binding_id": "gemini:worker:free-3",
+        "model": "gemini-3.5-flash-lite",
+        "intelligence_tier": "L1",
+        "tested_at": tested_at,
+        "expires_at": expires_at,
+        "confidence": "high",
+        "capabilities": ["text"],
+    }])
+
+    def exact_test_profile(provider_id, provider_binding_id, model_id):
+        identity = (provider_id, provider_binding_id, model_id)
+        expected = ("gemini", "gemini:worker:free-3", "gemini-3.5-flash-lite")
+        return profile if identity == expected else None
+
+    # These tests exercise the admission path, not the live expiry dates of
+    # production evidence. Keep exact test-only facts current without renewing
+    # or changing the protected qualification/billing sources.
+    monkeypatch.setattr(operation_module, "_operation_resource_profile", exact_test_profile)
+    monkeypatch.setattr(router_module, "profile_for", exact_test_profile)
 
     ledger = ResourceLedger(tmp_path / "runtime-admission-bootstrap.sqlite3")
     binding = OperationProviderBinding(
@@ -95,9 +138,8 @@ def _trusted_free3_ledger(tmp_path):
         quota_domain="gemini:project:free-3",
         api_key_env="UNUSED_TEST_KEY",
     )
-    resolver = QualificationResolver()
-    OperationService._ensure_resource(ledger, object(), binding, qualification_resolver=resolver)
-    return ledger, ResourceRouter(ledger, qualification_resolver=resolver)
+    OperationService._ensure_resource(ledger, object(), binding, qualification_resolver=qualification)
+    return ledger, ResourceRouter(ledger, qualification_resolver=qualification), observed_at
 
 
 _FREE3 = RuntimeAdmissionCandidate(
@@ -107,23 +149,26 @@ _FREE3 = RuntimeAdmissionCandidate(
 )
 
 
-def test_trusted_no_charge_route_without_quota_is_bootstrap_admitted_not_eligible(tmp_path):
+def test_trusted_no_charge_route_without_quota_is_bootstrap_admitted_not_eligible(tmp_path, monkeypatch):
     from src.dev_agent.resources.runtime_admission import RUNTIME_BOOTSTRAP_ADMITTED
 
-    ledger, router = _trusted_free3_ledger(tmp_path)
+    ledger, router, observed_at = _trusted_free3_ledger(tmp_path, monkeypatch)
 
-    observation = RuntimeAdmissionEvaluator(router).evaluate(_FREE3, snapshot=ledger.routing_snapshot())
+    observation = RuntimeAdmissionEvaluator(router).evaluate(
+        _FREE3,
+        snapshot=ledger.routing_snapshot(),
+        observed_at=observed_at.isoformat(),
+    )
 
     assert observation.status == RUNTIME_BOOTSTRAP_ADMITTED
     assert observation.status != RUNTIME_ELIGIBLE
 
 
-def test_derived_conservative_quota_can_reach_formal_runtime_eligibility(tmp_path):
-    ledger, router = _trusted_free3_ledger(tmp_path)
+def test_derived_conservative_quota_can_reach_formal_runtime_eligibility(tmp_path, monkeypatch):
+    ledger, router, observed_at = _trusted_free3_ledger(tmp_path, monkeypatch)
     resource = ledger.get_resource("gemini:worker:free-3")
     ledger.observe(resource["resource_id"], available=1, health="healthy")
-    observed_at = datetime.now(timezone.utc).isoformat()
-    reset_at = (datetime.now(timezone.utc) + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    reset_at = (observed_at + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
     ledger.observe_quota(
         resource["resource_id"],
         unit="neurons",
@@ -135,14 +180,14 @@ def test_derived_conservative_quota_can_reach_formal_runtime_eligibility(tmp_pat
         window="day",
         reset_source="cloudflare_daily_utc",
         reset_at=reset_at,
-        observed_at=observed_at,
+        observed_at=observed_at.isoformat(),
         source="cloudflare-neuron-estimate",
     )
 
     observation = RuntimeAdmissionEvaluator(router).evaluate(
         _FREE3,
         snapshot=ledger.routing_snapshot(),
-        observed_at="2026-10-03T12:01:00+00:00",
+        observed_at=observed_at.isoformat(),
     )
 
     assert observation.status == RUNTIME_ELIGIBLE
@@ -196,14 +241,18 @@ def test_cloudflare_derived_quota_reaches_admission_through_existing_resource_pa
     assert observation.status == RUNTIME_ELIGIBLE
 
 
-def test_blocked_quota_domain_is_not_bootstrap_admitted(tmp_path):
-    ledger, router = _trusted_free3_ledger(tmp_path)
+def test_blocked_quota_domain_is_not_bootstrap_admitted(tmp_path, monkeypatch):
+    ledger, router, observed_at = _trusted_free3_ledger(tmp_path, monkeypatch)
     snapshot = ledger.routing_snapshot()
     blocked = type(snapshot)(
         snapshot.resources,
-        {"gemini:project:free-3": ({"quota_domain": "gemini:project:free-3", "block_reason": "rate_limit", "observed_at": "2026-09-27T00:00:00+00:00"},)},
+        {"gemini:project:free-3": ({"quota_domain": "gemini:project:free-3", "block_reason": "rate_limit", "observed_at": observed_at.isoformat()},)},
     )
 
-    observation = RuntimeAdmissionEvaluator(router).evaluate(_FREE3, snapshot=blocked)
+    observation = RuntimeAdmissionEvaluator(router).evaluate(
+        _FREE3,
+        snapshot=blocked,
+        observed_at=observed_at.isoformat(),
+    )
 
     assert observation.status == RUNTIME_UNKNOWN

@@ -9,6 +9,24 @@ foregroundで生かす薄いprocess boundaryであり、Task scheduling authorit
 [`CODEX_COMMANDER.md`](CODEX_COMMANDER.md)、[`CODEX_SUPERVISOR.md`](CODEX_SUPERVISOR.md)、
 [`DEVFARM.md`](DEVFARM.md)を正本とする。
 
+## 作業レーンと停止範囲
+
+このRunbookの通常作業は、Formal Gateとは別の非ゲートな **Bounded Operations** として扱う。
+許可済みのrepo内読取・計画・小さな可逆変更・offline/local検証は、既存Commander /
+DevFarm / Supervisorで進めてよい。外部Providerや特定モデルが使えない場合は、それを
+必要とする作業だけを止め、独立して許可済みの作業まで一律停止しない。代替routeの適格性が
+不明なら呼び出さず、Codexが直接実装する場合はCommander Planへ
+`no_qualified_worker`等の具体的理由を記録する。
+
+提案は引き続きHost Verificationと必要なReviewを通し、統合は既存の決定的なHost境界を使う。
+`CODEX_COMMANDER.md`の`codexless`は読み取り専用の候補評価であり、`CANDIDATE`は承認・
+公式branch統合・Gate昇格を意味しない。
+
+Formal Phase 8は別の受入レーンであり、実行所有者#65とGate権限者#11の正本に従う。
+#65が`PRECHECK_BLOCKED`ならFormal R9 rootを作らず、現在の正確なroute admissionを含む
+既存条件がそろうまで待つ。Bounded Operationsの成功、ローカルモデルの結果、通常CIの成功を
+Formal Phase 8受入へ読み替えない。
+
 ## 開始
 
 Humanの通常指示は、例えば次の短文でよい。
