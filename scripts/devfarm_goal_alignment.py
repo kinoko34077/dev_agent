@@ -208,6 +208,32 @@ def evaluate_goal_preflight(packet: Mapping[str, Any]) -> dict[str, Any]:
 
 
 
+
+def goal_review_visibility(plan: Mapping[str, Any]) -> list[str]:
+    """Return reasons to ask for M2 evidence, without granting or denying work.
+
+    A small deterministic *coverage signal*, not an NLP classifier, mandatory
+    permission gate, or proof that the agent actually considered the user goal.
+    Ordinary/legacy low-risk plans remain unaffected.
+    """
+    if not isinstance(plan, Mapping):
+        return []
+    tasks = plan.get("tasks")
+    if not isinstance(tasks, list):
+        return []
+    reasons: set[str] = set()
+    for task in tasks:
+        if not isinstance(task, Mapping):
+            continue  # existing Commander plan validator remains authoritative
+        risk = task.get("risk", "normal")
+        kind = task.get("task_type", "worker")
+        if isinstance(risk, str) and risk.lower() in {"high", "critical"}:
+            reasons.add("high_or_critical_risk")
+        if isinstance(kind, str) and kind.lower() in {"architecture", "design", "ui", "ux"}:
+            reasons.add("design_or_user_interaction")
+    return sorted(reasons)
+
+
 def canonical_plan_proposal(plan: Mapping[str, Any]) -> str:
     """One unambiguous text representation of the *entire* pending plan spec.
 

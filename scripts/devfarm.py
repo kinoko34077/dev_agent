@@ -19,7 +19,7 @@ if str(ROOT) not in sys.path:
 
 from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_goal_alignment import (GoalAlignmentError, evaluate_goal_preflight,
-    evaluate_plan_goal_preflight, canonical_plan_proposal)
+    evaluate_plan_goal_preflight, canonical_plan_proposal, goal_review_visibility)
 from scripts.devfarm_contracts import (
     MAX_ACCEPTANCE,
     MAX_ACCEPTANCE_CHARS,
@@ -141,6 +141,18 @@ def main(argv: list[str] | None = None) -> int:
                 result = evaluate_plan_goal_preflight(read_json(args.goal_check), plan_value)
                 if result["disposition"] != "ALIGNED":
                     raise DevFarmError(f"optional goal preflight did not align: {result['disposition']}; see goal-check")
+            else:
+                reasons = goal_review_visibility(plan_value)
+                if reasons:
+                    # Nonblocking, development-only signal; never grant/deny
+                    # execution authority or claim source semantics were checked.
+                    print(json.dumps({
+                        "warning": "M2_GOAL_REVIEW_NOT_RECORDED",
+                        "run_id": plan_value.get("run_id") if isinstance(plan_value, dict) else None,
+                        "reasons": reasons,
+                        "action": "read the owning Issue, challenge the design, and use plan --goal-check",
+                        "advisory_only": True,
+                    }, ensure_ascii=False), file=sys.stderr)
             from scripts.devfarm_commander import create_plan
 
             print(json.dumps(create_plan(args.root, plan_value), ensure_ascii=False, indent=2))

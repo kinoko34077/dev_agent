@@ -286,3 +286,62 @@ def test_goal_preflight_rejects_task_details_dropped_by_commander_normalization(
     packet = example(proposal=canonical_plan_proposal(candidate))
     with pytest.raises(GoalAlignmentError, match="unpersisted reviewed task field"):
         evaluate_plan_goal_preflight(packet, candidate)
+
+
+def test_substantive_plan_missing_goal_evidence_warns_without_blocking(tmp_path, capsys, monkeypatch):
+    """A risky design cannot silently look goal-reviewed; this is advisory."""
+    from scripts import devfarm_commander
+    received = []
+    monkeypatch.setattr(devfarm_commander, "create_plan",
+                        lambda root, plan: received.append(plan) or {"accepted": True})
+    plan = {
+        "run_id": "design-visibility",
+        "objective": "Change realtime settings user interaction",
+        "base_revision": "a" * 40,
+        "tasks": [{
+            "task_id": "design",
+            "owner": "codex",
+            "risk": "high",
+            "task_type": "ux",
+            "ownership": ["docs/design.md"],
+        }],
+    }
+    path = tmp_path / "plan.json"
+    path.write_text(json.dumps(plan), encoding="utf-8")
+    assert devfarm_main(["plan", str(path), "--root", str(tmp_path)]) == 0
+    stream = capsys.readouterr()
+    warning = json.loads(stream.err.strip())
+    assert warning["warning"] == "M2_GOAL_REVIEW_NOT_RECORDED"
+    assert warning["run_id"] == "design-visibility"
+    assert warning["reasons"] == ["design_or_user_interaction", "high_or_critical_risk"]
+    assert warning["advisory_only"]
+    assert received == [plan]
+    assert '"accepted"' in stream.out
+
+
+def test_minor_legacy_plan_does_not_trigger_goal_review_warning(tmp_path, capsys, monkeypatch):
+    from scripts import devfarm_commander
+    monkeypatch.setattr(devfarm_commander, "create_plan", lambda root, plan: {"ok": True})
+    plan = {
+        "run_id": "minor-review",
+        "objective": "Fix one small typo",
+        "base_revision": "a" * 40,
+        "tasks": [{"task_id": "typo", "owner": "codex", "risk": "low",
+                   "task_type": "docs", "ownership": ["docs/readme.md"]}],
+    }
+    path = tmp_path / "plan.json"
+    path.write_text(json.dumps(plan), encoding="utf-8")
+    assert devfarm_main(["plan", str(path), "--root", str(tmp_path)]) == 0
+    assert capsys.readouterr().err == ""
+
+
+def test_m2_visibility_is_not_a_semantic_safety_gate():
+    from scripts.devfarm_goal_alignment import goal_review_visibility
+    # Source/meaning is not deduced from title alone; this is coverage
+    # visibility for explicitly typed substantive tasks, not a guarantee.
+    assert goal_review_visibility({"tasks": [{"risk": "high"}]}) == ["high_or_critical_risk"]
+    assert goal_review_visibility({"tasks": [{"task_type": "architecture"}]}) == [
+        "design_or_user_interaction"
+    ]
+    assert goal_review_visibility({"tasks": [{"task_type": "worker", "risk": "low"}]}) == []
+    assert goal_review_visibility({"tasks": "invalid"}) == []
