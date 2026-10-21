@@ -46,6 +46,7 @@ def test_build_worker_metrics_keeps_bounded_identity_and_usage() -> None:
     class Response:
         provider = "gemini"
         model = "gemini-3.6-flash"
+        finish_reason = "MAX_TOKENS"
         usage = {"input_tokens": 5, "output_tokens": 7}
 
     metrics = build_worker_metrics(
@@ -59,6 +60,42 @@ def test_build_worker_metrics_keeps_bounded_identity_and_usage() -> None:
     assert metrics["provider_id"] == "gemini"
     assert metrics["provider_binding_id"] == "gemini:worker:free-3"
     assert metrics["usage"] == {"input_tokens": 5, "output_tokens": 7}
+    assert metrics["finish_reason"] == "length"
+
+
+def test_build_worker_metrics_normalizes_ordinary_stop_finish_reason() -> None:
+    request = ModelRequest(task_id="00000000-0000-0000-0000-000000000001", messages=[])
+
+    class Provider:
+        provider_id = "ollama"
+        model = "qwen3.5:9b"
+
+    class Response:
+        provider = "ollama"
+        model = "qwen3.5:9b"
+        finish_reason = "stop"
+
+    metrics = build_worker_metrics(Provider(), request, response=Response())
+
+    assert metrics["finish_reason"] == "stop"
+
+
+def test_build_worker_metrics_never_persists_unrecognized_finish_reason() -> None:
+    request = ModelRequest(task_id="00000000-0000-0000-0000-000000000001", messages=[])
+
+    class Provider:
+        provider_id = "ollama"
+        model = "qwen3.5:9b"
+
+    class Response:
+        provider = "ollama"
+        model = "qwen3.5:9b"
+        finish_reason = "raw provider detail with secret-shaped text"
+
+    metrics = build_worker_metrics(Provider(), request, response=Response())
+
+    assert metrics["finish_reason"] == "unknown"
+    assert "secret-shaped" not in str(metrics)
 
 
 def test_safe_host_failure_metadata_drops_untrusted_child_values() -> None:

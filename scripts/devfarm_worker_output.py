@@ -233,6 +233,24 @@ _HOST_FAILURE_CATEGORIES = frozenset(
     }
 )
 
+_FINISH_REASON_ALIASES = {
+    "stop": "stop",
+    "end_turn": "stop",
+    "stop_sequence": "stop",
+    "length": "length",
+    "max_tokens": "length",
+    "max_tokens_reached": "length",
+    "tool_call": "tool_call",
+    "tool_calls": "tool_call",
+    "function_call": "tool_call",
+    "malformed_function_call": "tool_call",
+    "unexpected_tool_call": "tool_call",
+    "content_filter": "content_filter",
+    "safety": "content_filter",
+    "recitation": "content_filter",
+    "blocked": "content_filter",
+}
+
 
 def safe_host_failure_metadata(error: BaseException) -> dict[str, str | int]:
     """Project only bounded child-runtime diagnostics into Worker metrics."""
@@ -322,6 +340,14 @@ def safe_usage(usage: Any) -> dict[str, Any]:
     return normalized
 
 
+def _safe_finish_reason(value: Any) -> str:
+    """Project provider finish reasons to a small provider-neutral allowlist."""
+
+    if not isinstance(value, str) or not value.strip():
+        return "unknown"
+    return _FINISH_REASON_ALIASES.get(value.strip().casefold(), "unknown")
+
+
 def build_worker_metrics(
     provider: ModelProvider,
     request: ModelRequest,
@@ -354,6 +380,7 @@ def build_worker_metrics(
         "request_id": request.request_id,
         "elapsed_ms": max(0, int(elapsed_ms)),
         "usage": safe_usage(getattr(response, "usage", {})),
+        "finish_reason": _safe_finish_reason(getattr(response, "finish_reason", None)),
         "attempt_count": 1,
         "host_verified": False,
         "host_verified_test_count": 0,
