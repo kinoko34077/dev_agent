@@ -227,6 +227,28 @@ def canonical_plan_proposal(plan: Mapping[str, Any]) -> str:
 def evaluate_plan_goal_preflight(packet: Mapping[str, Any],
                                  plan: Mapping[str, Any]) -> dict[str, Any]:
     """Bind a goal assessment to precisely the plan the Commander will create."""
+    # The existing Commander normalizer is authoritative about what a plan
+    # actually persists. Never certify an input that contains design-critical
+    # fields which Commander would silently discard (e.g. task.description).
+    from scripts.devfarm_errors import DevFarmError
+    from scripts.devfarm_plan_validation import validate_plan
+
+    try:
+        normalized = validate_plan(plan)
+    except DevFarmError as exc:
+        raise GoalAlignmentError("reviewed Commander plan is invalid") from exc
+    for field in plan:
+        if field not in normalized:
+            raise GoalAlignmentError(f"unpersisted reviewed plan field: {field}")
+    raw_tasks = plan.get("tasks", [])
+    for index, raw in enumerate(raw_tasks):
+        if not isinstance(raw, Mapping):
+            raise GoalAlignmentError("reviewed Commander plan task must be an object")
+        for field in raw:
+            if field not in normalized["tasks"][index]:
+                raise GoalAlignmentError(
+                    f"unpersisted reviewed task field at index {index}: {field}"
+                )
     result = evaluate_goal_preflight(packet)
     actual = canonical_plan_proposal(plan)
     reported = _text(_object(packet, "packet").get("proposal"),
