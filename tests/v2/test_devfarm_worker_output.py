@@ -63,6 +63,23 @@ def test_build_worker_metrics_keeps_bounded_identity_and_usage() -> None:
     assert metrics["finish_reason"] == "length"
 
 
+def test_build_worker_metrics_normalizes_ordinary_stop_finish_reason() -> None:
+    request = ModelRequest(task_id="00000000-0000-0000-0000-000000000001", messages=[])
+
+    class Provider:
+        provider_id = "ollama"
+        model = "qwen3.5:9b"
+
+    class Response:
+        provider = "ollama"
+        model = "qwen3.5:9b"
+        finish_reason = "stop"
+
+    metrics = build_worker_metrics(Provider(), request, response=Response())
+
+    assert metrics["finish_reason"] == "stop"
+
+
 def test_build_worker_metrics_never_persists_unrecognized_finish_reason() -> None:
     request = ModelRequest(task_id="00000000-0000-0000-0000-000000000001", messages=[])
 
