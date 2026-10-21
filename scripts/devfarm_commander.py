@@ -763,12 +763,22 @@ def _cli_provider(
     model_id: str,
     timeout_seconds: float,
     provider_binding_id: str | None = None,
+    *,
+    local_trial: bool = False,
 ) -> ModelProvider:
     # The provider runtime remains the only construction/activation boundary.
     # Keep this import local so importing the plan store never constructs one.
     from scripts.devfarm_provider_runtime import build_worker_provider
 
-    return build_worker_provider(provider_id, model_id, timeout_seconds, provider_binding_id)
+    if not isinstance(local_trial, bool):
+        raise DevFarmError("local_trial must be a boolean")
+    return build_worker_provider(
+        provider_id,
+        model_id,
+        timeout_seconds,
+        provider_binding_id,
+        allow_local=local_trial,
+    )
 
 
 def build_cli_provider(
@@ -776,10 +786,18 @@ def build_cli_provider(
     model_id: str,
     timeout_seconds: float,
     provider_binding_id: str | None = None,
+    *,
+    local_trial: bool = False,
 ) -> ModelProvider:
     """Public CLI composition boundary for an assigned development provider."""
 
-    return _cli_provider(provider_id, model_id, timeout_seconds, provider_binding_id)
+    return _cli_provider(
+        provider_id,
+        model_id,
+        timeout_seconds,
+        provider_binding_id,
+        local_trial=local_trial,
+    )
 
 
 def dispatch_cli(
@@ -790,7 +808,10 @@ def dispatch_cli(
     model_id: str | None = None,
     timeout_seconds: float = 30.0,
     execution_boundary: str = "in_process",
+    local_trial: bool = False,
 ) -> dict[str, Any]:
+    if not isinstance(local_trial, bool):
+        raise DevFarmError("local_trial must be a boolean")
     if execution_boundary not in {"in_process", "host_process"}:
         raise DevFarmError("execution_boundary must be in_process or host_process")
     root_path = Path(root).resolve()
@@ -818,7 +839,13 @@ def dispatch_cli(
             # An explicit provider/model override must not accidentally reuse
             # the assignment's binding for a different resource identity.
             selected_binding = None
-        provider = build_cli_provider(selected_provider, selected_model, timeout_seconds, selected_binding)
+        provider = build_cli_provider(
+            selected_provider,
+            selected_model,
+            timeout_seconds,
+            selected_binding,
+            local_trial=local_trial,
+        )
         providers[task["task_id"]] = provider
         if host_executor is not None:
             from src.dev_agent.providers.host_dispatch import route_through_host
@@ -832,6 +859,7 @@ def dispatch_cli(
         run_id,
         providers=providers,
         host_dispatches=host_dispatches or None,
+        local_trial=local_trial,
     )
 
 

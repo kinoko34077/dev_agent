@@ -685,6 +685,7 @@ class CodexSupervisedCommanderRun:
         sleep_fn: Any = time.sleep,
         monotonic_fn: Any = time.monotonic,
         execution_boundary: str = "in_process",
+        local_trial: bool = False,
     ) -> SupervisorStep:
         """Keep the lightweight supervisor process alive until intervention.
 
@@ -701,6 +702,8 @@ class CodexSupervisedCommanderRun:
             raise ValueError("max_wait_seconds must be positive")
         if not callable(sleep_fn) or not callable(monotonic_fn):
             raise TypeError("sleep_fn and monotonic_fn must be callable")
+        if not isinstance(local_trial, bool):
+            raise TypeError("local_trial must be a boolean")
         started = float(monotonic_fn())
         while True:
             current_metadata = normalize_supervisor_metadata(self.store.load(self.run_id).get("supervisor"))
@@ -726,6 +729,7 @@ class CodexSupervisedCommanderRun:
                 operator_approved=operator_approved,
                 dispatch_timeout_seconds=dispatch_timeout_seconds,
                 execution_boundary=execution_boundary,
+                local_trial=local_trial,
             )
             if step.status in {"HUMAN_DECISION_REQUIRED", "COMPLETED", "BLOCKED"}:
                 return step
@@ -883,16 +887,28 @@ class CodexSupervisedCommanderRun:
         return self._step(self._save_supervisor(metadata))
 
 
-def providers_for_resume(root: Path, run_id: str, timeout_seconds: float) -> dict[str, Any]:
+def providers_for_resume(
+    root: Path,
+    run_id: str,
+    timeout_seconds: float,
+    *,
+    local_trial: bool = False,
+) -> dict[str, Any]:
     """Backward-compatible Supervisor boundary for assigned Provider composition."""
 
-    return compose_providers_for_resume(root, run_id, timeout_seconds)
+    return compose_providers_for_resume(root, run_id, timeout_seconds, local_trial=local_trial)
 
 
-def _providers_for_resume(root: Path, run_id: str, timeout_seconds: float) -> dict[str, Any]:
+def _providers_for_resume(
+    root: Path,
+    run_id: str,
+    timeout_seconds: float,
+    *,
+    local_trial: bool = False,
+) -> dict[str, Any]:
     """Backward-compatible alias for older in-process callers."""
 
-    return providers_for_resume(root, run_id, timeout_seconds)
+    return providers_for_resume(root, run_id, timeout_seconds, local_trial=local_trial)
 
 
 def cli_artifact_reference(value: str, *, kind: str = "artifact") -> dict[str, str]:

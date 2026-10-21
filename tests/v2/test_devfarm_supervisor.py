@@ -218,6 +218,30 @@ def test_supervised_run_waits_without_llm_polling_until_intervention(tmp_path):
     assert sleeps == [60.0]
 
 
+def test_supervised_run_forwards_explicit_local_trial_to_existing_advance(tmp_path):
+    create_plan(tmp_path, _plan())
+    runner = CodexSupervisedCommanderRun(tmp_path, "supervisor-test-001")
+    runner.create(expected_remaining_seconds=30)
+    baseline = runner.status()
+    calls = []
+
+    def finish(**kwargs):
+        calls.append(kwargs)
+        return replace(baseline, status="COMPLETED", next_action="stop")
+
+    runner.advance = finish
+    step = runner.run_until_intervention(
+        providers={},
+        local_trial=True,
+        max_wait_seconds=60,
+        sleep_fn=lambda _seconds: (_ for _ in ()).throw(AssertionError("completed run must not sleep")),
+    )
+
+    assert step.status == "COMPLETED"
+    assert len(calls) == 1
+    assert calls[0]["local_trial"] is True
+
+
 @pytest.mark.parametrize(
     ("status", "next_action"),
     [
@@ -355,8 +379,8 @@ def test_supervisor_resume_preserves_assigned_worker_binding(tmp_path, monkeypat
     )
     calls = []
 
-    def fake_provider(name, model, timeout_seconds, provider_binding_id=None):
-        calls.append((name, model, timeout_seconds, provider_binding_id))
+    def fake_provider(name, model, timeout_seconds, provider_binding_id=None, *, allow_local=False):
+        calls.append((name, model, timeout_seconds, provider_binding_id, allow_local))
         return object()
 
     monkeypatch.setattr("scripts.devfarm_resume.build_worker_provider", fake_provider)
@@ -364,7 +388,7 @@ def test_supervisor_resume_preserves_assigned_worker_binding(tmp_path, monkeypat
     providers = _providers_for_resume(tmp_path, "supervisor-test-001", 30)
 
     assert set(providers) == {"worker-task"}
-    assert calls == [("gemini", "gemini-3.6-flash", 30, "gemini:worker:free-3")]
+    assert calls == [("gemini", "gemini-3.6-flash", 30, "gemini:worker:free-3", False)]
 
 
 def test_supervisor_step_exposes_plan_delegation_summary(tmp_path):

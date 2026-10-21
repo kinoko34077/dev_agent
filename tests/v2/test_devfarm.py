@@ -5,6 +5,7 @@ import sys
 
 import pytest
 
+import scripts.devfarm as devfarm_cli
 from scripts.devfarm import DevFarmError, validate_manifest, validate_result
 
 
@@ -132,6 +133,35 @@ def test_devfarm_direct_cli_can_validate_manifest(tmp_path):
         check=False,
     )
     assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize(("local_trial_args", "expected"), [((), False), (("--local-trial",), True)])
+def test_devfarm_dispatch_cli_forwards_local_trial_opt_in(monkeypatch, tmp_path, local_trial_args, expected):
+    calls = []
+
+    def capture_dispatch(*args, **kwargs):
+        calls.append((args, kwargs))
+        return {"status": "captured"}
+
+    monkeypatch.setattr("scripts.devfarm_commander.dispatch_cli", capture_dispatch)
+
+    result = devfarm_cli.main([
+        "dispatch",
+        "run-1",
+        "--provider",
+        "ollama",
+        "--model",
+        "qwen3.5:9b",
+        "--execution-boundary",
+        "in_process",
+        "--root",
+        str(tmp_path),
+        *local_trial_args,
+    ])
+
+    assert result == 0
+    assert len(calls) == 1
+    assert calls[0][1]["local_trial"] is expected
 
 
 @pytest.mark.parametrize(

@@ -1858,8 +1858,8 @@ def test_dispatch_cli_preserves_assigned_provider_binding(tmp_path, monkeypatch)
     provider_calls = []
     dispatch_calls = []
 
-    def fake_build(provider_id, model_id, timeout_seconds, provider_binding_id):
-        provider_calls.append((provider_id, model_id, timeout_seconds, provider_binding_id))
+    def fake_build(provider_id, model_id, timeout_seconds, provider_binding_id, *, local_trial=False):
+        provider_calls.append((provider_id, model_id, timeout_seconds, provider_binding_id, local_trial))
         return object()
 
     def fake_dispatch(root, run_id, **kwargs):
@@ -1872,7 +1872,7 @@ def test_dispatch_cli_preserves_assigned_provider_binding(tmp_path, monkeypatch)
     result = dispatch_cli(tmp_path, "binding-dispatch-run", timeout_seconds=17.0, execution_boundary="in_process")
 
     assert result == {"status": "captured"}
-    assert provider_calls == [("gemini", "gemini-3.5-flash-lite", 17.0, "gemini:worker")]
+    assert provider_calls == [("gemini", "gemini-3.5-flash-lite", 17.0, "gemini:worker", False)]
     assert dispatch_calls[0][2]["providers"]["binding-dispatch-task"] is not None
 
 
@@ -1926,3 +1926,74 @@ def test_dispatch_plan_explicit_local_trial_reaches_worker_assignment(tmp_path):
     dispatch_plan(root, "local-trial-dispatch-run", providers={"local-trial-task": provider}, orchestrator=_Capture(), local_trial=True)
     assert len(captured) == 1
     assert captured[0].local_trial is True
+
+
+@pytest.mark.parametrize(("local_trial", "expected"), [(False, False), (True, True)])
+def test_dispatch_cli_forwards_local_trial_to_existing_plan_dispatch(monkeypatch, tmp_path, local_trial, expected):
+    captured = {}
+    plan = {
+        "tasks": [
+            {
+                "task_id": "task-1",
+                "owner": "worker",
+                "status": "READY",
+                "assignment": {"provider_id": "ollama", "model_id": "qwen3.5:9b"},
+            }
+        ]
+    }
+    monkeypatch.setattr(CommanderPlanStore, "load", lambda _self, _run_id: plan)
+    builder_calls = []
+
+    def capture_provider_build(*_args, **kwargs):
+        builder_calls.append(kwargs.get("local_trial", False))
+        return _WorkerProvider({})
+
+    monkeypatch.setattr(
+        "scripts.devfarm_commander.build_cli_provider",
+        capture_provider_build,
+    )
+
+    def capture_plan_dispatch(*_args, **kwargs):
+        captured.update(kwargs)
+        return {"status": "captured"}
+
+    monkeypatch.setattr("scripts.devfarm_commander.dispatch_plan", capture_plan_dispatch)
+
+    result = dispatch_cli(
+        tmp_path,
+        "run-1",
+        execution_boundary="in_process",
+        local_trial=local_trial,
+    )
+
+    assert result == {"status": "captured"}
+    assert builder_calls == [expected]
+    assert captured["local_trial"] is expected
+
+
+@pytest.mark.parametrize(("local_trial", "expected"), [(False, False), (True, True)])
+def test_build_cli_provider_forwards_local_trial_to_existing_provider_admission(
+    monkeypatch, local_trial, expected
+):
+    observed = []
+
+    def capture_provider_build(*args, **kwargs):
+        observed.append((args, kwargs))
+        return _WorkerProvider({})
+
+    monkeypatch.setattr("scripts.devfarm_provider_runtime.build_worker_provider", capture_provider_build)
+
+    from scripts.devfarm_commander import build_cli_provider
+
+    provider = build_cli_provider(
+        "ollama",
+        "qwen3.5:9b",
+        30.0,
+        "ollama:local:qwen3.5-9b",
+        local_trial=local_trial,
+    )
+
+    assert isinstance(provider, _WorkerProvider)
+    assert observed == [
+        (("ollama", "qwen3.5:9b", 30.0, "ollama:local:qwen3.5-9b"), {"allow_local": expected})
+    ]

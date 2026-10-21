@@ -64,6 +64,11 @@ def main(argv: list[str] | None = None) -> int:
     dispatch.add_argument("--model")
     dispatch.add_argument("--timeout-seconds", type=float, default=30.0)
     dispatch.add_argument(
+        "--local-trial",
+        action="store_true",
+        help="explicitly allow the existing bounded local-trial admission path",
+    )
+    dispatch.add_argument(
         "--execution-boundary",
         choices=("host_process", "in_process"),
         default="host_process",
@@ -133,6 +138,7 @@ def main(argv: list[str] | None = None) -> int:
                         model_id=args.model,
                         timeout_seconds=args.timeout_seconds,
                         execution_boundary=args.execution_boundary,
+                        local_trial=args.local_trial,
                     ),
                     ensure_ascii=False,
                     indent=2,

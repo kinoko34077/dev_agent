@@ -38,6 +38,11 @@ def _parser() -> argparse.ArgumentParser:
     resume.add_argument("--trust-level", choices=("STATIC_ONLY", "TRUSTED_HOST_EXEC", "OS_SANDBOXED"), default="STATIC_ONLY")
     resume.add_argument("--operator-approved", action="store_true")
     resume.add_argument(
+        "--local-trial",
+        action="store_true",
+        help="explicitly allow the existing bounded local-trial admission path",
+    )
+    resume.add_argument(
         "--execution-boundary",
         choices=("host_process", "in_process"),
         default="host_process",
@@ -51,6 +56,11 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--max-wait-seconds", type=float, default=900.0)
     run.add_argument("--trust-level", choices=("STATIC_ONLY", "TRUSTED_HOST_EXEC", "OS_SANDBOXED"), default="STATIC_ONLY")
     run.add_argument("--operator-approved", action="store_true")
+    run.add_argument(
+        "--local-trial",
+        action="store_true",
+        help="explicitly allow the existing bounded local-trial admission path",
+    )
     run.add_argument(
         "--execution-boundary",
         choices=("host_process", "in_process"),
@@ -205,7 +215,12 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
         return 0 if result.eligible else 2
 
-    providers = providers_for_resume(args.root, args.run_id, args.timeout_seconds)
+    providers = providers_for_resume(
+        args.root,
+        args.run_id,
+        args.timeout_seconds,
+        local_trial=args.local_trial,
+    )
     step = (
         runner.advance(
             providers=providers,
@@ -213,6 +228,7 @@ def main(argv: list[str] | None = None) -> int:
             verification_trust_level=args.trust_level,
             operator_approved=args.operator_approved,
             execution_boundary=args.execution_boundary,
+            local_trial=args.local_trial,
         )
         if args.command == "resume"
         else runner.run_until_intervention(
@@ -223,6 +239,7 @@ def main(argv: list[str] | None = None) -> int:
             dispatch_timeout_seconds=args.dispatch_timeout_seconds,
             max_wait_seconds=args.max_wait_seconds,
             execution_boundary=args.execution_boundary,
+            local_trial=args.local_trial,
         )
     )
     print(json.dumps(step.to_dict(), ensure_ascii=False, indent=2))
