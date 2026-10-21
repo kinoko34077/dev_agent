@@ -222,3 +222,37 @@ def test_cli_transport_failure_preserves_bounded_diagnostics_without_claiming_bo
     }
     assert "private socket detail" not in output
     assert "never-print-this" not in output
+
+
+def test_cli_help_exits_before_billing_read_network_call(monkeypatch, capsys):
+    from scripts import probe_cloudflare_subscriptions
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("--help must not perform the Billing Read request")
+
+    monkeypatch.setattr(
+        CloudflareSubscriptionsClient, "read_subscriptions", forbidden,
+    )
+
+    with pytest.raises(SystemExit) as raised:
+        probe_cloudflare_subscriptions.main(["--help"])
+
+    assert raised.value.code == 0
+    assert "usage:" in capsys.readouterr().out
+
+
+def test_cli_rejects_unknown_arguments_before_billing_read_network_call(monkeypatch, capsys):
+    from scripts import probe_cloudflare_subscriptions
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("invalid arguments must not perform the Billing Read request")
+
+    monkeypatch.setattr(
+        CloudflareSubscriptionsClient, "read_subscriptions", forbidden,
+    )
+
+    with pytest.raises(SystemExit) as raised:
+        probe_cloudflare_subscriptions.main(["--unknown"])
+
+    assert raised.value.code == 2
+    assert "unrecognized arguments: --unknown" in capsys.readouterr().err

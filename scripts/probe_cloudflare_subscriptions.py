@@ -9,9 +9,11 @@ plan names, prices, invoices, and all Cloudflare response objects.
 
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 import sys
+from typing import Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -24,7 +26,15 @@ from src.dev_agent.providers.cloudflare.subscription_introspection import (
 )
 
 
-def main() -> int:
+def _args(argv: Sequence[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Read-only Cloudflare Billing Read subscription hint probe."
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: Sequence[str] = ()) -> int:
+    _args(argv)
     try:
         observation = CloudflareSubscriptionsClient().read_subscriptions()
     except ProviderError as exc:
@@ -74,4 +84,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))
