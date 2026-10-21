@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.dev_agent.providers.base import ProviderError
+from src.dev_agent.providers.base import ProviderError, project_transport_failure
 from src.dev_agent.providers.cloudflare.subscription_introspection import (
     CloudflareSubscriptionsClient,
     CloudflareSubscriptionsError,
@@ -51,6 +51,19 @@ def main() -> int:
                 "next_step": "Human must confirm existing Billing Read access; do not create, rotate, or elevate a token.",
             }, sort_keys=True))
             return 3
+        if exc.category == "transport":
+            # Preserve only the shared bounded diagnostic projection. This
+            # process cannot prove which execution boundary denied the socket,
+            # so deliberately do not supply or infer one here.
+            print(json.dumps({
+                "status": "TRANSPORT_FAILED",
+                "category": "transport",
+                "request_attempted": True,
+                "provider_response_received": False,
+                "transport_diagnostics": project_transport_failure(exc),
+                "admission_ready": False,
+            }, sort_keys=True))
+            return 1
         print(json.dumps({"status": "READ_FAILED", "category": "provider_or_transport", "admission_ready": False}))
         return 1
     except (CloudflareSubscriptionsError, ValueError, TypeError):

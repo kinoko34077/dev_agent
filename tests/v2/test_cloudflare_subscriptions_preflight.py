@@ -185,3 +185,40 @@ def test_cli_remote_401_is_not_misreported_as_no_network(monkeypatch, capsys):
     assert result["status"] == "AUTH_REJECTED"
     assert result["network_called"] is True
     assert "upstream details" not in output
+
+
+def test_cli_transport_failure_preserves_bounded_diagnostics_without_claiming_boundary(monkeypatch, capsys):
+    from scripts import probe_cloudflare_subscriptions
+
+    class _WinSockDenied(PermissionError):
+        def __init__(self):
+            super().__init__(13, "private socket detail")
+            self.winerror = 10013
+
+    class _TransportFailure:
+        def read_subscriptions(self):
+            failure = ProviderError(
+                "private transport detail with token=never-print-this",
+                category="transport",
+                retryable=True,
+            )
+            failure.__cause__ = _WinSockDenied()
+            raise failure
+
+    monkeypatch.setattr(probe_cloudflare_subscriptions, "CloudflareSubscriptionsClient", _TransportFailure)
+    assert probe_cloudflare_subscriptions.main() == 1
+    output = capsys.readouterr().out
+    result = json.loads(output)
+
+    assert result["status"] == "TRANSPORT_FAILED"
+    assert result["request_attempted"] is True
+    assert result["provider_response_received"] is False
+    assert result["transport_diagnostics"] == {
+        "transport_failure_category": "transport_unclassified",
+        "transport_stage": "unknown",
+        "transport_exception_type": "_WinSockDenied",
+        "transport_errno": 13,
+        "transport_winerror": 10013,
+    }
+    assert "private socket detail" not in output
+    assert "never-print-this" not in output
