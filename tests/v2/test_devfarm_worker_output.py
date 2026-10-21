@@ -80,6 +80,26 @@ def test_build_worker_metrics_normalizes_ordinary_stop_finish_reason() -> None:
     assert metrics["finish_reason"] == "stop"
 
 
+def test_build_worker_metrics_distinguishes_no_response_from_unknown_reason() -> None:
+    request = ModelRequest(task_id="00000000-0000-0000-0000-000000000001", messages=[])
+
+    class Provider:
+        provider_id = "ollama"
+        model = "qwen3.5:9b"
+
+    class ResponseWithoutFinishReason:
+        provider = "ollama"
+        model = "qwen3.5:9b"
+
+    no_response_metrics = build_worker_metrics(Provider(), request)
+    response_without_reason_metrics = build_worker_metrics(
+        Provider(), request, response=ResponseWithoutFinishReason()
+    )
+
+    assert no_response_metrics["finish_reason"] == "not_observed"
+    assert response_without_reason_metrics["finish_reason"] == "unknown"
+
+
 def test_build_worker_metrics_never_persists_unrecognized_finish_reason() -> None:
     request = ModelRequest(task_id="00000000-0000-0000-0000-000000000001", messages=[])
 
