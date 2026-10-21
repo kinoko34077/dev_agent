@@ -70,13 +70,12 @@ python scripts/devfarm_runtime_coordinator.py health --data-dir .dev_agent
 
 隔離されたbounded smoke:
 
-```text
-python -c "import tempfile; print(tempfile.mkdtemp(prefix='dev-agent-runtime-smoke-'))"
-python scripts/devfarm_runtime_coordinator.py serve --data-dir <fresh-empty-temp-dir> \
-  --provider fake --model deterministic --max-cycles 2
+```powershell
+$freshRuntimeSmokeDir = python -c "import tempfile; print(tempfile.mkdtemp(prefix='dev-agent-runtime-smoke-'))"
+python scripts/devfarm_runtime_coordinator.py serve --data-dir $freshRuntimeSmokeDir --provider fake --model deterministic --max-cycles 2
 ```
 
-1行目が表示した新規空directoryを`<fresh-empty-temp-dir>`へ指定する。実データのある
+最初の行で作られる新規空directoryを使用する。実データのある
 `.dev_agent`をfake Providerのsmokeに使わない。このsmokeは空状態で既存Coordinatorの
 有限loopを確認するだけで、durable queueの復旧・実Task実行・Provider資格を証明しない。
 一時directoryはprocess終了後にのみ、不要と確認できた場合に削除する。
