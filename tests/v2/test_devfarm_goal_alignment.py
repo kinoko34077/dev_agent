@@ -136,11 +136,11 @@ def test_goal_check_is_bound_to_exact_commander_plan(tmp_path, monkeypatch, caps
                         lambda root, spec: submitted.append(spec) or {"created": True})
     spec = {
         "run_id": "test-m2-goal-linkage",
-        "objective": "Existing settings switch the realtime DSP model",
+        "objective": "Existing settings switch the realtime DSP model; integrate supported Rust realtime DSP",
         "base_revision": "a" * 40,
         "tasks": [
-            {"task_id": "t1", "owner": "codex",
-             "objective": "Integrate the supported Rust realtime DSP model"},
+            {"task_id": "t1", "owner": "codex", "task_type": "architecture",
+             "ownership": ["docs/realtime-dsp-architecture.md"]},
         ],
     }
     plan_file = tmp_path / "plan.json"
@@ -157,7 +157,7 @@ def test_goal_check_is_bound_to_exact_commander_plan(tmp_path, monkeypatch, caps
     assert submitted == [spec]
 
     # Reusing a positive report for a different implementation task is forbidden.
-    spec["tasks"][0]["objective"] = "Create an isolated 1.5-second offline demo instead"
+    spec["objective"] = "Create an isolated 1.5-second offline demo instead"
     plan_file.write_text(json.dumps(spec), encoding="utf-8")
     with pytest.raises(SystemExit) as err:
         devfarm_main(["plan", str(plan_file), "--goal-check", str(packet_file),
@@ -165,10 +165,10 @@ def test_goal_check_is_bound_to_exact_commander_plan(tmp_path, monkeypatch, caps
     assert err.value.code == 2
     assert submitted == [dict(
         run_id="test-m2-goal-linkage",
-        objective="Existing settings switch the realtime DSP model",
+        objective="Existing settings switch the realtime DSP model; integrate supported Rust realtime DSP",
         base_revision="a" * 40,
-        tasks=[{"task_id": "t1", "owner": "codex",
-                "objective": "Integrate the supported Rust realtime DSP model"}]
+        tasks=[{"task_id": "t1", "owner": "codex", "task_type": "architecture",
+                "ownership": ["docs/realtime-dsp-architecture.md"]}]
     )]
 
 
@@ -176,15 +176,18 @@ def test_exact_plan_binding_cannot_ignore_other_tasks_or_objective():
     from scripts.devfarm_goal_alignment import (
         GoalAlignmentError, canonical_plan_proposal, evaluate_plan_goal_preflight,
     )
-    spec = {"objective": "Use realtime DSP path", "tasks": [
-        {"task_id": "a", "description": "Implement realtime DSP"}]}
+    spec = {"run_id": "goal-binding-test",
+            "objective": "Use realtime DSP path; implement it with existing Settings",
+            "base_revision": "a" * 40,
+            "tasks": [{"task_id": "a", "owner": "codex",
+                       "ownership": ["docs/dsp-design.md"]}]}
     packet = example(proposal=canonical_plan_proposal(spec))
     assert evaluate_plan_goal_preflight(packet, spec)["disposition"] == "ALIGNED"
     for other in (
         {**spec, "objective": "Build offline preview"},
         {**spec, "tasks": [
-            {"task_id": "a", "description": "Implement realtime DSP"},
-            {"task_id": "b", "description": "Replace it with offline preview"}]},
+            {"task_id": "a", "owner": "codex", "ownership": ["docs/dsp-design.md"]},
+            {"task_id": "b", "owner": "codex", "ownership": ["docs/offline-preview.md"]}]},
     ):
         with pytest.raises(GoalAlignmentError):
             evaluate_plan_goal_preflight(packet, other)
@@ -196,3 +199,90 @@ def test_plan_canonicalization_ignores_json_key_order_not_value_changes():
         {"tasks": [1], "objective": "a"})
     assert canonical_plan_proposal({"objective": "a", "tasks": [1]}) != canonical_plan_proposal(
         {"objective": "a", "tasks": [2]})
+
+
+def test_m2_source_assessment_to_actual_durable_commander_plan(tmp_path, capsys):
+    """Non-mocked Commander pilot: reject a real bad plan; persist a good one.
+
+    The evidence packet is authored after reading #273. This test does NOT
+    infer natural language semantics or establish independent model accuracy.
+    """
+    import subprocess
+    from pathlib import Path
+    from scripts.devfarm_goal_alignment import canonical_plan_proposal
+    from scripts.devfarm_commander import CommanderPlanStore
+
+    root = tmp_path / "pilot-repo"
+    root.mkdir()
+    for command in (
+        ["git", "init", "-q"],
+        ["git", "config", "user.name", "Goal Pilot"],
+        ["git", "config", "user.email", "goal-pilot@example.invalid"],
+    ):
+        subprocess.run(command, cwd=root, check=True, capture_output=True)
+    (root / "README.md").write_text("Source-backed Commander M2 pilot\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=root, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-qm", "pilot baseline"], cwd=root, check=True, capture_output=True)
+    revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, check=True,
+                              capture_output=True, text=True).stdout.strip()
+
+    def make_plan(run_id, action):
+        return {
+            "run_id": run_id,
+            "objective": "Add actual realtime Rust DSP model through existing Settings; design action: " + action,
+            "base_revision": revision,
+            "tasks": [{
+                "task_id": "codex-architecture-review",
+                "owner": "codex",
+                "risk": "normal",
+                "ownership": ["docs/approved-dsp-design.md"],
+                "task_type": "architecture",
+            }],
+        }
+
+    wrong = make_plan("m2-bad-plan", "Add an independent 1.5-second Rust-to-Lab preview panel")
+    wrong_packet = example(proposal=canonical_plan_proposal(wrong), finding="contradicts")
+    bad_plan_path = tmp_path / "bad-plan.json"
+    bad_packet_path = tmp_path / "bad-evidence.json"
+    bad_plan_path.write_text(json.dumps(wrong), encoding="utf-8")
+    bad_packet_path.write_text(json.dumps(wrong_packet), encoding="utf-8")
+    with pytest.raises(SystemExit) as denied:
+        devfarm_main(["plan", str(bad_plan_path), "--root", str(root),
+                      "--goal-check", str(bad_packet_path)])
+    assert denied.value.code == 2
+    assert not (root / ".devfarm" / "plans" / "m2-bad-plan.json").exists()
+
+    correct = make_plan("m2-good-plan", "Extend existing Settings to switch realtime AudioWorklet/Rust DSP model")
+    good_packet = example(proposal=canonical_plan_proposal(correct), finding="satisfies")
+    good_plan_path = tmp_path / "good-plan.json"
+    good_packet_path = tmp_path / "good-evidence.json"
+    good_plan_path.write_text(json.dumps(correct), encoding="utf-8")
+    good_packet_path.write_text(json.dumps(good_packet), encoding="utf-8")
+    assert devfarm_main(["plan", str(good_plan_path), "--root", str(root),
+                         "--goal-check", str(good_packet_path)]) == 0
+    capsys.readouterr()
+    created = CommanderPlanStore(root).load("m2-good-plan")
+    assert created["objective"] == correct["objective"]
+    assert len(created["tasks"]) == 1
+    assert created["tasks"][0]["task_id"] == "codex-architecture-review"
+    assert (root / ".devfarm" / "plans" / "m2-good-plan.json").exists()
+    assert not (root / ".devfarm" / "plans" / "m2-bad-plan.json").exists()
+
+
+def test_goal_preflight_rejects_task_details_dropped_by_commander_normalization():
+    """A positive-looking assessment must not pass on discarded design text."""
+    from scripts.devfarm_goal_alignment import canonical_plan_proposal, evaluate_plan_goal_preflight
+    candidate = {
+        "run_id": "m2-unpersisted-content",
+        "objective": "Enable realtime models in Settings",
+        "base_revision": "a" * 40,
+        "tasks": [{
+            "task_id": "architect",
+            "owner": "codex",
+            "ownership": ["docs/dsp.md"],
+            "description": "Create forbidden separate offline preview",  # not persisted by Commander
+        }],
+    }
+    packet = example(proposal=canonical_plan_proposal(candidate))
+    with pytest.raises(GoalAlignmentError, match="unpersisted reviewed task field"):
+        evaluate_plan_goal_preflight(packet, candidate)
