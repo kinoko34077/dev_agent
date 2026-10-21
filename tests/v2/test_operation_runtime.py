@@ -216,6 +216,39 @@ def test_runtime_coordinator_continues_ready_work_around_reconciliation_wait(tmp
     assert waiting_status["reconciliation"] is True
 
 
+def test_runtime_coordinator_parks_unroutable_task_and_runs_unrelated_local_work(tmp_path):
+    """A missing route isolates one Task without blocking the existing runtime."""
+
+    config = _config(tmp_path)
+    unroutable = OperationService.submit(
+        config,
+        "require a capability absent from the configured local route",
+        priority=10,
+        required_capabilities=["tool_call"],
+    )
+    local = OperationService.submit(
+        config,
+        "continue unrelated deterministic local work",
+        priority=0,
+        task_type="deterministic",
+    )
+
+    with RuntimeCoordinator.open(config, revision="test-revision", instance_id="runtime-1") as runtime:
+        first = runtime.run_once()
+        second = runtime.run_once()
+
+    assert first is not None and first.task_id == unroutable.task_id
+    assert first.status is TaskStatus.WAITING_DEPENDENCY
+    assert second is not None and second.task_id == local.task_id
+    assert second.status is TaskStatus.COMPLETED
+    waiting_status = OperationService.read_status(config, unroutable.task_id)
+    assert waiting_status["state"] == TaskStatus.WAITING_DEPENDENCY.value
+    assert waiting_status["queue_state"] == "waiting"
+    assert waiting_status["wait_condition"]["queue_reason"] == "resource:no_route"
+    assert waiting_status["wait_condition"]["wake_authority"] == "resource_observation"
+    assert OperationService.read_status(config, local.task_id)["state"] == TaskStatus.COMPLETED.value
+
+
 def test_runtime_coordinator_wakes_exact_human_response_and_keeps_unrelated_work_running(tmp_path):
     from src.dev_agent.domain.protocol import Task
     from src.dev_agent.human import HumanRequest, HumanResponse
