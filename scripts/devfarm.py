@@ -18,6 +18,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.devfarm_errors import DevFarmError
+from scripts.devfarm_goal_alignment import GoalAlignmentError, evaluate_goal_preflight
 from scripts.devfarm_contracts import (
     MAX_ACCEPTANCE,
     MAX_ACCEPTANCE_CHARS,
@@ -58,6 +59,9 @@ def main(argv: list[str] | None = None) -> int:
     plan = sub.add_parser("plan", help="create a durable development parent plan")
     plan.add_argument("spec", type=Path)
     plan.add_argument("--root", type=Path, default=Path.cwd())
+    plan.add_argument("--goal-check", type=Path, help="optional source-anchored preflight packet before plan creation")
+    goal_check = sub.add_parser("goal-check", help="review proposal against sourced user purpose (advisory only)")
+    goal_check.add_argument("packet", type=Path)
     dispatch = sub.add_parser("dispatch", help="dispatch READY worker tasks as remote proposals")
     dispatch.add_argument("run_id")
     dispatch.add_argument("--provider")
@@ -122,7 +126,15 @@ def main(argv: list[str] | None = None) -> int:
             normalized_manifest = validate_manifest(read_json(args.manifest))
             normalized_result = validate_result(read_json(args.path), manifest=normalized_manifest)
             print(json.dumps(normalized_result, ensure_ascii=False, indent=2))
+        elif args.command == "goal-check":
+            result = evaluate_goal_preflight(read_json(args.packet))
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            return 0 if result["disposition"] == "ALIGNED" else 1
         elif args.command == "plan":
+            if args.goal_check is not None:
+                result = evaluate_goal_preflight(read_json(args.goal_check))
+                if result["disposition"] != "ALIGNED":
+                    raise DevFarmError(f"optional goal preflight did not align: {result['disposition']}; see goal-check")
             from scripts.devfarm_commander import create_plan
 
             print(json.dumps(create_plan(args.root, read_json(args.spec)), ensure_ascii=False, indent=2))
@@ -220,7 +232,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         else:
             parser.error(f"unsupported command: {args.command}")
-    except (DevFarmError, FileExistsError, RuntimeError) as exc:
+    except (DevFarmError, GoalAlignmentError, FileExistsError, RuntimeError) as exc:
         parser.error(str(exc))
     return 0
 
