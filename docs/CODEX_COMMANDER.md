@@ -35,6 +35,20 @@ manifestへ必要な情報だけを移す。Codex自身の設計・security-sens
 conflict解消・公式branchへの適用は、同じPlan内の `owner=codex` Taskとして
 追跡できる。
 
+## M2: 上位目的の反証型レビュー（devflow #761 / dev_agent #103）
+
+非自明な新機能・UI再設計・処理経路変更では、**親Plan作成前**に元要求と採用する設計案の意味的整合を評価する。これは既存のCommanderに付随するレビューであり、新しいStateStore・実行権限・Phase8 Gateではない。
+
+1. **正本確認:** owning Issueと現行の個別仕様を実際に取得する。旧IssueやM1の文章だけで最新仕様を代用しない。原要求と出典、上位目的、固定条件、利用者が実現できる状態を確認し、推定を確定事項にしない。
+2. **設計案を具体化:** 単に「モデル切替を実装する」で終わらせず、設定場所・データ処理経路・利用時に観測する効果・禁止された代替案・同等機能のownerまで書く。複数案に必要性がなければ形式的な案の数を増やさない。
+3. **反証:** 設計を支持する説明とは別に、「要求を満たさずにコード/CIだけが成功するシナリオ」「既存の似た機能との重複」「プラットフォーム標準操作の誤解」「ユーザーが求めていない新規機能への置換」を探す。**違反が見つかれば提案を修正**し、現行正本との根拠を残す。自分が生成した案についての自己評価を、独立した第三者レビューと称さない。
+4. **限定的な機械検証:** 見つけた意味上の `satisfies / contradicts / unresolved` を、出典と提案の実在引用、理由に対応付ける。開発用 `python scripts/devfarm.py goal-check <packet.json>` が宣言・根拠・網羅性を検証するが、**Python処理だけで意味的真偽を認定しない**。外部資料のSHA-256は取得時点のtextへ紐付き、GitHub live HEADを保証しない。
+5. **計画の同一性:** 実際の計画JSONを準備し、`python scripts/devfarm.py goal-plan-text <plan.json>` で監査対象の正規表現を得る。その**完全一致文字列**をpacketの `proposal` としてモデルが読む。必要な参照と短い引用箇所をpacketに記録し、`python scripts/devfarm.py plan <plan.json> --goal-check <packet.json>` を実行する。実際のPlanが変わると検証は不一致で拒否される。タスク名だけの表層的な同一性を証拠にしない。
+6. **反例で評価:** [Frequency Warp #273](https://github.com/kinoko34077/frequency-warp-vst/issues/273)では独立1.5秒試聴と既存リアルタイム処理を、[devflow #767](https://github.com/kinoko34077/devflow/issues/767)では桁別ドロップダウンとiPhone式ロール入力を、正解ラベルを伏せた状態で判定する。失敗した場合は「証拠JSONを修正」だけではなく、要求解釈・設計・監査方法そのものを見直す。
+7. **負荷の比例:** 親目的を継承する軽微変更・既存小修正では原則として既存経路を維持する。事前監査の省略を実装完了・M3実機受入と混同しない。未確定の仕様、権限/課金/不可逆操作は既存Human Gateへ個別に送る。
+
+`ALIGNED`は「指定レビュー担当者の報告と提出された資料の形が整合」という**助言的結果**であり、実装の正しさや利用者の成果の証明ではない。要件に矛盾する場合は設計し直し、根拠不足では関連Sourceを調べ直す。小さな子Issueは親の目的を参照し、独立したGoal DBを作らない。
+
 ## 親Planの最小契約
 
 Planは `.devfarm/plans/<run_id>.json` にatomic writeされる。machine-readableな
