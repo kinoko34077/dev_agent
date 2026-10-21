@@ -13,6 +13,7 @@ from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
 from src.dev_agent.resources.ledger import ResourceLedger
 from src.dev_agent.resources.billing_catalog import profile_for
 from src.dev_agent.resources.router import NoRoute, ResourceRouter, RouteRequest
+import scripts.refresh_model_catalog as refresh_model_catalog
 from scripts.refresh_model_catalog import merge_catalog_documents, refresh, write_candidate
 
 
@@ -405,6 +406,193 @@ def test_catalog_refresh_projects_bounded_transport_diagnostics_for_explicit_bou
             "transport_winerror": 10013,
         }
     ]
+
+
+def test_catalog_refresh_cli_filters_exact_providers_before_discovery_and_keeps_merge_input_unchanged(
+    tmp_path, monkeypatch, capsys
+):
+    bindings_path = tmp_path / "bindings.json"
+    bindings_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "bindings": [
+                    {"provider_id": "ollama", "provider_binding_id": "ollama:local"},
+                    {"provider_id": "ollama_cloud", "provider_binding_id": "ollama_cloud:account"},
+                    {"provider_id": "gemini", "provider_binding_id": "gemini:slot", "api_key_env": "GEMINI_KEY"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    base_path = tmp_path / "canonical-input.json"
+    base_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "entries": [
+                    {"provider_id": "gemini", "provider_binding_id": "gemini:slot", "model_id": "old-model"}
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    original_base = base_path.read_bytes()
+    output_path = tmp_path / "candidate.json"
+    discovered = []
+
+    class _Discovery:
+        def discover(self, binding):
+            from src.dev_agent.providers.model_discovery import DiscoveredModel, ModelDiscoveryResult
+
+            discovered.append((binding.provider_id, binding.provider_binding_id))
+            return ModelDiscoveryResult(
+                (
+                    DiscoveredModel(
+                        provider_id=binding.provider_id,
+                        provider_binding_id=binding.provider_binding_id,
+                        model_id="qwen3.5:9b",
+                        source="ollama.models.list",
+                        observed_at="2026-10-21T00:00:00+00:00",
+                        expires_at="2026-10-28T00:00:00+00:00",
+                    ),
+                )
+            )
+
+    monkeypatch.setattr(refresh_model_catalog, "ProviderModelDiscovery", _Discovery)
+    try:
+        exit_code = refresh_model_catalog.main(
+            [
+                "--bindings",
+                str(bindings_path),
+                "--provider",
+                "ollama",
+                "--provider",
+                "ollama",
+                "--provider",
+                "gemini",
+                "--output",
+                str(output_path),
+                "--merge-into",
+                str(base_path),
+            ]
+        )
+    except SystemExit as exc:
+        exit_code = exc.code
+
+    assert exit_code == 0
+    assert discovered == [("ollama", "ollama:local"), ("gemini", "gemini:slot")]
+    assert base_path.read_bytes() == original_base
+    candidate = json.loads(output_path.read_text(encoding="utf-8"))
+    assert candidate["refreshed_bindings"] == [
+        {"provider_id": "gemini", "provider_binding_id": "gemini:slot"},
+        {"provider_id": "ollama", "provider_binding_id": "ollama:local"},
+    ]
+    assert {(entry["provider_id"], entry["model_id"]) for entry in candidate["entries"]} == {
+        ("gemini", "qwen3.5:9b"),
+        ("ollama", "qwen3.5:9b"),
+    }
+    assert "candidate_written" in capsys.readouterr().out
+
+
+def test_catalog_refresh_cli_rejects_unconfigured_provider_before_discovery(tmp_path, monkeypatch, capsys):
+    bindings_path = tmp_path / "bindings.json"
+    bindings_path.write_text(
+        json.dumps(
+            {"schema_version": 1, "bindings": [{"provider_id": "ollama", "provider_binding_id": "ollama:local"}]}
+        ),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "candidate.json"
+
+    def unexpected_discovery():
+        pytest.fail("Provider discovery must not start for an unconfigured selector")
+
+    monkeypatch.setattr(refresh_model_catalog, "ProviderModelDiscovery", unexpected_discovery)
+    try:
+        exit_code = refresh_model_catalog.main(
+            ["--bindings", str(bindings_path), "--provider", "missing", "--output", str(output_path)]
+        )
+    except SystemExit as exc:
+        exit_code = exc.code
+
+    assert exit_code == 2
+    assert '"category": "ValueError"' in capsys.readouterr().out
+    assert not output_path.exists()
+
+
+def test_catalog_refresh_cli_without_provider_selector_preserves_configured_bindings(tmp_path, monkeypatch, capsys):
+    bindings_path = tmp_path / "bindings.json"
+    bindings_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "bindings": [
+                    {"provider_id": "ollama", "provider_binding_id": "ollama:local"},
+                    {"provider_id": "ollama_cloud", "provider_binding_id": "ollama_cloud:account"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "candidate.json"
+    discovered = []
+
+    class _Discovery:
+        def discover(self, binding):
+            from src.dev_agent.providers.model_discovery import DiscoveredModel, ModelDiscoveryResult
+
+            discovered.append(binding.provider_id)
+            return ModelDiscoveryResult(
+                (
+                    DiscoveredModel(
+                        provider_id=binding.provider_id,
+                        provider_binding_id=binding.provider_binding_id,
+                        model_id=f"{binding.provider_id}-model",
+                        source="fixture.models.list",
+                        observed_at="2026-10-21T00:00:00+00:00",
+                        expires_at="2026-10-28T00:00:00+00:00",
+                    ),
+                )
+            )
+
+    monkeypatch.setattr(refresh_model_catalog, "ProviderModelDiscovery", _Discovery)
+    try:
+        exit_code = refresh_model_catalog.main(
+            ["--bindings", str(bindings_path), "--output", str(output_path)]
+        )
+    except SystemExit as exc:
+        exit_code = exc.code
+
+    assert exit_code == 0
+    assert discovered == ["ollama", "ollama_cloud"]
+    assert len(json.loads(output_path.read_text(encoding="utf-8"))["entries"]) == 2
+    assert "candidate_written" in capsys.readouterr().out
+
+
+def test_provider_binding_selector_matches_exact_ids_and_preserves_config_order():
+    bindings = (
+        ModelDiscoveryBinding(provider_id="ollama", provider_binding_id="ollama:local"),
+        ModelDiscoveryBinding(provider_id="ollama_cloud", provider_binding_id="ollama_cloud:account"),
+        ModelDiscoveryBinding(provider_id="gemini", provider_binding_id="gemini:slot"),
+    )
+    selector = getattr(refresh_model_catalog, "select_bindings", None)
+    assert callable(selector)
+
+    assert selector(bindings) == bindings
+    assert [item.provider_binding_id for item in selector(bindings, ("gemini", "ollama"))] == [
+        "ollama:local",
+        "gemini:slot",
+    ]
+
+
+def test_provider_binding_selector_rejects_any_unconfigured_provider():
+    bindings = (ModelDiscoveryBinding(provider_id="ollama", provider_binding_id="ollama:local"),)
+    selector = getattr(refresh_model_catalog, "select_bindings", None)
+    assert callable(selector)
+
+    with pytest.raises(ValueError, match="configured"):
+        selector(bindings, ("ollama", "missing"))
 
 
 def test_catalog_candidate_writer_is_create_only_until_operator_explicitly_replaces(tmp_path):

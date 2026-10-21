@@ -57,6 +57,22 @@ def load_bindings(path: str | Path) -> tuple[ModelDiscoveryBinding, ...]:
     return _bindings_from_document(document)
 
 
+def select_bindings(
+    bindings: tuple[ModelDiscoveryBinding, ...],
+    provider_ids: tuple[str, ...] | None = None,
+) -> tuple[ModelDiscoveryBinding, ...]:
+    """Select exact configured Provider identities without reordering bindings."""
+
+    requested = set(provider_ids or ())
+    if not requested:
+        return bindings
+    configured = {binding.provider_id for binding in bindings}
+    missing = requested - configured
+    if missing:
+        raise ValueError("requested provider is not configured")
+    return tuple(binding for binding in bindings if binding.provider_id in requested)
+
+
 def refresh(
     bindings: tuple[ModelDiscoveryBinding, ...],
     *,
@@ -199,6 +215,12 @@ def write_candidate(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bindings", default=ROOT / "spec" / "v2" / "model_evidence" / "model_discovery_bindings.json")
+    parser.add_argument(
+        "--provider",
+        action="append",
+        dest="provider_ids",
+        help="refresh only this exact configured Provider ID; repeat to select multiple Providers",
+    )
     parser.add_argument("--output", required=True, help="explicit candidate snapshot path; no default canonical overwrite")
     parser.add_argument(
         "--replace-existing",
@@ -217,7 +239,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     try:
-        document = refresh(load_bindings(args.bindings), execution_boundary=args.execution_boundary)
+        bindings = select_bindings(load_bindings(args.bindings), tuple(args.provider_ids or ()))
+        document = refresh(bindings, execution_boundary=args.execution_boundary)
         if args.merge_into is not None:
             base = json.loads(args.merge_into.read_text(encoding="utf-8"))
             if not isinstance(base, Mapping):
