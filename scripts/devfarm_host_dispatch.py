@@ -139,8 +139,10 @@ def _dispatch_configured(envelope: HostDispatchEnvelope) -> ModelResponse:
         model_admission_resolver=evidence.resolver,
         model_catalog=evidence.catalog,
     )
+    if not admitted:
+        raise DispatchDenied("no_route", "Host dispatch has no currently admitted resource")
     if len(admitted) != 1:
-        raise HostDispatchRuntimeError("Host dispatch binding failed current admission")
+        raise HostDispatchRuntimeError("Host dispatch admission returned an ambiguous resource set")
     with compose_resource_pool(
         admitted,
         resolver=resolver,

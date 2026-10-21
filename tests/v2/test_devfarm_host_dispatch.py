@@ -140,6 +140,36 @@ def test_host_runtime_preserves_local_dispatch_denial_without_falsely_marking_un
     assert json.loads(response_path.read_text(encoding="utf-8")) == result
 
 
+def test_host_runtime_projects_empty_current_admission_as_no_route_without_composing(tmp_path, monkeypatch):
+    request_path = tmp_path / "request.json"
+    response_path = tmp_path / "response.json"
+    request_path.write_text(json.dumps(_envelope().to_dict()), encoding="utf-8")
+    monkeypatch.setattr(host_dispatch, "_configured_binding", lambda _envelope: SimpleNamespace())
+    monkeypatch.setattr(
+        host_dispatch,
+        "ModelEvidenceCatalog",
+        SimpleNamespace(load_default=lambda: SimpleNamespace(catalog=object(), resolver=object())),
+    )
+    monkeypatch.setattr(host_dispatch, "admit_resource_pool", lambda *args, **kwargs: ())
+
+    def unexpected_composition(*_args, **_kwargs):
+        raise AssertionError("an unadmitted resource pool must not be composed")
+
+    monkeypatch.setattr(host_dispatch, "compose_resource_pool", unexpected_composition)
+
+    result = process_once(request_path, response_path)
+
+    assert result == {
+        "status": "failed",
+        "category": "no_route",
+        "retryable": False,
+        "failover_safe": False,
+        "reconciliation_required": False,
+        "http_status": None,
+    }
+    assert json.loads(response_path.read_text(encoding="utf-8")) == result
+
+
 def test_host_runtime_resolves_materialized_discovered_model_from_configured_lane(monkeypatch):
     configured = OperationProviderBinding(
         provider_id="gemini",
