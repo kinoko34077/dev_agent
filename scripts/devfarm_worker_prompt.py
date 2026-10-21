@@ -12,6 +12,8 @@ import json
 from collections.abc import Mapping
 from typing import Any
 
+from scripts.devfarm_worker_output import minimal_worker_output_schema
+
 
 def _field(value: Any, name: str) -> Any:
     if isinstance(value, Mapping):
@@ -117,6 +119,7 @@ def build_worker_prompt(
         }
     if local_ollama or minimal_proposal:
         mode_label = "local Ollama trial" if local_ollama else "bounded change-proposal mode"
+        response_schema = minimal_worker_output_schema(allowed_paths=manifest["outbound_files"])
         return (
             _repair_prefix(manifest)
             + f"You are a bounded development worker in {mode_label}. Return exactly one JSON object. "
@@ -144,6 +147,8 @@ def build_worker_prompt(
             "Do not include credentials, tokens, or secret candidates. The Host will "
             "validate the replacement, derive metadata, create the diff, run tests, and "
             "decide whether it can be integrated.\n\n"
+            "HOST-OWNED RESPONSE JSON SCHEMA (follow this exact shape):\n"
+            f"{json.dumps(response_schema, ensure_ascii=False, sort_keys=True)}\n\n"
             f"MANIFEST:\n{json.dumps(handoff, ensure_ascii=False, indent=2)}\n"
             f"INPUT FILES:\n{inputs}"
         )

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
+
 from scripts.devfarm_worker_prompt import build_worker_prompt
+from scripts.devfarm_worker_output import minimal_worker_output_schema
 
 
 def test_worker_prompt_is_bounded_to_manifest_and_host_egress_projection() -> None:
@@ -77,6 +80,34 @@ def test_local_ollama_prompt_uses_only_the_complete_replacement_contract() -> No
     assert "exact outbound paths" in prompt
     assert "never shorten it to a basename" in prompt
     assert "Escape source quotes and backslashes" in prompt
+
+
+def test_local_ollama_prompt_contains_the_exact_host_owned_output_schema() -> None:
+    manifest = {
+        "task_id": "task-local-schema-1",
+        "task_type": "documentation",
+        "objective": "make one bounded documentation change",
+        "base_revision": "abc123",
+        "allowed_files": ["docs/example.md"],
+        "forbidden_files": [".env"],
+        "external_provider_allowed": True,
+        "approved_provider_ids": ["ollama"],
+        "outbound_files": ["docs/example.md"],
+        "requirements": ["preserve unrelated content"],
+        "acceptance": ["one exact replacement is returned"],
+        "test_commands": [],
+        "output_contract": {"format": "json"},
+    }
+    schema = minimal_worker_output_schema(allowed_paths=manifest["outbound_files"])
+
+    prompt = build_worker_prompt(
+        manifest,
+        "--- BEGIN FILE docs/example.md ---\nold\n--- END FILE ---",
+        local_ollama=True,
+    )
+
+    assert "HOST-OWNED RESPONSE JSON SCHEMA" in prompt
+    assert json.dumps(schema, ensure_ascii=False, sort_keys=True) in prompt
 
 
 def test_rework_prompt_puts_concrete_repair_directive_before_general_contract() -> None:
