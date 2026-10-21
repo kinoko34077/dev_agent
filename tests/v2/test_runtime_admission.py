@@ -241,14 +241,18 @@ def test_cloudflare_derived_quota_reaches_admission_through_existing_resource_pa
     assert observation.status == RUNTIME_ELIGIBLE
 
 
-def test_blocked_quota_domain_is_not_bootstrap_admitted(tmp_path):
-    ledger, router = _trusted_free3_ledger(tmp_path)
+def test_blocked_quota_domain_is_not_bootstrap_admitted(tmp_path, monkeypatch):
+    ledger, router, observed_at = _trusted_free3_ledger(tmp_path, monkeypatch)
     snapshot = ledger.routing_snapshot()
     blocked = type(snapshot)(
         snapshot.resources,
-        {"gemini:project:free-3": ({"quota_domain": "gemini:project:free-3", "block_reason": "rate_limit", "observed_at": "2026-09-27T00:00:00+00:00"},)},
+        {"gemini:project:free-3": ({"quota_domain": "gemini:project:free-3", "block_reason": "rate_limit", "observed_at": observed_at.isoformat()},)},
     )
 
-    observation = RuntimeAdmissionEvaluator(router).evaluate(_FREE3, snapshot=blocked)
+    observation = RuntimeAdmissionEvaluator(router).evaluate(
+        _FREE3,
+        snapshot=blocked,
+        observed_at=observed_at.isoformat(),
+    )
 
     assert observation.status == RUNTIME_UNKNOWN
