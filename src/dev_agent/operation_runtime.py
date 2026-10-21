@@ -10,9 +10,12 @@ entrypoint, not a second scheduler or Agent framework.
 from __future__ import annotations
 
 from collections import Counter
+from contextlib import closing
 from datetime import datetime, timezone
+import json
 import os
 from pathlib import Path
+import sqlite3
 import time
 from threading import Event
 from typing import Any, Callable, Mapping
@@ -54,10 +57,27 @@ def _health_projection(
     instance_id: str,
     now: str | None = None,
 ) -> dict[str, Any]:
-    observed_at = now or datetime.now(timezone.utc).isoformat()
     peer: PeerRecord | None = None
     if coordination is not None:
         peer = coordination.store.get_peer(role, instance_id)
+    return _health_payload(
+        role=role,
+        instance_id=instance_id,
+        peer=peer,
+        task_counts=_task_counts(store),
+        now=now,
+    )
+
+
+def _health_payload(
+    *,
+    role: str,
+    instance_id: str,
+    peer: PeerRecord | None,
+    task_counts: dict[str, int],
+    now: str | None = None,
+) -> dict[str, Any]:
+    observed_at = now or datetime.now(timezone.utc).isoformat()
     if peer is None:
         status = "NOT_ATTACHED"
     elif peer.is_live(observed_at):
@@ -71,12 +91,88 @@ def _health_projection(
         "role": role,
         "instance_id": instance_id,
         "peer": peer.to_dict() if peer is not None else None,
-        "task_counts": _task_counts(store),
+        "task_counts": task_counts,
         "process_authority": "operation_service_only",
         "scheduler": "existing_operation_queue",
         "external_network": "owned_by_operation_provider_boundary",
         "os_registration": "not_owned_by_runtime_coordinator",
     }
+
+
+def _open_readonly_sqlite(path: Path) -> sqlite3.Connection:
+    """Open an existing database without allowing schema or journal writes."""
+
+    uri = f"{path.resolve().as_uri()}?mode=ro"
+    connection = sqlite3.connect(uri, uri=True, timeout=5.0)
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA query_only=ON")
+    return connection
+
+
+def _readonly_task_counts(connection: sqlite3.Connection) -> dict[str, int]:
+    counts = Counter()
+    for row in connection.execute("SELECT payload FROM tasks"):
+        payload = json.loads(row["payload"])
+        if isinstance(payload, Mapping):
+            status = payload.get("status")
+            if isinstance(status, str) and status.strip():
+                counts[status.strip()] += 1
+    return dict(sorted(counts.items()))
+
+
+def _has_sqlite_table(connection: sqlite3.Connection, name: str) -> bool:
+    return (
+        connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+            (name,),
+        ).fetchone()
+        is not None
+    )
+
+
+def _readonly_peer(connection: sqlite3.Connection, role: str, instance_id: str) -> PeerRecord | None:
+    row = connection.execute(
+        "SELECT role, instance_id, generation, pid, revision, started_at, heartbeat_at, "
+        "lease_until, status, capabilities_json FROM peers "
+        "WHERE role=? AND instance_id=? ORDER BY generation DESC LIMIT 1",
+        (role, instance_id),
+    ).fetchone()
+    if row is None:
+        return None
+    return PeerRecord.from_dict(
+        {
+            "role": row["role"],
+            "instance_id": row["instance_id"],
+            "generation": row["generation"],
+            "pid": row["pid"],
+            "revision": row["revision"],
+            "started_at": row["started_at"],
+            "heartbeat_at": row["heartbeat_at"],
+            "lease_until": row["lease_until"],
+            "status": row["status"],
+            "capabilities": json.loads(row["capabilities_json"]),
+        }
+    )
+
+
+def _health_read_failure(
+    *,
+    role: str,
+    instance_id: str,
+    category: str,
+    task_counts: dict[str, int] | None = None,
+    now: str | None = None,
+) -> dict[str, Any]:
+    payload = _health_payload(
+        role=role,
+        instance_id=instance_id,
+        peer=None,
+        task_counts=task_counts or {},
+        now=now,
+    )
+    payload["status"] = "DEGRADED"
+    payload["diagnostic_error_category"] = category
+    return payload
 
 
 def read_runtime_health(
@@ -86,11 +182,12 @@ def read_runtime_health(
     instance_id: str = "operation-runtime",
     now: str | None = None,
 ) -> dict[str, Any]:
-    """Read a bounded health projection without constructing a Provider.
+    """Read health without constructing writable stores or a Provider.
 
-    Missing state is reported as ``NOT_INITIALIZED`` without creating a new
-    runtime database.  Existing state is read through the established stores;
-    credentials and task payloads are never included in the projection.
+    Missing state is reported as ``NOT_INITIALIZED``. Existing databases are
+    opened with SQLite read-only mode; this path never creates directories,
+    initializes schemas, applies migrations, or changes journal mode. Credentials
+    and task payloads are never included in the projection.
     """
 
     root = Path(data_dir).expanduser()
@@ -108,23 +205,68 @@ def read_runtime_health(
             "external_network": "owned_by_operation_provider_boundary",
             "os_registration": "not_owned_by_runtime_coordinator",
         }
-    with SQLiteStateStore(state_path) as store:
-        if not coordination_path.exists():
-            return _health_projection(
-                store,
-                None,
+    try:
+        with closing(_open_readonly_sqlite(state_path)) as state_connection:
+            if not _has_sqlite_table(state_connection, "tasks"):
+                return _health_read_failure(
+                    role=role,
+                    instance_id=instance_id,
+                    category="state_schema_unavailable",
+                    now=now,
+                )
+            task_counts = _readonly_task_counts(state_connection)
+    except sqlite3.Error:
+        return _health_read_failure(
+            role=role,
+            instance_id=instance_id,
+            category="state_read_unavailable",
+            now=now,
+        )
+    except Exception:
+        return _health_read_failure(
+            role=role,
+            instance_id=instance_id,
+            category="state_projection_unavailable",
+            now=now,
+        )
+
+    peer = None
+    if coordination_path.exists():
+        try:
+            with closing(_open_readonly_sqlite(coordination_path)) as coordination_connection:
+                if not _has_sqlite_table(coordination_connection, "peers"):
+                    return _health_read_failure(
+                        role=role,
+                        instance_id=instance_id,
+                        category="coordination_schema_unavailable",
+                        task_counts=task_counts,
+                        now=now,
+                    )
+                peer = _readonly_peer(coordination_connection, role, instance_id)
+        except sqlite3.Error:
+            return _health_read_failure(
                 role=role,
                 instance_id=instance_id,
+                category="coordination_read_unavailable",
+                task_counts=task_counts,
                 now=now,
             )
-        with ProcessCoordinationService(data_dir=root) as coordination:
-            return _health_projection(
-                store,
-                coordination,
+        except Exception:
+            return _health_read_failure(
                 role=role,
                 instance_id=instance_id,
+                category="coordination_projection_unavailable",
+                task_counts=task_counts,
                 now=now,
             )
+
+    return _health_payload(
+        role=role,
+        instance_id=instance_id,
+        peer=peer,
+        task_counts=task_counts,
+        now=now,
+    )
 
 
 class RuntimeCoordinator:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import time
 
 import pytest
@@ -435,3 +436,57 @@ def test_runtime_health_is_bounded_json_and_does_not_open_provider(tmp_path):
     assert payload["task_counts"][TaskStatus.QUEUED.value] == 1
     assert payload["external_network"] == "owned_by_operation_provider_boundary"
     json.dumps(payload, ensure_ascii=False)
+
+
+def _sqlite_user_tables(path):
+    with sqlite3.connect(path) as connection:
+        return {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+            )
+        }
+
+
+def test_runtime_health_does_not_initialize_existing_partial_state_database(tmp_path):
+    state_path = tmp_path / "state.sqlite3"
+    with sqlite3.connect(state_path):
+        pass
+    before = _sqlite_user_tables(state_path)
+
+    payload = read_runtime_health(tmp_path, role="agent", instance_id="runtime-1")
+
+    assert _sqlite_user_tables(state_path) == before
+    assert payload["status"] == "DEGRADED"
+    assert payload["diagnostic_error_category"] == "state_schema_unavailable"
+
+
+def test_runtime_health_does_not_initialize_existing_partial_coordination_database(tmp_path):
+    config = _config(tmp_path)
+    OperationService.submit(config, "health projection")
+    coordination_path = tmp_path / "coordination" / "coordination.sqlite3"
+    coordination_path.parent.mkdir(parents=True)
+    with sqlite3.connect(coordination_path):
+        pass
+    before = _sqlite_user_tables(coordination_path)
+
+    payload = read_runtime_health(config.data_dir, role="agent", instance_id="runtime-1")
+
+    assert _sqlite_user_tables(coordination_path) == before
+    assert payload["status"] == "DEGRADED"
+    assert payload["diagnostic_error_category"] == "coordination_schema_unavailable"
+
+
+def test_runtime_health_does_not_change_existing_database_journal_mode(tmp_path):
+    config = _config(tmp_path)
+    OperationService.submit(config, "health projection")
+    state_path = tmp_path / "state.sqlite3"
+    with sqlite3.connect(state_path) as connection:
+        connection.execute("PRAGMA journal_mode=DELETE")
+
+    payload = read_runtime_health(config.data_dir, role="agent", instance_id="runtime-1")
+
+    with sqlite3.connect(state_path) as connection:
+        journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
+    assert journal_mode == "delete"
+    assert payload["status"] == "NOT_ATTACHED"

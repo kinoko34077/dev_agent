@@ -86,7 +86,8 @@ Deployment trackであり、このCoordinatorのlocal Evidenceからは昇格し
 
 ### Stale peer / DEGRADEDからの安全な再開
 
-`health`はProviderを開かないread-only projectionである。`DEGRADED`なら、`observed_at`と
+`health`はProviderや書込可能Storeを開かず、既存SQLiteをread-only接続で読むprojectionである。
+schema初期化・migration・journal mode変更は行わない。`DEGRADED`なら、`observed_at`と
 `lease_until`、peer generation / PID、Task状態を照合する。lease期限切れやPID不在だけで、
 作業・queue・外部効果が安全に再開可能とは推定しない。旧processが同じhostで停止済みか、
 nonterminal Task・in-flight operation・UNKNOWN/reconciliationが残っていないかを既存の
