@@ -196,3 +196,72 @@ def test_plan_canonicalization_ignores_json_key_order_not_value_changes():
         {"tasks": [1], "objective": "a"})
     assert canonical_plan_proposal({"objective": "a", "tasks": [1]}) != canonical_plan_proposal(
         {"objective": "a", "tasks": [2]})
+
+
+def test_m2_source_assessment_to_actual_durable_commander_plan(tmp_path, capsys):
+    """Non-mocked Commander pilot: reject a real bad plan; persist a good one.
+
+    The evidence packet is authored after reading #273. This test does NOT
+    infer natural language semantics or establish independent model accuracy.
+    """
+    import subprocess
+    from pathlib import Path
+    from scripts.devfarm_goal_alignment import canonical_plan_proposal
+    from scripts.devfarm_commander import CommanderPlanStore
+
+    root = tmp_path / "pilot-repo"
+    root.mkdir()
+    for command in (
+        ["git", "init", "-q"],
+        ["git", "config", "user.name", "Goal Pilot"],
+        ["git", "config", "user.email", "goal-pilot@example.invalid"],
+    ):
+        subprocess.run(command, cwd=root, check=True, capture_output=True)
+    (root / "README.md").write_text("Source-backed Commander M2 pilot\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=root, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-qm", "pilot baseline"], cwd=root, check=True, capture_output=True)
+    revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, check=True,
+                              capture_output=True, text=True).stdout.strip()
+
+    def make_plan(run_id, action):
+        return {
+            "run_id": run_id,
+            "objective": "Add actual realtime Rust DSP model through existing Settings",
+            "base_revision": revision,
+            "tasks": [{
+                "task_id": "codex-architecture-review",
+                "owner": "codex",
+                "risk": "normal",
+                "ownership": ["docs/approved-dsp-design.md"],
+                "task_type": "architecture",
+                "description": action,
+            }],
+        }
+
+    wrong = make_plan("m2-bad-plan", "Add an independent 1.5-second Rust-to-Lab preview panel")
+    wrong_packet = example(proposal=canonical_plan_proposal(wrong), finding="contradicts")
+    bad_plan_path = tmp_path / "bad-plan.json"
+    bad_packet_path = tmp_path / "bad-evidence.json"
+    bad_plan_path.write_text(json.dumps(wrong), encoding="utf-8")
+    bad_packet_path.write_text(json.dumps(wrong_packet), encoding="utf-8")
+    with pytest.raises(SystemExit) as denied:
+        devfarm_main(["plan", str(bad_plan_path), "--root", str(root),
+                      "--goal-check", str(bad_packet_path)])
+    assert denied.value.code == 2
+    assert not (root / ".devfarm" / "plans" / "m2-bad-plan.json").exists()
+
+    correct = make_plan("m2-good-plan", "Extend existing Settings to switch realtime AudioWorklet/Rust DSP model")
+    good_packet = example(proposal=canonical_plan_proposal(correct), finding="satisfies")
+    good_plan_path = tmp_path / "good-plan.json"
+    good_packet_path = tmp_path / "good-evidence.json"
+    good_plan_path.write_text(json.dumps(correct), encoding="utf-8")
+    good_packet_path.write_text(json.dumps(good_packet), encoding="utf-8")
+    assert devfarm_main(["plan", str(good_plan_path), "--root", str(root),
+                         "--goal-check", str(good_packet_path)]) == 0
+    capsys.readouterr()
+    created = CommanderPlanStore(root).load("m2-good-plan")
+    assert created["objective"] == correct["objective"]
+    assert len(created["tasks"]) == 1
+    assert created["tasks"][0]["task_id"] == "codex-architecture-review"
+    assert (root / ".devfarm" / "plans" / "m2-good-plan.json").exists()
+    assert not (root / ".devfarm" / "plans" / "m2-bad-plan.json").exists()
