@@ -207,6 +207,38 @@ def evaluate_goal_preflight(packet: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+
+def canonical_plan_proposal(plan: Mapping[str, Any]) -> str:
+    """One unambiguous text representation of the *entire* pending plan spec.
+
+    The reviewer must assess this exact text, not a freehand summary that could
+    conceal changed tasks. A plan changed after the assessment cannot reuse it.
+    No Commander plan is persisted by this pure function.
+    """
+    value = _object(plan, "plan")
+    try:
+        rendered = json.dumps(value, ensure_ascii=False, sort_keys=True,
+                              separators=(",", ":"), allow_nan=False)
+    except (TypeError, ValueError) as exc:
+        raise GoalAlignmentError("plan must be canonicalizable JSON") from exc
+    return _text(rendered, "canonical plan proposal", max_length=16_000)
+
+
+def evaluate_plan_goal_preflight(packet: Mapping[str, Any],
+                                 plan: Mapping[str, Any]) -> dict[str, Any]:
+    """Bind a goal assessment to precisely the plan the Commander will create."""
+    result = evaluate_goal_preflight(packet)
+    actual = canonical_plan_proposal(plan)
+    reported = _text(_object(packet, "packet").get("proposal"),
+                     "assessment proposal", max_length=16_000)
+    if reported != actual:
+        raise GoalAlignmentError(
+            "goal assessment is for a different plan; reassess current full plan"
+        )
+    # ALIGNED is still a trusted-reviewer *advisory*, not a security approval.
+    return result
+
+
 def main(argv: list[str] | None = None) -> int:
     """Local development CLI: printable redacted summary, never source body."""
     import argparse
