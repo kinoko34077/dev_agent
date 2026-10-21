@@ -136,11 +136,11 @@ def test_goal_check_is_bound_to_exact_commander_plan(tmp_path, monkeypatch, caps
                         lambda root, spec: submitted.append(spec) or {"created": True})
     spec = {
         "run_id": "test-m2-goal-linkage",
-        "objective": "Existing settings switch the realtime DSP model",
+        "objective": "Existing settings switch the realtime DSP model; integrate supported Rust realtime DSP",
         "base_revision": "a" * 40,
         "tasks": [
-            {"task_id": "t1", "owner": "codex",
-             "objective": "Integrate the supported Rust realtime DSP model"},
+            {"task_id": "t1", "owner": "codex", "task_type": "architecture",
+             "ownership": ["docs/realtime-dsp-architecture.md"]},
         ],
     }
     plan_file = tmp_path / "plan.json"
@@ -157,7 +157,7 @@ def test_goal_check_is_bound_to_exact_commander_plan(tmp_path, monkeypatch, caps
     assert submitted == [spec]
 
     # Reusing a positive report for a different implementation task is forbidden.
-    spec["tasks"][0]["objective"] = "Create an isolated 1.5-second offline demo instead"
+    spec["objective"] = "Create an isolated 1.5-second offline demo instead"
     plan_file.write_text(json.dumps(spec), encoding="utf-8")
     with pytest.raises(SystemExit) as err:
         devfarm_main(["plan", str(plan_file), "--goal-check", str(packet_file),
@@ -165,10 +165,10 @@ def test_goal_check_is_bound_to_exact_commander_plan(tmp_path, monkeypatch, caps
     assert err.value.code == 2
     assert submitted == [dict(
         run_id="test-m2-goal-linkage",
-        objective="Existing settings switch the realtime DSP model",
+        objective="Existing settings switch the realtime DSP model; integrate supported Rust realtime DSP",
         base_revision="a" * 40,
-        tasks=[{"task_id": "t1", "owner": "codex",
-                "objective": "Integrate the supported Rust realtime DSP model"}]
+        tasks=[{"task_id": "t1", "owner": "codex", "task_type": "architecture",
+                "ownership": ["docs/realtime-dsp-architecture.md"]}]
     )]
 
 
@@ -176,15 +176,18 @@ def test_exact_plan_binding_cannot_ignore_other_tasks_or_objective():
     from scripts.devfarm_goal_alignment import (
         GoalAlignmentError, canonical_plan_proposal, evaluate_plan_goal_preflight,
     )
-    spec = {"objective": "Use realtime DSP path", "tasks": [
-        {"task_id": "a", "description": "Implement realtime DSP"}]}
+    spec = {"run_id": "goal-binding-test",
+            "objective": "Use realtime DSP path; implement it with existing Settings",
+            "base_revision": "a" * 40,
+            "tasks": [{"task_id": "a", "owner": "codex",
+                       "ownership": ["docs/dsp-design.md"]}]}
     packet = example(proposal=canonical_plan_proposal(spec))
     assert evaluate_plan_goal_preflight(packet, spec)["disposition"] == "ALIGNED"
     for other in (
         {**spec, "objective": "Build offline preview"},
         {**spec, "tasks": [
-            {"task_id": "a", "description": "Implement realtime DSP"},
-            {"task_id": "b", "description": "Replace it with offline preview"}]},
+            {"task_id": "a", "owner": "codex", "ownership": ["docs/dsp-design.md"]},
+            {"task_id": "b", "owner": "codex", "ownership": ["docs/offline-preview.md"]}]},
     ):
         with pytest.raises(GoalAlignmentError):
             evaluate_plan_goal_preflight(packet, other)
@@ -226,7 +229,7 @@ def test_m2_source_assessment_to_actual_durable_commander_plan(tmp_path, capsys)
     def make_plan(run_id, action):
         return {
             "run_id": run_id,
-            "objective": "Add actual realtime Rust DSP model through existing Settings",
+            "objective": "Add actual realtime Rust DSP model through existing Settings; design action: " + action,
             "base_revision": revision,
             "tasks": [{
                 "task_id": "codex-architecture-review",
@@ -234,7 +237,6 @@ def test_m2_source_assessment_to_actual_durable_commander_plan(tmp_path, capsys)
                 "risk": "normal",
                 "ownership": ["docs/approved-dsp-design.md"],
                 "task_type": "architecture",
-                "description": action,
             }],
         }
 
@@ -265,3 +267,22 @@ def test_m2_source_assessment_to_actual_durable_commander_plan(tmp_path, capsys)
     assert created["tasks"][0]["task_id"] == "codex-architecture-review"
     assert (root / ".devfarm" / "plans" / "m2-good-plan.json").exists()
     assert not (root / ".devfarm" / "plans" / "m2-bad-plan.json").exists()
+
+
+def test_goal_preflight_rejects_task_details_dropped_by_commander_normalization():
+    """A positive-looking assessment must not pass on discarded design text."""
+    from scripts.devfarm_goal_alignment import canonical_plan_proposal, evaluate_plan_goal_preflight
+    candidate = {
+        "run_id": "m2-unpersisted-content",
+        "objective": "Enable realtime models in Settings",
+        "base_revision": "a" * 40,
+        "tasks": [{
+            "task_id": "architect",
+            "owner": "codex",
+            "ownership": ["docs/dsp.md"],
+            "description": "Create forbidden separate offline preview",  # not persisted by Commander
+        }],
+    }
+    packet = example(proposal=canonical_plan_proposal(candidate))
+    with pytest.raises(GoalAlignmentError, match="unpersisted reviewed task field"):
+        evaluate_plan_goal_preflight(packet, candidate)
