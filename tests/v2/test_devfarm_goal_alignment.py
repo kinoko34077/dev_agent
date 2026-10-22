@@ -396,3 +396,43 @@ def test_consistent_dual_task_and_plan_ownership_remains_accepted():
     }
     evidence = example(proposal=canonical_plan_proposal(plan))
     assert evaluate_plan_goal_preflight(evidence, plan)["disposition"] == "ALIGNED"
+
+
+def test_reviewed_assignment_cannot_be_rewritten_by_global_assignment():
+    from scripts.devfarm_goal_alignment import (
+        GoalAlignmentError, canonical_plan_proposal, evaluate_plan_goal_preflight,
+    )
+    plan = {
+        "run_id": "m2-assignment-drift", "base_revision": "a" * 40,
+        "objective": "Preserve approved Codex task routing",
+        "tasks": [{"task_id": "a", "owner": "codex",
+                   "ownership": ["docs/review.md"],
+                   "assignment": {"provider_id": "source-reviewed-only"}}],
+        "assignments": [{"task_id": "a", "owner": "codex"}],
+    }
+    evidence = example(proposal=canonical_plan_proposal(plan))
+    with pytest.raises(GoalAlignmentError, match="rewritten reviewed task field.*assignment"):
+        evaluate_plan_goal_preflight(evidence, plan)
+
+
+def test_matching_reviewed_dependencies_and_assignment_pass_without_overblocking():
+    from scripts.devfarm_goal_alignment import canonical_plan_proposal, evaluate_plan_goal_preflight
+    plan = {
+        "run_id": "m2-consistent-routing", "base_revision": "a" * 40,
+        "objective": "Review source before writing an approved DSP patch",
+        "tasks": [
+            {"task_id": "review", "owner": "codex", "ownership": ["docs/review.md"]},
+            {"task_id": "patch", "owner": "codex", "ownership": ["docs/patch.md"],
+             "dependencies": ["review"], "assignment": {"owner": "codex"}},
+        ],
+        "dependencies": [
+            {"task_id": "review", "depends_on": []},
+            {"task_id": "patch", "depends_on": ["review"]},
+        ],
+        "assignments": [
+            {"task_id": "review", "owner": "codex"},
+            {"task_id": "patch", "owner": "codex"},
+        ],
+    }
+    evidence = example(proposal=canonical_plan_proposal(plan))
+    assert evaluate_plan_goal_preflight(evidence, plan)["disposition"] == "ALIGNED"
