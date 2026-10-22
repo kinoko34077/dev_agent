@@ -345,3 +345,54 @@ def test_m2_visibility_is_not_a_semantic_safety_gate():
     ]
     assert goal_review_visibility({"tasks": [{"task_type": "worker", "risk": "low"}]}) == []
     assert goal_review_visibility({"tasks": "invalid"}) == []
+
+
+def test_reviewed_ownership_cannot_be_rewritten_by_top_level_plan_ownership():
+    """Prior M2 validation only checked key presence, not the saved value."""
+    from scripts.devfarm_goal_alignment import (
+        GoalAlignmentError, canonical_plan_proposal, evaluate_plan_goal_preflight,
+    )
+    plan = {
+        "run_id": "m2-ownership-drift", "base_revision": "a" * 40,
+        "objective": "Change only the reviewed realtime DSP design file",
+        "tasks": [{"task_id": "a", "owner": "codex",
+                   "ownership": ["docs/reviewed-dsp.md"]}],
+        "ownership": [{"task_id": "a", "paths": ["docs/unreviewed-offline-demo.md"]}],
+    }
+    evidence = example(proposal=canonical_plan_proposal(plan))
+    with pytest.raises(GoalAlignmentError, match="rewritten reviewed task field.*ownership"):
+        evaluate_plan_goal_preflight(evidence, plan)
+
+
+def test_reviewed_dependencies_cannot_be_rewritten_by_top_level_plan_dependencies():
+    from scripts.devfarm_goal_alignment import (
+        GoalAlignmentError, canonical_plan_proposal, evaluate_plan_goal_preflight,
+    )
+    plan = {
+        "run_id": "m2-dependency-drift", "base_revision": "a" * 40,
+        "objective": "Verify existing DSP before next architectural step",
+        "tasks": [
+            {"task_id": "pre", "owner": "codex", "ownership": ["docs/pre.md"]},
+            {"task_id": "build", "owner": "codex", "ownership": ["docs/build.md"],
+             "dependencies": ["pre"]},
+        ],
+        "dependencies": [
+            {"task_id": "pre", "depends_on": []},
+            {"task_id": "build", "depends_on": []},
+        ],
+    }
+    evidence = example(proposal=canonical_plan_proposal(plan))
+    with pytest.raises(GoalAlignmentError, match="rewritten reviewed task field.*dependencies"):
+        evaluate_plan_goal_preflight(evidence, plan)
+
+
+def test_consistent_dual_task_and_plan_ownership_remains_accepted():
+    from scripts.devfarm_goal_alignment import canonical_plan_proposal, evaluate_plan_goal_preflight
+    plan = {
+        "run_id": "m2-consistent-ownership", "base_revision": "a" * 40,
+        "objective": "Keep the approved DSP file ownership scope",
+        "tasks": [{"task_id": "a", "owner": "codex", "ownership": ["docs/dsp.md"]}],
+        "ownership": [{"task_id": "a", "paths": ["docs/dsp.md"]}],
+    }
+    evidence = example(proposal=canonical_plan_proposal(plan))
+    assert evaluate_plan_goal_preflight(evidence, plan)["disposition"] == "ALIGNED"
