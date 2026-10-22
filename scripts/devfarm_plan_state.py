@@ -419,7 +419,6 @@ class CommanderPlanStore:
         for task in plan["tasks"]:
             _project_compatibility_status(task)
         _project_plan_status(plan)
-        _reject_inflight_supersession(plan)
         return plan
 
     def load_for_supersession(self, run_id: str) -> dict[str, Any]:
@@ -441,6 +440,7 @@ class CommanderPlanStore:
         for task in plan["tasks"]:
             _project_compatibility_status(task)
         _project_plan_status(plan)
+        _reject_inflight_supersession(plan)
         return plan
 
     def save(self, value: Mapping[str, Any], *, expected_revision: int | None = None) -> dict[str, Any]:

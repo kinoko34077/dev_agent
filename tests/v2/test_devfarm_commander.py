@@ -1191,6 +1191,33 @@ def test_commander_can_supersede_legacy_ready_plan_with_newly_protected_path(tmp
     assert list_active_ownership(root) == []
 
 
+def test_commander_plan_store_load_keeps_active_dispatched_plan_readable(tmp_path):
+    root, _targets, revision = _repo(tmp_path)
+    create_plan(
+        root,
+        {
+            "run_id": "active-dispatched-load",
+            "objective": "runtime must be able to reload an active plan",
+            "base_revision": revision,
+            "tasks": [
+                {
+                    "task_id": "active-task",
+                    "owner": "codex",
+                    "status": "DISPATCHED",
+                    "ownership": ["docs/active.md"],
+                    "max_attempts": 1,
+                    "attempt_count": 1,
+                }
+            ],
+        },
+    )
+
+    loaded = CommanderPlanStore(root).load("active-dispatched-load")
+
+    assert loaded["status"] == "DISPATCHED"
+    assert loaded["tasks"][0]["status"] == "DISPATCHED"
+
+
 def test_commander_cannot_supersede_inflight_legacy_protected_plan(tmp_path):
     root, _targets, revision = _repo(tmp_path)
     create_plan(
