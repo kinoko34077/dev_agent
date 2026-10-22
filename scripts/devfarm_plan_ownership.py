@@ -33,7 +33,8 @@ def plan_paths(directory: str | Path) -> tuple[Path, ...]:
     return tuple(
         path
         for path in sorted(directory_path.glob("*.json"))
-        if not path.is_symlink() and not path.name.endswith(".input.json")
+        if not path.is_symlink()
+        and not path.name.casefold().endswith((".input.json", "-input.json"))
     )
 
 

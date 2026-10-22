@@ -61,6 +61,7 @@ def test_input_plan_spec_is_not_treated_as_active_ownership(tmp_path):
             {
                 "task_id": "task-a",
                 "owner": "worker",
+                "status": "READY",
                 "ownership": ["src/dev_agent/resources/model_catalog.py"],
                 "manifest_path": ".devfarm/tasks/task-a.json",
                 "assignment": {
@@ -70,6 +71,7 @@ def test_input_plan_spec_is_not_treated_as_active_ownership(tmp_path):
             }
         ],
     }
-    (plans / "input-only.input.json").write_text(json.dumps(plan), encoding="utf-8")
+    for filename in ("input-only.input.json", "input-only-input.json"):
+        (plans / filename).write_text(json.dumps(plan), encoding="utf-8")
 
-    assert load_ownership_projections(tmp_path, plans) == []
+        assert load_ownership_projections(tmp_path, plans) == []
