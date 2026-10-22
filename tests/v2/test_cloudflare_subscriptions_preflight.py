@@ -93,7 +93,12 @@ def test_get_subscription_billing_read_redacts_identifiers_and_never_admits():
         {"plan_label_hint": "WORKERS_PAID_LABEL_ONLY", "state_hint": "Paid"},
         {"plan_label_hint": "UNRECOGNIZED", "state_hint": "Provisioned"},
     ]
-    printed = json.dumps(result)
+    # observed_at is Host-generated and nondeterministic; its fractional seconds
+    # can coincidentally contain the short numeric price canary below.
+    redacted_projection = {
+        key: value for key, value in result.items() if key != "observed_at"
+    }
+    printed = json.dumps(redacted_projection)
     for secret in (
         "sensitive-account", "sensitive-token", "super-sensitive-subscription",
         "different-id", "private-plan", "secret@example.test", "975",
