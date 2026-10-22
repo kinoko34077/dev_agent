@@ -484,7 +484,7 @@ def supersede_plan(root: str | Path, run_id: str, *, reason: str) -> dict[str, A
 
     root_path = Path(root).resolve()
     store = CommanderPlanStore(root_path)
-    plan = store.load(run_id)
+    plan = store.load_for_supersession(run_id)
     normalized_reason = _text(reason, "reason", max_length=1000)
     if plan["status"] == "INTEGRATED":
         raise DevFarmError(f"Commander plan is already terminal: {run_id}")
@@ -534,7 +534,8 @@ def supersede_plan(root: str | Path, run_id: str, *, reason: str) -> dict[str, A
         changed = True
     if not changed:
         raise DevFarmError(f"Commander plan has no supersedable tasks: {run_id}")
-    plan = refresh_plan(plan)
+    plan["status"] = "SUPERSEDED"
+    plan = refresh_plan(plan, allow_terminal_protected_history=True)
     if plan["status"] != "SUPERSEDED":
         raise DevFarmError(f"supersession did not reach terminal plan state: {run_id}")
     supervisor = dict(plan.get("supervisor") or {})

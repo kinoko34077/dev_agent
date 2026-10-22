@@ -282,12 +282,14 @@ def ownership_conflict(left_path: str, right_path: str) -> bool:
     return left == right or left in right.parents or right in left.parents
 
 
-def check_ownership(records: Sequence[Mapping[str, Any]]) -> None:
+def check_ownership(
+    records: Sequence[Mapping[str, Any]], *, allow_protected_history: bool = False
+) -> None:
     seen: list[tuple[str, str]] = []
     for record in records:
         task_id = str(record["task_id"])
         for path_value in record.get("paths", []):
-            if is_protected_path(path_value):
+            if is_protected_path(path_value) and not allow_protected_history:
                 raise DevFarmError(f"protected path cannot be owned by a plan task: {path_value}")
             for previous_task, previous_path in seen:
                 if ownership_conflict(previous_path, path_value):
@@ -318,7 +320,13 @@ def check_dependency_cycles(tasks: Sequence[Mapping[str, Any]]) -> None:
         visit(task_id)
 
 
-def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -> dict[str, Any]:
+def validate_plan(
+    value: Mapping[str, Any],
+    *,
+    root: str | Path | None = None,
+    allow_terminal_protected_history: bool = False,
+    allow_protected_ownership_for_supersession: bool = False,
+) -> dict[str, Any]:
     """Normalize and validate a Commander parent plan."""
 
     if not isinstance(value, Mapping):
@@ -328,6 +336,9 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
     run_id = plan_id(value.get("run_id"))
     objective = text(value.get("objective"), "objective", max_length=4000)
     base_revision = revision(value.get("base_revision"))
+    plan_status = text(value.get("status", "PLANNED"), "plan status", max_length=32).upper()
+    if plan_status not in PLAN_STATUSES:
+        raise DevFarmError(f"unsupported plan status: {plan_status}")
     raw_tasks = value.get("tasks")
     if not isinstance(raw_tasks, list) or not raw_tasks:
         raise DevFarmError("plan tasks must be a non-empty list")
@@ -587,7 +598,25 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
             ownership_by_task[task["task_id"]] = list(task["ownership"])
         task["ownership"] = list(ownership_by_task[task["task_id"]])
     ownership = [{"task_id": task["task_id"], "paths": list(task["ownership"])} for task in tasks]
-    check_ownership(ownership)
+    all_tasks_superseded_or_integrated = all(
+        task["status"] in {"INTEGRATED", "SUPERSEDED"} for task in tasks
+    )
+    terminal_protected_history = (
+        allow_terminal_protected_history
+        and plan_status == "SUPERSEDED"
+        and all_tasks_superseded_or_integrated
+    )
+    if allow_protected_ownership_for_supersession and any(
+        task["status"] in {"DISPATCHED", "PROPOSED", "HOST_VERIFIED"} for task in tasks
+    ):
+        raise DevFarmError("cannot supersede in-flight or host-verified tasks")
+    check_ownership(
+        ownership,
+        allow_protected_history=(
+            terminal_protected_history
+            or allow_protected_ownership_for_supersession
+        ),
+    )
 
     assignments = assignment_records(value.get("assignments"), tasks)
     assignments_by_task = {record["task_id"]: record for record in assignments}
@@ -623,9 +652,6 @@ def validate_plan(value: Mapping[str, Any], *, root: str | Path | None = None) -
     decision_ids = [item["decision_id"] for item in normalized_review_decisions]
     check_unique_ids(decision_ids, "review_decisions")
 
-    plan_status = text(value.get("status", "PLANNED"), "plan status", max_length=32).upper()
-    if plan_status not in PLAN_STATUSES:
-        raise DevFarmError(f"unsupported plan status: {plan_status}")
     plan_revision = value.get("plan_revision", 0)
     if isinstance(plan_revision, bool) or not isinstance(plan_revision, int) or plan_revision < 0:
         raise DevFarmError("plan_revision must be a non-negative integer")

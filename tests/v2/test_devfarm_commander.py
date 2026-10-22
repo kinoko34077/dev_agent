@@ -1144,6 +1144,94 @@ def test_commander_can_explicitly_supersede_a_terminal_plan_and_release_ownershi
     assert list_active_ownership(root) == []
 
 
+def test_commander_can_supersede_legacy_ready_plan_with_newly_protected_path(tmp_path):
+    root, _targets, revision = _repo(tmp_path)
+    create_plan(
+        root,
+        {
+            "run_id": "legacy-protected-ready",
+            "objective": "close an obsolete, never-dispatched plan",
+            "base_revision": revision,
+            "tasks": [
+                {
+                    "task_id": "legacy-task",
+                    "owner": "codex",
+                    "status": "READY",
+                    "ownership": ["docs/legacy.md"],
+                    "max_attempts": 1,
+                    "attempt_count": 0,
+                }
+            ],
+        },
+    )
+
+    store = CommanderPlanStore(root)
+    plan_path = store.path_for("legacy-protected-ready")
+    raw_plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    protected_path = "src/dev_agent/intelligence/refinement.py"
+    raw_plan["tasks"][0]["ownership"] = [protected_path]
+    raw_plan["ownership"][0]["paths"] = [protected_path]
+    plan_path.write_text(json.dumps(raw_plan), encoding="utf-8")
+
+    with pytest.raises(DevFarmError, match="protected path cannot be owned"):
+        store.load("legacy-protected-ready")
+
+    superseded = supersede_plan(
+        root,
+        "legacy-protected-ready",
+        reason="obsolete plan; no attempts were dispatched",
+    )
+
+    assert superseded["status"] == "SUPERSEDED"
+    assert superseded["tasks"][0]["status"] == "SUPERSEDED"
+    assert superseded["tasks"][0]["attempt_count"] == 0
+    assert superseded["tasks"][0]["ownership"] == [protected_path]
+    assert store.load("legacy-protected-ready")["status"] == "SUPERSEDED"
+    assert list_active_ownership(root) == []
+
+
+def test_commander_cannot_supersede_inflight_legacy_protected_plan(tmp_path):
+    root, _targets, revision = _repo(tmp_path)
+    create_plan(
+        root,
+        {
+            "run_id": "legacy-protected-dispatched",
+            "objective": "preserve a dispatched legacy plan for reconciliation",
+            "base_revision": revision,
+            "tasks": [
+                {
+                    "task_id": "legacy-task",
+                    "owner": "codex",
+                    "status": "DISPATCHED",
+                    "ownership": ["docs/legacy.md"],
+                    "max_attempts": 1,
+                    "attempt_count": 1,
+                }
+            ],
+        },
+    )
+
+    store = CommanderPlanStore(root)
+    plan_path = store.path_for("legacy-protected-dispatched")
+    raw_plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    protected_path = "src/dev_agent/intelligence/refinement.py"
+    raw_plan["tasks"][0]["ownership"] = [protected_path]
+    raw_plan["ownership"][0]["paths"] = [protected_path]
+    plan_path.write_text(json.dumps(raw_plan), encoding="utf-8")
+
+    with pytest.raises(DevFarmError, match="in-flight or host-verified"):
+        supersede_plan(
+            root,
+            "legacy-protected-dispatched",
+            reason="must not discard dispatched work",
+        )
+
+    preserved = json.loads(plan_path.read_text(encoding="utf-8"))
+    assert preserved["status"] == "DISPATCHED"
+    assert preserved["tasks"][0]["attempt_count"] == 1
+    assert preserved["tasks"][0]["ownership"] == [protected_path]
+
+
 def test_commander_reconciles_legacy_superseded_supervisor_projection_idempotently(tmp_path):
     root, _targets, revision = _repo(tmp_path)
     create_plan(
