@@ -270,11 +270,33 @@ def evaluate_plan_goal_preflight(packet: Mapping[str, Any],
     for index, raw in enumerate(raw_tasks):
         if not isinstance(raw, Mapping):
             raise GoalAlignmentError("reviewed Commander plan task must be an object")
+        persisted = normalized["tasks"][index]
         for field in raw:
-            if field not in normalized["tasks"][index]:
+            if field not in persisted:
                 raise GoalAlignmentError(
                     f"unpersisted reviewed task field at index {index}: {field}"
                 )
+        # Per-task and top-level records are both accepted by Commander.
+        # The latter can replace earlier explicit intent without dropping
+        # any keys, so key-presence validation alone is not meaningful.
+        for field in ("ownership", "dependencies"):
+            if field in raw and raw[field] and set(raw[field]) != set(persisted[field]):
+                raise GoalAlignmentError(
+                    f"rewritten reviewed task field at index {index}: {field}"
+                )
+        supplied_assignment = raw.get("assignment")
+        if isinstance(supplied_assignment, Mapping):
+            for field, value in supplied_assignment.items():
+                if value is None:
+                    continue
+                if field == "owner" and isinstance(value, str):
+                    value = value.strip().lower()
+                if field == "task_id" and isinstance(value, str):
+                    value = value.strip()
+                if persisted["assignment"].get(field) != value:
+                    raise GoalAlignmentError(
+                        f"rewritten reviewed task field at index {index}: assignment.{field}"
+                    )
     result = evaluate_goal_preflight(packet)
     actual = canonical_plan_proposal(plan)
     reported = _text(_object(packet, "packet").get("proposal"),
