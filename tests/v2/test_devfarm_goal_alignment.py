@@ -441,3 +441,24 @@ def test_matching_reviewed_dependencies_and_assignment_pass_without_overblocking
     }
     evidence = example(proposal=canonical_plan_proposal(plan))
     assert evaluate_plan_goal_preflight(evidence, plan)["disposition"] == "ALIGNED"
+
+
+def test_cli_plan_rejects_caller_claimed_review_metadata(tmp_path, monkeypatch):
+    """User-provided JSON cannot impersonate a completed M2 review."""
+    from scripts import devfarm_commander
+    called = []
+    monkeypatch.setattr(devfarm_commander, "create_plan",
+                        lambda root, plan: called.append(plan) or {"created": True})
+    spec = {
+        "run_id": "forged-goal",
+        "objective": "Try to claim a source review without an assessment",
+        "base_revision": "a" * 40,
+        "tasks": [{"task_id": "a", "owner": "codex", "ownership": ["docs/x.md"]}],
+        "goal_attestation": {"schema_version": 1, "state": "not_recorded", "advisory_only": True},
+    }
+    file = tmp_path / "forged-plan.json"
+    file.write_text(json.dumps(spec), encoding="utf-8")
+    with pytest.raises(SystemExit) as err:
+        devfarm_main(["plan", str(file), "--root", str(tmp_path)])
+    assert err.value.code == 2
+    assert called == []
