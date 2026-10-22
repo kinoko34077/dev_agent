@@ -606,10 +606,6 @@ def validate_plan(
         and plan_status == "SUPERSEDED"
         and all_tasks_superseded_or_integrated
     )
-    if allow_protected_ownership_for_supersession and any(
-        task["status"] in {"DISPATCHED", "PROPOSED", "HOST_VERIFIED"} for task in tasks
-    ):
-        raise DevFarmError("cannot supersede in-flight or host-verified tasks")
     check_ownership(
         ownership,
         allow_protected_history=(

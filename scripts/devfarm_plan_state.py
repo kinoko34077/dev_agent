@@ -34,6 +34,7 @@ _text = plan_validation.text
 _plan_id = plan_validation.plan_id
 _ownership_conflict = plan_validation.ownership_conflict
 validate_plan = plan_validation.validate_plan
+_SUPERSESSION_IN_FLIGHT_STATUSES = {"DISPATCHED", "PROPOSED", "HOST_VERIFIED"}
 
 
 class PlanConflictError(DevFarmError):
@@ -161,6 +162,16 @@ def _project_plan_status(plan: dict[str, Any]) -> None:
         plan["status"] = "REJECTED"
     else:
         plan["status"] = "PLANNED"
+
+
+def _reject_inflight_supersession(plan: Mapping[str, Any]) -> None:
+    in_flight = [
+        str(task.get("task_id", "unknown"))
+        for task in plan.get("tasks", [])
+        if isinstance(task, Mapping) and task.get("status") in _SUPERSESSION_IN_FLIGHT_STATUSES
+    ]
+    if in_flight:
+        raise DevFarmError("cannot supersede in-flight or host-verified tasks: " + ", ".join(in_flight))
 
 
 def _merge_task_binding(
@@ -408,6 +419,7 @@ class CommanderPlanStore:
         for task in plan["tasks"]:
             _project_compatibility_status(task)
         _project_plan_status(plan)
+        _reject_inflight_supersession(plan)
         return plan
 
     def load_for_supersession(self, run_id: str) -> dict[str, Any]:
@@ -463,6 +475,11 @@ class CommanderPlanStore:
                 allow_protected_ownership_for_supersession=terminal_superseded,
                 allow_terminal_protected_history=terminal_superseded,
             )
+            if terminal_superseded:
+                for task in current["tasks"]:
+                    _project_compatibility_status(task)
+                _project_plan_status(current)
+                _reject_inflight_supersession(current)
             actual = current["plan_revision"]
             if actual != expected:
                 raise PlanConflictError(

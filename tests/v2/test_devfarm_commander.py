@@ -30,6 +30,7 @@ from scripts.devfarm_commander import (
 from scripts.devfarm_orchestrator import DevFarmOrchestrator, HostConcurrencyGovernor, RemoteConcurrencyGovernor
 from scripts.devfarm_supervisor import CodexSupervisedCommanderRun, main as supervisor_main
 from src.dev_agent.coordination import WorkAddress
+from src.dev_agent.domain.execution import CanonicalExecutionBinding, ExecutionLifecycleStage
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.providers.fake.provider import FakeProvider
 
@@ -1229,6 +1230,115 @@ def test_commander_cannot_supersede_inflight_legacy_protected_plan(tmp_path):
     preserved = json.loads(plan_path.read_text(encoding="utf-8"))
     assert preserved["status"] == "DISPATCHED"
     assert preserved["tasks"][0]["attempt_count"] == 1
+    assert preserved["tasks"][0]["ownership"] == [protected_path]
+
+
+def test_commander_supersession_uses_canonical_failed_stage_over_stale_dispatched_status(tmp_path):
+    root, _targets, revision = _repo(tmp_path)
+    create_plan(
+        root,
+        {
+            "run_id": "legacy-protected-stale-dispatched",
+            "objective": "close a failed plan with a stale compatibility status",
+            "base_revision": revision,
+            "tasks": [
+                {
+                    "task_id": "legacy-task",
+                    "owner": "codex",
+                    "status": "READY",
+                    "ownership": ["docs/legacy.md"],
+                    "max_attempts": 1,
+                    "attempt_count": 0,
+                }
+            ],
+        },
+    )
+
+    store = CommanderPlanStore(root)
+    plan_path = store.path_for("legacy-protected-stale-dispatched")
+    raw_plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    protected_path = "src/dev_agent/intelligence/refinement.py"
+    failed_binding = CanonicalExecutionBinding.for_child(
+        logical_execution_id="legacy-execution",
+        proposal_id="legacy-proposal",
+        child_key="legacy-child",
+        executor_kind="codex",
+    ).with_stage(ExecutionLifecycleStage.FAILED)
+    task = raw_plan["tasks"][0]
+    task["ownership"] = [protected_path]
+    task["status"] = "DISPATCHED"
+    task["canonical_execution"] = failed_binding.to_dict()
+    raw_plan["ownership"][0]["paths"] = [protected_path]
+    raw_plan["status"] = "DISPATCHED"
+    plan_path.write_text(json.dumps(raw_plan), encoding="utf-8")
+
+    superseded = supersede_plan(
+        root,
+        "legacy-protected-stale-dispatched",
+        reason="canonical lifecycle confirms the obsolete attempt failed",
+    )
+
+    assert superseded["status"] == "SUPERSEDED"
+    assert superseded["tasks"][0]["status"] == "SUPERSEDED"
+    assert superseded["tasks"][0]["ownership"] == [protected_path]
+    assert store.load("legacy-protected-stale-dispatched")["status"] == "SUPERSEDED"
+    assert list_active_ownership(root) == []
+
+
+def test_terminal_supersession_save_rechecks_canonical_current_lifecycle(tmp_path):
+    root, _targets, revision = _repo(tmp_path)
+    create_plan(
+        root,
+        {
+            "run_id": "legacy-protected-supersession-race",
+            "objective": "do not supersede a task that became active after load",
+            "base_revision": revision,
+            "tasks": [
+                {
+                    "task_id": "legacy-task",
+                    "owner": "codex",
+                    "status": "READY",
+                    "ownership": ["docs/legacy.md"],
+                    "max_attempts": 1,
+                    "attempt_count": 0,
+                }
+            ],
+        },
+    )
+
+    store = CommanderPlanStore(root)
+    plan_path = store.path_for("legacy-protected-supersession-race")
+    protected_path = "src/dev_agent/intelligence/refinement.py"
+    failed_binding = CanonicalExecutionBinding.for_child(
+        logical_execution_id="legacy-execution",
+        proposal_id="legacy-proposal",
+        child_key="legacy-child",
+        executor_kind="codex",
+    ).with_stage(ExecutionLifecycleStage.FAILED)
+    raw_plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    raw_plan["tasks"][0]["ownership"] = [protected_path]
+    raw_plan["tasks"][0]["status"] = "DISPATCHED"
+    raw_plan["tasks"][0]["canonical_execution"] = failed_binding.to_dict()
+    raw_plan["ownership"][0]["paths"] = [protected_path]
+    raw_plan["status"] = "DISPATCHED"
+    plan_path.write_text(json.dumps(raw_plan), encoding="utf-8")
+
+    terminal_candidate = store.load_for_supersession("legacy-protected-supersession-race")
+    terminal_candidate["tasks"][0]["status"] = "SUPERSEDED"
+    terminal_candidate["status"] = "SUPERSEDED"
+    terminal_candidate["supervisor"] = {"status": "COMPLETED", "next_action": "stop"}
+
+    current = json.loads(plan_path.read_text(encoding="utf-8"))
+    current["tasks"][0]["canonical_execution"] = failed_binding.with_stage(
+        ExecutionLifecycleStage.ATTEMPT_ACTIVE
+    ).to_dict()
+    plan_path.write_text(json.dumps(current), encoding="utf-8")
+
+    with pytest.raises(DevFarmError, match="in-flight or host-verified"):
+        store.save(terminal_candidate, expected_revision=terminal_candidate["plan_revision"])
+
+    preserved = json.loads(plan_path.read_text(encoding="utf-8"))
+    assert preserved["tasks"][0]["canonical_execution"]["stage"] == "attempt_active"
     assert preserved["tasks"][0]["ownership"] == [protected_path]
 
 
