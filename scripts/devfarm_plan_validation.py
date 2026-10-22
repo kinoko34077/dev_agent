@@ -17,6 +17,7 @@ from scripts.devfarm_contracts import validate_manifest
 from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_repository import read_json, repository_path
 from scripts.devfarm_review_protocol import normalize_review_decision
+from scripts.devfarm_goal_attestation import normalize_attestation
 from scripts.devfarm_supervisor_protocol import normalize_supervisor_metadata
 from src.dev_agent.coordination import WorkAddress, allocate_work_address
 from src.dev_agent.domain.execution import CanonicalExecutionBinding
@@ -648,6 +649,12 @@ def validate_plan(
     decision_ids = [item["decision_id"] for item in normalized_review_decisions]
     check_unique_ids(decision_ids, "review_decisions")
 
+    goal_attestation = None
+    if "goal_attestation" in value:
+        try:
+            goal_attestation = normalize_attestation(value["goal_attestation"])
+        except (ValueError, TypeError, KeyError) as exc:
+            raise DevFarmError("invalid goal_attestation") from exc
     plan_revision = value.get("plan_revision", 0)
     if isinstance(plan_revision, bool) or not isinstance(plan_revision, int) or plan_revision < 0:
         raise DevFarmError("plan_revision must be a non-negative integer")
@@ -663,6 +670,7 @@ def validate_plan(
         "assignments": assignments,
         "results": normalized_results,
         "review_decisions": normalized_review_decisions,
+        **({"goal_attestation": goal_attestation} if goal_attestation is not None else {}),
         "plan_revision": plan_revision,
         "created_at": text(value.get("created_at", now()), "created_at", max_length=80),
         "updated_at": text(value.get("updated_at", now()), "updated_at", max_length=80),
