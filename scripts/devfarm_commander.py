@@ -826,6 +826,7 @@ def dispatch_cli(
         host_executor = create_host_process_executor(
             root_path / ".devfarm" / "host-dispatch",
             timeout_seconds=timeout_seconds,
+            local_trial=local_trial,
         )
     for task in plan["tasks"]:
         if task["owner"] != "worker" or task["status"] not in {"READY", "PLANNED"}:

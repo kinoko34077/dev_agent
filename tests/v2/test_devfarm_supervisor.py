@@ -242,6 +242,87 @@ def test_supervised_run_forwards_explicit_local_trial_to_existing_advance(tmp_pa
     assert calls[0]["local_trial"] is True
 
 
+def test_supervisor_advance_forwards_local_trial_to_host_child(tmp_path, monkeypatch):
+    write_manifest(
+        tmp_path,
+        {
+            "task_id": "worker-task",
+            "objective": "exercise the existing local-trial Host child boundary",
+            "base_revision": "abc123",
+            "allowed_files": ["tests/v2/worker.py"],
+            "read_files": ["tests/v2/worker.py"],
+            "forbidden_files": [],
+            "external_provider_allowed": True,
+            "approved_provider_ids": ["ollama"],
+            "outbound_files": ["tests/v2/worker.py"],
+            "requirements": [],
+            "acceptance": [],
+            "test_commands": ["python -m pytest tests/v2/worker.py -q"],
+            "max_attempts": 1,
+            "output_contract": {},
+        },
+    )
+    create_plan(
+        tmp_path,
+        _plan(
+            tasks=[
+                {
+                    "task_id": "worker-task",
+                    "owner": "worker",
+                    "status": "READY",
+                    "ownership": [],
+                    "dependencies": [],
+                    "manifest_path": ".devfarm/tasks/worker-task.json",
+                    "assignment": {
+                        "provider_id": "ollama",
+                        "provider_binding_id": "ollama:local:qwen3.5-9b",
+                        "model_id": "qwen3.5:9b",
+                    },
+                }
+            ],
+            ownership=[{"task_id": "worker-task", "paths": []}],
+            assignments=[
+                {
+                    "task_id": "worker-task",
+                    "owner": "worker",
+                    "provider_id": "ollama",
+                    "provider_binding_id": "ollama:local:qwen3.5-9b",
+                    "model_id": "qwen3.5:9b",
+                }
+            ],
+            dependencies=[{"task_id": "worker-task", "depends_on": []}],
+        ),
+    )
+    runner = CodexSupervisedCommanderRun(tmp_path, "supervisor-test-001")
+    runner.create()
+    executor = object()
+    executor_calls = []
+    monkeypatch.setattr(
+        "scripts.devfarm_host_dispatch.create_host_process_executor",
+        lambda *args, **kwargs: executor_calls.append((args, kwargs)) or executor,
+    )
+    host_dispatch_calls = []
+    monkeypatch.setattr(
+        "src.dev_agent.providers.host_dispatch.route_through_host",
+        lambda provider, selected_executor: host_dispatch_calls.append((provider, selected_executor)) or "host-dispatch",
+    )
+    plan_dispatch_calls = []
+    monkeypatch.setattr(
+        "scripts.devfarm_supervisor.dispatch_plan",
+        lambda *args, **kwargs: plan_dispatch_calls.append(kwargs) or {},
+    )
+
+    runner.advance(
+        providers={"worker-task": object()},
+        execution_boundary="host_process",
+        local_trial=True,
+    )
+
+    assert executor_calls[0][1]["local_trial"] is True
+    assert host_dispatch_calls[0][1] is executor
+    assert plan_dispatch_calls[0]["local_trial"] is True
+
+
 @pytest.mark.parametrize(
     ("status", "next_action"),
     [

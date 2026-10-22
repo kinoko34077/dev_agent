@@ -499,6 +499,7 @@ class CodexSupervisedCommanderRun:
                     executor = create_host_process_executor(
                         self.root / ".devfarm" / "host-dispatch",
                         timeout_seconds=dispatch_timeout_seconds,
+                        local_trial=local_trial,
                     )
                     host_dispatches = {
                         task_id: route_through_host(

@@ -4,6 +4,7 @@ import json
 from contextlib import contextmanager
 import socket
 from types import SimpleNamespace
+import pytest
 
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.operation import OperationProviderBinding
@@ -12,6 +13,250 @@ from src.dev_agent.providers.host_dispatch import HostDispatchEnvelope
 from src.dev_agent.resources.control import DispatchDenied
 import scripts.devfarm_host_dispatch as host_dispatch
 from scripts.devfarm_host_dispatch import process_once
+
+
+def test_host_process_executor_keeps_local_trial_opt_in_default_off(tmp_path):
+    default_executor = host_dispatch.create_host_process_executor(tmp_path)
+    assert "--local-trial" not in default_executor.command
+
+    local_executor = host_dispatch.create_host_process_executor(tmp_path, local_trial=True)
+    assert local_executor.command[-1] == "--local-trial"
+
+
+@pytest.mark.parametrize(("local_trial_args", "expected"), [((), False), (("--local-trial",), True)])
+def test_host_runtime_cli_forwards_local_trial_to_configured_dispatch(
+    monkeypatch, tmp_path, capsys, local_trial_args, expected
+):
+    calls = []
+    monkeypatch.setattr(
+        host_dispatch,
+        "process_once",
+        lambda request, response, *, local_trial=False: calls.append((request, response, local_trial))
+        or {"status": "completed", "dispatch_id": "dispatch-1"},
+    )
+
+    result = host_dispatch.main(
+        ["--request", str(tmp_path / "request.json"), "--response", str(tmp_path / "response.json"), *local_trial_args]
+    )
+
+    assert result == 0
+    assert calls == [(tmp_path / "request.json", tmp_path / "response.json", expected)]
+    assert '"status": "completed"' in capsys.readouterr().out
+
+
+def test_host_runtime_local_trial_revalidates_exact_l1_local_identity(monkeypatch):
+    binding = OperationProviderBinding(
+        provider_id="ollama",
+        model="qwen3.5:9b",
+        provider_binding_id="ollama:local:qwen3.5-9b",
+        intelligence_tier="L1",
+    )
+    envelope = HostDispatchEnvelope(
+        dispatch_id="local-dispatch",
+        provider_id="ollama",
+        provider_binding_id=binding.binding_id,
+        model_id=binding.model,
+        intelligence_tier="L1",
+        request=ModelRequest(
+            task_id="00000000-0000-0000-0000-000000000001",
+            messages=[{"role": "user", "content": "bounded"}],
+            requested_capabilities=["text"],
+        ),
+        egress_manifest_sha256="e" * 64,
+    )
+    provider = SimpleNamespace(provider_id="ollama", model_id="qwen3.5:9b")
+    calls = []
+
+    class Dispatch:
+        def __init__(self, selected_provider, *, execution_boundary):
+            calls.append(("dispatch", selected_provider, execution_boundary))
+
+        def request(self, request):
+            calls.append(("request", request))
+            return ModelResponse(provider="ollama", model="qwen3.5:9b", text_segments=["ok"])
+
+    eligibility = SimpleNamespace(
+        eligible=True,
+        operator_activated=True,
+        capability_qualified=True,
+        billing_admitted=True,
+        billing_source="local_runtime",
+        reason="local_trial",
+    )
+    monkeypatch.setattr(host_dispatch, "_configured_binding", lambda _envelope: binding)
+    monkeypatch.setattr(
+        host_dispatch,
+        "build_worker_provider",
+        lambda *args, **kwargs: calls.append(("build", args, kwargs)) or provider,
+    )
+    monkeypatch.setattr(
+        host_dispatch,
+        "validate_worker_provider",
+        lambda selected, *, allow_local: (
+            selected.provider_id,
+            "qwen3.5:9b",
+            binding.binding_id,
+            "L1",
+            eligibility,
+        ),
+    )
+    monkeypatch.setattr(host_dispatch, "HostProviderDispatch", Dispatch)
+    monkeypatch.setattr(
+        host_dispatch,
+        "admit_resource_pool",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("local trial must use existing local admission")),
+    )
+
+    response = host_dispatch._dispatch_configured(envelope, local_trial=True)
+
+    assert response.text_segments == ["ok"]
+    assert calls[0] == (
+        "build",
+        ("ollama", "qwen3.5:9b", binding.timeout_seconds, binding.binding_id),
+        {"allow_local": True},
+    )
+    assert calls[1] == ("dispatch", provider, "host_process")
+    assert calls[2] == ("request", envelope.request)
+
+
+@pytest.mark.parametrize(
+    ("tier", "capabilities", "binding_id"),
+    [
+        ("L2", ["text"], "ollama:local:qwen3.5-9b"),
+        ("L1", ["text", "tool_call"], "ollama:local:qwen3.5-9b"),
+        ("L1", ["text"], "ollama:qualification-lane"),
+    ],
+)
+def test_host_runtime_local_trial_rejects_non_l1_unsupported_capability_or_alias_binding(
+    monkeypatch, tier, capabilities, binding_id
+):
+    binding = OperationProviderBinding(
+        provider_id="ollama",
+        model="qwen3.5:9b",
+        provider_binding_id="ollama:local:qwen3.5-9b",
+        qualification_binding_id="ollama:qualification-lane",
+        intelligence_tier="L1",
+    )
+    envelope = HostDispatchEnvelope(
+        dispatch_id="local-dispatch",
+        provider_id="ollama",
+        provider_binding_id=binding_id,
+        model_id=binding.model,
+        intelligence_tier=tier,
+        request=ModelRequest(
+            task_id="00000000-0000-0000-0000-000000000002",
+            messages=[{"role": "user", "content": "bounded"}],
+            requested_capabilities=capabilities,
+        ),
+        egress_manifest_sha256="f" * 64,
+    )
+    monkeypatch.setattr(host_dispatch, "_configured_binding", lambda _envelope: binding)
+    monkeypatch.setattr(
+        host_dispatch,
+        "build_worker_provider",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("invalid local trial must not construct a Provider")),
+    )
+
+    with pytest.raises(host_dispatch.HostDispatchRuntimeError):
+        host_dispatch._dispatch_configured(envelope, local_trial=True)
+
+
+def test_host_runtime_local_trial_rejects_non_hardware_local_provider(monkeypatch):
+    binding = OperationProviderBinding(
+        provider_id="fake",
+        model="fake-model",
+        provider_binding_id="fake:host",
+        intelligence_tier="L1",
+    )
+    envelope = HostDispatchEnvelope(
+        dispatch_id="fake-local-dispatch",
+        provider_id="fake",
+        provider_binding_id=binding.binding_id,
+        model_id=binding.model,
+        intelligence_tier="L1",
+        request=ModelRequest(
+            task_id="00000000-0000-0000-0000-000000000004",
+            messages=[{"role": "user", "content": "bounded"}],
+            requested_capabilities=["text"],
+        ),
+        egress_manifest_sha256="d" * 64,
+    )
+    monkeypatch.setattr(host_dispatch, "_configured_binding", lambda _envelope: binding)
+    monkeypatch.setattr(
+        host_dispatch,
+        "build_worker_provider",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("fake provider must not be constructed")),
+    )
+
+    with pytest.raises(host_dispatch.HostDispatchRuntimeError, match="real local Provider"):
+        host_dispatch._dispatch_configured(envelope, local_trial=True)
+
+
+@pytest.mark.parametrize(
+    "tool_fields",
+    [
+        {"allowed_tools": ["read_file"]},
+        {"tool_definitions": [{"name": "read_file", "parameters": {"type": "object"}}]},
+        {"tool_results": [{"call_id": "00000000-0000-0000-0000-000000000005", "tool_name": "read_file"}]},
+    ],
+    ids=["allowed-tools", "tool-definitions", "tool-results"],
+)
+def test_host_runtime_local_trial_rejects_tool_fields_even_when_capability_says_text_only(
+    monkeypatch, tool_fields
+):
+    binding = OperationProviderBinding(
+        provider_id="ollama",
+        model="qwen3.5:9b",
+        provider_binding_id="ollama:local:qwen3.5-9b",
+        intelligence_tier="L1",
+    )
+    envelope = HostDispatchEnvelope(
+        dispatch_id="tool-bearing-local-dispatch",
+        provider_id="ollama",
+        provider_binding_id=binding.binding_id,
+        model_id=binding.model,
+        intelligence_tier="L1",
+        request=ModelRequest(
+            task_id="00000000-0000-0000-0000-000000000006",
+            messages=[{"role": "user", "content": "bounded"}],
+            requested_capabilities=["text"],
+            **tool_fields,
+        ),
+        egress_manifest_sha256="e" * 64,
+    )
+    monkeypatch.setattr(host_dispatch, "_configured_binding", lambda _envelope: binding)
+    monkeypatch.setattr(
+        host_dispatch,
+        "build_worker_provider",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("tool-bearing request must not construct a Provider")),
+    )
+
+    with pytest.raises(host_dispatch.HostDispatchRuntimeError, match="tool fields"):
+        host_dispatch._dispatch_configured(envelope, local_trial=True)
+
+
+def test_host_runtime_rejects_local_trial_with_injected_provider_factory(tmp_path):
+    request_path = tmp_path / "request.json"
+    response_path = tmp_path / "response.json"
+    request_path.write_text(json.dumps(_envelope().to_dict()), encoding="utf-8")
+    called = False
+
+    def provider_factory(_envelope):
+        nonlocal called
+        called = True
+        return _FakeHostProvider()
+
+    result = process_once(
+        request_path,
+        response_path,
+        provider_factory=provider_factory,
+        local_trial=True,
+    )
+
+    assert result["status"] == "rejected"
+    assert result["category"] == "host_configuration"
+    assert result["reconciliation_required"] is False
+    assert called is False
 
 
 class _FakeHostProvider:
@@ -122,7 +367,7 @@ def test_host_runtime_preserves_local_dispatch_denial_without_falsely_marking_un
     response_path = tmp_path / "response.json"
     request_path.write_text(json.dumps(_envelope().to_dict()), encoding="utf-8")
 
-    def deny_before_external_effect(_envelope):
+    def deny_before_external_effect(_envelope, *, local_trial=False):
         raise DispatchDenied("no_route", "no eligible resource")
 
     monkeypatch.setattr(host_dispatch, "_dispatch_configured", deny_before_external_effect)
@@ -138,6 +383,52 @@ def test_host_runtime_preserves_local_dispatch_denial_without_falsely_marking_un
         "http_status": None,
     }
     assert json.loads(response_path.read_text(encoding="utf-8")) == result
+
+
+def test_host_runtime_local_trial_does_not_bypass_remote_admission(tmp_path, monkeypatch):
+    request_path = tmp_path / "request.json"
+    response_path = tmp_path / "response.json"
+    envelope = HostDispatchEnvelope(
+        dispatch_id="remote-dispatch",
+        provider_id="gemini",
+        provider_binding_id="gemini:worker:free-3",
+        model_id="gemini-3.6-flash",
+        intelligence_tier="L2",
+        request=ModelRequest(
+        task_id="00000000-0000-0000-0000-000000000003",
+            messages=[{"role": "user", "content": "bounded"}],
+            requested_capabilities=["text"],
+        ),
+        egress_manifest_sha256="a" * 64,
+    )
+    binding = OperationProviderBinding(
+        provider_id="gemini",
+        model="gemini-3.6-flash",
+        provider_binding_id="gemini:worker:free-3",
+        intelligence_tier="L2",
+    )
+    request_path.write_text(json.dumps(envelope.to_dict()), encoding="utf-8")
+    monkeypatch.setattr(host_dispatch, "_configured_binding", lambda _envelope: binding)
+    monkeypatch.setattr(
+        host_dispatch,
+        "ModelEvidenceCatalog",
+        SimpleNamespace(load_default=lambda: SimpleNamespace(catalog=object(), resolver=object())),
+    )
+    admission_calls = []
+    monkeypatch.setattr(host_dispatch, "admit_resource_pool", lambda *args, **kwargs: admission_calls.append(kwargs) or ())
+    monkeypatch.setattr(
+        host_dispatch,
+        "build_worker_provider",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("remote request must not enter local-trial path")),
+    )
+
+    result = process_once(request_path, response_path, local_trial=True)
+
+    assert result["status"] == "failed"
+    assert result["category"] == "no_route"
+    assert result["reconciliation_required"] is False
+    assert len(admission_calls) == 1
+    assert admission_calls[0]["no_charge_required"] is True
 
 
 def test_host_runtime_projects_empty_current_admission_as_no_route_without_composing(tmp_path, monkeypatch):

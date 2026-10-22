@@ -2197,6 +2197,57 @@ def test_dispatch_cli_forwards_local_trial_to_existing_plan_dispatch(monkeypatch
 
 
 @pytest.mark.parametrize(("local_trial", "expected"), [(False, False), (True, True)])
+def test_dispatch_cli_forwards_local_trial_to_host_child(monkeypatch, tmp_path, local_trial, expected):
+    plan = {
+        "tasks": [
+            {
+                "task_id": "task-1",
+                "owner": "worker",
+                "status": "READY",
+                "assignment": {
+                    "provider_id": "ollama",
+                    "provider_binding_id": "ollama:local:qwen3.5-9b",
+                    "model_id": "qwen3.5:9b",
+                },
+            }
+        ]
+    }
+    monkeypatch.setattr(CommanderPlanStore, "load", lambda _self, _run_id: plan)
+    monkeypatch.setattr(
+        "scripts.devfarm_commander.build_cli_provider",
+        lambda *_args, **_kwargs: _WorkerProvider({}),
+    )
+    executor_calls = []
+    executor = object()
+    monkeypatch.setattr(
+        "scripts.devfarm_host_dispatch.create_host_process_executor",
+        lambda *args, **kwargs: executor_calls.append((args, kwargs)) or executor,
+    )
+    host_dispatch_calls = []
+    monkeypatch.setattr(
+        "src.dev_agent.providers.host_dispatch.route_through_host",
+        lambda provider, selected_executor: host_dispatch_calls.append((provider, selected_executor)) or "host-dispatch",
+    )
+    plan_dispatch_calls = []
+    monkeypatch.setattr(
+        "scripts.devfarm_commander.dispatch_plan",
+        lambda *args, **kwargs: plan_dispatch_calls.append(kwargs) or {"status": "captured"},
+    )
+
+    result = dispatch_cli(
+        tmp_path,
+        "run-1",
+        execution_boundary="host_process",
+        local_trial=local_trial,
+    )
+
+    assert result == {"status": "captured"}
+    assert executor_calls[0][1]["local_trial"] is expected
+    assert host_dispatch_calls[0][1] is executor
+    assert plan_dispatch_calls[0]["local_trial"] is expected
+
+
+@pytest.mark.parametrize(("local_trial", "expected"), [(False, False), (True, True)])
 def test_build_cli_provider_forwards_local_trial_to_existing_provider_admission(
     monkeypatch, local_trial, expected
 ):
