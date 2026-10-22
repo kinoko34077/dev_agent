@@ -137,10 +137,19 @@ def main(argv: list[str] | None = None) -> int:
             print(canonical_plan_proposal(read_json(args.spec)))
         elif args.command == "plan":
             plan_value = read_json(args.spec)
+            # Review metadata is host-created after checking the exact original
+            # full plan. Do not let a CLI input claim an arbitrary earlier pass.
+            if isinstance(plan_value, dict) and "goal_attestation" in plan_value:
+                raise DevFarmError("plan input must not provide goal_attestation")
+            from scripts.devfarm_goal_attestation import reviewed_attestation, not_recorded
             if args.goal_check is not None:
-                result = evaluate_plan_goal_preflight(read_json(args.goal_check), plan_value)
+                packet = read_json(args.goal_check)
+                result = evaluate_plan_goal_preflight(packet, plan_value)
                 if result["disposition"] != "ALIGNED":
                     raise DevFarmError(f"optional goal preflight did not align: {result['disposition']}; see goal-check")
+                from scripts.devfarm_plan_validation import validate_plan
+                normalized = validate_plan(plan_value, root=args.root)
+                plan_value = {**plan_value, "goal_attestation": reviewed_attestation(normalized, result, packet)}
             else:
                 reasons = goal_review_visibility(plan_value)
                 if reasons:
@@ -153,6 +162,7 @@ def main(argv: list[str] | None = None) -> int:
                         "action": "read the owning Issue, challenge the design, and use plan --goal-check",
                         "advisory_only": True,
                     }, ensure_ascii=False), file=sys.stderr)
+                plan_value = {**plan_value, "goal_attestation": not_recorded()}
             from scripts.devfarm_commander import create_plan
 
             print(json.dumps(create_plan(args.root, plan_value), ensure_ascii=False, indent=2))
