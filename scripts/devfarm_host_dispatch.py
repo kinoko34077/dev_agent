@@ -150,6 +150,8 @@ def _dispatch_local_trial(envelope: HostDispatchEnvelope, binding: OperationProv
         raise HostDispatchRuntimeError("local-trial Host dispatch is limited to L1")
     if not set(envelope.request.requested_capabilities).issubset({"text"}):
         raise HostDispatchRuntimeError("local-trial Host dispatch supports text capability only")
+    if envelope.request.allowed_tools or envelope.request.tool_definitions or envelope.request.tool_results:
+        raise HostDispatchRuntimeError("local-trial Host dispatch rejects tool fields")
 
     timeout_seconds = binding.timeout_seconds
     configured_timeout = os.environ.get("OLLAMA_TIMEOUT_SECONDS")

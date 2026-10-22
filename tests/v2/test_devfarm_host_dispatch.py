@@ -192,6 +192,49 @@ def test_host_runtime_local_trial_rejects_non_hardware_local_provider(monkeypatc
         host_dispatch._dispatch_configured(envelope, local_trial=True)
 
 
+@pytest.mark.parametrize(
+    "tool_fields",
+    [
+        {"allowed_tools": ["read_file"]},
+        {"tool_definitions": [{"name": "read_file", "parameters": {"type": "object"}}]},
+        {"tool_results": [{"call_id": "00000000-0000-0000-0000-000000000005", "tool_name": "read_file"}]},
+    ],
+    ids=["allowed-tools", "tool-definitions", "tool-results"],
+)
+def test_host_runtime_local_trial_rejects_tool_fields_even_when_capability_says_text_only(
+    monkeypatch, tool_fields
+):
+    binding = OperationProviderBinding(
+        provider_id="ollama",
+        model="qwen3.5:9b",
+        provider_binding_id="ollama:local:qwen3.5-9b",
+        intelligence_tier="L1",
+    )
+    envelope = HostDispatchEnvelope(
+        dispatch_id="tool-bearing-local-dispatch",
+        provider_id="ollama",
+        provider_binding_id=binding.binding_id,
+        model_id=binding.model,
+        intelligence_tier="L1",
+        request=ModelRequest(
+            task_id="00000000-0000-0000-0000-000000000006",
+            messages=[{"role": "user", "content": "bounded"}],
+            requested_capabilities=["text"],
+            **tool_fields,
+        ),
+        egress_manifest_sha256="e" * 64,
+    )
+    monkeypatch.setattr(host_dispatch, "_configured_binding", lambda _envelope: binding)
+    monkeypatch.setattr(
+        host_dispatch,
+        "build_worker_provider",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("tool-bearing request must not construct a Provider")),
+    )
+
+    with pytest.raises(host_dispatch.HostDispatchRuntimeError, match="tool fields"):
+        host_dispatch._dispatch_configured(envelope, local_trial=True)
+
+
 def test_host_runtime_rejects_local_trial_with_injected_provider_factory(tmp_path):
     request_path = tmp_path / "request.json"
     response_path = tmp_path / "response.json"
@@ -385,6 +428,7 @@ def test_host_runtime_local_trial_does_not_bypass_remote_admission(tmp_path, mon
     assert result["category"] == "no_route"
     assert result["reconciliation_required"] is False
     assert len(admission_calls) == 1
+    assert admission_calls[0]["no_charge_required"] is True
 
 
 def test_host_runtime_projects_empty_current_admission_as_no_route_without_composing(tmp_path, monkeypatch):
