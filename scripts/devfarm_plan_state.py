@@ -34,6 +34,7 @@ _text = plan_validation.text
 _plan_id = plan_validation.plan_id
 _ownership_conflict = plan_validation.ownership_conflict
 validate_plan = plan_validation.validate_plan
+_SUPERSESSION_IN_FLIGHT_STATUSES = {"DISPATCHED", "PROPOSED", "HOST_VERIFIED"}
 
 
 class PlanConflictError(DevFarmError):
@@ -163,6 +164,16 @@ def _project_plan_status(plan: dict[str, Any]) -> None:
         plan["status"] = "PLANNED"
 
 
+def _reject_inflight_supersession(plan: Mapping[str, Any]) -> None:
+    in_flight = [
+        str(task.get("task_id", "unknown"))
+        for task in plan.get("tasks", [])
+        if isinstance(task, Mapping) and task.get("status") in _SUPERSESSION_IN_FLIGHT_STATUSES
+    ]
+    if in_flight:
+        raise DevFarmError("cannot supersede in-flight or host-verified tasks: " + ", ".join(in_flight))
+
+
 def _merge_task_binding(
     task: dict[str, Any],
     *,
@@ -261,10 +272,17 @@ def observe_task_lifecycle(
     )
 
 
-def refresh_plan(value: Mapping[str, Any]) -> dict[str, Any]:
+def refresh_plan(
+    value: Mapping[str, Any], *, allow_terminal_protected_history: bool = False
+) -> dict[str, Any]:
     """Release dependency-ready tasks without dispatching or mutating code."""
 
-    plan = deepcopy(validate_plan(value))
+    plan = deepcopy(
+        validate_plan(
+            value,
+            allow_terminal_protected_history=allow_terminal_protected_history,
+        )
+    )
     for task in plan["tasks"]:
         _project_compatibility_status(task)
     by_id = {task["task_id"]: task for task in plan["tasks"]}
@@ -393,14 +411,56 @@ class CommanderPlanStore:
         path = self.path_for(run_id)
         if not path.is_file():
             raise DevFarmError(f"Commander plan does not exist: {run_id}")
-        plan = validate_plan(_read_json(path), root=self.root)
+        plan = validate_plan(
+            _read_json(path),
+            root=self.root,
+            allow_terminal_protected_history=True,
+        )
         for task in plan["tasks"]:
             _project_compatibility_status(task)
         _project_plan_status(plan)
         return plan
 
+    def load_for_supersession(self, run_id: str) -> dict[str, Any]:
+        """Load a legacy plan only for the guarded terminalization path.
+
+        Protected ownership is tolerated here so an obsolete plan created
+        before the current path policy can be closed without dispatching it.
+        Normal loads and all dispatch paths keep the strict ownership check.
+        """
+
+        path = self.path_for(run_id)
+        if not path.is_file():
+            raise DevFarmError(f"Commander plan does not exist: {run_id}")
+        plan = validate_plan(
+            _read_json(path),
+            root=self.root,
+            allow_protected_ownership_for_supersession=True,
+        )
+        for task in plan["tasks"]:
+            _project_compatibility_status(task)
+        _project_plan_status(plan)
+        _reject_inflight_supersession(plan)
+        return plan
+
     def save(self, value: Mapping[str, Any], *, expected_revision: int | None = None) -> dict[str, Any]:
-        plan = validate_plan(value, root=self.root)
+        tasks = value.get("tasks") if isinstance(value, Mapping) else None
+        terminal_superseded = (
+            isinstance(value, Mapping)
+            and str(value.get("status", "")).upper() == "SUPERSEDED"
+            and isinstance(tasks, list)
+            and bool(tasks)
+            and all(
+                isinstance(task, Mapping)
+                and str(task.get("status", "")).upper() in {"INTEGRATED", "SUPERSEDED"}
+                for task in tasks
+            )
+        )
+        plan = validate_plan(
+            value,
+            root=self.root,
+            allow_terminal_protected_history=terminal_superseded,
+        )
         plan["updated_at"] = _now()
         path = self.path_for(plan["run_id"])
         expected = plan["plan_revision"] if expected_revision is None else expected_revision
@@ -409,14 +469,24 @@ class CommanderPlanStore:
         with self._lock(path):
             if not path.is_file():
                 raise DevFarmError(f"Commander plan does not exist: {plan['run_id']}")
-            current = validate_plan(_read_json(path), root=self.root)
+            current = validate_plan(
+                _read_json(path),
+                root=self.root,
+                allow_protected_ownership_for_supersession=terminal_superseded,
+                allow_terminal_protected_history=terminal_superseded,
+            )
+            if terminal_superseded:
+                for task in current["tasks"]:
+                    _project_compatibility_status(task)
+                _project_plan_status(current)
+                _reject_inflight_supersession(current)
             actual = current["plan_revision"]
             if actual != expected:
                 raise PlanConflictError(
                     f"Commander plan revision conflict: expected {expected}, actual {actual}"
                 )
             plan["plan_revision"] = expected + 1
-            self._write(plan)
+            self._write(plan, allow_terminal_protected_history=terminal_superseded)
         return plan
 
     def list(self) -> list[dict[str, Any]]:
@@ -482,8 +552,17 @@ class CommanderPlanStore:
         records.sort(key=lambda item: (item["path"], item["run_id"], item["task_id"]))
         return records
 
-    def _write(self, plan: Mapping[str, Any]) -> None:
-        normalized = validate_plan(plan, root=self.root)
+    def _write(
+        self,
+        plan: Mapping[str, Any],
+        *,
+        allow_terminal_protected_history: bool = False,
+    ) -> None:
+        normalized = validate_plan(
+            plan,
+            root=self.root,
+            allow_terminal_protected_history=allow_terminal_protected_history,
+        )
         target = self.path_for(normalized["run_id"])
         temporary = self.directory / f".{normalized['run_id']}.{uuid.uuid4().hex}.tmp"
         temporary.write_text(json.dumps(normalized, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
