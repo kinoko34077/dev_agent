@@ -154,7 +154,10 @@ def test_goal_check_is_bound_to_exact_commander_plan(tmp_path, monkeypatch, caps
     assert capsys.readouterr().out.strip() == proposal
     assert devfarm_main(["plan", str(plan_file), "--goal-check", str(packet_file),
                          "--root", str(tmp_path)]) == 0
-    assert submitted == [spec]
+    assert len(submitted) == 1
+    assert {key: val for key, val in submitted[0].items() if key != "goal_attestation"} == spec
+    assert submitted[0]["goal_attestation"]["state"] == "reviewed_advisory"
+    assert submitted[0]["goal_attestation"]["advisory_only"] is True
 
     # Reusing a positive report for a different implementation task is forbidden.
     spec["objective"] = "Create an isolated 1.5-second offline demo instead"
@@ -163,13 +166,7 @@ def test_goal_check_is_bound_to_exact_commander_plan(tmp_path, monkeypatch, caps
         devfarm_main(["plan", str(plan_file), "--goal-check", str(packet_file),
                      "--root", str(tmp_path)])
     assert err.value.code == 2
-    assert submitted == [dict(
-        run_id="test-m2-goal-linkage",
-        objective="Existing settings switch the realtime DSP model; integrate supported Rust realtime DSP",
-        base_revision="a" * 40,
-        tasks=[{"task_id": "t1", "owner": "codex", "task_type": "architecture",
-                "ownership": ["docs/realtime-dsp-architecture.md"]}]
-    )]
+    assert len(submitted) == 1  # rejected changed proposal never reached Commander
 
 
 def test_exact_plan_binding_cannot_ignore_other_tasks_or_objective():
@@ -263,6 +260,12 @@ def test_m2_source_assessment_to_actual_durable_commander_plan(tmp_path, capsys)
     capsys.readouterr()
     created = CommanderPlanStore(root).load("m2-good-plan")
     assert created["objective"] == correct["objective"]
+    from scripts.devfarm_goal_attestation import applicability
+    assert created["goal_attestation"]["state"] == "reviewed_advisory"
+    assert created["goal_attestation"]["source_refs"] == [{"ref": REF, "sha256": hashlib.sha256(SRC.encode()).hexdigest()}]
+    assert created["goal_attestation"]["advisory_only"] is True
+    assert applicability(created, created["goal_attestation"]) == "matches_initial_definition"
+    assert SRC not in json.dumps(created, ensure_ascii=False)
     assert len(created["tasks"]) == 1
     assert created["tasks"][0]["task_id"] == "codex-architecture-review"
     assert (root / ".devfarm" / "plans" / "m2-good-plan.json").exists()
@@ -315,7 +318,9 @@ def test_substantive_plan_missing_goal_evidence_warns_without_blocking(tmp_path,
     assert warning["run_id"] == "design-visibility"
     assert warning["reasons"] == ["design_or_user_interaction", "high_or_critical_risk"]
     assert warning["advisory_only"]
-    assert received == [plan]
+    assert len(received) == 1
+    assert {key: val for key, val in received[0].items() if key != "goal_attestation"} == plan
+    assert received[0]["goal_attestation"] == {"schema_version": 1, "state": "not_recorded", "advisory_only": True}
     assert '"accepted"' in stream.out
 
 
