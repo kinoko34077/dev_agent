@@ -11,6 +11,7 @@ a candidate judgment rule to verified status.
 from __future__ import annotations
 
 from collections.abc import Mapping
+import re
 from typing import Any
 
 
@@ -49,8 +50,11 @@ def _ref(value: Any, name: str) -> str:
     # A locator is not an authenticated read. Only GitHub issue links are
     # supported in this initial public fixture contract; the caller must read
     # and verify the actual Issue and any later corrections independently.
-    if not ref.startswith("https://github.com/") or "/issues/" not in ref:
-        raise DecisionTransferError(f"{name} must be an explicit GitHub Issue URL")
+    if re.fullmatch(
+        r"https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[1-9][0-9]*(?:#issuecomment-[1-9][0-9]*)?",
+        ref,
+    ) is None:
+        raise DecisionTransferError(f"{name} must be an explicit GitHub Issue URL without query data")
     return ref
 
 
@@ -186,6 +190,6 @@ def evaluate_decision_transfer(packet: Mapping[str, Any]) -> dict[str, Any]:
         "target_redundant_attempts": target_repeat,
         "producer_evidence": producer_level,
         "consumer_evidence": consumer_level,
-        "fixed_constraints_preserved": fixed,
+        "fixed_constraints_supplied": len(fixed),
         "authority": "no_dispatch_no_merge_no_permission_no_root_cause_certification",
     }
