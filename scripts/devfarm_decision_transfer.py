@@ -10,7 +10,6 @@ a candidate judgment rule to verified status.
 
 from __future__ import annotations
 
-from collections import Counter
 from collections.abc import Mapping
 from typing import Any
 
