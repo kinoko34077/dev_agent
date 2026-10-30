@@ -51,7 +51,7 @@ def _ref(value: Any, name: str) -> str:
     # supported in this initial public fixture contract; the caller must read
     # and verify the actual Issue and any later corrections independently.
     if re.fullmatch(
-        r"https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[1-9][0-9]*(?:#issuecomment-[1-9][0-9]*)?",
+        r"https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[1-9][0-9]*(?:#issuecomment-[1-9][0-9]*)?",
         ref,
     ) is None:
         raise DecisionTransferError(f"{name} must be an explicit GitHub Issue URL without query data")
