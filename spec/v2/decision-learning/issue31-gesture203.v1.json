@@ -25,11 +25,6 @@
         "probe": "runtime-binding-list",
         "revision": "reported-production-version",
         "result_observation_id": "runtime-config-missing"
-      },
-      {
-        "probe": "runtime-binding-list",
-        "revision": "reported-production-version",
-        "result_observation_id": "runtime-config-missing"
       }
     ],
     "cause": {
