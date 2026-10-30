@@ -21,7 +21,7 @@ This pilot is not a RAG index or a learned language model. It is a bounded, sour
 
 ## Contract limits and next exit
 
-`schema_version: 1` uses explicit Issue URLs and bounded arrays. It stores only evidence classification, no unrestricted excerpts. The validator rejects malformed/unknown source shapes and duplicate observation identifiers, but **does not fetch or cryptographically attest the underlying Issues**. Source reading, semantic adjudication, external observations, and conditional selection remain trusted-worker responsibilities; fake `direct_observation` tags in an input cannot be disproved by this module.
+`schema_version: 1` uses explicit Issue URLs and bounded arrays. It stores only evidence classification and counts in output, not arbitrary fixed-constraint contents or unrestricted excerpts. The validator rejects malformed/unknown source shapes and duplicate observation identifiers, but **does not fetch or cryptographically attest the underlying Issues**. Source reading, semantic adjudication, external observations, and conditional selection remain trusted-worker responsibilities; fake `direct_observation` tags in an input cannot be disproved by this module.
 
 Before promoting this rule or claiming an improvement, M2 must connect it to an actual proposer/reviewer decision at the existing Commander/goal-alignment choice point, including whether the agent followed the advice. M3 must compare pre-specified outcomes on sealed unseen cases using the same budget, baseline vs intervention, and measure redundant attempts, root-cause accuracy, false-positive transfers, user correction counts, goal satisfaction, and latency. **A passing unit test is not that evaluation.**
 
