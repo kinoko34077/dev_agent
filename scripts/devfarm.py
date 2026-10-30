@@ -18,6 +18,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.devfarm_errors import DevFarmError
+from scripts.devfarm_decision_transfer import (
+    DecisionTransferError, evaluate_decision_transfer,
+)
 from scripts.devfarm_goal_alignment import (GoalAlignmentError, evaluate_goal_preflight,
     evaluate_plan_goal_preflight, canonical_plan_proposal, goal_review_visibility)
 from scripts.devfarm_contracts import (
@@ -61,6 +64,9 @@ def main(argv: list[str] | None = None) -> int:
     plan.add_argument("spec", type=Path)
     plan.add_argument("--root", type=Path, default=Path.cwd())
     plan.add_argument("--goal-check", type=Path, help="optional source-anchored preflight packet before plan creation")
+    plan.add_argument("--decision-check", type=Path, help="optional cross-incident diagnosis advisory; does not authorize action")
+    decision_check = sub.add_parser("decision-check", help="assess cross-incident probe applicability (advisory only)")
+    decision_check.add_argument("packet", type=Path)
     goal_check = sub.add_parser("goal-check", help="review proposal against sourced user purpose (advisory only)")
     goal_check.add_argument("packet", type=Path)
     plan_text = sub.add_parser("goal-plan-text", help="show exact canonical plan text for source-backed review")
@@ -129,6 +135,8 @@ def main(argv: list[str] | None = None) -> int:
             normalized_manifest = validate_manifest(read_json(args.manifest))
             normalized_result = validate_result(read_json(args.path), manifest=normalized_manifest)
             print(json.dumps(normalized_result, ensure_ascii=False, indent=2))
+        elif args.command == "decision-check":
+            print(json.dumps(evaluate_decision_transfer(read_json(args.packet)), ensure_ascii=False, indent=2))
         elif args.command == "goal-check":
             result = evaluate_goal_preflight(read_json(args.packet))
             print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -137,6 +145,13 @@ def main(argv: list[str] | None = None) -> int:
             print(canonical_plan_proposal(read_json(args.spec)))
         elif args.command == "plan":
             plan_value = read_json(args.spec)
+            if args.decision_check is not None:
+                # A candidate rule is not a permission or scheduler gate. Surface
+                # the checked diagnostic alternative before persisting the plan.
+                # Do not claim that the plan's semantics have been certified.
+                decision = evaluate_decision_transfer(read_json(args.decision_check))
+                print(json.dumps({"warning": "M4_DECISION_CANDIDATE_ADVISORY",
+                                  "decision": decision}, ensure_ascii=False), file=sys.stderr)
             # Review metadata is host-created after checking the exact original
             # full plan. Do not let a CLI input claim an arbitrary earlier pass.
             if isinstance(plan_value, dict) and "goal_attestation" in plan_value:
@@ -260,7 +275,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         else:
             parser.error(f"unsupported command: {args.command}")
-    except (DevFarmError, GoalAlignmentError, FileExistsError, RuntimeError) as exc:
+    except (DevFarmError, GoalAlignmentError, DecisionTransferError, FileExistsError, RuntimeError) as exc:
         parser.error(str(exc))
     return 0
 
