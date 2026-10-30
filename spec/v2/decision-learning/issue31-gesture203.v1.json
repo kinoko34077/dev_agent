@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "origin": {
+    "ref": "https://github.com/kinoko34077/kinotch-judgment-learning/issues/31",
+    "goal": "GitHub OAuth owner login actually works; success is not a CI or deploy report.",
+    "success_condition": "Owner completes login callback and owner-only application is usable.",
+    "observations": [
+      {
+        "id": "build-config-present",
+        "stage": "producer",
+        "state": "present",
+        "evidence_type": "direct_observation",
+        "source_ref": "https://github.com/kinoko34077/kinotch-judgment-learning/issues/31"
+      },
+      {
+        "id": "runtime-config-missing",
+        "stage": "consumer",
+        "state": "missing",
+        "evidence_type": "direct_observation",
+        "source_ref": "https://github.com/kinoko34077/kinotch-judgment-learning/issues/31"
+      }
+    ],
+    "attempts": [
+      {
+        "probe": "runtime-binding-list",
+        "revision": "reported-production-version",
+        "result_observation_id": "runtime-config-missing"
+      }
+    ],
+    "cause": {
+      "mechanism": "producer_consumer_scope_mismatch",
+      "status": "source_supported",
+      "source_ref": "https://github.com/kinoko34077/kinotch-judgment-learning/issues/31"
+    },
+    "correction_ref": "https://github.com/kinoko34077/kinotch-judgment-learning/issues/31"
+  },
+  "target": {
+    "ref": "https://github.com/kinoko34077/gesture-ime/issues/203",
+    "observations": [
+      {
+        "id": "main-app-saved-reported",
+        "stage": "producer",
+        "state": "present",
+        "evidence_type": "user_report",
+        "source_ref": "https://github.com/kinoko34077/gesture-ime/issues/203"
+      },
+      {
+        "id": "keyboard-unchanged-reported",
+        "stage": "consumer",
+        "state": "missing",
+        "evidence_type": "user_report",
+        "source_ref": "https://github.com/kinoko34077/gesture-ime/issues/203"
+      }
+    ],
+    "attempts": [],
+    "fixed_constraints": [
+      "No signing or credential changes without explicit authorization.",
+      "Do not equate main-app save with extension read confirmation."
+    ]
+  }
+}
