@@ -36,8 +36,6 @@ def packet():
             "attempts": [
                 {"probe": "check-runtime-secrets", "revision": "runtime-v1",
                  "result_observation_id": "runtime_api"},
-                {"probe": "check-runtime-secrets", "revision": "runtime-v1",
-                 "result_observation_id": "runtime_api"},
             ],
             "cause": {"mechanism": "producer_consumer_scope_mismatch",
                       "status": "source_supported", "source_ref": ORIGIN},
@@ -59,7 +57,7 @@ def packet():
 
 def test_origin_repetition_is_visible_but_rule_is_only_candidate():
     result = evaluate_decision_transfer(packet())
-    assert result["origin_redundant_attempts"] == 1
+    assert result["origin_redundant_attempts"] == 0
     assert result["rule_status"] == "candidate"
     assert result["disposition"] == "NEEDS_EVIDENCE"
     assert result["next_probe"] == "measure_producer_and_consumer_in_same_revision"
@@ -196,6 +194,15 @@ def test_source_linked_public_fixture_is_conservative():
         "spec/v2/decision-learning/issue31-gesture203.v1.json").read_text(encoding="utf-8"))
     result = evaluate_decision_transfer(example)
     assert result["rule_status"] == "candidate"
-    assert result["origin_redundant_attempts"] == 1
+    assert result["origin_redundant_attempts"] == 0
     assert result["disposition"] == "NEEDS_EVIDENCE"
     assert result["target_ref"] == TARGET
+
+
+def test_redundant_origin_attempt_is_detected_only_with_same_proven_revision():
+    case = packet()
+    one = case["origin"]["attempts"][0]
+    case["origin"]["attempts"].append(dict(one))
+    assert evaluate_decision_transfer(case)["origin_redundant_attempts"] == 1
+    case["origin"]["attempts"][1]["revision"] = "later-runtime"
+    assert evaluate_decision_transfer(case)["origin_redundant_attempts"] == 0
