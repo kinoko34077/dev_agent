@@ -9,6 +9,7 @@ import json
 import pytest
 
 from scripts.devfarm_decision_transfer import DecisionTransferError, evaluate_decision_transfer
+from scripts.devfarm import main as devfarm_main
 
 
 ORIGIN = "https://github.com/kinoko34077/kinotch-judgment-learning/issues/31"
@@ -154,3 +155,36 @@ def test_private_data_is_not_required_or_exposed():
     result = json.dumps(evaluate_decision_transfer(example))
     assert "GITHUB_CLIENT_SECRET" not in result
     assert "no_dispatch_no_merge_no_permission" in result
+
+
+def test_existing_commander_decision_cli_and_opt_in_plan(tmp_path, monkeypatch, capsys):
+    from scripts import devfarm_commander
+
+    evidence = tmp_path / "incident.json"
+    evidence.write_text(json.dumps(packet()), encoding="utf-8")
+    assert devfarm_main(["decision-check", str(evidence)]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["disposition"] == "NEEDS_EVIDENCE"
+
+    plan_file = tmp_path / "plan.json"
+    plan_file.write_text("{}", encoding="utf-8")
+    persisted = []
+    monkeypatch.setattr(devfarm_commander, "create_plan",
+                        lambda root, value: persisted.append(value) or {"created": True})
+    assert devfarm_main(["plan", str(plan_file), "--decision-check", str(evidence),
+                         "--root", str(tmp_path)]) == 0
+    output = capsys.readouterr()
+    assert "M4_DECISION_CANDIDATE_ADVISORY" in output.err
+    assert persisted
+    # Advice is explicitly non-authoritative, never injected as a fake goal review.
+    assert "decision_attestation" not in persisted[-1]
+
+    broken = packet()
+    broken["target"]["ref"] = ORIGIN
+    evidence.write_text(json.dumps(broken), encoding="utf-8")
+    persisted.clear()
+    with pytest.raises(SystemExit) as exc:
+        devfarm_main(["plan", str(plan_file), "--decision-check", str(evidence),
+                      "--root", str(tmp_path)])
+    assert exc.value.code == 2
+    assert not persisted
