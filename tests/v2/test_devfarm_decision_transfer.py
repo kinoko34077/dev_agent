@@ -55,7 +55,7 @@ def packet():
     }
 
 
-def test_origin_repetition_is_visible_but_rule_is_only_candidate():
+def test_origin_unquantified_repetition_is_not_fabricated_as_same_revision():
     result = evaluate_decision_transfer(packet())
     assert result["origin_redundant_attempts"] == 0
     assert result["rule_status"] == "candidate"
@@ -206,3 +206,21 @@ def test_redundant_origin_attempt_is_detected_only_with_same_proven_revision():
     assert evaluate_decision_transfer(case)["origin_redundant_attempts"] == 1
     case["origin"]["attempts"][1]["revision"] = "later-runtime"
     assert evaluate_decision_transfer(case)["origin_redundant_attempts"] == 0
+
+
+def test_source_url_rejects_query_tokens_or_homograph_host():
+    case = packet()
+    case["target"]["ref"] = "https://github.com.evil.example/a/b/issues/1"
+    with pytest.raises(DecisionTransferError):
+        evaluate_decision_transfer(case)
+    case["target"]["ref"] = TARGET + "?token=sensitive"
+    with pytest.raises(DecisionTransferError):
+        evaluate_decision_transfer(case)
+
+
+def test_constraint_values_not_echoed_into_diagnostic_output():
+    case = packet()
+    case["target"]["fixed_constraints"] = ["Private value should not enter PR/CI logs: SAMPLE_SECRET"]
+    output = json.dumps(evaluate_decision_transfer(case))
+    assert "SAMPLE_SECRET" not in output
+    assert '"fixed_constraints_supplied": 1' in output
