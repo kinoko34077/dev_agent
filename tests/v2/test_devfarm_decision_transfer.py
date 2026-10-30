@@ -5,6 +5,7 @@ present, repeated unchanged runtime checks). Independent target #203 is still
 cause-UNVERIFIED; the test deliberately must not infer its root cause.
 """
 import json
+from pathlib import Path
 
 import pytest
 
@@ -188,3 +189,13 @@ def test_existing_commander_decision_cli_and_opt_in_plan(tmp_path, monkeypatch, 
                       "--root", str(tmp_path)])
     assert exc.value.code == 2
     assert not persisted
+
+
+def test_source_linked_public_fixture_is_conservative():
+    example = json.loads((Path(__file__).resolve().parents[2] /
+        "spec/v2/decision-learning/issue31-gesture203.v1.json").read_text(encoding="utf-8"))
+    result = evaluate_decision_transfer(example)
+    assert result["rule_status"] == "candidate"
+    assert result["origin_redundant_attempts"] == 1
+    assert result["disposition"] == "NEEDS_EVIDENCE"
+    assert result["target_ref"] == TARGET
