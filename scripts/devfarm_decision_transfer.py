@@ -72,7 +72,9 @@ def _observations(value: Any, name: str) -> list[dict[str, str]]:
         if oid in found:
             raise DecisionTransferError("duplicate observation id")
         found.add(oid)
-        if obs["stage"] not in _STAGES or obs["state"] not in _STATES or obs["evidence_type"] not in _TYPES:
+        if (not isinstance(obs["stage"], str) or obs["stage"] not in _STAGES
+                or not isinstance(obs["state"], str) or obs["state"] not in _STATES
+                or not isinstance(obs["evidence_type"], str) or obs["evidence_type"] not in _TYPES):
             raise DecisionTransferError("invalid observation stage/state/evidence_type")
         result.append({"id": oid, "stage": obs["stage"], "state": obs["state"],
                        "evidence_type": obs["evidence_type"],
@@ -122,7 +124,8 @@ def evaluate_decision_transfer(packet: Mapping[str, Any]) -> dict[str, Any]:
     replay of the training incident from counting as transfer.
     """
     payload = _obj(packet, "packet")
-    if set(payload) != {"schema_version", "origin", "target"} or payload["schema_version"] != 1:
+    if (set(payload) != {"schema_version", "origin", "target"}
+            or type(payload["schema_version"]) is not int or payload["schema_version"] != 1):
         raise DecisionTransferError("unsupported decision-transfer packet")
     origin = _obj(payload["origin"], "origin")
     target = _obj(payload["target"], "target")
@@ -141,7 +144,9 @@ def evaluate_decision_transfer(packet: Mapping[str, Any]) -> dict[str, Any]:
     cause = _obj(origin["cause"], "origin.cause")
     if set(cause) != {"mechanism", "status", "source_ref"}:
         raise DecisionTransferError("cause fields incomplete or unexpected")
-    if cause["mechanism"] != _MECHANISM or cause["status"] not in {"reported", "source_supported"}:
+    if (not isinstance(cause["mechanism"], str) or cause["mechanism"] != _MECHANISM
+            or not isinstance(cause["status"], str)
+            or cause["status"] not in {"reported", "source_supported"}):
         raise DecisionTransferError("unsupported cause mechanism/status")
     _ref(cause["source_ref"], "origin.cause.source_ref")
     origin_obs = _observations(origin["observations"], "origin.observations")
