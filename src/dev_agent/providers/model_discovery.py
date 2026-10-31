@@ -128,6 +128,17 @@ def _metadata_for(provider_id: str, raw_model: Mapping[str, Any]) -> Mapping[str
                     break
             if bounded_tags:
                 metadata["tags"] = bounded_tags
+    elif provider_id == "deepseek":
+        display_name = _bounded_string(raw_model.get("name"))
+        if display_name is not None:
+            metadata["display_name"] = display_name
+        context_length = _bounded_positive_int(raw_model.get("context_window"))
+        if context_length is not None:
+            metadata["context_length"] = context_length
+        for field_name in ("input_modalities", "output_modalities"):
+            values = _bounded_string_list(raw_model.get(field_name))
+            if values is not None:
+                metadata[field_name] = values
     elif provider_id == "openrouter":
         context_length = _bounded_positive_int(raw_model.get("context_length"))
         if context_length is not None:
@@ -256,6 +267,7 @@ class ProviderModelDiscovery:
         {
             "gemini",
             "cloudflare",
+            "deepseek",
             "openrouter",
             "groq",
             "mistral",
@@ -317,6 +329,9 @@ class ProviderModelDiscovery:
             account_id = self._required_secret(binding.account_id_env, "account_id_env")
             headers["Authorization"] = f"Bearer {self._required_secret(binding.api_key_env, 'api_key_env')}"
             return f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/models/search", headers
+        if provider == "deepseek":
+            headers["Authorization"] = f"Bearer {self._required_secret(binding.api_key_env, 'api_key_env')}"
+            return "https://api.deepseek.com/models", headers
         if provider == "openrouter":
             headers["Authorization"] = f"Bearer {self._required_secret(binding.api_key_env, 'api_key_env')}"
             return "https://openrouter.ai/api/v1/models", headers

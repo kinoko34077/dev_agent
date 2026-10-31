@@ -1,0 +1,511 @@
+{
+  "schema_version": 1,
+  "observation_type": "public_model_inventory_snapshot",
+  "observed_at": "2026-10-31T16:03:19+00:00",
+  "authority": "non_authoritative_observation_only",
+  "deepseek": {
+    "source_url": "https://api-docs.deepseek.com/api/list-models/",
+    "source_kind": "official_documented_supported_models; account-specific /models response not requested",
+    "openai_compatible_base_url": "https://api.deepseek.com",
+    "models": [
+      {
+        "model_id": "deepseek-flash",
+        "display_name": "DeepSeek-V4.1-Flash-1017",
+        "context_window": 1048576,
+        "max_output_tokens": 393216,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "chat_completions": true,
+        "tool_calls": true,
+        "responses_api": true,
+        "pricing_usd_per_1m_tokens": {
+          "input_cache_hit": {
+            "off_peak": "0.003",
+            "peak": "0.006"
+          },
+          "input_cache_miss": {
+            "off_peak": "0.15",
+            "peak": "0.30"
+          },
+          "output": {
+            "off_peak": "0.60",
+            "peak": "1.20"
+          }
+        }
+      },
+      {
+        "model_id": "deepseek-v4-pro",
+        "display_name": "DeepSeek-V4-Pro-0813",
+        "context_window": 1048576,
+        "max_output_tokens": 393216,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "chat_completions": true,
+        "tool_calls": true,
+        "responses_api": true,
+        "pricing_usd_per_1m_tokens": {
+          "input_cache_hit": {
+            "off_peak": "0.022",
+            "peak": "0.044"
+          },
+          "input_cache_miss": {
+            "off_peak": "0.66",
+            "peak": "1.32"
+          },
+          "output": {
+            "off_peak": "1.98",
+            "peak": "3.96"
+          }
+        }
+      }
+    ],
+    "notes": [
+      "Model names, prices and account availability can change; use the official API /models endpoint for a credential-bound current inventory.",
+      "The official changelog states deepseek-flash now serves DeepSeek-V4.1-Flash-1017 and that the model ID and pricing are unchanged."
+    ]
+  },
+  "openrouter_free_chat": {
+    "source_url": "https://openrouter.ai/api/v1/models?max_price=0&output_modalities=text",
+    "source_kind": "public OpenRouter model-list API response",
+    "query_filters": {
+      "max_price": 0,
+      "output_modalities": "text",
+      "local_conditions": [
+        "model ID ends with :free",
+        "prompt and completion price equal 0",
+        "chat completions endpoint is listed"
+      ]
+    },
+    "entry_count": 14,
+    "entries": [
+      {
+        "model_id": "cohere/north-mini-code:free",
+        "name": "Cohere: North Mini Code (free)",
+        "pricing_usd_per_token": {
+          "prompt": "0",
+          "completion": "0"
+        },
+        "context_length": 256000,
+        "max_completion_tokens": 64000,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "supported_parameters": [
+          "frequency_penalty",
+          "include_reasoning",
+          "max_tokens",
+          "presence_penalty",
+          "reasoning",
+          "seed",
+          "stop",
+          "temperature",
+          "tool_choice",
+          "tools",
+          "top_k",
+          "top_p"
+        ]
+      },
+      {
+        "model_id": "dots-studio/dots-3-note-preview:free",
+        "name": "Dots Studio: Dots3-Note Preview (free)",
+        "pricing_usd_per_token": {
+          "prompt": "0",
+          "completion": "0"
+        },
+        "context_length": 512000,
+        "max_completion_tokens": 460800,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "supported_parameters": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "response_format",
+          "structured_outputs",
+          "temperature",
+          "tool_choice",
+          "tools",
+          "top_p"
+        ]
+      },
+      {
+        "model_id": "google/gemma-4-26b-a4b-it:free",
+        "name": "Google: Gemma 4 26B A4B  (free)",
+        "pricing_usd_per_token": {
+          "prompt": "0",
+          "completion": "0"
+        },
+        "context_length": 262144,
+        "max_completion_tokens": 32768,
+        "input_modalities": [
+          "image",
+          "text",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "supported_parameters": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "response_format",
+          "seed",
+          "temperature",
+          "tool_choice",
+          "tools",
+          "top_p"
+        ]
+      },
+      {
+        "model_id": "google/gemma-4-31b-it:free",
+        "name": "Google: Gemma 4 31B (free)",
+        "pricing_usd_per_token": {
+          "prompt": "0",
+          "completion": "0"
+        },
+        "context_length": 262144,
+        "max_completion_tokens": 32768,
+        "input_modalities": [
+          "image",
+          "text",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "supported_parameters": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "response_format",
+          "seed",
+          "temperature",
+          "tool_choice",
+          "tools",
+          "top_p"
+        ]
+      },
+      {
+        "model_id": "liquid/lfm-2.5-2.6b:free",
+        "name": "LiquidAI: LFM2.5-2.6B (free)",
+        "pricing_usd_per_token": {
+          "prompt": "0",
+          "completion": "0"
+        },
+        "context_length": 65536,
+        "max_completion_tokens": 8192,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "supported_parameters": [
+          "frequency_penalty",
+          "include_reasoning",
+          "logprobs",
+          "max_completion_tokens",
+          "max_tokens",
+          "min_p",
+          "presence_penalty",
+          "reasoning",
+          "repetition_penalty",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "tool_choice",
+          "tools",
+          "top_k",
+          "top_logprobs"
+        ]
+      },
+      {
+        "model_id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        "name": "NVIDIA: Nemotron 3 Nano Omni (free)",
+        "pricing_usd_per_token": {
+          "prompt": "0",
+          "completion": "0"
+        },
+        "context_length": 256000,
+        "max_completion_tokens": 65536,
+        "input_modalities": [
+          "text",
+          "audio",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "supported_parameters": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "seed",
+          "temperature",
+          "tool_choice",
+          "tools",
+          "top_p"
+        ]
+      },
+      {
+        "model_id": "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "name": "NVIDIA: Nemotron 3 Ultra (free)",
+        "pricing_usd_per_token": {
+          "prompt": "0",
+          "completion": "0"
+        },
+        "context_length": 1000000,
+        "max_completion_tokens": 65536,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "supported_parameters": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "reasoning_effort",
+          "seed",
+          "temperature",
+          "tool_choice",
+          "tools",
+          "top_p"
+        ]
+      },
+      {
+        "model_id": "nvidia/nemotron-3.5-content-safety:free",
+        "name": "NVIDIA: Nemotron 3.5 Content Safety (free)",
+        "pricing_usd_per_token": {
+          "prompt": "0",
+          "completion": "0"
+        },
+        "context_length": 128000,
+        "max_completion_tokens": 8192,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "supported_parameters": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "seed",
+          "temperature",
+          "top_p"
+        ]
+      },
+      {
+        "model_id": "nvidia/nemotron-3.5-lightning:free",
+        "name": "NVIDIA: Nemotron 3.5 Lightning (free)",
+        "pricing_usd_per_token": {
+          "prompt": "0",
+          "completion": "0"
+        },
+        "context_length": 1000000,
+        "max_completion_tokens": 65536,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "supported_parameters": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "seed",
+          "temperature",
+          "tool_choice",
+          "tools",
+          "top_p"
+        ]
+      },
+      {
+        "model_id": "nvidia/nemotron-3.5-super-vl:free",
+        "name": "NVIDIA: Nemotron 3.5 Super VL (free)",
+        "pricing_usd_per_token": {
+          "prompt": "0",
+          "completion": "0"
+        },
+        "context_length": 1000000,
+        "max_completion_tokens": 131072,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "supported_parameters": [
+          "include_reasoning",
+          "max_tokens",
+          "reasoning",
+          "response_format",
+          "seed",
+          "structured_outputs",
+          "temperature",
+          "tool_choice",
+          "tools",
+          "top_p"
+        ]
+      },
+      {
+        "model_id": "recursive/flint-v1.0:free",
+        "name": "Recursive: Flint (free)",
+        "pricing_usd_per_token": {
+          "prompt": "0",
+          "completion": "0"
+        },
+        "context_length": 262144,
+        "max_completion_tokens": 235929,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "supported_parameters": [
+          "include_reasoning",
+          "logprobs",
+          "max_tokens",
+          "reasoning",
+          "response_format",
+          "seed",
+          "stop",
+          "temperature",
+          "tools",
+          "top_logprobs",
+          "top_p"
+        ]
+      },
+      {
+        "model_id": "thinkingmachines/inkling-small:free",
+        "name": "Thinking Machines: Inkling Small (free)",
+        "pricing_usd_per_token": {
+          "prompt": "0",
+          "completion": "0"
+        },
+        "context_length": 1048576,
+        "max_completion_tokens": 262144,
+        "input_modalities": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "supported_parameters": [
+          "frequency_penalty",
+          "include_reasoning",
+          "max_tokens",
+          "presence_penalty",
+          "reasoning",
+          "reasoning_effort",
+          "seed",
+          "stop",
+          "temperature",
+          "tools",
+          "top_p"
+        ]
+      },
+      {
+        "model_id": "thinkingmachines/inkling:free",
+        "name": "Thinking Machines: Inkling (free)",
+        "pricing_usd_per_token": {
+          "prompt": "0",
+          "completion": "0"
+        },
+        "context_length": 1048576,
+        "max_completion_tokens": 262144,
+        "input_modalities": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "supported_parameters": [
+          "frequency_penalty",
+          "include_reasoning",
+          "max_tokens",
+          "presence_penalty",
+          "reasoning",
+          "reasoning_effort",
+          "seed",
+          "stop",
+          "temperature",
+          "tools",
+          "top_p"
+        ]
+      },
+      {
+        "model_id": "xingchen-agi/xing4.0-29b-a4b:free",
+        "name": "XingChen: Xing4.0 29B A4B (free)",
+        "pricing_usd_per_token": {
+          "prompt": "0",
+          "completion": "0"
+        },
+        "context_length": 262144,
+        "max_completion_tokens": 235929,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "supported_parameters": [
+          "frequency_penalty",
+          "include_reasoning",
+          "max_tokens",
+          "min_p",
+          "presence_penalty",
+          "reasoning",
+          "repetition_penalty",
+          "response_format",
+          "seed",
+          "stop",
+          "structured_outputs",
+          "temperature",
+          "tool_choice",
+          "tools",
+          "top_k",
+          "top_p"
+        ]
+      }
+    ],
+    "notes": [
+      "This is the observed public catalog, not a guarantee of account access, current endpoint health, model capability, quota, or routing admission.",
+      "The OpenRouter documentation states :free variants require no credit purchase; it documents 20 requests per minute and 50 per day before the funded-account increase. Do not buy credits to obtain the higher limit as part of this task.",
+      "Only chat-completions models ending in :free are included. Other zero-priced models and non-chat model families are excluded from this development-oriented list."
+    ]
+  }
+}

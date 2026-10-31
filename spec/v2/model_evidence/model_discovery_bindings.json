@@ -8,6 +8,7 @@
     {"provider_id": "gemini", "provider_binding_id": "gemini:worker:free-4", "api_key_env": "GEMINI_API_KEY_4"},
     {"provider_id": "gemini", "provider_binding_id": "gemini:worker:free-5", "api_key_env": "GEMINI_API_KEY_5"},
     {"provider_id": "cloudflare", "provider_binding_id": "cloudflare:account", "api_key_env": "CLOUDFLARE_API_TOKEN", "account_id_env": "CLOUDFLARE_ACCOUNT_ID"},
+    {"provider_id": "deepseek", "provider_binding_id": "deepseek:account", "api_key_env": "DEEPSEEK_API_KEY"},
     {"provider_id": "openrouter", "provider_binding_id": "openrouter:account", "api_key_env": "OPENROUTER_API_KEY"},
     {"provider_id": "groq", "provider_binding_id": "groq:account", "api_key_env": "GROQ_API_KEY"},
     {"provider_id": "mistral", "provider_binding_id": "mistral:account", "api_key_env": "MISTRAL_API_KEY"},

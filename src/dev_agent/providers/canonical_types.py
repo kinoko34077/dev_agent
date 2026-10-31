@@ -23,6 +23,7 @@ from typing import Any
 # provider_id -> (module path relative to this package, exact class name)
 CANONICAL_PROVIDER_MODULES: dict[str, tuple[str, str]] = {
     "cloudflare": (".cloudflare", "CloudflareWorkersAIHttpProvider"),
+    "deepseek": (".deepseek", "DeepSeekHttpProvider"),
     "gemini": (".gemini", "GeminiHttpProvider"),
     "groq": (".groq", "GroqHttpProvider"),
     "mistral": (".mistral", "MistralHttpProvider"),

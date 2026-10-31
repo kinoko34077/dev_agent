@@ -1,6 +1,7 @@
 import pytest
 
 from src.dev_agent.providers.factory import ProviderDefinition, ProviderFactory
+from src.dev_agent.providers.deepseek import DeepSeekHttpProvider
 from src.dev_agent.providers.gemini import GeminiHttpProvider
 from src.dev_agent.providers.mistral import MistralHttpProvider
 from src.dev_agent.providers.ollama import OllamaProvider
@@ -25,6 +26,19 @@ def test_provider_factory_creates_http_provider_without_embedding_credentials():
     assert provider.model == "openrouter/free"
     assert provider.api_key is None
     assert provider.timeout_seconds == 4.0
+
+
+def test_provider_factory_constructs_deepseek_without_resolving_credentials():
+    provider = ProviderFactory().create(
+        ProviderDefinition(provider_id="deepseek", model="deepseek-flash")
+    )
+
+    assert isinstance(provider, DeepSeekHttpProvider)
+    assert provider.provider_id == "deepseek"
+    assert provider.model == "deepseek-flash"
+    assert provider.base_url == "https://api.deepseek.com"
+    assert provider.api_key_env == "DEEPSEEK_API_KEY"
+    assert provider.api_key is None
 
 
 def test_provider_registry_can_be_built_from_provider_definitions():
