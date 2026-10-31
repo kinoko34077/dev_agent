@@ -1,7 +1,7 @@
 """Canonical production intelligence-tier authority.
 
 Provider configuration, persisted resource metadata, qualification evidence,
-and benchmark admission are not interchangeable facts.  This module is the
+and benchmark quality are not interchangeable facts. This module is the
 small shared decision boundary that combines them without creating another
 router or lifecycle.  Remote tiers require current qualification evidence;
 configuration and billing catalog labels never promote a remote route.
@@ -61,10 +61,11 @@ class ProductionTierAuthority:
 
     Remote configuration, persisted labels, and billing profiles are merely
     descriptive.  A remote route is eligible only with current qualification
-    evidence.  A benchmark/model-admission tier may refine that qualification,
-    but it cannot stand alone.  Local execution has an explicit conservative
-    L0/L1 operator policy; local L2/L3 requires evidence instead of silently
-    becoming a formal high-tier route.
+    evidence. Benchmark-derived Tier is intentionally ignored here and cannot
+    refine or conflict with the exact qualification.
+    Local execution has an explicit conservative L0/L1 operator policy; local
+    L2/L3 requires qualification evidence instead of silently becoming a
+    formal high-tier route.
     """
 
     def resolve(
@@ -79,6 +80,7 @@ class ProductionTierAuthority:
         model_admission: Any | None = None,
         profile: Any | None = None,
         allow_legacy_missing_model: bool = False,
+        allow_unverified_quality_proposal: bool = False,
     ) -> ProductionTierDecision:
         if not all(isinstance(value, str) and value.strip() for value in (provider_id, provider_binding_id)):
             return ProductionTierDecision(None, False, "none", "IDENTITY_INCOMPLETE")
@@ -87,18 +89,19 @@ class ProductionTierAuthority:
 
         configured = self._validate_optional_tier(configured_tier, "configured_tier")
         persisted = self._validate_optional_tier(persisted_tier, "persisted_tier")
+        if not isinstance(allow_unverified_quality_proposal, bool):
+            raise ValueError("allow_unverified_quality_proposal must be a boolean")
         qualification_tier = _evidence_tier(qualification)
-        admission_tier = _evidence_tier(model_admission)
-        if qualification_tier is not None and admission_tier is not None and qualification_tier != admission_tier:
-            return ProductionTierDecision(None, False, "evidence", "TIER_EVIDENCE_CONFLICT")
-
-        evidence_tier = admission_tier or qualification_tier
+        # Kept as a call-compatible advisory argument. A benchmark's overall
+        # score must never grant, upgrade, downgrade, or conflict with the
+        # exact qualification/local policy that owns formal execution tier.
+        _ = model_admission
+        evidence_tier = qualification_tier
         if provider_policy.requires_qualification(provider_id):
             if qualification is None:
                 return ProductionTierDecision(None, False, "none", "QUALIFICATION_MISSING")
             if evidence_tier is not None:
-                source = "qualification+model_admission" if admission_tier is not None else "qualification"
-                return ProductionTierDecision(evidence_tier, True, source, "QUALIFIED")
+                return ProductionTierDecision(evidence_tier, True, "qualification", "QUALIFIED")
             if persisted is not None:
                 # A current exact qualification may deliberately omit a tier
                 # for legacy/L1 resources.  In that narrow case, an already
@@ -117,8 +120,7 @@ class ProductionTierAuthority:
             return ProductionTierDecision(None, True, "qualification", "NO_TIER_GRANT")
 
         if evidence_tier is not None:
-            source = "qualification+model_admission" if admission_tier is not None else "qualification"
-            return ProductionTierDecision(evidence_tier, True, source, "LOCAL_EVIDENCE")
+            return ProductionTierDecision(evidence_tier, True, "qualification", "LOCAL_EVIDENCE")
 
         local_tier = configured or persisted
         if local_tier is None and profile is not None:
@@ -129,6 +131,8 @@ class ProductionTierAuthority:
         if local_tier in _LOCAL_POLICY_TIERS:
             return ProductionTierDecision(local_tier, True, "local_policy", "LOCAL_OPERATOR_POLICY")
         if local_tier in {"L2", "L3"}:
+            if allow_unverified_quality_proposal:
+                return ProductionTierDecision(None, True, "quality_advisory", "QUALITY_UNVERIFIED")
             return ProductionTierDecision(None, False, "local_policy", "LOCAL_TIER_REQUIRES_EVIDENCE")
         if provider_id == "fake":
             return ProductionTierDecision("L1", True, "fake_default", "DETERMINISTIC_SMOKE")

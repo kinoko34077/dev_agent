@@ -13,6 +13,10 @@ from scripts.diagnose_model_candidates import (
     summarize_entries,
     summarize_candidate_evidence,
 )
+from src.dev_agent.resources.model_admission import STATIC_MODEL_UNSUPPORTED
+from src.dev_agent.resources.model_benchmarks import BenchmarkCatalog
+from src.dev_agent.resources.model_capabilities import ModelCapabilityCatalog
+from src.dev_agent.resources.model_catalog import ModelAliasCatalog, ModelCatalog
 from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
 from src.dev_agent.resources.model_runtime import (
     RUNTIME_NOT_PROBED,
@@ -94,6 +98,59 @@ def test_static_candidate_without_runtime_snapshot_is_not_probed(model_evidence)
     not_probed = [row for row in statically_eligible if row["result"] == RUNTIME_NOT_PROBED]
     assert not_probed
     assert {row["runtime"] for row in not_probed} == {RUNTIME_NOT_PROBED}
+
+
+def test_missing_benchmark_does_not_replace_runtime_not_probed_reason(model_evidence):
+    rows = diagnose_entries(model_evidence, limit=MAX_DIAGNOSTIC_ROWS, now=DIAGNOSTIC_NOW)
+
+    row = next(
+        row
+        for row in rows
+        if row["benchmark"] == "MISSING" and row["result"] == RUNTIME_NOT_PROBED
+    )
+    assert row["static_result"] == "ELIGIBLE"
+    assert row["gate_reason"] == "runtime_not_probed"
+
+
+def test_explicit_specialized_model_remains_the_diagnostic_gate(monkeypatch):
+    evidence = ModelEvidenceCatalog(
+        catalog=ModelCatalog.from_document(
+            {
+                "schema_version": 1,
+                "entries": [
+                    {
+                        "provider_id": "gemini",
+                        "provider_binding_id": "gemini:worker",
+                        "model_id": "gemini-image-1",
+                        "source": "fixture.models.list",
+                        "observed_at": "2026-10-01T00:00:00+00:00",
+                        "expires_at": "2026-11-01T00:00:00+00:00",
+                        "metadata": {"supported_generation_methods": ["embedContent"]},
+                    }
+                ],
+            }
+        ),
+        aliases=ModelAliasCatalog.from_document({"schema_version": 1, "entries": []}),
+        benchmarks=BenchmarkCatalog.from_document(
+            {"schema_version": 1, "tier_thresholds": {"L1": 0, "L2": 30, "L3": 60}, "entries": []}
+        ),
+        capabilities=ModelCapabilityCatalog.from_document({"schema_version": 1, "entries": []}),
+    )
+
+    class MissingQualification:
+        def resolve(self, *_args, **_kwargs):
+            return None
+
+    monkeypatch.setattr("scripts.diagnose_model_candidates.profile_for", lambda *_args: None)
+    row = diagnose_entries(
+        evidence,
+        qualification_resolver=MissingQualification(),
+        limit=1,
+        now=DIAGNOSTIC_NOW,
+    )[0]
+
+    assert row["static_result"] == STATIC_MODEL_UNSUPPORTED
+    assert row["gate_reason"] == "capability_blocked"
 
 
 def test_explicit_runtime_snapshot_distinguishes_unavailable_from_not_probed(model_evidence):
@@ -195,7 +252,15 @@ def test_main_tabular_output_exposes_runtime_and_gate_reason(model_evidence, cap
         "result",
     ]
     assert len(row) == len(header)
-    assert row[9] in {"runtime_not_probed", "runtime_unknown", "runtime_unavailable", "discovery_blocked", "benchmark_blocked", "capability_blocked", "billing_missing", "qualification_missing"}
+    assert row[9] in {
+        "runtime_not_probed",
+        "runtime_unknown",
+        "runtime_unavailable",
+        "discovery_blocked",
+        "capability_blocked",
+        "billing_missing",
+        "qualification_missing",
+    }
 
 
 def test_main_summary_exposes_runtime_admission_counts(capsys):

@@ -398,8 +398,12 @@ def test_model_admission_diagnostic_identifies_the_first_missing_evidence_layer(
     assert diagnostic.discovery == "PASS"
     assert diagnostic.alias == "PASS"
     assert diagnostic.benchmark == "MISSING"
-    assert diagnostic.result == "BENCHMARK_MISSING"
-    assert resolver.resolve("gemini", "gemini:project-a", "gemini-3.7-flash", now=NOW) is None
+    assert diagnostic.quality_state == "QUALITY_UNVERIFIED"
+    assert diagnostic.result == "ELIGIBLE"
+    admission = resolver.resolve("gemini", "gemini:project-a", "gemini-3.7-flash", now=NOW)
+    assert admission is not None
+    assert admission.benchmark_tier is None
+    assert admission.capabilities is None
 
 
 def test_planner_pool_can_expand_one_credential_binding_into_multiple_admitted_models(monkeypatch):
@@ -499,7 +503,11 @@ def test_planner_shadow_rechecks_expanded_binding_against_credential_evidence(mo
                 "high",
             ) or model_id not in {"model-a", "model-b"}:
                 return None
-            return SimpleNamespace(intelligence_tier="L2", routing_capabilities=frozenset({"text"}))
+            return SimpleNamespace(
+                intelligence_tier="L1",
+                routing_capabilities=frozenset({"text"}),
+                confidence="high",
+            )
 
     class _ModelAdmissionResolver:
         def __init__(self):
@@ -512,6 +520,8 @@ def test_planner_shadow_rechecks_expanded_binding_against_credential_evidence(mo
                 intelligence_tier="L2",
                 capabilities=frozenset({"text"}),
                 task_fit={"planning": 50.0},
+                quality_state="QUALITY_UNVERIFIED",
+                benchmark_tier=None,
             )
 
     class _PlannerProvider:
@@ -591,6 +601,9 @@ def test_planner_shadow_rechecks_expanded_binding_against_credential_evidence(mo
     assert result["status"] == "live_shadow_validated"
     assert result["model"] in {"model-a", "model-b"}
     assert result["binding"].startswith("fake:project-a:")
+    assert result["intelligence_tier"] == "L1"
+    assert result["requested_intelligence_tier"] == "L2"
+    assert result["qualification_confidence"] == "high"
 
 
 def test_router_can_prefer_provider_and_model_diversity_after_hard_filters(tmp_path):

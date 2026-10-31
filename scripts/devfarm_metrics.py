@@ -129,6 +129,7 @@ class WorkerMetricsStore:
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
+        self._read_only = False
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.connection = sqlite3.connect(self.path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
@@ -178,6 +179,39 @@ class WorkerMetricsStore:
                 raise WorkerMetricsError(f"unsupported worker metrics schema version: {row[0]}")
             self.connection.commit()
 
+    @classmethod
+    def open_read_only(cls, path: str | Path) -> "WorkerMetricsStore":
+        """Open an existing metrics database without schema or data writes."""
+
+        target = Path(path)
+        if not target.is_file():
+            raise WorkerMetricsError("worker metrics database does not exist")
+        store = cls.__new__(cls)
+        store.path = target
+        store._read_only = True
+        store._lock = RLock()
+        try:
+            store.connection = sqlite3.connect(
+                f"{target.resolve().as_uri()}?mode=ro",
+                uri=True,
+                check_same_thread=False,
+            )
+            store.connection.row_factory = sqlite3.Row
+            row = store.connection.execute(
+                "SELECT value FROM worker_metrics_schema_meta WHERE key='schema_version'"
+            ).fetchone()
+            if row is None or int(row[0]) != cls.SCHEMA_VERSION:
+                raise WorkerMetricsError("worker metrics database has an unsupported schema")
+            store.connection.execute("SELECT 1 FROM worker_metrics LIMIT 1").fetchone()
+        except (sqlite3.Error, TypeError, ValueError) as exc:
+            connection = getattr(store, "connection", None)
+            if connection is not None:
+                connection.close()
+            if isinstance(exc, WorkerMetricsError):
+                raise
+            raise WorkerMetricsError("worker metrics database cannot be read safely") from exc
+        return store
+
     def record(
         self,
         *,
@@ -194,6 +228,8 @@ class WorkerMetricsStore:
 
         if not isinstance(manifest, Mapping) or not isinstance(result, Mapping):
             raise WorkerMetricsError("manifest and result must be objects")
+        if self._read_only:
+            raise WorkerMetricsError("worker metrics store is read-only")
         task_id = _text(manifest.get("task_id"), "manifest task_id", max_length=128)
         metrics = result.get("worker_metrics")
         if not isinstance(metrics, Mapping):

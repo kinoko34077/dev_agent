@@ -1,4 +1,4 @@
-"""Run one opt-in, proposal-only Free L2 Planner shadow request.
+"""Run one opt-in, proposal-only Planner shadow request.
 
 This development utility composes the existing QualificationResolver,
 Billing catalog, ResourceRouter, BudgetAuthority, ProviderDispatcher, and
@@ -45,6 +45,7 @@ from src.dev_agent.resources.billing_catalog import profile_for
 from src.dev_agent.resources.control import DispatchDenied
 from src.dev_agent.resources.model_admission import ModelAdmissionResolver
 from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
+from src.dev_agent.resources.provider_authority_constants import REAL_LOCAL_PROVIDER_IDS
 from src.dev_agent.resources.qualification import QualificationResolver
 from src.dev_agent.resources.router import ResourceRouter
 from src.dev_agent.resources.tier_authority import production_tier_authority
@@ -143,6 +144,28 @@ def _project_planning_critic_observation(
     }
 
 
+def _project_host_outcome_routing(resource_pool: object | None) -> dict[str, object]:
+    """Expose bounded provenance for the advisory host-outcome ranker."""
+
+    status = getattr(resource_pool, "outcome_routing_status", "disabled")
+    if not isinstance(status, str):
+        status = "disabled"
+    decisions = getattr(resource_pool, "outcome_routing", ())
+    projected = []
+    for decision in decisions if isinstance(decisions, (list, tuple)) else ():
+        to_dict = getattr(decision, "to_dict", None)
+        if not callable(to_dict):
+            continue
+        value = to_dict()
+        if isinstance(value, dict):
+            projected.append(value)
+    return {
+        "task_type": TaskType.REASONING.value,
+        "status": status,
+        "decisions": projected[:64],
+    }
+
+
 def _normalize_planning_critic_observation(value: object) -> dict[str, object] | None:
     """Accept only the bounded Critic observation attached by ``run_shadow``."""
 
@@ -236,6 +259,7 @@ def admit_planner_pool(
             bindings,
             resolver=resolver,
             required_tier=required_tier,
+            quality_tier_advisory=True,
             no_charge_required=True,
             model_admission_resolver=model_admission_resolver,
             model_catalog=model_catalog,
@@ -297,7 +321,7 @@ def _validate_independent_critic_admission(
 
     if not critic_admitted:
         raise PlannerShadowBlocked(
-            "no exact current high-confidence L1 planning critic resource is admitted",
+            "no separately qualified, no-charge planning Critic route is admitted",
             category="planning_critic_no_route",
         )
     planner_ids = {_admission_identity(binding) for binding, _qualification, _profile in planner_admitted}
@@ -381,7 +405,7 @@ def run_shadow(
     )
     if not admitted:
         raise PlannerShadowBlocked(
-            f"no exact current {required_tier} planner resource is admitted",
+            f"no exact current planner resource is admitted (preferred tier: {required_tier})",
             category="no_route",
         )
     if planning_critic_provider is not None and planning_critic_pool is not None:
@@ -415,6 +439,7 @@ def run_shadow(
             configured_tier=binding.intelligence_tier,
             qualification=qualification,
             model_admission=admission,
+            allow_unverified_quality_proposal=True,
         )
         return decision.tier if decision.eligible else None
 
@@ -424,9 +449,11 @@ def run_shadow(
                 admitted,
                 resolver=resolver,
                 model_admission_resolver=model_admission_resolver,
+                quality_tier_advisory=True,
                 resource_id_prefix="planner-shadow",
                 provider_builder=_build_provider,
                 router_factory=ResourceRouter,
+                task_type=TaskType.REASONING.value,
             )
         )
         ledger = resource_pool.ledger
@@ -444,15 +471,18 @@ def run_shadow(
         critic_adapter = None
         critic_dispatcher = None
         critic_provider = None
+        critic_resource_pool = None
         if critic_admitted is not None:
             critic_resource_pool = pool_stack.enter_context(
                 compose_resource_pool(
                     critic_admitted,
                     resolver=resolver,
                     model_admission_resolver=model_admission_resolver,
+                    quality_tier_advisory=True,
                     resource_id_prefix="planner-critic",
                     provider_builder=_build_provider,
                     router_factory=ResourceRouter,
+                    task_type=TaskType.REASONING.value,
                 )
             )
             critic_dispatcher = critic_resource_pool.dispatcher
@@ -566,6 +596,8 @@ def run_shadow(
                 "attempts": list(exc.attempts),
                 "host_validation": "not_run",
                 "allow_unknown_quota": allow_unknown_quota,
+                "outcome_routing": _project_host_outcome_routing(resource_pool),
+                "critic_outcome_routing": _project_host_outcome_routing(critic_resource_pool),
             }
             request_id = _bounded_request_id(getattr(exc, "request_id", None))
             if request_id is not None:
@@ -624,6 +656,8 @@ def run_shadow(
                 "attempts": attempts,
                 "host_validation": "not_run",
                 "allow_unknown_quota": allow_unknown_quota,
+                "outcome_routing": _project_host_outcome_routing(resource_pool),
+                "critic_outcome_routing": _project_host_outcome_routing(critic_resource_pool),
             }
             request_id = _bounded_request_id(getattr(exc, "request_id", None))
             if request_id is not None:
@@ -658,6 +692,26 @@ def run_shadow(
         selected_provider = selected.provider_id if selected is not None else None
         selected_binding = selected.provider_binding_id if selected is not None else None
         selected_model = selected.model_id if selected is not None else None
+        selected_routes = [
+            (binding, qualification)
+            for binding, qualification, _profile in admitted
+            if selected is not None
+            and binding.provider_id == selected_provider
+            and binding.binding_id == selected_binding
+            and binding.model == selected_model
+        ]
+        selected_tier = (
+            _effective_tier(*selected_routes[0])
+            if len(selected_routes) == 1
+            else None
+        )
+        selected_qualification_confidence = (
+            getattr(selected_routes[0][1], "confidence", None)
+            if len(selected_routes) == 1
+            else None
+        )
+        if selected_provider in REAL_LOCAL_PROVIDER_IDS:
+            selected_qualification_confidence = "local_trial"
         proposal_digest = hashlib.sha256(
             json.dumps(proposal.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
         ).hexdigest()
@@ -667,8 +721,9 @@ def run_shadow(
             "provider": selected_provider,
             "binding": selected_binding,
             "model": selected_model,
-            "intelligence_tier": required_tier,
-            "qualification_confidence": "local_trial" if any(binding.provider_id == "ollama" for binding, _qualification, _profile in admitted) else "high",
+            "intelligence_tier": selected_tier,
+            "requested_intelligence_tier": required_tier,
+            "qualification_confidence": selected_qualification_confidence,
             "parent_task_id": parent_task_id,
             "proposal_id": proposal.proposal_id,
             "child_count": len(accepted),
@@ -700,6 +755,8 @@ def run_shadow(
                 }
                 for entry in dispatcher.audits
             ],
+            "outcome_routing": _project_host_outcome_routing(resource_pool),
+            "critic_outcome_routing": _project_host_outcome_routing(critic_resource_pool),
             "planning_critic": _project_planning_critic_observation(
                 critic_adapter,
                 critic_dispatcher if critic_dispatcher is not None else critic_provider,

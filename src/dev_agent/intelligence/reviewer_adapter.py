@@ -332,6 +332,7 @@ class ModelReviewAdapter:
             "authority": "host_validation_required",
             "integration_authority": "codex_and_host",
             "proposal_only": True,
+            "quality_tier_advisory": True,
             "intelligence_routing": "bounded",
             "allowed_intelligence_tiers": [self.intelligence_tier],
         }

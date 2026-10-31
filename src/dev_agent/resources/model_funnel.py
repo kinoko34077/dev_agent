@@ -285,6 +285,12 @@ def _candidate_reason(row: FunnelCandidate) -> str | None:
         return None
     if row.discovery_status != "CURRENT":
         return "discovery_expired"
+    if row.static_result in {"STATIC_MODEL_UNSUPPORTED", "STATIC_CAPABILITY_UNSUPPORTED"}:
+        return row.static_result.lower()
+    if row.alias_status != "PASS" or row.benchmark_status != "PASS":
+        return "quality_unverified"
+    if row.capability_status != "PASS":
+        return "model_capability_unverified"
     if row.static_result != "ELIGIBLE":
         return row.static_result.lower()
     if row.billing_status != "CURRENT":
@@ -358,11 +364,14 @@ def build_funnel_report(
         runtime_observation = runtime.lookup(entry.provider_id, entry.provider_binding_id, entry.model_id)
         runtime_status = runtime_observation.status if runtime_observation is not None else RUNTIME_NOT_PROBED
         billing_status = _billing_status(entry.provider_id, entry.provider_binding_id, entry.model_id, now=current)
-        benchmark_tier = admission.intelligence_tier if admission is not None else (evidence.benchmarks.tier_for(benchmark) if benchmark is not None else None)
+        benchmark_tier = admission.benchmark_tier if admission is not None else (evidence.benchmarks.tier_for(benchmark) if benchmark is not None else None)
         task_fit = admission.task_fit if admission is not None else (benchmark.task_fit if benchmark is not None else {})
         formal_supply = (
             discovery_current
             and diagnostic.result == "ELIGIBLE"
+            and alias is not None
+            and benchmark is not None
+            and capability is not None
             and qualification_status == "CURRENT_HIGH_CONFIDENCE"
             and billing_status == "CURRENT"
             and runtime_status == RUNTIME_ELIGIBLE

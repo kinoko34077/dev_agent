@@ -145,11 +145,12 @@ def open_components(
                 qualification_binding_id = candidate.credential_binding_id
                 # The seed model must not bypass current discovery merely
                 # because it is present in configuration.
-                if candidate_catalog.lookup(
+                discovered_candidate = candidate_catalog.lookup(
                     candidate.provider_id,
                     catalog_binding_id,
                     candidate.model,
-                ) is None:
+                )
+                if discovered_candidate is None or not discovered_candidate.is_text_generation_candidate():
                     continue
                 qualification = qualification_resolver.resolve(
                     candidate.provider_id,
@@ -165,12 +166,10 @@ def open_components(
                 )
                 if profile is None or not profile.no_charge_guaranteed or not profile.is_current():
                     continue
-                if model_admission_resolver is not None and model_admission_resolver.resolve(
-                    candidate.provider_id,
-                    catalog_binding_id,
-                    candidate.model,
-                ) is None:
-                    continue
+                # Static benchmark/alias/capability snapshots enrich routing
+                # quality and narrow capabilities when current. They do not
+                # duplicate the fresh Provider inventory, exact qualification,
+                # and billing checks above as a second blanket admission gate.
                 runtime_bindings.append(candidate)
 
         providers: list[Any] = []

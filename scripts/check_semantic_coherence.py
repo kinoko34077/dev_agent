@@ -355,8 +355,8 @@ def check_role_preflight_dispatch_equivalence() -> dict[str, Any]:
     )
 
 
-def check_tier_authority_conflicts() -> dict[str, Any]:
-    """Ensure conflicting exact-route tier evidence is rejected."""
+def check_tier_authority_separation() -> dict[str, Any]:
+    """Ensure benchmark-derived tier does not replace qualification tier."""
 
     decision = production_tier_authority.resolve(
         provider_id="gemini",
@@ -365,11 +365,11 @@ def check_tier_authority_conflicts() -> dict[str, Any]:
         qualification=SimpleNamespace(intelligence_tier="L1"),
         model_admission=SimpleNamespace(intelligence_tier="L2"),
     )
-    conflict_rejected = not decision.eligible and decision.reason == "TIER_EVIDENCE_CONFLICT"
+    benchmark_ignored = decision.eligible and decision.tier == "L1" and decision.source == "qualification"
     return _result(
         "exact_route_tier_authority",
-        violations=[] if conflict_rejected else ["tier_evidence_conflict_not_rejected"],
-        conflict_rejected=conflict_rejected,
+        violations=[] if benchmark_ignored else ["performance_tier_overrode_qualification"],
+        benchmark_ignored=benchmark_ignored,
         decision_reason=decision.reason,
         exact_identity=["gemini", "gemini:account-a", "gemini-test"],
     )
@@ -597,7 +597,7 @@ def build_report(*, funnel_report: FunnelReport | None = None) -> dict[str, Any]
         check_provider_normalization(),
         check_provider_decode_diagnostics(),
         check_role_preflight_dispatch_equivalence(),
-        check_tier_authority_conflicts(),
+        check_tier_authority_separation(),
         check_state_projection_consistency(),
     ]
     if funnel_report is not None:

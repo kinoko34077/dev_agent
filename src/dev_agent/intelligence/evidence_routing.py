@@ -1,4 +1,4 @@
-"""Evidence-based advisory ordering for already-eligible Worker bindings.
+"""Evidence-based advisory ordering for already-eligible Worker models.
 
 The production ResourceRouter remains the authority for capability, privacy,
 health, quota, budget, and concurrency constraints.  This module only ranks a
@@ -78,10 +78,30 @@ def _timestamp(value: Any, name: str) -> datetime:
 
 
 @dataclass(frozen=True)
+class EvidenceCandidate:
+    """Exact, already-admitted Provider/binding/model identity."""
+
+    provider_id: str
+    binding_id: str
+    model_id: str
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "provider_id", _text(self.provider_id, "provider_id"))
+        object.__setattr__(self, "binding_id", _text(self.binding_id, "provider_binding_id"))
+        object.__setattr__(self, "model_id", _text(self.model_id, "model_id"))
+
+    @property
+    def identity(self) -> tuple[str, str, str]:
+        return self.provider_id, self.binding_id, self.model_id
+
+
+@dataclass(frozen=True)
 class EvidenceRouteDecision:
     """One deterministic recommendation for a caller-supplied binding."""
 
+    provider_id: str
     binding_id: str
+    model_id: str
     eligible: bool
     preferred: bool
     reason: str
@@ -94,7 +114,9 @@ class EvidenceRouteDecision:
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "provider_id": self.provider_id,
             "binding_id": self.binding_id,
+            "model_id": self.model_id,
             "eligible": self.eligible,
             "preferred": self.preferred,
             "reason": self.reason,
@@ -133,13 +155,13 @@ class _Aggregate:
 
 
 class EvidenceBasedRoutingPolicy:
-    """Rank only bindings already admitted by the authoritative hard filter.
+    """Rank only exact Provider/binding/model routes already hard-filtered.
 
-    ``hard_filtered_bindings`` is intentionally the only candidate input.  A
+    ``hard_filtered_bindings`` is intentionally the only candidate input. A
     caller must first apply the normal ResourceRouter and policy checks; this
     class has no API that can discover or add resources.  Eligible history is
     advisory and can be disabled by returning the original candidate order
-    when ``preferred_bindings`` is empty.
+    when there are no evidence-preferred candidates.
     """
 
     def __init__(
@@ -168,7 +190,7 @@ class EvidenceBasedRoutingPolicy:
     def rank(
         self,
         task_type: str,
-        hard_filtered_bindings: Sequence[str],
+        hard_filtered_bindings: Sequence[EvidenceCandidate],
         *,
         now: datetime | None = None,
     ) -> tuple[EvidenceRouteDecision, ...]:
@@ -177,13 +199,18 @@ class EvidenceBasedRoutingPolicy:
         task_type = _text(task_type, "task_type", max_length=64)
         if isinstance(hard_filtered_bindings, (str, bytes)) or not isinstance(hard_filtered_bindings, Sequence):
             raise EvidenceRoutingError("hard_filtered_bindings must be a sequence")
-        bindings: list[str] = []
+        candidates: list[EvidenceCandidate] = []
+        seen_identities: set[tuple[str, str, str]] = set()
         for value in hard_filtered_bindings:
-            binding = _text(value, "provider_binding_id")
-            if binding in bindings:
-                raise EvidenceRoutingError(f"duplicate provider binding: {binding}")
-            bindings.append(binding)
-        if not bindings:
+            if not isinstance(value, EvidenceCandidate):
+                raise EvidenceRoutingError(
+                    "hard_filtered_bindings must contain exact EvidenceCandidate identities"
+                )
+            if value.identity in seen_identities:
+                raise EvidenceRoutingError(f"duplicate provider/model identity: {value.identity!r}")
+            seen_identities.add(value.identity)
+            candidates.append(value)
+        if not candidates:
             return ()
         current = _utc(now)
         raw_summaries = self.source.summarize(
@@ -194,25 +221,29 @@ class EvidenceBasedRoutingPolicy:
         )
         if not isinstance(raw_summaries, Sequence) or isinstance(raw_summaries, (str, bytes)):
             raise EvidenceRoutingError("evidence source must return a sequence")
-        aggregates: dict[str, _Aggregate] = {}
-        candidate_set = set(bindings)
+        aggregates: dict[tuple[str, str, str], _Aggregate] = {}
+        candidate_by_identity = {candidate.identity: candidate for candidate in candidates}
         for raw in raw_summaries:
             if not isinstance(raw, Mapping):
                 raise EvidenceRoutingError("evidence summaries must be objects")
             summary_task_type = _text(raw.get("task_type"), "task_type", max_length=64)
-            binding = _text(raw.get("provider_binding_id"), "provider_binding_id")
+            identity = (
+                _text(raw.get("provider_id"), "provider_id"),
+                _text(raw.get("provider_binding_id"), "provider_binding_id"),
+                _text(raw.get("model_id"), "model_id"),
+            )
             # Validate every returned summary before filtering it.  A broken
             # evidence source must fail closed rather than silently influence a
             # subset of candidates.
-            if summary_task_type != task_type or binding not in candidate_set:
+            if summary_task_type != task_type or identity not in candidate_by_identity:
                 continue
-            aggregates.setdefault(binding, _Aggregate()).add(raw)
+            aggregates.setdefault(identity, _Aggregate()).add(raw)
 
         decisions: list[EvidenceRouteDecision] = []
-        for binding in bindings:
-            aggregate = aggregates.get(binding)
+        for candidate in candidates:
+            aggregate = aggregates.get(candidate.identity)
             if aggregate is None:
-                decisions.append(EvidenceRouteDecision(binding, False, False, "insufficient_evidence", 0, None, None, None))
+                decisions.append(EvidenceRouteDecision(*candidate.identity, False, False, "insufficient_evidence", 0, None, None, None))
                 continue
             sample_count = aggregate.sample_count
             acceptance_rate = aggregate.accepted_count / sample_count
@@ -220,48 +251,58 @@ class EvidenceBasedRoutingPolicy:
             average_retry = aggregate.retry_total / sample_count
             latest = aggregate.latest.isoformat() if aggregate.latest is not None else None
             if sample_count < self.minimum_samples:
-                decisions.append(EvidenceRouteDecision(binding, False, False, "insufficient_samples", sample_count, acceptance_rate, average_elapsed, average_retry, latest))
+                decisions.append(EvidenceRouteDecision(*candidate.identity, False, False, "insufficient_samples", sample_count, acceptance_rate, average_elapsed, average_retry, latest))
                 continue
             if aggregate.latest is None:
-                decisions.append(EvidenceRouteDecision(binding, False, False, "evidence_freshness_missing", sample_count, acceptance_rate, average_elapsed, average_retry))
+                decisions.append(EvidenceRouteDecision(*candidate.identity, False, False, "evidence_freshness_missing", sample_count, acceptance_rate, average_elapsed, average_retry))
                 continue
             age = (current - aggregate.latest).total_seconds()
             if age < 0:
-                decisions.append(EvidenceRouteDecision(binding, False, False, "evidence_not_yet_observed", sample_count, acceptance_rate, average_elapsed, average_retry, latest))
+                decisions.append(EvidenceRouteDecision(*candidate.identity, False, False, "evidence_not_yet_observed", sample_count, acceptance_rate, average_elapsed, average_retry, latest))
                 continue
             if self.max_age_seconds is not None and age > self.max_age_seconds:
-                decisions.append(EvidenceRouteDecision(binding, False, False, "evidence_expired", sample_count, acceptance_rate, average_elapsed, average_retry, latest))
+                decisions.append(EvidenceRouteDecision(*candidate.identity, False, False, "evidence_expired", sample_count, acceptance_rate, average_elapsed, average_retry, latest))
                 continue
             if acceptance_rate < self.minimum_acceptance_rate or (
                 self.max_average_retry_count is not None and average_retry > self.max_average_retry_count
             ):
-                decisions.append(EvidenceRouteDecision(binding, False, False, "rollback_threshold", sample_count, acceptance_rate, average_elapsed, average_retry, latest, True))
+                decisions.append(EvidenceRouteDecision(*candidate.identity, False, False, "rollback_threshold", sample_count, acceptance_rate, average_elapsed, average_retry, latest, True))
                 continue
-            decisions.append(EvidenceRouteDecision(binding, True, True, "evidence_eligible", sample_count, acceptance_rate, average_elapsed, average_retry, latest))
+            decisions.append(EvidenceRouteDecision(*candidate.identity, True, True, "evidence_eligible", sample_count, acceptance_rate, average_elapsed, average_retry, latest))
 
-        decision_by_binding = {decision.binding_id: decision for decision in decisions}
+        decision_by_identity = {(decision.provider_id, decision.binding_id, decision.model_id): decision for decision in decisions}
         preferred = sorted(
             (decision for decision in decisions if decision.preferred),
             key=lambda decision: (
                 -(decision.acceptance_rate or 0.0),
                 decision.average_elapsed_ms if decision.average_elapsed_ms is not None else math.inf,
                 decision.average_retry_count if decision.average_retry_count is not None else math.inf,
+                decision.provider_id,
                 decision.binding_id,
+                decision.model_id,
             ),
         )
-        fallback = [decision_by_binding[binding] for binding in bindings if not decision_by_binding[binding].preferred]
+        fallback = [
+            decision_by_identity[candidate.identity]
+            for candidate in candidates
+            if not decision_by_identity[candidate.identity].preferred
+        ]
         return tuple(preferred + fallback)
 
     def preferred_bindings(
         self,
         task_type: str,
-        hard_filtered_bindings: Sequence[str],
+        hard_filtered_bindings: Sequence[EvidenceCandidate],
         *,
         now: datetime | None = None,
-    ) -> tuple[str, ...]:
-        """Return only evidence-eligible bindings, never new candidates."""
+    ) -> tuple[EvidenceCandidate, ...]:
+        """Return only evidence-eligible exact candidates, never new routes."""
 
-        return tuple(decision.binding_id for decision in self.rank(task_type, hard_filtered_bindings, now=now) if decision.preferred)
+        return tuple(
+            EvidenceCandidate(decision.provider_id, decision.binding_id, decision.model_id)
+            for decision in self.rank(task_type, hard_filtered_bindings, now=now)
+            if decision.preferred
+        )
 
 
-__all__ = ["EvidenceBasedRoutingPolicy", "EvidenceRouteDecision", "EvidenceRoutingError", "EvidenceSummarySource"]
+__all__ = ["EvidenceBasedRoutingPolicy", "EvidenceCandidate", "EvidenceRouteDecision", "EvidenceRoutingError", "EvidenceSummarySource"]

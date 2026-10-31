@@ -198,7 +198,9 @@ def test_funnel_keeps_exact_identity_and_separates_runtime_bootstrap_from_formal
     assert rows[("fixture", "fixture:binding-a", "model-a")].runtime_status == RUNTIME_BOOTSTRAP_ADMITTED
     assert rows[("fixture", "fixture:binding-a", "model-a")].formal_supply is False
     assert rows[("fixture", "fixture:binding-a", "model-a")].refresh_state == "EXPIRING"
-    assert rows[("fixture", "fixture:binding-c", "model-b")].static_result == "BENCHMARK_MISSING"
+    assert rows[("fixture", "fixture:binding-c", "model-b")].static_result == "ELIGIBLE"
+    assert rows[("fixture", "fixture:binding-c", "model-b")].formal_supply is False
+    assert rows[("fixture", "fixture:binding-c", "model-b")].candidate_reason == "quality_unverified"
     assert rows[("fixture", "fixture:expired", "model-a")].discovery_status == "EXPIRED"
     assert report.supply_for(provider_id="fixture", tier="L2")["status"] == "INSUFFICIENT"
     assert report.supply_for(provider_id="fixture", tier="L2")["independent_route_count"] == 0

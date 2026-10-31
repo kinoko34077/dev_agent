@@ -14,6 +14,7 @@ from datetime import datetime
 import json
 import os
 from pathlib import Path
+import sqlite3
 from tempfile import TemporaryDirectory
 from typing import Any
 
@@ -32,6 +33,13 @@ from src.dev_agent.resources.model_admission import ModelAdmissionResolver
 from src.dev_agent.resources.ledger import ResourceLedger
 from src.dev_agent.resources.provider_policy import privacy_profile, requires_qualification
 from src.dev_agent.resources.tier_authority import production_tier_authority
+from src.dev_agent.intelligence.evidence_routing import (
+    EvidenceBasedRoutingPolicy,
+    EvidenceCandidate,
+    EvidenceRouteDecision,
+    EvidenceRoutingError,
+)
+from scripts.devfarm_metrics import WorkerMetricsError, WorkerMetricsStore
 
 
 @dataclass(frozen=True)
@@ -163,6 +171,7 @@ def admit_resource_pool(
     *,
     resolver: QualificationResolver,
     required_tier: str = "L2",
+    quality_tier_advisory: bool = False,
     required_capabilities: Sequence[str] | None = None,
     no_charge_required: bool = True,
     model_admission_resolver: ModelAdmissionResolver | None = None,
@@ -173,14 +182,16 @@ def admit_resource_pool(
 ) -> tuple[tuple[OperationProviderBinding, Any, Any], ...]:
     """Admit exact current resources for any development model role.
 
-    Qualification remains integration evidence, model admission supplies the
-    benchmark-derived tier when present, and billing/privacy policy remains a
-    separate Host-owned filter.  No role-specific Planner/Reviewer behavior
-    lives here.
+    Qualification remains exact current execution evidence. Tier is a
+    quality preference only when ``quality_tier_advisory`` is explicitly set
+    for an untrusted proposal path. Billing/privacy policy remains a separate
+    Host-owned filter.
     """
 
     if not isinstance(required_tier, str) or not required_tier.strip():
         raise ResourcePoolError("required_tier must be a non-empty string")
+    if not isinstance(quality_tier_advisory, bool):
+        raise ResourcePoolError("quality_tier_advisory must be a boolean")
     profile_lookup = profile_resolver or default_profile_for
     requested_capabilities = frozenset(required_capabilities or ())
     if any(not isinstance(item, str) or not item.strip() for item in requested_capabilities):
@@ -219,8 +230,11 @@ def admit_resource_pool(
                 model_id=binding.model,
                 configured_tier=binding.intelligence_tier,
                 profile=profile,
+                allow_unverified_quality_proposal=quality_tier_advisory,
             )
-            if not tier_decision.eligible or tier_decision.tier != required_tier:
+            if not tier_decision.eligible or (
+                not quality_tier_advisory and tier_decision.tier != required_tier
+            ):
                 continue
             local_capabilities = frozenset({"text"})
             if not requested_capabilities.issubset(local_capabilities):
@@ -257,14 +271,17 @@ def admit_resource_pool(
                 binding.credential_binding_id,
                 binding.model,
             ),
+            allow_unverified_quality_proposal=quality_tier_advisory,
         )
-        if not tier_decision.eligible or tier_decision.tier != required_tier:
+        if not tier_decision.eligible or (
+            not quality_tier_advisory and tier_decision.tier != required_tier
+        ):
             continue
         qualification_capabilities = frozenset(getattr(qualification, "routing_capabilities", ()))
         if not requested_capabilities.issubset(qualification_capabilities):
             continue
-        if model_admission is not None:
-            admission_capabilities = frozenset(getattr(model_admission, "capabilities", ()))
+        if model_admission is not None and getattr(model_admission, "capabilities", None) is not None:
+            admission_capabilities = frozenset(model_admission.capabilities)
             if not requested_capabilities.issubset(admission_capabilities):
                 continue
         profile = profile_lookup(
@@ -290,6 +307,40 @@ class ResourcePoolRuntime:
     dispatcher: ProviderDispatcher
     admitted: tuple[tuple[OperationProviderBinding, Any, Any], ...]
     directory: Path
+    outcome_routing_status: str = "disabled"
+    outcome_routing: tuple[EvidenceRouteDecision, ...] = ()
+
+
+def _host_outcome_decisions(
+    admitted: Sequence[tuple[OperationProviderBinding, Any, Any]],
+    *,
+    task_type: str | None,
+    metrics_path: str | Path | None,
+) -> tuple[str, tuple[EvidenceRouteDecision, ...]]:
+    if task_type is None:
+        return "disabled", ()
+    path = (
+        Path(metrics_path)
+        if metrics_path is not None
+        else Path(__file__).resolve().parents[1] / ".devfarm" / "metrics.sqlite3"
+    )
+    if not path.is_file():
+        return "metrics_store_unavailable", ()
+    candidates = tuple(
+        EvidenceCandidate(binding.provider_id, binding.binding_id, binding.model)
+        for binding, _qualification, _profile in admitted
+    )
+    try:
+        with WorkerMetricsStore.open_read_only(path) as store:
+            decisions = EvidenceBasedRoutingPolicy(
+                store,
+                minimum_samples=3,
+                max_age_seconds=86_400,
+                minimum_acceptance_rate=0.8,
+            ).rank(task_type, candidates)
+    except (WorkerMetricsError, EvidenceRoutingError, OSError, sqlite3.Error):
+        return "metrics_store_invalid", ()
+    return "evaluated", decisions
 
 
 @contextmanager
@@ -298,10 +349,13 @@ def compose_resource_pool(
     *,
     resolver: QualificationResolver,
     model_admission_resolver: ModelAdmissionResolver | None = None,
+    quality_tier_advisory: bool = False,
     resource_id_prefix: str = "devfarm-shadow",
     provider_builder: Callable[..., ModelProvider] | None = None,
     router_factory: type[ResourceRouter] = ResourceRouter,
     quota_observations: Mapping[str, Mapping[str, Any]] | None = None,
+    task_type: str | None = None,
+    outcome_metrics_path: str | Path | None = None,
 ) -> Iterator[ResourcePoolRuntime]:
     """Compose the existing ledger/router/dispatcher for one bounded call.
 
@@ -317,8 +371,28 @@ def compose_resource_pool(
         raise ResourcePoolError("resource pool must not be empty")
     if not isinstance(resource_id_prefix, str) or not resource_id_prefix.strip():
         raise ResourcePoolError("resource_id_prefix must be non-empty")
+    if not isinstance(quality_tier_advisory, bool):
+        raise ResourcePoolError("quality_tier_advisory must be a boolean")
     if quota_observations is not None and not isinstance(quota_observations, Mapping):
         raise ResourcePoolError("quota_observations must be a mapping or None")
+    if task_type is not None and (
+        not isinstance(task_type, str)
+        or not task_type.strip()
+        or len(task_type.strip()) > 64
+    ):
+        raise ResourcePoolError("task_type must be a non-empty string of at most 64 characters or None")
+    if outcome_metrics_path is not None and not isinstance(outcome_metrics_path, (str, Path)):
+        raise ResourcePoolError("outcome_metrics_path must be a path or None")
+    task_type = task_type.strip() if isinstance(task_type, str) else None
+    outcome_routing_status, outcome_routing = _host_outcome_decisions(
+        admitted,
+        task_type=task_type,
+        metrics_path=outcome_metrics_path,
+    )
+    outcome_by_identity = {
+        (decision.provider_id, decision.binding_id, decision.model_id): decision
+        for decision in outcome_routing
+    }
     builder = provider_builder or build_provider
 
     with TemporaryDirectory(prefix=f"{resource_id_prefix}-") as directory:
@@ -332,36 +406,12 @@ def compose_resource_pool(
                     model_admission_resolver,
                     now=None,
                 )
-                if (
-                    model_admission is None
-                    and model_admission_resolver is not None
-                    and getattr(qualification, "intelligence_tier", None) != "L1"
-                ):
-                    # Known L1 Worker bindings may be admitted from exact,
-                    # current qualification evidence even when the optional
-                    # discovery/benchmark catalog has no entry for legacy
-                    # resources such as the OpenRouter free lane.  Keep the
-                    # stricter model-evidence requirement for L2/L3 so a
-                    # Planner or Reviewer cannot silently outlive its
-                    # benchmark admission window.
-                    raise ResourcePoolError("model evidence expired after resource admission")
                 resolved_admissions.append(model_admission)
 
-            # A legacy L1 resource is intentionally allowed to use its exact,
-            # current qualification record when no model-evidence row exists.
-            # Do not pass the optional resolver to ResourceRouter in that
-            # all-legacy case: the Router's strict resolver mode quite
-            # correctly excludes resources with missing model evidence, which
-            # would otherwise contradict the L1 admission contract above.
-            # Mixed pools are rejected rather than weakening model evidence
-            # checks for only part of a composed pool.
-            has_legacy_l1 = any(model_admission is None for model_admission in resolved_admissions)
-            has_model_evidence = any(model_admission is not None for model_admission in resolved_admissions)
-            if has_legacy_l1 and has_model_evidence:
-                raise ResourcePoolError("model evidence is incomplete for a mixed resource pool")
-            router_model_admission_resolver = (
-                None if has_legacy_l1 else model_admission_resolver
-            )
+            # Performance evidence can annotate or rank a route, but its
+            # absence never overrides exact current qualification. The
+            # Router enforces interface capability evidence independently.
+            router_model_admission_resolver = model_admission_resolver
 
             for (binding, qualification, profile), model_admission in zip(
                 admitted,
@@ -371,8 +421,8 @@ def compose_resource_pool(
                 effective_capabilities = sorted(
                     frozenset(getattr(qualification, "routing_capabilities", ()))
                     & (
-                        frozenset(getattr(model_admission, "capabilities", ()))
-                        if model_admission is not None
+                        frozenset(model_admission.capabilities)
+                        if model_admission is not None and getattr(model_admission, "capabilities", None) is not None
                         else frozenset(getattr(qualification, "routing_capabilities", ()))
                     )
                 )
@@ -384,13 +434,32 @@ def compose_resource_pool(
                     qualification=qualification,
                     model_admission=model_admission,
                     profile=_profile,
+                    allow_unverified_quality_proposal=quality_tier_advisory,
                 )
-                if not tier_decision.eligible or tier_decision.tier is None:
+                if not tier_decision.eligible or (
+                    tier_decision.tier is None and not quality_tier_advisory
+                ):
                     raise ResourcePoolError("production tier evidence changed after admission")
                 effective_tier = tier_decision.tier
                 concrete.append(builder(binding=binding))
                 resource_id = f"{resource_id_prefix}:{binding.binding_id}"
                 routing_priority = ollama_local_routing_priority(binding.model) if binding.provider_id == "ollama" else None
+                outcome_decision = outcome_by_identity.get(
+                    (binding.provider_id, binding.binding_id, binding.model)
+                )
+                outcome_metadata = {}
+                if outcome_decision is not None and task_type is not None:
+                    outcome_metadata = {
+                        "host_outcome_source": "host_verified_metrics",
+                        "host_outcome_task_type": task_type,
+                        "host_outcome_preferred": outcome_decision.preferred,
+                        "host_outcome_reason": outcome_decision.reason,
+                        "host_outcome_sample_count": outcome_decision.sample_count,
+                        "host_outcome_acceptance_rate": outcome_decision.acceptance_rate,
+                        "host_outcome_average_elapsed_ms": outcome_decision.average_elapsed_ms,
+                        "host_outcome_average_retry_count": outcome_decision.average_retry_count,
+                        "host_outcome_latest_recorded_at": outcome_decision.latest_recorded_at,
+                    }
                 ledger.register_resource(
                     resource_id,
                     provider_id=binding.provider_id,
@@ -419,6 +488,7 @@ def compose_resource_pool(
                         "allowance_amount": profile.allowance_amount,
                         "allowance_currency": profile.allowance_currency,
                         "allowance_period": profile.allowance_period,
+                        **outcome_metadata,
                         **({"routing_priority": routing_priority} if routing_priority is not None else {}),
                     },
                 )
@@ -446,7 +516,14 @@ def compose_resource_pool(
                 BudgetGovernor(ledger, policy),
             )
             dispatcher = ProviderDispatcher(ProviderRegistry(concrete), control)
-            yield ResourcePoolRuntime(ledger, dispatcher, tuple(admitted), Path(directory))
+            yield ResourcePoolRuntime(
+                ledger,
+                dispatcher,
+                tuple(admitted),
+                Path(directory),
+                outcome_routing_status,
+                outcome_routing,
+            )
         finally:
             ledger.close()
 

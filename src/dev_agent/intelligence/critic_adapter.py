@@ -197,6 +197,7 @@ class ModelCriticAdapter:
             "task_fit": "correction",
             "authority": "host_validation_required",
             "proposal_only": True,
+            "quality_tier_advisory": True,
             "integration_authority": "host_and_codex",
             "model_selection": "host_selected",
             "intelligence_routing": "bounded",

@@ -464,7 +464,10 @@ class ModelPlanningAdapter:
         )
         metadata = {
             "execution_role": "planner",
+            "task_type": "reasoning",
             "planning_mode": "proposal_only",
+            "proposal_only": True,
+            "quality_tier_advisory": True,
             "authority": "host_validation_required",
             "planner_response_encoding": "strict_json_text",
             "task_fit": "planning",
@@ -776,10 +779,13 @@ class ModelPlanningCriticAdapter:
             proposal_profile=self.proposal_profile,
         )
         metadata: dict[str, Any] = {
+            "execution_role": "critic",
+            "task_type": "reasoning",
             "planning_mode": "proposal_only",
             "planning_refinement": "independent_critic",
             "authority": "host_validation_required",
             "proposal_only": True,
+            "quality_tier_advisory": True,
             "integration_authority": "host_and_codex",
             "model_selection": "host_selected",
             "task_fit": "planning",

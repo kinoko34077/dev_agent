@@ -12,7 +12,12 @@ from typing import Any, Protocol
 from ..domain.execution import ExecutionRequirement
 from .billing_catalog import profile_for
 from . import provider_policy
-from .model_admission import ModelAdmissionResolver
+from .model_admission import (
+    ModelAdmissionResolver,
+    QUALITY_UNVERIFIED,
+    STATIC_CAPABILITY_UNSUPPORTED,
+    STATIC_MODEL_UNSUPPORTED,
+)
 from .model_benchmarks import CANONICAL_TASK_FITS
 from .qualification import QualificationResolver
 from .snapshot import RoutingSnapshot
@@ -46,6 +51,8 @@ class RouteRequest:
     allowed_provider_binding_ids: set[str] | frozenset[str] | tuple[str, ...] | None = None
     excluded_provider_binding_ids: set[str] | frozenset[str] | tuple[str, ...] = field(default_factory=set)
     prefer_diversity: bool = False
+    task_type: str | None = None
+    quality_tier_advisory: bool = False
 
     @classmethod
     def from_execution_requirement(
@@ -55,6 +62,7 @@ class RouteRequest:
         provider_id: str | None = None,
         excluded_resource_ids: set[str] | frozenset[str] | tuple[str, ...] = (),
         max_cost_minor: int | None = None,
+        quality_tier_advisory: bool = False,
     ) -> "RouteRequest":
         """Project one canonical requirement into the existing Router contract.
 
@@ -79,6 +87,7 @@ class RouteRequest:
             effective_cost = _value(constraints.max_cost_minor)
         return cls(
             capabilities=set(requirement.required_capabilities) or {"text"},
+            task_type=requirement.task_type.value,
             sensitivity=requirement.sensitivity,
             allowed_providers=({provider_id} if provider_id is not None else _value(constraints.allowed_providers)),
             max_cost_minor=effective_cost,
@@ -88,6 +97,7 @@ class RouteRequest:
             max_quota_observation_age_seconds=_value(constraints.max_quota_observation_age_seconds, 300.0, None),
             allow_unknown_quota=bool(_value(constraints.allow_unknown_quota, False, False)),
             allowed_intelligence_tiers=requirement.allowed_tier_values(),
+            quality_tier_advisory=quality_tier_advisory,
             task_fit=_value(constraints.task_fit),
             minimum_task_fit_score=_value(constraints.minimum_task_fit_score),
             allowed_provider_binding_ids=_value(constraints.allowed_provider_binding_ids),
@@ -98,6 +108,16 @@ class RouteRequest:
     def __post_init__(self) -> None:
         if not isinstance(self.allow_unknown_quota, bool):
             raise ValueError("allow_unknown_quota must be a boolean")
+        if not isinstance(self.quality_tier_advisory, bool):
+            raise ValueError("quality_tier_advisory must be a boolean")
+        if self.task_type is not None and (
+            not isinstance(self.task_type, str)
+            or not self.task_type.strip()
+            or len(self.task_type.strip()) > 64
+        ):
+            raise ValueError("task_type must be a non-empty string of at most 64 characters or None")
+        if isinstance(self.task_type, str):
+            object.__setattr__(self, "task_type", self.task_type.strip())
         if not isinstance(self.prefer_diversity, bool):
             raise ValueError("prefer_diversity must be a boolean")
         for name, value in (("max_cost_minor", self.max_cost_minor), ("max_latency_ms", self.max_latency_ms)):
@@ -164,6 +184,9 @@ class RouteSelection:
     model_id: str | None = None
     quota_domain: str | None = None
     unknown_quota: bool = False
+    quality_state: str = QUALITY_UNVERIFIED
+    benchmark_tier: str | None = None
+    task_fit_score: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -176,6 +199,9 @@ class RouteSelection:
             "model_id": self.model_id,
             "quota_domain": self.quota_domain,
             "unknown_quota": self.unknown_quota,
+            "quality_state": self.quality_state,
+            "benchmark_tier": self.benchmark_tier,
+            "task_fit_score": self.task_fit_score,
         }
 
 
@@ -280,6 +306,8 @@ class ResourceRouter:
         provider_binding_id: Any,
         evidence_binding_id: Any,
         model_id: Any,
+        *,
+        quality_tier_advisory: bool = False,
     ):
         """Resolve qualification, model evidence, and the canonical tier once.
 
@@ -312,17 +340,27 @@ class ResourceRouter:
                 or not isinstance(model_id, str)
                 or not model_id.strip()
             ):
-                return None, None, None
-            try:
-                model_admission = self._model_admission_resolver.resolve(
-                    provider_id,
-                    evidence_binding_id,
-                    model_id.strip(),
-                )
-            except (TypeError, ValueError):
                 model_admission = None
-            if model_admission is None:
-                return None, None, None
+            else:
+                try:
+                    model_admission = self._model_admission_resolver.resolve(
+                        provider_id,
+                        evidence_binding_id,
+                        model_id.strip(),
+                    )
+                    if model_admission is None:
+                        diagnostic = self._model_admission_resolver.diagnose(
+                            provider_id,
+                            evidence_binding_id,
+                            model_id.strip(),
+                        )
+                        if diagnostic.result in {STATIC_MODEL_UNSUPPORTED, STATIC_CAPABILITY_UNSUPPORTED}:
+                            return qualification, None, None
+                except (TypeError, ValueError):
+                    # Static evidence failure is not a feature grant or a
+                    # routing prohibition. Existing Host-owned capability
+                    # evidence remains the only source for required features.
+                    model_admission = None
 
         decision = production_tier_authority.resolve(
             provider_id=provider_id,
@@ -331,13 +369,13 @@ class ResourceRouter:
             configured_tier=metadata.get("configured_intelligence_tier"),
             persisted_tier=metadata.get("intelligence_tier") or resource.get("intelligence_tier"),
             qualification=qualification,
-            model_admission=model_admission,
             profile=profile_for(
                 provider_id,
                 str(evidence_binding_id),
                 str(model_id or ""),
             ),
             allow_legacy_missing_model=not bool(isinstance(model_id, str) and model_id.strip()),
+            allow_unverified_quality_proposal=quality_tier_advisory,
         )
         return qualification, model_admission, decision
 
@@ -513,7 +551,7 @@ class ResourceRouter:
         if not capability_resources:
             return (RouteDecisionCode.UNSUPPORTED_CAPABILITY,)
 
-        if request.allowed_intelligence_tiers is not None:
+        if request.allowed_intelligence_tiers is not None and not request.quality_tier_advisory:
             tier_resources = []
             for resource in capability_resources:
                 metadata = resource.get("metadata") if isinstance(resource.get("metadata"), dict) else {}
@@ -531,6 +569,7 @@ class ResourceRouter:
                     provider_binding_id,
                     evidence_binding_id,
                     model_id,
+                    quality_tier_advisory=request.quality_tier_advisory,
                 )
                 if tier_decision is not None and tier_decision.eligible and tier_decision.tier in request.allowed_intelligence_tiers:
                     tier_resources.append(resource)
@@ -605,6 +644,7 @@ class ResourceRouter:
             raise ValueError("invalid sensitivity")
         candidates = []
         candidate_identities: dict[str, tuple[str, str]] = {}
+        candidate_quality: dict[str, tuple[str, str | None, float | None]] = {}
         unknown_quota_resource_ids: set[str] = set()
         for resource in snapshot.resources:
             if resource["resource_id"] in request.excluded_resource_ids:
@@ -636,6 +676,7 @@ class ResourceRouter:
                 provider_binding_id,
                 evidence_binding_id,
                 model_id,
+                quality_tier_advisory=request.quality_tier_advisory,
             )
             if tier_decision is None or not tier_decision.eligible:
                 continue
@@ -645,21 +686,17 @@ class ResourceRouter:
                 # can only narrow the effective routing view, never grant a
                 # capability that the persisted resource did not allow.
                 effective_capabilities &= set(qualification.routing_capabilities)
-            # Model discovery, benchmark intelligence, and adapter capability
-            # facts are a separate evidence stack.  Once explicitly composed
-            # into this Router, a resource must have exact current evidence;
-            # name similarity or legacy resource labels cannot promote it.
+            # Exact qualification/resource capabilities remain hard. Static
+            # model evidence may narrow capabilities when current; performance
+            # evidence is advisory and its absence does not erase the route.
             if model_admission is not None:
-                effective_capabilities &= set(model_admission.capabilities)
+                if model_admission.capabilities is not None:
+                    effective_capabilities &= set(model_admission.capabilities)
                 if request.task_fit is not None:
                     task_fit_score = model_admission.task_fit.get(request.task_fit)
-                    if task_fit_score is None:
-                        continue
-                    if request.minimum_task_fit_score is not None and task_fit_score < request.minimum_task_fit_score:
-                        continue
             if not request.capabilities.issubset(effective_capabilities):
                 continue
-            if request.allowed_intelligence_tiers is not None:
+            if request.allowed_intelligence_tiers is not None and not request.quality_tier_advisory:
                 if effective_tier not in request.allowed_intelligence_tiers:
                     continue
             # Privacy authority: cap remote resource sensitivity at "normal"
@@ -799,8 +836,22 @@ class ResourceRouter:
                 and float(raw_routing_priority) >= 0
                 else 10**18
             )
+            outcome_metadata = resource["metadata"]
+            host_outcome_preferred = (
+                request.task_type is not None
+                and outcome_metadata.get("host_outcome_source") == "host_verified_metrics"
+                and outcome_metadata.get("host_outcome_task_type") == request.task_type
+                and outcome_metadata.get("host_outcome_preferred") is True
+            )
             candidates.append((
                 _SENSITIVITY[resource["sensitivity"]],
+                (
+                    0
+                    if request.allowed_intelligence_tiers is None
+                    or effective_tier in request.allowed_intelligence_tiers
+                    else 1
+                ) if request.quality_tier_advisory else 0,
+                0 if host_outcome_preferred else 1,
                 -(task_fit_score if task_fit_score is not None else 0.0),
                 quota_rank,
                 resource["cost_minor"] if resource["cost_minor"] is not None else 10**18,
@@ -814,6 +865,11 @@ class ResourceRouter:
             candidate_identities[resource["resource_id"]] = (
                 str(resource["provider_id"]),
                 str(model_id) if isinstance(model_id, str) and model_id.strip() else resource["resource_id"],
+            )
+            candidate_quality[resource["resource_id"]] = (
+                model_admission.quality_state if model_admission is not None else QUALITY_UNVERIFIED,
+                model_admission.benchmark_tier if model_admission is not None else None,
+                task_fit_score,
             )
         if not candidates:
             raise NoRoute("no eligible resource")
@@ -840,6 +896,10 @@ class ResourceRouter:
             provider_binding_id = chosen["provider_id"]
         if not isinstance(model_id, str) or not model_id.strip():
             model_id = None
+        quality_state, benchmark_tier, task_fit_score = candidate_quality.get(
+            chosen["resource_id"],
+            (QUALITY_UNVERIFIED, None, None),
+        )
         return RouteSelection(
             chosen["resource_id"],
             chosen["provider_id"],
@@ -850,4 +910,7 @@ class ResourceRouter:
             model_id.strip() if model_id else None,
             chosen.get("quota_domain"),
             chosen["resource_id"] in unknown_quota_resource_ids,
+            quality_state,
+            benchmark_tier,
+            task_fit_score,
         )
