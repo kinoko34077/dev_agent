@@ -393,6 +393,12 @@ def compose_resource_pool(
         (decision.provider_id, decision.binding_id, decision.model_id): decision
         for decision in outcome_routing
     }
+    outcome_rank_by_identity = {
+        (decision.provider_id, decision.binding_id, decision.model_id): rank
+        for rank, decision in enumerate(
+            decision for decision in outcome_routing if decision.preferred
+        )
+    }
     builder = provider_builder or build_provider
 
     with TemporaryDirectory(prefix=f"{resource_id_prefix}-") as directory:
@@ -453,6 +459,9 @@ def compose_resource_pool(
                         "host_outcome_source": "host_verified_metrics",
                         "host_outcome_task_type": task_type,
                         "host_outcome_preferred": outcome_decision.preferred,
+                        "host_outcome_rank": outcome_rank_by_identity.get(
+                            (binding.provider_id, binding.binding_id, binding.model)
+                        ),
                         "host_outcome_reason": outcome_decision.reason,
                         "host_outcome_sample_count": outcome_decision.sample_count,
                         "host_outcome_acceptance_rate": outcome_decision.acceptance_rate,
