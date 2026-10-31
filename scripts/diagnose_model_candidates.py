@@ -15,6 +15,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.dev_agent.resources.billing_catalog import profile_for
+from src.dev_agent.resources.model_admission import (
+    STATIC_CAPABILITY_UNSUPPORTED,
+    STATIC_MODEL_UNSUPPORTED,
+)
 from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
 from src.dev_agent.resources.model_funnel import build_funnel_report
 from src.dev_agent.resources.model_runtime import (
@@ -114,24 +118,28 @@ def diagnose_entries(
         row = diagnostic.to_dict()
         gate_reason = None
         if result not in {"ELIGIBLE", RUNTIME_ELIGIBLE}:
-            if row.get("discovery") == "FAIL" or row.get("discovery") == "MISSING":
+            # Runtime observations and hard admission facts take precedence
+            # over missing benchmark data. Benchmark evidence describes
+            # quality uncertainty; it is not an execution gate.
+            if result == RUNTIME_UNAVAILABLE:
+                gate_reason = "runtime_unavailable"
+            elif result == RUNTIME_UNKNOWN:
+                gate_reason = "runtime_unknown"
+            elif result == RUNTIME_NOT_PROBED:
+                gate_reason = "runtime_not_probed"
+            elif result == RUNTIME_BOOTSTRAP_ADMITTED:
+                gate_reason = "runtime_bootstrap_admitted"
+            elif row.get("discovery") == "FAIL" or row.get("discovery") == "MISSING":
                 gate_reason = "discovery_blocked"
-            elif row.get("benchmark") == "FAIL" or row.get("benchmark") == "MISSING":
-                gate_reason = "benchmark_blocked"
-            elif row.get("capability") == "FAIL" or row.get("capability") == "MISSING":
+            elif result in {STATIC_MODEL_UNSUPPORTED, STATIC_CAPABILITY_UNSUPPORTED} or row.get("capability") in {
+                "FAIL",
+                "INCOMPATIBLE",
+            }:
                 gate_reason = "capability_blocked"
             elif billing is None or row.get("billing") == "MISSING":
                 gate_reason = "billing_missing"
             elif qualification is None or row.get("qualification") == "MISSING":
                 gate_reason = "qualification_missing"
-            elif result == RUNTIME_NOT_PROBED:
-                gate_reason = "runtime_not_probed"
-            elif result == RUNTIME_BOOTSTRAP_ADMITTED:
-                gate_reason = "runtime_bootstrap_admitted"
-            elif result == RUNTIME_UNKNOWN:
-                gate_reason = "runtime_unknown"
-            elif result == RUNTIME_UNAVAILABLE:
-                gate_reason = "runtime_unavailable"
             else:
                 gate_reason = str(result).lower()
         row.update(

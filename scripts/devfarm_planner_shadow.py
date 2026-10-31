@@ -1,4 +1,4 @@
-"""Run one opt-in, proposal-only Free L2 Planner shadow request.
+"""Run one opt-in, proposal-only Planner shadow request.
 
 This development utility composes the existing QualificationResolver,
 Billing catalog, ResourceRouter, BudgetAuthority, ProviderDispatcher, and
@@ -45,6 +45,7 @@ from src.dev_agent.resources.billing_catalog import profile_for
 from src.dev_agent.resources.control import DispatchDenied
 from src.dev_agent.resources.model_admission import ModelAdmissionResolver
 from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
+from src.dev_agent.resources.provider_authority_constants import REAL_LOCAL_PROVIDER_IDS
 from src.dev_agent.resources.qualification import QualificationResolver
 from src.dev_agent.resources.router import ResourceRouter
 from src.dev_agent.resources.tier_authority import production_tier_authority
@@ -320,7 +321,7 @@ def _validate_independent_critic_admission(
 
     if not critic_admitted:
         raise PlannerShadowBlocked(
-            "no exact current high-confidence L1 planning critic resource is admitted",
+            "no separately qualified, no-charge planning Critic route is admitted",
             category="planning_critic_no_route",
         )
     planner_ids = {_admission_identity(binding) for binding, _qualification, _profile in planner_admitted}
@@ -404,7 +405,7 @@ def run_shadow(
     )
     if not admitted:
         raise PlannerShadowBlocked(
-            f"no exact current {required_tier} planner resource is admitted",
+            f"no exact current planner resource is admitted (preferred tier: {required_tier})",
             category="no_route",
         )
     if planning_critic_provider is not None and planning_critic_pool is not None:
@@ -691,6 +692,26 @@ def run_shadow(
         selected_provider = selected.provider_id if selected is not None else None
         selected_binding = selected.provider_binding_id if selected is not None else None
         selected_model = selected.model_id if selected is not None else None
+        selected_routes = [
+            (binding, qualification)
+            for binding, qualification, _profile in admitted
+            if selected is not None
+            and binding.provider_id == selected_provider
+            and binding.binding_id == selected_binding
+            and binding.model == selected_model
+        ]
+        selected_tier = (
+            _effective_tier(*selected_routes[0])
+            if len(selected_routes) == 1
+            else None
+        )
+        selected_qualification_confidence = (
+            getattr(selected_routes[0][1], "confidence", None)
+            if len(selected_routes) == 1
+            else None
+        )
+        if selected_provider in REAL_LOCAL_PROVIDER_IDS:
+            selected_qualification_confidence = "local_trial"
         proposal_digest = hashlib.sha256(
             json.dumps(proposal.to_dict(), ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
         ).hexdigest()
@@ -700,8 +721,9 @@ def run_shadow(
             "provider": selected_provider,
             "binding": selected_binding,
             "model": selected_model,
-            "intelligence_tier": required_tier,
-            "qualification_confidence": "local_trial" if any(binding.provider_id == "ollama" for binding, _qualification, _profile in admitted) else "high",
+            "intelligence_tier": selected_tier,
+            "requested_intelligence_tier": required_tier,
+            "qualification_confidence": selected_qualification_confidence,
             "parent_task_id": parent_task_id,
             "proposal_id": proposal.proposal_id,
             "child_count": len(accepted),

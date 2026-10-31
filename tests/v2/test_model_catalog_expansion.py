@@ -503,7 +503,11 @@ def test_planner_shadow_rechecks_expanded_binding_against_credential_evidence(mo
                 "high",
             ) or model_id not in {"model-a", "model-b"}:
                 return None
-            return SimpleNamespace(intelligence_tier="L2", routing_capabilities=frozenset({"text"}))
+            return SimpleNamespace(
+                intelligence_tier="L1",
+                routing_capabilities=frozenset({"text"}),
+                confidence="high",
+            )
 
     class _ModelAdmissionResolver:
         def __init__(self):
@@ -516,6 +520,8 @@ def test_planner_shadow_rechecks_expanded_binding_against_credential_evidence(mo
                 intelligence_tier="L2",
                 capabilities=frozenset({"text"}),
                 task_fit={"planning": 50.0},
+                quality_state="QUALITY_UNVERIFIED",
+                benchmark_tier=None,
             )
 
     class _PlannerProvider:
@@ -595,6 +601,9 @@ def test_planner_shadow_rechecks_expanded_binding_against_credential_evidence(mo
     assert result["status"] == "live_shadow_validated"
     assert result["model"] in {"model-a", "model-b"}
     assert result["binding"].startswith("fake:project-a:")
+    assert result["intelligence_tier"] == "L1"
+    assert result["requested_intelligence_tier"] == "L2"
+    assert result["qualification_confidence"] == "high"
 
 
 def test_router_can_prefer_provider_and_model_diversity_after_hard_filters(tmp_path):

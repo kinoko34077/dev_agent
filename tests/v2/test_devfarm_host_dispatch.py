@@ -575,8 +575,16 @@ def test_host_dispatch_propagates_model_admission_into_runtime_composition(monke
             return ModelResponse(provider="gemini", model="gemini-3.6-flash", text_segments=["{}"])
 
     @contextmanager
-    def fake_compose(_admitted, *, resolver, model_admission_resolver, resource_id_prefix):
+    def fake_compose(
+        _admitted,
+        *,
+        resolver,
+        model_admission_resolver,
+        quality_tier_advisory,
+        resource_id_prefix,
+    ):
         assert model_admission_resolver is evidence.resolver
+        assert quality_tier_advisory is False
         assert resource_id_prefix == "devfarm-host"
         yield SimpleNamespace(dispatcher=_Dispatcher())
 

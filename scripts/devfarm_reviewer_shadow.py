@@ -177,6 +177,24 @@ def _request_reviewer_proposal(
     return proposal, selected_identity, audits
 
 
+def _selected_qualification_tier(selected, admitted) -> str | None:
+    """Report only the tier attached to the exact selected admission."""
+
+    if not isinstance(selected, dict):
+        return None
+    matches = [
+        qualification
+        for binding, qualification, _profile in admitted
+        if binding.provider_id == selected.get("provider")
+        and binding.binding_id == selected.get("binding")
+        and binding.model == selected.get("model")
+    ]
+    if len(matches) != 1:
+        return None
+    tier = getattr(matches[0], "intelligence_tier", None)
+    return tier if isinstance(tier, str) and tier in {"L0", "L1", "L2", "L3"} else None
+
+
 def run_shadow(
     *,
     root: str | Path,
@@ -264,7 +282,8 @@ def run_shadow(
         "packet_sha256": packet_digest,
         "reviewer": {
             **(selected or {"provider": None, "binding": None, "model": None}),
-            "intelligence_tier": required_tier,
+            "intelligence_tier": _selected_qualification_tier(selected, admitted),
+            "requested_intelligence_tier": required_tier,
         },
         "proposal_sha256": proposal_digest,
         "proposal": proposal.to_dict(),
@@ -353,7 +372,8 @@ def run_proposal_only(
         "packet_sha256": packet_digest,
         "reviewer": {
             **(selected or {"provider": None, "binding": None, "model": None}),
-            "intelligence_tier": required_tier,
+            "intelligence_tier": _selected_qualification_tier(selected, admitted),
+            "requested_intelligence_tier": required_tier,
         },
         "proposal_sha256": proposal_digest,
         "proposal": proposal.to_dict(),

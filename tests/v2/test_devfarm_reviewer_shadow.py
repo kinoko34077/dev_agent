@@ -105,7 +105,15 @@ def test_reviewer_proposal_only_does_not_require_codex_decision(monkeypatch):
 
     def admit(bindings, **_kwargs):
         admission_calls["bindings"] = bindings
-        return ("admitted",)
+        return ((
+            SimpleNamespace(
+                provider_id="gemini",
+                binding_id="gemini:worker:free-3",
+                model="gemini-3.6-flash",
+            ),
+            SimpleNamespace(intelligence_tier="L1"),
+            SimpleNamespace(),
+        ),)
 
     monkeypatch.setattr(reviewer_shadow, "admit_resource_pool", admit)
     monkeypatch.setattr(reviewer_shadow, "compose_resource_pool", lambda *_args, **_kwargs: FakePool())
@@ -127,6 +135,8 @@ def test_reviewer_proposal_only_does_not_require_codex_decision(monkeypatch):
     assert output["status"] == "live_shadow_proposal_only"
     assert admission_calls["bindings"] == ("pool-a", "pool-b")
     assert output["proposal"] == proposal.to_dict()
+    assert output["reviewer"]["intelligence_tier"] == "L1"
+    assert output["reviewer"]["requested_intelligence_tier"] == "L2"
     assert "codex_decision" not in output
     assert output["authority"] == {
         "reviewer_mode": "shadow",

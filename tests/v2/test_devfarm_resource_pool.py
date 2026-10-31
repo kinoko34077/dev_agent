@@ -364,7 +364,7 @@ def test_composition_keeps_exact_qualified_l2_when_performance_evidence_disappea
         resource = runtime.ledger.get_resource("devfarm-shadow:gemini:core")
 
     assert resource is not None
-    assert resource["intelligence_tier"] == "L2"
+    assert resource["metadata"]["intelligence_tier"] == "L2"
     assert resource["capabilities"] == ("text",)
 
 
