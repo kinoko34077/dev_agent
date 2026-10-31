@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -490,6 +490,7 @@ def test_active_note_attaches_bounded_history_without_replaying_it(tmp_path):
 def test_bot_uses_persistent_local_conversation_context_when_injected(tmp_path):
     pytest.importorskip("discord")
     config = DiscordBotConfig.from_environment(env_path=_env_file(tmp_path))
+    reference_now = datetime.now(timezone.utc)
     with SQLiteStateStore(tmp_path / "state.sqlite3") as store:
         bindings = SQLiteDiscordBindingStore(store)
         log = ConversationLog(store)
@@ -526,7 +527,7 @@ def test_bot_uses_persistent_local_conversation_context_when_injected(tmp_path):
                 return SimpleNamespace(
                     id=902,
                     author=SimpleNamespace(id=99, bot=True, name="dev_agent"),
-                    created_at=datetime(2026, 9, 24, 0, 2, tzinfo=timezone.utc),
+                    created_at=reference_now,
                 )
 
             def history(self, **_kwargs):
@@ -534,7 +535,7 @@ def test_bot_uses_persistent_local_conversation_context_when_injected(tmp_path):
                     id = 900
                     author = _Author()
                     content = "先にREADMEを確認して"
-                    created_at = datetime(2026, 9, 24, tzinfo=timezone.utc)
+                    created_at = reference_now - timedelta(minutes=2)
 
                 async def _iterate():
                     yield _PreviousMessage()
@@ -546,7 +547,7 @@ def test_bot_uses_persistent_local_conversation_context_when_injected(tmp_path):
             author = _Author()
             guild = _Guild()
             content = "それも反映して"
-            created_at = datetime(2026, 9, 24, 0, 1, tzinfo=timezone.utc)
+            created_at = reference_now - timedelta(minutes=1)
 
             def __init__(self):
                 self.channel = _Channel()
