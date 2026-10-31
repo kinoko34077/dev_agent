@@ -123,9 +123,17 @@ class DiscordScope:
         relative = validate_relative_path(value, "Discord path")
         if classify_path(relative) is not PathProtectionClass.NORMAL_REPO:
             raise ValueError("Discord path is protected or authority-sensitive")
-        candidate = (self.workspace / relative).resolve()
+        requested = self.workspace / relative
+        candidate = requested.resolve()
         if candidate != self.workspace and self.workspace not in candidate.parents:
             raise ValueError("Discord path escapes the workspace")
+        # A normal-looking symlink (including a symlinked parent directory)
+        # can target a protected file while passing the lexical policy check.
+        # Do not return aliases that could be retargeted after this check.
+        if candidate != requested or classify_path(
+            candidate.relative_to(self.workspace).as_posix()
+        ) is not PathProtectionClass.NORMAL_REPO:
+            raise ValueError("Discord path is a symlink or protected target")
         if want_directory and not candidate.is_dir():
             raise ValueError("Discord directory does not exist")
         if not want_directory and not candidate.is_file():
