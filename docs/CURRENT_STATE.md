@@ -10,15 +10,22 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 | Field | Current fact |
 | --- | --- |
 | Accepted branch | `v2/bootstrap` |
-| Accepted remote head at latest integrated implementation/evidence | `d6c568ba75f9c2cb0c1e598b50e2977792036674` (PR #120/#121 implementation baseline; `f5a1a094cc0dd034ad15d6ef41f028ea9e08b22a` is a docs-only follow-up). |
-| Latest integrated implementation/evidence baseline | Implementation baseline `d6c568ba75f9c2cb0c1e598b50e2977792036674` (Decision Transfer M1 pilot, PR #120/#121); docs-only index follow-up `f5a1a094cc0dd034ad15d6ef41f028ea9e08b22a`. |
+| Accepted remote head at latest integrated implementation/evidence | `56073cce551f8eeffe91975ecbe2b0fe85302bb0` (read-only model-catalog candidate `6f5f7fa6c8c64d3d49ba60f6086939618c5797ad` plus a time-stable Discord test-fixture follow-up). |
+| Latest integrated implementation/evidence baseline | Implementation baseline `d6c568ba75f9c2cb0c1e598b50e2977792036674` (Decision Transfer M1 pilot, PR #120/#121); latest non-Gate evidence is the candidate-only model catalog refresh at `6f5f7fa6c8c64d3d49ba60f6086939618c5797ad`. |
 | Latest implementation baseline | `d6c568ba75f9c2cb0c1e598b50e2977792036674`: merged evidence-bounded Decision Transfer M1 pilot. Existing local-trial opt-in remains default-off, exact-route, local L1 and text-only; no admission, billing, or Gate authority changed. |
-| Latest evidence baseline | #97 bounded Worker trial: Qwen9B initial proposal passed output preflight but failed Host Verification setup and omitted existing README content; one concrete Qwen correction returned `WORKER_OUTPUT_INVALID_JSON`; fresh Gemma4:12b fallback passed one trusted Host test, Codex review, and deterministic integration. Commit `f5a1a094cc0dd034ad15d6ef41f028ea9e08b22a`; exact-head kernel 3.10/3.11 and provider-smoke all PASS. No full `tests/v2`/Architecture/Compile result is claimed for this docs-only slice. |
+| Latest evidence baseline | #81 read-only model catalog candidate [`model-catalog-refresh-20261101.json`](../spec/v2/evidence/model-catalog-refresh-20261101.json): 1,439 entries from 13 of 15 configured bindings across 10 Providers; DeepSeek remained unrefreshed because its approved credential was not configured, and Groq returned HTTP 403. No stale evidence was extended and no admission authority changed. Commit `6f5f7fa6c8c64d3d49ba60f6086939618c5797ad`; exact-head v2-core/provider-smoke passed. |
 | Latest bounded-operation slice | #97 demonstrates one local Worker proposal reaching Host Verification, review, and deterministic integration on a docs-only task. It is not the full Runtime/Claim/Lease autonomous cycle and does not satisfy Formal Phase 8. Detailed attempt evidence is in #97. |
 | Local synchronization | Primary `v2/bootstrap` checkout is clean and tracks `origin/v2/bootstrap`; the requirements index links to `docs/DECISION_TRANSFER_M1.md`. |
 | Formal Gate | `D9_DOGFOOD=VERIFIED`; `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`; `PHASE8_PREPARATION=PREPARATION_ONLY`; `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` |
 | Latest additions after PR #115 | PR #120/#121 adds the bounded Decision Transfer M1 pilot; #97 adds a successful Gemma-fallback Worker → Host Verification → review → integration slice. This remains non-Gate evidence; Formal #65/#11 status is unchanged. |
 | Current source of truth | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json), exact-head CI, owning Issues/PRs, and bounded Evidence files |
+
+### 2026-11-01 #81 read-only model catalog refresh (candidate only)
+
+- The current discovery manifest contains 15 configured bindings across 10 Providers. Existing `ProviderModelDiscovery` performed only official model-list `GET` requests through the Host process boundary; no generation, billing, credential, or permission mutation was attempted.
+- Candidate [`model-catalog-refresh-20261101.json`](../spec/v2/evidence/model-catalog-refresh-20261101.json) records 1,439 model-list entries from 13 successful bindings: Cloudflare 73; Gemini `core`, `worker`, and `free-2` through `free-5` 60 each; Mistral 55; local Ollama 4; Ollama Cloud 25; OpenRouter 416; SambaNova 7; Vercel 499.
+- Failed bindings remain explicit: DeepSeek `deepseek:account` (`credential_not_configured`; no request was sent) and Groq `groq:account` (official list request returned HTTP 403). No old catalog rows were renewed or guessed into the candidate, and the canonical catalog, alias/capability/benchmark, billing, quota, health, runtime admission, and Phase 8 Gate remain unchanged.
+- Candidate integrity validation passed: manifest coverage 15 = refreshed 13 + failed 2, no duplicate identities, expiry after observation, no credential/header material, and no canonical/Gate diff. Local full `tests/v2` is `2059 passed, 1 skipped` (deployment-owned Windows ACL skip); exact-head `56073cc` v2-core and provider-smoke are green.
 
 ### 2026-10-11 #81 Provider evidence freshness / model identity (non-Gate)
 
