@@ -382,6 +382,14 @@ def test_host_verified_outcomes_rank_exact_task_model_without_filtering_candidat
         ),
         OperationProviderBinding(
             provider_id="gemini",
+            provider_binding_id="gemini:b-lower-accepted-history",
+            model="model-with-lower-accepted-history",
+            api_key_env="GEMINI_API_KEY",
+            quota_domain="gemini:account",
+            intelligence_tier="L1",
+        ),
+        OperationProviderBinding(
+            provider_id="gemini",
             provider_binding_id="gemini:z-preferred",
             model="model-with-accepted-history",
             api_key_env="GEMINI_API_KEY",
@@ -407,6 +415,27 @@ def test_host_verified_outcomes_rank_exact_task_model_without_filtering_candidat
     admitted = tuple((binding, qualification, profile) for binding in bindings)
     metrics_path = tmp_path / "metrics.sqlite3"
     with WorkerMetricsStore(metrics_path) as store:
+        for index in range(5):
+            store.record(
+                manifest={"task_id": f"lower-history-task-{index}", "task_type": "worker"},
+                result={
+                    "host_verified_tests": [
+                        {"command": "python -m pytest tests/v2", "exit_code": 0, "passed": True}
+                    ],
+                    "worker_metrics": {
+                        "request_id": f"lower-history-request-{index}",
+                        "provider_id": "gemini",
+                        "provider_binding_id": "gemini:b-lower-accepted-history",
+                        "model_id": "model-with-lower-accepted-history",
+                        "intelligence_tier": "L1",
+                        "elapsed_ms": 20,
+                        "attempt_count": 1,
+                        "host_verified": True,
+                        "host_tests_passed": True,
+                        "result_accepted": index != 4,
+                    },
+                },
+            )
         for index in range(3):
             store.record(
                 manifest={"task_id": f"accepted-task-{index}", "task_type": "worker"},
@@ -450,7 +479,12 @@ def test_host_verified_outcomes_rank_exact_task_model_without_filtering_candidat
         outcome_metrics_path=metrics_path,
     ) as runtime:
         assert runtime.outcome_routing_status == "evaluated"
-        assert len(runtime.outcome_routing) == 2
+        assert len(runtime.outcome_routing) == 3
+        assert [decision.model_id for decision in runtime.outcome_routing] == [
+            "model-with-accepted-history",
+            "model-with-lower-accepted-history",
+            "model-without-history",
+        ]
         request = ModelRequest(
             task_id=str(uuid4()),
             messages=[{"role": "user", "content": "bounded routing check"}],

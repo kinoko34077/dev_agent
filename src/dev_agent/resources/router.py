@@ -843,6 +843,15 @@ class ResourceRouter:
                 and outcome_metadata.get("host_outcome_task_type") == request.task_type
                 and outcome_metadata.get("host_outcome_preferred") is True
             )
+            raw_host_outcome_rank = outcome_metadata.get("host_outcome_rank")
+            host_outcome_rank = (
+                raw_host_outcome_rank
+                if host_outcome_preferred
+                and isinstance(raw_host_outcome_rank, int)
+                and not isinstance(raw_host_outcome_rank, bool)
+                and raw_host_outcome_rank >= 0
+                else 10**18
+            )
             candidates.append((
                 _SENSITIVITY[resource["sensitivity"]],
                 (
@@ -852,6 +861,7 @@ class ResourceRouter:
                     else 1
                 ) if request.quality_tier_advisory else 0,
                 0 if host_outcome_preferred else 1,
+                host_outcome_rank,
                 -(task_fit_score if task_fit_score is not None else 0.0),
                 quota_rank,
                 resource["cost_minor"] if resource["cost_minor"] is not None else 10**18,
