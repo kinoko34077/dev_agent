@@ -14,6 +14,18 @@ from .quota_policy import classify_provider_error
 from .ledger import unknown_quota_wake_reason
 
 
+def quality_tier_advisory_for(request: ModelRequest) -> bool:
+    """Allow tier fallback only for explicitly untrusted proposal requests."""
+
+    metadata = request.metadata
+    return (
+        metadata.get("quality_tier_advisory") is True
+        and metadata.get("proposal_only") is True
+        and metadata.get("authority") == "host_validation_required"
+        and metadata.get("execution_role") in {"planner", "reviewer", "critic", "implementer", "worker"}
+    )
+
+
 class DispatchDenied(RuntimeError):
     """A provider dispatch cannot be started under current resource policy."""
 
@@ -100,6 +112,7 @@ class ResourceControlPlane:
             provider_id=provider_id,
             excluded_resource_ids=excluded_resource_ids,
             max_cost_minor=max_cost_minor,
+            quality_tier_advisory=quality_tier_advisory_for(request),
         )
 
     def effective_route(
@@ -122,6 +135,7 @@ class ResourceControlPlane:
                 provider_id=provider_id,
                 excluded_resource_ids=excluded_resource_ids,
                 max_cost_minor=max_cost_minor,
+                quality_tier_advisory=quality_tier_advisory_for(request),
             )
         except (TypeError, ValueError) as exc:
             raise DispatchDenied("invalid_request", str(exc)) from exc

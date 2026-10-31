@@ -110,6 +110,7 @@ def _admit_reviewer_resources(
         bindings,
         resolver=resolver,
         required_tier=required_tier,
+        quality_tier_advisory=True,
         no_charge_required=True,
         model_admission_resolver=admission_resolver,
         model_catalog=catalog,
@@ -138,6 +139,7 @@ def _request_reviewer_proposal(
         admitted,
         resolver=resolver,
         model_admission_resolver=model_admission_resolver,
+        quality_tier_advisory=True,
         resource_id_prefix="reviewer-shadow",
     ) as resource_pool:
         reviewer_provider = resource_pool.dispatcher

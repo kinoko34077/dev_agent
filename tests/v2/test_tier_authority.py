@@ -54,7 +54,7 @@ def test_remote_benchmark_without_current_qualification_is_not_a_grant():
     assert decision.reason == "QUALIFICATION_MISSING"
 
 
-def test_current_qualification_and_benchmark_can_grant_a_remote_tier():
+def test_benchmark_cannot_grant_a_tier_missing_from_current_qualification():
     decision = ProductionTierAuthority().resolve(
         provider_id="gemini",
         provider_binding_id="gemini:core",
@@ -64,11 +64,12 @@ def test_current_qualification_and_benchmark_can_grant_a_remote_tier():
     )
 
     assert decision.eligible is True
-    assert decision.tier == "L2"
-    assert decision.source == "qualification+model_admission"
+    assert decision.tier is None
+    assert decision.source == "qualification"
+    assert decision.reason == "NO_TIER_GRANT"
 
 
-def test_conflicting_remote_tier_evidence_fails_closed():
+def test_performance_tier_does_not_override_or_conflict_with_current_qualification():
     decision = ProductionTierAuthority().resolve(
         provider_id="gemini",
         provider_binding_id="gemini:core",
@@ -77,9 +78,10 @@ def test_conflicting_remote_tier_evidence_fails_closed():
         model_admission=_admission("L2"),
     )
 
-    assert decision.eligible is False
-    assert decision.tier is None
-    assert decision.reason == "TIER_EVIDENCE_CONFLICT"
+    assert decision.eligible is True
+    assert decision.tier == "L1"
+    assert decision.source == "qualification"
+    assert decision.reason == "QUALIFIED"
 
 
 def test_local_explicit_l1_policy_is_allowed_without_cloud_qualification():
@@ -106,6 +108,34 @@ def test_local_explicit_l2_is_not_silently_promoted():
     assert decision.eligible is False
     assert decision.tier is None
     assert decision.reason == "LOCAL_TIER_REQUIRES_EVIDENCE"
+
+
+def test_local_unverified_quality_tier_is_only_usable_for_explicit_proposal():
+    decision = ProductionTierAuthority().resolve(
+        provider_id="ollama",
+        provider_binding_id="ollama:local:qwen3.5-9b",
+        model_id="qwen3.5:9b",
+        configured_tier="L2",
+        allow_unverified_quality_proposal=True,
+    )
+
+    assert decision.eligible is True
+    assert decision.tier is None
+    assert decision.source == "quality_advisory"
+    assert decision.reason == "QUALITY_UNVERIFIED"
+
+
+def test_quality_advisory_never_grants_remote_identity_without_qualification():
+    decision = ProductionTierAuthority().resolve(
+        provider_id="gemini",
+        provider_binding_id="gemini:core",
+        model_id="gemini-3.8-flash",
+        configured_tier="L1",
+        allow_unverified_quality_proposal=True,
+    )
+
+    assert decision.eligible is False
+    assert decision.reason == "QUALIFICATION_MISSING"
 
 
 def test_operation_does_not_persist_remote_configuration_as_production_tier(tmp_path):

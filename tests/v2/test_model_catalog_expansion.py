@@ -398,8 +398,12 @@ def test_model_admission_diagnostic_identifies_the_first_missing_evidence_layer(
     assert diagnostic.discovery == "PASS"
     assert diagnostic.alias == "PASS"
     assert diagnostic.benchmark == "MISSING"
-    assert diagnostic.result == "BENCHMARK_MISSING"
-    assert resolver.resolve("gemini", "gemini:project-a", "gemini-3.7-flash", now=NOW) is None
+    assert diagnostic.quality_state == "QUALITY_UNVERIFIED"
+    assert diagnostic.result == "ELIGIBLE"
+    admission = resolver.resolve("gemini", "gemini:project-a", "gemini-3.7-flash", now=NOW)
+    assert admission is not None
+    assert admission.benchmark_tier is None
+    assert admission.capabilities is None
 
 
 def test_planner_pool_can_expand_one_credential_binding_into_multiple_admitted_models(monkeypatch):

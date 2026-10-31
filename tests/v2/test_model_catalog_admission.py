@@ -10,6 +10,7 @@ from src.dev_agent.resources.model_benchmarks import BenchmarkCatalog
 from src.dev_agent.resources.model_capabilities import ModelCapabilityCatalog
 from src.dev_agent.resources.model_catalog import ModelAliasCatalog, ModelCatalog, ModelCatalogEntry
 from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
+from src.dev_agent.resources.qualification import QualificationResolver
 from src.dev_agent.resources.ledger import ResourceLedger
 from src.dev_agent.resources.billing_catalog import profile_for
 from src.dev_agent.resources.router import NoRoute, ResourceRouter, RouteRequest
@@ -130,14 +131,15 @@ def test_model_admission_requires_an_exact_discovered_alias_and_current_evidence
 
     assert admitted is not None
     assert admitted.canonical_model_id == "google/gemini-3.8-flash"
-    assert admitted.intelligence_tier == "L2"
+    assert admitted.benchmark_tier == "L2"
+    assert admitted.quality_state == "QUALITY_ESTIMATED"
     assert admitted.task_fit["coding"] == 76.3
     assert admitted.capabilities == frozenset({"text", "structured_output", "json", "long_context"})
     assert resolver.resolve("gemini", "gemini:slot-a", "models/gemini-3.8-flash", now=NOW) is None
     assert resolver.resolve("gemini", "gemini:slot-b", "gemini-3.8-flash", now=NOW) is None
 
 
-def test_model_admission_fails_closed_when_discovery_or_benchmark_evidence_is_not_current():
+def test_model_admission_fails_closed_for_stale_identity_but_keeps_quality_unverified():
     expired_discovery = ModelAdmissionResolver(
         _model_catalog(expires_at="2026-09-14T11:59:59+00:00"),
         _aliases(),
@@ -154,7 +156,11 @@ def test_model_admission_fails_closed_when_discovery_or_benchmark_evidence_is_no
     )
 
     assert expired_discovery.resolve("gemini", "gemini:slot-a", "gemini-3.8-flash", now=NOW) is None
-    assert missing_benchmark.resolve("gemini", "gemini:slot-a", "gemini-3.8-flash", now=NOW) is None
+    unverified = missing_benchmark.resolve("gemini", "gemini:slot-a", "gemini-3.8-flash", now=NOW)
+    assert unverified is not None
+    assert unverified.quality_state == "QUALITY_UNVERIFIED"
+    assert unverified.benchmark_tier is None
+    assert unverified.task_fit == {}
 
 
 def test_static_model_evidence_diagnosis_does_not_use_runtime_unavailable_for_missing_entry():
@@ -195,11 +201,78 @@ def test_static_model_evidence_diagnosis_does_not_use_runtime_unavailable_for_sp
     assert diagnostic.result != "RUNTIME_UNAVAILABLE"
 
 
-def test_model_admission_rejects_a_discovered_model_without_an_exact_canonical_alias():
+def test_model_admission_keeps_exact_discovered_identity_without_performance_alias():
     aliases = ModelAliasCatalog.from_document({"schema_version": 1, "entries": []})
     resolver = ModelAdmissionResolver(_model_catalog(), aliases, _benchmarks(), _capabilities())
 
-    assert resolver.resolve("gemini", "gemini:slot-a", "gemini-3.8-flash", now=NOW) is None
+    admitted = resolver.resolve("gemini", "gemini:slot-a", "gemini-3.8-flash", now=NOW)
+    assert admitted is not None
+    assert admitted.canonical_model_id is None
+    assert admitted.quality_state == "QUALITY_UNVERIFIED"
+    assert admitted.capabilities == frozenset({"text", "structured_output", "json", "long_context"})
+
+
+def test_missing_model_capability_row_does_not_grant_capabilities_beyond_exact_qualification(tmp_path):
+    catalog = ModelCatalog.from_document(
+        {
+            "schema_version": 1,
+            "entries": [{
+                "provider_id": "fixture",
+                "provider_binding_id": "fixture:worker",
+                "model_id": "fixture-model",
+                "source": "fixture.models.list",
+                "observed_at": "2026-09-13T00:00:00+00:00",
+                "expires_at": "2099-01-01T00:00:00+00:00",
+            }],
+        }
+    )
+    resolver = ModelAdmissionResolver(
+        catalog,
+        ModelAliasCatalog.from_document({"schema_version": 1, "entries": []}),
+        BenchmarkCatalog.from_document({
+            "schema_version": 1,
+            "tier_thresholds": {"L1": 0, "L2": 30, "L3": 60},
+            "entries": [],
+        }),
+        ModelCapabilityCatalog.from_document({"schema_version": 1, "entries": []}),
+    )
+    qualification = QualificationResolver(entries=[{
+        "provider": "fixture",
+        "provider_binding_id": "fixture:worker",
+        "model": "fixture-model",
+        "intelligence_tier": "L1",
+        "tested_at": "2026-09-01T00:00:00+00:00",
+        "expires_at": "2099-01-01T00:00:00+00:00",
+        "confidence": "high",
+        "capabilities": ["text"],
+    }])
+
+    admitted = resolver.resolve("fixture", "fixture:worker", "fixture-model")
+    assert admitted is not None
+    assert admitted.capabilities is None
+
+    with ResourceLedger(tmp_path / "quality-unverified.sqlite3") as ledger:
+        ledger.register_resource(
+            "fixture:worker",
+            provider_id="fixture",
+            provider_binding_id="fixture:worker",
+            native_unit="request",
+            capacity=1,
+            capabilities=["text", "tool_call"],
+            cost_minor=0,
+            intelligence_tier="L1",
+            metadata={"model_id": "fixture-model", "provider_binding_id": "fixture:worker"},
+        )
+        ledger.observe("fixture:worker", available=1, health="healthy", concurrency_limit=1)
+        router = ResourceRouter(
+            ledger,
+            qualification_resolver=qualification,
+            model_admission_resolver=resolver,
+        )
+
+        assert router.choose(RouteRequest(capabilities={"text"})).resource_id == "fixture:worker"
+        with pytest.raises(NoRoute):
+            router.choose(RouteRequest(capabilities={"tool_call"}))
 
 
 def test_benchmark_tier_is_derived_from_snapshot_thresholds_not_the_model_name():
@@ -651,7 +724,7 @@ def test_billing_catalog_keeps_new_gemini_l2_pairs_exact():
     assert profile_for("gemini", "gemini:worker:free-2", "gemini-3.6-flash") is None
 
 
-def test_router_uses_exact_model_admission_for_tier_capability_and_task_fit(tmp_path):
+def test_router_uses_performance_evidence_only_as_a_candidate_preference(tmp_path):
     catalog = ModelCatalog.from_document(
         {
             "schema_version": 1,
@@ -728,15 +801,23 @@ def test_router_uses_exact_model_admission_for_tier_capability_and_task_fit(tmp_
         assert router.choose(
             RouteRequest(
                 capabilities={"structured_output"},
-                allowed_intelligence_tiers={"L2"},
+                allowed_intelligence_tiers={"L1"},
                 task_fit="planning",
                 minimum_task_fit_score=60,
             )
         ).resource_id == "fake:planner"
+        proposal_selection = router.choose(
+            RouteRequest(
+                capabilities={"text"},
+                allowed_intelligence_tiers={"L2"},
+                quality_tier_advisory=True,
+            )
+        )
+        assert proposal_selection.resource_id == "fake:planner"
+        assert proposal_selection.quality_state == "QUALITY_ESTIMATED"
         with pytest.raises(NoRoute):
             router.choose(RouteRequest(capabilities={"tool_call"}))
-        with pytest.raises(NoRoute):
-            router.choose(RouteRequest(task_fit="planning", minimum_task_fit_score=71))
+        assert router.choose(RouteRequest(task_fit="planning", minimum_task_fit_score=71)).resource_id == "fake:planner"
 
 
 def test_model_evidence_catalog_loads_the_four_separate_snapshot_layers(tmp_path):

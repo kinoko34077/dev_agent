@@ -56,6 +56,7 @@ _LAZY_EXPORTS = {
     "propose_with_planning_convergence": (".planner_adapter", "propose_with_planning_convergence"),
     "propose_with_planning_critic": (".planner_adapter", "propose_with_planning_critic"),
     "EvidenceBasedRoutingPolicy": (".evidence_routing", "EvidenceBasedRoutingPolicy"),
+    "EvidenceCandidate": (".evidence_routing", "EvidenceCandidate"),
     "EvidenceRouteDecision": (".evidence_routing", "EvidenceRouteDecision"),
     "EvidenceRoutingError": (".evidence_routing", "EvidenceRoutingError"),
     "ExecutionTarget": (".target", "ExecutionTarget"),

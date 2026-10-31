@@ -34,7 +34,7 @@ from src.dev_agent.providers.host_dispatch import (
     HostProviderDispatch,
 )
 from src.dev_agent.resources.qualification import QualificationResolver
-from src.dev_agent.resources.control import DispatchDenied
+from src.dev_agent.resources.control import DispatchDenied, quality_tier_advisory_for
 from src.dev_agent.resources.model_candidates import materialize_provider_bindings
 from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
 from src.dev_agent.resources.provider_policy import is_local_provider
@@ -204,10 +204,12 @@ def _dispatch_configured(envelope: HostDispatchEnvelope, *, local_trial: bool = 
         return _dispatch_local_trial(envelope, binding)
     evidence = ModelEvidenceCatalog.load_default()
     resolver = QualificationResolver()
+    quality_tier_advisory = quality_tier_advisory_for(envelope.request)
     admitted = admit_resource_pool(
         (binding,),
         resolver=resolver,
         required_tier=envelope.intelligence_tier,
+        quality_tier_advisory=quality_tier_advisory,
         required_capabilities=tuple(envelope.request.requested_capabilities),
         no_charge_required=True,
         model_admission_resolver=evidence.resolver,
@@ -221,6 +223,7 @@ def _dispatch_configured(envelope: HostDispatchEnvelope, *, local_trial: bool = 
         admitted,
         resolver=resolver,
         model_admission_resolver=evidence.resolver,
+        quality_tier_advisory=quality_tier_advisory,
         resource_id_prefix="devfarm-host",
     ) as runtime:
         dispatch = HostProviderDispatch(runtime.dispatcher, execution_boundary="host_process")

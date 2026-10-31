@@ -963,6 +963,10 @@ def run_worker(
         metadata={
             "devfarm_task_id": manifest["task_id"],
             "egress_manifest_sha256": egress_manifest.manifest_sha256,
+            "execution_role": "worker",
+            "proposal_only": True,
+            "quality_tier_advisory": True,
+            "authority": "host_validation_required",
             "intelligence_routing": "bounded",
             "allowed_intelligence_tiers": [worker_tier],
             **({"allow_unknown_quota": True} if _eligibility.billing_admitted else {}),

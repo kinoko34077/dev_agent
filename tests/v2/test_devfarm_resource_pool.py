@@ -7,6 +7,7 @@ import pytest
 from scripts.devfarm_resource_pool import ResourcePoolError, admit_resource_pool, build_provider, compose_resource_pool
 from src.dev_agent.domain.execution import ExecutionRequirement
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
+from scripts.devfarm_metrics import WorkerMetricsStore
 from src.dev_agent.operation import OperationProviderBinding
 from src.dev_agent.resources.billing_catalog import profile_for
 from src.dev_agent.resources.budget import BudgetGovernor, BudgetPolicy
@@ -54,6 +55,35 @@ def _binding() -> OperationProviderBinding:
     )
 
 
+def test_quality_tier_fallback_requires_host_validated_proposal_metadata():
+    request = ModelRequest(
+        task_id=str(uuid4()),
+        messages=[{"role": "user", "content": "proposal only"}],
+        requested_capabilities=["text"],
+        metadata={
+            "execution_role": "reviewer",
+            "proposal_only": True,
+            "quality_tier_advisory": True,
+            "authority": "host_validation_required",
+            "allowed_intelligence_tiers": ["L2"],
+        },
+    )
+
+    assert ResourceControlPlane._route_request(request).quality_tier_advisory is True
+    untrusted = ModelRequest(
+        task_id=str(uuid4()),
+        messages=[{"role": "user", "content": "ordinary request"}],
+        requested_capabilities=["text"],
+        metadata={
+            "execution_role": "reviewer",
+            "quality_tier_advisory": True,
+            "authority": "host_validation_required",
+            "allowed_intelligence_tiers": ["L2"],
+        },
+    )
+    assert ResourceControlPlane._route_request(untrusted).quality_tier_advisory is False
+
+
 def test_resource_pool_provider_preserves_host_owned_ollama_runtime_settings(monkeypatch):
     captured = {}
 
@@ -97,6 +127,28 @@ def test_local_ollama_admission_does_not_require_cloud_quota_or_qualification():
     assert len(admitted) == 1
     assert admitted[0][0].quota_domain is None
     assert admitted[0][2].no_charge_guaranteed is True
+
+
+def test_local_low_tier_is_admitted_for_bounded_quality_advisory_proposal():
+    binding = OperationProviderBinding(
+        provider_id="ollama",
+        provider_binding_id="ollama:local:qwen3.5-9b",
+        model="qwen3.5:9b",
+        base_url="http://127.0.0.1:11434",
+        intelligence_tier="L1",
+    )
+
+    admitted = admit_resource_pool(
+        (binding,),
+        resolver=_QualificationResolver("L1"),
+        required_tier="L2",
+        quality_tier_advisory=True,
+        profile_resolver=lambda *_args: SimpleNamespace(no_charge_guaranteed=True),
+    )
+
+    assert len(admitted) == 1
+    assert admitted[0][0].model == "qwen3.5:9b"
+    assert admitted[0][1].intelligence_tier == "L1"
 
 
 def test_local_ollama_composition_projects_local_privacy_and_no_qualification():
@@ -282,7 +334,7 @@ def test_composition_routes_with_explicit_fresh_quota_observation(monkeypatch):
     assert response.model == "openrouter/free"
 
 
-def test_composition_rejects_l2_when_model_evidence_disappears():
+def test_composition_keeps_exact_qualified_l2_when_performance_evidence_disappears():
     qualification = _QualificationResolver("L2").resolve("gemini", "gemini:core", "gemini-3.8-flash")
     profile = SimpleNamespace(
         cost_minor=0,
@@ -303,11 +355,127 @@ def test_composition_rejects_l2_when_model_evidence_disappears():
         quota_domain="gemini:project:test",
     )
 
-    with pytest.raises(ResourcePoolError, match="model evidence expired"):
-        with compose_resource_pool(
-            ((binding, qualification, profile),),
-            resolver=_QualificationResolver("L2"),
-            model_admission_resolver=_missing_model_evidence_resolver(),
-            provider_builder=lambda *, binding: _Provider(),
-        ):
-            pass
+    with compose_resource_pool(
+        ((binding, qualification, profile),),
+        resolver=_QualificationResolver("L2"),
+        model_admission_resolver=_missing_model_evidence_resolver(),
+        provider_builder=lambda *, binding: _Provider(),
+    ) as runtime:
+        resource = runtime.ledger.get_resource("devfarm-shadow:gemini:core")
+
+    assert resource is not None
+    assert resource["intelligence_tier"] == "L2"
+    assert resource["capabilities"] == ("text",)
+
+
+def test_host_verified_outcomes_rank_exact_task_model_without_filtering_candidates(tmp_path, monkeypatch):
+    from datetime import timedelta
+
+    bindings = (
+        OperationProviderBinding(
+            provider_id="gemini",
+            provider_binding_id="gemini:a-unknown",
+            model="model-without-history",
+            api_key_env="GEMINI_API_KEY",
+            quota_domain="gemini:account",
+            intelligence_tier="L1",
+        ),
+        OperationProviderBinding(
+            provider_id="gemini",
+            provider_binding_id="gemini:z-preferred",
+            model="model-with-accepted-history",
+            api_key_env="GEMINI_API_KEY",
+            quota_domain="gemini:account",
+            intelligence_tier="L1",
+        ),
+    )
+    qualification = SimpleNamespace(
+        intelligence_tier="L1",
+        routing_capabilities=frozenset({"text"}),
+    )
+    profile = SimpleNamespace(
+        cost_minor=0,
+        price_currency="JPY",
+        billing_mode="free_fixed",
+        overage_policy="hard_stop",
+        no_charge_guaranteed=True,
+        expires_at=(datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
+        allowance_amount=None,
+        allowance_currency=None,
+        allowance_period=None,
+    )
+    admitted = tuple((binding, qualification, profile) for binding in bindings)
+    metrics_path = tmp_path / "metrics.sqlite3"
+    with WorkerMetricsStore(metrics_path) as store:
+        for index in range(3):
+            store.record(
+                manifest={"task_id": f"accepted-task-{index}", "task_type": "worker"},
+                result={
+                    "host_verified_tests": [
+                        {"command": "python -m pytest tests/v2", "exit_code": 0, "passed": True}
+                    ],
+                    "worker_metrics": {
+                        "request_id": f"accepted-request-{index}",
+                        "provider_id": "gemini",
+                        "provider_binding_id": "gemini:z-preferred",
+                        "model_id": "model-with-accepted-history",
+                        "intelligence_tier": "L1",
+                        "elapsed_ms": 20,
+                        "attempt_count": 1,
+                        "host_verified": True,
+                        "host_tests_passed": True,
+                        "result_accepted": True,
+                    },
+                },
+            )
+
+    profiles = {binding.model: profile for binding in bindings}
+    monkeypatch.setattr(
+        "src.dev_agent.resources.router.profile_for",
+        lambda _provider, _binding, model: profiles.get(model),
+    )
+
+    class _CandidateProvider(_Provider):
+        def __init__(self, *, binding):
+            self.provider_id = binding.provider_id
+            self.provider_binding_id = binding.binding_id
+            self.model_id = binding.model
+
+    with compose_resource_pool(
+        admitted,
+        resolver=_QualificationResolver("L1"),
+        provider_builder=lambda *, binding: _CandidateProvider(binding=binding),
+        resource_id_prefix="devfarm-outcome",
+        task_type="worker",
+        outcome_metrics_path=metrics_path,
+    ) as runtime:
+        assert runtime.outcome_routing_status == "evaluated"
+        assert len(runtime.outcome_routing) == 2
+        request = ModelRequest(
+            task_id=str(uuid4()),
+            messages=[{"role": "user", "content": "bounded routing check"}],
+            requested_capabilities=["text"],
+            metadata={
+                "task_type": "worker",
+                "intelligence_routing": "bounded",
+                "allowed_intelligence_tiers": ["L1"],
+                "allow_unknown_quota": True,
+            },
+        )
+        matched = runtime.dispatcher.control.effective_route(request)
+        mismatched = runtime.dispatcher.control.effective_route(
+            ModelRequest(
+                task_id=str(uuid4()),
+                messages=[{"role": "user", "content": "different task type"}],
+                requested_capabilities=["text"],
+                metadata={
+                    "task_type": "reasoning",
+                    "intelligence_routing": "bounded",
+                    "allowed_intelligence_tiers": ["L1"],
+                    "allow_unknown_quota": True,
+                },
+            )
+        )
+
+    assert matched.selection.model_id == "model-with-accepted-history"
+    assert mismatched.selection.model_id == "model-without-history"

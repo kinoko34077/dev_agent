@@ -143,6 +143,28 @@ def _project_planning_critic_observation(
     }
 
 
+def _project_host_outcome_routing(resource_pool: object | None) -> dict[str, object]:
+    """Expose bounded provenance for the advisory host-outcome ranker."""
+
+    status = getattr(resource_pool, "outcome_routing_status", "disabled")
+    if not isinstance(status, str):
+        status = "disabled"
+    decisions = getattr(resource_pool, "outcome_routing", ())
+    projected = []
+    for decision in decisions if isinstance(decisions, (list, tuple)) else ():
+        to_dict = getattr(decision, "to_dict", None)
+        if not callable(to_dict):
+            continue
+        value = to_dict()
+        if isinstance(value, dict):
+            projected.append(value)
+    return {
+        "task_type": TaskType.REASONING.value,
+        "status": status,
+        "decisions": projected[:64],
+    }
+
+
 def _normalize_planning_critic_observation(value: object) -> dict[str, object] | None:
     """Accept only the bounded Critic observation attached by ``run_shadow``."""
 
@@ -236,6 +258,7 @@ def admit_planner_pool(
             bindings,
             resolver=resolver,
             required_tier=required_tier,
+            quality_tier_advisory=True,
             no_charge_required=True,
             model_admission_resolver=model_admission_resolver,
             model_catalog=model_catalog,
@@ -415,6 +438,7 @@ def run_shadow(
             configured_tier=binding.intelligence_tier,
             qualification=qualification,
             model_admission=admission,
+            allow_unverified_quality_proposal=True,
         )
         return decision.tier if decision.eligible else None
 
@@ -424,9 +448,11 @@ def run_shadow(
                 admitted,
                 resolver=resolver,
                 model_admission_resolver=model_admission_resolver,
+                quality_tier_advisory=True,
                 resource_id_prefix="planner-shadow",
                 provider_builder=_build_provider,
                 router_factory=ResourceRouter,
+                task_type=TaskType.REASONING.value,
             )
         )
         ledger = resource_pool.ledger
@@ -444,15 +470,18 @@ def run_shadow(
         critic_adapter = None
         critic_dispatcher = None
         critic_provider = None
+        critic_resource_pool = None
         if critic_admitted is not None:
             critic_resource_pool = pool_stack.enter_context(
                 compose_resource_pool(
                     critic_admitted,
                     resolver=resolver,
                     model_admission_resolver=model_admission_resolver,
+                    quality_tier_advisory=True,
                     resource_id_prefix="planner-critic",
                     provider_builder=_build_provider,
                     router_factory=ResourceRouter,
+                    task_type=TaskType.REASONING.value,
                 )
             )
             critic_dispatcher = critic_resource_pool.dispatcher
@@ -566,6 +595,8 @@ def run_shadow(
                 "attempts": list(exc.attempts),
                 "host_validation": "not_run",
                 "allow_unknown_quota": allow_unknown_quota,
+                "outcome_routing": _project_host_outcome_routing(resource_pool),
+                "critic_outcome_routing": _project_host_outcome_routing(critic_resource_pool),
             }
             request_id = _bounded_request_id(getattr(exc, "request_id", None))
             if request_id is not None:
@@ -624,6 +655,8 @@ def run_shadow(
                 "attempts": attempts,
                 "host_validation": "not_run",
                 "allow_unknown_quota": allow_unknown_quota,
+                "outcome_routing": _project_host_outcome_routing(resource_pool),
+                "critic_outcome_routing": _project_host_outcome_routing(critic_resource_pool),
             }
             request_id = _bounded_request_id(getattr(exc, "request_id", None))
             if request_id is not None:
@@ -700,6 +733,8 @@ def run_shadow(
                 }
                 for entry in dispatcher.audits
             ],
+            "outcome_routing": _project_host_outcome_routing(resource_pool),
+            "critic_outcome_routing": _project_host_outcome_routing(critic_resource_pool),
             "planning_critic": _project_planning_critic_observation(
                 critic_adapter,
                 critic_dispatcher if critic_dispatcher is not None else critic_provider,

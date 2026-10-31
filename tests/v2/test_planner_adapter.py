@@ -109,6 +109,7 @@ def test_model_planner_returns_typed_proposal_and_keeps_host_authority(tmp_path)
     assert request.response_schema is not None
     assert request.metadata["planning_mode"] == "proposal_only"
     assert request.metadata["authority"] == "host_validation_required"
+    assert request.metadata["task_type"] == "reasoning"
     assert "split this narrow development objective" in request.messages[0]["content"]
     assert "v2/bootstrap" in request.messages[0]["content"]
     assert "exactly one raw JSON object" in request.messages[0]["content"]

@@ -62,7 +62,7 @@ Credential値の解決、認証header、account/projectを含むProvider固有en
 
 ### RES-006 Unified model candidate path
 
-通常Operationは、各Provider Connectionから現在のModel inventoryを取得又はfreshなModel Catalogを参照し、共通のcandidate materializationへ渡す。Model Catalogのentryは、specialized-model exclusion、exact qualification/capability evidence、current billing policy、privacy、quota、healthを通過して初めてexecution candidateになれる。
+通常Operationは、各Provider Connectionから現在のModel inventoryを取得又はfreshなModel Catalogを参照し、共通のcandidate materializationへ渡す。Model Catalogは正確なmodel identity・Provider上の存在・明示的な非対応情報を保持する。execution candidateには、exact qualificationと必要capability、current billing policy、privacy、quota、healthを既存Host authorityで確認する。Benchmark、benchmark-derived Tier、Task Fitは品質評価であり、これらの欠落・期限切れ・低値だけで安全なbounded proposal候補を除外しない。
 
 未pinのconnectionではcurrent admitted candidatesからRouter/selection policyが選択する。Human又は設定によるexact model pinも同じadmissionを通し、現在のProvider inventoryでidentityを確認できないpin、又はinventory read自体が成立しないpinはfail-closedとする。名前の類似性によるsilent substitutionを行わない。
 
@@ -80,7 +80,7 @@ Model ResourceのCapability Matrixではspecified、observed、qualified、expir
 
 ### CAP-003 Evidence layer separation
 
-Model Catalog（API上の存在）、Benchmark Catalog（性能）、Capability Catalog（実行能力）、Runtime State（quota、health、latency、failure等）は別の証拠層として保持する。Hostのadmissionは、exact current model evidenceと既存のqualification、billing、privacy、quota、health、explicit binding policyを合成し、discovery・benchmark・capabilityのいずれか単独からrouting候補を昇格させない。期限切れ、欠落、曖昧なidentityはfail-closedとする。
+Model Catalog（API上の存在）、Benchmark Catalog（性能）、Capability Catalog（実行能力）、Runtime State（quota、health、latency、failure等）は別の証拠層として保持する。Host admissionはexact current identity、既存のqualification、請求、privacy、quota、health、explicit binding policyを合成する。新しいdynamic candidateの選択ではcurrent discoveryを要求する。一方、既に指定されたexact model/bindingにcurrent qualificationがある場合、補助Model Catalogの欠落・期限切れだけではそのrouteを禁止しない。Benchmark/Task Fitの欠落・期限切れは`QUALITY_UNVERIFIED`として候補の順位、task size、verificationに反映する。Capability Catalogの明示的なcurrent incompatibilityは必要featureを拒否する。missing/expired capability rowはfeatureを付与せず、exact qualification又はHost-owned adapter/resource evidenceで要求featureを別途証明できなければfail-closedとする。Aliasはperformance evidence照合のために使い、exact Provider model IDやqualificationの代替にしない。
 
 ## 12. Router
 
@@ -88,17 +88,19 @@ Model Catalog（API上の存在）、Benchmark Catalog（性能）、Capability 
 
 scoreより先にrequired capability、privacy、health、circuit state、quota availability、observation freshness、budget、survival policy、explicit provider restrictionsを判定する。一つでも満たさないResourceは除外する。
 
+Benchmark・Task Fit・performance-derived Tierは上記のhard filterに含めない。Callerが指定する明示的なexecution/authorization制約とcurrent qualification tierは別に保つ。品質証拠のみを根拠に既存のTier authority、billing、privacy、quota、identity、capability境界を緩和してはならない。
+
 ### ROUTE-002 Soft Score
 
-Hard Filter後にexpected_success、effective_cost、quota headroom、latency_ewma、failure_ewma、inflight、provider diversityなどで選択する。固定の万能ランキングを作らない。
+Hard Filter後にcurrentなTask Fit、Hostで検証されたtask outcome、expected_success、effective_cost、quota headroom、latency_ewma、failure_ewma、inflight、provider diversityなどで選択する。Quality evidenceがmissing/expiredなら未知として扱い、候補を一律に無効化しない。固定の万能ランキングを作らない。
 
 ### ROUTE-003 Task別成功率
 
-将来、task_type × model/resourceごとの実績を記録し、総合Model評価ではなくTask適合度を利用する。
+task_type × exact model/bindingの実績を既存の耐久Task/Operation/DevFarm記録とHost outcomeから構築し、総合Model評価ではなくtaskごとの品質助言に利用する。実績の不足は不確実性として扱う。modelの自己申告や相関したmodel同士の一致だけを成功証拠にしない。未検証の結果をqualification、capability、formal tierへ昇格させない。
 
 ### ROUTE-004 Model selection authority
 
-Model discoveryはinventory factでありrouting authorityではない。dynamic selectionはHard Filterを通過したcurrent candidate間でのみ行う。operator pinは優先指定であってadmission bypassではない。Providerごとのdefault model名をCore routing authorityとして使用せず、bootstrap seedが必要な場合もcurrent discoveryとdownstream admissionを迂回させない。
+Model discoveryはinventory factでありrouting authorityではない。dynamic selectionはHard Filterを通過したcurrent identity間でのみ行う。operator pinは優先指定であってadmission bypassではない。Providerごとのdefault model名をCore routing authorityとして使用せず、bootstrap seedが必要な場合もcurrent discoveryとdownstream admissionを迂回させない。Benchmark-derived Tierはmodelの実行資格・正式Role資格ではなく、弱い又は未計測のmodelも明示的に許可されたbounded proposal候補になり得る。proposalの受入はHost Verification/review/integration ownerが別途判断する。
 
 ## 13. Free-First Policy
 

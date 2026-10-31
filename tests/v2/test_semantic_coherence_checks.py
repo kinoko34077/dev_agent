@@ -12,7 +12,7 @@ from scripts.check_semantic_coherence import (
     check_provider_normalization,
     check_role_preflight_dispatch_equivalence,
     check_state_projection_consistency,
-    check_tier_authority_conflicts,
+    check_tier_authority_separation,
     check_wait_wake_coverage,
 )
 from src.dev_agent.resources.model_funnel import FunnelCandidate, FunnelReport
@@ -139,11 +139,11 @@ def test_role_preflight_and_dispatch_use_one_canonical_projection():
     assert result["roles_checked"] == ["implementer", "planner", "reviewer"]
 
 
-def test_exact_route_tier_conflicts_fail_closed():
-    result = check_tier_authority_conflicts()
+def test_performance_tier_does_not_override_exact_route_qualification():
+    result = check_tier_authority_separation()
 
     assert result["status"] == "PASS"
-    assert result["conflict_rejected"] is True
+    assert result["benchmark_ignored"] is True
 
 
 def test_state_projection_consistency_keeps_gate_authority_machine_owned():
