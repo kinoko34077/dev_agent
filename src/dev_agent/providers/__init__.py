@@ -21,6 +21,7 @@ from .base import (
 _LAZY_EXPORTS = {
     "CloudflareWorkersAIHttpProvider": (".cloudflare", "CloudflareWorkersAIHttpProvider"),
     "CloudflareWorkersAIProvider": (".cloudflare", "CloudflareWorkersAIProvider"),
+    "DeepSeekHttpProvider": (".deepseek", "DeepSeekHttpProvider"),
     "GeminiHttpProvider": (".gemini", "GeminiHttpProvider"),
     "GeminiProvider": (".gemini", "GeminiProvider"),
     "GroqHttpProvider": (".groq", "GroqHttpProvider"),
@@ -69,6 +70,7 @@ def __dir__() -> list[str]:
 __all__ = [
     "CloudflareWorkersAIHttpProvider",
     "CloudflareWorkersAIProvider",
+    "DeepSeekHttpProvider",
     "DispatchAudit",
     "GeminiHttpProvider",
     "GeminiProvider",

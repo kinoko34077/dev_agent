@@ -27,6 +27,7 @@ LOOPBACK_HOSTNAMES: frozenset[str] = frozenset({"localhost", "127.0.0.1", "::1"}
 APPROVED_CLOUD_ORIGINS: dict[str, str] = {
     "gemini": "https://generativelanguage.googleapis.com",
     "cloudflare": "https://api.cloudflare.com",
+    "deepseek": "https://api.deepseek.com",
     "openrouter": "https://openrouter.ai",
     "openai": "https://api.openai.com",
     "groq": "https://api.groq.com",
@@ -45,6 +46,7 @@ APPROVED_API_KEY_ENVS: dict[str, frozenset[str]] = {
         "GEMINI_API_KEY_2", "GEMINI_API_KEY_3", "GEMINI_API_KEY_4", "GEMINI_API_KEY_5",
     }),
     "cloudflare": frozenset({"CLOUDFLARE_API_TOKEN"}),
+    "deepseek": frozenset({"DEEPSEEK_API_KEY"}),
     "openrouter": frozenset({"OPENROUTER_API_KEY"}),
     "openai": frozenset({"OPENAI_API_KEY"}),
     "groq": frozenset({"GROQ_API_KEY"}),

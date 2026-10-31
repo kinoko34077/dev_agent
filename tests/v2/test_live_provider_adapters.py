@@ -7,6 +7,7 @@ import pytest
 from src.dev_agent.domain.protocol import ModelRequest, ToolResult
 from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.cloudflare import CloudflareWorkersAIHttpProvider
+from src.dev_agent.providers.deepseek import DeepSeekHttpProvider
 from src.dev_agent.providers.groq import GroqHttpProvider
 from src.dev_agent.providers.mistral import MistralHttpProvider
 from src.dev_agent.providers.openrouter import OpenRouterHttpProvider
@@ -93,6 +94,94 @@ def test_groq_http_adapter_normalizes_tool_calls_usage_and_rate_limit_headers(mo
     assert quota["request_remaining"] == 98
     assert quota["token_remaining"] == 9990
     assert quota["source"] == "groq-rate-limit-header"
+
+
+def test_deepseek_http_adapter_uses_openai_chat_completions_and_normalizes_response(monkeypatch):
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["headers"] = dict(request.header_items())
+        captured["timeout"] = timeout
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        return _Response(
+            {
+                "id": "chatcmpl-test",
+                "model": "deepseek-flash",
+                "choices": [{"message": {"role": "assistant", "content": "ready"}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 3, "completion_tokens": 2, "total_tokens": 5},
+            }
+        )
+
+    request = ModelRequest(
+        task_id="00000000-0000-0000-0000-000000000001",
+        messages=[{"role": "user", "content": "hello"}],
+        max_output_tokens=19,
+    )
+
+    response = DeepSeekHttpProvider(
+        model="deepseek-flash",
+        api_key="test-key",
+        timeout_seconds=4,
+        http_open=fake_urlopen,
+    ).request(request)
+
+    assert captured["url"] == "https://api.deepseek.com/chat/completions"
+    assert captured["headers"]["Authorization"] == "Bearer test-key"
+    assert captured["payload"]["model"] == "deepseek-flash"
+    assert captured["payload"]["max_tokens"] == 19
+    assert "max_completion_tokens" not in captured["payload"]
+    assert response.provider == "deepseek"
+    assert response.model == "deepseek-flash"
+    assert response.text_segments == ["ready"]
+    assert response.usage["total_tokens"] == 5
+
+
+def test_deepseek_model_discovery_uses_read_only_models_endpoint_and_allowlisted_metadata():
+    from datetime import datetime, timezone
+
+    from src.dev_agent.providers.model_discovery import ModelDiscoveryBinding, ProviderModelDiscovery
+
+    captured = {}
+
+    def fake_get(url, headers, timeout):
+        captured.update({"url": url, "headers": dict(headers), "timeout": timeout})
+        return {
+            "object": "list",
+            "data": [
+                {
+                    "id": "deepseek-flash",
+                    "name": "DeepSeek-V4.1-Flash",
+                    "context_window": 1048576,
+                    "max_output_tokens": 393216,
+                    "input_modalities": ["text", "image"],
+                    "output_modalities": ["text"],
+                    "effort": {"supported_levels": ["low", "high", "max"], "default_level": "high"},
+                    "pricing": {"prompt": "0.15"},
+                    "secret_payload": "must-not-persist",
+                }
+            ],
+        }
+
+    result = ProviderModelDiscovery(secret_getter=lambda name: "test-key").discover(
+        ModelDiscoveryBinding("deepseek", "deepseek:account", api_key_env="DEEPSEEK_API_KEY"),
+        now=datetime(2026, 10, 31, tzinfo=timezone.utc),
+        http_get=fake_get,
+    )
+
+    assert captured["url"] == "https://api.deepseek.com/models"
+    assert captured["headers"]["Authorization"] == "Bearer test-key"
+    assert result.entries[0].provider_id == "deepseek"
+    assert result.entries[0].model_id == "deepseek-flash"
+    assert result.entries[0].metadata == {
+        "display_name": "DeepSeek-V4.1-Flash",
+        "context_length": 1048576,
+        "input_modalities": ["text", "image"],
+        "output_modalities": ["text"],
+    }
+    serialized = json.dumps(result.to_document())
+    assert "must-not-persist" not in serialized
+    assert '"pricing"' not in serialized
 
 
 def test_cloudflare_http_adapter_normalizes_rest_envelope_without_inventing_quota(monkeypatch):
