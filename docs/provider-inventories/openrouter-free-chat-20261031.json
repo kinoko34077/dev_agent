@@ -73,7 +73,9 @@
       "The official changelog states deepseek-flash now serves DeepSeek-V4.1-Flash-1017 and that the model ID and pricing are unchanged.",
       "Current official docs list deepseek-flash (DeepSeek-V4.1-Flash-1017) and deepseek-v4-pro (DeepSeek-V4-Pro-0813); exact account access and live generation remain unverified."
     ],
-    "observed_at": "2026-10-31T17:07:56Z"
+    "observed_at": "2026-10-31T17:07:56Z",
+    "pricing_source_url": "https://api-docs.deepseek.com/quick_start/pricing/",
+    "change_log_source_url": "https://api-docs.deepseek.com/updates/"
   },
   "openrouter_free_chat": {
     "source_url": "https://openrouter.ai/api/v1/models?max_price=0&output_modalities=text",
@@ -590,7 +592,7 @@
       "non_primary_notes": [
         "liquid/lfm-2.5-2.6b:free is listed at $0, but OpenRouter's current page relays Liquid's advice against agentic coding and knowledge-heavy tasks.",
         "nvidia/nemotron-3.5-content-safety:free is a moderation/classification model, not a general coding assistant.",
-        "nvidia/llama-nemotron-rerank-vl-1b-v2:free is a reranking model, not a chat-completion model.",
+        "NVIDIA Llama Nemotron Rerank VL 1B V2 (free endpoint) is a reranking model, not a chat-completion model.",
         "respan/span-01-lite has a $0 listing but does not carry the :free suffix; the OpenRouter page says other $0 offerings may require a funded account. Excluded from the no-credit chat shortlist."
       ]
     }
