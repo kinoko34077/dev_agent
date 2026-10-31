@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "observation_type": "public_model_inventory_snapshot",
-  "observed_at": "2026-10-31T16:03:19+00:00",
+  "observed_at": "2026-10-31T17:07:56Z",
   "authority": "non_authoritative_observation_only",
   "deepseek": {
     "source_url": "https://api-docs.deepseek.com/api/list-models/",
-    "source_kind": "official_documented_supported_models; account-specific /models response not requested",
+    "source_kind": "official current model-list and pricing documentation reviewed; account-specific /models response and generation request not performed",
     "openai_compatible_base_url": "https://api.deepseek.com",
     "models": [
       {
@@ -70,8 +70,10 @@
     ],
     "notes": [
       "Model names, prices and account availability can change; use the official API /models endpoint for a credential-bound current inventory.",
-      "The official changelog states deepseek-flash now serves DeepSeek-V4.1-Flash-1017 and that the model ID and pricing are unchanged."
-    ]
+      "The official changelog states deepseek-flash now serves DeepSeek-V4.1-Flash-1017 and that the model ID and pricing are unchanged.",
+      "Current official docs list deepseek-flash (DeepSeek-V4.1-Flash-1017) and deepseek-v4-pro (DeepSeek-V4-Pro-0813); exact account access and live generation remain unverified."
+    ],
+    "observed_at": "2026-10-31T17:07:56Z"
   },
   "openrouter_free_chat": {
     "source_url": "https://openrouter.ai/api/v1/models?max_price=0&output_modalities=text",
@@ -505,7 +507,92 @@
     "notes": [
       "This is the observed public catalog, not a guarantee of account access, current endpoint health, model capability, quota, or routing admission.",
       "The OpenRouter documentation states :free variants require no credit purchase; it documents 20 requests per minute and 50 per day before the funded-account increase. Do not buy credits to obtain the higher limit as part of this task.",
-      "Only chat-completions models ending in :free are included. Other zero-priced models and non-chat model families are excluded from this development-oriented list."
-    ]
+      "Only chat-completions models ending in :free are included. Other zero-priced models and non-chat model families are excluded from this development-oriented list.",
+      "Official free-model collection reviewed again at the current observation time. Its ranking covers the top 16 by trailing 7-day usage and is not an exhaustive model catalog or quality ranking.",
+      "The collection states :free model variants require no credit purchase and are limited to 20 requests/minute and 50 requests/day before the higher cap associated with a funded account. Account key, account quota, endpoint health, data-policy compatibility, and actual inference were not verified."
+    ],
+    "catalog_observed_at": "2026-10-31T16:03:19Z",
+    "current_collection_observed_at": "2026-10-31T17:07:56Z",
+    "current_collection_url": "https://openrouter.ai/collections/free-models",
+    "account_key_status": "not_observed",
+    "development_shortlist": {
+      "source_url": "https://openrouter.ai/collections/free-models",
+      "observed_at": "2026-10-31T17:07:56Z",
+      "basis": "Free models among the current top-16 usage ranking, selected for general chat/code/agent/tool-use relevance. The rank reflects trailing 7-day OpenRouter usage, not model quality or dev_agent qualification.",
+      "candidates": [
+        {
+          "rank": 1,
+          "model_id": "nvidia/nemotron-3-ultra-550b-a55b:free",
+          "use": "agent orchestration, coding, long-context reasoning",
+          "tool_calling": "listed in same-day model inventory; model page explicitly confirms tools and tool_choice"
+        },
+        {
+          "rank": 2,
+          "model_id": "nvidia/nemotron-3.5-super-vl:free",
+          "use": "multimodal reasoning and coding validation",
+          "tool_calling": "listed in same-day model inventory; collection describes tool use"
+        },
+        {
+          "rank": 3,
+          "model_id": "nvidia/nemotron-3.5-lightning:free",
+          "use": "high-throughput agent workloads",
+          "tool_calling": "listed in same-day model inventory"
+        },
+        {
+          "rank": 4,
+          "model_id": "dots-studio/dots-3-note-preview:free",
+          "use": "reasoning, coding, multimodal understanding, long-context workflows",
+          "tool_calling": "listed in same-day model inventory"
+        },
+        {
+          "rank": 5,
+          "model_id": "thinkingmachines/inkling:free",
+          "use": "general reasoning, coding, agent/tool-use workflows",
+          "tool_calling": "listed in same-day model inventory; collection describes tool use"
+        },
+        {
+          "rank": 6,
+          "model_id": "thinkingmachines/inkling-small:free",
+          "use": "smaller general reasoning, coding, agent/tool-use workflows",
+          "tool_calling": "listed in same-day model inventory; collection describes tool use"
+        },
+        {
+          "rank": 7,
+          "model_id": "cohere/north-mini-code:free",
+          "use": "coding and terminal-oriented agent tasks",
+          "tool_calling": "listed in same-day model inventory; collection describes tool use"
+        },
+        {
+          "rank": 8,
+          "model_id": "recursive/flint-v1.0:free",
+          "use": "codebase investigation, bug fixes, implementation, tests",
+          "tool_calling": "listed in same-day model inventory; collection positions it for coding agents"
+        },
+        {
+          "rank": 9,
+          "model_id": "xingchen-agi/xing4.0-29b-a4b:free",
+          "use": "engineering and multi-step agent tasks",
+          "tool_calling": "listed in same-day model inventory; collection describes tool calling"
+        },
+        {
+          "rank": 11,
+          "model_id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+          "use": "multimodal context/perception sub-agent",
+          "tool_calling": "listed in same-day model inventory"
+        },
+        {
+          "rank": 16,
+          "model_id": "google/gemma-4-26b-a4b-it:free",
+          "use": "general-purpose multimodal tasks and structured output",
+          "tool_calling": "listed in same-day model inventory; collection describes native function calling"
+        }
+      ],
+      "non_primary_notes": [
+        "liquid/lfm-2.5-2.6b:free is listed at $0, but OpenRouter's current page relays Liquid's advice against agentic coding and knowledge-heavy tasks.",
+        "nvidia/nemotron-3.5-content-safety:free is a moderation/classification model, not a general coding assistant.",
+        "nvidia/llama-nemotron-rerank-vl-1b-v2:free is a reranking model, not a chat-completion model.",
+        "respan/span-01-lite has a $0 listing but does not carry the :free suffix; the OpenRouter page says other $0 offerings may require a funded account. Excluded from the no-credit chat shortlist."
+      ]
+    }
   }
 }
