@@ -10,7 +10,7 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 | Field | Current fact |
 | --- | --- |
 | Accepted branch | `v2/bootstrap` |
-| Accepted remote head at latest integrated implementation/evidence | `56073cce551f8eeffe91975ecbe2b0fe85302bb0` (read-only model-catalog candidate `6f5f7fa6c8c64d3d49ba60f6086939618c5797ad` plus a time-stable Discord test-fixture follow-up). |
+| Accepted remote head at latest integrated implementation/evidence | `5ccec5e8eb2ab0dc661c7f81b6cd71d462df64ea` (Current State traceability for read-only model-catalog candidate `6f5f7fa6c8c64d3d49ba60f6086939618c5797ad` and the time-stable Discord test-fixture follow-up). |
 | Latest integrated implementation/evidence baseline | Implementation baseline `d6c568ba75f9c2cb0c1e598b50e2977792036674` (Decision Transfer M1 pilot, PR #120/#121); latest non-Gate evidence is the candidate-only model catalog refresh at `6f5f7fa6c8c64d3d49ba60f6086939618c5797ad`. |
 | Latest implementation baseline | `d6c568ba75f9c2cb0c1e598b50e2977792036674`: merged evidence-bounded Decision Transfer M1 pilot. Existing local-trial opt-in remains default-off, exact-route, local L1 and text-only; no admission, billing, or Gate authority changed. |
 | Latest evidence baseline | #81 read-only model catalog candidate [`model-catalog-refresh-20261101.json`](../spec/v2/evidence/model-catalog-refresh-20261101.json): 1,439 entries from 13 of 15 configured bindings across 10 Providers; DeepSeek remained unrefreshed because its approved credential was not configured, and Groq returned HTTP 403. No stale evidence was extended and no admission authority changed. Commit `6f5f7fa6c8c64d3d49ba60f6086939618c5797ad`; exact-head v2-core/provider-smoke passed. |
