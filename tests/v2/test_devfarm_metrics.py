@@ -192,6 +192,69 @@ def test_worker_metrics_migrates_v1_schema_without_rewriting_legacy_observation(
         assert store.list()[0]["metric_id"] == "metric-v1"
 
 
+def test_worker_metrics_migration_failure_rolls_back_to_readable_v1(tmp_path, monkeypatch):
+    path = tmp_path / "migration-crash.sqlite3"
+    connection = sqlite3.connect(path)
+    connection.executescript(
+        """
+        CREATE TABLE worker_metrics_schema_meta (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+        INSERT INTO worker_metrics_schema_meta(key, value) VALUES ('schema_version', '1');
+        CREATE TABLE worker_metrics (
+            metric_id TEXT PRIMARY KEY,
+            task_id TEXT NOT NULL,
+            request_id TEXT NOT NULL,
+            provider_id TEXT NOT NULL,
+            provider_binding_id TEXT NOT NULL,
+            model_id TEXT NOT NULL,
+            intelligence_tier TEXT,
+            task_type TEXT NOT NULL,
+            elapsed_ms INTEGER NOT NULL,
+            attempt_count INTEGER NOT NULL,
+            retry_count INTEGER NOT NULL,
+            usage_json TEXT NOT NULL,
+            quota_observation_json TEXT NOT NULL,
+            host_tests_json TEXT NOT NULL,
+            host_verified INTEGER NOT NULL,
+            host_tests_passed INTEGER NOT NULL,
+            result_accepted INTEGER NOT NULL,
+            codex_correction_chars INTEGER,
+            recorded_at TEXT NOT NULL,
+            UNIQUE(task_id, request_id)
+        );
+        """
+    )
+    connection.commit()
+    connection.close()
+
+    def crash_after_first_column(cls, database):
+        database.execute("ALTER TABLE worker_metrics ADD COLUMN attempt_id TEXT")
+        raise RuntimeError("injected migration crash")
+
+    monkeypatch.setattr(
+        WorkerMetricsStore,
+        "_migrate_1_to_2",
+        classmethod(crash_after_first_column),
+    )
+    with pytest.raises(RuntimeError, match="injected migration crash"):
+        WorkerMetricsStore(path)
+
+    with sqlite3.connect(path) as recovered:
+        version = recovered.execute(
+            "SELECT value FROM worker_metrics_schema_meta WHERE key='schema_version'"
+        ).fetchone()[0]
+        columns = {
+            row[1]
+            for row in recovered.execute("PRAGMA table_info(worker_metrics)").fetchall()
+        }
+    assert version == "1"
+    assert "attempt_id" not in columns
+    with WorkerMetricsStore.open_read_only(path) as store:
+        assert store.list() == []
+
+
 def test_worker_metrics_open_read_only_accepts_legacy_v1_schema(tmp_path):
     path = tmp_path / "legacy-metrics.sqlite3"
     connection = sqlite3.connect(path)
