@@ -253,6 +253,20 @@ def read_file_at_revision(root: str | Path, revision: str, relative: str) -> byt
     return _git_bytes(repository, "show", f"{resolved}:{normalized}")
 
 
+def _new_file_paths_are_absent(root: Path, manifest: Mapping[str, Any]) -> None:
+    """Fail closed when a manifest labels an existing base path as new."""
+
+    for relative in manifest.get("new_files", ()):
+        try:
+            read_file_at_revision(root, str(manifest["base_revision"]), relative)
+        except DevFarmError as exc:
+            expected = f"worker input file does not exist at base_revision: {relative}"
+            if expected in str(exc):
+                continue
+            raise
+        raise DevFarmError(f"worker new file already exists at base_revision: {relative}")
+
+
 def _verification_workspace(root: Path, manifest: Mapping[str, Any]) -> Path:
     """Load or create the isolated worktree used by host verification."""
 
@@ -330,6 +344,7 @@ def _materialize_file_replacements(
         raise DevFarmError(f"file_replacements exceed {MAX_FILE_REPLACEMENT_FILES} files")
     allowed = set(manifest["allowed_files"])
     outbound = set(manifest["outbound_files"])
+    new_files = set(manifest.get("new_files", ()))
     normalized_entries: list[tuple[str, str]] = []
     seen: set[str] = set()
     total_chars = 0
@@ -348,9 +363,10 @@ def _materialize_file_replacements(
         seen.add(normalized_path)
         if normalized_path not in allowed:
             raise DevFarmError(f"file replacement path is outside manifest allowed_files: {normalized_path}")
-        if normalized_path not in outbound:
+        if normalized_path not in outbound and normalized_path not in new_files:
             raise DevFarmError(
-                f"file replacement path must be present in manifest outbound_files: {normalized_path}"
+                "file replacement path must be present in manifest outbound_files "
+                f"or new_files: {normalized_path}"
             )
         if isinstance(replacement, list):
             if len(replacement) > MAX_FILE_REPLACEMENT_LINES:
@@ -406,34 +422,65 @@ def _materialize_file_replacements(
             raise DevFarmError(f"file replacements exceed {MAX_FILE_REPLACEMENT_CHARS} characters")
         if _contains_secret(replacement):
             raise DevFarmError(f"file replacement contains a secret candidate: {normalized_path}")
-        base_bytes = read_file_at_revision(root, str(manifest["base_revision"]), normalized_path)
+        base_text: str | None
         try:
-            base_text = base_bytes.decode("utf-8")
-        except UnicodeDecodeError as exc:
-            raise DevFarmError(f"file replacement base is not UTF-8: {normalized_path}") from exc
-        if "\x00" in base_text:
-            raise DevFarmError(f"file replacement base contains NUL bytes: {normalized_path}")
-        if base_text == replacement:
-            raise DevFarmError(f"file replacement does not change the base file: {normalized_path}")
+            base_bytes = read_file_at_revision(root, str(manifest["base_revision"]), normalized_path)
+        except DevFarmError as exc:
+            expected = f"worker input file does not exist at base_revision: {normalized_path}"
+            if normalized_path not in new_files or expected not in str(exc):
+                raise
+            base_text = None
+        else:
+            try:
+                base_text = base_bytes.decode("utf-8")
+            except UnicodeDecodeError as exc:
+                raise DevFarmError(f"file replacement base is not UTF-8: {normalized_path}") from exc
+            if "\x00" in base_text:
+                raise DevFarmError(f"file replacement base contains NUL bytes: {normalized_path}")
+            if base_text == replacement:
+                raise DevFarmError(f"file replacement does not change the base file: {normalized_path}")
+        if base_text is None and not replacement:
+            raise DevFarmError(f"new file replacement must be non-empty: {normalized_path}")
         normalized_entries.append((normalized_path, replacement))
 
     patches: list[str] = []
     changed_paths: list[str] = []
     for normalized_path, replacement in sorted(normalized_entries):
-        base_bytes = read_file_at_revision(root, str(manifest["base_revision"]), normalized_path)
-        base_text = base_bytes.decode("utf-8")
-        body = "".join(
-            difflib.unified_diff(
-                base_text.splitlines(keepends=True),
-                replacement.splitlines(keepends=True),
-                fromfile=f"a/{normalized_path}",
-                tofile=f"b/{normalized_path}",
-                n=3,
+        try:
+            base_bytes = read_file_at_revision(root, str(manifest["base_revision"]), normalized_path)
+        except DevFarmError as exc:
+            expected = f"worker input file does not exist at base_revision: {normalized_path}"
+            if normalized_path not in new_files or expected not in str(exc):
+                raise
+            body = "".join(
+                difflib.unified_diff(
+                    [],
+                    replacement.splitlines(keepends=True),
+                    fromfile="/dev/null",
+                    tofile=f"b/{normalized_path}",
+                    n=3,
+                )
             )
-        )
-        if not body:
-            raise DevFarmError(f"file replacement produced no diff: {normalized_path}")
-        patches.append(f"diff --git a/{normalized_path} b/{normalized_path}\n{body}")
+            if not body:
+                raise DevFarmError(f"file replacement produced no diff: {normalized_path}")
+            patches.append(
+                f"diff --git a/{normalized_path} b/{normalized_path}\n"
+                f"new file mode 100644\n{body}"
+            )
+        else:
+            base_text = base_bytes.decode("utf-8")
+            body = "".join(
+                difflib.unified_diff(
+                    base_text.splitlines(keepends=True),
+                    replacement.splitlines(keepends=True),
+                    fromfile=f"a/{normalized_path}",
+                    tofile=f"b/{normalized_path}",
+                    n=3,
+                )
+            )
+            if not body:
+                raise DevFarmError(f"file replacement produced no diff: {normalized_path}")
+            patches.append(f"diff --git a/{normalized_path} b/{normalized_path}\n{body}")
         changed_paths.append(normalized_path)
     patch = "".join(patches)
     if len(patch) > MAX_OUTPUT_TEXT_CHARS:
@@ -721,6 +768,7 @@ def apply_and_verify(
 
     root = Path(root).resolve()
     manifest = validate_manifest(read_json(Path(manifest_path)))
+    _new_file_paths_are_absent(root, manifest)
     result = _read_result_artifact(root, manifest)
     attempt_id = _attempt_id(result.get("attempt_id") or "legacy")
     if trust_level == "OS_SANDBOXED":
@@ -940,7 +988,7 @@ def run_worker(
                 "role": "system",
                 "content": (
                     "For this bounded change proposal, the only required output key is "
-                    "file_replacements. Use a complete replacement for one supplied file. "
+                    "file_replacements. Use a complete replacement for one allowed output file. "
                     "Do not emit status metadata or a unified diff; the Host derives those facts."
                 ),
             }
@@ -977,7 +1025,14 @@ def run_worker(
         },
         response_schema=(
             minimal_worker_output_schema(
-                allowed_paths=manifest["outbound_files"],
+                allowed_paths=tuple(
+                    dict.fromkeys(
+                        [
+                            *manifest["outbound_files"],
+                            *manifest.get("new_files", ()),
+                        ]
+                    )
+                ),
                 line_array_only=True,
             )
             if output_mode == "minimal_file_replacement"

@@ -215,16 +215,28 @@ def validate_manifest(value: Mapping[str, Any]) -> dict[str, Any]:
     outbound = _paths(value["outbound_files"], "outbound_files")
     if len(outbound) > MAX_OUTBOUND_FILES:
         raise DevFarmError(f"outbound_files must contain at most {MAX_OUTBOUND_FILES} paths")
+    new_files = _paths(value.get("new_files", []), "new_files")
+    if len(new_files) > MAX_OUTBOUND_FILES:
+        raise DevFarmError(f"new_files must contain at most {MAX_OUTBOUND_FILES} paths")
     readable = set(read) | set(allowed)
     outside_outbound = sorted(set(outbound) - readable)
     if outside_outbound:
         raise DevFarmError(f"outbound_files must be a subset of read_files and allowed_files: {', '.join(outside_outbound)}")
-    protected_read = sorted(path for path in [*allowed, *read, *outbound] if _is_protected(path))
+    outside_new = sorted(set(new_files) - set(allowed))
+    if outside_new:
+        raise DevFarmError(f"new_files must be a subset of allowed_files: {', '.join(outside_new)}")
+    overlapping_new = sorted(set(new_files) & (set(read) | set(outbound)))
+    if overlapping_new:
+        raise DevFarmError(
+            "new_files must not overlap read_files or outbound_files: "
+            + ", ".join(overlapping_new)
+        )
+    protected_read = sorted(path for path in [*allowed, *read, *outbound, *new_files] if _is_protected(path))
     if protected_read:
         raise DevFarmError(f"protected files cannot be read or sent by a worker: {', '.join(dict.fromkeys(protected_read))}")
     if external_provider_allowed and not approved_provider_ids:
         raise DevFarmError("approved_provider_ids is required when external_provider_allowed is true")
-    if not external_provider_allowed and (approved_provider_ids or outbound):
+    if not external_provider_allowed and (approved_provider_ids or outbound or new_files):
         raise DevFarmError("external provider approval and outbound_files require external_provider_allowed=true")
     protected = sorted(path for path in allowed if _is_protected(path))
     if protected:
@@ -268,6 +280,7 @@ def validate_manifest(value: Mapping[str, Any]) -> dict[str, Any]:
         "external_provider_allowed": external_provider_allowed,
         "approved_provider_ids": approved_provider_ids,
         "outbound_files": outbound,
+        "new_files": new_files,
         "requirements": requirements,
         "acceptance": acceptance,
         "test_commands": test_commands,

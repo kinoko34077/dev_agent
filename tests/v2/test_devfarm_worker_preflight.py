@@ -45,6 +45,52 @@ def test_minimal_worker_schema_binds_file_replacement_keys_to_host_paths() -> No
     assert "oneOf" in compatible_schema["properties"]["file_replacements"]["properties"]["src/example.py"]
 
 
+def test_manifest_tracks_explicit_new_worker_output_paths_without_sending_them(tmp_path) -> None:
+    _root, manifest_path = _workspace(tmp_path, prepare=False)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["allowed_files"] = ["tests/v2/test_target.py", "tests/v2/generated.py"]
+    manifest["read_files"] = ["tests/v2/test_target.py"]
+    manifest["outbound_files"] = ["tests/v2/test_target.py"]
+    manifest["new_files"] = ["tests/v2/generated.py"]
+
+    normalized = validate_manifest(manifest)
+
+    assert normalized["new_files"] == ["tests/v2/generated.py"]
+    assert normalized["outbound_files"] == ["tests/v2/test_target.py"]
+
+    manifest["new_files"] = ["tests/v2/test_target.py"]
+    with pytest.raises(DevFarmError, match="new_files.*outbound_files"):
+        validate_manifest(manifest)
+
+
+def test_minimal_worker_can_materialize_explicit_new_file_without_outbound_source(tmp_path) -> None:
+    root, manifest_path = _workspace(tmp_path, prepare=False)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["allowed_files"] = ["tests/v2/test_target.py", "tests/v2/generated.py"]
+    manifest["read_files"] = ["tests/v2/test_target.py"]
+    manifest["outbound_files"] = ["tests/v2/test_target.py"]
+    manifest["new_files"] = ["tests/v2/generated.py"]
+    manifest["output_contract"] = {"format": "json", "mode": "minimal_file_replacement"}
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    provider = _WorkerProvider(
+        {
+            "file_replacements": {
+                "tests/v2/generated.py": [
+                    "def test_generated():",
+                    "    assert True",
+                ]
+            }
+        }
+    )
+
+    result = run_worker(root, manifest_path, provider=provider)
+
+    assert result["status"] == "completed"
+    assert result["changed_files"] == ["tests/v2/generated.py"]
+    assert result["worker_metrics"]["host_generated_patch"] == "file_replacements"
+    assert result["worker_metrics"]["host_generated_patch_paths"] == ["tests/v2/generated.py"]
+
+
 def test_manifest_rejects_unknown_worker_output_mode(tmp_path) -> None:
     _root, manifest_path = _workspace(tmp_path, prepare=False)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))

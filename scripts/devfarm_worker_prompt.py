@@ -100,6 +100,7 @@ def build_worker_prompt(
         "external_provider_allowed": manifest["external_provider_allowed"],
         "approved_provider_ids": manifest["approved_provider_ids"],
         "outbound_files": manifest["outbound_files"],
+        "new_files": manifest.get("new_files", []),
         "requirements": manifest["requirements"],
         "acceptance": manifest["acceptance"],
         "test_commands": manifest["test_commands"],
@@ -119,8 +120,16 @@ def build_worker_prompt(
         }
     if local_ollama or minimal_proposal:
         mode_label = "local Ollama trial" if local_ollama else "bounded change-proposal mode"
+        output_paths = tuple(
+            dict.fromkeys(
+                [
+                    *manifest.get("outbound_files", ()),
+                    *manifest.get("new_files", ()),
+                ]
+            )
+        )
         response_schema = minimal_worker_output_schema(
-            allowed_paths=manifest["outbound_files"],
+            allowed_paths=output_paths,
             line_array_only=True,
         )
         return (
@@ -133,7 +142,7 @@ def build_worker_prompt(
             "Do not emit status, changed_files, tests, "
             "known_issues, assumptions, patch, files, diff, reason, or commit_message; "
             "the Host derives those facts. file_replacements MUST contain exactly one "
-            f"complete replacement for one of these exact outbound paths: {json.dumps(manifest['outbound_files'], ensure_ascii=False)}. "
+            f"complete replacement for one of these exact allowed output paths: {json.dumps(output_paths, ensure_ascii=False)}. "
             "Copy the path key byte-for-byte from that list after slash normalization; "
             "never shorten it to a basename, add `./`, use an absolute path, or use "
             "any other key. Use this exact shape: "
