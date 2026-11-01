@@ -35,7 +35,7 @@ _TASK_CLASSES = frozenset(
     }
 )
 _EVIDENCE_CLASSES = frozenset({"fresh_runtime", "historical_replay", "synthetic_fixture"})
-_OUTPUT_MODES = frozenset({"full_result", "minimal_file_replacement"})
+_OUTPUT_MODES = frozenset({"full_result", "minimal_file_replacement", "localized_file_edit"})
 _PATH_MAX = 512
 _TEXT_MAX = 4_000
 

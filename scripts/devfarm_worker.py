@@ -60,6 +60,7 @@ from scripts.devfarm_artifacts import (
     write_verification_record as shared_write_verification_record,
 )
 from scripts.devfarm_worker_prompt import build_worker_prompt
+from scripts.devfarm_localized_edit import materialize_localized_edits
 from scripts.devfarm_refinement import build_concrete_failure_spec
 from src.dev_agent.intelligence.convergence import RepairDirective
 from scripts.devfarm_worker_input import (
@@ -67,9 +68,12 @@ from scripts.devfarm_worker_input import (
     build_worker_input_context,
 )
 from scripts.devfarm_worker_output import (
+    LOCALIZED_FILE_EDIT_MODE,
+    LOCALIZED_WORKER_OUTPUT_KEYS,
     MINIMAL_WORKER_OUTPUT_KEYS,
     build_worker_metrics,
     extract_json_object,
+    localized_worker_output_schema,
     minimal_worker_output_schema,
     normalize_model_status,
     safe_host_failure_metadata,
@@ -88,6 +92,7 @@ from scripts.devfarm_verification import (
 MAX_INPUT_FILE_BYTES = SHARED_MAX_INPUT_FILE_BYTES
 MAX_OUTPUT_TEXT_CHARS = 32 * 1024
 LOCAL_OLLAMA_MAX_OUTPUT_TOKENS = 8_192
+LOCALIZED_EDIT_MAX_OUTPUT_TOKENS = 4_096
 MAX_VERIFICATION_WALL_CLOCK_SECONDS = 10 * 60
 
 # Local compatibility name; cross-script imports use the public path-policy
@@ -539,6 +544,7 @@ def _prompt(
     egress_manifest: EgressManifest | None = None,
     local_ollama: bool = False,
     minimal_proposal: bool = False,
+    localized_proposal: bool = False,
 ) -> str:
     """Backward-compatible Worker prompt entrypoint."""
 
@@ -548,6 +554,7 @@ def _prompt(
         egress_manifest=egress_manifest,
         local_ollama=local_ollama,
         minimal_proposal=minimal_proposal,
+        localized_proposal=localized_proposal,
     )
 
 
@@ -993,6 +1000,17 @@ def run_worker(
                 ),
             }
         )
+    elif output_mode == LOCALIZED_FILE_EDIT_MODE:
+        messages.append(
+            {
+                "role": "system",
+                "content": (
+                    "For this bounded change proposal, the only required output key is file_edits. "
+                    "Use exact non-overlapping line anchors from the pinned base file; the Host will "
+                    "construct and validate the unified diff."
+                ),
+            }
+        )
     messages.append(
         {
             "role": "user",
@@ -1002,6 +1020,7 @@ def run_worker(
                 egress_manifest=egress_manifest,
                 local_ollama=provider_id == "ollama",
                 minimal_proposal=output_mode == "minimal_file_replacement",
+                localized_proposal=output_mode == LOCALIZED_FILE_EDIT_MODE,
             ),
         }
     )
@@ -1024,7 +1043,15 @@ def run_worker(
             **({"allow_unknown_quota": True} if _eligibility.billing_admitted else {}),
         },
         response_schema=(
-            minimal_worker_output_schema(
+            localized_worker_output_schema(
+                allowed_paths=tuple(
+                    path
+                    for path in manifest["outbound_files"]
+                    if isinstance(path, str) and path.strip()
+                )
+            )
+            if output_mode == LOCALIZED_FILE_EDIT_MODE
+            else minimal_worker_output_schema(
                 allowed_paths=tuple(
                     dict.fromkeys(
                         [
@@ -1038,7 +1065,13 @@ def run_worker(
             if output_mode == "minimal_file_replacement"
             else None
         ),
-        max_output_tokens=(LOCAL_OLLAMA_MAX_OUTPUT_TOKENS if output_mode == "minimal_file_replacement" else 4096),
+        max_output_tokens=(
+            LOCAL_OLLAMA_MAX_OUTPUT_TOKENS
+            if output_mode == "minimal_file_replacement"
+            else LOCALIZED_EDIT_MAX_OUTPUT_TOKENS
+            if output_mode == LOCALIZED_FILE_EDIT_MODE
+            else 4096
+        ),
     )
     dispatch = host_dispatch or HostProviderDispatch(provider)
     if dispatch.provider_identity["provider_id"] not in {provider_id, "resource-router"}:
@@ -1143,6 +1176,16 @@ def run_worker(
                     "minimal worker output contains unsupported fields: "
                     + ", ".join(unsupported)
                 )
+        elif output_mode == LOCALIZED_FILE_EDIT_MODE:
+            unsupported = sorted(set(output) - LOCALIZED_WORKER_OUTPUT_KEYS)
+            if unsupported:
+                raise DevFarmError(
+                    "localized worker output contains unsupported fields: "
+                    + ", ".join(unsupported)
+                )
+            localized_edits = output.get("file_edits")
+            if not isinstance(localized_edits, list) or not localized_edits:
+                raise DevFarmError("localized Worker must provide non-empty file_edits")
         patch = output.get("patch", "")
         if not isinstance(patch, str):
             raise DevFarmError("worker patch must be a string")
@@ -1157,6 +1200,28 @@ def run_worker(
         host_generated_paths: list[str] = []
         host_generated_encoding: str | None = None
         host_canonicalization_rules: tuple[str, ...] = ()
+        if output_mode == LOCALIZED_FILE_EDIT_MODE:
+            materialized = materialize_localized_edits(
+                manifest,
+                localized_edits,
+                read_file_at_revision=lambda revision, relative: read_file_at_revision(
+                    workspace,
+                    revision,
+                    relative,
+                ),
+            )
+            patch = materialized.patch
+            host_generated_paths = list(materialized.changed_files)
+            host_generated_encoding = "localized_line_edits"
+            host_canonicalization_rules = (
+                "localized_line_anchor_validation",
+                "host_generated_unified_diff",
+            )
+            metrics["host_generated_patch"] = "localized_file_edits"
+            metrics["host_generated_patch_paths"] = list(materialized.changed_files)
+            metrics["localized_edit_count"] = materialized.edit_count
+            metrics["localized_edit_line_ranges"] = [list(item) for item in materialized.line_ranges]
+            output = {**output, "patch": patch}
         if replacement_value is not None:
             if not isinstance(replacement_value, Mapping):
                 raise DevFarmError("file_replacements must be an object")
@@ -1189,10 +1254,10 @@ def run_worker(
         actual_changed_files = validate_patch(patch, manifest=manifest)
         status = (
             "completed"
-            if output_mode == "minimal_file_replacement"
+            if output_mode in {"minimal_file_replacement", LOCALIZED_FILE_EDIT_MODE}
             else _normalize_model_status(output.get("status"))
         )
-        if output_mode == "minimal_file_replacement":
+        if output_mode in {"minimal_file_replacement", LOCALIZED_FILE_EDIT_MODE}:
             # Local minimal-contract output has no model-owned status or
             # metadata.  The Host derives its proposal projection only from
             # the validated replacement and never creates source content.
@@ -1206,13 +1271,14 @@ def run_worker(
             "tests_run": output.get("tests_run"),
             "tests_passed": output.get("tests_passed"),
             "file_replacements_used": bool(host_generated_paths),
+            "localized_edits_used": output_mode == LOCALIZED_FILE_EDIT_MODE,
         }
         normalizations = output.get("patch_normalizations", [])
         if normalizations:
             if not isinstance(normalizations, list) or any(not isinstance(item, str) for item in normalizations):
                 raise DevFarmError("patch_normalizations must be a list of strings")
             metrics["patch_normalizations"] = list(normalizations)
-        if host_generated_paths:
+        if host_generated_paths and output_mode != LOCALIZED_FILE_EDIT_MODE:
             metrics["host_generated_patch"] = "file_replacements"
             metrics["host_generated_patch_paths"] = list(host_generated_paths)
             metrics["file_replacement_encoding"] = host_generated_encoding
@@ -1222,7 +1288,7 @@ def run_worker(
             canonicalization_rules=preflight_rules,
         )
         metrics["canonicalization"] = metrics["proposal_preflight"]["canonicalization"]
-        if output_mode == "minimal_file_replacement":
+        if output_mode in {"minimal_file_replacement", LOCALIZED_FILE_EDIT_MODE}:
             result = {
                 "status": status,
                 "attempt_id": attempt_id,
@@ -1230,7 +1296,10 @@ def run_worker(
                 "changed_files": actual_changed_files,
                 "tests_run": [],
                 "tests_passed": False,
-                "model_claims": {"file_replacements_used": bool(host_generated_paths)},
+                "model_claims": {
+                    "file_replacements_used": bool(host_generated_paths) and output_mode == "minimal_file_replacement",
+                    "localized_edits_used": output_mode == LOCALIZED_FILE_EDIT_MODE,
+                },
                 "proposed_test_commands": [],
                 "host_verified_tests": [],
                 "worker_metrics": metrics,

@@ -405,7 +405,94 @@ def build_concrete_failure_spec(
     )
     preserve = ("task objective", "supplied file scope")
     forbidden = ("unrelated files", "new output fields")
-    if "unsupported fields" in normalized or "additional field" in normalized:
+    if "localized edit" in normalized or "localized edits" in normalized:
+        if "complete source lines" in normalized or "embedded newline" in normalized:
+            spec = ConcreteFailureSpec(
+                failure_class="FORMAT_PATCH",
+                stage="worker_output_validation",
+                location="localized_edit.replacement_lines",
+                observed="a localized edit line contains an embedded newline or is not a complete source line",
+                expected="array<string> with one complete source line per item",
+                problem="localized replacement_lines must contain one source line per array element",
+                required_correction=(
+                    "Return replacement_lines as an array of complete source-line strings. "
+                    "Split multiline content into separate elements and ensure no element contains LF or CR."
+                ),
+                must_preserve=preserve,
+                forbidden_changes=("changing the path or line anchor", "switching to a full-file replacement", "changing unrelated content"),
+                acceptance_checks=(
+                    "each replacement_lines item is a string",
+                    "each replacement_lines item contains no LF or CR",
+                    "the exact path and inclusive line range remain unchanged",
+                ),
+                validator_refs=(validator_ref,),
+            )
+        elif "expected_lines do not match" in normalized or "pinned base revision" in normalized:
+            spec = ConcreteFailureSpec(
+                failure_class="FORMAT_PATCH",
+                stage="worker_output_validation",
+                location="localized_edit.expected_lines",
+                observed="the supplied anchor does not match the pinned base revision",
+                expected="the exact base lines for the requested inclusive range",
+                problem="localized edit expected_lines are stale or incorrect",
+                required_correction=(
+                    "Re-read the supplied file at the pinned base revision and return the exact lines for the "
+                    "same inclusive range; do not guess or move the anchor."
+                ),
+                must_preserve=preserve,
+                forbidden_changes=("changing the path or line range", "editing unrelated lines"),
+                acceptance_checks=(
+                    "expected_lines exactly match the pinned base revision",
+                    "the requested range remains non-overlapping and in scope",
+                ),
+                validator_refs=(validator_ref,),
+            )
+        elif "overlap" in normalized:
+            spec = ConcreteFailureSpec(
+                failure_class="FORMAT_PATCH",
+                stage="worker_output_validation",
+                location="localized_edits",
+                observed="localized edit ranges overlap",
+                expected="non-overlapping edits in the supplied outbound scope",
+                problem="localized edits cannot overlap because the Host applies them against one pinned base",
+                required_correction="Return non-overlapping line ranges and preserve the exact path scope.",
+                must_preserve=preserve,
+                forbidden_changes=("combining overlapping edits", "changing unrelated files"),
+                acceptance_checks=("all ranges are non-overlapping", "all paths are within outbound_files"),
+                validator_refs=(validator_ref,),
+            )
+        elif "outside outbound_files" in normalized or "within outbound_files" in normalized:
+            spec = ConcreteFailureSpec(
+                failure_class="FORMAT_PATCH",
+                stage="worker_output_validation",
+                location="localized_edit.path",
+                observed="localized edit path is outside the outbound scope",
+                expected="an exact supplied outbound file path",
+                problem="localized edits may target only Host-authorized outbound files",
+                required_correction="Use one exact path from the supplied outbound_files list; do not add or shorten paths.",
+                must_preserve=preserve,
+                forbidden_changes=("adding a new path", "targeting a new file", "changing ownership scope"),
+                acceptance_checks=("path is in outbound_files", "path is not a new file"),
+                validator_refs=(validator_ref,),
+            )
+        else:
+            spec = ConcreteFailureSpec(
+                failure_class="FORMAT_PATCH",
+                stage="worker_output_validation",
+                location="localized_worker_output",
+                observed="localized edit object failed the Host contract",
+                expected="file_edits with exact path, line range, expected_lines, and replacement_lines",
+                problem="the localized Worker response does not satisfy the bounded edit contract",
+                required_correction=(
+                    "Return exactly one JSON object with file_edits only. Each edit must contain only path, "
+                    "start_line, end_line, expected_lines, and replacement_lines."
+                ),
+                must_preserve=preserve,
+                forbidden_changes=("adding metadata fields", "returning a unified patch", "targeting new files"),
+                acceptance_checks=("file_edits is non-empty", "all edit fields satisfy the Host schema"),
+                validator_refs=(validator_ref,),
+            )
+    elif "unsupported fields" in normalized or "additional field" in normalized:
         spec = ConcreteFailureSpec(
             failure_class="FORMAT_PATCH",
             stage="worker_output_validation",

@@ -14,7 +14,9 @@ from src.dev_agent.providers.base import ModelProvider, transport_failure_metada
 
 FULL_WORKER_OUTPUT_MODE = "full_result"
 MINIMAL_WORKER_OUTPUT_MODE = "minimal_file_replacement"
+LOCALIZED_FILE_EDIT_MODE = "localized_file_edit"
 MINIMAL_WORKER_OUTPUT_KEYS = frozenset({"file_replacements"})
+LOCALIZED_WORKER_OUTPUT_KEYS = frozenset({"file_edits"})
 
 
 def worker_output_mode(
@@ -36,9 +38,12 @@ def worker_output_mode(
     if not isinstance(configured, str) or configured not in {
         FULL_WORKER_OUTPUT_MODE,
         MINIMAL_WORKER_OUTPUT_MODE,
+        LOCALIZED_FILE_EDIT_MODE,
     }:
-        raise DevFarmError("output_contract.mode must be full_result or minimal_file_replacement")
-    if local_ollama:
+        raise DevFarmError(
+            "output_contract.mode must be full_result, minimal_file_replacement, or localized_file_edit"
+        )
+    if local_ollama and "mode" not in output_contract:
         return MINIMAL_WORKER_OUTPUT_MODE
     return configured
 
@@ -102,6 +107,52 @@ def minimal_worker_output_schema(
     }
 
 
+def localized_worker_output_schema(*, allowed_paths: Sequence[str]) -> dict[str, Any]:
+    """Return a strict, path-bound schema for line-anchored Host edits."""
+
+    if isinstance(allowed_paths, (str, bytes)):
+        raise DevFarmError("allowed_paths must be a sequence of paths")
+    normalized_paths = tuple(
+        dict.fromkeys(
+            path.replace("\\", "/").strip()
+            for path in allowed_paths
+            if isinstance(path, str) and path.strip()
+        )
+    )
+    if not normalized_paths:
+        raise DevFarmError("allowed_paths must contain at least one path")
+    line_schema = {
+        "type": "array",
+        "minItems": 1,
+        "items": {"type": "string", "pattern": "^[^\\r\\n]*$"},
+    }
+    edit_schema = {
+        "type": "object",
+        "properties": {
+            "path": {"type": "string", "enum": list(normalized_paths)},
+            "start_line": {"type": "integer", "minimum": 1},
+            "end_line": {"type": "integer", "minimum": 1},
+            "expected_lines": line_schema,
+            "replacement_lines": line_schema,
+        },
+        "required": ["path", "start_line", "end_line", "expected_lines", "replacement_lines"],
+        "additionalProperties": False,
+    }
+    return {
+        "type": "object",
+        "properties": {
+            "file_edits": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 8,
+                "items": edit_schema,
+            }
+        },
+        "required": ["file_edits"],
+        "additionalProperties": False,
+    }
+
+
 def worker_proposal_preflight_failure(
     reason: str,
     *,
@@ -117,7 +168,7 @@ def worker_proposal_preflight_failure(
 
     if not isinstance(reason, str) or not reason.strip():
         raise DevFarmError("preflight failure reason must be non-empty text")
-    if mode not in {FULL_WORKER_OUTPUT_MODE, MINIMAL_WORKER_OUTPUT_MODE}:
+    if mode not in {FULL_WORKER_OUTPUT_MODE, MINIMAL_WORKER_OUTPUT_MODE, LOCALIZED_FILE_EDIT_MODE}:
         raise DevFarmError("preflight failure mode is unsupported")
     normalized = reason.casefold()
     if "unsupported fields" in normalized or "additional field" in normalized:
@@ -128,7 +179,11 @@ def worker_proposal_preflight_failure(
         error_code = "WORKER_OUTPUT_SCHEMA"
     elif "outside manifest" in normalized or "outside" in normalized and "allowed" in normalized:
         error_code = "WORKER_OUTPUT_PATH_SCOPE"
-    elif "newline" in normalized or "line" in normalized and "string" in normalized:
+    elif (
+        "newline" in normalized
+        or "line" in normalized and "string" in normalized
+        or "complete source lines" in normalized
+    ):
         error_code = "WORKER_OUTPUT_LINE_SHAPE"
     elif "secret" in normalized:
         error_code = "WORKER_OUTPUT_SECRET_REJECTED"
@@ -155,7 +210,7 @@ def worker_proposal_preflight_success(
 ) -> dict[str, Any]:
     """Project an accepted deterministic preflight and its audit facts."""
 
-    if mode not in {FULL_WORKER_OUTPUT_MODE, MINIMAL_WORKER_OUTPUT_MODE}:
+    if mode not in {FULL_WORKER_OUTPUT_MODE, MINIMAL_WORKER_OUTPUT_MODE, LOCALIZED_FILE_EDIT_MODE}:
         raise DevFarmError("preflight success mode is unsupported")
     rules = list(dict.fromkeys(item for item in canonicalization_rules if isinstance(item, str)))
     return {
@@ -396,10 +451,13 @@ def build_worker_metrics(
 
 __all__ = [
     "FULL_WORKER_OUTPUT_MODE",
+    "LOCALIZED_FILE_EDIT_MODE",
+    "LOCALIZED_WORKER_OUTPUT_KEYS",
     "MINIMAL_WORKER_OUTPUT_KEYS",
     "MINIMAL_WORKER_OUTPUT_MODE",
     "build_worker_metrics",
     "extract_json_object",
+    "localized_worker_output_schema",
     "minimal_worker_output_schema",
     "normalize_model_status",
     "safe_host_failure_metadata",
