@@ -246,6 +246,57 @@ def test_runtime_coordinator_continues_ready_work_around_reconciliation_wait(tmp
     assert waiting_status["reconciliation"] is True
 
 
+def test_runtime_coordinator_restart_keeps_mixed_wait_parked_without_replaying_ready_work(tmp_path):
+    """A restart must preserve the wait fence and the unrelated completion."""
+
+    from src.dev_agent.domain.protocol import Task
+    from src.dev_agent.scheduler.queue import DurableQueue
+    from src.dev_agent.state import SQLiteStateStore
+
+    config = _config(tmp_path)
+    waiting = Task(
+        objective="keep the uncertain effect parked across restart",
+        status=TaskStatus.WAITING_RECONCILIATION,
+    )
+    with SQLiteStateStore(config.state_path) as store:
+        store.save_task(waiting)
+        store.checkpoint(
+            task_id=waiting.task_id,
+            step_id="provider-step",
+            phase="waiting_reconciliation",
+            state={"provider_reconciliation": {"status": "unknown"}},
+        )
+    with DurableQueue(config.queue_path) as queue:
+        queue.enqueue(waiting.task_id, priority=10)
+    ready = OperationService.submit(config, "complete unrelated work exactly once", priority=0)
+
+    with RuntimeCoordinator.open(config, revision="mixed-test-revision", instance_id="runtime-1") as runtime:
+        first = runtime.run_once()
+        second = runtime.run_once()
+
+    assert first is not None and first.task_id == waiting.task_id
+    assert first.status is TaskStatus.WAITING_RECONCILIATION
+    assert second is not None and second.task_id == ready.task_id
+    assert second.status is TaskStatus.COMPLETED
+
+    ready_before_restart = OperationService.read_status(config, ready.task_id)
+    waiting_before_restart = OperationService.read_status(config, waiting.task_id)
+    assert ready_before_restart["last_event"]["event_type"] == "task.completed"
+    assert ready_before_restart["execution_attempts"] == 1
+    assert waiting_before_restart["queue_state"] == "waiting"
+
+    with RuntimeCoordinator.open(config, revision="mixed-test-revision", instance_id="runtime-1") as restarted:
+        assert restarted.run_once() is None
+
+    ready_after_restart = OperationService.read_status(config, ready.task_id)
+    waiting_after_restart = OperationService.read_status(config, waiting.task_id)
+    assert ready_after_restart["last_event"]["event_type"] == "task.completed"
+    assert ready_after_restart["execution_attempts"] == 1
+    assert waiting_after_restart["state"] == TaskStatus.WAITING_RECONCILIATION.value
+    assert waiting_after_restart["queue_state"] == "waiting"
+    assert waiting_after_restart["reconciliation"] is True
+
+
 def test_runtime_coordinator_parks_unroutable_task_and_runs_unrelated_local_work(tmp_path):
     """A missing route isolates one Task without blocking the existing runtime."""
 
