@@ -131,6 +131,61 @@ def test_evidence_policy_prefers_measured_success_without_expanding_hard_filtere
     assert "unfiltered:binding" not in preferred
 
 
+def test_evidence_policy_consumes_new_accepted_observations_and_changes_preference(tmp_path):
+    with WorkerMetricsStore(tmp_path / "metrics.sqlite3") as store:
+        for index in range(2):
+            _record(
+                store,
+                task_id=f"established-{index}",
+                request_id=f"established-request-{index}",
+                binding_id="established:worker",
+                model_id="established-model",
+                elapsed_ms=50,
+                accepted=True,
+                recorded_at="2026-09-10T11:59:00+00:00",
+            )
+        _record(
+            store,
+            task_id="new-route-1",
+            request_id="new-route-request-1",
+            binding_id="new:worker",
+            model_id="new-model",
+                provider_id="ollama",
+            elapsed_ms=5,
+            accepted=True,
+            recorded_at="2026-09-10T11:59:00+00:00",
+        )
+
+        policy = EvidenceBasedRoutingPolicy(store, minimum_samples=2, max_age_seconds=3600)
+        candidates = [
+            EvidenceCandidate("gemini", "established:worker", "established-model"),
+            EvidenceCandidate("ollama", "new:worker", "new-model"),
+        ]
+        before = policy.preferred_bindings("unit", candidates, now=_NOW)
+
+        # A distinct, accepted observation is the only new signal. The policy
+        # must consume it on the next ordinary ranking call and may not infer
+        # a preference from the model identity alone.
+        _record(
+            store,
+            task_id="new-route-2",
+            request_id="new-route-request-2",
+            binding_id="new:worker",
+            model_id="new-model",
+            provider_id="ollama",
+            elapsed_ms=10,
+            accepted=True,
+            recorded_at="2026-09-10T11:59:30+00:00",
+        )
+        after = policy.preferred_bindings("unit", candidates, now=_NOW)
+
+    assert before == (EvidenceCandidate("gemini", "established:worker", "established-model"),)
+    assert after == (
+        EvidenceCandidate("ollama", "new:worker", "new-model"),
+        EvidenceCandidate("gemini", "established:worker", "established-model"),
+    )
+
+
 def test_evidence_policy_expires_old_history_and_triggers_rollback_for_low_acceptance(tmp_path):
     with WorkerMetricsStore(tmp_path / "metrics.sqlite3") as store:
         for index in range(3):
