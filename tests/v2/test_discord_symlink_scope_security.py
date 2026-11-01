@@ -62,3 +62,31 @@ def test_normal_selected_file_and_directory_are_unchanged(tmp_path):
         scope.resolve_directory(".git")
     with pytest.raises(ValueError):
         scope.resolve_file("recovery/anything.txt")
+
+
+@pytest.mark.parametrize("alias", [
+    ".GIT/config",
+    "RECOVERY/synthetic.txt",
+    ".DEVFARM/plans/plan.json",
+    "SPEC/V2/gate_status.json",
+    "src/dev_agent/SECURITY/protected_paths.py",
+])
+def test_case_variants_of_protected_names_are_rejected_before_selection(tmp_path, alias):
+    # Case-insensitive filesystems can resolve case variants to sensitive data.
+    # No actual private/credential file content is accessed here.
+    from src.dev_agent.security.protected_paths import classify_path
+    assert classify_path(alias) is not PathProtectionClass.NORMAL_REPO
+
+
+def test_hardlink_alias_of_protected_file_is_rejected(tmp_path):
+    protected = tmp_path / ".git" / "config"
+    protected.parent.mkdir()
+    protected.write_text("synthetic-only", encoding="utf-8")
+    alias = tmp_path / "normal-looking.txt"
+    try:
+        os.link(protected, alias)
+    except OSError as exc:
+        pytest.skip(f"hardlink creation unavailable in test environment: {type(exc).__name__}")
+    assert alias.stat().st_ino == protected.stat().st_ino
+    with pytest.raises(ValueError):
+        DiscordScope(tmp_path).resolve_file("normal-looking.txt")
