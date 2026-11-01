@@ -163,9 +163,12 @@ safe usage scalars, attempt count, execution-attempt/verification identifiers,
 the source revision when present, and acceptance). Model-reported test claims
 are never copied into the verified result.
 
-After host verification, the same host-observed record is upserted into the
-ignored `.devfarm/metrics.sqlite3` store using `task_id + request_id` as its
-idempotency key. The store keeps a compact test summary and routing dimensions
+After host verification, the append-only verification artifact is written and
+its `verification_id` is assigned before the same host-observed record is
+upserted into the ignored `.devfarm/metrics.sqlite3` store. This ordering keeps
+the durable metrics correlation bound to the exact Host evidence rather than a
+null or later-invented identifier. The store uses `task_id + request_id` as its
+idempotency key and keeps a compact test summary and routing dimensions
 (`task_type`, provider/model/binding, tier, elapsed time, usage, retry count,
 and accepted/rejected result), plus optional `attempt_id`, `verification_id`,
 and `source_revision` correlation fields; it does not store raw stdout/stderr or
