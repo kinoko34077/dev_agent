@@ -179,6 +179,48 @@ def test_worker_metrics_migrates_v1_schema_without_rewriting_legacy_observation(
         assert store.list()[0]["metric_id"] == "metric-v1"
 
 
+def test_worker_metrics_open_read_only_accepts_legacy_v1_schema(tmp_path):
+    path = tmp_path / "legacy-metrics.sqlite3"
+    connection = sqlite3.connect(path)
+    connection.executescript(
+        """
+        CREATE TABLE worker_metrics_schema_meta (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+        INSERT INTO worker_metrics_schema_meta(key, value) VALUES ('schema_version', '1');
+        CREATE TABLE worker_metrics (
+            metric_id TEXT PRIMARY KEY,
+            task_id TEXT NOT NULL,
+            request_id TEXT NOT NULL,
+            provider_id TEXT NOT NULL,
+            provider_binding_id TEXT NOT NULL,
+            model_id TEXT NOT NULL,
+            intelligence_tier TEXT,
+            task_type TEXT NOT NULL,
+            elapsed_ms INTEGER NOT NULL,
+            attempt_count INTEGER NOT NULL,
+            retry_count INTEGER NOT NULL,
+            usage_json TEXT NOT NULL,
+            quota_observation_json TEXT NOT NULL,
+            host_tests_json TEXT NOT NULL,
+            host_verified INTEGER NOT NULL,
+            host_tests_passed INTEGER NOT NULL,
+            result_accepted INTEGER NOT NULL,
+            codex_correction_chars INTEGER,
+            recorded_at TEXT NOT NULL,
+            UNIQUE(task_id, request_id)
+        );
+        """
+    )
+    connection.commit()
+    connection.close()
+
+    with WorkerMetricsStore.open_read_only(path) as store:
+        assert store.list() == []
+        assert store.summarize(task_type="worker") == []
+
+
 def test_worker_metrics_summarize_usage_preserves_observation_gaps(tmp_path):
     def verified(task_id, request_id, usage):
         return (

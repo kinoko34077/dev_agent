@@ -137,6 +137,7 @@ class WorkerMetricsStore:
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
         self._read_only = False
+        self._legacy_schema = False
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.connection = sqlite3.connect(self.path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
@@ -231,15 +232,22 @@ class WorkerMetricsStore:
         }
 
     @classmethod
-    def _validate_schema_columns(cls, connection: sqlite3.Connection) -> None:
+    def _validate_schema_columns(
+        cls,
+        connection: sqlite3.Connection,
+        *,
+        allow_legacy: bool = False,
+    ) -> None:
         required = {
             "metric_id", "task_id", "request_id", "provider_id",
             "provider_binding_id", "model_id", "intelligence_tier",
             "task_type", "elapsed_ms", "attempt_count", "retry_count",
             "usage_json", "quota_observation_json", "host_tests_json",
             "host_verified", "host_tests_passed", "result_accepted",
-            "codex_correction_chars", "recorded_at", *cls._CORRELATION_COLUMNS,
+            "codex_correction_chars", "recorded_at",
         }
+        if not allow_legacy:
+            required.update(cls._CORRELATION_COLUMNS)
         missing = sorted(required - cls._schema_columns(connection))
         if missing:
             raise WorkerMetricsError(
@@ -263,6 +271,7 @@ class WorkerMetricsStore:
         store = cls.__new__(cls)
         store.path = target
         store._read_only = True
+        store._legacy_schema = False
         store._lock = RLock()
         try:
             store.connection = sqlite3.connect(
@@ -278,9 +287,10 @@ class WorkerMetricsStore:
                 version = int(row[0]) if row is not None else None
             except (TypeError, ValueError) as exc:
                 raise WorkerMetricsError("worker metrics schema version is invalid") from exc
-            if version != cls.SCHEMA_VERSION:
+            if version not in (1, cls.SCHEMA_VERSION):
                 raise WorkerMetricsError("worker metrics database has an unsupported schema")
-            cls._validate_schema_columns(store.connection)
+            cls._validate_schema_columns(store.connection, allow_legacy=version == 1)
+            store._legacy_schema = version == 1
             store.connection.execute("SELECT 1 FROM worker_metrics LIMIT 1").fetchone()
         except (sqlite3.Error, TypeError, ValueError) as exc:
             connection = getattr(store, "connection", None)
@@ -635,6 +645,11 @@ class WorkerMetricsStore:
     @staticmethod
     def _from_row(row: sqlite3.Row) -> dict[str, Any]:
         result = dict(row)
+        # Read-only consumers may inspect a legacy v1 database before the
+        # first writer performs the v1->v2 migration.  Project the new
+        # correlation fields as unknown rather than mutating or rejecting it.
+        for field in WorkerMetricsStore._CORRELATION_COLUMNS:
+            result.setdefault(field, None)
         result["usage"] = json.loads(result.pop("usage_json"))
         result["quota_observation"] = json.loads(result.pop("quota_observation_json"))
         result["host_tests"] = json.loads(result.pop("host_tests_json"))
