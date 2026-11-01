@@ -19,7 +19,12 @@ from ..resources.model_catalog import ModelCatalogError
 
 _MAX_TEXT = 256
 _DATE_SUFFIX = re.compile(r"^(?P<base>.+)-(?P<date>\d{8})$")
-_DEFAULT_TTL = timedelta(days=7)
+# Benchmark evidence is advisory quality data and is not a billing, quota, or
+# runtime-admission authority.  Keep a practical review window so it remains
+# useful between explicit operator refreshes while the 31-day validation cap
+# prevents indefinite retention.
+DEFAULT_BENCHMARK_TTL = timedelta(days=30)
+MAX_BENCHMARK_TTL = timedelta(days=31)
 
 
 def _text(value: Any, name: str) -> str:
@@ -115,7 +120,7 @@ def benchmark_scores_from_document(
     *,
     canonical_model_ids: set[str] | frozenset[str] | tuple[str, ...],
     observed_at: datetime | None = None,
-    ttl: timedelta = _DEFAULT_TTL,
+    ttl: timedelta = DEFAULT_BENCHMARK_TTL,
     confidence: str = "medium",
 ) -> list[dict[str, Any]]:
     """Convert only exact/unique canonical matches into BenchmarkScore rows."""
@@ -125,7 +130,7 @@ def benchmark_scores_from_document(
     canonical_ids = {_text(item, "canonical_model_id") for item in canonical_model_ids}
     if not canonical_ids:
         raise ModelCatalogError("canonical_model_ids must not be empty")
-    if not isinstance(ttl, timedelta) or ttl <= timedelta(0) or ttl > timedelta(days=31):
+    if not isinstance(ttl, timedelta) or ttl <= timedelta(0) or ttl > MAX_BENCHMARK_TTL:
         raise ModelCatalogError("ttl must be from one second to 31 days")
     confidence = _text(confidence, "confidence").lower()
     if confidence not in {"low", "medium", "high"}:

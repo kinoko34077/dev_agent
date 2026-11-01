@@ -370,6 +370,22 @@ def test_provider_model_discovery_normalizes_documented_list_shapes_without_prom
     assert captured["timeout_seconds"] > 0
 
 
+def test_provider_model_discovery_default_window_is_operationally_usable():
+    discovery = ProviderModelDiscovery(secret_getter=lambda _name: "test-secret")
+    result = discovery.discover(
+        ModelDiscoveryBinding(
+            provider_id="gemini",
+            provider_binding_id="gemini:catalog",
+            api_key_env="TEST_KEY",
+        ),
+        now=NOW,
+        http_get=lambda *_args: {"models": [{"name": "models/gemini-3.8-flash"}]},
+    )
+
+    assert result.entries[0].observed_at == NOW.isoformat()
+    assert result.entries[0].expires_at == "2026-10-14T12:00:00+00:00"
+
+
 def test_provider_model_discovery_rejects_unknown_provider_and_malformed_model_document():
     discovery = ProviderModelDiscovery(secret_getter=lambda name: "test-secret")
 

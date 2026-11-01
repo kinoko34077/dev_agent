@@ -9,7 +9,6 @@ an operator explicitly reviews and replaces the canonical snapshot.
 from __future__ import annotations
 
 import argparse
-from datetime import timedelta
 import json
 import os
 from pathlib import Path
@@ -22,7 +21,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.refresh_model_catalog import write_candidate
-from src.dev_agent.providers.benchmark_discovery import benchmark_scores_from_document
+from src.dev_agent.providers.benchmark_discovery import DEFAULT_BENCHMARK_TTL, benchmark_scores_from_document
 from src.dev_agent.providers.openai_compatible.http import _read_bounded, urlopen_no_redirect
 from src.dev_agent.resources.model_catalog import ModelCatalog
 from src.dev_agent.resources.model_evidence_builder import canonical_model_id_for
@@ -74,7 +73,7 @@ def refresh(
         document,
         canonical_model_ids=canonical_ids,
         observed_at=observed_at,
-        ttl=timedelta(days=7),
+        ttl=DEFAULT_BENCHMARK_TTL,
         confidence=confidence,
     )
     return {

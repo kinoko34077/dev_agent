@@ -346,6 +346,24 @@ def test_benchmark_discovery_uses_exact_or_date_suffixed_model_identity_only():
     assert scores[0]["task_fit"]["coding"] == 76.1
 
 
+def test_benchmark_discovery_default_window_is_operationally_usable():
+    scores = benchmark_scores_from_document(
+        {
+            "data": [
+                {
+                    "source": "artificial-analysis",
+                    "model_permaslug": "google/gemini-3.7-flash",
+                    "intelligence_index": 39.4,
+                }
+            ]
+        },
+        canonical_model_ids={"google/gemini-3.7-flash"},
+        observed_at=NOW,
+    )
+
+    assert scores[0]["expires_at"] == "2026-10-14T12:00:00+00:00"
+
+
 def test_benchmark_discovery_rejects_ambiguous_date_suffixed_mapping():
     document = {
         "data": [

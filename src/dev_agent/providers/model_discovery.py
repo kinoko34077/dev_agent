@@ -22,7 +22,13 @@ from .openai_compatible.http import _read_bounded, urlopen_no_redirect
 
 
 _ENV_NAME = re.compile(r"^[A-Z][A-Z0-9_]{0,127}$")
-_DEFAULT_TTL = timedelta(days=7)
+# Model-list discovery is candidate evidence, not runtime admission.  A
+# week-long window caused ordinary operator refresh cadence to turn a usable
+# snapshot into an immediate no-candidate result.  Keep the window below the
+# hard validation ceiling while leaving exact inventory/admission checks
+# authoritative at dispatch time.
+DEFAULT_MODEL_DISCOVERY_TTL = timedelta(days=30)
+MAX_MODEL_DISCOVERY_TTL = timedelta(days=31)
 _MAX_RESPONSE_BYTES = 1_048_576
 _MAX_METADATA_STRING = 256
 _MAX_METADATA_ITEMS = 32
@@ -279,8 +285,13 @@ class ProviderModelDiscovery:
     )
     _UNAUTHENTICATED = frozenset({"ollama", "vercel"})
 
-    def __init__(self, *, secret_getter: Callable[[str], str | None] = os.getenv, ttl: timedelta = _DEFAULT_TTL) -> None:
-        if not isinstance(ttl, timedelta) or ttl <= timedelta(0) or ttl > timedelta(days=31):
+    def __init__(
+        self,
+        *,
+        secret_getter: Callable[[str], str | None] = os.getenv,
+        ttl: timedelta = DEFAULT_MODEL_DISCOVERY_TTL,
+    ) -> None:
+        if not isinstance(ttl, timedelta) or ttl <= timedelta(0) or ttl > MAX_MODEL_DISCOVERY_TTL:
             raise ValueError("ttl must be from one second to 31 days")
         self._secret_getter = secret_getter
         self._ttl = ttl
