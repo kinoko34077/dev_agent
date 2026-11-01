@@ -257,6 +257,31 @@ def test_evidence_policy_rejects_malformed_or_unsafe_source_data():
         policy.rank("unit", [EvidenceCandidate("gemini", "binding", "model")], now=_NOW)
 
 
+def test_evidence_policy_rejects_malformed_non_candidate_summaries():
+    class Source:
+        def summarize(self, **_kwargs):
+            return [{
+                "task_type": "unit",
+                "provider_id": "other-provider",
+                "provider_binding_id": "other-binding",
+                "model_id": "other-model",
+                "intelligence_tier": "L1",
+                "sample_count": "three",
+                "accepted_count": 0,
+                "average_elapsed_ms": 10,
+                "average_retry_count": 0,
+                "latest_recorded_at": "2026-09-10T11:59:00+00:00",
+            }]
+
+    policy = EvidenceBasedRoutingPolicy(Source(), minimum_samples=1)
+    with pytest.raises(EvidenceRoutingError, match="sample_count"):
+        policy.rank(
+            "unit",
+            [EvidenceCandidate("gemini", "binding", "model")],
+            now=_NOW,
+        )
+
+
 def test_evidence_policy_never_transfers_history_between_models_on_one_binding(tmp_path):
     with WorkerMetricsStore(tmp_path / "metrics.sqlite3") as store:
         for index in range(3):

@@ -233,11 +233,15 @@ class EvidenceBasedRoutingPolicy:
                 _text(raw.get("model_id"), "model_id"),
             )
             # Validate every returned summary before filtering it.  A broken
-            # evidence source must fail closed rather than silently influence a
-            # subset of candidates.
-            if summary_task_type != task_type or identity not in candidate_by_identity:
-                continue
-            aggregates.setdefault(identity, _Aggregate()).add(raw)
+            # evidence source must fail closed rather than silently influence
+            # a subset of candidates.  Candidate filtering therefore happens
+            # only after the numeric/timestamp fields have been validated.
+            aggregate = (
+                aggregates.setdefault(identity, _Aggregate())
+                if summary_task_type == task_type and identity in candidate_by_identity
+                else _Aggregate()
+            )
+            aggregate.add(raw)
 
         decisions: list[EvidenceRouteDecision] = []
         for candidate in candidates:
