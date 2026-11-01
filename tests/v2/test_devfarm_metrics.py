@@ -199,6 +199,100 @@ def test_worker_metrics_rejects_concurrent_conflicting_replay_across_connections
         assert store.list()[0]["result_accepted"] is winning_value
 
 
+def test_worker_metrics_accepts_concurrent_exact_replay_without_refreshing_timestamp(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    proposed = run_worker(root, manifest_path, provider=_WorkerProvider(_proposal_output()))
+    verified = dict(proposed)
+    verified["host_verified_tests"] = [
+        {"command": "python -m pytest tests/v2/test_target.py -q", "exit_code": 0, "passed": True}
+    ]
+    verified["worker_metrics"] = {
+        **proposed["worker_metrics"],
+        "host_verified": True,
+        "host_tests_passed": True,
+        "result_accepted": True,
+    }
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    path = root / ".devfarm" / "metrics.sqlite3"
+    first_store = WorkerMetricsStore(path)
+    second_store = WorkerMetricsStore(path)
+    start = threading.Barrier(3)
+    outside_transaction = []
+    outside_transaction_lock = threading.Lock()
+
+    class _RaceConnection:
+        def __init__(self, connection):
+            self._connection = connection
+
+        @property
+        def in_transaction(self):
+            return self._connection.in_transaction
+
+        def execute(self, sql, parameters=()):
+            normalized = " ".join(sql.split()).upper()
+            if normalized.startswith("SELECT ATTEMPT_ID,") and not self._connection.in_transaction:
+                with outside_transaction_lock:
+                    outside_transaction.append(threading.get_ident())
+            return self._connection.execute(sql, parameters)
+
+        def commit(self):
+            return self._connection.commit()
+
+        def rollback(self):
+            return self._connection.rollback()
+
+        def close(self):
+            return self._connection.close()
+
+    first_store.connection = _RaceConnection(first_store.connection)
+    second_store.connection = _RaceConnection(second_store.connection)
+    outcomes = []
+    outcomes_lock = threading.Lock()
+
+    def record(store, recorded_at):
+        start.wait(timeout=10)
+        try:
+            result = store.record(manifest=manifest, result=verified, recorded_at=recorded_at)
+        except Exception as exc:  # pragma: no cover - asserted below
+            outcome = ("error", type(exc), str(exc))
+        else:
+            outcome = ("ok", result["recorded_at"])
+        with outcomes_lock:
+            outcomes.append(outcome)
+
+    threads = [
+        threading.Thread(
+            target=record,
+            args=(first_store, "2026-09-10T00:00:00+00:00"),
+        ),
+        threading.Thread(
+            target=record,
+            args=(second_store, "2026-09-10T00:01:00+00:00"),
+        ),
+    ]
+    for thread in threads:
+        thread.start()
+    start.wait(timeout=10)
+    for thread in threads:
+        thread.join(timeout=10)
+    first_store.close()
+    second_store.close()
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert outside_transaction == []
+    assert [outcome[0] for outcome in outcomes] == ["ok", "ok"]
+    returned_timestamps = {outcome[1] for outcome in outcomes}
+    assert len(returned_timestamps) == 1
+    with WorkerMetricsStore.open_read_only(path) as store:
+        rows = store.list()
+        assert len(rows) == 1
+        assert rows[0]["recorded_at"] in {
+            "2026-09-10T00:00:00+00:00",
+            "2026-09-10T00:01:00+00:00",
+        }
+        assert rows[0]["recorded_at"] == next(iter(returned_timestamps))
+
+
 def test_worker_metrics_persist_execution_correlation_fields(tmp_path):
     root, manifest_path = _workspace(tmp_path)
     proposed = run_worker(root, manifest_path, provider=_WorkerProvider(_proposal_output()))
