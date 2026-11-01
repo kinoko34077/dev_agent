@@ -124,6 +124,7 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 
 - Commit `95ef72f` makes the fixed development-only capability probe explicit for local use: callers must provide the configured binding identity and opt into `--allow-local`; the existing Provider/authority boundary remains unchanged. Focused DevFarm tests are `36 passed`.
 - A fresh one-request-per-level run against installed `qwen3.5:9b` through `ollama:local:qwen3.5-9b` passed P0–P4 and recorded P5 as `model_output_invalid`; raw model output was not persisted, the model was unloaded after the run, and no retry or escalation was attempted. Exact artifact IDs and the boundary are recorded in Issue #127.
+- The same bounded ladder against installed `gemma4:12b` through `ollama:local:gemma4-12b` passed P0–P5. Raw output was not persisted and the model was unloaded after the run; this remains capability-only evidence, not Worker/Host acceptance.
 - Full local `tests/v2` is `2097 passed, 1 skipped`; Architecture, semantic coherence (`gate_impact=UNCHANGED`), compileall, diff checks, and exact-head Core/Provider Smoke CI passed. This is fresh local capability evidence only: it is not Worker/Host Verification, does not satisfy R5, and leaves #127/#65/#11, `GATE_STATUS`, runtime admission, billing/quota/health, Phase 8, release, and deployment unchanged.
 
 ### 2026-10-11 #81 Provider evidence freshness / model identity (non-Gate)
