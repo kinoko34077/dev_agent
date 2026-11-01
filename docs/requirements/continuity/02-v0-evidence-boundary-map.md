@@ -1,7 +1,7 @@
 # Issue #127 continuation V0 — evidence and boundary map
 
 更新日: 2026-11-01  
-検証対象: `v2/bootstrap@acabfc9becf2c839651a38a1b61737d1b33f8ebf`
+検証対象: `v2/bootstrap@407d5d40f6b4dbc2cca3c9172612d945cb93b569`
 所有Issue: [#127](https://github.com/kinoko34077/dev_agent/issues/127)
 
 これはIssue #127の継続ロードマップ `CONT-V0` の読み取り専用監査結果で
@@ -35,7 +35,7 @@ V1以降の実モデル成果やPhase 8受入を代替しない。
 | 領域 | 実際の経路 | 現在の証拠 | 欠落するseam | owner | first executable next action | 判定 |
 | --- | --- | --- | --- | --- | --- | --- |
 | Commander / DevFarm / Supervisor | `scripts/devfarm_commander.py` → `scripts/devfarm_supervisor.py` → Host Verification → review/integration | `tests/v2/test_devfarm_commander.py`, `test_devfarm_supervisor.py`, #97/#127のbounded Worker記録 | Claim/Leaseを含む実モデルの連続運用と、同一rootの再起動復帰は別途必要 | #97 / #127 | 既存の承認済みPlanと所有権を再確認した上で、低リスク・可逆な別タスクを一件だけ実行し、task/attempt/effectをIssueへ記録 | `implemented-and-tested` |
-| Worker metrics | `scripts/devfarm_worker.py` → Host検証 → `.devfarm/metrics.sqlite3` の `WorkerMetricsStore` | DBを読み取り専用で確認: 55件のhost-verified record。#134の `ollama:local:gemma4-12b / gemma4:12b` R5記録は `result_accepted=true`, cost=0。nullable tierのTypeError修正、同一task/requestのpayload差し替え拒否、`c47b43b` の schema v2 `attempt_id`・`verification_id`・`source_revision` 相関とv1→v2 migration、`acabfc9` のv1 read-only list/summarize回帰を確認 | 既存55件のlegacy行は相関列がnullのままで、実R5の次回観測で実値を埋める必要がある。DB単体ではレビュー/統合のIssue/Work Artifact lineageや、Provider request以外の外部effectを推測しない | #127 / DevFarm | 次の実タスクで exact task_id, attempt/effect(request_id), provider/binding/model, task_type, source_rev, Host結果、review/integration refをIssue/Work Artifactに束ねる | `real-world-evidenced` |
+| Worker metrics | `scripts/devfarm_worker.py` → Host検証 → `.devfarm/metrics.sqlite3` の `WorkerMetricsStore` | DBを読み取り専用で確認: 55件のhost-verified record。#134の `ollama:local:gemma4-12b / gemma4:12b` R5記録は `result_accepted=true`, cost=0。nullable tierのTypeError修正、同一task/requestのpayload差し替え拒否、`c47b43b` の schema v2 `attempt_id`・`verification_id`・`source_revision` 相関とv1→v2 migration、`acabfc9` のv1 read-only list/summarize回帰、`407d5d4` の通常Host Verificationが書込み済み `verification_id` をmetricsへ束ねる回帰を確認 | 既存55件のlegacy行は相関列がnullのままで、実R5の次回観測で実値を埋める必要がある。DB単体ではレビュー/統合のIssue/Work Artifact lineageや、Provider request以外の外部effectを推測しない | #127 / DevFarm | 次の実タスクで exact task_id, attempt/effect(request_id), provider/binding/model, task_type, source_rev, Host結果、review/integration refをIssue/Work Artifactに束ねる | `real-world-evidenced` |
 | EvidenceBasedRoutingPolicy | `src/dev_agent/intelligence/evidence_routing.py` が候補を追加せず、callerのhard-filter済み候補だけを順位付け | 実DBの `worker` / `documentation` summarize と policy rank を再実行。`worker` は実データを読み取り、受入率不足を `rollback_threshold` として返却。`documentation` はGemini 4 samplesを `evidence_eligible`、Gemma 2 samplesを `insufficient_samples` と判定。全要約の数値/時刻検証と候補外malformed fail-closed回帰も追加 | 独立した後続タスクで新証拠が自然に消費され、選択順位が変わることは未実証。期限切れ・低品質を昇格させない証拠も継続必要 | #127 / #81 | V1で新しい許可済み低リスクタスクを一件実行し、旧証拠と混同せず新しいrequest/recordで比較する。証拠不足なら `INSUFFICIENT_EVIDENCE / NO_RANK_PROMOTION` を記録 | `implemented-and-tested` |
 | ResourceRouter | `src/dev_agent/resources/router.py` と既存Resource/qualification hard filter。Evidence routingは advisory のみ | Router・resource・securityの回帰テスト、および合成Host outcome→routingの#131 | 実モデルの新しい受入結果が通常routingの次タスク選択へ影響する一連の実証は未取得 | #127 / #81 | V1の候補を既存hard constraintで絞り、実績がある場合だけ advisory順位を比較。capability/billing/quota/healthを緩めない | `implemented-and-tested` |
 | Operation / Queue / Wait-Wake / Survival / Recovery | `src/dev_agent/operation.py`、`src/dev_agent/scheduler/`、既存SQLite checkpoint/lease/recovery | PR #139 `test_runtime_coordinator_restart_keeps_mixed_wait_parked_without_replaying_ready_work` と `ef53021` のV4合成シーケンスが、park/restart後の一度だけの復帰と独立task継続を検証。関連144件、全v2 2088件が成功 | Provider障害・quota不足・独立作業継続・restart/rejoinを混ぜた実モデルの同一root試験は未達 | #127 / #65 / #11 | 実モデルV2は新規承認済み低リスクWorker/Hostタスクでのみ行い、外部効果を再送しない証跡をIssueへ記録。正式Gate変更はしない | `simulation-only` |
@@ -57,6 +57,7 @@ V1以降の実モデル成果やPhase 8受入を代替しない。
 python -m pytest tests/v2/test_devfarm_metrics.py::test_worker_metrics_summarize_handles_nullable_tiers -q
 python -m pytest tests/v2/test_devfarm_metrics.py::test_worker_metrics_migrates_v1_schema_without_rewriting_legacy_observation -q
 python -m pytest tests/v2/test_devfarm_metrics.py::test_worker_metrics_open_read_only_accepts_legacy_v1_schema -q
+python -m pytest tests/v2/test_devfarm_metrics.py::test_host_verification_metrics_bind_to_written_verification_record -q
 python -m pytest tests/v2/test_devfarm_metrics.py tests/v2/test_evidence_routing.py -q
 python -m pytest tests/v2 -q
 ```
@@ -68,7 +69,8 @@ effect再送は行っていない。
 ## V0の結論
 
 V0の境界地図と実証可能な証拠経路は整った。`WorkerMetricsStore` の
-correlation seamは `c47b43b` で修正されたが、既存legacy行への遡及補完は
-行っていない。一方、V1以降の「新しい実績が後続選択へ
+correlation schemaは `c47b43b` で導入され、`407d5d4` で通常のHost
+Verification実行後も実際のverification artifactへ結合されるよう修正されたが、
+既存legacy行への遡及補完は行っていない。一方、V1以降の「新しい実績が後続選択へ
 自然に反映された」こと、V2–V4の実モデル継続、Formal Phase 8は未達であり、
 この文書・修正PRだけでPASSや昇格を宣言しない。
