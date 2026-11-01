@@ -150,6 +150,31 @@ def merge_catalog_documents(base: Mapping[str, Any], refreshed: Mapping[str, Any
             for item in refreshed_entries
             if isinstance(item, Mapping)
         }
+    refreshed_failures = refreshed.get("discovery_failures", [])
+    if not isinstance(refreshed_failures, list):
+        refreshed_failures = []
+    base_failures = base.get("discovery_failures", [])
+    if not isinstance(base_failures, list):
+        base_failures = []
+
+    def _failure_identity(value: Any) -> tuple[Any, Any] | None:
+        if not isinstance(value, Mapping):
+            return None
+        provider_id = value.get("provider_id")
+        binding_id = value.get("provider_binding_id")
+        if not isinstance(provider_id, str) or not isinstance(binding_id, str):
+            return None
+        return provider_id, binding_id
+
+    # A failed refresh is still an attempted binding.  Replace only that
+    # binding's previous failure record, while preserving failures for
+    # bindings that were not part of this partial refresh.  Losing those
+    # records would make a candidate snapshot look healthier than the
+    # observed result and would erase the audit trail for unrequested lanes.
+    attempted_failure_bindings = {
+        identity for failure in refreshed_failures if (identity := _failure_identity(failure)) is not None
+    }
+    replaced_failure_bindings = set(refreshed_bindings) | attempted_failure_bindings
     merged: dict[tuple[Any, Any, Any], Mapping[str, Any]] = {}
     for entry in base_entries:
         if not isinstance(entry, Mapping):
@@ -175,7 +200,15 @@ def merge_catalog_documents(base: Mapping[str, Any], refreshed: Mapping[str, Any
             ],
             key=lambda item: (item["provider_id"], item["provider_binding_id"]),
         ),
-        "discovery_failures": list(refreshed.get("discovery_failures", [])) if isinstance(refreshed.get("discovery_failures", []), list) else [],
+        "discovery_failures": [
+            *[
+                failure
+                for failure in base_failures
+                if not isinstance(failure, Mapping)
+                or _failure_identity(failure) not in replaced_failure_bindings
+            ],
+            *refreshed_failures,
+        ],
     }
 
 

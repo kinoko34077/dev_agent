@@ -704,6 +704,38 @@ def test_catalog_refresh_merge_replaces_successful_binding_and_preserves_failed_
     ]
 
 
+def test_catalog_refresh_merge_preserves_unrequested_failures_and_replaces_attempted_failure():
+    base = {
+        "schema_version": 1,
+        "entries": [
+            {"provider_id": "bad", "provider_binding_id": "bad:a", "model_id": "stale-bad"},
+            {"provider_id": "other", "provider_binding_id": "other:a", "model_id": "other-a"},
+        ],
+        "discovery_failures": [
+            {"provider_id": "bad", "provider_binding_id": "bad:a", "category": "TimeoutError"},
+            {"provider_id": "other", "provider_binding_id": "other:a", "category": "HTTPError"},
+        ],
+    }
+    refreshed = {
+        "schema_version": 1,
+        "refreshed_bindings": [{"provider_id": "good", "provider_binding_id": "good:a"}],
+        "entries": [
+            {"provider_id": "good", "provider_binding_id": "good:a", "model_id": "new-good"},
+        ],
+        "discovery_failures": [
+            {"provider_id": "bad", "provider_binding_id": "bad:a", "category": "HTTPError"},
+        ],
+    }
+
+    merged = merge_catalog_documents(base, refreshed)
+
+    assert merged["discovery_failures"] == [
+        {"provider_id": "other", "provider_binding_id": "other:a", "category": "HTTPError"},
+        {"provider_id": "bad", "provider_binding_id": "bad:a", "category": "HTTPError"},
+    ]
+    assert {entry["model_id"] for entry in merged["entries"]} == {"stale-bad", "other-a", "new-good"}
+
+
 def test_operator_configured_gemini_free_slots_have_exact_billing_profiles_for_discovered_core_model():
     profile = profile_for("gemini", "gemini:worker:free-2", "gemini-3.8-flash")
 
