@@ -158,3 +158,51 @@ def test_rework_prompt_puts_concrete_repair_directive_before_general_contract() 
     assert "DO NOT REGRESS" in prompt
     assert "embedded newline remains forbidden" in prompt
     assert prompt.index("THIS IS A REPAIR ATTEMPT") < prompt.index("file_replacements is REQUIRED")
+
+
+def test_rework_prompt_includes_only_host_selected_compensation_contract() -> None:
+    manifest = {
+        "task_id": "task-compensation-prompt-1",
+        "task_type": "implementation",
+        "objective": "make one bounded existing-file change",
+        "base_revision": "abc123",
+        "allowed_files": ["src/example.py"],
+        "forbidden_files": [".env"],
+        "external_provider_allowed": True,
+        "approved_provider_ids": ["ollama"],
+        "outbound_files": ["src/example.py"],
+        "requirements": ["preserve unrelated behavior"],
+        "acceptance": ["focused test passes"],
+        "test_commands": ["python -m compileall -q src/example.py"],
+        "output_contract": {"format": "json"},
+        "rework_handoff": {
+            "repair_context": {
+                "compensation": {
+                    "authority": "host_policy",
+                    "action": "switch_output_mode",
+                    "prompt_contract": "host-localized-edit",
+                    "output_mode": "localized_file_edit",
+                    "context_hints": ["exact_line_anchor", "expected_lines"],
+                    "raw_traceback": "must never be copied",
+                },
+                "historical_constraints": {},
+            },
+            "repair_directive": {
+                "repair_target": "file_edits",
+                "previous_problem": "the previous response used the wrong shape",
+                "required_action": "return one anchored edit",
+                "must_preserve": ["public exports"],
+                "forbidden": ["new files"],
+                "completion_condition": ["expected_lines match the base"],
+            },
+        },
+    }
+
+    prompt = build_worker_prompt(manifest, "INPUT FILES", local_ollama=True, localized_proposal=True)
+
+    assert "HOST-SELECTED CORRECTION ROUTE" in prompt
+    assert "RESPONSIBILITY ACTION: switch_output_mode" in prompt
+    assert "PROMPT CONTRACT: host-localized-edit" in prompt
+    assert "OUTPUT MODE: localized_file_edit" in prompt
+    assert "BOUNDED CONTEXT HINTS: exact_line_anchor, expected_lines" in prompt
+    assert "must never be copied" not in prompt

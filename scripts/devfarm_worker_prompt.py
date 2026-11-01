@@ -53,6 +53,146 @@ def _repair_context(manifest: Mapping[str, Any]) -> Mapping[str, Any] | None:
     return None
 
 
+def _compensation_prefix(context: Mapping[str, Any]) -> str:
+    """Render only the Host allowlisted correction route into the prompt."""
+
+    value = context.get("compensation")
+    if not isinstance(value, Mapping) or value.get("authority") != "host_policy":
+        return ""
+    action = value.get("action")
+    prompt_contract = value.get("prompt_contract")
+    output_mode = value.get("output_mode")
+    allowed_actions = {
+        "switch_output_mode",
+        "repair_same_task",
+        "add_minimal_context",
+        "reframe_task",
+        "stop_model_repair",
+    }
+    allowed_contracts = {
+        "host-localized-edit",
+        "bounded-repair-delta",
+        "bounded-category-context",
+        "upper-reframe",
+        "no-model-replay",
+    }
+    allowed_modes = {"full_result", "minimal_file_replacement", "localized_file_edit"}
+    if action not in allowed_actions or prompt_contract not in allowed_contracts:
+        return ""
+    if output_mode is not None and output_mode not in allowed_modes:
+        return ""
+    hints = value.get("context_hints", ())
+    if isinstance(hints, str) or not isinstance(hints, (list, tuple)):
+        return ""
+    normalized_hints = tuple(
+        item.strip()
+        for item in hints
+        if isinstance(item, str) and item.strip() and len(item.strip()) <= 96
+    )
+    mode_line = f"OUTPUT MODE: {output_mode}\n" if output_mode is not None else ""
+    return (
+        "HOST-SELECTED CORRECTION ROUTE. Follow this route; do not invent another.\n"
+        f"RESPONSIBILITY ACTION: {action}\n"
+        f"PROMPT CONTRACT: {prompt_contract}\n"
+        + mode_line
+        + f"BOUNDED CONTEXT HINTS: {', '.join(normalized_hints) or '- none'}\n"
+        "The Host owns this routing decision; keep the response within the declared schema.\n"
+    )
+
+
+def _bounded_rework_handoff(manifest: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Project only the fields needed for the next bounded prompt.
+
+    The durable handoff can contain references and diagnostics for Host-side
+    audit.  Those are not automatically safe to echo to a Provider.  The
+    prompt receives the already allowlisted directive, historical constraints,
+    and compensation route only; unknown fields (including raw tracebacks)
+    remain Host-local.
+    """
+
+    directive = _repair_directive(manifest)
+    context = _repair_context(manifest)
+    if directive is None and context is None:
+        return None
+    projected: dict[str, Any] = {}
+    if directive is not None:
+        projected_directive: dict[str, Any] = {}
+        scalar_fields = ("repair_target", "previous_problem", "required_action")
+        list_fields = ("must_preserve", "forbidden", "completion_condition")
+        for field in scalar_fields:
+            value = directive.get(field)
+            if isinstance(value, str) and value.strip() and len(value.strip()) <= 2_000:
+                projected_directive[field] = value.strip()
+        for field in list_fields:
+            value = directive.get(field, ())
+            if isinstance(value, str):
+                value = (value,)
+            if not isinstance(value, (list, tuple)):
+                continue
+            items = [
+                item.strip()
+                for item in value[:32]
+                if isinstance(item, str) and item.strip() and len(item.strip()) <= 1_024
+            ]
+            projected_directive[field] = items
+        if projected_directive:
+            projected["repair_directive"] = projected_directive
+    if context is not None:
+        projected_context: dict[str, Any] = {}
+        historical = context.get("historical_constraints")
+        if isinstance(historical, Mapping):
+            resolved = historical.get("resolved_must_not_regress", ())
+            if isinstance(resolved, str):
+                resolved = (resolved,)
+            if isinstance(resolved, (list, tuple)):
+                projected_context["historical_constraints"] = {
+                    "resolved_must_not_regress": [
+                        item.strip()
+                        for item in resolved[:32]
+                        if isinstance(item, str) and item.strip() and len(item.strip()) <= 1_024
+                    ]
+                }
+        compensation = context.get("compensation")
+        if isinstance(compensation, Mapping) and compensation.get("authority") == "host_policy":
+            action = compensation.get("action")
+            contract = compensation.get("prompt_contract")
+            mode = compensation.get("output_mode")
+            hints = compensation.get("context_hints", ())
+            if (
+                action in {
+                    "switch_output_mode",
+                    "repair_same_task",
+                    "add_minimal_context",
+                    "reframe_task",
+                    "stop_model_repair",
+                }
+                and contract in {
+                    "host-localized-edit",
+                    "bounded-repair-delta",
+                    "bounded-category-context",
+                    "upper-reframe",
+                    "no-model-replay",
+                }
+                and (mode is None or mode in {"full_result", "minimal_file_replacement", "localized_file_edit"})
+                and isinstance(hints, (list, tuple))
+            ):
+                projected_compensation = {
+                    "authority": "host_policy",
+                    "action": action,
+                    "prompt_contract": contract,
+                    "output_mode": mode,
+                    "context_hints": [
+                        item.strip()
+                        for item in hints[:16]
+                        if isinstance(item, str) and item.strip() and len(item.strip()) <= 96
+                    ],
+                }
+                projected_context["compensation"] = projected_compensation
+        if projected_context:
+            projected["repair_context"] = projected_context
+    return projected or None
+
+
 def _repair_prefix(manifest: Mapping[str, Any]) -> str:
     directive = _repair_directive(manifest)
     if directive is None:
@@ -69,7 +209,8 @@ def _repair_prefix(manifest: Mapping[str, Any]) -> str:
     return (
         "THIS IS A REPAIR ATTEMPT.\n"
         "The previous attempt failed for exactly the bounded reason below.\n"
-        f"TARGET: {directive.get('repair_target', '')}\n"
+        + _compensation_prefix(context)
+        + f"TARGET: {directive.get('repair_target', '')}\n"
         f"PREVIOUS PROBLEM: {directive.get('previous_problem', '')}\n"
         f"CURRENT REQUIRED CORRECTION: {directive.get('required_action', '')}\n"
         f"MUST PRESERVE:\n{lines('must_preserve') or '- none'}\n"
@@ -107,8 +248,9 @@ def build_worker_prompt(
         "test_commands": manifest["test_commands"],
         "output_contract": manifest["output_contract"],
     }
-    if manifest.get("rework_handoff") is not None:
-        handoff["rework_handoff"] = manifest["rework_handoff"]
+    rework_handoff = _bounded_rework_handoff(manifest)
+    if rework_handoff is not None:
+        handoff["rework_handoff"] = rework_handoff
     if egress_manifest is not None:
         handoff["transfer_authorization"] = {
             "policy_id": _field(egress_manifest, "policy_id"),

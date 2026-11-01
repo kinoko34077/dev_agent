@@ -581,7 +581,27 @@ def _rework_compensation(manifest: Mapping[str, Any]) -> dict[str, Any] | None:
             raise DevFarmError("rework compensation action is unsupported")
         if mode is not None and mode not in {"full_result", "minimal_file_replacement", LOCALIZED_FILE_EDIT_MODE}:
             raise DevFarmError("rework compensation output mode is unsupported")
-        decisions.append(dict(value))
+        decision = dict(value)
+        prompt_contract = decision.get("prompt_contract")
+        if prompt_contract is None:
+            prompt_contract = {
+                "switch_output_mode": "host-localized-edit",
+                "repair_same_task": "bounded-repair-delta",
+                "add_minimal_context": "bounded-category-context",
+                "reframe_task": "upper-reframe",
+                "stop_model_repair": "no-model-replay",
+            }.get(action)
+            if prompt_contract is not None:
+                decision["prompt_contract"] = prompt_contract
+        if prompt_contract not in {
+            "host-localized-edit",
+            "bounded-repair-delta",
+            "bounded-category-context",
+            "upper-reframe",
+            "no-model-replay",
+        }:
+            raise DevFarmError("rework compensation prompt contract is unsupported")
+        decisions.append(decision)
     if not decisions:
         return None
     first = decisions[0]

@@ -45,6 +45,18 @@ class WorkerCompensation:
     reframe_required: bool = False
     authority: str = "host_policy"
 
+    @property
+    def prompt_contract(self) -> str:
+        """Return the bounded instruction contract for the selected action."""
+
+        return {
+            "switch_output_mode": "host-localized-edit",
+            "repair_same_task": "bounded-repair-delta",
+            "add_minimal_context": "bounded-category-context",
+            "reframe_task": "upper-reframe",
+            "stop_model_repair": "no-model-replay",
+        }.get(self.action, "no-model-replay")
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "action": self.action,
@@ -53,6 +65,7 @@ class WorkerCompensation:
             "context_hints": list(self.context_hints),
             "reframe_required": self.reframe_required,
             "authority": self.authority,
+            "prompt_contract": self.prompt_contract,
         }
 
 
