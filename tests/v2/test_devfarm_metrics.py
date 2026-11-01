@@ -1,5 +1,6 @@
 import json
 import sqlite3
+import threading
 
 import pytest
 
@@ -112,6 +113,82 @@ def test_worker_metrics_rejects_conflicting_replay_for_same_task_and_request(tmp
         conflicting["worker_metrics"]["result_accepted"] = False
         with pytest.raises(WorkerMetricsError, match="conflicting metric replay"):
             store.record(manifest=manifest, result=conflicting, recorded_at="2026-09-10T00:01:00+00:00")
+        assert store.list()[0]["result_accepted"] is True
+
+
+def test_worker_metrics_rejects_concurrent_conflicting_replay_across_connections(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    proposed = run_worker(root, manifest_path, provider=_WorkerProvider(_proposal_output()))
+    verified = dict(proposed)
+    verified["host_verified_tests"] = [
+        {"command": "python -m pytest tests/v2/test_target.py -q", "exit_code": 0, "passed": True}
+    ]
+    verified["worker_metrics"] = {
+        **proposed["worker_metrics"],
+        "host_verified": True,
+        "host_tests_passed": True,
+        "result_accepted": True,
+    }
+    conflicting = json.loads(json.dumps(verified))
+    conflicting["worker_metrics"]["result_accepted"] = False
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    path = root / ".devfarm" / "metrics.sqlite3"
+    first_store = WorkerMetricsStore(path)
+    second_store = WorkerMetricsStore(path)
+    ready = threading.Barrier(2)
+
+    class _RaceConnection:
+        def __init__(self, connection):
+            self._connection = connection
+
+        @property
+        def in_transaction(self):
+            return self._connection.in_transaction
+
+        def execute(self, sql, parameters=()):
+            normalized = " ".join(sql.split()).upper()
+            if normalized.startswith("SELECT ATTEMPT_ID,") and not self._connection.in_transaction:
+                ready.wait(timeout=5)
+            return self._connection.execute(sql, parameters)
+
+        def commit(self):
+            return self._connection.commit()
+
+        def rollback(self):
+            return self._connection.rollback()
+
+        def close(self):
+            return self._connection.close()
+
+    first_store.connection = _RaceConnection(first_store.connection)
+    second_store.connection = _RaceConnection(second_store.connection)
+    outcomes = []
+    outcomes_lock = threading.Lock()
+
+    def record(store, result):
+        try:
+            store.record(manifest=manifest, result=result, recorded_at="2026-09-10T00:00:00+00:00")
+        except Exception as exc:  # pragma: no cover - asserted below
+            outcome = ("error", type(exc), str(exc))
+        else:
+            outcome = ("ok", result["worker_metrics"]["result_accepted"])
+        with outcomes_lock:
+            outcomes.append(outcome)
+
+    threads = [
+        threading.Thread(target=record, args=(first_store, verified)),
+        threading.Thread(target=record, args=(second_store, conflicting)),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+    first_store.close()
+    second_store.close()
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert sorted(outcome[0] for outcome in outcomes) == ["error", "ok"]
+    with WorkerMetricsStore.open_read_only(path) as store:
         assert store.list()[0]["result_accepted"] is True
 
 

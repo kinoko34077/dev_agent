@@ -377,96 +377,104 @@ class WorkerMetricsStore:
             "recorded_at": _recorded_at(recorded_at),
         }
         with self._lock:
-            existing = self.connection.execute(
-                "SELECT attempt_id, verification_id, source_revision, provider_id, provider_binding_id, model_id, intelligence_tier, "
-                "task_type, elapsed_ms, attempt_count, retry_count, usage_json, "
-                "quota_observation_json, host_tests_json, host_verified, "
-                "host_tests_passed, result_accepted, codex_correction_chars "
-                "FROM worker_metrics WHERE task_id=? AND request_id=?",
-                (normalized["task_id"], normalized["request_id"]),
-            ).fetchone()
-            expected = {
-                "attempt_id": normalized["attempt_id"],
-                "verification_id": normalized["verification_id"],
-                "source_revision": normalized["source_revision"],
-                "provider_id": normalized["provider_id"],
-                "provider_binding_id": normalized["provider_binding_id"],
-                "model_id": normalized["model_id"],
-                "intelligence_tier": normalized["intelligence_tier"],
-                "task_type": normalized["task_type"],
-                "elapsed_ms": normalized["elapsed_ms"],
-                "attempt_count": normalized["attempt_count"],
-                "retry_count": normalized["retry_count"],
-                "usage_json": json.dumps(normalized["usage"], ensure_ascii=False, sort_keys=True),
-                "quota_observation_json": json.dumps(normalized["quota_observation"], ensure_ascii=False, sort_keys=True),
-                "host_tests_json": json.dumps(normalized["host_tests"], ensure_ascii=False, sort_keys=True),
-                "host_verified": 1,
-                "host_tests_passed": int(normalized["host_tests_passed"]),
-                "result_accepted": int(normalized["result_accepted"]),
-                "codex_correction_chars": normalized["codex_correction_chars"],
-            }
-            if existing is not None:
-                for field, value in expected.items():
-                    if existing[field] != value:
-                        raise WorkerMetricsError(
-                            "conflicting metric replay for the same task/request identity"
-                        )
-            self.connection.execute(
-                """INSERT INTO worker_metrics(
-                       metric_id, task_id, request_id, attempt_id,
-                       verification_id, source_revision, provider_id,
-                       provider_binding_id, model_id, intelligence_tier,
-                       task_type, elapsed_ms, attempt_count, retry_count,
-                       usage_json, quota_observation_json, host_tests_json,
-                       host_verified, host_tests_passed, result_accepted,
-                       codex_correction_chars, recorded_at
-                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                   ON CONFLICT(task_id, request_id) DO UPDATE SET
-                       metric_id=excluded.metric_id,
-                       attempt_id=excluded.attempt_id,
-                       verification_id=excluded.verification_id,
-                       source_revision=excluded.source_revision,
-                       provider_id=excluded.provider_id,
-                       provider_binding_id=excluded.provider_binding_id,
-                       model_id=excluded.model_id,
-                       intelligence_tier=excluded.intelligence_tier,
-                       task_type=excluded.task_type,
-                       elapsed_ms=excluded.elapsed_ms,
-                       attempt_count=excluded.attempt_count,
-                       retry_count=excluded.retry_count,
-                       usage_json=excluded.usage_json,
-                       quota_observation_json=excluded.quota_observation_json,
-                       host_tests_json=excluded.host_tests_json,
-                       host_verified=excluded.host_verified,
-                       host_tests_passed=excluded.host_tests_passed,
-                       result_accepted=excluded.result_accepted,
-                       codex_correction_chars=excluded.codex_correction_chars""",
-                (
-                    normalized["metric_id"],
-                    normalized["task_id"],
-                    normalized["request_id"],
-                    normalized["attempt_id"],
-                    normalized["verification_id"],
-                    normalized["source_revision"],
-                    normalized["provider_id"],
-                    normalized["provider_binding_id"],
-                    normalized["model_id"],
-                    normalized["intelligence_tier"],
-                    normalized["task_type"],
-                    normalized["elapsed_ms"],
-                    normalized["attempt_count"],
-                    normalized["retry_count"],
-                    json.dumps(normalized["usage"], ensure_ascii=False, sort_keys=True),
-                    json.dumps(normalized["quota_observation"], ensure_ascii=False, sort_keys=True),
-                    json.dumps(normalized["host_tests"], ensure_ascii=False, sort_keys=True),
-                    1,
-                    int(normalized["host_tests_passed"]),
-                    int(normalized["result_accepted"]),
-                    normalized["codex_correction_chars"],
-                    normalized["recorded_at"],
-                ),
-            )
-            self.connection.commit()
+            try:
+                # The identity check and the write must share one database
+                # transaction.  A per-instance lock cannot protect against a
+                # second WorkerMetricsStore connected to the same file.
+                self.connection.execute("BEGIN IMMEDIATE")
+                existing = self.connection.execute(
+                    "SELECT attempt_id, verification_id, source_revision, provider_id, provider_binding_id, model_id, intelligence_tier, "
+                    "task_type, elapsed_ms, attempt_count, retry_count, usage_json, "
+                    "quota_observation_json, host_tests_json, host_verified, "
+                    "host_tests_passed, result_accepted, codex_correction_chars "
+                    "FROM worker_metrics WHERE task_id=? AND request_id=?",
+                    (normalized["task_id"], normalized["request_id"]),
+                ).fetchone()
+                expected = {
+                    "attempt_id": normalized["attempt_id"],
+                    "verification_id": normalized["verification_id"],
+                    "source_revision": normalized["source_revision"],
+                    "provider_id": normalized["provider_id"],
+                    "provider_binding_id": normalized["provider_binding_id"],
+                    "model_id": normalized["model_id"],
+                    "intelligence_tier": normalized["intelligence_tier"],
+                    "task_type": normalized["task_type"],
+                    "elapsed_ms": normalized["elapsed_ms"],
+                    "attempt_count": normalized["attempt_count"],
+                    "retry_count": normalized["retry_count"],
+                    "usage_json": json.dumps(normalized["usage"], ensure_ascii=False, sort_keys=True),
+                    "quota_observation_json": json.dumps(normalized["quota_observation"], ensure_ascii=False, sort_keys=True),
+                    "host_tests_json": json.dumps(normalized["host_tests"], ensure_ascii=False, sort_keys=True),
+                    "host_verified": 1,
+                    "host_tests_passed": int(normalized["host_tests_passed"]),
+                    "result_accepted": int(normalized["result_accepted"]),
+                    "codex_correction_chars": normalized["codex_correction_chars"],
+                }
+                if existing is not None:
+                    for field, value in expected.items():
+                        if existing[field] != value:
+                            raise WorkerMetricsError(
+                                "conflicting metric replay for the same task/request identity"
+                            )
+                self.connection.execute(
+                    """INSERT INTO worker_metrics(
+                           metric_id, task_id, request_id, attempt_id,
+                           verification_id, source_revision, provider_id,
+                           provider_binding_id, model_id, intelligence_tier,
+                           task_type, elapsed_ms, attempt_count, retry_count,
+                           usage_json, quota_observation_json, host_tests_json,
+                           host_verified, host_tests_passed, result_accepted,
+                           codex_correction_chars, recorded_at
+                       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(task_id, request_id) DO UPDATE SET
+                           metric_id=excluded.metric_id,
+                           attempt_id=excluded.attempt_id,
+                           verification_id=excluded.verification_id,
+                           source_revision=excluded.source_revision,
+                           provider_id=excluded.provider_id,
+                           provider_binding_id=excluded.provider_binding_id,
+                           model_id=excluded.model_id,
+                           intelligence_tier=excluded.intelligence_tier,
+                           task_type=excluded.task_type,
+                           elapsed_ms=excluded.elapsed_ms,
+                           attempt_count=excluded.attempt_count,
+                           retry_count=excluded.retry_count,
+                           usage_json=excluded.usage_json,
+                           quota_observation_json=excluded.quota_observation_json,
+                           host_tests_json=excluded.host_tests_json,
+                           host_verified=excluded.host_verified,
+                           host_tests_passed=excluded.host_tests_passed,
+                           result_accepted=excluded.result_accepted,
+                           codex_correction_chars=excluded.codex_correction_chars""",
+                    (
+                        normalized["metric_id"],
+                        normalized["task_id"],
+                        normalized["request_id"],
+                        normalized["attempt_id"],
+                        normalized["verification_id"],
+                        normalized["source_revision"],
+                        normalized["provider_id"],
+                        normalized["provider_binding_id"],
+                        normalized["model_id"],
+                        normalized["intelligence_tier"],
+                        normalized["task_type"],
+                        normalized["elapsed_ms"],
+                        normalized["attempt_count"],
+                        normalized["retry_count"],
+                        json.dumps(normalized["usage"], ensure_ascii=False, sort_keys=True),
+                        json.dumps(normalized["quota_observation"], ensure_ascii=False, sort_keys=True),
+                        json.dumps(normalized["host_tests"], ensure_ascii=False, sort_keys=True),
+                        1,
+                        int(normalized["host_tests_passed"]),
+                        int(normalized["result_accepted"]),
+                        normalized["codex_correction_chars"],
+                        normalized["recorded_at"],
+                    ),
+                )
+                self.connection.commit()
+            except Exception:
+                self.connection.rollback()
+                raise
             stored = self.connection.execute(
                 "SELECT * FROM worker_metrics WHERE task_id=? AND request_id=?",
                 (normalized["task_id"], normalized["request_id"]),
