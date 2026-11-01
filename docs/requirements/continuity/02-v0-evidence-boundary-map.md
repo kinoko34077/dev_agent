@@ -1,7 +1,7 @@
 # Issue #127 continuation V0 — evidence and boundary map
 
 更新日: 2026-11-01  
-検証対象: `v2/bootstrap@529f1f2df671e66fe039e69f66d75892860856d2`
+検証対象: `v2/bootstrap@c042603f2357a30d18f9c2f9df377a48959d9c9d`
 所有Issue: [#127](https://github.com/kinoko34077/dev_agent/issues/127)
 
 これはIssue #127の継続ロードマップ `CONT-V0` の読み取り専用監査結果で
