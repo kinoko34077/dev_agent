@@ -223,7 +223,9 @@ class WorkerMetricsStore:
 
         A proposal is not evidence.  ``host_verified`` and all acceptance
         fields are required so this method cannot accidentally turn a model
-        claim into routing history.
+        claim into routing history.  Exact replays are idempotent; a changed
+        payload for the same task/request identity is rejected rather than
+        replacing the durable observation.
         """
 
         if not isinstance(manifest, Mapping) or not isinstance(result, Mapping):
@@ -280,6 +282,37 @@ class WorkerMetricsStore:
             "recorded_at": _recorded_at(recorded_at),
         }
         with self._lock:
+            existing = self.connection.execute(
+                "SELECT provider_id, provider_binding_id, model_id, intelligence_tier, "
+                "task_type, elapsed_ms, attempt_count, retry_count, usage_json, "
+                "quota_observation_json, host_tests_json, host_verified, "
+                "host_tests_passed, result_accepted, codex_correction_chars "
+                "FROM worker_metrics WHERE task_id=? AND request_id=?",
+                (normalized["task_id"], normalized["request_id"]),
+            ).fetchone()
+            expected = {
+                "provider_id": normalized["provider_id"],
+                "provider_binding_id": normalized["provider_binding_id"],
+                "model_id": normalized["model_id"],
+                "intelligence_tier": normalized["intelligence_tier"],
+                "task_type": normalized["task_type"],
+                "elapsed_ms": normalized["elapsed_ms"],
+                "attempt_count": normalized["attempt_count"],
+                "retry_count": normalized["retry_count"],
+                "usage_json": json.dumps(normalized["usage"], ensure_ascii=False, sort_keys=True),
+                "quota_observation_json": json.dumps(normalized["quota_observation"], ensure_ascii=False, sort_keys=True),
+                "host_tests_json": json.dumps(normalized["host_tests"], ensure_ascii=False, sort_keys=True),
+                "host_verified": 1,
+                "host_tests_passed": int(normalized["host_tests_passed"]),
+                "result_accepted": int(normalized["result_accepted"]),
+                "codex_correction_chars": normalized["codex_correction_chars"],
+            }
+            if existing is not None:
+                for field, value in expected.items():
+                    if existing[field] != value:
+                        raise WorkerMetricsError(
+                            "conflicting metric replay for the same task/request identity"
+                        )
             self.connection.execute(
                 """INSERT INTO worker_metrics(
                        metric_id, task_id, request_id, provider_id,

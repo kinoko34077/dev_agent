@@ -75,6 +75,28 @@ def test_worker_metrics_upsert_is_idempotent_and_does_not_use_model_claims(tmp_p
             store.record(manifest=manifest, result=unverified)
 
 
+def test_worker_metrics_rejects_conflicting_replay_for_same_task_and_request(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    proposed = run_worker(root, manifest_path, provider=_WorkerProvider(_proposal_output()))
+    verified = dict(proposed)
+    verified["host_verified_tests"] = [{"command": "python -m pytest tests/v2/test_target.py -q", "exit_code": 0, "passed": True}]
+    verified["worker_metrics"] = {
+        **proposed["worker_metrics"],
+        "host_verified": True,
+        "host_tests_passed": True,
+        "result_accepted": True,
+    }
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    with WorkerMetricsStore(root / ".devfarm" / "metrics.sqlite3") as store:
+        store.record(manifest=manifest, result=verified, recorded_at="2026-09-10T00:00:00+00:00")
+        conflicting = json.loads(json.dumps(verified))
+        conflicting["worker_metrics"]["result_accepted"] = False
+        with pytest.raises(WorkerMetricsError, match="conflicting metric replay"):
+            store.record(manifest=manifest, result=conflicting, recorded_at="2026-09-10T00:01:00+00:00")
+        assert store.list()[0]["result_accepted"] is True
+
+
 def test_worker_metrics_summarize_usage_preserves_observation_gaps(tmp_path):
     def verified(task_id, request_id, usage):
         return (
