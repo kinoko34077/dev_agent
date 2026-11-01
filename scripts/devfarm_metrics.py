@@ -41,6 +41,12 @@ def _optional_integer(value: Any, name: str, *, minimum: int = 0) -> int | None:
     return _integer(value, name, minimum=minimum)
 
 
+def _optional_text(value: Any, name: str, *, max_length: int = 256) -> str | None:
+    if value is None:
+        return None
+    return _text(value, name, max_length=max_length)
+
+
 def _scalar(value: Any) -> int | float | str | bool | None:
     if value is None or isinstance(value, bool):
         return value
@@ -125,7 +131,8 @@ def _observed_nonnegative_integer(usage: Mapping[str, Any], keys: Sequence[str])
 class WorkerMetricsStore:
     """Small SQLite store for host-verified Worker observations."""
 
-    SCHEMA_VERSION = 1
+    SCHEMA_VERSION = 2
+    _CORRELATION_COLUMNS = ("attempt_id", "verification_id", "source_revision")
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
@@ -135,16 +142,23 @@ class WorkerMetricsStore:
         self.connection.row_factory = sqlite3.Row
         self._lock = RLock()
         with self._lock:
-            self.connection.executescript(
-                """
-                CREATE TABLE IF NOT EXISTS worker_metrics_schema_meta (
+            table_existed = self.connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='worker_metrics'"
+            ).fetchone() is not None
+            self.connection.execute(
+                """CREATE TABLE IF NOT EXISTS worker_metrics_schema_meta (
                     key TEXT PRIMARY KEY,
                     value TEXT NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS worker_metrics (
+                )"""
+            )
+            self.connection.execute(
+                """CREATE TABLE IF NOT EXISTS worker_metrics (
                     metric_id TEXT PRIMARY KEY,
                     task_id TEXT NOT NULL,
                     request_id TEXT NOT NULL,
+                    attempt_id TEXT,
+                    verification_id TEXT,
+                    source_revision TEXT,
                     provider_id TEXT NOT NULL,
                     provider_binding_id TEXT NOT NULL,
                     model_id TEXT NOT NULL,
@@ -162,22 +176,82 @@ class WorkerMetricsStore:
                     codex_correction_chars INTEGER,
                     recorded_at TEXT NOT NULL,
                     UNIQUE(task_id, request_id)
-                );
-                CREATE INDEX IF NOT EXISTS idx_worker_metrics_routing
-                    ON worker_metrics(task_type, provider_binding_id, model_id, intelligence_tier);
-                """
+                )"""
+            )
+            self.connection.execute(
+                """CREATE INDEX IF NOT EXISTS idx_worker_metrics_routing
+                    ON worker_metrics(task_type, provider_binding_id, model_id, intelligence_tier)"""
             )
             row = self.connection.execute(
                 "SELECT value FROM worker_metrics_schema_meta WHERE key='schema_version'"
             ).fetchone()
             if row is None:
+                # A pre-versioned/legacy database has the v1 table but no
+                # marker.  New databases start at the current version; old
+                # ones enter the explicit migration chain below.
+                current_version = 1 if table_existed else self.SCHEMA_VERSION
                 self.connection.execute(
                     "INSERT INTO worker_metrics_schema_meta(key, value) VALUES ('schema_version', ?)",
-                    (str(self.SCHEMA_VERSION),),
+                    (str(current_version),),
                 )
-            elif int(row[0]) != self.SCHEMA_VERSION:
-                raise WorkerMetricsError(f"unsupported worker metrics schema version: {row[0]}")
-            self.connection.commit()
+            else:
+                try:
+                    current_version = int(row[0])
+                except (TypeError, ValueError) as exc:
+                    raise WorkerMetricsError("worker metrics schema version is invalid") from exc
+            if current_version > self.SCHEMA_VERSION or current_version < 1:
+                raise WorkerMetricsError(f"unsupported worker metrics schema version: {current_version}")
+            try:
+                # Commit table/meta bootstrap before opening the explicit
+                # migration transaction.  This leaves a legacy database at
+                # its old version if a later ALTER fails or the process dies.
+                self.connection.commit()
+                self.connection.execute("BEGIN IMMEDIATE")
+                while current_version < self.SCHEMA_VERSION:
+                    if current_version == 1:
+                        self._migrate_1_to_2(self.connection)
+                    else:  # pragma: no cover - guarded by the version range above
+                        raise WorkerMetricsError(f"no migration for worker metrics schema {current_version}")
+                    current_version += 1
+                    self.connection.execute(
+                        "UPDATE worker_metrics_schema_meta SET value=? WHERE key='schema_version'",
+                        (str(current_version),),
+                    )
+                self._validate_schema_columns(self.connection)
+                self.connection.commit()
+            except Exception:
+                self.connection.rollback()
+                raise
+
+    @classmethod
+    def _schema_columns(cls, connection: sqlite3.Connection) -> set[str]:
+        return {
+            str(row[1])
+            for row in connection.execute("PRAGMA table_info(worker_metrics)").fetchall()
+        }
+
+    @classmethod
+    def _validate_schema_columns(cls, connection: sqlite3.Connection) -> None:
+        required = {
+            "metric_id", "task_id", "request_id", "provider_id",
+            "provider_binding_id", "model_id", "intelligence_tier",
+            "task_type", "elapsed_ms", "attempt_count", "retry_count",
+            "usage_json", "quota_observation_json", "host_tests_json",
+            "host_verified", "host_tests_passed", "result_accepted",
+            "codex_correction_chars", "recorded_at", *cls._CORRELATION_COLUMNS,
+        }
+        missing = sorted(required - cls._schema_columns(connection))
+        if missing:
+            raise WorkerMetricsError(
+                "worker metrics schema is missing columns: " + ", ".join(missing)
+            )
+
+    @classmethod
+    def _migrate_1_to_2(cls, connection: sqlite3.Connection) -> None:
+        columns = cls._schema_columns(connection)
+        for column in cls._CORRELATION_COLUMNS:
+            if column not in columns:
+                connection.execute(f"ALTER TABLE worker_metrics ADD COLUMN {column} TEXT")
 
     @classmethod
     def open_read_only(cls, path: str | Path) -> "WorkerMetricsStore":
@@ -200,8 +274,13 @@ class WorkerMetricsStore:
             row = store.connection.execute(
                 "SELECT value FROM worker_metrics_schema_meta WHERE key='schema_version'"
             ).fetchone()
-            if row is None or int(row[0]) != cls.SCHEMA_VERSION:
+            try:
+                version = int(row[0]) if row is not None else None
+            except (TypeError, ValueError) as exc:
+                raise WorkerMetricsError("worker metrics schema version is invalid") from exc
+            if version != cls.SCHEMA_VERSION:
                 raise WorkerMetricsError("worker metrics database has an unsupported schema")
+            cls._validate_schema_columns(store.connection)
             store.connection.execute("SELECT 1 FROM worker_metrics LIMIT 1").fetchone()
         except (sqlite3.Error, TypeError, ValueError) as exc:
             connection = getattr(store, "connection", None)
@@ -243,6 +322,9 @@ class WorkerMetricsStore:
         if not isinstance(host_tests_passed, bool) or not isinstance(result_accepted, bool):
             raise WorkerMetricsError("host verification acceptance fields must be booleans")
         request_id = _text(metrics.get("request_id"), "request_id", max_length=256)
+        attempt_id = _optional_text(result.get("attempt_id"), "attempt_id", max_length=256)
+        verification_id = _optional_text(result.get("verification_id"), "verification_id", max_length=256)
+        source_revision = _optional_text(manifest.get("base_revision"), "source_revision", max_length=256)
         provider_id = _text(metrics.get("provider_id"), "provider_id")
         binding_id = _text(metrics.get("provider_binding_id"), "provider_binding_id")
         model_id = _text(metrics.get("model_id"), "model_id")
@@ -263,6 +345,9 @@ class WorkerMetricsStore:
             "metric_id": str(uuid5(NAMESPACE_URL, f"dev_agent.devfarm.metrics/{task_id}/{request_id}")),
             "task_id": task_id,
             "request_id": request_id,
+            "attempt_id": attempt_id,
+            "verification_id": verification_id,
+            "source_revision": source_revision,
             "provider_id": provider_id,
             "provider_binding_id": binding_id,
             "model_id": model_id,
@@ -283,7 +368,7 @@ class WorkerMetricsStore:
         }
         with self._lock:
             existing = self.connection.execute(
-                "SELECT provider_id, provider_binding_id, model_id, intelligence_tier, "
+                "SELECT attempt_id, verification_id, source_revision, provider_id, provider_binding_id, model_id, intelligence_tier, "
                 "task_type, elapsed_ms, attempt_count, retry_count, usage_json, "
                 "quota_observation_json, host_tests_json, host_verified, "
                 "host_tests_passed, result_accepted, codex_correction_chars "
@@ -291,6 +376,9 @@ class WorkerMetricsStore:
                 (normalized["task_id"], normalized["request_id"]),
             ).fetchone()
             expected = {
+                "attempt_id": normalized["attempt_id"],
+                "verification_id": normalized["verification_id"],
+                "source_revision": normalized["source_revision"],
                 "provider_id": normalized["provider_id"],
                 "provider_binding_id": normalized["provider_binding_id"],
                 "model_id": normalized["model_id"],
@@ -315,15 +403,19 @@ class WorkerMetricsStore:
                         )
             self.connection.execute(
                 """INSERT INTO worker_metrics(
-                       metric_id, task_id, request_id, provider_id,
+                       metric_id, task_id, request_id, attempt_id,
+                       verification_id, source_revision, provider_id,
                        provider_binding_id, model_id, intelligence_tier,
                        task_type, elapsed_ms, attempt_count, retry_count,
                        usage_json, quota_observation_json, host_tests_json,
                        host_verified, host_tests_passed, result_accepted,
                        codex_correction_chars, recorded_at
-                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(task_id, request_id) DO UPDATE SET
                        metric_id=excluded.metric_id,
+                       attempt_id=excluded.attempt_id,
+                       verification_id=excluded.verification_id,
+                       source_revision=excluded.source_revision,
                        provider_id=excluded.provider_id,
                        provider_binding_id=excluded.provider_binding_id,
                        model_id=excluded.model_id,
@@ -344,6 +436,9 @@ class WorkerMetricsStore:
                     normalized["metric_id"],
                     normalized["task_id"],
                     normalized["request_id"],
+                    normalized["attempt_id"],
+                    normalized["verification_id"],
+                    normalized["source_revision"],
                     normalized["provider_id"],
                     normalized["provider_binding_id"],
                     normalized["model_id"],

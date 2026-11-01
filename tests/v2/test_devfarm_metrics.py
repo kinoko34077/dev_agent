@@ -1,4 +1,5 @@
 import json
+import sqlite3
 
 import pytest
 
@@ -95,6 +96,87 @@ def test_worker_metrics_rejects_conflicting_replay_for_same_task_and_request(tmp
         with pytest.raises(WorkerMetricsError, match="conflicting metric replay"):
             store.record(manifest=manifest, result=conflicting, recorded_at="2026-09-10T00:01:00+00:00")
         assert store.list()[0]["result_accepted"] is True
+
+
+def test_worker_metrics_persist_execution_correlation_fields(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    proposed = run_worker(root, manifest_path, provider=_WorkerProvider(_proposal_output()))
+    verified = dict(proposed)
+    verified["attempt_id"] = "attempt-correlation-001"
+    verified["verification_id"] = "verification-correlation-001"
+    verified["host_verified_tests"] = [{"command": "python -m pytest tests/v2/test_target.py -q", "exit_code": 0, "passed": True}]
+    verified["worker_metrics"] = {
+        **proposed["worker_metrics"],
+        "host_verified": True,
+        "host_tests_passed": True,
+        "result_accepted": True,
+    }
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    with WorkerMetricsStore(root / ".devfarm" / "metrics.sqlite3") as store:
+        store.record(manifest=manifest, result=verified)
+        record = store.list()[0]
+
+    assert record["attempt_id"] == "attempt-correlation-001"
+    assert record["verification_id"] == "verification-correlation-001"
+    assert record["source_revision"] == manifest["base_revision"]
+
+
+def test_worker_metrics_migrates_v1_schema_without_rewriting_legacy_observation(tmp_path):
+    path = tmp_path / "metrics.sqlite3"
+    connection = sqlite3.connect(path)
+    connection.executescript(
+        """
+        CREATE TABLE worker_metrics_schema_meta (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+        INSERT INTO worker_metrics_schema_meta(key, value) VALUES ('schema_version', '1');
+        CREATE TABLE worker_metrics (
+            metric_id TEXT PRIMARY KEY,
+            task_id TEXT NOT NULL,
+            request_id TEXT NOT NULL,
+            provider_id TEXT NOT NULL,
+            provider_binding_id TEXT NOT NULL,
+            model_id TEXT NOT NULL,
+            intelligence_tier TEXT,
+            task_type TEXT NOT NULL,
+            elapsed_ms INTEGER NOT NULL,
+            attempt_count INTEGER NOT NULL,
+            retry_count INTEGER NOT NULL,
+            usage_json TEXT NOT NULL,
+            quota_observation_json TEXT NOT NULL,
+            host_tests_json TEXT NOT NULL,
+            host_verified INTEGER NOT NULL,
+            host_tests_passed INTEGER NOT NULL,
+            result_accepted INTEGER NOT NULL,
+            codex_correction_chars INTEGER,
+            recorded_at TEXT NOT NULL,
+            UNIQUE(task_id, request_id)
+        );
+        INSERT INTO worker_metrics VALUES (
+            'metric-v1', 'task-v1', 'request-v1', 'ollama', 'ollama:local',
+            'gemma4:12b', NULL, 'worker', 12, 1, 0, '{}', '{}', '[]',
+            1, 1, 1, NULL, '2026-11-01T00:00:00+00:00'
+        );
+        """
+    )
+    connection.commit()
+    connection.close()
+
+    with WorkerMetricsStore(path) as store:
+        assert store.SCHEMA_VERSION == 2
+        assert store.list()[0]["metric_id"] == "metric-v1"
+        assert store.list()[0]["attempt_id"] is None
+        assert store.list()[0]["verification_id"] is None
+        assert store.list()[0]["source_revision"] is None
+        version = store.connection.execute(
+            "SELECT value FROM worker_metrics_schema_meta WHERE key='schema_version'"
+        ).fetchone()[0]
+        assert version == "2"
+
+    with WorkerMetricsStore.open_read_only(path) as store:
+        assert store.list()[0]["metric_id"] == "metric-v1"
 
 
 def test_worker_metrics_summarize_usage_preserves_observation_gaps(tmp_path):

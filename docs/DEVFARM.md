@@ -159,16 +159,20 @@ commands. `result.json` records `model_claims`, `proposed_test_commands`, and
 `host_verified_tests` separately. The runner is a development bootstrap
 boundary, not the formal Phase 7 AgentBackend. It also records host-side
 `worker_metrics` (provider, binding, model, tier, request id, elapsed time,
-safe usage scalars, attempt count, and acceptance). Model-reported test claims
+safe usage scalars, attempt count, execution-attempt/verification identifiers,
+the source revision when present, and acceptance). Model-reported test claims
 are never copied into the verified result.
 
 After host verification, the same host-observed record is upserted into the
 ignored `.devfarm/metrics.sqlite3` store using `task_id + request_id` as its
 idempotency key. The store keeps a compact test summary and routing dimensions
 (`task_type`, provider/model/binding, tier, elapsed time, usage, retry count,
-and accepted/rejected result); it does not store raw stdout/stderr or model
-claims. A metrics write failure is reported in the result artifact and never
-changes the deterministic host acceptance decision.
+and accepted/rejected result), plus optional `attempt_id`, `verification_id`,
+and `source_revision` correlation fields; it does not store raw stdout/stderr or
+model claims. The metrics schema uses an explicit versioned migration chain;
+legacy v1 rows remain readable with null correlation fields until a later
+observation supplies them. A metrics write failure is reported in the result
+artifact and never changes the deterministic host acceptance decision.
 
 ## Provider qualification handoff
 
