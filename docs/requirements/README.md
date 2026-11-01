@@ -8,6 +8,7 @@
 - [Autonomous Hierarchy / Cross-cutting Hardening Audit](autonomous-hierarchy-hardening/00-index.md)
 - [Model Handoff / Compression / G6O1 split](model-handoff/00-index.md)
 - [Evidence-bounded Decision transfer M1 pilot](../DECISION_TRANSFER_M1.md)
+- [Sustainable useful work under model uncertainty](continuity/01-sustainable-useful-work.md)
 
 「Autonomous Hierarchy / Cross-cutting Hardening Audit」は、既存の
 Multi-Free Provider要件を置き換えず、Phase 7後半へ進む前の横断hardening作業を
