@@ -29,6 +29,14 @@ to own or send built-in protected files (`spec/v2/GATE_STATUS.json`, budget
 authority, `.env*`, credentials, private/token stores, `recovery/`, and
 `.devfarm/`).
 
+`new_files` is an optional, bounded output declaration for a file that does not
+exist at the pinned `base_revision`. It must be a subset of `allowed_files` and
+must not overlap `read_files` or `outbound_files`; its contents are never sent
+as Provider input. Host Verification rechecks that each declared path is absent
+from the immutable base before materializing a `100644 /dev/null` patch. A
+pre-existing path, protected path, empty output, or path outside the manifest
+is rejected rather than treated as a new file.
+
 At proposal time, the Runner resolves the manifest's exact Git base revision
 and reads only the approved outbound paths from that immutable Git object; it
 does not require or create a worker worktree. Input paths are resolved and
