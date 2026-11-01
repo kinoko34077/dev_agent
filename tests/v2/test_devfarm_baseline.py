@@ -7,6 +7,7 @@ import pytest
 
 from scripts.devfarm_baseline import (
     BaselineError,
+    compare_observation_cohorts,
     collect_attempt_observation,
     load_fixture_set,
     summarize_observations,
@@ -279,3 +280,91 @@ def test_collect_attempt_labels_fallback_without_treating_it_as_initial(tmp_path
     )
 
     assert observation["repair_stage"] == "format_fallback"
+
+
+def _cohort_observation(
+    task_id: str,
+    *,
+    fingerprint: str | None = None,
+    accepted: bool,
+    parsed: bool,
+    cost_minor: int = 0,
+    elapsed_ms: int = 100,
+) -> dict[str, object]:
+    return {
+        "task_id": task_id,
+        "task_fingerprint": fingerprint or f"fingerprint-{task_id}",
+        "task_class": "localized_existing_source",
+        "evidence_class": "fresh_runtime",
+        "source_revision": "a" * 40,
+        "proposal_parse": "accepted" if parsed else "rejected",
+        "host_verification": "passed" if accepted else "not_observed",
+        "reviewed": accepted,
+        "integrated": accepted,
+        "accepted": accepted,
+        "attempt_count": 1,
+        "retry_count": 0,
+        "prompt_tokens": 100,
+        "completion_tokens": 30,
+        "cost_minor": cost_minor,
+        "elapsed_ms": elapsed_ms,
+        "host_execution_ms": 20 if accepted else None,
+        "human_intervention_count": 0 if accepted else None,
+    }
+
+
+def test_compare_observation_cohorts_keeps_pre_host_failures_in_the_denominator() -> None:
+    baseline = [
+        _cohort_observation("task-1", accepted=False, parsed=False, cost_minor=0, elapsed_ms=80),
+        _cohort_observation("task-2", accepted=True, parsed=True, cost_minor=2, elapsed_ms=120),
+    ]
+    treatment = [
+        _cohort_observation("task-1", accepted=True, parsed=True, cost_minor=1, elapsed_ms=90),
+        _cohort_observation("task-2", accepted=True, parsed=True, cost_minor=1, elapsed_ms=110),
+    ]
+
+    result = compare_observation_cohorts(
+        baseline_id="full-replacement",
+        treatment_id="localized-edit",
+        baseline=baseline,
+        treatment=treatment,
+    )
+
+    assert result["status"] == "PAIRED"
+    assert result["matched_tasks"] == 2
+    assert result["baseline"]["attempts"] == 2
+    assert result["baseline"]["accepted"] == 1
+    assert result["baseline"]["proposal_parsed"] == 1
+    assert result["treatment"]["accepted"] == 2
+    assert result["treatment"]["proposal_parsed"] == 2
+    assert result["delta"]["accepted"] == 1
+    assert result["conclusion"] == "improved"
+
+
+def test_compare_observation_cohorts_refuses_unmatched_claims() -> None:
+    baseline = [_cohort_observation("task-1", accepted=False, parsed=False)]
+    treatment = [_cohort_observation("task-2", fingerprint="fingerprint-2", accepted=True, parsed=True)]
+
+    result = compare_observation_cohorts(
+        baseline_id="baseline",
+        treatment_id="treatment",
+        baseline=baseline,
+        treatment=treatment,
+    )
+
+    assert result["status"] == "INSUFFICIENT_MATCHED_DATA"
+    assert result["matched_tasks"] == 0
+    assert result["conclusion"] == "insufficient_evidence"
+    assert result["unmatched_baseline"] == ["task-1"]
+    assert result["unmatched_treatment"] == ["task-2"]
+
+
+def test_compare_observation_cohorts_rejects_duplicate_task_fingerprints() -> None:
+    duplicate = _cohort_observation("task-1", accepted=False, parsed=False)
+    with pytest.raises(BaselineError, match="duplicate"):
+        compare_observation_cohorts(
+            baseline_id="baseline",
+            treatment_id="treatment",
+            baseline=[duplicate, dict(duplicate, task_id="task-2")],
+            treatment=[_cohort_observation("task-1", accepted=True, parsed=True)],
+        )

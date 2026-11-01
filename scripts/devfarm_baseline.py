@@ -9,6 +9,7 @@ or treats a proposal claim as Host evidence.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 import json
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -74,6 +75,27 @@ def _strings(value: Any, name: str, *, maximum_items: int = 32) -> tuple[str, ..
     if len(set(normalized)) != len(normalized):
         raise BaselineError(f"{name} must not contain duplicates")
     return normalized
+
+
+def _task_fingerprint(manifest: Mapping[str, Any]) -> str:
+    """Hash task/source/acceptance constraints while excluding model choice."""
+
+    fields = (
+        "task_type",
+        "objective",
+        "base_revision",
+        "allowed_files",
+        "read_files",
+        "forbidden_files",
+        "outbound_files",
+        "new_files",
+        "requirements",
+        "acceptance",
+        "test_commands",
+    )
+    payload = {key: manifest.get(key) for key in fields}
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -383,6 +405,7 @@ def collect_attempt_observation(
         "task_class": task_class,
         "evidence_class": evidence_class,
         "source_revision": manifest.get("base_revision"),
+        "task_fingerprint": _task_fingerprint(manifest),
         "output_mode": (manifest.get("output_contract") or {}).get("mode") if isinstance(manifest.get("output_contract"), Mapping) else None,
         "repair_stage": _repair_stage(manifest),
         "provider_id": metrics.get("provider_id"),
@@ -465,10 +488,168 @@ def summarize_observations(
     }
 
 
+def _comparison_row(value: Mapping[str, Any], name: str) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise BaselineError(f"{name} observation must be an object")
+    task_id = _safe_id(value.get("task_id"), f"{name}.task_id")
+    fingerprint = _text(value.get("task_fingerprint"), f"{name}.task_fingerprint", maximum=128)
+    source_revision = _text(value.get("source_revision"), f"{name}.source_revision", maximum=200)
+    task_class = _text(value.get("task_class"), f"{name}.task_class", maximum=64)
+    proposal_parse = value.get("proposal_parse")
+    if proposal_parse not in {"accepted", "rejected", "not_observed"}:
+        raise BaselineError(f"{name}.proposal_parse is unsupported")
+    accepted = value.get("accepted")
+    if not isinstance(accepted, bool):
+        raise BaselineError(f"{name}.accepted must be a boolean")
+    row: dict[str, Any] = {
+        "task_id": task_id,
+        "task_fingerprint": fingerprint,
+        "source_revision": source_revision,
+        "task_class": task_class,
+        "proposal_parse": proposal_parse,
+        "accepted": accepted,
+    }
+    for field in ("host_verification", "reviewed", "integrated"):
+        item = value.get(field)
+        if item is not None and not isinstance(item, (bool, str)):
+            raise BaselineError(f"{name}.{field} must be boolean, text, or null")
+        row[field] = item
+    for field in ("cost_minor", "elapsed_ms", "prompt_tokens", "completion_tokens", "retry_count"):
+        item = value.get(field, 0)
+        if item is None:
+            row[field] = None
+        elif isinstance(item, bool) or not isinstance(item, int) or item < 0:
+            raise BaselineError(f"{name}.{field} must be a non-negative integer or null")
+        else:
+            row[field] = item
+    return row
+
+
+def _comparison_summary(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    def count(predicate: Any) -> int:
+        return sum(1 for item in rows if predicate(item))
+
+    return {
+        "attempts": len(rows),
+        "proposal_parsed": count(lambda item: item["proposal_parse"] == "accepted"),
+        "host_verified": count(lambda item: item.get("host_verification") == "passed"),
+        "accepted": count(lambda item: item["accepted"] is True),
+        "pre_host_failures": count(lambda item: item["proposal_parse"] == "rejected"),
+        "totals": {
+            field: (
+                sum(item[field] for item in rows if isinstance(item.get(field), int))
+                if all(item.get(field) is not None for item in rows)
+                else None
+            )
+            for field in ("prompt_tokens", "completion_tokens", "cost_minor", "elapsed_ms", "retry_count")
+        },
+    }
+
+
+def compare_observation_cohorts(
+    *,
+    baseline_id: str,
+    treatment_id: str,
+    baseline: Sequence[Mapping[str, Any]],
+    treatment: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Compare matched Host observations without promoting a routing claim.
+
+    Matching uses a Host-derived task fingerprint plus source revision and task
+    class.  Provider/model/output mode are deliberately excluded so a paired
+    comparison can measure whether a new instruction or output contract changed
+    end-to-end useful-work yield.  Every attempt, including pre-Host proposal
+    failures, stays in the denominator.  Missing or duplicate pairs yield an
+    insufficient-evidence result rather than an invented improvement claim.
+    """
+
+    baseline_id = _safe_id(baseline_id, "baseline_id")
+    treatment_id = _safe_id(treatment_id, "treatment_id")
+    if isinstance(baseline, (str, bytes)) or not isinstance(baseline, Sequence):
+        raise BaselineError("baseline must be a sequence")
+    if isinstance(treatment, (str, bytes)) or not isinstance(treatment, Sequence):
+        raise BaselineError("treatment must be a sequence")
+    baseline_rows = tuple(_comparison_row(item, "baseline") for item in baseline)
+    treatment_rows = tuple(_comparison_row(item, "treatment") for item in treatment)
+
+    def key(item: Mapping[str, Any]) -> tuple[str, str, str]:
+        return item["task_fingerprint"], item["source_revision"], item["task_class"]
+
+    def index(rows: Sequence[Mapping[str, Any]], label: str) -> dict[tuple[str, str, str], Mapping[str, Any]]:
+        result: dict[tuple[str, str, str], Mapping[str, Any]] = {}
+        for item in rows:
+            identity = key(item)
+            if identity in result:
+                raise BaselineError(f"duplicate {label} task fingerprint")
+            result[identity] = item
+        return result
+
+    baseline_by_key = index(baseline_rows, "baseline")
+    treatment_by_key = index(treatment_rows, "treatment")
+    matched_keys = tuple(sorted(set(baseline_by_key) & set(treatment_by_key)))
+    unmatched_baseline = sorted(item["task_id"] for key_value, item in baseline_by_key.items() if key_value not in treatment_by_key)
+    unmatched_treatment = sorted(item["task_id"] for key_value, item in treatment_by_key.items() if key_value not in baseline_by_key)
+    matched_baseline = tuple(baseline_by_key[item] for item in matched_keys)
+    matched_treatment = tuple(treatment_by_key[item] for item in matched_keys)
+    baseline_summary = _comparison_summary(matched_baseline)
+    treatment_summary = _comparison_summary(matched_treatment)
+    delta = {
+        "accepted": treatment_summary["accepted"] - baseline_summary["accepted"],
+        "proposal_parsed": treatment_summary["proposal_parsed"] - baseline_summary["proposal_parsed"],
+        "host_verified": treatment_summary["host_verified"] - baseline_summary["host_verified"],
+        "pre_host_failures": treatment_summary["pre_host_failures"] - baseline_summary["pre_host_failures"],
+        "totals": {
+            field: (
+                treatment_summary["totals"][field] - baseline_summary["totals"][field]
+                if treatment_summary["totals"][field] is not None and baseline_summary["totals"][field] is not None
+                else None
+            )
+            for field in ("prompt_tokens", "completion_tokens", "cost_minor", "elapsed_ms", "retry_count")
+        },
+    }
+    if not matched_keys:
+        conclusion = "insufficient_evidence"
+        status = "INSUFFICIENT_MATCHED_DATA"
+    else:
+        baseline_rate = baseline_summary["accepted"] / baseline_summary["attempts"]
+        treatment_rate = treatment_summary["accepted"] / treatment_summary["attempts"]
+        measured_totals = delta["totals"]
+        resource_not_worse = all(
+            measured_totals[field] is None or measured_totals[field] <= 0
+            for field in ("prompt_tokens", "completion_tokens", "cost_minor", "elapsed_ms", "retry_count")
+        )
+        if treatment_rate > baseline_rate and resource_not_worse:
+            conclusion = "improved"
+        elif treatment_rate < baseline_rate:
+            conclusion = "regressed"
+        elif treatment_rate > baseline_rate:
+            conclusion = "mixed"
+        else:
+            conclusion = "neutral"
+        status = "PAIRED" if not unmatched_baseline and not unmatched_treatment else "PARTIAL_MATCH"
+        if status == "PARTIAL_MATCH":
+            conclusion = "insufficient_evidence"
+    return {
+        "schema_version": 1,
+        "evidence_status": "comparison_only",
+        "baseline_id": baseline_id,
+        "treatment_id": treatment_id,
+        "status": status,
+        "matched_tasks": len(matched_keys),
+        "unmatched_baseline": unmatched_baseline,
+        "unmatched_treatment": unmatched_treatment,
+        "baseline": baseline_summary,
+        "treatment": treatment_summary,
+        "delta": delta,
+        "conclusion": conclusion,
+    }
+
+
 __all__ = [
     "BaselineError",
     "BaselineFixture",
     "BaselineFixtureSet",
+    "compare_observation_cohorts",
     "collect_attempt_observation",
     "load_fixture_set",
     "summarize_observations",
