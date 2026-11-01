@@ -135,7 +135,9 @@ def test_worker_metrics_rejects_concurrent_conflicting_replay_across_connections
     path = root / ".devfarm" / "metrics.sqlite3"
     first_store = WorkerMetricsStore(path)
     second_store = WorkerMetricsStore(path)
-    ready = threading.Barrier(2)
+    start = threading.Barrier(3)
+    outside_transaction = []
+    outside_transaction_lock = threading.Lock()
 
     class _RaceConnection:
         def __init__(self, connection):
@@ -148,7 +150,8 @@ def test_worker_metrics_rejects_concurrent_conflicting_replay_across_connections
         def execute(self, sql, parameters=()):
             normalized = " ".join(sql.split()).upper()
             if normalized.startswith("SELECT ATTEMPT_ID,") and not self._connection.in_transaction:
-                ready.wait(timeout=5)
+                with outside_transaction_lock:
+                    outside_transaction.append(threading.get_ident())
             return self._connection.execute(sql, parameters)
 
         def commit(self):
@@ -166,6 +169,7 @@ def test_worker_metrics_rejects_concurrent_conflicting_replay_across_connections
     outcomes_lock = threading.Lock()
 
     def record(store, result):
+        start.wait(timeout=10)
         try:
             store.record(manifest=manifest, result=result, recorded_at="2026-09-10T00:00:00+00:00")
         except Exception as exc:  # pragma: no cover - asserted below
@@ -181,15 +185,18 @@ def test_worker_metrics_rejects_concurrent_conflicting_replay_across_connections
     ]
     for thread in threads:
         thread.start()
+    start.wait(timeout=10)
     for thread in threads:
         thread.join(timeout=10)
     first_store.close()
     second_store.close()
 
     assert all(not thread.is_alive() for thread in threads)
+    assert outside_transaction == []
     assert sorted(outcome[0] for outcome in outcomes) == ["error", "ok"]
+    winning_value = next(outcome[1] for outcome in outcomes if outcome[0] == "ok")
     with WorkerMetricsStore.open_read_only(path) as store:
-        assert store.list()[0]["result_accepted"] is True
+        assert store.list()[0]["result_accepted"] is winning_value
 
 
 def test_worker_metrics_persist_execution_correlation_fields(tmp_path):
