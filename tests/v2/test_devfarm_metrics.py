@@ -81,7 +81,11 @@ def test_worker_metrics_upsert_is_idempotent_and_does_not_use_model_claims(tmp_p
         second = store.record(manifest=manifest, result=verified, recorded_at="2026-09-10T00:01:00+00:00")
         assert first["metric_id"] == second["metric_id"]
         assert len(store.list()) == 1
-        assert store.list()[0]["recorded_at"] == "2026-09-10T00:01:00+00:00"
+        # An exact replay is idempotent: it must not refresh the observation
+        # timestamp and thereby extend freshness/expiry by replay alone.
+        assert first["recorded_at"] == "2026-09-10T00:00:00+00:00"
+        assert second["recorded_at"] == first["recorded_at"]
+        assert store.list()[0]["recorded_at"] == "2026-09-10T00:00:00+00:00"
 
         unverified = dict(verified)
         unverified["worker_metrics"] = {**verified["worker_metrics"], "host_verified": False}

@@ -440,8 +440,7 @@ class WorkerMetricsStore:
                        host_verified=excluded.host_verified,
                        host_tests_passed=excluded.host_tests_passed,
                        result_accepted=excluded.result_accepted,
-                       codex_correction_chars=excluded.codex_correction_chars,
-                       recorded_at=excluded.recorded_at""",
+                       codex_correction_chars=excluded.codex_correction_chars""",
                 (
                     normalized["metric_id"],
                     normalized["task_id"],
@@ -468,7 +467,13 @@ class WorkerMetricsStore:
                 ),
             )
             self.connection.commit()
-        return normalized
+            stored = self.connection.execute(
+                "SELECT * FROM worker_metrics WHERE task_id=? AND request_id=?",
+                (normalized["task_id"], normalized["request_id"]),
+            ).fetchone()
+        if stored is None:  # pragma: no cover - guarded by the committed insert/upsert
+            raise WorkerMetricsError("worker metric was not persisted")
+        return self._from_row(stored)
 
     def list(self, *, limit: int = 100) -> list[dict[str, Any]]:
         limit = _integer(limit, "limit", minimum=1)
