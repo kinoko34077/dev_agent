@@ -388,6 +388,7 @@ _GATE_VALUE_PATHS = {
 _STATE_PROJECTION_PATHS = frozenset(
     {
         "docs/CURRENT_STATE.md",
+        "docs/DEVFARM.md",
         "docs/requirements/continuity/02-v0-evidence-boundary-map.md",
         "docs/superpowers/plans/2026-10-04-semantic-coherence-checks.md",
     }
