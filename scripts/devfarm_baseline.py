@@ -244,6 +244,46 @@ def _failure_class(result: Mapping[str, Any], task: Mapping[str, Any] | None) ->
     return "NONE"
 
 
+def _repair_stage(manifest: Mapping[str, Any]) -> str:
+    """Classify the bounded correction stage from Host-owned handoff facts."""
+
+    handoff = manifest.get("rework_handoff")
+    if not isinstance(handoff, Mapping):
+        return "initial"
+    contexts: list[Mapping[str, Any]] = []
+    for candidate in (
+        handoff.get("repair_context"),
+        handoff.get("payload_reference"),
+        handoff.get("references"),
+    ):
+        if not isinstance(candidate, Mapping):
+            continue
+        if candidate.get("repair_context") is not None and isinstance(candidate.get("repair_context"), Mapping):
+            contexts.append(candidate["repair_context"])
+        else:
+            contexts.append(candidate)
+    is_fallback = any(
+        isinstance(context.get("fallback_from_provider"), str)
+        or isinstance(context.get("fallback_to_provider"), str)
+        for context in contexts
+    )
+    is_host = any(
+        context.get("host_verification_rework") is True
+        or (
+            isinstance(context.get("latest_failure_spec"), Mapping)
+            and context["latest_failure_spec"].get("stage") == "host_verification"
+        )
+        for context in contexts
+    )
+    if is_host and is_fallback:
+        return "host_fallback"
+    if is_host:
+        return "host_repair"
+    if is_fallback:
+        return "format_fallback"
+    return "format_repair"
+
+
 def _task_from_plan(root: Path, task_id: str) -> Mapping[str, Any] | None:
     plan_root = root / ".devfarm" / "plans"
     if not plan_root.is_dir():
@@ -344,6 +384,7 @@ def collect_attempt_observation(
         "evidence_class": evidence_class,
         "source_revision": manifest.get("base_revision"),
         "output_mode": (manifest.get("output_contract") or {}).get("mode") if isinstance(manifest.get("output_contract"), Mapping) else None,
+        "repair_stage": _repair_stage(manifest),
         "provider_id": metrics.get("provider_id"),
         "provider_binding_id": metrics.get("provider_binding_id"),
         "model_id": metrics.get("model_id"),
@@ -387,8 +428,14 @@ def summarize_observations(
     by_task_class: dict[str, int] = {}
     by_failure_class: dict[str, int] = {}
     by_evidence_class: dict[str, int] = {}
+    by_repair_stage: dict[str, int] = {}
     for item in rows:
-        for field, target in (("task_class", by_task_class), ("failure_class", by_failure_class), ("evidence_class", by_evidence_class)):
+        for field, target in (
+            ("task_class", by_task_class),
+            ("failure_class", by_failure_class),
+            ("evidence_class", by_evidence_class),
+            ("repair_stage", by_repair_stage),
+        ):
             value = item.get(field)
             if isinstance(value, str):
                 target[value] = target.get(value, 0) + 1
@@ -412,6 +459,7 @@ def summarize_observations(
         "by_task_class": by_task_class,
         "by_failure_class": by_failure_class,
         "by_evidence_class": by_evidence_class,
+        "by_repair_stage": by_repair_stage,
         "unmeasured": unmeasured,
         "observations": rows,
     }

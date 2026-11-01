@@ -209,6 +209,7 @@ def test_collect_attempt_includes_pre_host_failure_and_explicit_unknowns(tmp_pat
     assert observation["host_verification"] == "not_observed"
     assert observation["accepted"] is False
     assert observation["failure_class"] == "FORMAT_PATCH"
+    assert observation["repair_stage"] == "initial"
     assert observation["evidence_class"] == "historical_replay"
     assert observation["host_execution_ms"] is None
     assert observation["human_intervention_count"] is None
@@ -250,3 +251,31 @@ def test_summary_counts_attempts_before_host_and_keeps_resource_totals(tmp_path:
     assert summary["accepted"] == 1
     assert summary["totals"] == {"prompt_tokens": 10, "completion_tokens": 20, "cost_minor": 0, "elapsed_ms": 1200}
     assert summary["by_evidence_class"] == {"fresh_runtime": 1}
+    assert summary["by_repair_stage"] == {"initial": 1}
+
+
+def test_collect_attempt_labels_fallback_without_treating_it_as_initial(tmp_path: Path) -> None:
+    task_id = "baseline-fallback"
+    attempt_id = "attempt-fallback"
+    manifest = _manifest(task_id)
+    manifest["rework_handoff"] = {
+        "repair_context": {
+            "fallback_from_provider": "ollama:local:qwen3.5-4b",
+            "fallback_to_provider": "ollama:local:gemma4-12b",
+        }
+    }
+    _write_json(tmp_path / ".devfarm/tasks" / f"{task_id}.json", manifest)
+    _write_json(
+        tmp_path / ".devfarm/results" / task_id / "attempts" / attempt_id / "result.json",
+        _result(attempt_id=attempt_id, accepted=False),
+    )
+
+    observation = collect_attempt_observation(
+        tmp_path,
+        task_id=task_id,
+        attempt_id=attempt_id,
+        task_class="schema_contract_violation",
+        evidence_class="historical_replay",
+    )
+
+    assert observation["repair_stage"] == "format_fallback"
