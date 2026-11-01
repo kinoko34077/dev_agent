@@ -475,7 +475,16 @@ class WorkerMetricsStore:
             if group["latest_recorded_at"] is None or iso > group["latest_recorded_at"]:
                 group["latest_recorded_at"] = iso
         result: list[dict[str, Any]] = []
-        for (group_task_type, provider_id, binding_id, model_id, tier), group in sorted(groups.items()):
+        for (group_task_type, provider_id, binding_id, model_id, tier), group in sorted(
+            groups.items(),
+            key=lambda item: (
+                item[0][0],
+                item[0][1],
+                item[0][2],
+                item[0][3],
+                item[0][4] or "",
+            ),
+        ):
             if group["sample_count"] < minimum_samples:
                 continue
             result.append(
