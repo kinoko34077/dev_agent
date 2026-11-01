@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "weak_model_compensation_baseline_fixture_definition",
+  "evidence_status": "synthetic_fixture_only",
+  "observed_at": "2026-11-02",
+  "implementation_baseline": "11d0d2f88da35039b7ffd9b256615c6865b442a1",
+  "baseline_id": "weak-model-compensation-w0",
+  "source_revision": "11d0d2f88da35039b7ffd9b256615c6865b442a1",
+  "fixtures": [
+    {
+      "fixture_id": "localized-source",
+      "task_class": "localized_existing_source",
+      "objective": "change one existing implementation branch",
+      "allowed_files": ["src/example.py"],
+      "read_files": ["src/example.py"],
+      "outbound_files": ["src/example.py"],
+      "new_files": [],
+      "acceptance": ["the focused test passes"],
+      "test_commands": ["python -m pytest tests/v2/test_example.py -q"],
+      "approved_provider_ids": ["ollama"],
+      "output_modes": ["minimal_file_replacement"]
+    },
+    {
+      "fixture_id": "new-doc",
+      "task_class": "small_new_file_or_docs",
+      "objective": "add one small documentation file",
+      "allowed_files": ["docs/example.md"],
+      "read_files": [],
+      "outbound_files": [],
+      "new_files": ["docs/example.md"],
+      "acceptance": ["the file exists"],
+      "test_commands": ["python -m compileall -q src"],
+      "approved_provider_ids": ["ollama"],
+      "output_modes": ["minimal_file_replacement"]
+    },
+    {
+      "fixture_id": "syntax-repair",
+      "task_class": "syntax_import_repair",
+      "objective": "repair one bounded import or syntax defect",
+      "allowed_files": ["src/example.py"],
+      "read_files": ["src/example.py"],
+      "outbound_files": ["src/example.py"],
+      "new_files": [],
+      "acceptance": ["the module imports"],
+      "test_commands": ["python -m compileall -q src/example.py"],
+      "approved_provider_ids": ["ollama"],
+      "output_modes": ["minimal_file_replacement"]
+    },
+    {
+      "fixture_id": "schema-failure",
+      "task_class": "schema_contract_violation",
+      "objective": "return a contract-compliant bounded proposal",
+      "allowed_files": ["src/example.py"],
+      "read_files": ["src/example.py"],
+      "outbound_files": ["src/example.py"],
+      "new_files": [],
+      "acceptance": ["the response matches the output schema"],
+      "test_commands": ["python -m compileall -q src/example.py"],
+      "approved_provider_ids": ["ollama"],
+      "output_modes": ["minimal_file_replacement"]
+    }
+  ],
+  "scope_boundary": "This file defines reusable synthetic task shapes only. It does not establish model eligibility, capability, benchmark, billing, quota, health, routing admission, Worker success, or Phase 8 evidence."
+}
