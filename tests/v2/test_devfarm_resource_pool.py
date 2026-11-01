@@ -400,6 +400,10 @@ def test_host_verified_outcomes_rank_exact_task_model_without_filtering_candidat
             intelligence_tier="L1",
         ),
     )
+    qualification = SimpleNamespace(
+        intelligence_tier="L1",
+        routing_capabilities=frozenset({"text"}),
+    )
     profile = SimpleNamespace(
         cost_minor=0,
         price_currency="JPY",
@@ -566,10 +570,6 @@ def test_host_accepted_worker_metrics_feed_exact_task_router(tmp_path, monkeypat
             quota_domain="cloudflare:account",
             intelligence_tier="L1",
         ),
-    )
-    qualification = SimpleNamespace(
-        intelligence_tier="L1",
-        routing_capabilities=frozenset({"text"}),
     )
     profile = SimpleNamespace(
         cost_minor=0,
