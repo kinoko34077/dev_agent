@@ -139,6 +139,42 @@ def test_worker_metrics_summarize_usage_preserves_observation_gaps(tmp_path):
     assert summary["reasoning_efforts"] == ["low", "minimal"]
 
 
+def test_worker_metrics_summarize_handles_nullable_tiers(tmp_path):
+    def verified(task_id, request_id, tier, recorded_at):
+        return (
+            {"task_id": task_id, "task_type": "worker"},
+            {
+                "worker_metrics": {
+                    "request_id": request_id,
+                    "provider_id": "ollama",
+                    "provider_binding_id": "ollama:local:gemma4-12b",
+                    "model_id": "gemma4:12b",
+                    "intelligence_tier": tier,
+                    "elapsed_ms": 10,
+                    "attempt_count": 1,
+                    "host_verified": True,
+                    "host_tests_passed": True,
+                    "result_accepted": True,
+                },
+                "host_verified_tests": [],
+            },
+            recorded_at,
+        )
+
+    with WorkerMetricsStore(tmp_path / "metrics.sqlite3") as store:
+        for values in (
+            verified("worker-tier-none", "request-tier-none", None, "2026-11-01T00:00:00+00:00"),
+            verified("worker-tier-l1", "request-tier-l1", "L1", "2026-11-01T00:01:00+00:00"),
+        ):
+            manifest, result, recorded_at = values
+            store.record(manifest=manifest, result=result, recorded_at=recorded_at)
+
+        summary = store.summarize(task_type="worker", minimum_samples=1)
+
+    assert [entry["intelligence_tier"] for entry in summary] == [None, "L1"]
+    assert all(entry["sample_count"] == 1 for entry in summary)
+
+
 def test_worker_metrics_preserve_bounded_refinement_usage_from_provider_response(tmp_path):
     root, manifest_path = _workspace(tmp_path)
 
