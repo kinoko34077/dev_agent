@@ -816,18 +816,6 @@ def apply_and_verify(
     elif not independent_verification:
         issues.append("host verification did not include an unmodified trusted target")
     result["known_issues"] = issues
-    try:
-        with WorkerMetricsStore(root / ".devfarm" / "metrics.sqlite3") as metrics_store:
-            metrics_store.record(manifest=manifest, result=result)
-    except WorkerMetricsError:
-        # Metrics are host-side observability, not acceptance authority.  Keep
-        # the verified result durable while making a storage failure explicit
-        # instead of silently claiming that the sample was accumulated.
-        metrics["durable_recorded"] = False
-        metrics["durable_record_error"] = "metrics_storage_rejected"
-    else:
-        metrics["durable_recorded"] = True
-    result["worker_metrics"] = metrics
     notes_path = _attempt_artifact_path(
         root,
         manifest["task_id"],
@@ -852,6 +840,22 @@ def apply_and_verify(
     }
     verification_id = _write_verification_record(root, manifest, attempt_id, verification_record)
     result["verification_id"] = verification_id
+
+    # The verification artifact is the authoritative correlation point for
+    # Host Verification.  Record metrics only after its id exists so a
+    # durable observation can never claim an unbound verification result.
+    try:
+        with WorkerMetricsStore(root / ".devfarm" / "metrics.sqlite3") as metrics_store:
+            metrics_store.record(manifest=manifest, result=result)
+    except WorkerMetricsError:
+        # Metrics are host-side observability, not acceptance authority.  Keep
+        # the verified result durable while making a storage failure explicit
+        # instead of silently claiming that the sample was accumulated.
+        metrics["durable_recorded"] = False
+        metrics["durable_record_error"] = "metrics_storage_rejected"
+    else:
+        metrics["durable_recorded"] = True
+    result["worker_metrics"] = metrics
     _write_latest_result_projection(root, result, manifest=manifest)
     return result
 

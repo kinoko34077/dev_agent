@@ -50,6 +50,19 @@ def test_host_verification_accumulates_safe_metrics_and_exposes_summary(tmp_path
         assert summary[0]["acceptance_rate"] == 1.0
 
 
+def test_host_verification_metrics_bind_to_written_verification_record(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    run_worker(root, manifest_path, provider=_WorkerProvider(_proposal_output()))
+
+    verified = _trusted_apply(root, manifest_path)
+
+    assert verified["verification_id"]
+    with WorkerMetricsStore.open_read_only(root / ".devfarm" / "metrics.sqlite3") as store:
+        record = store.list()[0]
+    assert record["attempt_id"] == verified["attempt_id"]
+    assert record["verification_id"] == verified["verification_id"]
+
+
 def test_worker_metrics_upsert_is_idempotent_and_does_not_use_model_claims(tmp_path):
     root, manifest_path = _workspace(tmp_path)
     proposed = run_worker(root, manifest_path, provider=_WorkerProvider(_proposal_output()))
