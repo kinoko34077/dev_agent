@@ -117,3 +117,80 @@ def test_probe_cli_help_is_importable_as_a_script():
 
     assert result.returncode == 0
     assert "fixed bounded DevFarm capability probes" in result.stdout
+
+
+def test_probe_cli_passes_explicit_binding_id_to_local_provider_builder(monkeypatch, tmp_path, capsys):
+    import scripts.devfarm_capability_probe as probe
+
+    captured: dict[str, object] = {}
+
+    def fake_build(provider, model, timeout_seconds, provider_binding_id=None, *, allow_local=False):
+        captured.update(
+            provider=provider,
+            model=model,
+            timeout_seconds=timeout_seconds,
+            provider_binding_id=provider_binding_id,
+            allow_local=allow_local,
+        )
+        return _ProbeProvider()
+
+    monkeypatch.setattr(probe, "build_worker_provider", fake_build)
+    monkeypatch.setattr(probe, "write_probe_artifact", lambda root, results: tmp_path / "probe.json")
+
+    exit_code = probe.main(
+        [
+            "--provider",
+            "ollama",
+            "--model",
+            "qwen3.5:9b",
+            "--provider-binding-id",
+            "ollama:local:qwen3.5-9b",
+            "--level",
+            "P0",
+            "--root",
+            str(tmp_path),
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured == {
+        "provider": "ollama",
+        "model": "qwen3.5:9b",
+        "timeout_seconds": 60.0,
+        "provider_binding_id": "ollama:local:qwen3.5-9b",
+        "allow_local": False,
+    }
+    assert "probe.json" in capsys.readouterr().out
+
+
+def test_probe_cli_requires_explicit_local_opt_in(monkeypatch, tmp_path, capsys):
+    import scripts.devfarm_capability_probe as probe
+
+    captured: dict[str, object] = {}
+
+    def fake_build(provider, model, timeout_seconds, provider_binding_id=None, *, allow_local=False):
+        captured["allow_local"] = allow_local
+        return _ProbeProvider()
+
+    monkeypatch.setattr(probe, "build_worker_provider", fake_build)
+    monkeypatch.setattr(probe, "write_probe_artifact", lambda root, results: tmp_path / "probe.json")
+
+    exit_code = probe.main(
+        [
+            "--provider",
+            "ollama",
+            "--model",
+            "qwen3.5:9b",
+            "--provider-binding-id",
+            "ollama:local:qwen3.5-9b",
+            "--allow-local",
+            "--level",
+            "P0",
+            "--root",
+            str(tmp_path),
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured == {"allow_local": True}
+    assert "probe.json" in capsys.readouterr().out

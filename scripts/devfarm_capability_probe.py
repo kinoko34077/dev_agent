@@ -276,6 +276,16 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run fixed bounded DevFarm capability probes")
     parser.add_argument("--provider", required=True)
     parser.add_argument("--model", required=True)
+    parser.add_argument(
+        "--provider-binding-id",
+        default=None,
+        help="explicit configured binding identity (required for local Ollama probes)",
+    )
+    parser.add_argument(
+        "--allow-local",
+        action="store_true",
+        help="explicitly opt into the bounded local-provider trial path",
+    )
     parser.add_argument("--level", action="append", dest="levels", help="fixed level P0..P5; repeat to select a finite subset")
     parser.add_argument("--timeout-seconds", type=float, default=60.0)
     parser.add_argument("--root", type=Path, default=ROOT)
@@ -289,7 +299,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error(f"--timeout-seconds must be in (0, {MAX_TIMEOUT_SECONDS}]" )
     try:
         specs = probe_specs(args.levels)
-        provider = build_worker_provider(args.provider, args.model, args.timeout_seconds)
+        provider = build_worker_provider(
+            args.provider,
+            args.model,
+            args.timeout_seconds,
+            args.provider_binding_id,
+            allow_local=args.allow_local,
+        )
     except (DevFarmError, ProbeError) as exc:
         parser.error(f"probe admission failed: {type(exc).__name__}")
     results: list[dict[str, Any]] = []
