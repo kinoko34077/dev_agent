@@ -23,15 +23,17 @@ class FeasibilityError(DevFarmError):
     """The feasibility input cannot be safely classified."""
 
 
-_OUTPUT_MODES = frozenset({"full_result", "minimal_file_replacement"})
+_OUTPUT_MODES = frozenset({"full_result", "minimal_file_replacement", "localized_file_edit"})
 _STATUS = frozenset({"fits", "reframe_required", "invalid_acceptance"})
 _DEFAULT_OUTPUT_TOKENS = {
     "full_result": 4096,
     "minimal_file_replacement": 8192,
+    "localized_file_edit": 4096,
 }
 _MAX_OUTPUT_TOKENS = 32_768
 _CHARS_PER_TOKEN = 4
 _OUTPUT_OVERHEAD_CHARS = 512
+_MAX_EXPECTED_OUTPUT_CHARS = 32 * 1024
 
 
 def _bounded_text(value: Any, name: str, *, maximum: int = 512) -> str:
@@ -75,6 +77,9 @@ class WorkerFeasibility:
     input_chars: int
     input_lines: int
     largest_input_bytes: int
+    context_file_count: int
+    context_bytes: int
+    missing_context_files: tuple[str, ...]
     estimated_output_chars: int
     reasons: tuple[str, ...]
     recommended_action: str | None
@@ -93,6 +98,8 @@ class WorkerFeasibility:
             "input_chars",
             "input_lines",
             "largest_input_bytes",
+            "context_file_count",
+            "context_bytes",
             "estimated_output_chars",
         ):
             if getattr(self, name) < 0:
@@ -110,6 +117,9 @@ class WorkerFeasibility:
             "input_chars": self.input_chars,
             "input_lines": self.input_lines,
             "largest_input_bytes": self.largest_input_bytes,
+            "context_file_count": self.context_file_count,
+            "context_bytes": self.context_bytes,
+            "missing_context_files": list(self.missing_context_files),
             "estimated_output_chars": self.estimated_output_chars,
             "reasons": list(self.reasons),
             "recommended_action": self.recommended_action,
@@ -189,6 +199,20 @@ def assess_worker_feasibility(
     total_chars = 0
     total_lines = 0
     largest_bytes = 0
+    read_files = _paths(manifest.get("read_files", []), "read_files")
+    context_bytes = 0
+    missing_context: list[str] = []
+    for relative in read_files:
+        raw = file_contents.get(relative)
+        if raw is None:
+            missing_context.append(relative)
+            continue
+        if isinstance(raw, bytes):
+            context_bytes += len(raw)
+        elif isinstance(raw, str):
+            context_bytes += len(raw.encode("utf-8"))
+        else:
+            raise FeasibilityError(f"file_contents[{relative}] must be bytes or text")
     missing_inputs: list[str] = []
     for relative in outbound_files:
         raw = file_contents.get(relative)
@@ -214,21 +238,42 @@ def assess_worker_feasibility(
         total_lines += len(text.splitlines())
         largest_bytes = max(largest_bytes, len(data))
     reasons.extend(f"missing_input:{path}" for path in missing_inputs)
+    reasons.extend(f"missing_context:{path}" for path in missing_context)
     if largest_bytes > MAX_INPUT_FILE_BYTES:
         reasons.append("input_file_too_large")
     if total_bytes > MAX_OUTBOUND_BYTES:
         reasons.append("input_scope_too_large")
+    if context_bytes > MAX_OUTBOUND_BYTES:
+        reasons.append("context_scope_too_large")
+
+    expected_output_chars = output_contract.get("expected_output_chars")
+    if expected_output_chars is not None:
+        if (
+            isinstance(expected_output_chars, bool)
+            or not isinstance(expected_output_chars, int)
+            or expected_output_chars <= 0
+            or expected_output_chars > _MAX_EXPECTED_OUTPUT_CHARS
+        ):
+            raise FeasibilityError("output_contract.expected_output_chars is out of bounds")
 
     # This is intentionally a conservative envelope estimate.  It does not
     # claim a tokenization result; it only prevents a clearly impossible full
     # replacement from being sent to a bounded-output model.
-    estimated_output_chars = max(_OUTPUT_OVERHEAD_CHARS, total_chars + _OUTPUT_OVERHEAD_CHARS)
+    if output_mode == "localized_file_edit" and expected_output_chars is None:
+        estimated_output_chars = _OUTPUT_OVERHEAD_CHARS
+        reasons.append("localized_output_budget_missing")
+    else:
+        estimated_output_chars = (
+            expected_output_chars
+            if expected_output_chars is not None
+            else max(_OUTPUT_OVERHEAD_CHARS, total_chars + _OUTPUT_OVERHEAD_CHARS)
+        )
     output_capacity_chars = capacity_tokens * _CHARS_PER_TOKEN
     if estimated_output_chars > output_capacity_chars:
         reasons.append("output_envelope_too_large")
 
     unique_reasons = tuple(dict.fromkeys(reasons))
-    if any(reason.startswith("missing_input:") for reason in unique_reasons) or any(
+    if any(reason.startswith(("missing_input:", "missing_context:")) for reason in unique_reasons) or any(
         reason in {"acceptance_missing", "test_commands_missing", "test_command_invalid", "output_scope_invalid", "new_file_overlaps_input", "input_not_utf8", "input_contains_nul"}
         for reason in unique_reasons
     ):
@@ -236,7 +281,11 @@ def assess_worker_feasibility(
         recommended_action = "repair_manifest_acceptance"
     elif unique_reasons:
         status = "reframe_required"
-        recommended_action = "split_input_scope"
+        recommended_action = (
+            "declare_output_budget"
+            if "localized_output_budget_missing" in unique_reasons
+            else "split_input_scope"
+        )
     else:
         status = "fits"
         recommended_action = None
@@ -251,6 +300,9 @@ def assess_worker_feasibility(
         input_chars=total_chars,
         input_lines=total_lines,
         largest_input_bytes=largest_bytes,
+        context_file_count=len(read_files),
+        context_bytes=context_bytes,
+        missing_context_files=tuple(missing_context),
         estimated_output_chars=estimated_output_chars,
         reasons=unique_reasons,
         recommended_action=recommended_action,

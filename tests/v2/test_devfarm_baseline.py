@@ -188,6 +188,32 @@ def test_repository_w0_fixture_definition_is_pinned_and_complete() -> None:
     assert all(item.approved_provider_ids == ("ollama",) for item in fixtures.fixtures)
 
 
+def test_repository_w0_inventory_is_explicit_and_non_authoritative() -> None:
+    path = Path("spec/v2/evidence/weak-model-compensation-w0-inventory-20261102.json")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    assert payload["evidence_kind"] == "weak_model_compensation_baseline_inventory"
+    assert payload["evidence_status"] == "synthetic_contract_only"
+    assert payload["source_revision"] == payload["implementation_baseline"]
+    assert set(payload["output_modes"]) == {
+        "full_result",
+        "minimal_file_replacement",
+        "localized_file_edit",
+    }
+    assert payload["limits"]["max_input_file_bytes"] > 0
+    assert payload["limits"]["max_outbound_bytes"] > 0
+    assert payload["repair_stages"] == [
+        "initial",
+        "format_repair",
+        "format_fallback",
+        "host_repair",
+        "host_fallback",
+    ]
+    assert "accepted" in payload["metric_fields"]
+    assert "pre_host_failures" in payload["metric_fields"]
+    assert payload["scope_boundary"].startswith("This inventory is measurement evidence only")
+
+
 def test_collect_attempt_includes_pre_host_failure_and_explicit_unknowns(tmp_path: Path) -> None:
     task_id = "baseline-task"
     attempt_id = "attempt-1"
@@ -214,6 +240,36 @@ def test_collect_attempt_includes_pre_host_failure_and_explicit_unknowns(tmp_pat
     assert observation["evidence_class"] == "historical_replay"
     assert observation["host_execution_ms"] is None
     assert observation["human_intervention_count"] is None
+
+
+def test_collect_attempt_classifies_pre_dispatch_feasibility_failure(tmp_path: Path) -> None:
+    task_id = "baseline-feasibility"
+    attempt_id = "attempt-feasibility"
+    manifest = _manifest(task_id)
+    _write_json(tmp_path / ".devfarm/tasks" / f"{task_id}.json", manifest)
+    result = _result(attempt_id=attempt_id, accepted=False, parsed=False)
+    result.pop("failure_spec", None)
+    result["known_issues"] = ["worker feasibility requires reframing before provider dispatch"]
+    result["worker_metrics"] = {
+        "pre_dispatch_block": "feasibility",
+        "proposal_preflight": {"failure_class": "FEASIBILITY"},
+    }
+    _write_json(
+        tmp_path / ".devfarm/results" / task_id / "attempts" / attempt_id / "result.json",
+        result,
+    )
+
+    observation = collect_attempt_observation(
+        tmp_path,
+        task_id=task_id,
+        attempt_id=attempt_id,
+        task_class="localized_existing_source",
+        evidence_class="synthetic_fixture",
+    )
+
+    assert observation["failure_class"] == "FEASIBILITY"
+    assert observation["host_verification"] == "not_observed"
+    assert observation["accepted"] is False
 
 
 def test_summary_counts_attempts_before_host_and_keeps_resource_totals(tmp_path: Path) -> None:

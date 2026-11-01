@@ -91,6 +91,28 @@ def test_minimal_worker_can_materialize_explicit_new_file_without_outbound_sourc
     assert result["worker_metrics"]["host_generated_patch_paths"] == ["tests/v2/generated.py"]
 
 
+def test_worker_feasibility_blocks_oversized_input_before_provider_request(tmp_path) -> None:
+    root, manifest_path = _workspace(tmp_path, prepare=False)
+    target = root / "tests/v2/test_target.py"
+    target.write_text("value = 1\n" * 40_000, encoding="utf-8")
+    from tests.v2.devfarm_test_support import _git
+
+    _git("add", "tests/v2/test_target.py", cwd=root)
+    _git("commit", "-m", "oversized worker input", cwd=root)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["base_revision"] = _git("rev-parse", "HEAD", cwd=root).stdout.strip()
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    provider = _WorkerProvider({"file_replacements": {"tests/v2/test_target.py": ["value = 2"]}})
+
+    result = run_worker(root, manifest_path, provider=provider)
+
+    assert result["status"] == "failed"
+    assert provider.request_count == 0
+    assert result["worker_metrics"]["pre_dispatch_block"] == "feasibility"
+    assert result["worker_metrics"]["feasibility"]["status"] == "reframe_required"
+    assert "input_file_too_large" in result["worker_metrics"]["feasibility"]["reasons"]
+
+
 def test_manifest_rejects_unknown_worker_output_mode(tmp_path) -> None:
     _root, manifest_path = _workspace(tmp_path, prepare=False)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))

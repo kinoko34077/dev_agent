@@ -61,6 +61,7 @@ from scripts.devfarm_artifacts import (
 )
 from scripts.devfarm_worker_prompt import build_worker_prompt
 from scripts.devfarm_localized_edit import materialize_localized_edits
+from scripts.devfarm_feasibility import assess_worker_feasibility
 from scripts.devfarm_refinement import build_concrete_failure_spec
 from src.dev_agent.intelligence.convergence import RepairDirective
 from scripts.devfarm_worker_input import (
@@ -789,6 +790,71 @@ def _record_failed_model_output(
     return result
 
 
+def _record_feasibility_block(
+    root: Path,
+    manifest: Mapping[str, Any],
+    *,
+    provider: ModelProvider,
+    feasibility: Any,
+    attempt_id: str,
+) -> dict[str, Any]:
+    """Persist a pre-dispatch feasibility stop without creating model repair work.
+
+    A task-size or dependency mismatch is a Host assignment problem, not a
+    malformed model response.  Keep it in the attempt denominator while
+    preventing a Provider request and avoiding a misleading repair directive.
+    """
+
+    projected = feasibility.to_dict()
+    reason = "worker feasibility requires reframing before provider dispatch"
+    metrics = {
+        "provider_id": getattr(provider, "provider_id", None),
+        "provider_binding_id": getattr(provider, "provider_binding_id", None),
+        "model_id": getattr(provider, "model", getattr(provider, "model_id", None)),
+        "task_type": manifest.get("task_type", "unspecified"),
+        "attempt_count": 1,
+        "retry_count": 0,
+        "elapsed_ms": 0,
+        "usage": {"cost_minor": 0},
+        "pre_dispatch_block": "feasibility",
+        "feasibility": projected,
+        "proposal_preflight": {
+            "status": "not_observed",
+            "stage": "worker_feasibility",
+            "failure_class": "FEASIBILITY",
+            "fallback_eligible": False,
+            "fallback_disposition": "reframe_before_provider",
+            "validator_ref": "worker:feasibility",
+        },
+        "host_verified": False,
+        "host_tests_passed": False,
+        "result_accepted": False,
+    }
+    result = {
+        "status": "failed",
+        "attempt_id": attempt_id,
+        "base_revision": manifest["base_revision"],
+        "changed_files": [],
+        "tests_run": [],
+        "tests_passed": False,
+        "model_claims": {},
+        "proposed_test_commands": [],
+        "host_verified_tests": [],
+        "worker_metrics": metrics,
+        "known_issues": [reason, *[f"feasibility:{item}" for item in projected["reasons"]]],
+        "assumptions": ["No Provider request was sent because Host feasibility did not fit."],
+    }
+    write_result(root, result, manifest=manifest)
+    _write_auxiliary_artifacts(
+        root,
+        manifest["task_id"],
+        {**result, "patch": "", "notes": reason},
+        worker_metrics=metrics,
+        attempt_id=attempt_id,
+    )
+    return result
+
+
 _normalize_model_status = normalize_model_status
 
 
@@ -1081,6 +1147,39 @@ def run_worker(
     # Stage A is remote proposal only.  Do not require or create a Git
     # worktree until a valid proposal reaches apply_and_verify().
     workspace = _proposal_workspace(root, manifest)
+    max_output_tokens = (
+        LOCAL_OLLAMA_MAX_OUTPUT_TOKENS
+        if output_mode == "minimal_file_replacement"
+        else LOCALIZED_EDIT_MAX_OUTPUT_TOKENS
+        if output_mode == LOCALIZED_FILE_EDIT_MODE
+        else 4096
+    )
+    feasibility_inputs: dict[str, bytes] = {}
+    for relative in manifest.get("read_files", ()):
+        try:
+            feasibility_inputs[relative] = read_file_at_revision(
+                workspace,
+                manifest["base_revision"],
+                relative,
+            )
+        except DevFarmError:
+            # The feasibility boundary records the missing dependency and
+            # stops before egress/provider construction; it must not turn a
+            # malformed assignment into a provider failure.
+            continue
+    feasibility = assess_worker_feasibility(
+        manifest,
+        feasibility_inputs,
+        max_output_tokens=max_output_tokens,
+    )
+    if feasibility.status != "fits":
+        return _record_feasibility_block(
+            root,
+            manifest,
+            provider=provider,
+            feasibility=feasibility,
+            attempt_id=attempt_id,
+        )
     inputs, egress_manifest = _input_context_with_manifest(workspace, manifest, destination=provider_id)
     messages = [
         {"role": "system", "content": "Return the bounded development-worker result as JSON only."},
@@ -1162,13 +1261,7 @@ def run_worker(
             if output_mode == "minimal_file_replacement"
             else None
         ),
-        max_output_tokens=(
-            LOCAL_OLLAMA_MAX_OUTPUT_TOKENS
-            if output_mode == "minimal_file_replacement"
-            else LOCALIZED_EDIT_MAX_OUTPUT_TOKENS
-            if output_mode == LOCALIZED_FILE_EDIT_MODE
-            else 4096
-        ),
+        max_output_tokens=max_output_tokens,
     )
     dispatch = host_dispatch or HostProviderDispatch(provider)
     if dispatch.provider_identity["provider_id"] not in {provider_id, "resource-router"}:

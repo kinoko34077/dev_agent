@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "weak_model_compensation_baseline_inventory",
+  "evidence_status": "synthetic_contract_only",
+  "observed_at": "2026-11-02T00:00:00Z",
+  "implementation_baseline": "a356cfe3f552d6c196cf53c8eac237c2d3621178",
+  "source_revision": "a356cfe3f552d6c196cf53c8eac237c2d3621178",
+  "fixture_ref": "spec/v2/evidence/weak-model-compensation-w0-fixtures.json",
+  "output_modes": [
+    "full_result",
+    "minimal_file_replacement",
+    "localized_file_edit"
+  ],
+  "limits": {
+    "max_input_file_bytes": 65536,
+    "max_outbound_bytes": 524288,
+    "max_output_text_chars": 32768,
+    "full_result_output_tokens": 4096,
+    "minimal_file_replacement_output_tokens": 8192,
+    "localized_file_edit_output_tokens": 4096
+  },
+  "repair_stages": [
+    "initial",
+    "format_repair",
+    "format_fallback",
+    "host_repair",
+    "host_fallback"
+  ],
+  "failure_classes": [
+    "FORMAT_PATCH",
+    "SEMANTIC_TEST",
+    "PROVIDER",
+    "UNKNOWN",
+    "FEASIBILITY"
+  ],
+  "metric_fields": [
+    "task_fingerprint",
+    "task_class",
+    "evidence_class",
+    "provider_id",
+    "provider_binding_id",
+    "model_id",
+    "output_mode",
+    "proposal_parse",
+    "host_verification",
+    "reviewed",
+    "integrated",
+    "accepted",
+    "pre_host_failures",
+    "attempt_count",
+    "retry_count",
+    "prompt_tokens",
+    "completion_tokens",
+    "cost_minor",
+    "elapsed_ms",
+    "host_execution_ms",
+    "human_intervention_count"
+  ],
+  "evidence_classes": [
+    "fresh_runtime",
+    "historical_replay",
+    "synthetic_fixture"
+  ],
+  "scope_boundary": "This inventory is measurement evidence only. It does not establish model eligibility, capability, benchmark, billing, quota, health, routing admission, Worker success, or Phase 8 evidence."
+}

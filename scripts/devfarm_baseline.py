@@ -250,11 +250,16 @@ def _failure_class(result: Mapping[str, Any], task: Mapping[str, Any] | None) ->
     spec = result.get("failure_spec")
     if isinstance(spec, Mapping) and isinstance(spec.get("failure_class"), str):
         return spec["failure_class"].strip().upper()
+    metrics = result.get("worker_metrics")
+    if isinstance(metrics, Mapping) and metrics.get("pre_dispatch_block") == "feasibility":
+        return "FEASIBILITY"
     error = " ".join(
         str(value).casefold()
         for value in (result.get("known_issues"), (task or {}).get("last_error"))
         if value is not None
     )
+    if "feasibility" in error or "reframe_required" in error:
+        return "FEASIBILITY"
     if "json" in error or "schema" in error or "proposal" in error:
         return "FORMAT_PATCH"
     if "reconciliation" in error or "unknown" in error:

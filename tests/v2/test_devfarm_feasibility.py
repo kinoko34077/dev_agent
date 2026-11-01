@@ -34,7 +34,7 @@ def test_feasibility_reports_fit_without_mutating_manifest() -> None:
 
 def test_feasibility_reframes_oversized_input_and_output_envelope() -> None:
     manifest = _manifest()
-    source = ("value = 1\n" * 40_000).encode("utf-8")
+    source = ("value = 1\n" * 9_000).encode("utf-8")
 
     result = assess_worker_feasibility(
         manifest,
@@ -77,3 +77,44 @@ def test_new_file_task_can_fit_without_source_context() -> None:
     assert result.status == "fits"
     assert result.input_file_count == 0
     assert result.estimated_output_chars >= 256
+
+
+def test_feasibility_accounts_for_read_context_and_missing_dependencies() -> None:
+    manifest = _manifest()
+    manifest["read_files"] = ["src/example.py", "src/missing.py"]
+
+    result = assess_worker_feasibility(
+        manifest,
+        {"src/example.py": b"def example():\n    return 1\n"},
+    )
+
+    assert result.status == "invalid_acceptance"
+    assert result.context_file_count == 2
+    assert result.missing_context_files == ("src/missing.py",)
+    assert "missing_context:src/missing.py" in result.reasons
+
+
+def test_localized_output_uses_declared_change_budget_instead_of_full_file_size() -> None:
+    manifest = _manifest(mode="localized_file_edit")
+    manifest["output_contract"] = {
+        "mode": "localized_file_edit",
+        "expected_output_chars": 240,
+    }
+    source = ("value = 1\n" * 2_500).encode("utf-8")
+
+    result = assess_worker_feasibility(manifest, {"src/example.py": source})
+
+    assert result.status == "fits"
+    assert result.estimated_output_chars == 240
+    assert result.input_bytes == len(source)
+
+
+def test_localized_output_without_change_budget_requires_reframing() -> None:
+    manifest = _manifest(mode="localized_file_edit")
+    source = ("value = 1\n" * 40_000).encode("utf-8")
+
+    result = assess_worker_feasibility(manifest, {"src/example.py": source})
+
+    assert result.status == "reframe_required"
+    assert "localized_output_budget_missing" in result.reasons
+    assert result.recommended_action == "declare_output_budget"
