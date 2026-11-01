@@ -138,6 +138,11 @@ class DiscordScope:
             raise ValueError("Discord directory does not exist")
         if not want_directory and not candidate.is_file():
             raise ValueError("Discord file does not exist")
+        # An in-workspace hardlink can alias a protected inode while passing
+        # lexical and realpath checks. File selection is conservative: reject
+        # multi-linked regular files rather than claim to identify their owner.
+        if not want_directory and candidate.stat().st_nlink > 1:
+            raise ValueError("Discord file has multiple hardlinks")
         return relative
 
     def resolve_directory(self, value: str) -> str:
