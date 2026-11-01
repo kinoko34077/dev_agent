@@ -157,6 +157,16 @@ def test_state_projection_consistency_keeps_gate_authority_machine_owned():
     assert isinstance(result["sync_required"], bool)
 
 
+def test_state_projection_allows_the_continuity_evidence_map_as_projection():
+    import scripts.check_semantic_coherence as coherence
+
+    assert "docs/CURRENT_STATE.md" in coherence._STATE_PROJECTION_PATHS
+    assert (
+        "docs/requirements/continuity/02-v0-evidence-boundary-map.md"
+        in coherence._STATE_PROJECTION_PATHS
+    )
+
+
 def test_state_projection_marks_unaccepted_head_as_sync_required():
     from scripts.check_semantic_coherence import _state_projection_status
 
