@@ -410,18 +410,22 @@ class RuntimeCoordinator:
 
         if self._closed:
             raise RuntimeCoordinatorError("runtime coordinator is closed")
-        self._heartbeat()
-        # Fence the peer before the Operation startup preparation clears the
-        # shared compatibility stop flag.  A stale process must never be able
-        # to erase a stop request intended for the current generation.
-        self._prepare()
-        self._consume_interrupt_messages()
-        result = self.operation.run_once(quota_probe=quota_probe)
-        self._heartbeat()
-        self._cycles += 1
-        if result is not None:
-            self._last_task_id = result.task_id
-        return result
+        try:
+            self._heartbeat()
+            # Fence the peer before the Operation startup preparation clears
+            # the shared compatibility stop flag.  A stale process must never
+            # be able to erase a stop request intended for the current generation.
+            self._prepare()
+            self._consume_interrupt_messages()
+            result = self.operation.run_once(quota_probe=quota_probe)
+            self._heartbeat()
+            if result is not None:
+                self._last_task_id = result.task_id
+            return result
+        finally:
+            # max_cycles bounds run_once attempts, including failures during
+            # heartbeat, preparation, or interrupt handling before Operation returns.
+            self._cycles += 1
 
     def health(self) -> dict[str, Any]:
         """Return bounded runtime, peer, and Task-count state."""

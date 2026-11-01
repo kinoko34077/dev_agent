@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from threading import Event
 import time
 
 import pytest
@@ -75,6 +76,34 @@ def test_runtime_coordinator_serve_is_bounded_and_idle_light(tmp_path):
     assert result["bounded"] is True
     assert sleeps == [0.01, 0.01]
     assert result["last_task_id"] is None
+
+
+def test_runtime_coordinator_cycle_limit_counts_failed_boundaries(tmp_path):
+    config = _config(tmp_path)
+    waits = []
+    stop_event = Event()
+
+    def stop_after_three_waits(delay):
+        waits.append(delay)
+        if len(waits) == 3:
+            stop_event.set()
+
+    with RuntimeCoordinator.open(config, revision="test-revision", instance_id="runtime-failing") as runtime:
+        def fail_operation_boundary(*, quota_probe=None):
+            raise RuntimeError("synthetic maintenance failure")
+
+        runtime.operation.run_once = fail_operation_boundary
+
+        result = runtime.serve(
+            stop_event=stop_event,
+            max_cycles=3,
+            wait_fn=stop_after_three_waits,
+        )
+
+    assert result["status"] == "CYCLE_LIMIT"
+    assert result["cycles"] == 3
+    assert result["last_error"] == "RuntimeError: synthetic maintenance failure"
+    assert waits == [0.01, 0.01]
 
 
 def test_runtime_coordinator_wakes_for_task_submitted_during_idle(tmp_path):
