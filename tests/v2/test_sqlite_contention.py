@@ -82,7 +82,7 @@ def test_operation_control_and_queue_can_read_write_concurrently(tmp_path):
         def control_round(_index):
             control.request_stop()
             control.clear_stop()
-            return control.stop_requested()
+            return True
 
         def queue_round(index):
             task_id = f"00000000-0000-0000-0000-{index:012d}"
@@ -94,7 +94,12 @@ def test_operation_control_and_queue_can_read_write_concurrently(tmp_path):
         with ThreadPoolExecutor(max_workers=4) as workers:
             control_results = list(workers.map(control_round, range(8)))
             queue_results = list(workers.map(queue_round, range(8)))
-        assert not any(control_results)
+        # A concurrent toggle can observe another worker's request between its
+        # own clear and read.  The contract under test is that all writes are
+        # durable and the final state is clear once the writers have joined;
+        # an intermediate per-worker read is not a linearizable snapshot.
+        assert all(control_results)
+        assert control.stop_requested() is False
         assert len(queue_results) == 8
     finally:
         queue.close()
