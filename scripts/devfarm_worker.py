@@ -537,6 +537,59 @@ def _input_context(workspace: Path, manifest: Mapping[str, Any]) -> str:
     return context
 
 
+def _rework_compensation(manifest: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Read one Host-owned compensation decision from a rework handoff.
+
+    The decision is reference-first and immutable for this attempt.  The
+    Worker honors only the small allowlist needed to switch an existing-file
+    repair to Host-assembled localized edits; it never trusts model output to
+    choose a mode.
+    """
+
+    handoff = manifest.get("rework_handoff")
+    if not isinstance(handoff, Mapping):
+        return None
+    contexts: list[Mapping[str, Any]] = []
+    candidates: list[Any] = [handoff.get("repair_context")]
+    for key in ("references", "payload_reference"):
+        nested = handoff.get(key)
+        if isinstance(nested, Mapping):
+            candidates.append(nested.get("repair_context"))
+            candidates.append(nested)
+    for candidate in candidates:
+        if isinstance(candidate, Mapping):
+            context = candidate.get("repair_context") if isinstance(candidate.get("repair_context"), Mapping) else candidate
+            if isinstance(context, Mapping):
+                contexts.append(context)
+    decisions: list[dict[str, Any]] = []
+    for context in contexts:
+        value = context.get("compensation")
+        if not isinstance(value, Mapping):
+            continue
+        authority = value.get("authority")
+        action = value.get("action")
+        mode = value.get("output_mode")
+        if authority != "host_policy":
+            raise DevFarmError("rework compensation authority is not Host-owned")
+        if action not in {
+            "switch_output_mode",
+            "repair_same_task",
+            "add_minimal_context",
+            "reframe_task",
+            "stop_model_repair",
+        }:
+            raise DevFarmError("rework compensation action is unsupported")
+        if mode is not None and mode not in {"full_result", "minimal_file_replacement", LOCALIZED_FILE_EDIT_MODE}:
+            raise DevFarmError("rework compensation output mode is unsupported")
+        decisions.append(dict(value))
+    if not decisions:
+        return None
+    first = decisions[0]
+    if any(item != first for item in decisions[1:]):
+        raise DevFarmError("rework compensation decisions conflict")
+    return first
+
+
 def _prompt(
     manifest: Mapping[str, Any],
     inputs: str,
@@ -977,6 +1030,29 @@ def run_worker(
         manifest["output_contract"],
         local_ollama=provider_id == "ollama",
     )
+    compensation = _rework_compensation(manifest)
+    if compensation is not None:
+        action = compensation.get("action")
+        if action in {"stop_model_repair", "reframe_task"}:
+            raise DevFarmError("rework compensation does not permit direct Worker repair")
+        if action == "switch_output_mode":
+            override = compensation.get("output_mode")
+            if override is None:
+                raise DevFarmError("rework compensation mode override is missing")
+            if override == LOCALIZED_FILE_EDIT_MODE:
+                outbound = {
+                    path
+                    for path in manifest.get("outbound_files", ())
+                    if isinstance(path, str) and path.strip()
+                }
+                new_files = {
+                    path
+                    for path in manifest.get("new_files", ())
+                    if isinstance(path, str) and path.strip()
+                }
+                if not outbound or outbound & new_files:
+                    raise DevFarmError("localized compensation requires existing outbound files")
+            output_mode = override
     worker_tier = _tier or _eligibility.intelligence_tier
     if not isinstance(worker_tier, str) or not worker_tier.strip():
         raise DevFarmError("worker provider has no Host-admitted intelligence tier")
@@ -1040,6 +1116,7 @@ def run_worker(
             "authority": "host_validation_required",
             "intelligence_routing": "bounded",
             "allowed_intelligence_tiers": [worker_tier],
+            **({"worker_compensation": compensation} if compensation is not None else {}),
             **({"allow_unknown_quota": True} if _eligibility.billing_admitted else {}),
         },
         response_schema=(
@@ -1082,6 +1159,8 @@ def run_worker(
     except ProviderError as exc:
         metrics = _worker_metrics(provider, request, elapsed_ms=round((time.perf_counter() - started) * 1000), task_type=manifest["task_type"])
         metrics["output_contract_mode"] = output_mode
+        if compensation is not None:
+            metrics["compensation"] = compensation
         metrics["execution_boundary"] = dispatch.execution_boundary
         # Keep the provider/Host failure category distinct from the bounded
         # transport-layer diagnostic.  A Host configuration rejection must
@@ -1126,6 +1205,8 @@ def run_worker(
     elapsed_ms = round((time.perf_counter() - started) * 1000)
     metrics = _worker_metrics(provider, request, response=response, elapsed_ms=elapsed_ms, task_type=manifest["task_type"])
     metrics["output_contract_mode"] = output_mode
+    if compensation is not None:
+        metrics["compensation"] = compensation
     if getattr(response, "provider", None) != provider_id or getattr(response, "model", None) != model_id:
         return _record_failed_model_output(
             root,

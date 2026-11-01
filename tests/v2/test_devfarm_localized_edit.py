@@ -168,3 +168,41 @@ def test_localized_worker_rejects_embedded_newline_and_emits_repair(tmp_path) ->
     assert result["status"] == "failed"
     assert result["worker_metrics"]["proposal_preflight"]["error_code"] == "WORKER_OUTPUT_LINE_SHAPE"
     assert result["repair_directive"]["repair_target"] == "localized_edit.replacement_lines"
+
+
+def test_host_compensation_switches_rework_attempt_to_localized_mode(tmp_path) -> None:
+    root, manifest_path = _workspace(tmp_path, prepare=False)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["output_contract"] = {"format": "json", "mode": "minimal_file_replacement"}
+    manifest["rework_handoff"] = {
+        "repair_context": {
+            "compensation": {
+                "authority": "host_policy",
+                "action": "switch_output_mode",
+                "reason_code": "format_existing_source_contract",
+                "output_mode": "localized_file_edit",
+                "context_hints": ["exact_line_anchor"],
+                "reframe_required": False,
+            }
+        }
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    provider = _WorkerProvider(
+        {
+            "file_edits": [
+                {
+                    "path": "tests/v2/test_target.py",
+                    "start_line": 2,
+                    "end_line": 2,
+                    "expected_lines": ["    assert True"],
+                    "replacement_lines": ["    assert False"],
+                }
+            ]
+        }
+    )
+
+    result = run_worker(root, manifest_path, provider=provider)
+
+    assert result["status"] == "completed"
+    assert result["worker_metrics"]["output_contract_mode"] == "localized_file_edit"
+    assert result["worker_metrics"]["compensation"]["authority"] == "host_policy"

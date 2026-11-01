@@ -22,6 +22,7 @@ from uuid import uuid4
 
 from scripts.devfarm import write_manifest
 from scripts.devfarm_commander import create_plan
+from scripts.devfarm_compensation import select_worker_compensation
 from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_manifests import load_worker_manifest
 from scripts.devfarm_planning_bridge import DevelopmentPlanningBridge
@@ -32,6 +33,7 @@ from src.dev_agent.domain.execution import CanonicalExecutionBinding
 from src.dev_agent.domain.protocol import ProtocolError, Task, TaskType
 from src.dev_agent.intelligence.convergence import RepairDirective
 from src.dev_agent.intelligence.planner import PlannerDependencyType, RootPlanningProposal
+from scripts.devfarm_worker_output import worker_output_mode
 
 
 class ProductionCompositionError(ValueError):
@@ -812,6 +814,30 @@ class Phase8ProductionExecutor:
             for child_key in self.bindings
         )
 
+    @staticmethod
+    def _compensation_metadata(
+        manifest: Mapping[str, Any],
+        provider: Any,
+        failure_spec: Any,
+        *,
+        failure_code: str,
+    ) -> dict[str, Any]:
+        """Project one Host-owned compensation decision into rework context."""
+
+        provider_id = getattr(provider, "provider_id", None)
+        current_mode = worker_output_mode(
+            manifest.get("output_contract", {}),
+            local_ollama=provider_id == "ollama",
+        )
+        decision = select_worker_compensation(
+            manifest,
+            failure_class=failure_spec.failure_class,
+            failure_code=failure_code,
+            stage=failure_spec.stage,
+            current_output_mode=current_mode,
+        )
+        return decision.to_dict()
+
     def _repair_failed_proposals(self, plan: Mapping[str, Any]) -> list[str]:
         """Reassign one bounded model-output failure through existing repair seams.
 
@@ -850,6 +876,12 @@ class Phase8ProductionExecutor:
                 _manifest_path, manifest = load_worker_manifest(self.commander.root, task)
                 failure_spec = build_concrete_failure_spec(error, manifest=manifest)
                 directive = RepairDirective.from_failure_spec(failure_spec)
+                compensation = self._compensation_metadata(
+                    manifest,
+                    provider,
+                    failure_spec,
+                    failure_code=error.split(";", 1)[0].strip(),
+                )
                 result_ref = task.get("result_ref")
                 if not isinstance(result_ref, str) or not result_ref.strip():
                     raise ProductionCompositionError("proposal failure has no durable result reference")
@@ -874,6 +906,7 @@ class Phase8ProductionExecutor:
                             "unresolved": [directive.required_action],
                             "resolved_must_not_regress": [],
                         },
+                        "compensation": compensation,
                         "directive_rebound": True,
                     },
                 )
@@ -954,6 +987,12 @@ class Phase8ProductionExecutor:
                 _manifest_path, manifest = load_worker_manifest(self.commander.root, task)
                 failure_spec = build_concrete_failure_spec(error, manifest=manifest)
                 directive = RepairDirective.from_failure_spec(failure_spec)
+                compensation = self._compensation_metadata(
+                    manifest,
+                    fallback_provider,
+                    failure_spec,
+                    failure_code=error.split(";", 1)[0].strip(),
+                )
                 result_ref = task.get("result_ref")
                 if not isinstance(result_ref, str) or not result_ref.strip():
                     raise ProductionCompositionError("proposal failure has no durable result reference")
@@ -981,6 +1020,7 @@ class Phase8ProductionExecutor:
                         "directive_rebound": True,
                         "fallback_from_provider": current_provider_id,
                         "fallback_to_provider": provider_id.strip(),
+                        "compensation": compensation,
                     },
                 )
                 reassign(
@@ -1123,6 +1163,12 @@ class Phase8ProductionExecutor:
                 validator_ref="worker:host_verification",
             )
             directive = RepairDirective.from_failure_spec(failure_spec)
+            compensation = self._compensation_metadata(
+                manifest,
+                provider,
+                failure_spec,
+                failure_code=(failure_spec.validator_refs[-1] if failure_spec.validator_refs else "HOST_VERIFICATION_FAILED"),
+            )
             result_ref = task.get("result_ref")
             if not isinstance(result_ref, str) or not result_ref.strip():
                 raise ProductionCompositionError("Host Verification failure has no durable result reference")
@@ -1142,6 +1188,7 @@ class Phase8ProductionExecutor:
                 repair_context["fallback_from_provider"] = fallback_from_provider
             if fallback_to_provider is not None:
                 repair_context["fallback_to_provider"] = fallback_to_provider
+            repair_context["compensation"] = compensation
             repair_context["host_verification_rework"] = True
             handoff = rework_handoff(
                 task_id,

@@ -304,6 +304,8 @@ def test_phase8_executor_rebinds_latest_worker_failure_to_distinct_local_model(m
     assert executor.providers["devfarm-a"] is fallback
     assert handoff_calls[0]["repair_context"]["directive_rebound"] is True
     assert handoff_calls[0]["repair_context"]["fallback_to_provider"] == "ollama"
+    assert handoff_calls[0]["repair_context"]["compensation"]["action"] == "switch_output_mode"
+    assert handoff_calls[0]["repair_context"]["compensation"]["output_mode"] == "localized_file_edit"
     assert reassign_calls[0]["provider_binding_id"] == "ollama:local:gemma4-12b"
     assert reassign_calls[0]["model_id"] == "gemma4:12b"
 
@@ -362,6 +364,8 @@ def test_phase8_executor_reworks_host_verification_syntax_failure_with_concrete_
     assert "syntax" in handoff["repair_directive"].required_action.casefold()
     assert handoff["repair_context"]["directive_rebound"] is True
     assert handoff["repair_context"]["source_attempt_id"] == "qwen-attempt-1"
+    assert handoff["repair_context"]["compensation"]["action"] == "switch_output_mode"
+    assert handoff["repair_context"]["compensation"]["output_mode"] == "localized_file_edit"
     assert reassign_calls[0]["provider_binding_id"] == "ollama:local:qwen3.5-9b"
 
 
