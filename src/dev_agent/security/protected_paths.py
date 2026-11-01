@@ -169,21 +169,23 @@ def classify_path(path: Any) -> PathProtectionClass:
     parts = _normalized_parts(path)
     if parts is None:
         return PathProtectionClass.HARD_DENY
-    normalized = "/".join(parts)
+    # Treat protected names conservatively on case-insensitive filesystems,
+    # independently of the host OS executing this policy.
+    normalized = "/".join(parts).casefold()
     for part in parts:
-        lowered = part.lower()
-        if part == ".git" or lowered.startswith(".env") or lowered in PROTECTED_PART_NAMES:
+        lowered = part.casefold()
+        if lowered == ".git" or lowered.startswith(".env") or lowered in PROTECTED_PART_NAMES:
             return PathProtectionClass.HARD_DENY
         if lowered in PROTECTED_SECRET_FILENAMES or any(lowered.endswith(suffix) for suffix in PROTECTED_SECRET_SUFFIXES):
             return PathProtectionClass.HARD_DENY
         stem = lowered.rsplit(".", 1)[0]
         if any(marker in stem for marker in ("credential", "private_key", "secret_token", "access_token", "api_key")):
             return PathProtectionClass.HARD_DENY
-    if normalized in PROTECTED_AUTHORITY_PATHS:
+    if any(normalized == path.casefold() for path in PROTECTED_AUTHORITY_PATHS):
         return PathProtectionClass.AUTHORITY_SENSITIVE
-    if any(_under_prefix(normalized, prefix) for prefix in HARD_DENY_DIRECTORY_PREFIXES):
+    if any(_under_prefix(normalized, prefix.casefold()) for prefix in HARD_DENY_DIRECTORY_PREFIXES):
         return PathProtectionClass.HARD_DENY
-    if any(_under_prefix(normalized, prefix) for prefix in AUTHORITY_SENSITIVE_DIRECTORY_PREFIXES):
+    if any(_under_prefix(normalized, prefix.casefold()) for prefix in AUTHORITY_SENSITIVE_DIRECTORY_PREFIXES):
         return PathProtectionClass.AUTHORITY_SENSITIVE
     return PathProtectionClass.NORMAL_REPO
 
