@@ -5,6 +5,8 @@ from uuid import uuid4
 import pytest
 
 from scripts.devfarm_resource_pool import ResourcePoolError, admit_resource_pool, build_provider, compose_resource_pool
+from scripts.devfarm_worker import apply_and_verify, run_worker
+from scripts.devfarm_workspace import write_manifest
 from src.dev_agent.domain.execution import ExecutionRequirement
 from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from scripts.devfarm_metrics import WorkerMetricsStore
@@ -17,6 +19,7 @@ from src.dev_agent.resources.model_benchmarks import BenchmarkCatalog
 from src.dev_agent.resources.model_capabilities import ModelCapabilityCatalog
 from src.dev_agent.resources.model_catalog import ModelAliasCatalog, ModelCatalog
 from src.dev_agent.resources.router import ResourceRouter
+from tests.v2.devfarm_test_support import _WorkerProvider, _patch, _workspace
 
 
 class _QualificationResolver:
@@ -513,3 +516,128 @@ def test_host_verified_outcomes_rank_exact_task_model_without_filtering_candidat
 
     assert matched.selection.model_id == "model-with-accepted-history"
     assert mismatched.selection.model_id == "model-without-history"
+
+
+def test_host_accepted_worker_metrics_feed_exact_task_router(tmp_path, monkeypatch):
+    import json
+    from datetime import timedelta
+
+    root, initial_manifest_path = _workspace(tmp_path)
+    manifest_template = json.loads(initial_manifest_path.read_text(encoding="utf-8"))
+    manifest_template["task_type"] = "worker"
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": True,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": _patch(),
+        "notes": "synthetic proposal for Host evidence routing",
+    }
+
+    for index in range(3):
+        manifest = {**manifest_template, "task_id": f"worker-evidence-{index}"}
+        manifest_path = write_manifest(root, manifest)
+        proposed = run_worker(root, manifest_path, provider=_WorkerProvider(output))
+        assert proposed["status"] == "completed"
+        assert proposed["worker_metrics"]["host_verified"] is False
+
+        verified = apply_and_verify(
+            root,
+            manifest_path,
+            trust_level="TRUSTED_HOST_EXEC",
+            operator_approved=True,
+        )
+        assert verified["worker_metrics"]["durable_recorded"] is True
+        assert verified["worker_metrics"]["result_accepted"] is True
+        assert verified["worker_metrics"]["host_tests_passed"] is True
+
+    bindings = (
+        OperationProviderBinding(
+            provider_id="cloudflare",
+            provider_binding_id="cloudflare:a-unknown",
+            model="model-without-history",
+            api_key_env="CLOUDFLARE_API_TOKEN",
+            quota_domain="cloudflare:account",
+            intelligence_tier="L1",
+        ),
+        OperationProviderBinding(
+            provider_id="cloudflare",
+            provider_binding_id="cloudflare:account",
+            model=_WorkerProvider.model_id,
+            api_key_env="CLOUDFLARE_API_TOKEN",
+            quota_domain="cloudflare:account",
+            intelligence_tier="L1",
+        ),
+    )
+    profile = SimpleNamespace(
+        cost_minor=0,
+        price_currency="USD",
+        billing_mode="free_fixed",
+        overage_policy="hard_stop",
+        no_charge_guaranteed=True,
+        expires_at=(datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
+        allowance_amount=None,
+        allowance_currency=None,
+        allowance_period=None,
+    )
+    monkeypatch.setattr(
+        "src.dev_agent.resources.router.profile_for",
+        lambda _provider, _binding, model: profile
+        if model in {binding.model for binding in bindings}
+        else None,
+    )
+
+    class BoundProvider(_Provider):
+        def __init__(self, *, binding):
+            self.provider_id = binding.provider_id
+            self.provider_binding_id = binding.binding_id
+            self.model_id = binding.model
+            self.intelligence_tier = "L1"
+
+    # Exercise ordinary admission with deterministic test evidence, then
+    # verify that outcome history only reorders those already-admitted routes.
+    admitted = admit_resource_pool(
+        bindings,
+        resolver=_QualificationResolver("L1"),
+        required_tier="L1",
+        profile_resolver=lambda *_args: profile,
+    )
+    assert len(admitted) == 2
+    with compose_resource_pool(
+        admitted,
+        resolver=_QualificationResolver("L1"),
+        provider_builder=lambda *, binding: BoundProvider(binding=binding),
+        resource_id_prefix="devfarm-host-outcome",
+        task_type="worker",
+        outcome_metrics_path=root / ".devfarm" / "metrics.sqlite3",
+    ) as runtime:
+        request = ModelRequest(
+            task_id=str(uuid4()),
+            messages=[{"role": "user", "content": "bounded worker routing check"}],
+            requested_capabilities=["text"],
+            metadata={
+                "task_type": "worker",
+                "intelligence_routing": "bounded",
+                "allowed_intelligence_tiers": ["L1"],
+                "allow_unknown_quota": True,
+            },
+        )
+        exact_task_route = runtime.dispatcher.control.effective_route(request)
+        other_task_route = runtime.dispatcher.control.effective_route(
+            ModelRequest(
+                task_id=str(uuid4()),
+                messages=[{"role": "user", "content": "different task class"}],
+                requested_capabilities=["text"],
+                metadata={**request.metadata, "task_type": "reasoning"},
+            )
+        )
+
+    assert runtime.outcome_routing_status == "evaluated"
+    assert {
+        decision.model_id: decision.sample_count
+        for decision in runtime.outcome_routing
+    } == {_WorkerProvider.model_id: 3, "model-without-history": 0}
+    assert exact_task_route.selection.model_id == _WorkerProvider.model_id
+    assert other_task_route.selection.model_id == "model-without-history"
