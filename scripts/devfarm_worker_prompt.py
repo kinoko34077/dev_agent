@@ -81,6 +81,14 @@ def _compensation_prefix(context: Mapping[str, Any]) -> str:
         return ""
     if output_mode is not None and output_mode not in allowed_modes:
         return ""
+    expected_output_chars = value.get("expected_output_chars")
+    if expected_output_chars is not None and (
+        isinstance(expected_output_chars, bool)
+        or not isinstance(expected_output_chars, int)
+        or expected_output_chars <= 0
+        or expected_output_chars > 32 * 1024
+    ):
+        return ""
     hints = value.get("context_hints", ())
     if isinstance(hints, str) or not isinstance(hints, (list, tuple)):
         return ""
@@ -90,11 +98,17 @@ def _compensation_prefix(context: Mapping[str, Any]) -> str:
         if isinstance(item, str) and item.strip() and len(item.strip()) <= 96
     )
     mode_line = f"OUTPUT MODE: {output_mode}\n" if output_mode is not None else ""
+    budget_line = (
+        f"MAX CHANGE BUDGET (characters): {expected_output_chars}\n"
+        if expected_output_chars is not None
+        else ""
+    )
     return (
         "HOST-SELECTED CORRECTION ROUTE. Follow this route; do not invent another.\n"
         f"RESPONSIBILITY ACTION: {action}\n"
         f"PROMPT CONTRACT: {prompt_contract}\n"
         + mode_line
+        + budget_line
         + f"BOUNDED CONTEXT HINTS: {', '.join(normalized_hints) or '- none'}\n"
         "The Host owns this routing decision; keep the response within the declared schema.\n"
     )
@@ -187,6 +201,13 @@ def _bounded_rework_handoff(manifest: Mapping[str, Any]) -> dict[str, Any] | Non
                         if isinstance(item, str) and item.strip() and len(item.strip()) <= 96
                     ],
                 }
+                budget = compensation.get("expected_output_chars")
+                if (
+                    isinstance(budget, int)
+                    and not isinstance(budget, bool)
+                    and 0 < budget <= 32 * 1024
+                ):
+                    projected_compensation["expected_output_chars"] = budget
                 projected_context["compensation"] = projected_compensation
         if projected_context:
             projected["repair_context"] = projected_context

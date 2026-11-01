@@ -120,7 +120,11 @@ def test_localized_output_mode_is_explicit_and_path_bound() -> None:
 def test_localized_worker_mode_materializes_host_owned_patch(tmp_path) -> None:
     root, manifest_path = _workspace(tmp_path, prepare=False)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["output_contract"] = {"format": "json", "mode": "localized_file_edit"}
+    manifest["output_contract"] = {
+        "format": "json",
+        "mode": "localized_file_edit",
+        "expected_output_chars": 512,
+    }
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     provider = _WorkerProvider(
         {
@@ -147,7 +151,11 @@ def test_localized_worker_mode_materializes_host_owned_patch(tmp_path) -> None:
 def test_localized_worker_rejects_embedded_newline_and_emits_repair(tmp_path) -> None:
     root, manifest_path = _workspace(tmp_path, prepare=False)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["output_contract"] = {"format": "json", "mode": "localized_file_edit"}
+    manifest["output_contract"] = {
+        "format": "json",
+        "mode": "localized_file_edit",
+        "expected_output_chars": 512,
+    }
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     provider = _WorkerProvider(
         {
@@ -181,6 +189,7 @@ def test_host_compensation_switches_rework_attempt_to_localized_mode(tmp_path) -
                 "action": "switch_output_mode",
                 "reason_code": "format_existing_source_contract",
                 "output_mode": "localized_file_edit",
+                "expected_output_chars": 512,
                 "context_hints": ["exact_line_anchor"],
                 "reframe_required": False,
             }
@@ -206,3 +215,29 @@ def test_host_compensation_switches_rework_attempt_to_localized_mode(tmp_path) -
     assert result["status"] == "completed"
     assert result["worker_metrics"]["output_contract_mode"] == "localized_file_edit"
     assert result["worker_metrics"]["compensation"]["authority"] == "host_policy"
+
+
+def test_localized_compensation_without_change_budget_stops_before_provider(tmp_path) -> None:
+    root, manifest_path = _workspace(tmp_path, prepare=False)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["rework_handoff"] = {
+        "repair_context": {
+            "compensation": {
+                "authority": "host_policy",
+                "action": "switch_output_mode",
+                "reason_code": "format_existing_source_contract",
+                "output_mode": "localized_file_edit",
+                "context_hints": ["exact_line_anchor"],
+                "reframe_required": False,
+            }
+        }
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    provider = _WorkerProvider({"file_edits": []})
+
+    result = run_worker(root, manifest_path, provider=provider)
+
+    assert result["status"] == "failed"
+    assert provider.request_count == 0
+    assert result["worker_metrics"]["pre_dispatch_block"] == "feasibility"
+    assert "localized_output_budget_missing" in result["worker_metrics"]["feasibility"]["reasons"]

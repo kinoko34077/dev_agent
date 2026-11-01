@@ -24,6 +24,7 @@ def test_format_failure_on_existing_source_switches_to_host_localized_edit() -> 
 
     assert decision.action == "switch_output_mode"
     assert decision.output_mode == "localized_file_edit"
+    assert decision.expected_output_chars == 4096
     assert decision.authority == "host_policy"
     assert "exact_line_anchor" in decision.context_hints
 
@@ -51,6 +52,7 @@ def test_syntax_failure_can_switch_existing_source_to_localized_edit() -> None:
 
     assert decision.action == "switch_output_mode"
     assert decision.output_mode == "localized_file_edit"
+    assert decision.expected_output_chars == 4096
     assert "host_failure_category" in decision.context_hints
 
 
@@ -88,4 +90,16 @@ def test_unknown_failure_class_fails_closed() -> None:
             failure_class="invented_failure",
             failure_code="X",
             stage="worker_output_validation",
+        )
+
+
+def test_compensation_rejects_unbounded_output_budget() -> None:
+    with pytest.raises(DevFarmError, match="expected_output_chars"):
+        from scripts.devfarm_compensation import WorkerCompensation
+
+        WorkerCompensation(
+            action="switch_output_mode",
+            reason_code="test",
+            output_mode="localized_file_edit",
+            expected_output_chars="unbounded",  # type: ignore[arg-type]
         )

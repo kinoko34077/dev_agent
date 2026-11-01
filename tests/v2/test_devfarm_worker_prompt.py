@@ -182,6 +182,7 @@ def test_rework_prompt_includes_only_host_selected_compensation_contract() -> No
                     "action": "switch_output_mode",
                     "prompt_contract": "host-localized-edit",
                     "output_mode": "localized_file_edit",
+                    "expected_output_chars": 4096,
                     "context_hints": ["exact_line_anchor", "expected_lines"],
                     "raw_traceback": "must never be copied",
                 },
@@ -204,5 +205,6 @@ def test_rework_prompt_includes_only_host_selected_compensation_contract() -> No
     assert "RESPONSIBILITY ACTION: switch_output_mode" in prompt
     assert "PROMPT CONTRACT: host-localized-edit" in prompt
     assert "OUTPUT MODE: localized_file_edit" in prompt
+    assert "MAX CHANGE BUDGET (characters): 4096" in prompt
     assert "BOUNDED CONTEXT HINTS: exact_line_anchor, expected_lines" in prompt
     assert "must never be copied" not in prompt

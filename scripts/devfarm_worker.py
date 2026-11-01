@@ -1147,6 +1147,18 @@ def run_worker(
     # Stage A is remote proposal only.  Do not require or create a Git
     # worktree until a valid proposal reaches apply_and_verify().
     workspace = _proposal_workspace(root, manifest)
+    effective_manifest = manifest
+    declared_contract = manifest.get("output_contract")
+    if isinstance(declared_contract, Mapping):
+        effective_contract = dict(declared_contract)
+        effective_contract["mode"] = output_mode
+        if output_mode == LOCALIZED_FILE_EDIT_MODE and compensation is not None:
+            budget = compensation.get("expected_output_chars")
+            if budget is not None:
+                effective_contract["expected_output_chars"] = budget
+        if effective_contract != declared_contract:
+            effective_manifest = dict(manifest)
+            effective_manifest["output_contract"] = effective_contract
     max_output_tokens = (
         LOCAL_OLLAMA_MAX_OUTPUT_TOKENS
         if output_mode == "minimal_file_replacement"
@@ -1168,7 +1180,7 @@ def run_worker(
             # malformed assignment into a provider failure.
             continue
     feasibility = assess_worker_feasibility(
-        manifest,
+        effective_manifest,
         feasibility_inputs,
         max_output_tokens=max_output_tokens,
     )
@@ -1210,7 +1222,7 @@ def run_worker(
         {
             "role": "user",
             "content": _prompt(
-                manifest,
+                effective_manifest,
                 inputs,
                 egress_manifest=egress_manifest,
                 local_ollama=provider_id == "ollama",

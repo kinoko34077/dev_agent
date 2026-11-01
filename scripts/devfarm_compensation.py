@@ -32,6 +32,7 @@ _BOUNDARY_FAILURES = frozenset(
         "UNKNOWN_EXTERNAL_EFFECT",
     }
 )
+_DEFAULT_LOCALIZED_OUTPUT_CHARS = 4_096
 
 
 @dataclass(frozen=True)
@@ -41,9 +42,19 @@ class WorkerCompensation:
     action: str
     reason_code: str
     output_mode: str | None
+    expected_output_chars: int | None = None
     context_hints: tuple[str, ...] = ()
     reframe_required: bool = False
     authority: str = "host_policy"
+
+    def __post_init__(self) -> None:
+        if self.expected_output_chars is not None and (
+            isinstance(self.expected_output_chars, bool)
+            or not isinstance(self.expected_output_chars, int)
+            or self.expected_output_chars <= 0
+            or self.expected_output_chars > 32 * 1024
+        ):
+            raise DevFarmError("expected_output_chars is out of bounds")
 
     @property
     def prompt_contract(self) -> str:
@@ -62,6 +73,7 @@ class WorkerCompensation:
             "action": self.action,
             "reason_code": self.reason_code,
             "output_mode": self.output_mode,
+            "expected_output_chars": self.expected_output_chars,
             "context_hints": list(self.context_hints),
             "reframe_required": self.reframe_required,
             "authority": self.authority,
@@ -146,6 +158,7 @@ def select_worker_compensation(
                 action="switch_output_mode",
                 reason_code="format_existing_source_contract",
                 output_mode="localized_file_edit",
+                expected_output_chars=_DEFAULT_LOCALIZED_OUTPUT_CHARS,
                 context_hints=("exact_line_anchor", "expected_lines", "host_generated_diff"),
             )
         return WorkerCompensation(
@@ -163,6 +176,7 @@ def select_worker_compensation(
             action="switch_output_mode",
             reason_code="syntax_or_line_shape_existing_source",
             output_mode="localized_file_edit",
+            expected_output_chars=_DEFAULT_LOCALIZED_OUTPUT_CHARS,
             context_hints=("host_failure_category", "exact_line_anchor", "independent_test_required"),
         )
     return WorkerCompensation(
