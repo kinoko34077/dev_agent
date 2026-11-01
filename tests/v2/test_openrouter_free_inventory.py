@@ -4,10 +4,23 @@ import json
 
 import pytest
 
+from src.dev_agent.providers.openrouter import (
+    OpenRouterFreeProvider,
+    OpenRouterHttpProvider,
+    OpenRouterInventoryError as ExportedInventoryError,
+    normalize_free_chat_inventory as exported_normalizer,
+)
 from src.dev_agent.providers.openrouter.free_inventory import (
     OpenRouterInventoryError,
     normalize_free_chat_inventory,
 )
+
+
+def test_openrouter_package_exports_inventory_normalizer_without_removing_provider_exports():
+    assert ExportedInventoryError is OpenRouterInventoryError
+    assert exported_normalizer is normalize_free_chat_inventory
+    assert OpenRouterFreeProvider.__module__.endswith("openrouter.provider")
+    assert OpenRouterHttpProvider.__module__.endswith("openrouter.provider")
 
 
 def _model(model_id: str, *, prompt: str = "0", completion: str = "0",
