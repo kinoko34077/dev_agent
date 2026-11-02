@@ -7,6 +7,7 @@ import pytest
 
 from scripts.devfarm_baseline import (
     BaselineError,
+    build_baseline_report,
     compare_observation_cohorts,
     collect_attempt_observation,
     load_fixture_set,
@@ -424,3 +425,115 @@ def test_compare_observation_cohorts_rejects_duplicate_task_fingerprints() -> No
             baseline=[duplicate, dict(duplicate, task_id="task-2")],
             treatment=[_cohort_observation("task-1", accepted=True, parsed=True)],
         )
+
+
+def test_build_baseline_report_uses_explicit_attempts_and_keeps_pre_host_failures(tmp_path: Path) -> None:
+    first_task = "report-first"
+    second_task = "report-second"
+    first_attempt = "attempt-first"
+    second_attempt = "attempt-second"
+    for task_id, attempt_id, accepted, parsed in (
+        (first_task, first_attempt, False, False),
+        (second_task, second_attempt, True, True),
+    ):
+        _write_json(tmp_path / ".devfarm/tasks" / f"{task_id}.json", _manifest(task_id))
+        _write_json(
+            tmp_path / ".devfarm/results" / task_id / "attempts" / attempt_id / "result.json",
+            _result(attempt_id=attempt_id, accepted=accepted, parsed=parsed),
+        )
+        if accepted:
+            _write_json(
+                tmp_path / ".devfarm/results" / task_id / "attempts" / attempt_id / "verification" / "v1.json",
+                {
+                    "verification_id": "v1",
+                    "independent_verification": True,
+                    "verified_tests": [{"passed": True}],
+                },
+            )
+
+    selection = {
+        "schema_version": 1,
+        "report_id": "w0-report",
+        "baseline_id": "w0-observed",
+        "source_revision": "a" * 40,
+        "observations": [
+            {
+                "task_id": first_task,
+                "attempt_id": first_attempt,
+                "task_class": "schema_contract_violation",
+                "evidence_class": "fresh_runtime",
+            },
+            {
+                "task_id": second_task,
+                "attempt_id": second_attempt,
+                "task_class": "localized_existing_source",
+                "evidence_class": "fresh_runtime",
+            },
+        ],
+    }
+
+    before = (tmp_path / ".devfarm/tasks" / f"{first_task}.json").read_bytes()
+    report = build_baseline_report(tmp_path, selection)
+
+    assert report["evidence_status"] == "observed_attempts"
+    assert report["observation_count"] == 2
+    assert report["summary"]["attempts_total"] == 2
+    assert report["summary"]["pre_host_failures"] == 1
+    assert report["summary"]["accepted"] == 1
+    assert report["summary"]["by_evidence_class"] == {"fresh_runtime": 2}
+    assert "raw_response" not in json.dumps(report)
+    assert (tmp_path / ".devfarm/tasks" / f"{first_task}.json").read_bytes() == before
+
+
+def test_build_baseline_report_rejects_revision_mismatch(tmp_path: Path) -> None:
+    task_id = "report-mismatch"
+    attempt_id = "attempt-mismatch"
+    _write_json(tmp_path / ".devfarm/tasks" / f"{task_id}.json", _manifest(task_id, base_revision="b" * 40))
+    _write_json(
+        tmp_path / ".devfarm/results" / task_id / "attempts" / attempt_id / "result.json",
+        _result(attempt_id=attempt_id, accepted=False, parsed=False),
+    )
+
+    with pytest.raises(BaselineError, match="source_revision"):
+        build_baseline_report(
+            tmp_path,
+            {
+                "schema_version": 1,
+                "report_id": "w0-mismatch",
+                "baseline_id": "w0-observed",
+                "source_revision": "a" * 40,
+                "observations": [
+                    {
+                        "task_id": task_id,
+                        "attempt_id": attempt_id,
+                        "task_class": "schema_contract_violation",
+                        "evidence_class": "fresh_runtime",
+                    }
+                ],
+            },
+        )
+
+
+def test_build_baseline_report_rejects_unknown_fields_and_missing_attempt(tmp_path: Path) -> None:
+    selection = {
+        "schema_version": 1,
+        "report_id": "w0-invalid",
+        "baseline_id": "w0-observed",
+        "source_revision": "a" * 40,
+        "unexpected": True,
+        "observations": [],
+    }
+    with pytest.raises(BaselineError, match="unknown field"):
+        build_baseline_report(tmp_path, selection)
+
+    selection.pop("unexpected")
+    selection["observations"] = [
+        {
+            "task_id": "missing-task",
+            "attempt_id": "missing-attempt",
+            "task_class": "schema_contract_violation",
+            "evidence_class": "fresh_runtime",
+        }
+    ]
+    with pytest.raises(BaselineError):
+        build_baseline_report(tmp_path, selection)

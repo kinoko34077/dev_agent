@@ -434,6 +434,97 @@ def collect_attempt_observation(
     }
 
 
+def build_baseline_report(root: str | Path, selection: Mapping[str, Any]) -> dict[str, Any]:
+    """Build a read-only W0 report from an explicit attempt selection.
+
+    The caller must provide every task/attempt identity and its evidence class;
+    this function never discovers candidates by scanning filenames or infers a
+    task class from an artifact path.  All selected attempts must share the
+    declared source revision so that the resulting denominator is reproducible.
+    """
+
+    if not isinstance(selection, Mapping):
+        raise BaselineError("baseline report selection must be an object")
+    allowed = {"schema_version", "report_id", "baseline_id", "source_revision", "observations"}
+    unknown = set(selection) - allowed
+    if unknown:
+        raise BaselineError(f"baseline report selection has unknown field: {sorted(unknown)[0]}")
+    if selection.get("schema_version") != 1:
+        raise BaselineError("baseline report selection schema_version must be 1")
+    report_id = _safe_id(selection.get("report_id"), "report_id")
+    baseline_id = _safe_id(selection.get("baseline_id"), "baseline_id")
+    source_revision = _text(selection.get("source_revision"), "source_revision", maximum=64)
+    if not re.fullmatch(r"[0-9a-fA-F]{40}", source_revision):
+        raise BaselineError("source_revision must be a 40-character commit revision")
+    raw_observations = selection.get("observations")
+    if isinstance(raw_observations, (str, bytes)) or not isinstance(raw_observations, Sequence):
+        raise BaselineError("observations must be a sequence")
+    if not raw_observations:
+        raise BaselineError("observations must not be empty")
+    if len(raw_observations) > 128:
+        raise BaselineError("observations contains too many attempts")
+
+    observations: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    observation_fields = {"task_id", "attempt_id", "task_class", "evidence_class"}
+    for index, raw in enumerate(raw_observations):
+        if not isinstance(raw, Mapping):
+            raise BaselineError(f"observations[{index}] must be an object")
+        extra = set(raw) - observation_fields
+        if extra:
+            raise BaselineError(f"observations[{index}] has unknown field: {sorted(extra)[0]}")
+        task_id = _safe_id(raw.get("task_id"), f"observations[{index}].task_id")
+        attempt_id = _safe_id(raw.get("attempt_id"), f"observations[{index}].attempt_id")
+        identity = (task_id, attempt_id)
+        if identity in seen:
+            raise BaselineError("observations must not contain duplicate task/attempt identities")
+        seen.add(identity)
+        task_class = raw.get("task_class")
+        evidence_class = raw.get("evidence_class")
+        if task_class not in _TASK_CLASSES:
+            raise BaselineError(f"observations[{index}].task_class is unsupported")
+        if evidence_class not in _EVIDENCE_CLASSES:
+            raise BaselineError(f"observations[{index}].evidence_class is unsupported")
+        try:
+            observation = collect_attempt_observation(
+                root,
+                task_id=task_id,
+                attempt_id=attempt_id,
+                task_class=task_class,
+                evidence_class=evidence_class,
+            )
+        except BaselineError:
+            raise
+        except DevFarmError as exc:
+            raise BaselineError("selected observation artifact is unavailable or malformed") from exc
+        if observation.get("source_revision") != source_revision:
+            raise BaselineError(
+                f"observations[{index}] source_revision does not match declared source_revision"
+            )
+        observations.append(observation)
+
+    summary = summarize_observations(
+        baseline_id=baseline_id,
+        source_revision=source_revision,
+        observations=observations,
+    )
+    return {
+        "schema_version": 1,
+        "evidence_kind": "weak_model_compensation_observed_baseline",
+        "evidence_status": "observed_attempts",
+        "report_id": report_id,
+        "baseline_id": baseline_id,
+        "source_revision": source_revision,
+        "observation_count": len(observations),
+        "summary": summary,
+        "observations": observations,
+        "scope_boundary": (
+            "This report is measurement evidence only. It does not renew model "
+            "capability, billing, quota, health, runtime admission, routing, or Gate evidence."
+        ),
+    }
+
+
 def summarize_observations(
     *,
     baseline_id: str,
@@ -654,6 +745,7 @@ __all__ = [
     "BaselineError",
     "BaselineFixture",
     "BaselineFixtureSet",
+    "build_baseline_report",
     "compare_observation_cohorts",
     "collect_attempt_observation",
     "load_fixture_set",

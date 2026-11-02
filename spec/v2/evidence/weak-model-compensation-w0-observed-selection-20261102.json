@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "report_id": "weak-model-compensation-w0-observed-20261102",
+  "baseline_id": "weak-model-compensation-w0-fresh-331b483",
+  "source_revision": "331b483f24123617aceb5c7e80417474267febfe",
+  "observations": [
+    {
+      "task_id": "issue146-w2-minimal-selection-test-qwen-20261102",
+      "attempt_id": "669b6e117fa444bbaac43b876639a9c2",
+      "task_class": "localized_existing_source",
+      "evidence_class": "fresh_runtime"
+    },
+    {
+      "task_id": "issue146-observed-anchor-comp-test-qwen-20261102",
+      "attempt_id": "d0c99a4e845241b9b5b4284821898ee8",
+      "task_class": "localized_existing_source",
+      "evidence_class": "fresh_runtime"
+    },
+    {
+      "task_id": "issue146-correction-path-doc-qwen-20261102",
+      "attempt_id": "57e2140f8f804ea680d5f8b271cd2780",
+      "task_class": "localized_existing_source",
+      "evidence_class": "fresh_runtime"
+    },
+    {
+      "task_id": "issue146-json-envelope-fulltest-gemma-20261102",
+      "attempt_id": "a6b5a522bba84a46a53d0a8b07ca8e5a",
+      "task_class": "schema_contract_violation",
+      "evidence_class": "fresh_runtime"
+    }
+  ]
+}
