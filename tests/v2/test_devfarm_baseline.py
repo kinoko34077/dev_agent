@@ -7,6 +7,7 @@ import pytest
 
 from scripts.devfarm_baseline import (
     BaselineError,
+    build_comparison_report,
     build_baseline_report,
     compare_observation_cohorts,
     collect_attempt_observation,
@@ -357,12 +358,13 @@ def _cohort_observation(
     task_id: str,
     *,
     fingerprint: str | None = None,
+    comparison_key: str | None = None,
     accepted: bool,
     parsed: bool,
     cost_minor: int = 0,
     elapsed_ms: int = 100,
 ) -> dict[str, object]:
-    return {
+    result = {
         "task_id": task_id,
         "task_fingerprint": fingerprint or f"fingerprint-{task_id}",
         "task_class": "localized_existing_source",
@@ -382,6 +384,9 @@ def _cohort_observation(
         "host_execution_ms": 20 if accepted else None,
         "human_intervention_count": 0 if accepted else None,
     }
+    if comparison_key is not None:
+        result["comparison_key"] = comparison_key
+    return result
 
 
 def test_compare_observation_cohorts_keeps_pre_host_failures_in_the_denominator() -> None:
@@ -439,6 +444,30 @@ def test_compare_observation_cohorts_rejects_duplicate_task_fingerprints() -> No
             baseline=[duplicate, dict(duplicate, task_id="task-2")],
             treatment=[_cohort_observation("task-1", accepted=True, parsed=True)],
         )
+
+
+def test_compare_observation_cohorts_can_use_explicit_task_lineage_key() -> None:
+    baseline = [_cohort_observation("initial", accepted=False, parsed=False, comparison_key="logical-task")]
+    treatment = [
+        _cohort_observation(
+            "repair",
+            fingerprint="different-after-repair",
+            accepted=True,
+            parsed=True,
+            comparison_key="logical-task",
+        )
+    ]
+
+    result = compare_observation_cohorts(
+        baseline_id="initial",
+        treatment_id="repair",
+        baseline=baseline,
+        treatment=treatment,
+    )
+
+    assert result["status"] == "PAIRED"
+    assert result["matched_tasks"] == 1
+    assert result["conclusion"] == "improved"
 
 
 def test_build_baseline_report_uses_explicit_attempts_and_keeps_pre_host_failures(tmp_path: Path) -> None:
@@ -551,3 +580,118 @@ def test_build_baseline_report_rejects_unknown_fields_and_missing_attempt(tmp_pa
     ]
     with pytest.raises(BaselineError):
         build_baseline_report(tmp_path, selection)
+
+
+def test_build_comparison_report_recomputes_observed_denominators() -> None:
+    baseline_rows = [
+        _cohort_observation("pair-1", accepted=False, parsed=False),
+        _cohort_observation("pair-2", accepted=True, parsed=True),
+    ]
+    treatment_rows = [
+        _cohort_observation("pair-1", accepted=True, parsed=True),
+        _cohort_observation("pair-2", accepted=True, parsed=True),
+    ]
+    baseline_report = {
+        "schema_version": 1,
+        "evidence_status": "observed_attempts",
+        "baseline_id": "baseline-report",
+        "source_revision": "a" * 40,
+        "observations": baseline_rows,
+        "summary": summarize_observations(
+            baseline_id="baseline-report",
+            source_revision="a" * 40,
+            observations=baseline_rows,
+        ),
+    }
+    treatment_report = {
+        "schema_version": 1,
+        "evidence_status": "observed_attempts",
+        "baseline_id": "treatment-report",
+        "source_revision": "a" * 40,
+        "observations": treatment_rows,
+        "summary": summarize_observations(
+            baseline_id="treatment-report",
+            source_revision="a" * 40,
+            observations=treatment_rows,
+        ),
+    }
+
+    result = build_comparison_report(baseline_report, treatment_report)
+
+    assert result["evidence_status"] == "comparison_only"
+    assert result["status"] == "PAIRED"
+    assert result["baseline"]["attempts"] == 2
+    assert result["baseline"]["pre_host_failures"] == 1
+    assert result["treatment"]["accepted"] == 2
+    assert result["conclusion"] == "improved"
+
+
+def test_build_comparison_report_rejects_synthetic_or_tampered_reports() -> None:
+    report = {
+        "schema_version": 1,
+        "evidence_status": "synthetic_fixture_only",
+        "baseline_id": "synthetic-report",
+        "source_revision": "a" * 40,
+        "observations": [],
+        "summary": {},
+    }
+    with pytest.raises(BaselineError, match="observed_attempts"):
+        build_comparison_report(report, report)
+
+    rows = [_cohort_observation("tampered", accepted=True, parsed=True)]
+    report = {
+        "schema_version": 1,
+        "evidence_status": "observed_attempts",
+        "baseline_id": "tampered-report",
+        "source_revision": "a" * 40,
+        "observations": rows,
+        "summary": {"attempts_total": 0},
+    }
+    with pytest.raises(BaselineError, match="summary"):
+        build_comparison_report(report, report)
+
+
+def test_build_baseline_report_can_bind_a_repair_attempt_to_its_manifest(tmp_path: Path) -> None:
+    task_id = "repair-lineage"
+    attempt_id = "repair-attempt"
+    original = _manifest(task_id)
+    repair = dict(original)
+    repair["rework_handoff"] = {
+        "repair_context": {
+            "compensation": {
+                "authority": "host_policy",
+                "action": "repair_same_task",
+                "prompt_contract": "bounded-repair-delta",
+                "output_mode": "minimal_file_replacement",
+            }
+        }
+    }
+    _write_json(tmp_path / ".devfarm/tasks" / f"{task_id}.json", original)
+    _write_json(tmp_path / ".devfarm/tasks" / f"{task_id}.rework.json", repair)
+    _write_json(
+        tmp_path / ".devfarm/results" / task_id / "attempts" / attempt_id / "result.json",
+        _result(attempt_id=attempt_id, accepted=False, parsed=False),
+    )
+
+    report = build_baseline_report(
+        tmp_path,
+        {
+            "schema_version": 1,
+            "report_id": "repair-lineage-report",
+            "baseline_id": "repair-lineage-baseline",
+            "source_revision": "a" * 40,
+            "observations": [
+                {
+                    "task_id": task_id,
+                    "attempt_id": attempt_id,
+                    "manifest_path": f".devfarm/tasks/{task_id}.rework.json",
+                    "comparison_key": "issue124-guard-fail-closed-tests-qwen-20261102",
+                    "task_class": "schema_contract_violation",
+                    "evidence_class": "fresh_runtime",
+                }
+            ],
+        },
+    )
+
+    assert report["observations"][0]["repair_stage"] == "format_repair"
+    assert report["observations"][0]["manifest_path"] == f".devfarm/tasks/{task_id}.rework.json"

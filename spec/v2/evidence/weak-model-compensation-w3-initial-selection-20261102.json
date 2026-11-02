@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "report_id": "weak-model-compensation-w3-initial-20261102",
+  "baseline_id": "weak-model-compensation-w3-initial-4bd2a2b",
+  "source_revision": "4bd2a2b683413f4d192389cc6664fc89145e5457",
+  "observations": [
+    {
+      "task_id": "issue124-guard-fail-closed-tests-qwen-20261102",
+      "attempt_id": "5b658b369b2b4834b04726aa9c9dbf9e",
+      "comparison_key": "issue124-guard-fail-closed-tests-qwen-20261102",
+      "task_class": "small_new_file_or_docs",
+      "evidence_class": "fresh_runtime"
+    }
+  ]
+}

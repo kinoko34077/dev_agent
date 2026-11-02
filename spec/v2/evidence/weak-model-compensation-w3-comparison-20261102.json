@@ -1,0 +1,53 @@
+{
+  "baseline": {
+    "accepted": 0,
+    "attempts": 1,
+    "host_verified": 0,
+    "pre_host_failures": 1,
+    "proposal_parsed": 0,
+    "totals": {
+      "completion_tokens": 2454,
+      "cost_minor": 0,
+      "elapsed_ms": 112385,
+      "prompt_tokens": 1642,
+      "retry_count": 0
+    }
+  },
+  "baseline_id": "weak-model-compensation-w3-initial-4bd2a2b",
+  "conclusion": "neutral",
+  "delta": {
+    "accepted": 0,
+    "host_verified": 0,
+    "pre_host_failures": 0,
+    "proposal_parsed": 0,
+    "totals": {
+      "completion_tokens": -816,
+      "cost_minor": 0,
+      "elapsed_ms": -64345,
+      "prompt_tokens": 816,
+      "retry_count": 0
+    }
+  },
+  "evidence_status": "comparison_only",
+  "matched_tasks": 1,
+  "schema_version": 1,
+  "scope_boundary": "This comparison is measurement evidence only. It does not promote a Provider, model, route, runtime admission, or Gate and does not rewrite attempts.",
+  "status": "PAIRED",
+  "treatment": {
+    "accepted": 0,
+    "attempts": 1,
+    "host_verified": 0,
+    "pre_host_failures": 1,
+    "proposal_parsed": 0,
+    "totals": {
+      "completion_tokens": 1638,
+      "cost_minor": 0,
+      "elapsed_ms": 48040,
+      "prompt_tokens": 2458,
+      "retry_count": 0
+    }
+  },
+  "treatment_id": "weak-model-compensation-w3-repair-4bd2a2b",
+  "unmatched_baseline": [],
+  "unmatched_treatment": []
+}

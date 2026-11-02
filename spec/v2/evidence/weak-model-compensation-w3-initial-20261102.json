@@ -1,0 +1,119 @@
+{
+  "baseline_id": "weak-model-compensation-w3-initial-4bd2a2b",
+  "evidence_kind": "weak_model_compensation_observed_baseline",
+  "evidence_status": "observed_attempts",
+  "observation_count": 1,
+  "observations": [
+    {
+      "accepted": false,
+      "attempt_count": 1,
+      "attempt_id": "5b658b369b2b4834b04726aa9c9dbf9e",
+      "comparison_key": "issue124-guard-fail-closed-tests-qwen-20261102",
+      "completion_tokens": 2454,
+      "cost_minor": 0,
+      "elapsed_ms": 112385,
+      "evidence_class": "fresh_runtime",
+      "failure_class": "FORMAT_PATCH",
+      "feasibility": null,
+      "host_execution_ms": null,
+      "host_verification": "not_observed",
+      "human_intervention_count": null,
+      "integrated": false,
+      "manifest_path": ".devfarm/tasks/issue124-guard-fail-closed-tests-qwen-20261102.json",
+      "model_id": "qwen3.5:9b",
+      "output_mode": "minimal_file_replacement",
+      "prompt_tokens": 1642,
+      "proposal_parse": "rejected",
+      "provider_binding_id": "ollama:local:qwen3.5-9b",
+      "provider_id": "ollama",
+      "repair_stage": "initial",
+      "retry_count": 0,
+      "reviewed": false,
+      "source_revision": "4bd2a2b683413f4d192389cc6664fc89145e5457",
+      "task_class": "small_new_file_or_docs",
+      "task_fingerprint": "d7f7eea70852291f7287dfc648cb1e5db02644d029812fe8068ff0e092465656",
+      "task_id": "issue124-guard-fail-closed-tests-qwen-20261102",
+      "verification_count": 0
+    }
+  ],
+  "report_id": "weak-model-compensation-w3-initial-20261102",
+  "schema_version": 1,
+  "scope_boundary": "This report is measurement evidence only. It does not renew model capability, billing, quota, health, runtime admission, routing, or Gate evidence.",
+  "source_revision": "4bd2a2b683413f4d192389cc6664fc89145e5457",
+  "summary": {
+    "accepted": 0,
+    "attempts_total": 1,
+    "baseline_id": "weak-model-compensation-w3-initial-4bd2a2b",
+    "by_evidence_class": {
+      "fresh_runtime": 1
+    },
+    "by_failure_class": {
+      "FORMAT_PATCH": 1
+    },
+    "by_repair_stage": {
+      "initial": 1
+    },
+    "by_task_class": {
+      "small_new_file_or_docs": 1
+    },
+    "feasibility": {
+      "by_status": {},
+      "observed": 0,
+      "totals": {
+        "context_bytes": 0,
+        "input_bytes": 0,
+        "output_capacity_chars": 0
+      }
+    },
+    "host_verified": 0,
+    "integrated_observed": 0,
+    "observations": [
+      {
+        "accepted": false,
+        "attempt_count": 1,
+        "attempt_id": "5b658b369b2b4834b04726aa9c9dbf9e",
+        "comparison_key": "issue124-guard-fail-closed-tests-qwen-20261102",
+        "completion_tokens": 2454,
+        "cost_minor": 0,
+        "elapsed_ms": 112385,
+        "evidence_class": "fresh_runtime",
+        "failure_class": "FORMAT_PATCH",
+        "feasibility": null,
+        "host_execution_ms": null,
+        "host_verification": "not_observed",
+        "human_intervention_count": null,
+        "integrated": false,
+        "manifest_path": ".devfarm/tasks/issue124-guard-fail-closed-tests-qwen-20261102.json",
+        "model_id": "qwen3.5:9b",
+        "output_mode": "minimal_file_replacement",
+        "prompt_tokens": 1642,
+        "proposal_parse": "rejected",
+        "provider_binding_id": "ollama:local:qwen3.5-9b",
+        "provider_id": "ollama",
+        "repair_stage": "initial",
+        "retry_count": 0,
+        "reviewed": false,
+        "source_revision": "4bd2a2b683413f4d192389cc6664fc89145e5457",
+        "task_class": "small_new_file_or_docs",
+        "task_fingerprint": "d7f7eea70852291f7287dfc648cb1e5db02644d029812fe8068ff0e092465656",
+        "task_id": "issue124-guard-fail-closed-tests-qwen-20261102",
+        "verification_count": 0
+      }
+    ],
+    "pre_host_failures": 1,
+    "proposal_parsed": 0,
+    "reviewed_observed": 0,
+    "schema_version": 1,
+    "source_revision": "4bd2a2b683413f4d192389cc6664fc89145e5457",
+    "totals": {
+      "completion_tokens": 2454,
+      "cost_minor": 0,
+      "elapsed_ms": 112385,
+      "prompt_tokens": 1642
+    },
+    "unmeasured": [
+      "host_execution_ms",
+      "human_intervention_count"
+    ]
+  }
+}

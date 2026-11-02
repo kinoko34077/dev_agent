@@ -5,6 +5,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+from scripts.compare_devfarm_baseline import main as compare_main
+from scripts.devfarm_baseline import summarize_observations
 from scripts.report_devfarm_baseline import main
 
 
@@ -137,3 +139,61 @@ def test_cli_script_entrypoint_works_when_invoked_by_path(tmp_path: Path) -> Non
 
     assert result.returncode == 0, result.stderr
     assert json.loads(output.read_text(encoding="utf-8"))["observation_count"] == 1
+
+
+def test_compare_cli_writes_only_a_paired_observed_comparison(tmp_path: Path) -> None:
+    def row(task_id: str, *, accepted: bool, parsed: bool) -> dict[str, object]:
+        return {
+            "task_id": task_id,
+            "attempt_id": f"attempt-{task_id}",
+            "task_fingerprint": f"fingerprint-{task_id}",
+            "task_class": "localized_existing_source",
+            "evidence_class": "fresh_runtime",
+            "source_revision": "a" * 40,
+            "proposal_parse": "accepted" if parsed else "rejected",
+            "host_verification": "passed" if accepted else "not_observed",
+            "reviewed": accepted,
+            "integrated": accepted,
+            "accepted": accepted,
+            "attempt_count": 1,
+            "retry_count": 0,
+            "prompt_tokens": 10,
+            "completion_tokens": 5,
+            "cost_minor": 0,
+            "elapsed_ms": 10,
+            "host_execution_ms": 5 if accepted else None,
+            "human_intervention_count": 0 if accepted else None,
+            "verification_count": 1 if accepted else 0,
+            "feasibility": None,
+        }
+
+    baseline_rows = [row("pair-a", accepted=False, parsed=False), row("pair-b", accepted=True, parsed=True)]
+    treatment_rows = [row("pair-a", accepted=True, parsed=True), row("pair-b", accepted=True, parsed=True)]
+
+    def report(report_id: str, rows: list[dict[str, object]]) -> dict[str, object]:
+        return {
+            "schema_version": 1,
+            "evidence_status": "observed_attempts",
+            "baseline_id": report_id,
+            "source_revision": "a" * 40,
+            "observations": rows,
+            "summary": summarize_observations(
+                baseline_id=report_id,
+                source_revision="a" * 40,
+                observations=rows,
+            ),
+        }
+
+    baseline = tmp_path / "baseline.json"
+    treatment = tmp_path / "treatment.json"
+    output = tmp_path / "comparison.json"
+    _write_json(baseline, report("baseline", baseline_rows))
+    _write_json(treatment, report("treatment", treatment_rows))
+
+    assert compare_main(
+        [str(baseline), str(treatment), "--root", str(tmp_path), "--output", str(output)]
+    ) == 0
+    comparison = json.loads(output.read_text(encoding="utf-8"))
+    assert comparison["status"] == "PAIRED"
+    assert comparison["baseline"]["pre_host_failures"] == 1
+    assert comparison["conclusion"] == "improved"

@@ -377,6 +377,8 @@ def collect_attempt_observation(
     attempt_id: str,
     task_class: str,
     evidence_class: str,
+    manifest_path: str | Path | None = None,
+    comparison_key: str | None = None,
 ) -> dict[str, Any]:
     """Project one attempt without treating absent evidence as success."""
 
@@ -387,8 +389,17 @@ def collect_attempt_observation(
         raise BaselineError("task_class is unsupported")
     if evidence_class not in _EVIDENCE_CLASSES:
         raise BaselineError("evidence_class is unsupported")
-    manifest_path = repository_path(root_path, f".devfarm/tasks/{task_id}.json", required_parent=".devfarm/tasks")
-    manifest = read_bounded_json(root_path, manifest_path, maximum_chars=250_000)
+    if comparison_key is not None:
+        comparison_key = _safe_id(comparison_key, "comparison_key")
+    manifest_label = (
+        f".devfarm/tasks/{task_id}.json"
+        if manifest_path is None
+        else str(manifest_path).strip().replace("\\", "/")
+    )
+    if not manifest_label.startswith(".devfarm/tasks/"):
+        raise BaselineError("manifest_path must stay under .devfarm/tasks")
+    manifest_target = repository_path(root_path, manifest_label, required_parent=".devfarm/tasks")
+    manifest = read_bounded_json(root_path, manifest_target, maximum_chars=250_000)
     if not isinstance(manifest, Mapping):
         raise BaselineError("Worker manifest must be an object")
     result_path = repository_path(
@@ -427,9 +438,10 @@ def collect_attempt_observation(
     attempt_count = metrics.get("attempt_count") if isinstance(metrics.get("attempt_count"), int) else 1
     retry_count = metrics.get("retry_count") if isinstance(metrics.get("retry_count"), int) else max(attempt_count - 1, 0)
     elapsed_ms = metrics.get("elapsed_ms") if isinstance(metrics.get("elapsed_ms"), int) and metrics.get("elapsed_ms") >= 0 else None
-    return {
+    observation = {
         "task_id": task_id,
         "attempt_id": attempt_id,
+        "manifest_path": manifest_label,
         "task_class": task_class,
         "evidence_class": evidence_class,
         "source_revision": manifest.get("base_revision"),
@@ -456,6 +468,9 @@ def collect_attempt_observation(
         "verification_count": len(verifications),
         "feasibility": feasibility,
     }
+    if comparison_key is not None:
+        observation["comparison_key"] = comparison_key
+    return observation
 
 
 def build_baseline_report(root: str | Path, selection: Mapping[str, Any]) -> dict[str, Any]:
@@ -490,7 +505,14 @@ def build_baseline_report(root: str | Path, selection: Mapping[str, Any]) -> dic
 
     observations: list[dict[str, Any]] = []
     seen: set[tuple[str, str]] = set()
-    observation_fields = {"task_id", "attempt_id", "task_class", "evidence_class"}
+    observation_fields = {
+        "task_id",
+        "attempt_id",
+        "manifest_path",
+        "comparison_key",
+        "task_class",
+        "evidence_class",
+    }
     for index, raw in enumerate(raw_observations):
         if not isinstance(raw, Mapping):
             raise BaselineError(f"observations[{index}] must be an object")
@@ -499,6 +521,14 @@ def build_baseline_report(root: str | Path, selection: Mapping[str, Any]) -> dic
             raise BaselineError(f"observations[{index}] has unknown field: {sorted(extra)[0]}")
         task_id = _safe_id(raw.get("task_id"), f"observations[{index}].task_id")
         attempt_id = _safe_id(raw.get("attempt_id"), f"observations[{index}].attempt_id")
+        manifest_path = raw.get("manifest_path")
+        if manifest_path is not None:
+            manifest_path = _text(manifest_path, f"observations[{index}].manifest_path", maximum=256).replace("\\", "/")
+            if not manifest_path.startswith(".devfarm/tasks/"):
+                raise BaselineError(f"observations[{index}].manifest_path must stay under .devfarm/tasks")
+        comparison_key = raw.get("comparison_key")
+        if comparison_key is not None:
+            comparison_key = _safe_id(comparison_key, f"observations[{index}].comparison_key")
         identity = (task_id, attempt_id)
         if identity in seen:
             raise BaselineError("observations must not contain duplicate task/attempt identities")
@@ -516,6 +546,8 @@ def build_baseline_report(root: str | Path, selection: Mapping[str, Any]) -> dic
                 attempt_id=attempt_id,
                 task_class=task_class,
                 evidence_class=evidence_class,
+                manifest_path=manifest_path,
+                comparison_key=comparison_key,
             )
         except BaselineError:
             raise
@@ -547,6 +579,58 @@ def build_baseline_report(root: str | Path, selection: Mapping[str, Any]) -> dic
             "capability, billing, quota, health, runtime admission, routing, or Gate evidence."
         ),
     }
+
+
+def build_comparison_report(
+    baseline_report: Mapping[str, Any],
+    treatment_report: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Compare two observed reports after recomputing their summaries.
+
+    Comparison is deliberately limited to reports produced by the observed
+    baseline boundary.  Synthetic fixtures, edited summaries, and malformed
+    observations fail closed instead of becoming an improvement claim.
+    """
+
+    def normalize(report: Mapping[str, Any], label: str) -> tuple[str, str, list[Mapping[str, Any]]]:
+        if not isinstance(report, Mapping):
+            raise BaselineError(f"{label} report must be an object")
+        if report.get("schema_version") != 1:
+            raise BaselineError(f"{label} report schema_version must be 1")
+        if report.get("evidence_status") != "observed_attempts":
+            raise BaselineError(f"{label} report must use observed_attempts evidence")
+        baseline_id = _safe_id(report.get("baseline_id"), f"{label}.baseline_id")
+        source_revision = _text(report.get("source_revision"), f"{label}.source_revision", maximum=64)
+        if not re.fullmatch(r"[0-9a-fA-F]{40}", source_revision):
+            raise BaselineError(f"{label}.source_revision must be a 40-character commit revision")
+        observations = report.get("observations")
+        if isinstance(observations, (str, bytes)) or not isinstance(observations, Sequence) or not observations:
+            raise BaselineError(f"{label}.observations must be a non-empty sequence")
+        summary = report.get("summary")
+        if not isinstance(summary, Mapping):
+            raise BaselineError(f"{label}.summary must be an object")
+        recomputed = summarize_observations(
+            baseline_id=baseline_id,
+            source_revision=source_revision,
+            observations=observations,
+        )
+        if dict(summary) != recomputed:
+            raise BaselineError(f"{label}.summary does not match observations")
+        return baseline_id, source_revision, [dict(item) for item in observations if isinstance(item, Mapping)]
+
+    baseline_id, _baseline_revision, baseline_rows = normalize(baseline_report, "baseline")
+    treatment_id, _treatment_revision, treatment_rows = normalize(treatment_report, "treatment")
+    result = compare_observation_cohorts(
+        baseline_id=baseline_id,
+        treatment_id=treatment_id,
+        baseline=baseline_rows,
+        treatment=treatment_rows,
+    )
+    result["scope_boundary"] = (
+        "This comparison is measurement evidence only. It does not promote a "
+        "Provider, model, route, runtime admission, or Gate and does not rewrite attempts."
+    )
+    return result
 
 
 def summarize_observations(
@@ -651,6 +735,9 @@ def _comparison_row(value: Mapping[str, Any], name: str) -> dict[str, Any]:
         "proposal_parse": proposal_parse,
         "accepted": accepted,
     }
+    comparison_key = value.get("comparison_key")
+    if comparison_key is not None:
+        row["comparison_key"] = _safe_id(comparison_key, f"{name}.comparison_key")
     for field in ("host_verification", "reviewed", "integrated"):
         item = value.get(field)
         if item is not None and not isinstance(item, (bool, str)):
@@ -715,7 +802,15 @@ def compare_observation_cohorts(
     treatment_rows = tuple(_comparison_row(item, "treatment") for item in treatment)
 
     def key(item: Mapping[str, Any]) -> tuple[str, str, str]:
-        return item["task_fingerprint"], item["source_revision"], item["task_class"]
+        # A repair manifest may legitimately change operational guard fields
+        # (for example forbidden_files) while remaining the same logical task.
+        # Host-supplied comparison_key binds that repair to its original task;
+        # absent an explicit key, retain the strict fingerprint behavior.
+        return (
+            item.get("comparison_key", item["task_fingerprint"]),
+            item["source_revision"],
+            item["task_class"],
+        )
 
     def index(rows: Sequence[Mapping[str, Any]], label: str) -> dict[tuple[str, str, str], Mapping[str, Any]]:
         result: dict[tuple[str, str, str], Mapping[str, Any]] = {}
@@ -791,6 +886,7 @@ __all__ = [
     "BaselineError",
     "BaselineFixture",
     "BaselineFixtureSet",
+    "build_comparison_report",
     "build_baseline_report",
     "compare_observation_cohorts",
     "collect_attempt_observation",
