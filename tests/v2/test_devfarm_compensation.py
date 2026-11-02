@@ -42,6 +42,21 @@ def test_format_failure_on_new_file_keeps_minimal_contract() -> None:
     assert decision.reason_code == "format_new_file_contract"
 
 
+def test_truncated_new_file_output_requires_bounded_reframe() -> None:
+    decision = select_worker_compensation(
+        _manifest(new_files=["src/example.py"]),
+        failure_class="FORMAT_PATCH",
+        failure_code="WORKER_OUTPUT_TRUNCATED",
+        stage="worker_output_validation",
+    )
+
+    assert decision.action == "reframe_task"
+    assert decision.output_mode is None
+    assert decision.reframe_required is True
+    assert decision.reason_code == "truncated_new_file_requires_reframe"
+    assert "split_independent_region" in decision.context_hints
+
+
 def test_syntax_failure_can_switch_existing_source_to_localized_edit() -> None:
     decision = select_worker_compensation(
         _manifest(mode="full_result"),

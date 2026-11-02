@@ -247,6 +247,18 @@ def test_build_concrete_failure_spec_describes_invalid_json_contract():
     assert "raw newlines inside JSON strings" in spec.forbidden_changes
 
 
+def test_build_concrete_failure_spec_describes_truncated_json_repair():
+    spec = build_concrete_failure_spec(
+        "worker response JSON was truncated by provider output limit before object completion"
+    )
+
+    assert spec.failure_class == "format_patch"
+    assert spec.location == "worker_output"
+    assert "output limit" in spec.observed
+    assert "shorter" in spec.required_correction.lower()
+    assert "complete JSON object" in spec.acceptance_checks[0]
+
+
 def test_build_concrete_failure_spec_describes_missing_json_object():
     spec = build_concrete_failure_spec("worker response did not contain a JSON object")
 

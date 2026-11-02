@@ -237,6 +237,7 @@ def worker_proposal_preflight_failure(
     reason: str,
     *,
     mode: str,
+    finish_reason: str | None = None,
 ) -> dict[str, Any]:
     """Project a deterministic Worker rejection without retaining raw output.
 
@@ -251,8 +252,22 @@ def worker_proposal_preflight_failure(
     if mode not in {FULL_WORKER_OUTPUT_MODE, MINIMAL_WORKER_OUTPUT_MODE, LOCALIZED_FILE_EDIT_MODE}:
         raise DevFarmError("preflight failure mode is unsupported")
     normalized = reason.casefold()
+    normalized_finish_reason = (
+        finish_reason.strip().casefold()
+        if isinstance(finish_reason, str) and finish_reason.strip()
+        else None
+    )
     if "unsupported fields" in normalized or "additional field" in normalized:
         error_code = "WORKER_OUTPUT_ADDITIONAL_FIELD"
+    elif (
+        normalized_finish_reason in {"length", "max_tokens", "max_tokens_reached"}
+        and ("json" in normalized or "json object" in normalized or "object" in normalized)
+    ):
+        # A length-terminated response is a distinct Host-observed failure:
+        # replaying the same full contract is unlikely to help, while treating
+        # it as an ordinary malformed JSON response loses the bounded output
+        # signal needed for a safer reframe/localized correction.
+        error_code = "WORKER_OUTPUT_TRUNCATED"
     elif "json" in normalized or "json object" in normalized:
         error_code = "WORKER_OUTPUT_INVALID_JSON"
     elif "must be" in normalized or "required" in normalized:

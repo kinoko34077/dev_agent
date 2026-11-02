@@ -11,6 +11,7 @@ from scripts.devfarm_worker_output import (
     minimal_worker_output_schema,
     worker_output_mode,
 )
+from src.dev_agent.domain.protocol import ModelResponse
 from tests.v2.devfarm_test_support import _WorkerProvider, _workspace
 
 
@@ -175,6 +176,30 @@ def test_minimal_worker_contract_rejects_text_replacement_and_emits_line_array_r
     assert result["worker_metrics"]["proposal_preflight"]["error_code"] == "WORKER_OUTPUT_SCHEMA"
     assert result["failure_spec"]["location"] == "file_replacements"
     assert "array of complete source-line strings" in result["repair_directive"]["required_action"]
+
+
+def test_length_terminated_json_failure_records_bounded_truncation_repair(tmp_path) -> None:
+    root, manifest_path = _workspace(tmp_path, prepare=False)
+
+    class TruncatedWorker(_WorkerProvider):
+        def request(self, request):
+            self.request_count += 1
+            return ModelResponse(
+                provider=self.provider_id,
+                model=self.model_id,
+                text_segments=['{"status":"completed","patch":"'],
+                finish_reason="length",
+            )
+
+    result = run_worker(root, manifest_path, provider=TruncatedWorker({}))
+
+    assert result["status"] == "failed"
+    assert result["worker_metrics"]["finish_reason"] == "length"
+    assert result["worker_metrics"]["proposal_preflight"]["error_code"] == "WORKER_OUTPUT_TRUNCATED"
+    assert result["known_issues"] == [
+        "worker response JSON was truncated by provider output limit before object completion"
+    ]
+    assert "shorter, complete response" in result["repair_directive"]["required_action"]
 
 
 def test_minimal_worker_contract_normalizes_embedded_newline_in_line_array_item(tmp_path) -> None:

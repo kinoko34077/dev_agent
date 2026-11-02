@@ -153,6 +153,30 @@ def select_worker_compensation(
         )
 
     if failure == "FORMAT_PATCH":
+        if code == "WORKER_OUTPUT_TRUNCATED":
+            if existing and mode != "localized_file_edit":
+                return WorkerCompensation(
+                    action="switch_output_mode",
+                    reason_code="truncated_existing_source_contract",
+                    output_mode="localized_file_edit",
+                    expected_output_chars=_DEFAULT_LOCALIZED_OUTPUT_CHARS,
+                    context_hints=(
+                        "reduce_optional_metadata",
+                        "exact_line_anchor",
+                        "host_generated_diff",
+                    ),
+                )
+            return WorkerCompensation(
+                action="reframe_task",
+                reason_code="truncated_new_file_requires_reframe",
+                output_mode=None,
+                context_hints=(
+                    "split_independent_region",
+                    "reduce_output_scope",
+                    "preserve_acceptance_test",
+                ),
+                reframe_required=True,
+            )
         if existing and mode != "localized_file_edit":
             return WorkerCompensation(
                 action="switch_output_mode",
