@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "weak_model_compensation_w3_host_normalization",
+  "evidence_status": "offline_implementation_regression",
+  "observed_at": "2026-11-02",
+  "implementation_revision": "9399755a86f0d4103dface861e7641875b50d4f6",
+  "trigger": {
+    "historical_fresh_attempts": 5,
+    "historical_failure": "WORKER_OUTPUT_LINE_SHAPE",
+    "historical_effect": "proposal rejected before Host Verification; no patch or integration"
+  },
+  "change": {
+    "boundary": "Host file-replacement materialization",
+    "behavior": "split explicit CR/LF separators inside a line-array item before Host diff generation",
+    "scope": "minimal_file_replacement only; existing path, source, secret, NUL, size, no-op, and verification checks remain authoritative",
+    "model_authority_changed": false,
+    "source_invention": false
+  },
+  "verification": {
+    "focused_command": "python -m pytest tests/v2/test_devfarm_worker_prompt.py tests/v2/test_devfarm_worker_preflight.py tests/v2/test_devfarm_patch_validation.py -q",
+    "focused_result": "60 passed",
+    "full_command": "python -m pytest tests/v2 -q",
+    "full_result": "2162 passed, 1 skipped",
+    "additional_checks": [
+      "python scripts/check_architecture.py",
+      "python scripts/check_semantic_coherence.py",
+      "python -m compileall -q scripts src",
+      "git diff --check"
+    ]
+  },
+  "acceptance_boundary": "This proves a deterministic offline correction and regression only. It does not rewrite historical Worker failures, establish real-model success, renew capability/billing/quota/health evidence, change routing admission, or satisfy #127 V1-V4 / Formal Phase 8."
+}
