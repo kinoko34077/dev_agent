@@ -96,6 +96,77 @@ def test_wake_event_is_deduplicated_without_raw_worker_output():
     assert "raw_output" not in updated["wake_events"][0]
 
 
+@pytest.mark.parametrize(
+    ("attempt_count", "expected_kind"),
+    [(1, "WORKER_REJECTED"), (2, "WORKER_REJECTED_AFTER_RETRY")],
+)
+def test_supervisor_marks_rejection_with_accurate_attempt_context(
+    tmp_path, attempt_count, expected_kind
+):
+    write_manifest(
+        tmp_path,
+        {
+            "task_id": "worker-task",
+            "objective": "record a provider stop without retry inflation",
+            "base_revision": "abc123",
+            "allowed_files": ["tests/v2/worker.py"],
+            "read_files": ["tests/v2/worker.py"],
+            "forbidden_files": [],
+            "external_provider_allowed": True,
+            "approved_provider_ids": ["ollama"],
+            "outbound_files": ["tests/v2/worker.py"],
+            "requirements": [],
+            "acceptance": [],
+            "test_commands": ["python -m pytest tests/v2/worker.py -q"],
+            "max_attempts": max(2, attempt_count),
+            "output_contract": {},
+        },
+    )
+    create_plan(
+        tmp_path,
+        _plan(
+            tasks=[
+                {
+                    "task_id": "worker-task",
+                    "owner": "worker",
+                    "status": "REJECTED",
+                    "ownership": [],
+                    "dependencies": [],
+                    "manifest_path": ".devfarm/tasks/worker-task.json",
+                    "max_attempts": max(2, attempt_count),
+                    "attempt_count": attempt_count,
+                    "last_attempt_id": "attempt-001",
+                    "last_result_status": "failed",
+                    "block_reason": "proposal_failed",
+                    "assignment": {
+                        "provider_id": "ollama",
+                        "provider_binding_id": "ollama:local:model-not-installed",
+                        "model_id": "model-not-installed:0b",
+                    },
+                }
+            ],
+            ownership=[{"task_id": "worker-task", "paths": []}],
+            assignments=[
+                {
+                    "task_id": "worker-task",
+                    "owner": "worker",
+                    "provider_id": "ollama",
+                    "provider_binding_id": "ollama:local:model-not-installed",
+                    "model_id": "model-not-installed:0b",
+                }
+            ],
+            dependencies=[{"task_id": "worker-task", "depends_on": []}],
+        ),
+    )
+    runner = CodexSupervisedCommanderRun(tmp_path, "supervisor-test-001")
+    runner.create()
+
+    runner.advance(providers={})
+
+    wakes = runner.plan()["supervisor"]["wake_events"]
+    assert [event["kind"] for event in wakes] == [expected_kind]
+
+
 def test_supervisor_metadata_rejects_raw_conversation_payloads():
     with pytest.raises(ValueError, match="raw"):
         normalize_supervisor_metadata({"wake_events": [{"kind": "x", "raw_output": "secret"}]})

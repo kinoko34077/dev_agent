@@ -595,7 +595,11 @@ class CodexSupervisedCommanderRun:
             elif task["status"] == "REJECTED" and task.get("last_attempt_id"):
                 metadata = record_wake(
                     metadata,
-                    kind="WORKER_REJECTED_AFTER_RETRY",
+                    kind=(
+                        "WORKER_REJECTED_AFTER_RETRY"
+                        if task.get("attempt_count", 0) > 1
+                        else "WORKER_REJECTED"
+                    ),
                     task_id=task["task_id"],
                     attempt_id=task.get("last_attempt_id"),
                 )
