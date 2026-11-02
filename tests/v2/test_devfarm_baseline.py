@@ -253,6 +253,13 @@ def test_collect_attempt_classifies_pre_dispatch_feasibility_failure(tmp_path: P
     result["known_issues"] = ["worker feasibility requires reframing before provider dispatch"]
     result["worker_metrics"] = {
         "pre_dispatch_block": "feasibility",
+        "feasibility": {
+            "status": "reframe_required",
+            "input_bytes": 221838,
+            "context_bytes": 331067,
+            "output_capacity_chars": 16384,
+            "reasons": ["input_file_too_large"],
+        },
         "proposal_preflight": {"failure_class": "FEASIBILITY"},
     }
     _write_json(
@@ -271,6 +278,13 @@ def test_collect_attempt_classifies_pre_dispatch_feasibility_failure(tmp_path: P
     assert observation["failure_class"] == "FEASIBILITY"
     assert observation["host_verification"] == "not_observed"
     assert observation["accepted"] is False
+    assert observation["feasibility"] == {
+        "status": "reframe_required",
+        "input_bytes": 221838,
+        "context_bytes": 331067,
+        "output_capacity_chars": 16384,
+        "reasons": ["input_file_too_large"],
+    }
 
 
 def test_summary_counts_attempts_before_host_and_keeps_resource_totals(tmp_path: Path) -> None:

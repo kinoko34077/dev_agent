@@ -348,6 +348,28 @@ def _usage(metrics: Mapping[str, Any]) -> dict[str, int]:
     }
 
 
+def _feasibility_projection(metrics: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Keep only bounded W1 sizing facts from a Worker metric artifact."""
+
+    raw = metrics.get("feasibility")
+    if not isinstance(raw, Mapping):
+        return None
+    projection: dict[str, Any] = {}
+    status = raw.get("status")
+    if isinstance(status, str) and status.strip() and len(status.strip()) <= 80:
+        projection["status"] = status.strip()
+    for field in ("input_bytes", "context_bytes", "output_capacity_chars"):
+        value = raw.get(field)
+        if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 64 * 1024 * 1024:
+            projection[field] = value
+    reasons = raw.get("reasons")
+    if isinstance(reasons, (list, tuple)):
+        bounded = [item.strip() for item in reasons[:16] if isinstance(item, str) and 0 < len(item.strip()) <= 160]
+        if len(bounded) == len(reasons[:16]):
+            projection["reasons"] = bounded
+    return projection or None
+
+
 def collect_attempt_observation(
     root: str | Path,
     *,
@@ -401,6 +423,7 @@ def collect_attempt_observation(
     reviewed = None if task is None else bool(task.get("review_decision_id"))
     integrated = None if task is None else bool(task.get("integration_revision"))
     usage = _usage(metrics)
+    feasibility = _feasibility_projection(metrics)
     attempt_count = metrics.get("attempt_count") if isinstance(metrics.get("attempt_count"), int) else 1
     retry_count = metrics.get("retry_count") if isinstance(metrics.get("retry_count"), int) else max(attempt_count - 1, 0)
     elapsed_ms = metrics.get("elapsed_ms") if isinstance(metrics.get("elapsed_ms"), int) and metrics.get("elapsed_ms") >= 0 else None
@@ -431,6 +454,7 @@ def collect_attempt_observation(
         "host_execution_ms": metrics.get("host_execution_ms") if isinstance(metrics.get("host_execution_ms"), int) else None,
         "human_intervention_count": metrics.get("human_intervention_count") if isinstance(metrics.get("human_intervention_count"), int) else None,
         "verification_count": len(verifications),
+        "feasibility": feasibility,
     }
 
 
@@ -548,6 +572,13 @@ def summarize_observations(
     by_failure_class: dict[str, int] = {}
     by_evidence_class: dict[str, int] = {}
     by_repair_stage: dict[str, int] = {}
+    feasibility_status: dict[str, int] = {}
+    feasibility_totals = {
+        "input_bytes": 0,
+        "context_bytes": 0,
+        "output_capacity_chars": 0,
+    }
+    feasibility_observed = 0
     for item in rows:
         for field, target in (
             ("task_class", by_task_class),
@@ -558,6 +589,16 @@ def summarize_observations(
             value = item.get(field)
             if isinstance(value, str):
                 target[value] = target.get(value, 0) + 1
+        feasibility = item.get("feasibility")
+        if isinstance(feasibility, Mapping):
+            feasibility_observed += 1
+            status = feasibility.get("status")
+            if isinstance(status, str):
+                feasibility_status[status] = feasibility_status.get(status, 0) + 1
+            for field in feasibility_totals:
+                value = feasibility.get(field)
+                if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+                    feasibility_totals[field] += value
     unmeasured = sorted(
         field
         for field in ("host_execution_ms", "human_intervention_count", "reviewed", "integrated")
@@ -579,6 +620,11 @@ def summarize_observations(
         "by_failure_class": by_failure_class,
         "by_evidence_class": by_evidence_class,
         "by_repair_stage": by_repair_stage,
+        "feasibility": {
+            "observed": feasibility_observed,
+            "by_status": feasibility_status,
+            "totals": feasibility_totals,
+        },
         "unmeasured": unmeasured,
         "observations": rows,
     }
