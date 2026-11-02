@@ -10,9 +10,9 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 | Field | Current fact |
 | --- | --- |
 | Accepted branch | `v2/bootstrap` |
-| Accepted remote head at latest integrated implementation/evidence | `318a960` (`v2/bootstrap`, squash merge of PR #153). Exact PR-head checks for kernel 3.10, kernel 3.11, and provider-smoke passed at `8ce334c`; see Actions runs [41442748312](https://github.com/kinoko34077/dev_agent/actions/runs/41442748312) and [41442748374](https://github.com/kinoko34077/dev_agent/actions/runs/41442748374). |
+| Accepted remote head at latest integrated implementation/evidence | `318a960` (`v2/bootstrap`, squash merge of PR #153; exact-head CI passed). |
 | Latest integrated implementation/evidence baseline | `318a960` includes PR #152's bounded, immutable-attempt-bound Worker feasibility projection in Supervisor status/resume output and PR #153's malformed-enum guard. This makes Host feasibility evidence available to the upper planner and keeps malformed optional evidence from aborting Supervisor projection. W1 remains partial: no automatic reframe/task creation or useful-work acceptance is claimed. |
-| Latest implementation baseline | `318a960` (PRs #152/#153). Projection exposes only allowlisted status/actions/reasons, bounded measurements, and an immutable result reference; artifact mismatch or malformed enum types produce unavailable evidence. Raw Worker prose is excluded. PR #153 added four regressions; its PR-head `tests/v2` CI passed. No Provider request, model generation, `.devfarm` mutation, admission/billing/routing change, or Gate change occurred. |
+| Latest implementation baseline | `318a960` (PRs #152/#153). Projection exposes only allowlisted status/actions/reasons, bounded measurements, and an immutable result reference; artifact mismatch or malformed enum types produce unavailable evidence. Raw Worker prose is excluded. No Provider request, model generation, `.devfarm` mutation, admission/billing/routing change, or Gate change occurred. |
 | Latest evidence baseline | The staged 2026-11-02 discovery snapshot has 1,442/1,442 current identities (13/15 bindings refreshed) and remains `NOT_PROMOTED`. Candidate diagnostics report 115 current no-charge proposal-only remote rows plus 7 stale-inventory advisories, 8 local Ollama rows, and 1,122 billing-unknown rows. Canonical accepted evidence remains expired (model 0/1,385; capability 0/500; benchmark 0/87; qualification 0/13 current); formal/runtime eligible supply is 0. PRs #152/#153 change none of these Provider/admission evidence states. See Issue #81 and the dated evidence files under `spec/v2/evidence/`. |
 | Latest bounded-operation slice | `issue127-v2-provider-failure-continuity-r13-20261102` proves one real Provider-unavailable task stops without retry while an independent Gemma task proceeds through Host Verification, review, integration, and push. This is a real V2 continuity slice, not a restart/recovery or Claim/Lease proof. Full local `tests/v2` at `9764320` is green (`2219 passed, 1 skipped`); the one skip remains deployment-owned Windows ACL coverage. |
 | Local synchronization | The writable isolated worktree is based on `origin/v2/bootstrap@318a960` before this documentation projection. The canonical checkout is a separate worktree and was not modified. The requirements index continues to link to `docs/DECISION_TRANSFER_M1.md`. |
@@ -411,16 +411,6 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 - Focused baseline/report and generation-control tests pass; this remains
   non-Gate measurement/contract evidence. No real-model improvement, routing
   promotion, or Phase 8 acceptance is claimed.
-- PR #152 (`129d30e`) adds a read-only `worker_feasibility` projection to
-  Supervisor `status`/`resume` output, bound to the exact immutable attempt
-  artifact. It exposes only allowlisted action/reason fields, bounded size
-  measurements, and the artifact reference; raw Worker prose stays excluded.
-- Review follow-up PR #153 (`318a960`) validates `recommended_action` and
-  `output_mode` types before allowlist membership. Four list/object regressions
-  reproduced the crash before the fix; the Supervisor and CLI-boundary scope
-  then passed `44` tests. Exact PR-head Core and Provider Smoke passed.
-  W1 remains partial because this projection does not create or execute a
-  smaller task; W6, useful-work acceptance, and Phase 8 remain unverified.
 
 ### 2026-11-01 #127 CONT-V0 evidence boundary and metrics hardening
 
