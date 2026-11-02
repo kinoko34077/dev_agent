@@ -24,6 +24,7 @@ from .resources.model_admission import ModelAdmissionResolver
 from .resources.model_candidates import materialize_provider_bindings
 from .resources.model_catalog import ModelCatalog
 from .resources.model_evidence import ModelEvidenceCatalog
+from .resources.model_evidence_builder import derive_capabilities
 from .resources.provider_policy import requires_qualification
 from .resources.qualification import QualificationResolver
 from .resources.router import ResourceRouter
@@ -129,7 +130,9 @@ def open_components(
             # routing authority: exact billing, privacy, quota and health
             # gates remain mandatory; qualification may be advisory only on
             # proposal-only text requests.
-            model_catalog = ModelEvidenceCatalog.load_default().catalog
+            model_evidence = ModelEvidenceCatalog.load_default()
+            model_catalog = model_evidence.catalog
+            model_admission_resolver = model_evidence.resolver
         ensure_budget(ledger)
 
         runtime_bindings: list[Any] = []
@@ -161,8 +164,38 @@ def open_components(
                 getattr(binding, "expand_discovered_models", False)
             )
             if not requires_current_discovery and not expands_discovered_models:
-                runtime_bindings.append(binding)
-                continue
+                # An unqualified remote route may be retained as a bounded
+                # proposal candidate only after the exact model identity is
+                # confirmed by current inventory. A configured pin alone is
+                # not model-discovery evidence.
+                qualification = qualification_resolver.resolve(
+                    binding.provider_id,
+                    binding.credential_binding_id,
+                    binding.model,
+                )
+                profile = resource_profile(
+                    binding.provider_id,
+                    binding.credential_binding_id,
+                    binding.model,
+                )
+                needs_proposal_inventory = bool(
+                    requires_qualification(binding.provider_id)
+                    and qualification is None
+                    and _current_no_charge_profile(profile)
+                )
+                if not needs_proposal_inventory:
+                    runtime_bindings.append(binding)
+                    continue
+                if model_admission_resolver is None:
+                    try:
+                        model_admission_resolver = ModelEvidenceCatalog.load_default().resolver
+                    except Exception:
+                        # Live inventory and provider metadata still establish
+                        # exact identity/capability where available. A missing
+                        # optional snapshot is represented by the bounded
+                        # advisory below, never by an inferred capability.
+                        pass
+                requires_current_discovery = True
 
             candidate_catalog = model_catalog
             # Refresh the factual candidate set at Operation startup through
@@ -242,6 +275,13 @@ def open_components(
                     )
                     continue
                 if discovered_candidate is not None and not discovered_candidate.is_text_generation_candidate():
+                    record_candidate_advisory(
+                        candidate.provider_id,
+                        candidate.binding_id,
+                        candidate.model,
+                        "UNSUPPORTED_CAPABILITY",
+                        blocks_dispatch=True,
+                    )
                     continue
                 if discovered_candidate is None:
                     # A successful inventory that omits an exact configured
@@ -272,7 +312,31 @@ def open_components(
                     qualification_binding_id,
                     candidate.model,
                 )
-                if qualification is None:
+                if qualification is None and requires_qualification(candidate.provider_id):
+                    current_capability = (
+                        model_admission_resolver.capabilities.lookup(
+                            candidate.provider_id,
+                            candidate.model,
+                        )
+                        if model_admission_resolver is not None
+                        else None
+                    )
+                    has_text_capability = bool(
+                        "text" in derive_capabilities(discovered_candidate)
+                        or (
+                            current_capability is not None
+                            and "text" in current_capability.capabilities
+                        )
+                    )
+                    if not has_text_capability:
+                        record_candidate_advisory(
+                            candidate.provider_id,
+                            candidate.binding_id,
+                            candidate.model,
+                            "TEXT_CAPABILITY_UNVERIFIED",
+                            blocks_dispatch=True,
+                        )
+                        continue
                     candidate = replace(candidate, proposal_only_candidate=True)
                     proposal_candidate_identities.add(
                         (candidate.provider_id, candidate.credential_binding_id, candidate.model)

@@ -19,6 +19,13 @@ def quality_tier_advisory_for(request: ModelRequest) -> bool:
     """Allow tier fallback only for explicitly untrusted proposal requests."""
 
     metadata = request.metadata
+    requested_tiers = metadata.get("allowed_intelligence_tiers")
+    if metadata.get("planner_contract") == "phase8_minimal_root_v1":
+        return False
+    if isinstance(requested_tiers, (list, tuple, set, frozenset)) and any(
+        tier in {"L2", "L3"} for tier in requested_tiers
+    ):
+        return False
     return (
         metadata.get("quality_tier_advisory") is True
         and metadata.get("proposal_only") is True

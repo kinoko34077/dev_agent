@@ -856,10 +856,18 @@ def test_router_uses_performance_evidence_only_as_a_candidate_preference(tmp_pat
                 minimum_task_fit_score=60,
             )
         ).resource_id == "fake:planner"
+        with pytest.raises(NoRoute):
+            router.choose(
+                RouteRequest(
+                    capabilities={"text"},
+                    allowed_intelligence_tiers={"L2"},
+                    quality_tier_advisory=True,
+                )
+            )
         proposal_selection = router.choose(
             RouteRequest(
                 capabilities={"text"},
-                allowed_intelligence_tiers={"L2"},
+                allowed_intelligence_tiers={"L1"},
                 quality_tier_advisory=True,
             )
         )

@@ -47,8 +47,10 @@ class ProviderRegistry:
                 raise ValueError(f"duplicate provider_id without distinct provider_binding_id: {binding_id}")
             self._providers[binding_id] = provider
             self._bindings_by_provider.setdefault(provider.provider_id, []).append(binding_id)
-        if not self._providers:
-            raise ValueError("at least one provider is required")
+        # An empty registry is a valid fail-closed runtime state when every
+        # configured route is currently blocked by admission. The router
+        # then reports no eligible route, while callers can still inspect the
+        # retained candidate advisories and the service remains available.
 
     def get(self, provider_id: str) -> ModelProvider:
         bindings = self._bindings_by_provider.get(provider_id, [])

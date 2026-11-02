@@ -28,6 +28,15 @@ class NoRoute(RuntimeError):
     pass
 
 
+def _quality_tier_fallback_allowed(request: "RouteRequest") -> bool:
+    """Keep advisory fallback below any explicit L2/L3 requirement."""
+
+    if not request.quality_tier_advisory:
+        return False
+    requested_tiers = set(request.allowed_intelligence_tiers or ())
+    return not bool(requested_tiers & {"L2", "L3"})
+
+
 class ResourceReadView(Protocol):
     """Read-only boundary required by deterministic resource selection."""
 
@@ -573,7 +582,7 @@ class ResourceRouter:
         if not capability_resources:
             return (RouteDecisionCode.UNSUPPORTED_CAPABILITY,)
 
-        if request.allowed_intelligence_tiers is not None and not request.quality_tier_advisory:
+        if request.allowed_intelligence_tiers is not None and not _quality_tier_fallback_allowed(request):
             tier_resources = []
             for resource in capability_resources:
                 metadata = resource.get("metadata") if isinstance(resource.get("metadata"), dict) else {}
@@ -736,7 +745,7 @@ class ResourceRouter:
                     task_fit_score = model_admission.task_fit.get(request.task_fit)
             if not request.capabilities.issubset(effective_capabilities):
                 continue
-            if request.allowed_intelligence_tiers is not None and not request.quality_tier_advisory:
+            if request.allowed_intelligence_tiers is not None and not _quality_tier_fallback_allowed(request):
                 if effective_tier not in request.allowed_intelligence_tiers:
                     continue
             # Privacy authority: cap remote resource sensitivity at "normal"

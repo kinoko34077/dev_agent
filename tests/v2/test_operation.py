@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -39,6 +39,60 @@ def _ollama_config(tmp_path, *, quota_domain=None, binding_id="ollama:test"):
         worker_id="operation-ollama-test-worker",
         idle_sleep_seconds=0.01,
     )
+
+
+def _write_model_evidence(
+    directory,
+    *,
+    provider_id,
+    binding_id,
+    model_id,
+    include_inventory=True,
+    capabilities=("text",),
+):
+    now = datetime.now(timezone.utc)
+    observed_at = now.isoformat()
+    expires_at = (now + timedelta(days=2)).isoformat()
+    directory.mkdir(parents=True, exist_ok=True)
+    inventory_entries = [
+        {
+            "provider_id": provider_id,
+            "provider_binding_id": binding_id,
+            "model_id": model_id,
+            "source": "bounded_test_inventory",
+            "observed_at": observed_at,
+            "expires_at": expires_at,
+            "metadata": {"input_modalities": ["text"], "output_modalities": ["text"]},
+        }
+    ] if include_inventory else []
+    capability_entries = [
+        {
+            "provider_id": provider_id,
+            "model_id": model_id,
+            "capabilities": list(capabilities),
+            "source": "bounded_test_capability",
+            "observed_at": observed_at,
+            "expires_at": expires_at,
+        }
+    ] if capabilities is not None else []
+    documents = {
+        "model_catalog_snapshot.json": {
+            "schema_version": 1,
+            "entries": inventory_entries,
+        },
+        "model_alias_catalog.json": {"schema_version": 1, "entries": []},
+        "model_benchmark_snapshot.json": {
+            "schema_version": 1,
+            "tier_thresholds": {"L1": 0, "L2": 30, "L3": 60},
+            "entries": [],
+        },
+        "model_capability_snapshot.json": {
+            "schema_version": 1,
+            "entries": capability_entries,
+        },
+    }
+    for name, document in documents.items():
+        (directory / name).write_text(json.dumps(document), encoding="utf-8")
 
 
 def test_submit_is_durable_and_status_reads_queue_and_events(tmp_path):
@@ -790,7 +844,45 @@ def test_operation_only_marks_exact_known_binding_and_model_as_free(tmp_path):
 
 
 @pytest.mark.current_billing_catalog
-def test_operation_composes_an_explicit_multi_provider_pool_with_bounded_routing(tmp_path):
+def test_operation_composes_an_explicit_multi_provider_pool_with_bounded_routing(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    now = datetime.now(timezone.utc)
+    inventories = {
+        "gemini": {
+            "schema_version": 1,
+            "entries": [
+                {
+                    "provider_id": "gemini",
+                    "provider_binding_id": "gemini:worker",
+                    "model_id": "gemini-3.5-flash-lite",
+                    "source": "gemini.models.list",
+                    "observed_at": now.isoformat(),
+                    "expires_at": (now + timedelta(hours=1)).isoformat(),
+                    "metadata": {"supported_generation_methods": ["generateContent"]},
+                }
+            ],
+        },
+        "cloudflare": {
+            "schema_version": 1,
+            "entries": [
+                {
+                    "provider_id": "cloudflare",
+                    "provider_binding_id": "cloudflare:account",
+                    "model_id": "@cf/zai-org/glm-4.7-flash",
+                    "source": "cloudflare.models.list",
+                    "observed_at": now.isoformat(),
+                    "expires_at": (now + timedelta(hours=1)).isoformat(),
+                    "metadata": {"task_name": "Text Generation"},
+                }
+            ],
+        },
+    }
+
+    def discover(_discovery, discovery_binding, **_kwargs):
+        return SimpleNamespace(to_document=lambda: inventories[discovery_binding.provider_id])
+
+    monkeypatch.setattr("src.dev_agent.operation_bootstrap.ProviderModelDiscovery.discover", discover)
     config = OperationConfig(
         data_dir=tmp_path,
         provider_pool=(
@@ -966,6 +1058,8 @@ def test_operation_registers_exact_free_remote_candidate_without_qualification(t
 
 @pytest.mark.current_billing_catalog
 def test_operation_open_keeps_unqualified_free_remote_as_warning_candidate(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
     binding = OperationProviderBinding(
         provider_id="openrouter",
         model="openrouter/free",
@@ -995,6 +1089,28 @@ def test_operation_open_keeps_unqualified_free_remote_as_warning_candidate(tmp_p
         "src.dev_agent.operation_bootstrap.QualificationResolver",
         lambda: MissingQualificationResolver(),
     )
+    now = datetime.now(timezone.utc)
+    inventory = {
+        "schema_version": 1,
+        "entries": [
+            {
+                "provider_id": binding.provider_id,
+                "provider_binding_id": binding.binding_id,
+                "model_id": binding.model,
+                "source": "openrouter.models.list",
+                "observed_at": now.isoformat(),
+                "expires_at": (now + timedelta(hours=1)).isoformat(),
+                "metadata": {
+                    "input_modalities": ["text"],
+                    "output_modalities": ["text"],
+                },
+            }
+        ],
+    }
+    monkeypatch.setattr(
+        "src.dev_agent.operation_bootstrap.ProviderModelDiscovery.discover",
+        lambda *_args, **_kwargs: SimpleNamespace(to_document=lambda: inventory),
+    )
     config = OperationConfig(
         data_dir=tmp_path,
         provider_pool=(binding,),
@@ -1010,6 +1126,132 @@ def test_operation_open_keeps_unqualified_free_remote_as_warning_candidate(tmp_p
     assert router._proposal_candidate_identities == frozenset(
         {(binding.provider_id, binding.credential_binding_id, binding.model)}
     )
+
+
+@pytest.mark.current_billing_catalog
+def test_unqualified_static_remote_pin_without_current_inventory_stays_visible_but_blocked(
+    tmp_path, monkeypatch
+):
+    binding = OperationProviderBinding(
+        provider_id="openrouter",
+        model="openrouter/free",
+        provider_binding_id="openrouter:free",
+        quota_domain="openrouter:account",
+        api_key_env="OPENROUTER_API_KEY",
+    )
+
+    class MissingQualificationResolver:
+        def resolve(self, *_args, **_kwargs):
+            return None
+
+    class CandidateProvider:
+        provider_id = "openrouter"
+        provider_binding_id = binding.binding_id
+        model_id = binding.model
+        intelligence_tier = None
+
+        def request(self, _request):
+            raise AssertionError("a blocked candidate must never be dispatched")
+
+    monkeypatch.setattr(OperationService, "_build_provider", staticmethod(lambda *_a, **_k: CandidateProvider()))
+    monkeypatch.setattr(
+        "src.dev_agent.operation_bootstrap.QualificationResolver",
+        lambda: MissingQualificationResolver(),
+    )
+    monkeypatch.setattr(
+        "src.dev_agent.operation_bootstrap.ProviderModelDiscovery.discover",
+        lambda *_a, **_k: (_ for _ in ()).throw(OSError("discovery unavailable")),
+    )
+    config = OperationConfig(
+        data_dir=tmp_path,
+        provider_pool=(binding,),
+        worker_id="unqualified-static-pin-missing-inventory",
+    )
+
+    with OperationService.open(config) as service:
+        advisories = [item.to_dict() for item in service.provider_candidate_advisories]
+        assert service.dispatcher.registry.bindings_for_provider("openrouter") == ()
+
+    assert advisories == [
+        {
+            "provider_id": "openrouter",
+            "binding_id": binding.binding_id,
+            "model_id": binding.model,
+            "warning_category": "MODEL_DISCOVERY_UNVERIFIED",
+            "blocks_dispatch": True,
+        }
+    ]
+
+
+@pytest.mark.current_billing_catalog
+def test_unqualified_dynamic_remote_without_text_capability_stays_blocked(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    binding = OperationProviderBinding(
+        provider_id="openrouter",
+        model="openrouter/free",
+        provider_binding_id="openrouter:free",
+        quota_domain="openrouter:account",
+        api_key_env="OPENROUTER_API_KEY",
+        require_current_model_discovery=True,
+    )
+
+    class MissingQualificationResolver:
+        def resolve(self, *_args, **_kwargs):
+            return None
+
+    class CandidateProvider:
+        provider_id = "openrouter"
+        provider_binding_id = binding.binding_id
+        model_id = binding.model
+        intelligence_tier = None
+
+        def request(self, _request):
+            raise AssertionError("a candidate without text evidence must never be dispatched")
+
+    now = datetime.now(timezone.utc)
+    inventory = {
+        "schema_version": 1,
+        "entries": [
+            {
+                "provider_id": binding.provider_id,
+                "provider_binding_id": binding.binding_id,
+                "model_id": binding.model,
+                "source": "openrouter.models.list",
+                "observed_at": now.isoformat(),
+                "expires_at": (now + timedelta(hours=1)).isoformat(),
+                "metadata": {},
+            }
+        ],
+    }
+    monkeypatch.setattr(OperationService, "_build_provider", staticmethod(lambda *_a, **_k: CandidateProvider()))
+    monkeypatch.setattr(
+        "src.dev_agent.operation_bootstrap.QualificationResolver",
+        lambda: MissingQualificationResolver(),
+    )
+    monkeypatch.setattr(
+        "src.dev_agent.operation_bootstrap.ProviderModelDiscovery.discover",
+        lambda *_args, **_kwargs: SimpleNamespace(to_document=lambda: inventory),
+    )
+    config = OperationConfig(
+        data_dir=tmp_path,
+        provider_pool=(binding,),
+        worker_id="unqualified-remote-no-text-capability",
+    )
+
+    with OperationService.open(config) as service:
+        advisories = [item.to_dict() for item in service.provider_candidate_advisories]
+        assert service.dispatcher.registry.bindings_for_provider("openrouter") == ()
+
+    assert advisories == [
+        {
+            "provider_id": "openrouter",
+            "binding_id": binding.binding_id,
+            "model_id": binding.model,
+            "warning_category": "TEXT_CAPABILITY_UNVERIFIED",
+            "blocks_dispatch": True,
+        }
+    ]
 
 
 @pytest.mark.current_billing_catalog
@@ -1030,19 +1272,13 @@ def test_operation_exposes_unverified_billing_candidate_without_dispatching_it(t
                 provider_binding_id="groq:second-configured",
                 api_key_env="GROQ_API_KEY",
             ),
-            OperationProviderBinding(
-                provider_id="fake",
-                model="deterministic",
-                provider_binding_id="fake:advisory-test",
-            ),
         ),
         worker_id="billing-candidate-advisory-test",
     )
 
     with OperationService.open(config) as service:
         advisories = service.provider_candidate_advisories
-        with pytest.raises(ProviderError, match="unsupported provider binding"):
-            service.dispatcher.registry.get_binding(binding.binding_id)
+        assert service.dispatcher.registry.bindings_for_provider("groq") == ()
 
     assert [item.to_dict() for item in advisories] == [
         {
@@ -1060,6 +1296,64 @@ def test_operation_exposes_unverified_billing_candidate_without_dispatching_it(t
             "blocks_dispatch": True,
         }
     ]
+
+
+def test_operation_open_does_not_mark_local_unqualified_model_as_remote_proposal(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    binding = OperationProviderBinding(
+        provider_id="ollama",
+        model="qwen3.5:9b",
+        provider_binding_id="ollama:local:qwen3.5-9b",
+        require_current_model_discovery=True,
+    )
+    _write_model_evidence(
+        tmp_path / "model-evidence",
+        provider_id=binding.provider_id,
+        binding_id=binding.binding_id,
+        model_id=binding.model,
+    )
+
+    class MissingQualificationResolver:
+        def resolve(self, *_args, **_kwargs):
+            return None
+
+    now = datetime.now(timezone.utc)
+    inventory = {
+        "schema_version": 1,
+        "entries": [
+            {
+                "provider_id": binding.provider_id,
+                "provider_binding_id": binding.binding_id,
+                "model_id": binding.model,
+                "source": "ollama.models.list",
+                "observed_at": now.isoformat(),
+                "expires_at": (now + timedelta(hours=1)).isoformat(),
+                "metadata": {},
+            }
+        ],
+    }
+    monkeypatch.setattr(
+        "src.dev_agent.operation_bootstrap.QualificationResolver",
+        lambda: MissingQualificationResolver(),
+    )
+    monkeypatch.setattr(
+        "src.dev_agent.operation_bootstrap.ProviderModelDiscovery.discover",
+        lambda *_args, **_kwargs: SimpleNamespace(to_document=lambda: inventory),
+    )
+    config = OperationConfig(
+        data_dir=tmp_path,
+        provider_pool=(binding,),
+        model_evidence_directory=tmp_path / "model-evidence",
+        worker_id="local-qualification-exemption-test",
+    )
+
+    with OperationService.open(config) as service:
+        resource = service.ledger.get_resource(binding.binding_id)
+        advisories = service.provider_candidate_advisories
+
+    assert resource["metadata"].get("proposal_only_candidate") is not True
+    assert not any(item.warning_category == "QUALIFICATION_UNVERIFIED" for item in advisories)
 
 
 @pytest.mark.parametrize(
