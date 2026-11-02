@@ -10,10 +10,10 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 | Field | Current fact |
 | --- | --- |
 | Accepted branch | `v2/bootstrap` |
-| Accepted remote head at latest integrated implementation/evidence | `fba3aa74049973b6de079bed36bb1988f09aefdb` (`v2/bootstrap`; explicit Worker JSON-envelope boundary and W0/W1 feasibility/localized-repair hardening; exact-head Core/Provider Smoke CI passed in runs `41364860406`/`41364860447`). |
+| Accepted remote head at latest integrated implementation/evidence | `331b483f24123617aceb5c7e80417474267febfe` (`v2/bootstrap`; docs/evidence synchronization after explicit Worker JSON-envelope hardening; exact-head Core/Provider Smoke CI passed in runs `41365447220`/`41365447178`). |
 | Latest integrated implementation/evidence baseline | `9742c29` adds Host pre-dispatch feasibility with explicit input/context/output budgets, W0 synthetic inventory, and FEASIBILITY failure classification; `9742c29` binds localized compensation to an effective output contract and exposes its change budget in the repair prompt. Two bounded real Worker → Host Verification → review → integration slices are accepted (#97 and #127 R5/#134); the full R5/V1–V4 useful-work and continuity acceptance remains unaccepted. The existing finite refinement policy remains authoritative; Host normalization, same-L1 repair, L1 Critic, alternate L1, upper reframe, reconciliation, and Human paths are explicit. Unknown handoff fields and raw diagnostics are excluded from model input. |
 | Latest implementation baseline | `04a1290` adds `scripts/devfarm_feasibility.py` pre-dispatch assignment checks, `scripts/devfarm_worker.py` Host-owned feasibility recording, the W0 inventory artifact, and baseline FEASIBILITY classification; `9742c29` requires an explicit localized change budget, applies the effective compensated contract before Provider dispatch, and renders the bounded budget in `scripts/devfarm_worker_prompt.py`; `fba3aa7` makes the JSON envelope explicit for localized/minimal/full Worker prompts and adds prompt regressions. Commit `537972c` migrates maintained Actions to Node 24-compatible majors and changes only future model-discovery/benchmark candidate TTL defaults to 30 days with a 31-day hard ceiling. No Provider generation, budget, Recovery authority, billing, admission, or Gate boundary changed. |
-| Latest evidence baseline | #127/#146 evidence is bounded and non-Gate: W0/W1 focused feasibility/baseline/preflight scope is `28 passed`; localized compensation/prompt scope is `52 passed`; the full local `tests/v2` regression at `fba3aa7` is `2162 passed, 1 skipped` (Windows ACL deployment-owned). Exact-head Core/Provider Smoke CI for `fba3aa7` passed (`41364860406`/`41364860447`). A fresh approved no-cost Gemma Worker attempt parsed a response but Host deterministically rejected a stale `localized_edit.expected_lines` anchor before Host Verification; no patch or integration occurred. The failure emitted a bounded re-read-the-pinned-lines repair directive and is retained as repair evidence, not Worker success or routing qualification. The dated OpenRouter snapshot remains `non_authoritative_observation_only`; no capability, benchmark, billing, quota, health, runtime admission, or Gate layer was renewed. Real-model V1 learned-choice, real-provider V2 mixed continuity, V3 measured improvement, V4 sustained live sequence, and Formal Phase 8 remain unaccepted. |
+| Latest evidence baseline | #127/#146 evidence is bounded and non-Gate: W0/W1 focused feasibility/baseline/preflight scope is `28 passed`; localized compensation/prompt scope is `52 passed`; the full local `tests/v2` regression at `fba3aa7` is `2162 passed, 1 skipped` (Windows ACL deployment-owned). Exact-head Core/Provider Smoke CI for `331b483` passed (`41365447220`/`41365447178`). Fresh approved no-cost Gemma and Qwen Worker attempts were deterministically rejected before Host Verification (stale localized anchor, no-op replacement, feasibility oversize, incomplete line-shape, and embedded newline in minimal replacement); no patch or integration occurred. These are retained as bounded repair evidence, not Worker success or routing qualification. The dated OpenRouter snapshot remains `non_authoritative_observation_only`; no capability, benchmark, billing, quota, health, runtime admission, or Gate layer was renewed. Real-model V1 learned-choice, real-provider V2 mixed continuity, V3 measured improvement, V4 sustained live sequence, and Formal Phase 8 remain unaccepted. |
 | Latest bounded-operation slice | #97 and #127 R5/#134 each demonstrate a bounded local Worker proposal reaching Host Verification, review, and deterministic integration on a docs-only task. These are two accepted useful slices, not the full Runtime/Claim/Lease autonomous cycle; they do not by themselves satisfy V1 learned-choice, V2 mixed continuity, V3 measured improvement, V4 sustained interruption/restart, or Formal Phase 8. Detailed attempt evidence is in #97 and #134. |
 | Local synchronization | The live `v2/bootstrap` ref is authoritative; refresh any local checkout from its current head before making further changes. The requirements index links to `docs/DECISION_TRANSFER_M1.md`. |
 | Formal Gate | `D9_DOGFOOD=VERIFIED`; `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`; `PHASE8_PREPARATION=PREPARATION_ONLY`; `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` |
@@ -112,6 +112,34 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
   transport, UNKNOWN, or reconciliation failures. This observation is fresh
   Worker failure/repair evidence, not useful-work acceptance or Phase 8
   promotion.
+
+### 2026-11-02 #146 W2 minimal-replacement A/B observation
+
+- One fresh no-charge Qwen attempt used `ollama:local:qwen3.5-9b` / `qwen3.5:9b`
+  with the explicit `minimal_file_replacement` contract against
+  `tests/v2/test_devfarm_candidate_selection.py` at base `331b483`. Attempt
+  `669b6e117fa444bbaac43b876639a9c2` consumed 3,185 prompt and 404 completion
+  tokens at cost `0`.
+- The Host rejected the proposal before Host Verification because a
+  replacement line contained an embedded LF/CR:
+  `WORKER_OUTPUT_LINE_SHAPE`. No patch, test, review, or integration occurred;
+  the immutable result remains under
+  `.devfarm/results/issue146-w2-minimal-selection-test-qwen-20261102/` and
+  Issue #146 records the evidence. This is a format-contract failure, not
+  useful-work success. It is the fifth fresh bounded attempt in this cohort;
+  no blind retry was dispatched.
+- The read-only expiry preflight at `2026-11-02T00:23:33Z` with a 48-hour
+  horizon reports canonical catalog `0/1385`, capability `0/500`, benchmark
+  `0/87`, billing `0/26`, and qualification `3/13` current now but `0/13` at
+  the horizon. The next current qualification expiry is
+  `2026-11-02T09:29:25Z`. Failures are
+  `billing_catalog_no_current_facts`,
+  `billing_catalog_no_current_facts_at_horizon`,
+  `no_static_eligible_at_horizon`, and
+  `source_exhausted:qualification_matrix`. The 30-day/31-day policy applies
+  only to future model-list and benchmark candidates; it does not extend old
+  snapshots or shorten qualification/billing evidence. No expired fact was
+  renewed and runtime admission remains closed.
 
 ### 2026-11-01 #127 CONT-V0 evidence boundary and metrics hardening
 
