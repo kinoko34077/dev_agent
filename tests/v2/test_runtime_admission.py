@@ -193,7 +193,9 @@ def test_derived_conservative_quota_can_reach_formal_runtime_eligibility(tmp_pat
     assert observation.status == RUNTIME_ELIGIBLE
 
 
-def test_cloudflare_derived_quota_reaches_admission_through_existing_resource_path(tmp_path):
+def test_cloudflare_derived_quota_reaches_admission_through_existing_resource_path(
+    tmp_path, historical_qualification_review_clock
+):
     from src.dev_agent.operation import OperationProviderBinding, OperationService
     from src.dev_agent.resources.qualification import QualificationResolver
 

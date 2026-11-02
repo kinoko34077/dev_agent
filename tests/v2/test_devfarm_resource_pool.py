@@ -581,8 +581,10 @@ def test_host_verified_outcomes_rank_exact_task_model_without_filtering_candidat
     assert mismatched.selection.model_id == "model-without-history"
 
 
-@pytest.mark.current_billing_catalog
-def test_host_accepted_worker_metrics_feed_exact_task_router(tmp_path, monkeypatch):
+@pytest.mark.synthetic_no_charge_worker_billing
+def test_host_accepted_worker_metrics_feed_exact_task_router(
+    tmp_path, monkeypatch, historical_qualification_review_clock
+):
     import json
     from datetime import timedelta
 
