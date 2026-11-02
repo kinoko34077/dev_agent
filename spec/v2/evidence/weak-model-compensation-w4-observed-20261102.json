@@ -1,0 +1,109 @@
+{
+  "artifact_checks": [
+    {
+      "artifact_ref": ".devfarm/results/issue124-guard-fail-closed-tests-qwen-20261102/attempts/5b658b369b2b4834b04726aa9c9dbf9e/result.json",
+      "artifact_status": "readable_json",
+      "candidate_id": "initial-qwen-json-envelope"
+    },
+    {
+      "artifact_ref": ".devfarm/results/issue124-guard-fail-closed-tests-qwen-20261102/attempts/b292c7321a324963920fbaee47f12c47/result.json",
+      "artifact_status": "readable_json",
+      "candidate_id": "format-repair-qwen-json-envelope"
+    }
+  ],
+  "candidate_count": 2,
+  "candidates": [
+    {
+      "artifact_ref": ".devfarm/results/issue124-guard-fail-closed-tests-qwen-20261102/attempts/5b658b369b2b4834b04726aa9c9dbf9e/result.json",
+      "attempt_id": "5b658b369b2b4834b04726aa9c9dbf9e",
+      "candidate_id": "initial-qwen-json-envelope",
+      "context_variant": "base",
+      "external_effect_key": null,
+      "logical_task_id": "issue124-guard-fail-closed-tests-qwen-20261102",
+      "model_id": "qwen3.5:9b",
+      "prompt_variant": "initial-json-envelope",
+      "provider_binding_id": "ollama:local:qwen3.5-9b",
+      "resource_units": 1,
+      "scope_key": "tests/v2/test_devfarm_candidate_selection.py:region-1",
+      "source_revision": "4bd2a2b683413f4d192389cc6664fc89145e5457",
+      "stages": [
+        {
+          "evidence_ref": ".devfarm/results/issue124-guard-fail-closed-tests-qwen-20261102/attempts/5b658b369b2b4834b04726aa9c9dbf9e/result.json",
+          "reason_code": "WORKER_OUTPUT_INVALID_JSON",
+          "stage": "parser_schema",
+          "status": "fail"
+        },
+        {
+          "evidence_ref": null,
+          "reason_code": null,
+          "stage": "patch_applicability",
+          "status": "not_run"
+        }
+      ]
+    },
+    {
+      "artifact_ref": ".devfarm/results/issue124-guard-fail-closed-tests-qwen-20261102/attempts/b292c7321a324963920fbaee47f12c47/result.json",
+      "attempt_id": "b292c7321a324963920fbaee47f12c47",
+      "candidate_id": "format-repair-qwen-json-envelope",
+      "context_variant": "repair-delta",
+      "external_effect_key": null,
+      "logical_task_id": "issue124-guard-fail-closed-tests-qwen-20261102",
+      "model_id": "qwen3.5:9b",
+      "prompt_variant": "bounded-format-repair",
+      "provider_binding_id": "ollama:local:qwen3.5-9b",
+      "resource_units": 1,
+      "scope_key": "tests/v2/test_devfarm_candidate_selection.py:region-1",
+      "source_revision": "4bd2a2b683413f4d192389cc6664fc89145e5457",
+      "stages": [
+        {
+          "evidence_ref": ".devfarm/results/issue124-guard-fail-closed-tests-qwen-20261102/attempts/b292c7321a324963920fbaee47f12c47/result.json",
+          "reason_code": "WORKER_OUTPUT_INVALID_JSON",
+          "stage": "parser_schema",
+          "status": "fail"
+        },
+        {
+          "evidence_ref": null,
+          "reason_code": null,
+          "stage": "patch_applicability",
+          "status": "not_run"
+        }
+      ]
+    }
+  ],
+  "evidence_class": "fresh_runtime",
+  "evidence_kind": "weak_model_compensation_candidate_selection",
+  "evidence_status": "observed_candidate_selection",
+  "logical_task_id": "issue124-guard-fail-closed-tests-qwen-20261102",
+  "report_id": "weak-model-compensation-w4-observed-20261102",
+  "schema_version": 1,
+  "scope_boundary": "This report records explicit side-effect-free candidate screening only. It does not claim a useful accepted change, Provider qualification, routing promotion, or Gate evidence.",
+  "selection": {
+    "accepted_candidate_id": null,
+    "considered_candidate_ids": [
+      "format-repair-qwen-json-envelope",
+      "initial-qwen-json-envelope"
+    ],
+    "correlated_failure_signatures": [
+      "parser_schema:WORKER_OUTPUT_INVALID_JSON"
+    ],
+    "failure_signatures": [
+      "parser_schema:WORKER_OUTPUT_INVALID_JSON",
+      "parser_schema:WORKER_OUTPUT_INVALID_JSON"
+    ],
+    "logical_task_id": "issue124-guard-fail-closed-tests-qwen-20261102",
+    "rejected_candidate_ids": [
+      "format-repair-qwen-json-envelope",
+      "initial-qwen-json-envelope"
+    ],
+    "resource_units_used": 2,
+    "stage_counts": {
+      "deterministic_tests": 0,
+      "host_verification": 0,
+      "parser_schema": 0,
+      "patch_applicability": 0,
+      "review_integration": 0
+    },
+    "stop_reason": "candidates_exhausted"
+  },
+  "source_revision": "4bd2a2b683413f4d192389cc6664fc89145e5457"
+}

@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "report_id": "weak-model-compensation-w4-observed-20261102",
+  "logical_task_id": "issue124-guard-fail-closed-tests-qwen-20261102",
+  "source_revision": "4bd2a2b683413f4d192389cc6664fc89145e5457",
+  "evidence_class": "fresh_runtime",
+  "max_candidates": 2,
+  "max_resource_units": 2,
+  "candidates": [
+    {
+      "candidate_id": "initial-qwen-json-envelope",
+      "attempt_id": "5b658b369b2b4834b04726aa9c9dbf9e",
+      "artifact_ref": ".devfarm/results/issue124-guard-fail-closed-tests-qwen-20261102/attempts/5b658b369b2b4834b04726aa9c9dbf9e/result.json",
+      "scope_key": "tests/v2/test_devfarm_candidate_selection.py:region-1",
+      "provider_binding_id": "ollama:local:qwen3.5-9b",
+      "model_id": "qwen3.5:9b",
+      "prompt_variant": "initial-json-envelope",
+      "context_variant": "base",
+      "resource_units": 1,
+      "stages": [
+        {
+          "stage": "parser_schema",
+          "status": "fail",
+          "evidence_ref": ".devfarm/results/issue124-guard-fail-closed-tests-qwen-20261102/attempts/5b658b369b2b4834b04726aa9c9dbf9e/result.json",
+          "reason_code": "WORKER_OUTPUT_INVALID_JSON"
+        },
+        {"stage": "patch_applicability", "status": "not_run"}
+      ]
+    },
+    {
+      "candidate_id": "format-repair-qwen-json-envelope",
+      "attempt_id": "b292c7321a324963920fbaee47f12c47",
+      "artifact_ref": ".devfarm/results/issue124-guard-fail-closed-tests-qwen-20261102/attempts/b292c7321a324963920fbaee47f12c47/result.json",
+      "scope_key": "tests/v2/test_devfarm_candidate_selection.py:region-1",
+      "provider_binding_id": "ollama:local:qwen3.5-9b",
+      "model_id": "qwen3.5:9b",
+      "prompt_variant": "bounded-format-repair",
+      "context_variant": "repair-delta",
+      "resource_units": 1,
+      "stages": [
+        {
+          "stage": "parser_schema",
+          "status": "fail",
+          "evidence_ref": ".devfarm/results/issue124-guard-fail-closed-tests-qwen-20261102/attempts/b292c7321a324963920fbaee47f12c47/result.json",
+          "reason_code": "WORKER_OUTPUT_INVALID_JSON"
+        },
+        {"stage": "patch_applicability", "status": "not_run"}
+      ]
+    }
+  ]
+}
