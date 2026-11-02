@@ -255,6 +255,19 @@ def test_build_concrete_failure_spec_describes_missing_json_object():
     assert "response parses as one JSON object" in spec.acceptance_checks
 
 
+def test_build_concrete_failure_spec_lists_missing_full_result_fields():
+    spec = build_concrete_failure_spec(
+        "result missing fields: assumptions, known_issues",
+    )
+
+    assert spec.location == "worker_output"
+    assert spec.observed == "required result fields are missing"
+    assert "assumptions" in spec.required_correction
+    assert "known_issues" in spec.required_correction
+    assert "use [] when empty" in spec.required_correction
+    assert "all required result fields are present" in spec.acceptance_checks
+
+
 def test_structured_validator_error_builds_exact_bounded_failure_spec():
     spec = build_concrete_failure_spec_from_error(
         {

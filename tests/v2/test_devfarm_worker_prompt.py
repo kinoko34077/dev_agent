@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from scripts.devfarm_worker_prompt import build_worker_prompt
+from scripts.devfarm_worker_prompt import build_worker_prompt, repair_system_instruction
 from scripts.devfarm_worker_output import minimal_worker_output_schema
 
 
@@ -186,6 +186,28 @@ def test_rework_prompt_puts_concrete_repair_directive_before_general_contract() 
     assert "DO NOT REGRESS" in prompt
     assert "embedded newline remains forbidden" in prompt
     assert prompt.index("THIS IS A REPAIR ATTEMPT") < prompt.index("file_replacements is REQUIRED")
+
+
+def test_rework_system_instruction_repeats_only_host_owned_correction() -> None:
+    manifest = {
+        "rework_handoff": {
+            "repair_directive": {
+                "repair_target": "known_issues",
+                "required_action": "Return known_issues as a JSON array; use [] when empty.",
+            },
+            "repair_context": {
+                "raw_traceback": "must not cross the boundary",
+            },
+        }
+    }
+
+    instruction = repair_system_instruction(manifest)
+
+    assert instruction is not None
+    assert "Host-directed repair" in instruction
+    assert "known_issues" in instruction
+    assert "use [] when empty" in instruction
+    assert "must not cross the boundary" not in instruction
 
 
 def test_rework_prompt_includes_only_host_selected_compensation_contract() -> None:

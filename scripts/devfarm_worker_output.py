@@ -153,6 +153,86 @@ def localized_worker_output_schema(*, allowed_paths: Sequence[str]) -> dict[str,
     }
 
 
+def full_worker_output_schema(
+    *,
+    allowed_paths: Sequence[str] | None = None,
+) -> dict[str, Any]:
+    """Return the provider-facing schema for the legacy full Worker result.
+
+    The full-result mode keeps its historical Host validation and optional
+    metadata fields, but the fields required to build a durable result are
+    now declared to providers that support structured output.  ``additionalProperties``
+    remains enabled for compatibility; the Host still performs the final
+    contract validation and never treats provider schema acceptance as proof
+    of a valid patch.
+    """
+
+    line_array_schema = {
+        "type": "array",
+        "items": {"type": "string", "pattern": "^[^\\r\\n]*$"},
+    }
+    replacement_value: dict[str, Any] = {
+        "oneOf": [
+            {"type": "string"},
+            line_array_schema,
+        ]
+    }
+    if allowed_paths is None:
+        replacement_object: dict[str, Any] = {
+            "type": "object",
+            "additionalProperties": replacement_value,
+        }
+    else:
+        if isinstance(allowed_paths, (str, bytes)):
+            raise DevFarmError("allowed_paths must be a sequence of paths")
+        normalized_paths = tuple(
+            dict.fromkeys(
+                path.replace("\\", "/").strip()
+                for path in allowed_paths
+                if isinstance(path, str) and path.strip()
+            )
+        )
+        if not normalized_paths:
+            raise DevFarmError("allowed_paths must contain at least one path")
+        replacement_object = {
+            "type": "object",
+            "properties": {path: replacement_value for path in normalized_paths},
+            "additionalProperties": False,
+            "maxProperties": 1,
+        }
+
+    return {
+        "type": "object",
+        "properties": {
+            "status": {
+                "type": "string",
+                "enum": ["pending", "running", "completed", "failed", "blocked_external"],
+            },
+            "changed_files": {"type": "array", "items": {"type": "string"}},
+            "tests_run": {"type": "array", "items": {"type": "string"}},
+            "tests_passed": {"type": "boolean"},
+            "known_issues": {"type": "array", "items": {"type": "string"}},
+            "assumptions": {"type": "array", "items": {"type": "string"}},
+            "patch": {"type": "string"},
+            "file_replacements": replacement_object,
+            # These fields are model-owned annotations retained for the
+            # existing artifact projection.  Their detailed shape remains
+            # Host-local and is not used as acceptance evidence.
+            "tests": {},
+            "notes": {"type": "string"},
+        },
+        "required": [
+            "status",
+            "changed_files",
+            "tests_run",
+            "tests_passed",
+            "known_issues",
+            "assumptions",
+        ],
+        "additionalProperties": True,
+    }
+
+
 def worker_proposal_preflight_failure(
     reason: str,
     *,
@@ -457,6 +537,7 @@ __all__ = [
     "MINIMAL_WORKER_OUTPUT_MODE",
     "build_worker_metrics",
     "extract_json_object",
+    "full_worker_output_schema",
     "localized_worker_output_schema",
     "minimal_worker_output_schema",
     "normalize_model_status",

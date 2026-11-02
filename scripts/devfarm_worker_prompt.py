@@ -242,6 +242,38 @@ def _repair_prefix(manifest: Mapping[str, Any]) -> str:
     )
 
 
+def repair_system_instruction(manifest: Mapping[str, Any]) -> str | None:
+    """Return a short, Host-owned system reminder for a bounded repair.
+
+    The detailed repair handoff remains in the user prompt so the complete
+    manifest and input context stay together.  Repeating only the bounded
+    responsibility boundary at system level improves adherence on models that
+    otherwise treat a long JSON contract as ordinary task text; it never
+    copies raw model output or untrusted diagnostics.
+    """
+
+    projected = _bounded_rework_handoff(manifest)
+    if not isinstance(projected, Mapping):
+        return None
+    directive = projected.get("repair_directive")
+    if not isinstance(directive, Mapping):
+        return None
+    target = directive.get("repair_target")
+    required = directive.get("required_action")
+    if not isinstance(target, str) or not target.strip():
+        target = "the declared response contract"
+    if not isinstance(required, str) or not required.strip():
+        required = "return one fresh response satisfying the Host schema"
+    return (
+        "This is a bounded Host-directed repair attempt. Apply only the listed "
+        "correction, preserve the task scope, and return the exact response "
+        "schema from the user message. Do not invent a new format, retry a "
+        "provider failure, or include raw diagnostics.\n"
+        f"REPAIR TARGET: {target.strip()}\n"
+        f"REQUIRED CORRECTION: {required.strip()}"
+    )
+
+
 def build_worker_prompt(
     manifest: Mapping[str, Any],
     inputs: str,
@@ -399,4 +431,4 @@ def build_worker_prompt(
     )
 
 
-__all__ = ["build_worker_prompt"]
+__all__ = ["build_worker_prompt", "repair_system_instruction"]

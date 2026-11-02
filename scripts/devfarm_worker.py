@@ -59,7 +59,7 @@ from scripts.devfarm_artifacts import (
     write_latest_result_projection as shared_write_latest_result_projection,
     write_verification_record as shared_write_verification_record,
 )
-from scripts.devfarm_worker_prompt import build_worker_prompt
+from scripts.devfarm_worker_prompt import build_worker_prompt, repair_system_instruction
 from scripts.devfarm_localized_edit import materialize_localized_edits
 from scripts.devfarm_feasibility import assess_worker_feasibility
 from scripts.devfarm_refinement import build_concrete_failure_spec
@@ -74,6 +74,7 @@ from scripts.devfarm_worker_output import (
     MINIMAL_WORKER_OUTPUT_KEYS,
     build_worker_metrics,
     extract_json_object,
+    full_worker_output_schema,
     localized_worker_output_schema,
     minimal_worker_output_schema,
     normalize_model_status,
@@ -1198,6 +1199,9 @@ def run_worker(
     messages = [
         {"role": "system", "content": "Return the bounded development-worker result as JSON only."},
     ]
+    repair_instruction = repair_system_instruction(effective_manifest)
+    if repair_instruction is not None:
+        messages.append({"role": "system", "content": repair_instruction})
     if output_mode == "minimal_file_replacement":
         messages.append(
             {
@@ -1273,7 +1277,17 @@ def run_worker(
                 line_array_only=True,
             )
             if output_mode == "minimal_file_replacement"
-            else None
+            else full_worker_output_schema(
+                allowed_paths=tuple(
+                    dict.fromkeys(
+                        [
+                            *manifest["outbound_files"],
+                            *manifest.get("new_files", ()),
+                        ]
+                    )
+                )
+                or None
+            )
         ),
         max_output_tokens=max_output_tokens,
     )

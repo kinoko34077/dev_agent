@@ -6,6 +6,7 @@ from scripts.devfarm import DevFarmError
 from scripts.devfarm_worker_output import (
     build_worker_metrics,
     extract_json_object,
+    full_worker_output_schema,
     normalize_model_status,
     safe_host_failure_metadata,
     safe_usage,
@@ -19,6 +20,27 @@ def test_extract_json_object_accepts_one_fenced_object_only() -> None:
     }
     with pytest.raises(DevFarmError, match="JSON object"):
         extract_json_object("[1, 2]")
+
+
+def test_full_worker_schema_requires_result_contract_fields_and_binds_paths() -> None:
+    schema = full_worker_output_schema(allowed_paths=("src/example.py",))
+
+    assert set(schema["required"]) == {
+        "status",
+        "changed_files",
+        "tests_run",
+        "tests_passed",
+        "known_issues",
+        "assumptions",
+    }
+    assert schema["properties"]["known_issues"] == {
+        "type": "array",
+        "items": {"type": "string"},
+    }
+    replacements = schema["properties"]["file_replacements"]
+    assert replacements["additionalProperties"] is False
+    assert set(replacements["properties"]) == {"src/example.py"}
+    assert schema["additionalProperties"] is True
 
 
 def test_output_normalization_is_bounded_and_provider_neutral() -> None:

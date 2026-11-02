@@ -246,7 +246,47 @@ def test_run_worker_marks_host_admitted_free_request_for_bounded_unknown_quota_b
     assert request.metadata["intelligence_routing"] == "bounded"
     assert request.metadata["allowed_intelligence_tiers"] == ["L1"]
     assert request.metadata["allow_unknown_quota"] is True
-    assert request.response_schema is None
+    assert request.response_schema["type"] == "object"
+    assert set(request.response_schema["required"]) == {
+        "status",
+        "changed_files",
+        "tests_run",
+        "tests_passed",
+        "known_issues",
+        "assumptions",
+    }
+    assert request.response_schema["properties"]["file_replacements"]["additionalProperties"] is False
+
+
+def test_run_worker_places_host_repair_instruction_in_system_message(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["rework_handoff"] = {
+        "repair_directive": {
+            "repair_target": "known_issues",
+            "required_action": "Return known_issues as a JSON array; use [] when empty.",
+        },
+        "repair_context": {"raw_traceback": "must remain Host-local"},
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": False,
+        "known_issues": [],
+        "assumptions": [],
+        "patch": _patch(),
+    }
+    provider = _CapturingWorkerProvider(output)
+
+    result = run_worker(root, manifest_path, provider=provider)
+
+    assert result["status"] == "completed"
+    system_messages = [message["content"] for message in provider.requests[0].messages if message["role"] == "system"]
+    assert any("Host-directed repair" in content for content in system_messages)
+    assert any("known_issues" in content for content in system_messages)
+    assert all("must remain Host-local" not in content for content in system_messages)
 
 
 def test_run_worker_requests_bounded_json_schema_for_local_ollama(tmp_path, monkeypatch):

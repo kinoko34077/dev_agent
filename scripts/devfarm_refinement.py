@@ -512,6 +512,54 @@ def build_concrete_failure_spec(
             ),
             validator_refs=(validator_ref,),
         )
+    elif "result missing fields:" in normalized:
+        known_fields = (
+            "status",
+            "base_revision",
+            "changed_files",
+            "tests_run",
+            "tests_passed",
+            "known_issues",
+            "assumptions",
+        )
+        raw_fields = normalized.split("result missing fields:", 1)[1]
+        missing_fields = tuple(
+            field
+            for field in known_fields
+            if field in {item.strip().strip("' \"") for item in raw_fields.split(",")}
+        )
+        field_list = ", ".join(missing_fields) or "the listed required fields"
+        list_defaults = [
+            field
+            for field in missing_fields
+            if field in {"changed_files", "tests_run", "known_issues", "assumptions"}
+        ]
+        default_hint = (
+            " use [] when empty for " + ", ".join(list_defaults) + "."
+            if list_defaults
+            else ""
+        )
+        spec = ConcreteFailureSpec(
+            failure_class="FORMAT_PATCH",
+            stage="worker_output_validation",
+            location="worker_output",
+            observed="required result fields are missing",
+            expected="all required fields in the full Worker result envelope",
+            problem="the full Worker response omitted required result fields",
+            required_correction=(
+                "Return one JSON object containing every required result field. "
+                f"Missing fields: {field_list}.{default_hint} "
+                "Do not replace fields with prose or null values."
+            ),
+            must_preserve=preserve,
+            forbidden_changes=("omitting required result fields", "adding raw provider diagnostics", "unrelated files"),
+            acceptance_checks=(
+                "all required result fields are present",
+                "the response parses as one JSON object",
+                "each field satisfies the full Worker response schema",
+            ),
+            validator_refs=(validator_ref,),
+        )
     elif (
         "worker response json is invalid" in normalized
         or "invalid json" in normalized
