@@ -140,6 +140,9 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
   only to future model-list and benchmark candidates; it does not extend old
   snapshots or shorten qualification/billing evidence. No expired fact was
   renewed and runtime admission remains closed.
+- Docs-only synchronization commit `ed84667` passed exact-head `v2-core`
+  (`41367048712`) and `v2-provider-smoke` (`41367048940`) CI; both workflows
+  checked out the pushed `ed84667` revision.
 
 ### 2026-11-01 #127 CONT-V0 evidence boundary and metrics hardening
 
