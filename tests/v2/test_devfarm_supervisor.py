@@ -17,7 +17,7 @@ from scripts.devfarm_supervisor_protocol import (
     select_heartbeat_cadence,
 )
 from scripts.devfarm_supervisor import CodexSupervisedCommanderRun, main as supervisor_main
-from scripts.devfarm_supervisor import _providers_for_resume
+from scripts.devfarm_supervisor import _canonical_supervisor_action, _providers_for_resume
 from scripts.devfarm_commander import create_plan
 from src.dev_agent.domain.execution import CanonicalExecutionBinding, ExecutionLifecycleStage
 
@@ -170,6 +170,79 @@ def test_supervisor_marks_rejection_with_accurate_attempt_context(
 def test_supervisor_metadata_rejects_raw_conversation_payloads():
     with pytest.raises(ValueError, match="raw"):
         normalize_supervisor_metadata({"wake_events": [{"kind": "x", "raw_output": "secret"}]})
+
+
+@pytest.mark.parametrize(
+    ("block_reason", "expected_action"),
+    [
+        ("worker_feasibility_reframe_required", "reframe_worker_task"),
+        ("worker_feasibility_invalid_acceptance", "repair_worker_manifest"),
+        ("proposal_failed", "resolve_blocker"),
+    ],
+)
+def test_supervisor_exposes_feasibility_next_action_without_model_retry(block_reason, expected_action):
+    plan = {
+        "status": "BLOCKED",
+        "tasks": [
+            {
+                "task_id": "worker-task",
+                "owner": "worker",
+                "status": "BLOCKED",
+                "block_reason": block_reason,
+                "last_attempt_id": "attempt-001",
+                "canonical_execution": {"logical_execution_id": "logical-001"},
+            }
+        ],
+        "review_decisions": [],
+    }
+
+    status, next_action = _canonical_supervisor_action(plan)
+
+    assert status == "BLOCKED"
+    assert next_action == expected_action
+
+
+def test_supervisor_exposes_feasibility_action_for_legacy_plan_projection():
+    plan = {
+        "status": "BLOCKED",
+        "tasks": [
+            {
+                "task_id": "worker-task",
+                "owner": "worker",
+                "status": "BLOCKED",
+                "block_reason": "worker_feasibility_reframe_required",
+            }
+        ],
+        "review_decisions": [],
+        "supervisor": {"status": "BLOCKED", "next_action": "resolve_blocker"},
+    }
+
+    status, next_action = _canonical_supervisor_action(plan)
+
+    assert status == "BLOCKED"
+    assert next_action == "reframe_worker_task"
+
+
+def test_supervisor_does_not_hide_unblocked_work_behind_feasibility_action():
+    plan = {
+        "status": "BLOCKED",
+        "tasks": [
+            {
+                "task_id": "worker-task",
+                "owner": "worker",
+                "status": "BLOCKED",
+                "block_reason": "worker_feasibility_reframe_required",
+            },
+            {"task_id": "codex-task", "owner": "codex", "status": "READY"},
+        ],
+        "review_decisions": [],
+        "supervisor": {"status": "ACTIVE", "next_action": "execute_codex_task"},
+    }
+
+    status, next_action = _canonical_supervisor_action(plan)
+
+    assert status == "ACTIVE"
+    assert next_action == "execute_codex_task"
 
 
 def test_review_packet_is_compact_and_rejects_raw_worker_output():

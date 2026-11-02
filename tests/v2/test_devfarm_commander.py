@@ -12,6 +12,7 @@ from scripts.devfarm import main as devfarm_main
 from scripts.devfarm_commander import (
     CommanderPlanStore,
     PlanConflictError,
+    _apply_proposal_result,
     collect_plan,
     create_plan,
     dispatch_cli,
@@ -53,6 +54,16 @@ class _WorkerProvider(FakeProvider):
             model=self.model_id,
             text_segments=[json.dumps(self.output)],
         )
+
+
+class _CountingWorkerProvider(_WorkerProvider):
+    def __init__(self, output):
+        super().__init__(output)
+        self.request_count = 0
+
+    def request(self, request: ModelRequest) -> ModelResponse:
+        self.request_count += 1
+        return super().request(request)
 
 
 class _FailingVerifier:
@@ -1034,6 +1045,128 @@ def test_commander_keeps_sibling_proposal_when_one_worker_raises(tmp_path):
         item["task_id"] == "worker-b" and item["status"] == "completed"
         for item in dispatched["results"]
     )
+
+
+def _oversized_worker_plan(tmp_path):
+    root, targets, _initial_revision = _repo(tmp_path)
+    target = targets[0]
+    (root / target).write_text("value = 1\n" * 9_000, encoding="utf-8")
+    _git(root, "add", target)
+    _git(root, "commit", "-m", "make worker source exceed bounded output")
+    revision = _git(root, "rev-parse", "HEAD").stdout.strip()
+    _manifest(root, revision, "oversized-worker", target)
+    plan = create_plan(
+        root,
+        {
+            "run_id": "feasibility-reframe-run",
+            "objective": "exercise the bounded feasibility stop",
+            "base_revision": revision,
+            "tasks": [
+                {
+                    "task_id": "oversized-worker",
+                    "owner": "worker",
+                    "manifest_path": ".devfarm/tasks/oversized-worker.json",
+                    "ownership": [target],
+                    "assignment": {
+                        "provider_id": "cloudflare",
+                        "model_id": "@cf/zai-org/glm-4.7-flash",
+                    },
+                    "max_attempts": 2,
+                }
+            ],
+        },
+    )
+    return root, plan
+
+
+def test_commander_projects_feasibility_stop_as_reframe_block_without_provider_request(tmp_path):
+    root, _plan_value = _oversized_worker_plan(tmp_path)
+    provider = _CountingWorkerProvider({"file_replacements": {"tests/v2/worker_a.py": ["value = 2"]}})
+
+    plan = dispatch_plan(root, "feasibility-reframe-run", providers={"oversized-worker": provider})
+
+    task = plan["tasks"][0]
+    assert task["status"] == "BLOCKED"
+    assert task["block_reason"] == "worker_feasibility_reframe_required"
+    assert task["result_ref"].endswith("/result.json")
+    assert task["last_attempt_id"]
+    assert provider.request_count == 0
+
+
+def test_commander_keeps_invalid_acceptance_distinct_from_reframe_and_model_failure(tmp_path):
+    root, plan = _oversized_worker_plan(tmp_path)
+    task = plan["tasks"][0]
+
+    _apply_proposal_result(
+        plan,
+        task,
+        {
+            "status": "failed",
+            "attempt_id": "attempt-invalid-acceptance",
+            "changed_files": [],
+            "known_issues": ["worker feasibility rejected the manifest contract"],
+            "worker_metrics": {
+                "pre_dispatch_block": "feasibility",
+                "feasibility": {"status": "invalid_acceptance"},
+                "proposal_preflight": {
+                    "stage": "worker_feasibility",
+                    "failure_class": "FEASIBILITY",
+                    "fallback_eligible": False,
+                    "fallback_disposition": "reframe_before_provider",
+                },
+            },
+        },
+    )
+
+    assert task["status"] == "BLOCKED"
+    assert task["block_reason"] == "worker_feasibility_invalid_acceptance"
+    assert task["last_attempt_id"] == "attempt-invalid-acceptance"
+    assert task["block_reason"] != "proposal_failed"
+
+
+def test_collect_plan_reconciles_feasibility_stop_after_dispatch_restart(tmp_path):
+    root, _plan_value = _oversized_worker_plan(tmp_path)
+    provider = _CountingWorkerProvider({"file_replacements": {"tests/v2/worker_a.py": ["value = 2"]}})
+    dispatched = dispatch_plan(root, "feasibility-reframe-run", providers={"oversized-worker": provider})
+    attempt_id = dispatched["tasks"][0]["last_attempt_id"]
+
+    # Model the crash window after the immutable result artifact was written
+    # but before Commander projected it onto the durable plan.
+    store = CommanderPlanStore(root)
+    plan_path = store.path_for("feasibility-reframe-run")
+    raw_plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    task = raw_plan["tasks"][0]
+    task["status"] = "DISPATCHED"
+    task.pop("block_reason", None)
+    task.pop("result_ref", None)
+    raw_plan["status"] = "DISPATCHED"
+    plan_path.write_text(json.dumps(raw_plan), encoding="utf-8")
+
+    recovered = collect_plan(root, "feasibility-reframe-run")
+
+    task = recovered["tasks"][0]
+    assert task["status"] == "BLOCKED"
+    assert task["block_reason"] == "worker_feasibility_reframe_required"
+    assert task["last_attempt_id"] == attempt_id
+    assert task["result_ref"].endswith("/result.json")
+    assert provider.request_count == 0
+
+
+def test_commander_refuses_same_task_retry_after_feasibility_reframe_stop(tmp_path):
+    root, _plan_value = _oversized_worker_plan(tmp_path)
+    provider = _CountingWorkerProvider({"file_replacements": {"tests/v2/worker_a.py": ["value = 2"]}})
+    dispatch_plan(root, "feasibility-reframe-run", providers={"oversized-worker": provider})
+
+    with pytest.raises(DevFarmError, match="new task scope"):
+        reassign_task(
+            root,
+            "feasibility-reframe-run",
+            "oversized-worker",
+            provider_id="cloudflare",
+            model_id="@cf/zai-org/glm-4.7-flash",
+        )
+
+    assert provider.request_count == 0
 
 
 def test_commander_rejects_overlapping_ownership(tmp_path):

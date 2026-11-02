@@ -24,6 +24,7 @@ if str(ROOT) not in sys.path:
 
 from scripts.devfarm_contracts import validate_manifest, validate_result
 from scripts.devfarm_errors import DevFarmError
+from scripts.devfarm_feasibility import plan_block_reason, plan_next_action
 from scripts.devfarm_manifests import load_worker_manifest
 from scripts.devfarm_orchestrator import DevFarmOrchestrator, WorkerAssignment
 from scripts import devfarm_plan_validation as plan_validation
@@ -105,6 +106,28 @@ def _bounded_result_error(result: Mapping[str, Any]) -> str | None:
     return error_code or issue_summary
 
 
+def _feasibility_block_reason(result: Mapping[str, Any]) -> str | None:
+    """Recognize only the Worker's exact deterministic pre-dispatch result."""
+
+    if result.get("status") != "failed":
+        return None
+    metrics = result.get("worker_metrics")
+    if not isinstance(metrics, Mapping) or metrics.get("pre_dispatch_block") != "feasibility":
+        return None
+    preflight = metrics.get("proposal_preflight")
+    feasibility = metrics.get("feasibility")
+    if not isinstance(preflight, Mapping) or not isinstance(feasibility, Mapping):
+        return None
+    if (
+        preflight.get("stage") != "worker_feasibility"
+        or preflight.get("failure_class") != "FEASIBILITY"
+        or preflight.get("fallback_eligible") is not False
+        or preflight.get("fallback_disposition") != "reframe_before_provider"
+    ):
+        return None
+    return plan_block_reason(feasibility.get("status"))
+
+
 def _apply_proposal_result(plan: dict[str, Any], task: dict[str, Any], result: Mapping[str, Any]) -> None:
     status = str(result.get("status", "failed"))
     attempt_id = result.get("attempt_id")
@@ -129,6 +152,14 @@ def _apply_proposal_result(plan: dict[str, Any], task: dict[str, Any], result: M
             attempt_id=task.get("last_attempt_id"),
         )
         task["block_reason"] = "provider_unavailable"
+    elif (feasibility_reason := _feasibility_block_reason(result)) is not None:
+        set_task_lifecycle(
+            task,
+            "BLOCKED",
+            result_ref=result_ref,
+            attempt_id=task.get("last_attempt_id"),
+        )
+        task["block_reason"] = feasibility_reason
     else:
         set_task_lifecycle(
             task,
@@ -283,6 +314,7 @@ def collect_plan(root: str | Path, run_id: str) -> dict[str, Any]:
             and (root_path / ".devfarm" / "results" / task["task_id"] / "attempts" / attempt_id / "verification" / f"{verification_id}.json").is_file()
         )
         if task["status"] != "INTEGRATED":
+            feasibility_reason = _feasibility_block_reason(result)
             if result["status"] == "completed" and host_verified and accepted and has_verification_record:
                 patch_path = (
                     root_path
@@ -322,6 +354,18 @@ def collect_plan(root: str | Path, run_id: str) -> dict[str, Any]:
                 )
                 task["block_reason"] = "provider_unavailable"
                 record_result(plan, task["task_id"], "proposal", result["status"], attempt_ref, attempt_id=task.get("last_attempt_id"))
+            elif feasibility_reason is not None:
+                set_task_lifecycle(
+                    task,
+                    "BLOCKED",
+                    result_ref=attempt_ref,
+                    attempt_id=task.get("last_attempt_id"),
+                )
+                task["block_reason"] = feasibility_reason
+                failure_summary = _bounded_result_error(result)
+                if failure_summary is not None:
+                    task["last_error"] = failure_summary
+                record_result(plan, task["task_id"], "proposal", result["status"], attempt_ref, attempt_id=task.get("last_attempt_id"))
             else:
                 set_task_lifecycle(
                     task,
@@ -330,6 +374,9 @@ def collect_plan(root: str | Path, run_id: str) -> dict[str, Any]:
                     attempt_id=task.get("last_attempt_id"),
                 )
                 task["block_reason"] = "proposal_failed"
+                failure_summary = _bounded_result_error(result)
+                if failure_summary is not None:
+                    task["last_error"] = failure_summary
                 record_result(plan, task["task_id"], "proposal", result["status"], attempt_ref, attempt_id=task.get("last_attempt_id"))
     return store.save(refresh_plan(plan))
 
@@ -669,6 +716,11 @@ def reassign_task(
         raise DevFarmError("only worker tasks can be reassigned")
     if task["status"] not in {"REJECTED", "BLOCKED"}:
         raise DevFarmError("only rejected or blocked worker tasks can be reassigned")
+    if plan_next_action(task.get("block_reason")) is not None:
+        raise DevFarmError(
+            "worker feasibility blocker requires a new task scope or corrected manifest; "
+            "same-task reassignment is not allowed"
+        )
     if task.get("dispatch_recovery") == "reconciliation_required":
         raise DevFarmError("orphaned dispatch requires explicit reconciliation before reassignment")
     if task["attempt_count"] >= task["max_attempts"]:
