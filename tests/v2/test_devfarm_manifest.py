@@ -353,6 +353,32 @@ def test_run_worker_requests_bounded_json_schema_for_local_ollama(tmp_path, monk
     assert requests[0].messages[2]["role"] == "user"
 
 
+def test_run_worker_honors_manifest_output_token_budget(tmp_path):
+    root, manifest_path = _workspace(tmp_path, prepare=False)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["output_contract"] = {
+        "mode": "minimal_file_replacement",
+        "max_output_tokens": 512,
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    provider = _CapturingWorkerProvider(
+        {
+            "file_replacements": {
+                "tests/v2/test_target.py": [
+                    "def test_target():",
+                    "    assert True",
+                    "    return None",
+                ]
+            }
+        }
+    )
+
+    result = run_worker(root, manifest_path, provider=provider)
+
+    assert result["status"] == "completed"
+    assert provider.requests[0].max_output_tokens == 512
+
+
 def test_run_worker_persists_only_allowlisted_ollama_lifecycle_diagnostic(tmp_path, monkeypatch):
     root, manifest_path = _workspace(tmp_path, prepare=False)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))

@@ -1169,6 +1169,9 @@ def run_worker(
         if output_mode == LOCALIZED_FILE_EDIT_MODE
         else 4096
     )
+    declared_output_budget = effective_manifest.get("output_contract", {}).get("max_output_tokens")
+    if declared_output_budget is not None:
+        max_output_tokens = min(max_output_tokens, declared_output_budget)
     feasibility_inputs: dict[str, bytes] = {}
     for relative in manifest.get("read_files", ()):
         try:

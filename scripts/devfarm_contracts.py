@@ -261,6 +261,17 @@ def validate_manifest(value: Mapping[str, Any]) -> dict[str, Any]:
         raise DevFarmError(
             "output_contract.mode must be full_result, minimal_file_replacement, or localized_file_edit"
         )
+    output_budget = output_contract.get("max_output_tokens")
+    if output_budget is not None:
+        if (
+            isinstance(output_budget, bool)
+            or not isinstance(output_budget, int)
+            or output_budget < 256
+            or output_budget > 32_768
+        ):
+            raise DevFarmError(
+                "output_contract.max_output_tokens must be an integer between 256 and 32768"
+            )
     requirements = _strings(value["requirements"], "requirements")
     acceptance = _strings(value["acceptance"], "acceptance")
     test_commands = _test_commands(value["test_commands"])

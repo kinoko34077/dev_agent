@@ -135,7 +135,10 @@ def _output_capacity(manifest: Mapping[str, Any], output_mode: str, max_output_t
         configured = max_output_tokens
     if configured <= 0 or configured > _MAX_OUTPUT_TOKENS:
         raise FeasibilityError("max_output_tokens is out of bounds")
+    output_contract = manifest.get("output_contract")
     declared = manifest.get("max_output_tokens")
+    if declared is None and isinstance(output_contract, Mapping):
+        declared = output_contract.get("max_output_tokens")
     if declared is not None:
         if isinstance(declared, bool) or not isinstance(declared, int) or declared <= 0:
             raise FeasibilityError("manifest max_output_tokens is invalid")
