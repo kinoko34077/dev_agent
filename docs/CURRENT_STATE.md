@@ -23,7 +23,7 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 ### 2026-11-02 README evidence-boundary synchronization
 
 - `2181d2c` updates the v2 README so historical Gemini/Cloudflare/OpenRouter/Ollama qualification artifacts are not described as permanently current. It points operators to the read-only expiry preflight and preserves the separation between model-list, qualification, billing, quota, health, runtime-admission, and Formal Gate evidence.
-- This is a documentation-only projection over functional baseline `7d91e3c`; it changes no Provider call, credential, billing, quota, routing, Gate, or Worker acceptance state. The exact-head local `tests/v2` result remains `2213 passed, 1 skipped` from the current clean tree.
+- This is a documentation-only projection over functional baseline `7d91e3c`; it changes no Provider call, credential, billing, quota, routing, Gate, or Worker acceptance state. The exact-head local `tests/v2` result remains `2213 passed, 1 skipped` from the current clean tree. Exact-head CI for the synchronized `35a9f5f` ref passed v2-core in run `41397855057` and provider-smoke in run `41397855059`; the expiry preflight warning remains an intentional non-blocking stale-evidence signal, not a test failure.
 
 ### 2026-11-02 Node 24 Actions migration and evidence-window policy
 
