@@ -11,6 +11,8 @@ from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.providers.fake.provider import FakeProvider
 from tests.v2.devfarm_test_support import _RawWorkerProvider, _WorkerProvider, _workspace, _patch
 
+pytestmark = pytest.mark.synthetic_no_charge_worker_billing
+
 
 def _trusted_apply(root, manifest_path):
     return apply_and_verify(root, manifest_path, trust_level="TRUSTED_HOST_EXEC", operator_approved=True)

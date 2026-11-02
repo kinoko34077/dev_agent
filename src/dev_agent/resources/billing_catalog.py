@@ -14,8 +14,10 @@ from datetime import datetime, timezone
 from types import MappingProxyType
 
 
-_DEFAULT_VERIFIED_AT = "2026-09-09T00:00:00+00:00"
-_DEFAULT_EXPIRES_AT = "2026-10-09T00:00:00+00:00"
+_DEFAULT_VERIFIED_AT = "2026-11-02T00:00:00+09:00"
+_DEFAULT_EXPIRES_AT = "2026-12-02T00:00:00+09:00"
+_LOCAL_FIXED_VERIFIED_AT = "2026-09-09T00:00:00+00:00"
+_LOCAL_FIXED_EXPIRES_AT = "9999-12-31T23:59:59+00:00"
 _BILLING_MODES = frozenset({"free_fixed", "recurring_allowance", "recurring_credit", "paid", "unknown"})
 _OVERAGE_POLICIES = frozenset({"hard_stop", "billable", "unknown"})
 
@@ -32,8 +34,8 @@ _CLOUDFLARE_PAID_BILLING_REQUIRED_MODELS = frozenset({
     "@cf/deepseek-ai/deepseek-v4-flash-0731",
     "@cf/deepseek-ai/deepseek-v4-pro-0813",
 })
-_CLOUDFLARE_FREE_POLICY_VERIFIED_AT = "2026-10-03T00:00:00+00:00"
-_CLOUDFLARE_FREE_POLICY_EXPIRES_AT = "2026-10-10T00:00:00+00:00"
+_CLOUDFLARE_FREE_POLICY_VERIFIED_AT = "2026-11-02T00:00:00+09:00"
+_CLOUDFLARE_FREE_POLICY_EXPIRES_AT = "2026-12-02T00:00:00+09:00"
 
 
 @dataclass(frozen=True)
@@ -110,7 +112,23 @@ class TrustedResourceProfile:
         current_utc = current.astimezone(timezone.utc)
         verified_utc = verified.astimezone(timezone.utc)
         expiry_utc = expiry.astimezone(timezone.utc)
+        if self.non_expiring_no_charge:
+            # Deterministic Fake and loopback Ollama have no external billing
+            # clock. The endpoint authority check still requires Ollama to be
+            # local; these code-owned facts do not expire like remote quotas.
+            return verified_utc <= current_utc
         return verified_utc <= current_utc < expiry_utc
+
+    @property
+    def non_expiring_no_charge(self) -> bool:
+        """Whether this exact code-owned local profile has no billing clock."""
+        return bool(
+            self.provider_id in {"fake", "ollama"}
+            and self.source == "reviewed_code_catalog"
+            and self.cost_minor == 0
+            and self.quota_required is False
+            and self.billing_mode == "free_fixed"
+        )
 
     @property
     def no_charge_guaranteed(self) -> bool:
@@ -127,7 +145,8 @@ class TrustedResourceProfile:
 # in the normal Operation Layer or DevFarm.
 _TRUSTED_RESOURCE_CATALOG: dict[tuple[str, str, str], TrustedResourceProfile] = {
     ("fake", "fake:default", "deterministic"): TrustedResourceProfile(
-        "fake", "fake:default", "deterministic", 0, "JPY", False, "L1"
+        "fake", "fake:default", "deterministic", 0, "JPY", False, "L1",
+        verified_at=_LOCAL_FIXED_VERIFIED_AT, expires_at=_LOCAL_FIXED_EXPIRES_AT,
     ),
     ("cloudflare", "cloudflare", "@cf/meta/llama-3.1-8b-instruct"): TrustedResourceProfile(
         "cloudflare", "cloudflare", "@cf/meta/llama-3.1-8b-instruct", 0, "JPY", True, "L1", billing_mode="recurring_allowance", allowance_period="daily", overage_policy="hard_stop"
@@ -155,40 +174,56 @@ _TRUSTED_RESOURCE_CATALOG: dict[tuple[str, str, str], TrustedResourceProfile] = 
         overage_policy="hard_stop",
     ),
     ("openrouter", "openrouter:free", "openrouter/free"): TrustedResourceProfile(
-        "openrouter", "openrouter:free", "openrouter/free", 0, "JPY", True, "L1"
+        "openrouter", "openrouter:free", "openrouter/free", 0, "JPY", True, "L1",
+        source="openrouter_free_models_router_pricing_2026-11-02",
+    ),
+    ("openrouter", "openrouter:account", "openrouter/free"): TrustedResourceProfile(
+        "openrouter", "openrouter:account", "openrouter/free", 0, "JPY", True, "L1",
+        source="openrouter_free_models_router_pricing_2026-11-02",
     ),
     ("openrouter", "openrouter:qualification", "openrouter/free"): TrustedResourceProfile(
-        "openrouter", "openrouter:qualification", "openrouter/free", 0, "JPY", True, "L1"
+        "openrouter", "openrouter:qualification", "openrouter/free", 0, "JPY", True, "L1",
+        source="openrouter_free_models_router_pricing_2026-11-02",
     ),
     ("gemini", "gemini:compat", "gemini-2.5-flash"): TrustedResourceProfile(
-        "gemini", "gemini:compat", "gemini-2.5-flash", 0, "JPY", True, None, billing_mode="recurring_allowance", allowance_period="daily", overage_policy="hard_stop"
+        "gemini", "gemini:compat", "gemini-2.5-flash", 0, "JPY", True, None,
+        source="google_gemini_api_pricing_2026-11-02", billing_mode="recurring_allowance", allowance_period="daily", overage_policy="hard_stop"
     ),
     ("gemini", "gemini:worker", "gemini-3.5-flash-lite"): TrustedResourceProfile(
-        "gemini", "gemini:worker", "gemini-3.5-flash-lite", 0, "JPY", True, "L1", billing_mode="recurring_allowance", allowance_period="daily", overage_policy="hard_stop"
+        "gemini", "gemini:worker", "gemini-3.5-flash-lite", 0, "JPY", True, "L1",
+        source="google_gemini_api_pricing_2026-11-02", billing_mode="recurring_allowance", allowance_period="daily", overage_policy="hard_stop"
     ),
     ("gemini", "gemini:core", "gemini-3.8-flash"): TrustedResourceProfile(
-        "gemini", "gemini:core", "gemini-3.8-flash", 0, "JPY", True, "L2", billing_mode="recurring_allowance", allowance_period="daily", overage_policy="hard_stop"
+        "gemini", "gemini:core", "gemini-3.8-flash", 0, "JPY", True, "L2",
+        source="google_gemini_api_pricing_2026-11-02", billing_mode="recurring_allowance", allowance_period="daily", overage_policy="hard_stop"
     ),
     ("gemini", "gemini:qualification", "gemini-2.5-flash"): TrustedResourceProfile(
-        "gemini", "gemini:qualification", "gemini-2.5-flash", 0, "JPY", True, None, billing_mode="recurring_allowance", allowance_period="daily", overage_policy="hard_stop"
+        "gemini", "gemini:qualification", "gemini-2.5-flash", 0, "JPY", True, None,
+        source="google_gemini_api_pricing_2026-11-02", billing_mode="recurring_allowance", allowance_period="daily", overage_policy="hard_stop"
     ),
     ("gemini", "gemini:qualification", "gemini-3.5-flash-lite"): TrustedResourceProfile(
-        "gemini", "gemini:qualification", "gemini-3.5-flash-lite", 0, "JPY", True, "L1", billing_mode="recurring_allowance", allowance_period="daily", overage_policy="hard_stop"
+        "gemini", "gemini:qualification", "gemini-3.5-flash-lite", 0, "JPY", True, "L1",
+        source="google_gemini_api_pricing_2026-11-02", billing_mode="recurring_allowance", allowance_period="daily", overage_policy="hard_stop"
     ),
     ("gemini", "gemini:qualification", "gemini-3.8-flash"): TrustedResourceProfile(
-        "gemini", "gemini:qualification", "gemini-3.8-flash", 0, "JPY", True, "L2", billing_mode="recurring_allowance", allowance_period="daily", overage_policy="hard_stop"
+        "gemini", "gemini:qualification", "gemini-3.8-flash", 0, "JPY", True, "L2",
+        source="google_gemini_api_pricing_2026-11-02", billing_mode="recurring_allowance", allowance_period="daily", overage_policy="hard_stop"
     ),
     ("ollama", "ollama", "qwen3:8b"): TrustedResourceProfile(
-        "ollama", "ollama", "qwen3:8b", 0, "JPY", False, None, billing_mode="free_fixed"
+        "ollama", "ollama", "qwen3:8b", 0, "JPY", False, None,
+        verified_at=_LOCAL_FIXED_VERIFIED_AT, expires_at=_LOCAL_FIXED_EXPIRES_AT, billing_mode="free_fixed"
     ),
     ("ollama", "ollama:local:qwen3.5-9b", "qwen3.5:9b"): TrustedResourceProfile(
-        "ollama", "ollama:local:qwen3.5-9b", "qwen3.5:9b", 0, "JPY", False, None, billing_mode="free_fixed"
+        "ollama", "ollama:local:qwen3.5-9b", "qwen3.5:9b", 0, "JPY", False, None,
+        verified_at=_LOCAL_FIXED_VERIFIED_AT, expires_at=_LOCAL_FIXED_EXPIRES_AT, billing_mode="free_fixed"
     ),
     ("ollama", "ollama:local:qwen3.5-4b", "qwen3.5:4b"): TrustedResourceProfile(
-        "ollama", "ollama:local:qwen3.5-4b", "qwen3.5:4b", 0, "JPY", False, None, billing_mode="free_fixed"
+        "ollama", "ollama:local:qwen3.5-4b", "qwen3.5:4b", 0, "JPY", False, None,
+        verified_at=_LOCAL_FIXED_VERIFIED_AT, expires_at=_LOCAL_FIXED_EXPIRES_AT, billing_mode="free_fixed"
     ),
     ("ollama", "ollama:local:gemma4-12b", "gemma4:12b"): TrustedResourceProfile(
-        "ollama", "ollama:local:gemma4-12b", "gemma4:12b", 0, "JPY", False, None, billing_mode="free_fixed"
+        "ollama", "ollama:local:gemma4-12b", "gemma4:12b", 0, "JPY", False, None,
+        verified_at=_LOCAL_FIXED_VERIFIED_AT, expires_at=_LOCAL_FIXED_EXPIRES_AT, billing_mode="free_fixed"
     ),
 }
 
@@ -201,6 +236,9 @@ for _slot in ("2", "3", "4", "5"):
         "JPY",
         True,
         "L1",
+        source="google_gemini_api_pricing_2026-11-02",
+        verified_at=_DEFAULT_VERIFIED_AT,
+        expires_at=_DEFAULT_EXPIRES_AT,
         billing_mode="recurring_allowance",
         allowance_period="daily",
         overage_policy="hard_stop",
@@ -217,6 +255,9 @@ for _slot in ("2", "3", "4", "5"):
         "JPY",
         True,
         None,
+        source="google_gemini_api_pricing_2026-11-02",
+        verified_at=_DEFAULT_VERIFIED_AT,
+        expires_at=_DEFAULT_EXPIRES_AT,
         billing_mode="recurring_allowance",
         allowance_period="daily",
         overage_policy="hard_stop",
@@ -237,6 +278,8 @@ for _slot, _model in (("2", "gemini-3.7-flash"), ("3", "gemini-3.6-flash")):
         True,
         None,
         source="operator_reviewed_free_project_model_probe",
+        verified_at=_DEFAULT_VERIFIED_AT,
+        expires_at=_DEFAULT_EXPIRES_AT,
         billing_mode="recurring_allowance",
         allowance_period="daily",
         overage_policy="hard_stop",

@@ -33,6 +33,11 @@ class _QualificationResolver:
         )
 
 
+class _MissingQualificationResolver:
+    def resolve(self, *_args, **_kwargs):
+        return None
+
+
 class _Provider:
     provider_id = "openrouter"
     provider_binding_id = "openrouter:free"
@@ -154,6 +159,53 @@ def test_local_low_tier_is_admitted_for_bounded_quality_advisory_proposal():
     assert admitted[0][1].intelligence_tier == "L1"
 
 
+@pytest.mark.current_billing_catalog
+def test_unqualified_current_free_remote_is_retained_for_text_proposal_with_warning():
+    binding = _binding()
+    admitted = admit_resource_pool(
+        (binding,),
+        resolver=_MissingQualificationResolver(),
+        required_tier="L1",
+        quality_tier_advisory=True,
+        required_capabilities=("text",),
+        model_admission_resolver=_missing_model_evidence_resolver(),
+        profile_resolver=profile_for,
+    )
+
+    assert len(admitted) == 1
+    assert admitted[0][0].proposal_only_candidate is True
+    assert admitted[0][1] is None
+    assert admitted[0][2].no_charge_guaranteed is True
+
+    request = ModelRequest(
+        task_id=str(uuid4()),
+        messages=[{"role": "user", "content": "bounded proposal"}],
+        requested_capabilities=["text"],
+        metadata={
+            "execution_role": "worker",
+            "proposal_only": True,
+            "quality_tier_advisory": True,
+            "authority": "host_validation_required",
+            "allowed_intelligence_tiers": ["L1"],
+            "allow_unknown_quota": True,
+        },
+    )
+    with compose_resource_pool(
+        admitted,
+        resolver=_MissingQualificationResolver(),
+        model_admission_resolver=_missing_model_evidence_resolver(),
+        quality_tier_advisory=True,
+        provider_builder=lambda *, binding: _Provider(),
+    ) as runtime:
+        resource = runtime.ledger.get_resource("devfarm-shadow:openrouter:free")
+        selection = runtime.dispatcher.control.select_route(request)
+
+    assert resource["metadata"]["proposal_only_candidate"] is True
+    assert resource["metadata"]["candidate_admission_warning"] == "QUALIFICATION_UNVERIFIED"
+    assert selection.provider_id == "openrouter"
+    assert selection.admission_warnings == ("QUALIFICATION_UNVERIFIED",)
+
+
 def test_local_ollama_composition_projects_local_privacy_and_no_qualification():
     binding = OperationProviderBinding(
         provider_id="ollama",
@@ -190,6 +242,7 @@ def _missing_model_evidence_resolver() -> ModelAdmissionResolver:
     )
 
 
+@pytest.mark.current_billing_catalog
 def test_composition_accepts_exact_qualified_l1_without_model_evidence(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-only-secret")
     qualification = _QualificationResolver("L1").resolve("openrouter", "openrouter:free", "openrouter/free")
@@ -208,6 +261,7 @@ def test_composition_accepts_exact_qualified_l1_without_model_evidence(monkeypat
     assert resource["capabilities"] == ("text",)
 
 
+@pytest.mark.current_billing_catalog
 def test_composition_routes_legacy_qualified_l1_without_model_evidence(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-only-secret")
     qualification = _QualificationResolver("L1").resolve("openrouter", "openrouter:free", "openrouter/free")
@@ -288,6 +342,7 @@ def test_operation_and_devfarm_compositions_share_canonical_effective_route():
     assert operation_decision.selection.model_id == "qwen3.5:9b"
 
 
+@pytest.mark.current_billing_catalog
 def test_composition_routes_with_explicit_fresh_quota_observation(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-only-secret")
     qualification = _QualificationResolver("L1").resolve("openrouter", "openrouter:free", "openrouter/free")
@@ -518,6 +573,7 @@ def test_host_verified_outcomes_rank_exact_task_model_without_filtering_candidat
     assert mismatched.selection.model_id == "model-without-history"
 
 
+@pytest.mark.current_billing_catalog
 def test_host_accepted_worker_metrics_feed_exact_task_router(tmp_path, monkeypatch):
     import json
     from datetime import timedelta
@@ -577,6 +633,7 @@ def test_host_accepted_worker_metrics_feed_exact_task_router(tmp_path, monkeypat
         billing_mode="free_fixed",
         overage_policy="hard_stop",
         no_charge_guaranteed=True,
+        is_current=lambda **_kwargs: True,
         expires_at=(datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
         allowance_amount=None,
         allowance_currency=None,

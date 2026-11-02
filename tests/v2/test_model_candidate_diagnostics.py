@@ -91,6 +91,7 @@ def test_summarize_entries_separates_static_candidates_from_runtime_unknown():
     assert summary["runtime_unknown_count"] == 1
 
 
+@pytest.mark.current_billing_catalog
 def test_static_candidate_without_runtime_snapshot_is_not_probed(model_evidence):
     rows = diagnose_entries(model_evidence, limit=MAX_DIAGNOSTIC_ROWS, now=DIAGNOSTIC_NOW)
 
@@ -100,6 +101,7 @@ def test_static_candidate_without_runtime_snapshot_is_not_probed(model_evidence)
     assert {row["runtime"] for row in not_probed} == {RUNTIME_NOT_PROBED}
 
 
+@pytest.mark.current_billing_catalog
 def test_missing_benchmark_does_not_replace_runtime_not_probed_reason(model_evidence):
     rows = diagnose_entries(model_evidence, limit=MAX_DIAGNOSTIC_ROWS, now=DIAGNOSTIC_NOW)
 
@@ -153,6 +155,7 @@ def test_explicit_specialized_model_remains_the_diagnostic_gate(monkeypatch):
     assert row["gate_reason"] == "capability_blocked"
 
 
+@pytest.mark.current_billing_catalog
 def test_explicit_runtime_snapshot_distinguishes_unavailable_from_not_probed(model_evidence):
     candidate = next(
         row

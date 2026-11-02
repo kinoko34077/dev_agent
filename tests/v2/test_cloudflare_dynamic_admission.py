@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+import pytest
+
 from src.dev_agent.domain.protocol import ModelRequest
 from src.dev_agent.operation import configured_provider_pool_from_environment
 from src.dev_agent.providers.cloudflare.provider import CloudflareWorkersAIHttpProvider
@@ -79,6 +81,7 @@ def test_cloudflare_catalog_filter_excludes_non_text_and_guard_models():
     ).is_text_generation_candidate()
 
 
+@pytest.mark.current_billing_catalog
 def test_cloudflare_dynamic_billing_policy_allows_free_and_denies_paid_required_models():
     free_profile = profile_for(
         "cloudflare",
@@ -287,6 +290,7 @@ def test_provider_reported_cloudflare_neurons_project_conservative_remaining(tmp
         ledger.close()
 
 
+@pytest.mark.current_billing_catalog
 def test_current_canonical_cloudflare_catalog_materializes_only_exact_qualified_free_candidates():
     binding = next(
         item

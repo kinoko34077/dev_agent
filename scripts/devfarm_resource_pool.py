@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 import json
 import os
@@ -166,6 +166,15 @@ def _resolved_model_admission(
     )
 
 
+def _current_no_charge_profile(profile: Any, *, now: datetime | None) -> bool:
+    if profile is None or getattr(profile, "no_charge_guaranteed", False) is not True:
+        return False
+    is_current = getattr(profile, "is_current", None)
+    if not callable(is_current):
+        return False
+    return bool(is_current() if now is None else is_current(now=now))
+
+
 def admit_resource_pool(
     bindings: Sequence[OperationProviderBinding],
     *,
@@ -256,7 +265,27 @@ def admit_resource_pool(
             binding.model,
             **qualification_kwargs,
         )
+        profile = profile_lookup(
+            binding.provider_id,
+            binding.credential_binding_id,
+            binding.model,
+        )
+        if profile is None:
+            continue
+        if no_charge_required and not _current_no_charge_profile(profile, now=now):
+            continue
         if qualification is None:
+            proposal_candidate = (
+                quality_tier_advisory
+                and required_tier in {"L0", "L1"}
+                and requested_capabilities.issubset({"text"})
+                and bool(binding.quota_domain)
+                and _current_no_charge_profile(profile, now=now)
+            )
+            if not proposal_candidate:
+                continue
+            binding = replace(binding, proposal_only_candidate=True)
+            admitted.append((binding, None, profile))
             continue
         model_admission = _resolved_model_admission(binding, model_admission_resolver, now=now)
         tier_decision = production_tier_authority.resolve(
@@ -284,13 +313,6 @@ def admit_resource_pool(
             admission_capabilities = frozenset(model_admission.capabilities)
             if not requested_capabilities.issubset(admission_capabilities):
                 continue
-        profile = profile_lookup(
-            binding.provider_id,
-            binding.credential_binding_id,
-            binding.model,
-        )
-        if profile is None:
-            continue
         if no_charge_required and not profile.no_charge_guaranteed:
             continue
         if not binding.quota_domain:
@@ -424,14 +446,18 @@ def compose_resource_pool(
                 resolved_admissions,
                 strict=True,
             ):
-                effective_capabilities = sorted(
-                    frozenset(getattr(qualification, "routing_capabilities", ()))
-                    & (
-                        frozenset(model_admission.capabilities)
-                        if model_admission is not None and getattr(model_admission, "capabilities", None) is not None
-                        else frozenset(getattr(qualification, "routing_capabilities", ()))
-                    )
+                unqualified_proposal = (
+                    binding.proposal_only_candidate
+                    and qualification is None
                 )
+                capability_ceiling = (
+                    frozenset({"text"})
+                    if unqualified_proposal
+                    else frozenset(getattr(qualification, "routing_capabilities", ()))
+                )
+                if model_admission is not None and getattr(model_admission, "capabilities", None) is not None:
+                    capability_ceiling &= frozenset(model_admission.capabilities)
+                effective_capabilities = sorted(capability_ceiling)
                 tier_decision = production_tier_authority.resolve(
                     provider_id=binding.provider_id,
                     provider_binding_id=binding.credential_binding_id,
@@ -441,6 +467,7 @@ def compose_resource_pool(
                     model_admission=model_admission,
                     profile=_profile,
                     allow_unverified_quality_proposal=quality_tier_advisory,
+                    allow_unqualified_proposal_candidate=unqualified_proposal,
                 )
                 if not tier_decision.eligible or (
                     tier_decision.tier is None and not quality_tier_advisory
@@ -489,6 +516,12 @@ def compose_resource_pool(
                         "intelligence_tier_source": tier_decision.source,
                         "privacy_profile": privacy_profile(binding.provider_id),
                         "qualification_required": requires_qualification(binding.provider_id),
+                        "proposal_only_candidate": unqualified_proposal,
+                        **(
+                            {"candidate_admission_warning": "QUALIFICATION_UNVERIFIED"}
+                            if unqualified_proposal
+                            else {}
+                        ),
                         "billing_authority": "trusted_catalog",
                         "billing_mode": profile.billing_mode,
                         "overage_policy": profile.overage_policy,
@@ -521,6 +554,11 @@ def compose_resource_pool(
                     ledger,
                     qualification_resolver=resolver,
                     model_admission_resolver=router_model_admission_resolver,
+                    proposal_candidate_identities={
+                        (binding.provider_id, binding.credential_binding_id, binding.model)
+                        for binding, qualification, _profile in admitted
+                        if binding.proposal_only_candidate and qualification is None
+                    },
                 ),
                 BudgetGovernor(ledger, policy),
             )

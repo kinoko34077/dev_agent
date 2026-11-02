@@ -81,6 +81,7 @@ class ProductionTierAuthority:
         profile: Any | None = None,
         allow_legacy_missing_model: bool = False,
         allow_unverified_quality_proposal: bool = False,
+        allow_unqualified_proposal_candidate: bool = False,
     ) -> ProductionTierDecision:
         if not all(isinstance(value, str) and value.strip() for value in (provider_id, provider_binding_id)):
             return ProductionTierDecision(None, False, "none", "IDENTITY_INCOMPLETE")
@@ -91,6 +92,8 @@ class ProductionTierAuthority:
         persisted = self._validate_optional_tier(persisted_tier, "persisted_tier")
         if not isinstance(allow_unverified_quality_proposal, bool):
             raise ValueError("allow_unverified_quality_proposal must be a boolean")
+        if not isinstance(allow_unqualified_proposal_candidate, bool):
+            raise ValueError("allow_unqualified_proposal_candidate must be a boolean")
         qualification_tier = _evidence_tier(qualification)
         # Kept as a call-compatible advisory argument. A benchmark's overall
         # score must never grant, upgrade, downgrade, or conflict with the
@@ -99,6 +102,13 @@ class ProductionTierAuthority:
         evidence_tier = qualification_tier
         if provider_policy.requires_qualification(provider_id):
             if qualification is None:
+                if allow_unverified_quality_proposal and allow_unqualified_proposal_candidate:
+                    return ProductionTierDecision(
+                        None,
+                        True,
+                        "proposal_candidate",
+                        "QUALIFICATION_UNVERIFIED",
+                    )
                 return ProductionTierDecision(None, False, "none", "QUALIFICATION_MISSING")
             if evidence_tier is not None:
                 return ProductionTierDecision(evidence_tier, True, "qualification", "QUALIFIED")

@@ -260,7 +260,7 @@ def test_model_planner_can_require_an_exact_l2_route_without_model_name_inferenc
     assert request.metadata["allowed_intelligence_tiers"] == ["L2"]
 
 
-def test_model_planner_can_use_existing_dispatcher_for_exact_qualified_l2(tmp_path, historical_qualification_review_clock):
+def test_model_planner_can_use_existing_dispatcher_for_exact_qualified_l2(tmp_path, monkeypatch, historical_qualification_review_clock):
     parent_task_id = str(uuid4())
     # This tests a previously reviewed synthetic route, not today's expired
     # production billing/qualification authority. Keep the mock evidence
@@ -286,6 +286,27 @@ def test_model_planner_can_use_existing_dispatcher_for_exact_qualified_l2(tmp_pa
         ]
     )
     provider = _RoutedPlannerProvider(parent_task_id)
+    from src.dev_agent.resources.billing_catalog import TrustedResourceProfile
+
+    test_profile = TrustedResourceProfile(
+        "gemini",
+        "gemini:core",
+        "gemini-3.8-flash",
+        0,
+        "JPY",
+        True,
+        "L2",
+        source="test_only_synthetic_billing_fixture",
+        verified_at=(now - timedelta(days=1)).isoformat(),
+        expires_at=(now + timedelta(days=1)).isoformat(),
+        billing_mode="recurring_allowance",
+        allowance_period="daily",
+        overage_policy="hard_stop",
+    )
+    monkeypatch.setattr(
+        "src.dev_agent.resources.router.profile_for",
+        lambda *_args: test_profile,
+    )
     ledger = ResourceLedger(tmp_path / "planner-routing.sqlite3")
     try:
         ledger.register_resource(

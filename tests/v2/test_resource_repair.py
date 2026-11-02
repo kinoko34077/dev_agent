@@ -1,13 +1,48 @@
 from datetime import datetime, timezone
 
+import pytest
+
 from src.dev_agent.resources.ledger import ResourceLedger
 from src.dev_agent.resources.budget import BudgetAuthority, BudgetPolicy
 from src.dev_agent.resources.qualification import QualificationResolver
+from src.dev_agent.resources.billing_catalog import TrustedResourceProfile
+from src.dev_agent.resources import repair as repair_module
 from src.dev_agent.resources.repair import apply_resource_repairs, plan_resource_repairs
 from recovery.validate_resources import legacy_resource_metadata, validate_resource_ledger
 
 
 MODEL = "@cf/zai-org/glm-4.7-flash"
+
+
+@pytest.fixture
+def historical_cloudflare_billing_profile(monkeypatch):
+    """Keep legacy-repair behavior tests on their explicit October clock."""
+    profile = TrustedResourceProfile(
+        provider_id="cloudflare",
+        provider_binding_id="cloudflare:account",
+        model_id=MODEL,
+        cost_minor=0,
+        price_currency="JPY",
+        quota_required=True,
+        intelligence_tier="L1",
+        source="test_only_historical_resource_repair_fixture",
+        verified_at="2026-10-01T00:00:00+00:00",
+        expires_at="2026-12-01T00:00:00+00:00",
+        billing_mode="recurring_allowance",
+        allowance_period="daily",
+        overage_policy="hard_stop",
+    )
+
+    def profile_for(provider_id, binding_id, model_id):
+        if (provider_id, binding_id, model_id) == (
+            "cloudflare",
+            "cloudflare:account",
+            MODEL,
+        ):
+            return profile
+        return None
+
+    monkeypatch.setattr(repair_module, "trusted_billing_profile_for", profile_for)
 
 
 def _resolver(*, expires_at: str = "2026-11-02T00:00:00+00:00") -> QualificationResolver:
@@ -49,7 +84,9 @@ def _legacy_resource(ledger: ResourceLedger) -> None:
     ledger.observe("cloudflare", available=1, health="healthy", confidence=0.8)
 
 
-def test_legacy_resource_is_reported_without_startup_style_mutation(tmp_path):
+def test_legacy_resource_is_reported_without_startup_style_mutation(
+    tmp_path, historical_cloudflare_billing_profile
+):
     path = tmp_path / "resources.sqlite3"
     with ResourceLedger(path) as ledger:
         _legacy_resource(ledger)
@@ -73,7 +110,9 @@ def test_legacy_resource_is_reported_without_startup_style_mutation(tmp_path):
         assert "legacy resource metadata" in detail
 
 
-def test_explicit_resource_repair_updates_projection_and_records_before_after_audit(tmp_path):
+def test_explicit_resource_repair_updates_projection_and_records_before_after_audit(
+    tmp_path, historical_cloudflare_billing_profile
+):
     path = tmp_path / "resources.sqlite3"
     with ResourceLedger(path) as ledger:
         _legacy_resource(ledger)
@@ -101,7 +140,9 @@ def test_explicit_resource_repair_updates_projection_and_records_before_after_au
         assert audit[0]["after"]["capabilities"] == ["text", "tool_call"]
 
 
-def test_resource_repair_fails_closed_for_expired_or_unidentified_resource(tmp_path):
+def test_resource_repair_fails_closed_for_expired_or_unidentified_resource(
+    tmp_path, historical_cloudflare_billing_profile
+):
     path = tmp_path / "resources.sqlite3"
     with ResourceLedger(path) as ledger:
         _legacy_resource(ledger)
@@ -125,7 +166,12 @@ def test_resource_repair_fails_closed_for_expired_or_unidentified_resource(tmp_p
         assert "model identity" in by_id["missing-identity"].reason
 
 
-def test_resource_cli_migrate_requires_explicit_apply_and_operator_audit(tmp_path, capsys, historical_repair_review_clock):
+def test_resource_cli_migrate_requires_explicit_apply_and_operator_audit(
+    tmp_path,
+    capsys,
+    historical_repair_review_clock,
+    historical_cloudflare_billing_profile,
+):
     from src.dev_agent.cli import main
 
     resource_path = tmp_path / "resources.sqlite3"

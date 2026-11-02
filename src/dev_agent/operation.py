@@ -51,7 +51,7 @@ from .scheduler.worker import WorkerRunner
 from .state.control_repository import OperationControl
 from .state.sqlite_store import SQLiteStateStore
 from .security.audit import AuditRecorder
-from .operation_bootstrap import open_components
+from .operation_bootstrap import ProviderCandidateAdvisory, open_components
 from .tools.registry import ToolRegistry, ToolSpec
 from .tools.runtime import ToolRuntime
 from .runtime.controller import Controller
@@ -164,11 +164,14 @@ class OperationProviderBinding:
     model_candidates: tuple[str, ...] | list[str] | None = None
     qualification_binding_id: str | None = None
     expand_discovered_models: bool = False
-    # Environment-configured pins must be checked against the provider's
-    # current inventory before becoming runtime bindings. Keep this separate
-    # from expansion so an operator can pin one exact model without silently
-    # accepting a stale or removed identity.
+    # Environment-configured pins request a current provider inventory check.
+    # If discovery is unavailable, Host retains the exact identity for
+    # operator visibility but blocks dispatch until inventory is confirmed.
     require_current_model_discovery: bool = False
+    # Host bootstrap sets this only for an exact current no-charge remote
+    # identity. It permits proposal-only text routing without turning missing
+    # qualification into a formal tier grant.
+    proposal_only_candidate: bool = False
 
     def __post_init__(self) -> None:
         provider_id = self.provider_id.strip().lower() if isinstance(self.provider_id, str) else ""
@@ -201,6 +204,8 @@ class OperationProviderBinding:
             raise ValueError("expand_discovered_models must be a boolean")
         if not isinstance(self.require_current_model_discovery, bool):
             raise ValueError("require_current_model_discovery must be a boolean")
+        if not isinstance(self.proposal_only_candidate, bool):
+            raise ValueError("proposal_only_candidate must be a boolean")
         candidates = self.model_candidates
         if candidates is not None:
             if isinstance(candidates, str) or not isinstance(candidates, (list, tuple)) or not candidates:
@@ -244,13 +249,12 @@ class OperationProviderBinding:
 
 
 def _configured_provider_pool_from_environment(env: Callable[[str], str | None]) -> tuple[OperationProviderBinding, ...]:
-    """Build an explicit opt-in pool from configured, non-secret binding metadata.
+    """Build configured, non-secret binding metadata for available providers.
 
-    Presence of a credential alone never activates this path.  The caller must
-    opt in.  A model value is retained as a bounded construction seed because
-    the binding contract is concrete, but an unpinned cloud lane opts into
-    discovery and the seed is admitted only when the current catalog and all
-    downstream qualification/billing authorities accept it.
+    Credential values are not returned. A model value is retained as a
+    bounded construction seed; an unpinned cloud lane also uses current model
+    discovery. Host bootstrap still applies exact billing, privacy, quota,
+    health, and capability policy before dispatch.
     """
 
     bindings: list[OperationProviderBinding] = []
@@ -456,13 +460,11 @@ def _configured_provider_pool_from_environment(env: Callable[[str], str | None])
 def configured_provider_pool_from_environment(
     env: Callable[[str], str | None] = os.getenv,
 ) -> tuple[OperationProviderBinding, ...]:
-    """Return explicitly configured, non-secret Provider binding metadata.
+    """Return configured, non-secret Provider binding metadata.
 
-    Reading this pool is intentionally separate from activation.  Callers
-    must still opt into the pool and pass each binding through the existing
-    qualification, billing, privacy, quota, and health gates before any
-    request is dispatched.  The injected getter keeps this boundary easy to
-    inspect without importing or returning credential values.
+    Pool activation is owned by ``OperationConfig.from_environment``. This
+    function only projects the configured environment into non-secret
+    bindings; credentials are never copied into the returned objects.
     """
 
     if not callable(env):
@@ -474,10 +476,13 @@ def configured_provider_pool_from_environment(
 class OperationConfig:
     """Non-secret settings for the local Operation Layer.
 
-    The default provider is the deterministic ``fake`` adapter so invoking a
-    local smoke command cannot unexpectedly spend quota or money.  A real
-    adapter is selected explicitly with ``DEV_AGENT_PROVIDER`` and
-    ``DEV_AGENT_MODEL`` or the corresponding CLI flags.  The independent
+    The default provider is the deterministic ``fake`` adapter when no
+    provider credentials or explicit route are configured. Configured
+    provider credentials or explicit local model settings activate the reviewed
+    candidate pool automatically; callers can explicitly disable it with
+    ``DEV_AGENT_DISABLE_CONFIGURED_POOL``.
+    An explicit single route takes precedence. Exact billing, privacy, quota,
+    health, and capability policies remain owned by Host admission. The independent
     model-evidence snapshots are also opt-in through
     ``DEV_AGENT_MODEL_EVIDENCE_DIR``; leaving it unset preserves the legacy
     Operation routing view while Planner composition can opt in explicitly.
@@ -618,10 +623,33 @@ class OperationConfig:
             except ValueError as exc:
                 raise ValueError(f"{name} must be numeric") from exc
 
-        provider_pool_value = provider_pool or env("DEV_AGENT_PROVIDER_POOL")
-        if provider_pool_value is None and env("DEV_AGENT_ENABLE_CONFIGURED_POOL") in {"1", "true", "yes"}:
+        environment_pool = env("DEV_AGENT_PROVIDER_POOL")
+        provider_pool_value = provider_pool if provider_pool is not None else environment_pool
+        force_configured_pool = env("DEV_AGENT_ENABLE_CONFIGURED_POOL") in {"1", "true", "yes"}
+        disable_configured_pool = env("DEV_AGENT_DISABLE_CONFIGURED_POOL") in {"1", "true", "yes"}
+        explicit_single_route = any(
+            value is not None
+            for value in (
+                provider_id,
+                model,
+                provider_binding_id,
+                env("DEV_AGENT_PROVIDER"),
+                env("DEV_AGENT_MODEL"),
+                env("DEV_AGENT_PROVIDER_BINDING_ID"),
+            )
+        )
+        if provider_pool_value is None and not disable_configured_pool:
             configured_pool = configured_provider_pool_from_environment(env)
-            provider_pool_value = configured_pool or None
+            configured_credentials = any(
+                binding.api_key_env is not None and env(binding.api_key_env) is not None
+                for binding in configured_pool
+            )
+            explicit_local_configuration = any(
+                env(name) is not None
+                for name in ("OLLAMA_MODEL", "OLLAMA_MODELS", "OLLAMA_BASE_URL", "OLLAMA_CRITIC_MODEL")
+            )
+            if force_configured_pool or (not explicit_single_route and (configured_credentials or explicit_local_configuration)):
+                provider_pool_value = configured_pool or None
 
         return cls(
             data_dir=Path(data_dir or env("DEV_AGENT_DATA_DIR") or ".dev_agent"),
@@ -702,7 +730,7 @@ class OperationService:
     _PROVIDER_LIVENESS_MAX_AGE_SECONDS = 300.0
     _PROVIDER_LIVENESS_RETRY_INTERVAL_SECONDS = 60.0
 
-    def __init__(self, config: OperationConfig, *, store: SQLiteStateStore, queue: DurableQueue, ledger: ResourceLedger, control: OperationControl, controller: Controller, worker: WorkerRunner, dispatcher: ProviderDispatcher, evaluation: EvaluationCoordinator, lifecycle: TaskLifecycleCoordinator, qualification_resolver: QualificationResolver | None = None, model_admission_resolver: ModelAdmissionResolver | None = None, human_interaction_port: HumanInteractionPort | None = None) -> None:
+    def __init__(self, config: OperationConfig, *, store: SQLiteStateStore, queue: DurableQueue, ledger: ResourceLedger, control: OperationControl, controller: Controller, worker: WorkerRunner, dispatcher: ProviderDispatcher, evaluation: EvaluationCoordinator, lifecycle: TaskLifecycleCoordinator, qualification_resolver: QualificationResolver | None = None, model_admission_resolver: ModelAdmissionResolver | None = None, human_interaction_port: HumanInteractionPort | None = None, provider_candidate_advisories: tuple[ProviderCandidateAdvisory, ...] = ()) -> None:
         self.config = config
         self.store = store
         self.queue = queue
@@ -716,6 +744,7 @@ class OperationService:
         self._qualification_resolver = qualification_resolver or QualificationResolver()
         self._model_admission_resolver = model_admission_resolver
         self._human_interaction_port = human_interaction_port or SQLiteHumanInteractionPort(store)
+        self._provider_candidate_advisories = tuple(provider_candidate_advisories)
         self._closed = False
         self._runtime_prepared = False
         self._last_deterministic_local_refresh_at: datetime | None = None
@@ -730,6 +759,11 @@ class OperationService:
     def model_admission_resolver(self) -> ModelAdmissionResolver | None:
         """Return the optional explicitly composed model-evidence view."""
         return self._model_admission_resolver
+
+    @property
+    def provider_candidate_advisories(self) -> tuple[ProviderCandidateAdvisory, ...]:
+        """Return configured candidate warnings without granting dispatch authority."""
+        return self._provider_candidate_advisories
 
     @property
     def human_interaction_port(self) -> HumanInteractionPort:
@@ -768,6 +802,7 @@ class OperationService:
             lifecycle=components.lifecycle,
             qualification_resolver=components.qualification_resolver,
             model_admission_resolver=components.model_admission_resolver,
+            provider_candidate_advisories=components.provider_candidate_advisories,
         )
 
     def _lifecycle_loop(self, task_id: str, *, max_cycles: int) -> FiniteLifecycleLoop:
@@ -1587,6 +1622,19 @@ class OperationService:
         profile = _operation_resource_profile(config.provider_id, evidence_binding_id, model_id)
         resolver = qualification_resolver or QualificationResolver()
         qualification = resolver.resolve(config.provider_id, evidence_binding_id, model_id)
+        proposal_only_candidate = getattr(config, "proposal_only_candidate", False) is True
+        proposal_profile_is_current_free = bool(
+            profile is not None
+            and profile.no_charge_guaranteed
+            and profile.is_current()
+        )
+        if proposal_only_candidate and (
+            not _requires_qualification(config.provider_id)
+            or not proposal_profile_is_current_free
+        ):
+            raise OperationError(
+                f"proposal-only candidate requires an exact current no-charge remote profile: {binding_id}/{model_id}"
+            )
         tier_decision = production_tier_authority.resolve(
             provider_id=config.provider_id,
             provider_binding_id=binding_id,
@@ -1594,6 +1642,8 @@ class OperationService:
             configured_tier=getattr(config, "intelligence_tier", None),
             qualification=qualification,
             profile=profile,
+            allow_unverified_quality_proposal=proposal_only_candidate,
+            allow_unqualified_proposal_candidate=proposal_only_candidate,
         )
         tier = tier_decision.tier
         try:
@@ -1655,16 +1705,21 @@ class OperationService:
                 raise OperationError(
                     f"existing resource billing metadata is not trusted for binding/model: {binding_id}/{model_id}"
                 )
-            # Startup qualification check for cloud providers.  An existing
+            # Startup qualification check for cloud providers. An existing
             # resource without a current qualification record must not remain
             # routable just because Operation was restarted; the operator must
             # re-qualify the binding before it can dispatch.  Local providers
             # (ollama, fake) are exempt via provider_policy.
             if _requires_qualification(config.provider_id):
                 if qualification is None:
-                    raise OperationError(
-                        f"existing resource has no current qualification record: {binding_id}/{model_id}"
-                    )
+                    if not (
+                        proposal_only_candidate
+                        and metadata.get("proposal_only_candidate") is True
+                        and proposal_profile_is_current_free
+                    ):
+                        raise OperationError(
+                            f"existing resource has no current qualification record: {binding_id}/{model_id}"
+                        )
                 # Privacy authority: remote resources must not carry a
                 # local-only privacy profile or a sensitive sensitivity claim.
                 if metadata.get("privacy_profile") == "local_only":
@@ -1700,6 +1755,9 @@ class OperationService:
         # smoke resources intentionally remain outside that external
         # qualification authority.
         resource_metadata["qualification_required"] = _requires_qualification(config.provider_id)
+        if proposal_only_candidate:
+            resource_metadata["proposal_only_candidate"] = True
+            resource_metadata["candidate_admission_warning"] = "QUALIFICATION_UNVERIFIED"
         if tier:
             resource_metadata["intelligence_tier"] = tier
         if getattr(config, "intelligence_tier", None) is not None:

@@ -186,6 +186,7 @@ def test_router_rejects_stale_quota_observation_for_quota_domain(tmp_path):
         ResourceRouter(ledger).choose(RouteRequest(capabilities={"text"}))
 
 
+@pytest.mark.current_billing_catalog
 def test_router_allows_one_explicit_unknown_quota_bootstrap_for_trusted_free_resource(tmp_path):
     ledger = ResourceLedger(tmp_path / "unknown-quota-bootstrap.sqlite3")
     ledger.register_resource(
@@ -507,6 +508,100 @@ def test_remote_provider_without_qualification_is_rejected(tmp_path):
         )
 
 
+@pytest.mark.current_billing_catalog
+def test_current_discovered_free_remote_candidate_routes_for_text_proposal_with_warning(tmp_path):
+    ledger = ResourceLedger(tmp_path / "unqualified-proposal-candidate.sqlite3")
+    binding = "gemini:worker:free-2"
+    model = "gemini-3.8-flash"
+    ledger.register_resource(
+        "gemini-proposal-candidate",
+        provider_id="gemini",
+        provider_binding_id=binding,
+        native_unit="request",
+        capacity=1,
+        capabilities=["text"],
+        cost_minor=0,
+        price_currency="JPY",
+        quota_domain="gemini:project:394829782092",
+        metadata={
+            "provider_binding_id": binding,
+            "qualification_binding_id": binding,
+            "model_id": model,
+            "billing_authority": "trusted_catalog",
+            "billing_mode": "recurring_allowance",
+            "overage_policy": "hard_stop",
+            "no_charge_guaranteed": True,
+            "billing_expires_at": "2026-12-02T00:00:00+00:00",
+            "proposal_only_candidate": True,
+            "candidate_admission_warning": "QUALIFICATION_UNVERIFIED",
+        },
+    )
+    ledger.observe("gemini-proposal-candidate", available=1, health="degraded", confidence=0.0)
+
+    router = ResourceRouter(
+        ledger,
+        qualification_resolver=_NullQualificationResolver(),
+        proposal_candidate_identities={("gemini", binding, model)},
+    )
+    selection = router.choose(
+        RouteRequest(
+            capabilities={"text"},
+            allow_unknown_quota=True,
+            quality_tier_advisory=True,
+            allow_unqualified_proposal_candidate=True,
+        )
+    )
+
+    assert selection.resource_id == "gemini-proposal-candidate"
+    assert selection.quality_state == "QUALITY_UNVERIFIED"
+    assert selection.admission_warnings == ("QUALIFICATION_UNVERIFIED",)
+
+
+def test_unqualified_candidate_does_not_satisfy_formal_l2_or_nontext_request(tmp_path):
+    ledger = ResourceLedger(tmp_path / "unqualified-proposal-formal-denied.sqlite3")
+    binding = "gemini:worker:free-2"
+    model = "gemini-3.8-flash"
+    ledger.register_resource(
+        "gemini-proposal-candidate",
+        provider_id="gemini",
+        provider_binding_id=binding,
+        native_unit="request",
+        capacity=1,
+        capabilities=["text"],
+        cost_minor=0,
+        price_currency="JPY",
+        quota_domain="gemini:project:394829782092",
+        metadata={
+            "provider_binding_id": binding,
+            "qualification_binding_id": binding,
+            "model_id": model,
+            "billing_authority": "trusted_catalog",
+            "billing_mode": "recurring_allowance",
+            "overage_policy": "hard_stop",
+            "no_charge_guaranteed": True,
+            "billing_expires_at": "2026-12-02T00:00:00+00:00",
+        },
+    )
+    ledger.observe("gemini-proposal-candidate", available=1, health="degraded", confidence=0.0)
+    router = ResourceRouter(
+        ledger,
+        qualification_resolver=_NullQualificationResolver(),
+        proposal_candidate_identities={("gemini", binding, model)},
+    )
+
+    for capabilities, allowed_tiers in (({"text"}, {"L2"}), ({"text", "tool_call"}, None)):
+        with pytest.raises(NoRoute, match="no eligible resource"):
+            router.choose(
+                RouteRequest(
+                    capabilities=capabilities,
+                    allow_unknown_quota=True,
+                    allowed_intelligence_tiers=allowed_tiers,
+                    quality_tier_advisory=True,
+                    allow_unqualified_proposal_candidate=True,
+                )
+            )
+
+
 @pytest.mark.security
 def test_persisted_resource_capabilities_alone_do_not_grant_routing(tmp_path):
     """Capability fields in the resource row are never authoritative without qualification."""
@@ -570,6 +665,7 @@ def test_qualification_exempt_providers_route_without_qualification(tmp_path):
     assert selection.provider_id in {"ollama", "fake"}
 
 
+@pytest.mark.current_billing_catalog
 def test_router_accepts_resource_with_current_billing(tmp_path):
     ledger = ResourceLedger(tmp_path / "billing-current.sqlite3")
     future = (datetime.now(timezone.utc) + timedelta(days=28)).isoformat()

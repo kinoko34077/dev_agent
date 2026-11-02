@@ -758,6 +758,7 @@ def test_operation_resource_bootstrap_is_read_only_for_existing_resource(tmp_pat
         assert ledger.get_resource("fake:default") == before
 
 
+@pytest.mark.current_billing_catalog
 def test_operation_only_marks_exact_known_binding_and_model_as_free(tmp_path):
     from src.dev_agent.operation import OperationService
     from src.dev_agent.resources.ledger import ResourceLedger
@@ -788,6 +789,7 @@ def test_operation_only_marks_exact_known_binding_and_model_as_free(tmp_path):
         assert ledger.get_resource("cloudflare:unknown")["cost_minor"] is None
 
 
+@pytest.mark.current_billing_catalog
 def test_operation_composes_an_explicit_multi_provider_pool_with_bounded_routing(tmp_path):
     config = OperationConfig(
         data_dir=tmp_path,
@@ -836,6 +838,7 @@ class _OperationPoolProvider(FakeProvider):
         return ModelResponse(provider=self.provider_id, model=self.model_id, text_segments=["pool-success"])
 
 
+@pytest.mark.current_billing_catalog
 def test_operation_dispatches_l1_task_through_pool_and_falls_back_within_tier(tmp_path, monkeypatch, historical_qualification_review_clock):
     primary = _OperationPoolProvider(
         "cloudflare",
@@ -922,6 +925,243 @@ def test_operation_rejects_existing_resource_with_untrusted_free_price(tmp_path)
         assert ledger.get_resource("cloudflare:unqualified")["cost_minor"] == 0
 
 
+@pytest.mark.current_billing_catalog
+def test_operation_registers_exact_free_remote_candidate_without_qualification(tmp_path):
+    from types import SimpleNamespace
+
+    from src.dev_agent.resources.ledger import ResourceLedger
+
+    class MissingQualificationResolver:
+        def resolve(self, *_args, **_kwargs):
+            return None
+
+    binding = OperationProviderBinding(
+        provider_id="openrouter",
+        model="openrouter/free",
+        provider_binding_id="openrouter:account",
+        qualification_binding_id="openrouter:free",
+        quota_domain="openrouter:account",
+        proposal_only_candidate=True,
+    )
+    provider = SimpleNamespace(
+        provider_binding_id=binding.binding_id,
+        model_id=binding.model,
+        intelligence_tier=None,
+    )
+
+    with ResourceLedger(tmp_path / "resources.sqlite3") as ledger:
+        OperationService._ensure_resource(
+            ledger,
+            provider,
+            binding,
+            qualification_resolver=MissingQualificationResolver(),
+        )
+        resource = ledger.get_resource(binding.binding_id)
+
+    assert resource["cost_minor"] == 0
+    assert resource["metadata"].get("intelligence_tier") is None
+    assert resource["metadata"]["proposal_only_candidate"] is True
+    assert resource["metadata"]["candidate_admission_warning"] == "QUALIFICATION_UNVERIFIED"
+
+
+@pytest.mark.current_billing_catalog
+def test_operation_open_keeps_unqualified_free_remote_as_warning_candidate(tmp_path, monkeypatch):
+    binding = OperationProviderBinding(
+        provider_id="openrouter",
+        model="openrouter/free",
+        provider_binding_id="openrouter:free",
+        quota_domain="openrouter:account",
+        api_key_env="OPENROUTER_API_KEY",
+    )
+
+    class CandidateProvider:
+        provider_id = "openrouter"
+        provider_binding_id = "openrouter:free"
+        model_id = "openrouter/free"
+        intelligence_tier = None
+
+        def request(self, _request):
+            raise AssertionError("composition must not dispatch a provider request")
+
+    class MissingQualificationResolver:
+        def resolve(self, *_args, **_kwargs):
+            return None
+
+    def build_provider(_config, *, qualification_resolver=None):
+        return CandidateProvider()
+
+    monkeypatch.setattr(OperationService, "_build_provider", staticmethod(build_provider))
+    monkeypatch.setattr(
+        "src.dev_agent.operation_bootstrap.QualificationResolver",
+        lambda: MissingQualificationResolver(),
+    )
+    config = OperationConfig(
+        data_dir=tmp_path,
+        provider_pool=(binding,),
+        worker_id="unqualified-free-candidate-test",
+    )
+
+    with OperationService.open(config) as service:
+        resource = service.ledger.get_resource(binding.binding_id)
+        router = service.dispatcher.control.router
+
+    assert resource["metadata"]["proposal_only_candidate"] is True
+    assert resource["metadata"]["candidate_admission_warning"] == "QUALIFICATION_UNVERIFIED"
+    assert router._proposal_candidate_identities == frozenset(
+        {(binding.provider_id, binding.credential_binding_id, binding.model)}
+    )
+
+
+@pytest.mark.current_billing_catalog
+def test_operation_exposes_unverified_billing_candidate_without_dispatching_it(tmp_path):
+    binding = OperationProviderBinding(
+        provider_id="groq",
+        model="llama-3.3-70b-versatile",
+        provider_binding_id="groq:configured",
+        api_key_env="GROQ_API_KEY",
+    )
+    config = OperationConfig(
+        data_dir=tmp_path,
+        provider_pool=(
+            binding,
+            OperationProviderBinding(
+                provider_id="groq",
+                model="llama-3.3-70b-versatile",
+                provider_binding_id="groq:second-configured",
+                api_key_env="GROQ_API_KEY",
+            ),
+            OperationProviderBinding(
+                provider_id="fake",
+                model="deterministic",
+                provider_binding_id="fake:advisory-test",
+            ),
+        ),
+        worker_id="billing-candidate-advisory-test",
+    )
+
+    with OperationService.open(config) as service:
+        advisories = service.provider_candidate_advisories
+        with pytest.raises(ProviderError, match="unsupported provider binding"):
+            service.dispatcher.registry.get_binding(binding.binding_id)
+
+    assert [item.to_dict() for item in advisories] == [
+        {
+            "provider_id": "groq",
+            "binding_id": "groq:configured",
+            "model_id": "llama-3.3-70b-versatile",
+            "warning_category": "BILLING_UNVERIFIED",
+            "blocks_dispatch": True,
+        },
+        {
+            "provider_id": "groq",
+            "binding_id": "groq:second-configured",
+            "model_id": "llama-3.3-70b-versatile",
+            "warning_category": "BILLING_UNVERIFIED",
+            "blocks_dispatch": True,
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    ("discovery_mode", "warning_category"),
+    (
+        ("unavailable", "MODEL_DISCOVERY_UNVERIFIED"),
+        ("pin_missing", "MODEL_NOT_IN_CURRENT_INVENTORY"),
+    ),
+)
+@pytest.mark.current_billing_catalog
+def test_operation_keeps_unconfirmed_exact_pin_visible_but_non_dispatchable(
+    tmp_path, monkeypatch, discovery_mode, warning_category
+):
+    from types import SimpleNamespace
+
+    binding = OperationProviderBinding(
+        provider_id="openrouter",
+        model="openrouter/free",
+        provider_binding_id="openrouter:free",
+        api_key_env="OPENROUTER_API_KEY",
+        quota_domain="openrouter:account",
+        require_current_model_discovery=True,
+    )
+    if discovery_mode == "unavailable":
+        def discover_unavailable(*_args, **_kwargs):
+            raise RuntimeError("synthetic discovery failure")
+
+        monkeypatch.setattr(
+            "src.dev_agent.operation_bootstrap.ProviderModelDiscovery.discover",
+            discover_unavailable,
+        )
+    else:
+        monkeypatch.setattr(
+            "src.dev_agent.operation_bootstrap.ProviderModelDiscovery.discover",
+            lambda *_args, **_kwargs: SimpleNamespace(
+                to_document=lambda: {"schema_version": 1, "entries": []}
+            ),
+        )
+
+    config = OperationConfig(
+        data_dir=tmp_path,
+        provider_pool=(
+            binding,
+            OperationProviderBinding(
+                provider_id="fake",
+                model="deterministic",
+                provider_binding_id="fake:discovery-advisory-test",
+            ),
+        ),
+        worker_id=f"discovery-advisory-{discovery_mode}",
+    )
+
+    with OperationService.open(config) as service:
+        advisories = [item.to_dict() for item in service.provider_candidate_advisories]
+        with pytest.raises(ProviderError, match="unsupported provider binding"):
+            service.dispatcher.registry.get_binding(binding.binding_id)
+
+    assert advisories == [
+        {
+            "provider_id": "openrouter",
+            "binding_id": "openrouter:free",
+            "model_id": "openrouter/free",
+            "warning_category": warning_category,
+            "blocks_dispatch": True,
+        }
+    ]
+
+
+def test_operation_rejects_unqualified_candidate_without_exact_current_free_profile(tmp_path):
+    from types import SimpleNamespace
+
+    from src.dev_agent.operation import OperationError
+    from src.dev_agent.resources.ledger import ResourceLedger
+
+    class MissingQualificationResolver:
+        def resolve(self, *_args, **_kwargs):
+            return None
+
+    binding = OperationProviderBinding(
+        provider_id="gemini",
+        model="not-in-no-charge-catalog",
+        provider_binding_id="gemini:worker",
+        quota_domain="gemini:project:test",
+        proposal_only_candidate=True,
+    )
+    provider = SimpleNamespace(
+        provider_binding_id=binding.binding_id,
+        model_id=binding.model,
+        intelligence_tier=None,
+    )
+
+    with ResourceLedger(tmp_path / "resources.sqlite3") as ledger:
+        with pytest.raises(OperationError, match="exact current no-charge"):
+            OperationService._ensure_resource(
+                ledger,
+                provider,
+                binding,
+                qualification_resolver=MissingQualificationResolver(),
+            )
+
+
+@pytest.mark.current_billing_catalog
 def test_operation_rejects_existing_free_resource_without_model_identity(tmp_path):
     from src.dev_agent.operation import OperationError, OperationService
     from src.dev_agent.providers.cloudflare import CloudflareWorkersAIHttpProvider
@@ -952,6 +1192,7 @@ def test_operation_rejects_existing_free_resource_without_model_identity(tmp_pat
             OperationService._ensure_resource(ledger, provider, config)
 
 
+@pytest.mark.current_billing_catalog
 def test_operation_rejects_existing_zero_cost_resource_without_catalog_authority(tmp_path):
     from src.dev_agent.operation import OperationError, OperationService
     from src.dev_agent.providers.cloudflare import CloudflareWorkersAIHttpProvider
@@ -983,6 +1224,7 @@ def test_operation_rejects_existing_zero_cost_resource_without_catalog_authority
             OperationService._ensure_resource(ledger, provider, config)
 
 
+@pytest.mark.current_billing_catalog
 def test_operation_requires_quota_domain_for_remote_resource(tmp_path):
     from src.dev_agent.operation import OperationError, OperationService
     from src.dev_agent.resources.ledger import ResourceLedger
@@ -999,6 +1241,7 @@ def test_operation_requires_quota_domain_for_remote_resource(tmp_path):
             OperationService._ensure_resource(ledger, provider, config)
 
 
+@pytest.mark.current_billing_catalog
 def test_operation_does_not_fill_missing_existing_quota_domain_from_runtime_config(tmp_path):
     from src.dev_agent.operation import OperationError, OperationService
     from src.dev_agent.providers.cloudflare import CloudflareWorkersAIHttpProvider
@@ -1137,6 +1380,36 @@ def test_operation_config_can_explicitly_build_configured_cloud_provider_pool(mo
     assert bindings["ollama_cloud:account"].api_key_env == "OLLAMA_API_KEY"
     assert bindings["vercel:account"].api_key_env == "AI_GATEWAY_API_KEY"
     assert all("secret-not-read" not in repr(binding) for binding in bindings.values())
+
+
+def test_operation_config_uses_configured_provider_keys_without_extra_opt_in(monkeypatch, tmp_path):
+    for name in (
+        "DEV_AGENT_ENABLE_CONFIGURED_POOL",
+        "DEV_AGENT_DISABLE_CONFIGURED_POOL",
+        "DEV_AGENT_PROVIDER_POOL",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("GEMINI_API_KEY", "secret-not-read-into-config")
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "secret-not-read-into-config")
+    monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "account-not-read-into-config")
+
+    config = OperationConfig.from_environment(data_dir=tmp_path)
+
+    providers = {binding.provider_id for binding in config.provider_bindings}
+    assert {"gemini", "cloudflare", "ollama"}.issubset(providers)
+    assert all("secret-not-read" not in repr(binding) for binding in config.provider_bindings)
+
+
+def test_operation_config_allows_explicit_configured_pool_opt_out(monkeypatch, tmp_path):
+    monkeypatch.delenv("DEV_AGENT_ENABLE_CONFIGURED_POOL", raising=False)
+    monkeypatch.delenv("DEV_AGENT_PROVIDER_POOL", raising=False)
+    monkeypatch.setenv("DEV_AGENT_DISABLE_CONFIGURED_POOL", "1")
+    monkeypatch.setenv("GEMINI_API_KEY", "secret-not-read-into-config")
+
+    config = OperationConfig.from_environment(data_dir=tmp_path)
+
+    assert config.provider_pool is None
+    assert config.provider_id == "fake"
 
 
 def test_configured_provider_pool_exposes_core_gemini_lane_without_project_id(monkeypatch, tmp_path):

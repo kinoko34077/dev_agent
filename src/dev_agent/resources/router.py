@@ -53,6 +53,7 @@ class RouteRequest:
     prefer_diversity: bool = False
     task_type: str | None = None
     quality_tier_advisory: bool = False
+    allow_unqualified_proposal_candidate: bool = False
 
     @classmethod
     def from_execution_requirement(
@@ -63,6 +64,7 @@ class RouteRequest:
         excluded_resource_ids: set[str] | frozenset[str] | tuple[str, ...] = (),
         max_cost_minor: int | None = None,
         quality_tier_advisory: bool = False,
+        allow_unqualified_proposal_candidate: bool = False,
     ) -> "RouteRequest":
         """Project one canonical requirement into the existing Router contract.
 
@@ -98,6 +100,7 @@ class RouteRequest:
             allow_unknown_quota=bool(_value(constraints.allow_unknown_quota, False, False)),
             allowed_intelligence_tiers=requirement.allowed_tier_values(),
             quality_tier_advisory=quality_tier_advisory,
+            allow_unqualified_proposal_candidate=allow_unqualified_proposal_candidate,
             task_fit=_value(constraints.task_fit),
             minimum_task_fit_score=_value(constraints.minimum_task_fit_score),
             allowed_provider_binding_ids=_value(constraints.allowed_provider_binding_ids),
@@ -110,6 +113,8 @@ class RouteRequest:
             raise ValueError("allow_unknown_quota must be a boolean")
         if not isinstance(self.quality_tier_advisory, bool):
             raise ValueError("quality_tier_advisory must be a boolean")
+        if not isinstance(self.allow_unqualified_proposal_candidate, bool):
+            raise ValueError("allow_unqualified_proposal_candidate must be a boolean")
         if self.task_type is not None and (
             not isinstance(self.task_type, str)
             or not self.task_type.strip()
@@ -187,6 +192,7 @@ class RouteSelection:
     quality_state: str = QUALITY_UNVERIFIED
     benchmark_tier: str | None = None
     task_fit_score: float | None = None
+    admission_warnings: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -202,6 +208,7 @@ class RouteSelection:
             "quality_state": self.quality_state,
             "benchmark_tier": self.benchmark_tier,
             "task_fit_score": self.task_fit_score,
+            "admission_warnings": list(self.admission_warnings),
         }
 
 
@@ -277,12 +284,23 @@ class ResourceRouter:
         *,
         qualification_resolver: QualificationResolver | None = None,
         model_admission_resolver: ModelAdmissionResolver | None = None,
+        proposal_candidate_identities: set[tuple[str, str, str]] | frozenset[tuple[str, str, str]] | tuple[tuple[str, str, str], ...] = (),
     ) -> None:
         self._read_view = read_view
         self._qualification_resolver = qualification_resolver or QualificationResolver()
         if model_admission_resolver is not None and not isinstance(model_admission_resolver, ModelAdmissionResolver):
             raise TypeError("model_admission_resolver must be a ModelAdmissionResolver or None")
+        candidate_identities: set[tuple[str, str, str]] = set()
+        for identity in proposal_candidate_identities:
+            if (
+                not isinstance(identity, tuple)
+                or len(identity) != 3
+                or any(not isinstance(value, str) or not value.strip() for value in identity)
+            ):
+                raise ValueError("proposal candidate identities must be provider/binding/model triples")
+            candidate_identities.add(tuple(value.strip() for value in identity))
         self._model_admission_resolver = model_admission_resolver
+        self._proposal_candidate_identities = frozenset(candidate_identities)
 
     @property
     def ledger(self) -> ResourceReadView:
@@ -308,6 +326,7 @@ class ResourceRouter:
         model_id: Any,
         *,
         quality_tier_advisory: bool = False,
+        allow_unqualified_proposal_candidate: bool = False,
     ):
         """Resolve qualification, model evidence, and the canonical tier once.
 
@@ -330,7 +349,9 @@ class ResourceRouter:
                 )
             except (ValueError, TypeError):
                 qualification = None
-            if qualification is None:
+            if qualification is None and not (
+                quality_tier_advisory and allow_unqualified_proposal_candidate
+            ):
                 return None, None, None
 
         if self._model_admission_resolver is not None:
@@ -376,6 +397,7 @@ class ResourceRouter:
             ),
             allow_legacy_missing_model=not bool(isinstance(model_id, str) and model_id.strip()),
             allow_unverified_quality_proposal=quality_tier_advisory,
+            allow_unqualified_proposal_candidate=allow_unqualified_proposal_candidate,
         )
         return qualification, model_admission, decision
 
@@ -645,6 +667,7 @@ class ResourceRouter:
         candidates = []
         candidate_identities: dict[str, tuple[str, str]] = {}
         candidate_quality: dict[str, tuple[str, str | None, float | None]] = {}
+        candidate_warnings: dict[str, tuple[str, ...]] = {}
         unknown_quota_resource_ids: set[str] = set()
         for resource in snapshot.resources:
             if resource["resource_id"] in request.excluded_resource_ids:
@@ -664,6 +687,20 @@ class ResourceRouter:
                 continue
             if provider_binding_id in request.excluded_provider_binding_ids:
                 continue
+            proposal_identity = (
+                str(resource["provider_id"]),
+                str(evidence_binding_id),
+                str(model_id) if isinstance(model_id, str) else "",
+            )
+            requested_tiers = set(request.allowed_intelligence_tiers or ())
+            allow_unqualified_candidate = (
+                request.allow_unqualified_proposal_candidate
+                and request.quality_tier_advisory
+                and metadata.get("proposal_only_candidate") is True
+                and proposal_identity in self._proposal_candidate_identities
+                and request.capabilities.issubset({"text"})
+                and not (requested_tiers & {"L2", "L3"})
+            )
             effective_capabilities = set(resource["capabilities"])
             task_fit_score: float | None = None
             # Provider-based runtime authority: provider_policy is the sole
@@ -677,6 +714,7 @@ class ResourceRouter:
                 evidence_binding_id,
                 model_id,
                 quality_tier_advisory=request.quality_tier_advisory,
+                allow_unqualified_proposal_candidate=allow_unqualified_candidate,
             )
             if tier_decision is None or not tier_decision.eligible:
                 continue
@@ -686,6 +724,8 @@ class ResourceRouter:
                 # can only narrow the effective routing view, never grant a
                 # capability that the persisted resource did not allow.
                 effective_capabilities &= set(qualification.routing_capabilities)
+            elif allow_unqualified_candidate:
+                effective_capabilities &= {"text"}
             # Exact qualification/resource capabilities remain hard. Static
             # model evidence may narrow capabilities when current; performance
             # evidence is advisory and its absence does not erase the route.
@@ -718,19 +758,25 @@ class ResourceRouter:
             billing_authority = metadata.get("billing_authority")
             billing_expires_at = metadata.get("billing_expires_at")
             if billing_authority == "trusted_catalog":
-                if billing_expires_at is None:
-                    continue
-                try:
-                    expiry = datetime.fromisoformat(str(billing_expires_at))
-                    if expiry.tzinfo is None:
-                        expiry = expiry.replace(tzinfo=timezone.utc)
-                    if datetime.now(timezone.utc) >= expiry:
-                        continue
-                except (TypeError, ValueError):
-                    continue
                 _catalog_profile = profile_for(resource["provider_id"], evidence_binding_id, model_id or "")
                 if _catalog_profile is None:
                     continue
+                non_expiring_no_charge = getattr(
+                    _catalog_profile,
+                    "non_expiring_no_charge",
+                    False,
+                ) is True
+                if billing_expires_at is None and not non_expiring_no_charge:
+                    continue
+                if billing_expires_at is not None:
+                    try:
+                        expiry = datetime.fromisoformat(str(billing_expires_at))
+                        if expiry.tzinfo is None:
+                            expiry = expiry.replace(tzinfo=timezone.utc)
+                        if datetime.now(timezone.utc) >= expiry and not non_expiring_no_charge:
+                            continue
+                    except (TypeError, ValueError):
+                        continue
                 if resource.get("cost_minor") != _catalog_profile.cost_minor:
                     continue
                 # price_currency must match the catalog when the catalog specifies one.
@@ -881,6 +927,8 @@ class ResourceRouter:
                 model_admission.benchmark_tier if model_admission is not None else None,
                 task_fit_score,
             )
+            if tier_decision.source == "proposal_candidate":
+                candidate_warnings[resource["resource_id"]] = ("QUALIFICATION_UNVERIFIED",)
         if not candidates:
             raise NoRoute("no eligible resource")
         if request.prefer_diversity:
@@ -910,6 +958,7 @@ class ResourceRouter:
             chosen["resource_id"],
             (QUALITY_UNVERIFIED, None, None),
         )
+        admission_warnings = candidate_warnings.get(chosen["resource_id"], ())
         return RouteSelection(
             chosen["resource_id"],
             chosen["provider_id"],
@@ -923,4 +972,5 @@ class ResourceRouter:
             quality_state,
             benchmark_tier,
             task_fit_score,
+            admission_warnings,
         )

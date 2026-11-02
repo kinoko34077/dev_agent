@@ -9,6 +9,8 @@ from scripts.devfarm_worker import apply_and_verify, run_worker
 from src.dev_agent.domain.protocol import ModelResponse
 from tests.v2.devfarm_test_support import _WorkerProvider, _workspace, _patch
 
+pytestmark = pytest.mark.synthetic_no_charge_worker_billing
+
 
 def _trusted_apply(root, manifest_path):
     return apply_and_verify(root, manifest_path, trust_level="TRUSTED_HOST_EXEC", operator_approved=True)

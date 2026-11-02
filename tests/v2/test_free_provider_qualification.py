@@ -39,7 +39,17 @@ def _add_fixture_free_profile(monkeypatch, provider: str, model: str):
     from src.dev_agent.resources.billing_catalog import BillingResolver, TRUSTED_RESOURCE_CATALOG
     import src.dev_agent.resources.billing_catalog as billing_module
 
-    fixture = TrustedResourceProfile(provider, binding, model, 0, "JPY", False)
+    fixture = TrustedResourceProfile(
+        provider,
+        binding,
+        model,
+        0,
+        "JPY",
+        False,
+        source="test_only_synthetic_billing_fixture",
+        verified_at="2026-10-01T00:00:00+00:00",
+        expires_at="2026-12-01T00:00:00+00:00",
+    )
 
     fixture_catalog = dict(TRUSTED_RESOURCE_CATALOG)
     fixture_catalog[(provider, binding, model)] = fixture
@@ -101,6 +111,7 @@ def test_free_provider_qualification_uses_live_response_for_quota_and_dispatch(m
     assert responses == []
 
 
+@pytest.mark.current_billing_catalog
 def test_openrouter_free_qualification_uses_canonical_dispatch_path(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-secret")
     responses = [
@@ -152,6 +163,7 @@ def test_openrouter_free_qualification_uses_canonical_dispatch_path(monkeypatch)
     assert responses == []
 
 
+@pytest.mark.current_billing_catalog
 def test_free_qualification_with_an_explicit_quota_domain_uses_only_bounded_unknown_bootstrap(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-secret")
     responses = [
@@ -191,6 +203,7 @@ def test_free_qualification_with_an_explicit_quota_domain_uses_only_bounded_unkn
     assert responses == []
 
 
+@pytest.mark.current_billing_catalog
 def test_gemini_text_only_unknown_quota_bootstrap_does_not_require_tool_signature(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "test-secret")
     responses = [

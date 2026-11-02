@@ -118,6 +118,7 @@ def test_trusted_billing_profile_validates_credit_allowance_metadata():
         )
 
 
+@pytest.mark.current_billing_catalog
 def test_gemini_additional_binding_profiles_are_allowance_backed_not_fixed_free():
     profile = profile_for("gemini", "gemini:worker:free-2", "gemini-3.5-flash-lite")
 
@@ -142,6 +143,22 @@ def test_local_ollama_candidates_have_exact_zero_cost_catalog_profiles(binding_i
     assert profile.price_currency == "JPY"
     assert profile.quota_required is False
     assert profile.no_charge_guaranteed is True
+
+
+def test_loopback_ollama_fixed_zero_cost_profile_does_not_expire():
+    profile = TrustedResourceProfile(
+        provider_id="ollama",
+        provider_binding_id="ollama:local:qwen3.5-9b",
+        model_id="qwen3.5:9b",
+        cost_minor=0,
+        price_currency="JPY",
+        quota_required=False,
+        verified_at="2026-09-09T00:00:00+00:00",
+        expires_at="2026-10-09T00:00:00+00:00",
+        billing_mode="free_fixed",
+    )
+
+    assert profile.is_current(now=datetime(2026, 11, 2, tzinfo=timezone.utc)) is True
 
 
 
@@ -177,9 +194,12 @@ def test_security_billing_clock_remains_real():
     )
     assert profile.is_current() is False
     assert profile.is_current(now=datetime.now(timezone.utc)) is False
-    # The current published Gemini free billing claim expired on Oct 9.
-    # Security-marked tests never receive the historical synthetic clock.
-    assert profile_for("gemini", "gemini:core", "gemini-3.8-flash") is None
+    # The reviewed free-tier catalog was refreshed. Security-marked tests use
+    # the real clock and must observe the current exact model/binding fact.
+    profile = profile_for("gemini", "gemini:core", "gemini-3.8-flash")
+    assert profile is not None
+    assert profile.is_current()
+    assert profile.no_charge_guaranteed is True
 
 def test_cloudflare_public_pricing_review_cannot_renew_account_billing_authority():
     # Independently reading a Free-plan public pricing page cannot prove the
@@ -187,7 +207,7 @@ def test_cloudflare_public_pricing_review_cannot_renew_account_billing_authority
     from src.dev_agent.resources.billing_catalog import TRUSTED_RESOURCE_CATALOG
 
     wildcard = TRUSTED_RESOURCE_CATALOG[("cloudflare", "cloudflare:account", "*")]
-    assert wildcard.expires_at == "2026-10-10T00:00:00+00:00"
+    assert wildcard.expires_at == "2026-12-02T00:00:00+09:00"
     assert wildcard.is_current(now=datetime(2026, 10, 11, tzinfo=timezone.utc)) is False
     assert wildcard.no_charge_guaranteed is True
     assert wildcard.billing_mode == "recurring_allowance"

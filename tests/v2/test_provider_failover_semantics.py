@@ -164,6 +164,7 @@ def test_gemini_unclassified_503_remains_unknown_and_cannot_fail_over(monkeypatc
     assert raised.value.requires_reconciliation is True
 
 
+@pytest.mark.current_billing_catalog
 def test_planner_proposal_pool_can_use_exact_l1_qualification_with_host_validation(
     historical_qualification_review_clock,
 ):
@@ -207,6 +208,7 @@ def test_planner_proposal_pool_can_use_exact_l1_qualification_with_host_validati
     }
 
 
+@pytest.mark.current_billing_catalog
 def test_planner_shadow_pool_fails_over_to_second_exact_l2_and_validates_proposal(tmp_path, monkeypatch):
     parent_task_id = str(uuid4())
     now = datetime.now(timezone.utc)
