@@ -631,6 +631,7 @@ def test_planner_shadow_rechecks_expanded_binding_against_credential_evidence(mo
         allow_unknown_quota=True,
         repository="example/repo",
         branch="v2/bootstrap",
+        required_tier="L1",
         provider_pool=(base_binding,),
         model_admission_resolver=_ModelAdmissionResolver(),
         model_catalog=catalog,
@@ -641,7 +642,7 @@ def test_planner_shadow_rechecks_expanded_binding_against_credential_evidence(mo
     assert result["model"] in {"model-a", "model-b"}
     assert result["binding"].startswith("fake:project-a:")
     assert result["intelligence_tier"] == "L1"
-    assert result["requested_intelligence_tier"] == "L2"
+    assert result["requested_intelligence_tier"] == "L1"
     assert result["qualification_confidence"] == "high"
 
 

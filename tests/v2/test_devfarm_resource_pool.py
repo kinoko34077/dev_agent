@@ -77,7 +77,15 @@ def test_quality_tier_fallback_requires_host_validated_proposal_metadata():
         },
     )
 
-    assert ResourceControlPlane._route_request(request).quality_tier_advisory is True
+    # A quality advisory must never weaken an explicit L2 requirement.
+    assert ResourceControlPlane._route_request(request).quality_tier_advisory is False
+    l1_proposal = ModelRequest(
+        task_id=str(uuid4()),
+        messages=[{"role": "user", "content": "proposal only"}],
+        requested_capabilities=["text"],
+        metadata={**request.metadata, "allowed_intelligence_tiers": ["L1"]},
+    )
+    assert ResourceControlPlane._route_request(l1_proposal).quality_tier_advisory is True
     untrusted = ModelRequest(
         task_id=str(uuid4()),
         messages=[{"role": "user", "content": "ordinary request"}],
