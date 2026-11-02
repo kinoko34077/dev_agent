@@ -160,7 +160,10 @@ def _worker_feasibility_context(root: Path, plan: Mapping[str, Any]) -> tuple[Ma
             projected.append(entry)
             continue
         recommended_action = feasibility.get("recommended_action")
-        if recommended_action not in _FEASIBILITY_RECOMMENDED_ACTIONS:
+        if (
+            not isinstance(recommended_action, str)
+            or recommended_action not in _FEASIBILITY_RECOMMENDED_ACTIONS
+        ):
             projected.append(entry)
             continue
         if (
@@ -175,7 +178,8 @@ def _worker_feasibility_context(root: Path, plan: Mapping[str, Any]) -> tuple[Ma
         output_mode = feasibility.get("output_mode")
         reasons = feasibility.get("reasons")
         if (
-            output_mode not in {"full_result", "minimal_file_replacement", "localized_file_edit"}
+            not isinstance(output_mode, str)
+            or output_mode not in {"full_result", "minimal_file_replacement", "localized_file_edit"}
             or not isinstance(reasons, list)
             or len(reasons) > 32
         ):
