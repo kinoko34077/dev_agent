@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from dataclasses import replace
@@ -19,6 +20,7 @@ from scripts.devfarm_supervisor_protocol import (
 from scripts.devfarm_supervisor import CodexSupervisedCommanderRun, main as supervisor_main
 from scripts.devfarm_supervisor import _canonical_supervisor_action, _providers_for_resume
 from scripts.devfarm_commander import create_plan
+from scripts.devfarm_plan_queries import result_reference
 from src.dev_agent.domain.execution import CanonicalExecutionBinding, ExecutionLifecycleStage
 
 
@@ -200,6 +202,140 @@ def test_supervisor_exposes_feasibility_next_action_without_model_retry(block_re
 
     assert status == "BLOCKED"
     assert next_action == expected_action
+
+
+def test_supervisor_step_exposes_bounded_host_feasibility_context(tmp_path):
+    task_id = "worker-task"
+    attempt_id = "attempt-001"
+    result_ref = result_reference(task_id, attempt_id)
+    result_path = tmp_path / result_ref
+    result_path.parent.mkdir(parents=True)
+    result_path.write_text(
+        json.dumps(
+            {
+                "status": "failed",
+                "attempt_id": attempt_id,
+                "known_issues": ["secret-shaped marker must not be projected"],
+                "worker_metrics": {
+                    "pre_dispatch_block": "feasibility",
+                    "proposal_preflight": {
+                        "stage": "worker_feasibility",
+                        "failure_class": "FEASIBILITY",
+                        "fallback_eligible": False,
+                        "fallback_disposition": "reframe_before_provider",
+                    },
+                    "feasibility": {
+                        "task_id": task_id,
+                        "status": "reframe_required",
+                        "output_mode": "minimal_file_replacement",
+                        "input_file_count": 1,
+                        "input_bytes": 221838,
+                        "input_chars": 200000,
+                        "input_lines": 9000,
+                        "largest_input_bytes": 221838,
+                        "context_file_count": 2,
+                        "context_bytes": 331067,
+                        "missing_context_files": [],
+                        "output_capacity_tokens": 4096,
+                        "output_capacity_chars": 16384,
+                        "estimated_output_chars": 200512,
+                        "reasons": ["input_file_too_large", "output_envelope_too_large"],
+                        "recommended_action": "split_input_scope",
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    plan = {
+        "run_id": "supervisor-test-001",
+        "plan_revision": 2,
+        "status": "BLOCKED",
+        "tasks": [
+            {
+                "task_id": task_id,
+                "owner": "worker",
+                "status": "BLOCKED",
+                "block_reason": "worker_feasibility_reframe_required",
+                "last_attempt_id": attempt_id,
+                "result_ref": result_ref,
+            }
+        ],
+        "review_decisions": [],
+        "supervisor": {"status": "BLOCKED", "next_action": "reframe_worker_task"},
+    }
+
+    step = CodexSupervisedCommanderRun(tmp_path, "supervisor-test-001")._step(plan)
+    projected = step.to_dict()["worker_feasibility"]
+
+    assert projected == [
+        {
+            "task_id": task_id,
+            "attempt_id": attempt_id,
+            "block_reason": "worker_feasibility_reframe_required",
+            "next_action": "reframe_worker_task",
+            "result_ref": result_ref,
+            "evidence_status": "available",
+            "details": {
+                "status": "reframe_required",
+                "output_mode": "minimal_file_replacement",
+                "recommended_action": "split_input_scope",
+                "measurements": {
+                    "input_file_count": 1,
+                    "input_bytes": 221838,
+                    "largest_input_bytes": 221838,
+                    "context_file_count": 2,
+                    "context_bytes": 331067,
+                    "output_capacity_tokens": 4096,
+                    "output_capacity_chars": 16384,
+                    "estimated_output_chars": 200512,
+                },
+                "reason_codes": ["input_file_too_large", "output_envelope_too_large"],
+            },
+        }
+    ]
+    assert "secret-shaped marker" not in json.dumps(projected)
+
+
+def test_supervisor_feasibility_context_fails_closed_when_artifact_identity_mismatches(tmp_path):
+    task_id = "worker-task"
+    attempt_id = "attempt-current"
+    wrong_ref = result_reference(task_id, "attempt-stale")
+    wrong_path = tmp_path / wrong_ref
+    wrong_path.parent.mkdir(parents=True)
+    wrong_path.write_text("{}", encoding="utf-8")
+    plan = {
+        "run_id": "supervisor-test-001",
+        "plan_revision": 2,
+        "status": "BLOCKED",
+        "tasks": [
+            {
+                "task_id": task_id,
+                "owner": "worker",
+                "status": "BLOCKED",
+                "block_reason": "worker_feasibility_reframe_required",
+                "last_attempt_id": attempt_id,
+                "result_ref": wrong_ref,
+            }
+        ],
+        "review_decisions": [],
+        "supervisor": {"status": "BLOCKED", "next_action": "reframe_worker_task"},
+    }
+
+    projected = CodexSupervisedCommanderRun(tmp_path, "supervisor-test-001")._step(plan).to_dict()[
+        "worker_feasibility"
+    ]
+
+    assert projected == [
+        {
+            "task_id": task_id,
+            "attempt_id": attempt_id,
+            "block_reason": "worker_feasibility_reframe_required",
+            "next_action": "reframe_worker_task",
+            "result_ref": result_reference(task_id, attempt_id),
+            "evidence_status": "unavailable",
+        }
+    ]
 
 
 def test_supervisor_exposes_feasibility_action_for_legacy_plan_projection():

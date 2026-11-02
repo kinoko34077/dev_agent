@@ -22,6 +22,8 @@ if str(ROOT) not in sys.path:
 
 from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_artifacts import artifact_reference
+from scripts.devfarm_plan_queries import result_reference
+from scripts.devfarm_repository import read_bounded_json, repository_path
 from scripts.devfarm_integration import (
     integrate_approved_worker as host_integrate_approved_worker,
     integrate_worker as host_record_integration,
@@ -50,6 +52,179 @@ from scripts.devfarm_supervisor_protocol import (
 )
 from src.dev_agent.handoff import ExternalTextReference, HandoffEnvelope, rework_request
 from src.dev_agent.intelligence.codexless import CodexLessEvaluation, CodexLessPolicy
+
+
+_FEASIBILITY_STATUS_BY_BLOCK_REASON = {
+    "worker_feasibility_reframe_required": "reframe_required",
+    "worker_feasibility_invalid_acceptance": "invalid_acceptance",
+}
+_FEASIBILITY_REASON_CODES = frozenset(
+    {
+        "acceptance_missing",
+        "test_commands_missing",
+        "test_command_invalid",
+        "output_scope_invalid",
+        "new_file_overlaps_input",
+        "input_not_utf8",
+        "input_contains_nul",
+        "input_file_too_large",
+        "input_scope_too_large",
+        "context_scope_too_large",
+        "localized_output_budget_missing",
+        "output_envelope_too_large",
+    }
+)
+_FEASIBILITY_MEASUREMENTS = (
+    "input_file_count",
+    "input_bytes",
+    "largest_input_bytes",
+    "context_file_count",
+    "context_bytes",
+    "output_capacity_tokens",
+    "output_capacity_chars",
+    "estimated_output_chars",
+)
+_FEASIBILITY_RECOMMENDED_ACTIONS = frozenset(
+    {"split_input_scope", "declare_output_budget", "repair_manifest_acceptance"}
+)
+
+
+def _worker_feasibility_context(root: Path, plan: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
+    """Expose bounded, identity-bound Host feasibility facts to the upper planner.
+
+    This is a read-only projection from each blocked task's immutable attempt
+    result. It never reads model prose, dispatches, retries, or edits a plan.
+    """
+
+    tasks = plan.get("tasks", [])
+    if not isinstance(tasks, Sequence) or isinstance(tasks, (str, bytes)):
+        return ()
+    projected: list[Mapping[str, Any]] = []
+    for task in tasks:
+        if not isinstance(task, Mapping):
+            continue
+        block_reason = task.get("block_reason")
+        expected_status = _FEASIBILITY_STATUS_BY_BLOCK_REASON.get(block_reason)
+        action = plan_next_action(block_reason)
+        if (
+            expected_status is None
+            or action is None
+            or task.get("owner") != "worker"
+            or task.get("status") != "BLOCKED"
+        ):
+            continue
+        task_id = task.get("task_id")
+        attempt_id = task.get("last_attempt_id")
+        if not isinstance(task_id, str) or not isinstance(attempt_id, str):
+            continue
+        try:
+            expected_ref = result_reference(task_id, attempt_id)
+        except DevFarmError:
+            continue
+        entry: dict[str, Any] = {
+            "task_id": task_id,
+            "attempt_id": attempt_id,
+            "block_reason": block_reason,
+            "next_action": action,
+            "result_ref": expected_ref,
+            "evidence_status": "unavailable",
+        }
+        if task.get("result_ref") != expected_ref:
+            projected.append(entry)
+            continue
+        try:
+            result_path = repository_path(root, expected_ref, required_parent=".devfarm/results")
+            result = read_bounded_json(root, result_path, maximum_chars=250_000)
+        except (DevFarmError, OSError, TypeError):
+            projected.append(entry)
+            continue
+        if not isinstance(result, Mapping) or result.get("status") != "failed" or result.get("attempt_id") != attempt_id:
+            projected.append(entry)
+            continue
+        metrics = result.get("worker_metrics")
+        if not isinstance(metrics, Mapping) or metrics.get("pre_dispatch_block") != "feasibility":
+            projected.append(entry)
+            continue
+        preflight = metrics.get("proposal_preflight")
+        feasibility = metrics.get("feasibility")
+        if (
+            not isinstance(preflight, Mapping)
+            or preflight.get("stage") != "worker_feasibility"
+            or preflight.get("failure_class") != "FEASIBILITY"
+            or preflight.get("fallback_eligible") is not False
+            or preflight.get("fallback_disposition") != "reframe_before_provider"
+            or not isinstance(feasibility, Mapping)
+            or feasibility.get("task_id") != task_id
+            or feasibility.get("status") != expected_status
+        ):
+            projected.append(entry)
+            continue
+        recommended_action = feasibility.get("recommended_action")
+        if recommended_action not in _FEASIBILITY_RECOMMENDED_ACTIONS:
+            projected.append(entry)
+            continue
+        if (
+            expected_status == "invalid_acceptance"
+            and recommended_action != "repair_manifest_acceptance"
+        ) or (
+            expected_status == "reframe_required"
+            and recommended_action not in {"split_input_scope", "declare_output_budget"}
+        ):
+            projected.append(entry)
+            continue
+        output_mode = feasibility.get("output_mode")
+        reasons = feasibility.get("reasons")
+        if (
+            output_mode not in {"full_result", "minimal_file_replacement", "localized_file_edit"}
+            or not isinstance(reasons, list)
+            or len(reasons) > 32
+        ):
+            projected.append(entry)
+            continue
+        reason_codes: list[str] = []
+        reasons_valid = True
+        for reason in reasons:
+            if not isinstance(reason, str) or len(reason) > 512:
+                reasons_valid = False
+                break
+            if reason in _FEASIBILITY_REASON_CODES:
+                code = reason
+            elif reason.startswith("missing_input:"):
+                code = "missing_input"
+            elif reason.startswith("missing_context:"):
+                code = "missing_context"
+            else:
+                reasons_valid = False
+                break
+            if code not in reason_codes:
+                reason_codes.append(code)
+        if not reasons_valid:
+            projected.append(entry)
+            continue
+        measurements: dict[str, int] = {}
+        for name in _FEASIBILITY_MEASUREMENTS:
+            value = feasibility.get(name)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0 or value > 2**63 - 1:
+                reasons_valid = False
+                break
+            measurements[name] = value
+        if (
+            not reasons_valid
+            or measurements["output_capacity_tokens"] > 32_768
+            or measurements["output_capacity_chars"] > 131_072
+        ):
+            projected.append(entry)
+            continue
+        entry["evidence_status"] = "available"
+        entry["details"] = {
+            "status": expected_status,
+            "output_mode": output_mode,
+            "recommended_action": recommended_action,
+            "measurements": measurements,
+            "reason_codes": reason_codes,
+        }
+        projected.append(entry)
+    return tuple(projected)
 
 
 def _remaining_supervisor_deadline(metadata: Mapping[str, Any]) -> float | None:
@@ -97,6 +272,7 @@ class SupervisorStep:
     review_packets: tuple[Mapping[str, Any], ...]
     metrics: Mapping[str, int]
     delegation: Mapping[str, Any]
+    worker_feasibility: tuple[Mapping[str, Any], ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -111,6 +287,7 @@ class SupervisorStep:
             "review_packets": [dict(item) for item in self.review_packets],
             "metrics": dict(self.metrics),
             "delegation": dict(self.delegation),
+            "worker_feasibility": [dict(item) for item in self.worker_feasibility],
         }
 
 
@@ -260,6 +437,7 @@ class CodexSupervisedCommanderRun:
             review_packets=tuple(metadata["review_packets"]),
             metrics=metadata["metrics"],
             delegation=summarize_delegation(plan),
+            worker_feasibility=_worker_feasibility_context(self.root, plan),
         )
 
     def _review_packet(self, task: Mapping[str, Any]) -> dict[str, Any]:
