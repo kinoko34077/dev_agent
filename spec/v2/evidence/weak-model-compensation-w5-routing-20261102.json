@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "weak_model_compensation_w5_responsibility_routing",
+  "evidence_status": "observed_failure_plus_offline_policy_regression",
+  "observed_failure": {
+    "attempt_id": "5b658b369b2b4834b04726aa9c9dbf9e",
+    "result_ref": ".devfarm/results/issue124-guard-fail-closed-tests-qwen-20261102/attempts/5b658b369b2b4834b04726aa9c9dbf9e/result.json",
+    "failure_class": "FORMAT_PATCH",
+    "observed_stage": "worker_proposal_preflight",
+    "correction_record_ref": ".devfarm/results/issue124-guard-fail-closed-tests-qwen-20261102/attempts/b292c7321a324963920fbaee47f12c47/result.json",
+    "recorded_compensation": {
+      "authority": "host_policy",
+      "action": "repair_same_task",
+      "output_mode": "minimal_file_replacement",
+      "prompt_contract": "bounded-repair-delta"
+    }
+  },
+  "offline_responsibility_matrix": [
+    {
+      "failure_class": "FORMAT_PATCH",
+      "responsibility": "host_normalization_or_same_l1",
+      "model_call_allowed": false,
+      "boundary": "Host normalization is preferred only when meaning-preserving normalization is available; otherwise bounded same-L1 repair is allowed."
+    },
+    {
+      "failure_class": "SEMANTIC_TEST",
+      "responsibility": "l1_critic",
+      "model_call_allowed": true,
+      "boundary": "Critic emits evidence-only diagnosis; it cannot integrate or authorize."
+    },
+    {
+      "failure_class": "PROVIDER_TRANSPORT",
+      "responsibility": "alternate_l1",
+      "model_call_allowed": true,
+      "boundary": "A distinct binding is selected; the same failed provider is not blindly replayed."
+    },
+    {
+      "failure_class": "UNKNOWN_EXTERNAL_EFFECT",
+      "responsibility": "reconciliation",
+      "model_call_allowed": false,
+      "boundary": "No model retry or external replay is permitted."
+    }
+  ],
+  "verification": {
+    "command": "python -m pytest tests/v2/test_devfarm_correction_routing.py tests/v2/test_devfarm_compensation.py tests/v2/test_devfarm_worker_prompt.py -q",
+    "result": "24 passed",
+    "scope": "offline deterministic policy and prompt-boundary regression"
+  },
+  "scope_boundary": "The observed repair remained invalid JSON and was not accepted. This evidence proves typed responsibility routing and bounded prompt policy, not useful-work improvement, Provider qualification, billing/quota renewal, or Phase 8 acceptance."
+}
