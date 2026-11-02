@@ -33,6 +33,18 @@ _DIGEST_A = "1" * 64
 _DIGEST_B = "2" * 64
 
 
+def test_worker_failure_code_extracts_commander_colon_projection() -> None:
+    from scripts.devfarm_production_composition import _failure_code_from_last_error
+
+    assert (
+        _failure_code_from_last_error(
+            "WORKER_OUTPUT_TRUNCATED: worker response JSON was truncated by provider output limit"
+        )
+        == "WORKER_OUTPUT_TRUNCATED"
+    )
+    assert _failure_code_from_last_error("WORKER_OUTPUT_INVALID_JSON; legacy detail") == "WORKER_OUTPUT_INVALID_JSON"
+
+
 class _FakeCommander:
     def __init__(self) -> None:
         self.advance_calls = 0

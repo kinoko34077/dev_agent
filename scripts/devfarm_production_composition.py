@@ -40,6 +40,30 @@ class ProductionCompositionError(ValueError):
     """A production projection cannot be joined without ambiguity."""
 
 
+def _failure_code_from_last_error(value: str) -> str:
+    """Extract the bounded Host failure code from a Commander projection.
+
+    Commander stores proposal failures as ``CODE: detail`` while older
+    handoffs may use ``CODE; detail``. Compensation decisions consume only
+    the allowlisted code; diagnostics must never become part of that token.
+    """
+
+    if not isinstance(value, str) or not value.strip():
+        raise ProductionCompositionError("Worker failure projection must be non-empty text")
+    candidate = value.strip()
+    separators = [
+        position
+        for position in (candidate.find(":"), candidate.find(";"))
+        if position >= 0
+    ]
+    if separators:
+        candidate = candidate[: min(separators)]
+    candidate = candidate.strip()
+    if not candidate or len(candidate) > 128:
+        raise ProductionCompositionError("Worker failure projection code is invalid")
+    return candidate
+
+
 def _assert_canonical_projection_consistency(
     operation_binding: CanonicalExecutionBinding,
     commander_binding: CanonicalExecutionBinding,
@@ -880,7 +904,7 @@ class Phase8ProductionExecutor:
                     manifest,
                     provider,
                     failure_spec,
-                    failure_code=error.split(";", 1)[0].strip(),
+                    failure_code=_failure_code_from_last_error(error),
                 )
                 result_ref = task.get("result_ref")
                 if not isinstance(result_ref, str) or not result_ref.strip():
@@ -991,7 +1015,7 @@ class Phase8ProductionExecutor:
                     manifest,
                     fallback_provider,
                     failure_spec,
-                    failure_code=error.split(";", 1)[0].strip(),
+                    failure_code=_failure_code_from_last_error(error),
                 )
                 result_ref = task.get("result_ref")
                 if not isinstance(result_ref, str) or not result_ref.strip():

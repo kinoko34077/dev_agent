@@ -10,6 +10,7 @@ from scripts.devfarm_worker_output import (
     normalize_model_status,
     safe_host_failure_metadata,
     safe_usage,
+    worker_proposal_preflight_failure,
 )
 from src.dev_agent.domain.protocol import ModelRequest
 
@@ -138,6 +139,23 @@ def test_build_worker_metrics_never_persists_unrecognized_finish_reason() -> Non
 
     assert metrics["finish_reason"] == "unknown"
     assert "secret-shaped" not in str(metrics)
+
+
+def test_truncated_json_preflight_is_distinguished_from_ordinary_invalid_json() -> None:
+    ordinary = worker_proposal_preflight_failure(
+        "worker response JSON is invalid",
+        mode="full_result",
+        finish_reason="stop",
+    )
+    truncated = worker_proposal_preflight_failure(
+        "worker response JSON is invalid",
+        mode="full_result",
+        finish_reason="length",
+    )
+
+    assert ordinary["error_code"] == "WORKER_OUTPUT_INVALID_JSON"
+    assert truncated["error_code"] == "WORKER_OUTPUT_TRUNCATED"
+    assert truncated["failure_class"] == "FORMAT_PATCH"
 
 
 def test_safe_host_failure_metadata_drops_untrusted_child_values() -> None:

@@ -1383,14 +1383,24 @@ def run_worker(
     try:
         output = _extract_json(text)
     except DevFarmError as exc:
+        failure_reason = str(exc)
+        if (
+            metrics.get("finish_reason") == "length"
+            and ("json" in failure_reason.casefold() or "object" in failure_reason.casefold())
+        ):
+            failure_reason = (
+                "worker response JSON was truncated by provider output limit "
+                "before object completion"
+            )
         return _record_failed_model_output(
             root,
             manifest,
-            str(exc),
+            failure_reason,
             worker_metrics=metrics,
             proposal_preflight=worker_proposal_preflight_failure(
-                str(exc),
+                failure_reason,
                 mode=output_mode,
+                finish_reason=metrics.get("finish_reason"),
             ),
             attempt_id=attempt_id,
             egress_manifest=egress_manifest,

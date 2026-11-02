@@ -560,6 +560,38 @@ def build_concrete_failure_spec(
             ),
             validator_refs=(validator_ref,),
         )
+    elif "truncated" in normalized and (
+        "output limit" in normalized
+        or "provider limit" in normalized
+        or "max token" in normalized
+    ):
+        spec = ConcreteFailureSpec(
+            failure_class="FORMAT_PATCH",
+            stage="worker_output_validation",
+            location="worker_output",
+            observed="provider output ended at the bounded output limit before JSON completion",
+            expected="one complete JSON object within the selected output contract",
+            problem="the Worker response was truncated before the Host could decode a complete JSON object",
+            required_correction=(
+                "Return a shorter, complete response for the selected Host output contract. "
+                "Omit optional metadata and prose, preserve the exact task scope, and never return a partial JSON object. "
+                "If the requested source cannot fit in the bounded response, split the task or use the Host-selected "
+                "localized/minimal contract rather than repeating the same oversized response."
+            ),
+            must_preserve=preserve,
+            forbidden_changes=(
+                "partial JSON",
+                "Markdown or prose outside the object",
+                "omitting required contract fields",
+                "unrelated files",
+            ),
+            acceptance_checks=(
+                "response is one complete JSON object",
+                "response fits the selected output contract",
+                "response satisfies the Host Worker schema",
+            ),
+            validator_refs=(validator_ref, "WORKER_OUTPUT_TRUNCATED"),
+        )
     elif (
         "worker response json is invalid" in normalized
         or "invalid json" in normalized
