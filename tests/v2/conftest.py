@@ -11,11 +11,42 @@ exercised without an implicit bypass.
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone, timedelta
 
 import pytest
 
 from src.dev_agent.resources.qualification import QualificationProjection
+
+
+@pytest.fixture(autouse=True)
+def _isolate_host_provider_configuration(monkeypatch):
+    """Keep developer-host credentials from activating real routes in tests.
+
+    Provider-pool activation is intentionally automatic when credentials are
+    configured for normal operation. Tests must therefore set any provider
+    fixture explicitly instead of inheriting API keys or route pins from the
+    machine that happens to run pytest.
+    """
+    names = {
+        "AI_GATEWAY_API_KEY", "AI_GATEWAY_MODEL",
+        "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_MODEL",
+        "DEEPSEEK_API_KEY", "GEMINI_API_KEY", "GEMINI_CORE_MODEL", "GEMINI_MODEL",
+        "GEMINI_PROJECT_ID", "GROQ_API_KEY", "GROQ_MODEL", "MISTRAL_API_KEY",
+        "MISTRAL_MODEL", "OLLAMA_API_KEY", "OLLAMA_BASE_URL", "OLLAMA_CLOUD_MODEL",
+        "OLLAMA_CRITIC_BASE_URL", "OLLAMA_CRITIC_MODEL", "OLLAMA_MODEL", "OLLAMA_MODELS",
+        "OPENAI_API_KEY", "OPENROUTER_API_KEY", "OPENROUTER_MODEL",
+        "SAMBANOVA_API_KEY", "SAMBANOVA_MODEL", "ANTHROPIC_API_KEY",
+        "DEV_AGENT_DISABLE_CONFIGURED_POOL", "DEV_AGENT_ENABLE_CONFIGURED_POOL",
+        "DEV_AGENT_PROVIDER", "DEV_AGENT_MODEL", "DEV_AGENT_PROVIDER_BINDING_ID",
+        "DEV_AGENT_PROVIDER_POOL", "DEV_AGENT_MODEL_EVIDENCE_DIR",
+    }
+    names.update(
+        name for name in os.environ
+        if name.startswith(("GEMINI_API_KEY_", "GEMINI_MODEL_"))
+    )
+    for name in names:
+        monkeypatch.delenv(name, raising=False)
 
 
 class _StubQualificationResolver:
@@ -197,13 +228,16 @@ def _historical_billing_review_clock(request, monkeypatch):
     # real billing authority to keep tests green.
     _HistoricalBillingDatetime, review_instant = _historical_review_clock()
 
-    monkeypatch.setattr(billing_catalog, "datetime", _HistoricalBillingDatetime)
+    use_current_catalog = request.node.get_closest_marker("current_billing_catalog") is not None
+    if not use_current_catalog:
+        monkeypatch.setattr(billing_catalog, "datetime", _HistoricalBillingDatetime)
 
     # Routing independently rechecks trusted billing expiration at dispatch.
     # Its module-specific datetime is isolated for fixture-based admissions;
     # live quota/health age calculations use time.time() unchanged.
     import src.dev_agent.resources.router as router_module
-    monkeypatch.setattr(router_module, "datetime", _HistoricalBillingDatetime)
+    if not use_current_catalog:
+        monkeypatch.setattr(router_module, "datetime", _HistoricalBillingDatetime)
 
     # The development Worker activation policy also captures a default
     # observation time in its constructor, separately from billing lookup.
@@ -214,8 +248,82 @@ def _historical_billing_review_clock(request, monkeypatch):
     original_activation_init = DevFarmActivationPolicy.__init__
 
     def _fixture_activation_init(self, *args, **kwargs):
-        if kwargs.get("now") is None:
+        if kwargs.get("now") is None and not use_current_catalog:
             kwargs["now"] = review_instant
         return original_activation_init(self, *args, **kwargs)
 
     monkeypatch.setattr(DevFarmActivationPolicy, "__init__", _fixture_activation_init)
+
+
+@pytest.fixture(autouse=True)
+def _synthetic_worker_billing_profiles(request, monkeypatch):
+    """Admit only the exact fake Cloudflare identity in opted-in DevFarm tests.
+
+    Synthetic Worker tests exercise factory/lifecycle behavior, not real
+    Provider billing. Keep their exact model identities explicitly bounded;
+    billing/security tests opt out and exercise production policy.
+    """
+    if request.node.get_closest_marker("security"):
+        return
+    if request.node.get_closest_marker("synthetic_no_charge_worker_billing") is None:
+        return
+
+    from src.dev_agent.resources.billing_catalog import TrustedResourceProfile
+    import scripts.devfarm_worker_admission as worker_admission
+
+    test_profiles = {
+        ("cloudflare", "cloudflare:account", "@cf/zai-org/glm-4.7-flash"): TrustedResourceProfile(
+            provider_id="cloudflare",
+            provider_binding_id="cloudflare:account",
+            model_id="@cf/zai-org/glm-4.7-flash",
+            cost_minor=0,
+            price_currency="JPY",
+            quota_required=True,
+            intelligence_tier=None,
+            source="test_only_synthetic_worker_fixture",
+            verified_at="2026-10-01T00:00:00+00:00",
+            expires_at="2026-12-01T00:00:00+00:00",
+            billing_mode="recurring_allowance",
+            allowance_period="daily",
+            overage_policy="hard_stop",
+        ),
+        ("gemini", "gemini:worker", "gemini-3.5-flash-lite"): TrustedResourceProfile(
+            provider_id="gemini",
+            provider_binding_id="gemini:worker",
+            model_id="gemini-3.5-flash-lite",
+            cost_minor=0,
+            price_currency="JPY",
+            quota_required=True,
+            intelligence_tier="L1",
+            source="test_only_synthetic_worker_fixture",
+            verified_at="2026-08-01T00:00:00+00:00",
+            expires_at="2026-12-01T00:00:00+00:00",
+            billing_mode="recurring_allowance",
+            allowance_period="daily",
+            overage_policy="hard_stop",
+        ),
+        ("openrouter", "openrouter:free", "openrouter/free"): TrustedResourceProfile(
+            provider_id="openrouter",
+            provider_binding_id="openrouter:free",
+            model_id="openrouter/free",
+            cost_minor=0,
+            price_currency="JPY",
+            quota_required=True,
+            intelligence_tier="L1",
+            source="test_only_synthetic_worker_fixture",
+            verified_at="2026-10-01T00:00:00+00:00",
+            expires_at="2026-12-01T00:00:00+00:00",
+            billing_mode="recurring_allowance",
+            allowance_period="daily",
+            overage_policy="hard_stop",
+        ),
+    }
+    original_profile_for = worker_admission.trusted_billing_profile_for
+
+    def _profile_for(provider_id, provider_binding_id, model_id):
+        profile = test_profiles.get((provider_id, provider_binding_id, model_id))
+        if profile is not None:
+            return profile
+        return original_profile_for(provider_id, provider_binding_id, model_id)
+
+    monkeypatch.setattr(worker_admission, "trusted_billing_profile_for", _profile_for)

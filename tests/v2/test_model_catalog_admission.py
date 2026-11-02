@@ -752,6 +752,7 @@ def test_catalog_refresh_merge_preserves_unrequested_failures_and_replaces_attem
     assert {entry["model_id"] for entry in merged["entries"]} == {"stale-bad", "other-a", "new-good"}
 
 
+@pytest.mark.current_billing_catalog
 def test_operator_configured_gemini_free_slots_have_exact_billing_profiles_for_discovered_core_model():
     profile = profile_for("gemini", "gemini:worker:free-2", "gemini-3.8-flash")
 
@@ -762,6 +763,7 @@ def test_operator_configured_gemini_free_slots_have_exact_billing_profiles_for_d
     assert profile.intelligence_tier is None
 
 
+@pytest.mark.current_billing_catalog
 def test_billing_catalog_keeps_new_gemini_l2_pairs_exact():
     admitted = profile_for("gemini", "gemini:worker:free-2", "gemini-3.7-flash")
 
@@ -854,10 +856,18 @@ def test_router_uses_performance_evidence_only_as_a_candidate_preference(tmp_pat
                 minimum_task_fit_score=60,
             )
         ).resource_id == "fake:planner"
+        with pytest.raises(NoRoute):
+            router.choose(
+                RouteRequest(
+                    capabilities={"text"},
+                    allowed_intelligence_tiers={"L2"},
+                    quality_tier_advisory=True,
+                )
+            )
         proposal_selection = router.choose(
             RouteRequest(
                 capabilities={"text"},
-                allowed_intelligence_tiers={"L2"},
+                allowed_intelligence_tiers={"L1"},
                 quality_tier_advisory=True,
             )
         )

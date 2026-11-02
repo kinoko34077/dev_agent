@@ -52,12 +52,12 @@ def _parse(value: Any) -> datetime | None:
 # Record-level validity start keys, in priority order.  Model evidence uses
 # observed_at, the qualification matrix tested_at, and billing verified_at.
 _START_KEYS = ("observed_at", "tested_at", "verified_at")
-Window = tuple["datetime | None", datetime]
+Window = tuple["datetime | None", "datetime | None"]
 
 
 def _valid_at(window: Window, at: datetime) -> bool:
     start, expires = window
-    return (start is None or start <= at) and at < expires
+    return (start is None or start <= at) and (expires is None or at < expires)
 
 
 def _window(windows: list[Window], now: datetime, horizon: datetime) -> dict[str, Any]:
@@ -73,7 +73,7 @@ def _window(windows: list[Window], now: datetime, horizon: datetime) -> dict[str
         "current": len(current),
         "current_at_horizon": sum(1 for window in windows if _valid_at(window, horizon)),
         "not_yet_valid": sum(1 for start, _ in windows if start is not None and start > now),
-        "next_expiry": min((expires for _, expires in current), default=None),
+        "next_expiry": min((expires for _, expires in current if expires is not None), default=None),
     }
 
 
@@ -140,7 +140,12 @@ def build_report(
     billing_windows: list[Window] = []
     billing_profiles: list[dict[str, Any]] = []
     for (provider_id, provider_binding_id, model_id), profile in sorted(TRUSTED_RESOURCE_CATALOG.items()):
-        window = _record_window({"verified_at": profile.verified_at, "expires_at": profile.expires_at})
+        non_expiring = profile.non_expiring_no_charge
+        window = (
+            (_parse(profile.verified_at), None)
+            if non_expiring
+            else _record_window({"verified_at": profile.verified_at, "expires_at": profile.expires_at})
+        )
         if window is not None:
             billing_windows.append(window)
         current_now = window is not None and _valid_at(window, now)
@@ -152,7 +157,7 @@ def build_report(
                 "model_id": model_id,
                 "source": profile.source,
                 "verified_at": profile.verified_at,
-                "expires_at": profile.expires_at,
+                "expires_at": None if non_expiring else profile.expires_at,
                 "billing_mode": profile.billing_mode,
                 "overage_policy": profile.overage_policy,
                 "fact_current_now": current_now,

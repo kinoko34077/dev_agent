@@ -19,6 +19,8 @@ from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.fake.provider import FakeProvider
 
+pytestmark = pytest.mark.synthetic_no_charge_worker_billing
+
 
 def test_orchestrator_uses_shared_repository_json_reader():
     assert orchestrator_module.read_json is read_json

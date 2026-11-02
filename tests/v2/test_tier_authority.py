@@ -138,6 +138,21 @@ def test_quality_advisory_never_grants_remote_identity_without_qualification():
     assert decision.reason == "QUALIFICATION_MISSING"
 
 
+def test_remote_quality_advisory_can_use_explicit_discovered_text_proposal_candidate():
+    decision = ProductionTierAuthority().resolve(
+        provider_id="gemini",
+        provider_binding_id="gemini:core",
+        model_id="gemini-3.8-flash",
+        allow_unverified_quality_proposal=True,
+        allow_unqualified_proposal_candidate=True,
+    )
+
+    assert decision.eligible is True
+    assert decision.tier is None
+    assert decision.source == "proposal_candidate"
+    assert decision.reason == "QUALIFICATION_UNVERIFIED"
+
+
 def test_operation_does_not_persist_remote_configuration_as_production_tier(tmp_path):
     binding = OperationProviderBinding(
         provider_id="gemini",

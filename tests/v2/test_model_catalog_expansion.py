@@ -449,7 +449,23 @@ def test_planner_pool_can_expand_one_credential_binding_into_multiple_admitted_m
                 task_fit={"planning": 50.0},
             )
 
-    profile = SimpleNamespace(no_charge_guaranteed=True)
+    from src.dev_agent.resources.billing_catalog import TrustedResourceProfile
+
+    profile = TrustedResourceProfile(
+        "gemini",
+        "gemini:project-a",
+        "gemini-2.5-flash",
+        0,
+        "JPY",
+        True,
+        "L2",
+        source="test_only_synthetic_billing_fixture",
+        verified_at="2026-09-01T00:00:00+00:00",
+        expires_at="2026-09-21T00:00:00+00:00",
+        billing_mode="recurring_allowance",
+        allowance_period="daily",
+        overage_policy="hard_stop",
+    )
     monkeypatch.setattr(planner_shadow, "profile_for", lambda *_args: profile)
     candidates = planner_shadow.admit_planner_pool(
         (
@@ -574,17 +590,22 @@ def test_planner_shadow_rechecks_expanded_binding_against_credential_evidence(mo
                 },
             )
 
-    profile = SimpleNamespace(
-        cost_minor=0,
-        price_currency="JPY",
-        no_charge_guaranteed=True,
-        expires_at="2099-01-01T00:00:00+00:00",
-        billing_mode="free_fixed",
-        overage_policy="hard_stop",
-        allowance_amount=None,
-        allowance_currency=None,
-        allowance_period=None,
-    )
+    from src.dev_agent.resources.billing_catalog import TrustedResourceProfile
+
+    def _profile_for(provider_id, binding_id, model_id):
+        return TrustedResourceProfile(
+            provider_id,
+            binding_id,
+            model_id,
+            0,
+            "JPY",
+            False,
+            source="test_only_synthetic_billing_fixture",
+            verified_at="2026-01-01T00:00:00+00:00",
+            expires_at="2027-01-01T00:00:00+00:00",
+            billing_mode="free_fixed",
+            overage_policy="hard_stop",
+        )
     providers = {}
 
     def _build_provider(*, binding):
@@ -593,8 +614,8 @@ def test_planner_shadow_rechecks_expanded_binding_against_credential_evidence(mo
 
     monkeypatch.setattr(planner_shadow, "QualificationResolver", _QualificationResolver)
     monkeypatch.setattr(planner_shadow, "ResourceRouter", router_module.ResourceRouter)
-    monkeypatch.setattr(planner_shadow, "profile_for", lambda *_args: profile)
-    monkeypatch.setattr(router_module, "profile_for", lambda *_args: profile)
+    monkeypatch.setattr(planner_shadow, "profile_for", _profile_for)
+    monkeypatch.setattr(router_module, "profile_for", _profile_for)
     monkeypatch.setattr(router_module, "ModelAdmissionResolver", _ModelAdmissionResolver)
     monkeypatch.setattr(planner_shadow, "_build_provider", _build_provider)
 
@@ -610,6 +631,7 @@ def test_planner_shadow_rechecks_expanded_binding_against_credential_evidence(mo
         allow_unknown_quota=True,
         repository="example/repo",
         branch="v2/bootstrap",
+        required_tier="L1",
         provider_pool=(base_binding,),
         model_admission_resolver=_ModelAdmissionResolver(),
         model_catalog=catalog,
@@ -620,7 +642,7 @@ def test_planner_shadow_rechecks_expanded_binding_against_credential_evidence(mo
     assert result["model"] in {"model-a", "model-b"}
     assert result["binding"].startswith("fake:project-a:")
     assert result["intelligence_tier"] == "L1"
-    assert result["requested_intelligence_tier"] == "L2"
+    assert result["requested_intelligence_tier"] == "L1"
     assert result["qualification_confidence"] == "high"
 
 

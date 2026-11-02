@@ -5,6 +5,8 @@ import json
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from scripts.devfarm import write_manifest
 from scripts.devfarm_commander import create_plan
 from scripts.devfarm_orchestrator import DevFarmOrchestrator
@@ -18,6 +20,8 @@ from src.dev_agent.intelligence.self_improvement import (
 )
 from src.dev_agent.intelligence.self_repair import RepairExecutionRequest, RollbackProof
 from src.dev_agent.providers.fake.provider import FakeProvider
+
+pytestmark = pytest.mark.synthetic_no_charge_worker_billing
 
 
 class _WorkerProvider(FakeProvider):

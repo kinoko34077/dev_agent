@@ -24,6 +24,8 @@ from src.dev_agent.intelligence.planner import (
 from src.dev_agent.operation import OperationConfig, OperationService
 from tests.v2.test_devfarm_commander import _WorkerProvider, _patch, _repo
 
+pytestmark = pytest.mark.synthetic_no_charge_worker_billing
+
 
 _REVISION_A = "a" * 40
 _REVISION_B = "b" * 40

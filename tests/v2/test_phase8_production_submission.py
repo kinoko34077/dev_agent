@@ -26,6 +26,8 @@ from src.dev_agent.intelligence.planner import (
 )
 from tests.v2.test_devfarm_commander import _WorkerProvider, _patch, _repo
 
+pytestmark = pytest.mark.synthetic_no_charge_worker_billing
+
 
 class _LifecycleProbe:
     def __init__(self, unloaded=(), error=None):

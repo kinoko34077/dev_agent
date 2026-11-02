@@ -29,6 +29,9 @@ from src.dev_agent.providers.openrouter import OpenRouterHttpProvider
 from tests.v2.devfarm_test_support import _RawWorkerProvider, _WorkerProvider, _workspace, _patch
 
 
+pytestmark = pytest.mark.synthetic_no_charge_worker_billing
+
+
 class _MismatchedResponseProvider(_WorkerProvider):
     def request(self, request):
         self.request_count += 1

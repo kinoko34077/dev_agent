@@ -11,10 +11,13 @@ from src.dev_agent.resources.ledger import ResourceLedger, unknown_quota_wake_re
 from src.dev_agent.resources.router import ResourceRouter, RouteSelection
 
 
-def _control(tmp_path):
+def _control(tmp_path, *, qualification_resolver=None):
     ledger = ResourceLedger(tmp_path / "resources.sqlite3")
     BudgetAuthority.configure(ledger, BudgetPolicy(hard_cap_minor=0, recovery_reserve_minor=0))
-    return ledger, ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger))
+    return ledger, ResourceControlPlane(
+        ResourceRouter(ledger, qualification_resolver=qualification_resolver),
+        BudgetGovernor(ledger),
+    )
 
 
 def test_legacy_resource_reservation_honors_exact_intelligence_tier(tmp_path):
@@ -51,9 +54,49 @@ def test_legacy_resource_reservation_honors_exact_intelligence_tier(tmp_path):
         ledger.close()
 
 
-def test_legacy_resource_reservation_can_use_explicit_unknown_quota_bootstrap(tmp_path):
+def test_legacy_resource_reservation_can_use_explicit_unknown_quota_bootstrap(tmp_path, monkeypatch):
     from datetime import datetime, timedelta, timezone
-    ledger, control = _control(tmp_path)
+    from src.dev_agent.resources.billing_catalog import TrustedResourceProfile
+    from src.dev_agent.resources.qualification import QualificationResolver
+    import src.dev_agent.resources.router as router_module
+
+    test_profile = TrustedResourceProfile(
+        provider_id="gemini",
+        provider_binding_id="gemini:worker",
+        model_id="gemini-3.5-flash-lite",
+        cost_minor=0,
+        price_currency="JPY",
+        quota_required=True,
+        intelligence_tier="L1",
+        source="test_only_synthetic_unknown_quota_fixture",
+        verified_at="2026-09-01T00:00:00+00:00",
+        expires_at="2099-01-01T00:00:00+00:00",
+        billing_mode="recurring_allowance",
+        allowance_period="daily",
+        overage_policy="hard_stop",
+    )
+    production_profile_for = router_module.profile_for
+    monkeypatch.setattr(
+        router_module,
+        "profile_for",
+        lambda provider_id, binding_id, model_id: (
+            test_profile
+            if (provider_id, binding_id, model_id)
+            == ("gemini", "gemini:worker", "gemini-3.5-flash-lite")
+            else production_profile_for(provider_id, binding_id, model_id)
+        ),
+    )
+    qualification = QualificationResolver(entries=[{
+        "provider": "gemini",
+        "provider_binding_id": "gemini:worker",
+        "model": "gemini-3.5-flash-lite",
+        "intelligence_tier": "L1",
+        "tested_at": "2026-09-01T00:00:00+00:00",
+        "expires_at": "2099-01-01T00:00:00+00:00",
+        "confidence": "high",
+        "capabilities": ["text"],
+    }])
+    ledger, control = _control(tmp_path, qualification_resolver=qualification)
     try:
         future = (datetime.now(timezone.utc) + timedelta(days=28)).isoformat()
         ledger.register_resource(

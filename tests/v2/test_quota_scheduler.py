@@ -289,9 +289,34 @@ def test_quota_requalification_does_not_wake_without_routable_headroom(tmp_path)
     assert queue.snapshot("quota-task").state == "waiting"
 
 
-def test_quota_requalification_admits_trusted_no_charge_unknown_after_headerless_reset(tmp_path):
+def test_quota_requalification_admits_trusted_no_charge_unknown_after_headerless_reset(tmp_path, monkeypatch):
     ledger = _trusted_no_charge_blocked_ledger(tmp_path)
     now = datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc)
+    from src.dev_agent.resources.billing_catalog import TrustedResourceProfile
+
+    historical_profile = TrustedResourceProfile(
+        "gemini",
+        "gemini:worker",
+        "gemini-3.5-flash-lite",
+        0,
+        "JPY",
+        True,
+        "L1",
+        source="test_only_synthetic_billing_fixture",
+        verified_at="2026-09-09T00:00:00+00:00",
+        expires_at="2026-10-09T00:00:00+00:00",
+        billing_mode="recurring_allowance",
+        allowance_period="daily",
+        overage_policy="hard_stop",
+    )
+    monkeypatch.setattr(
+        "src.dev_agent.scheduler.quota.profile_for",
+        lambda *_args: historical_profile,
+    )
+    monkeypatch.setattr(
+        "src.dev_agent.resources.router.profile_for",
+        lambda *_args: historical_profile,
+    )
 
     with pytest.raises(NoRoute, match="no eligible resource"):
         ResourceRouter(ledger).choose(
@@ -383,11 +408,36 @@ def test_quota_requalification_keeps_tampered_or_paid_trust_metadata_quarantined
     assert ledger.get_quota_observation("gemini:worker")["block_reason"] == "rate_limit"
 
 
-def test_quota_requalification_uses_qualification_binding_for_catalog_identity(tmp_path):
+def test_quota_requalification_uses_qualification_binding_for_catalog_identity(tmp_path, monkeypatch):
     ledger = _trusted_no_charge_blocked_ledger(
         tmp_path,
         model_id="gemini-2.5-flash",
         metadata_overrides={"qualification_binding_id": "gemini:qualification"},
+    )
+    from src.dev_agent.resources.billing_catalog import TrustedResourceProfile
+
+    historical_profile = TrustedResourceProfile(
+        "gemini",
+        "gemini:qualification",
+        "gemini-2.5-flash",
+        0,
+        "JPY",
+        True,
+        None,
+        source="test_only_synthetic_billing_fixture",
+        verified_at="2026-09-09T00:00:00+00:00",
+        expires_at="2026-10-09T00:00:00+00:00",
+        billing_mode="recurring_allowance",
+        allowance_period="daily",
+        overage_policy="hard_stop",
+    )
+    monkeypatch.setattr(
+        "src.dev_agent.scheduler.quota.profile_for",
+        lambda *_args: historical_profile,
+    )
+    monkeypatch.setattr(
+        "src.dev_agent.resources.router.profile_for",
+        lambda *_args: historical_profile,
     )
 
     result = QuotaRequalificationCoordinator(ledger).probe_once(

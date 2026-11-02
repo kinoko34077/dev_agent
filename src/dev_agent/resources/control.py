@@ -19,12 +19,40 @@ def quality_tier_advisory_for(request: ModelRequest) -> bool:
     """Allow tier fallback only for explicitly untrusted proposal requests."""
 
     metadata = request.metadata
+    requested_tiers = metadata.get("allowed_intelligence_tiers")
+    if metadata.get("planner_contract") == "phase8_minimal_root_v1":
+        return False
+    if isinstance(requested_tiers, (list, tuple, set, frozenset)) and any(
+        tier in {"L2", "L3"} for tier in requested_tiers
+    ):
+        return False
     return (
         metadata.get("quality_tier_advisory") is True
         and metadata.get("proposal_only") is True
         and metadata.get("authority") == "host_validation_required"
         and metadata.get("execution_role") in {"planner", "reviewer", "critic", "implementer", "worker"}
     )
+
+
+def unqualified_proposal_candidate_for(request: ModelRequest) -> bool:
+    """Permit an unqualified exact free candidate only for non-L2 proposals.
+
+    This does not alter formal qualification or tier authority. Phase 8's
+    production planner contract and any L2/L3 requirement remain qualified.
+    """
+
+    if not quality_tier_advisory_for(request):
+        return False
+    metadata = request.metadata
+    if metadata.get("planner_contract") == "phase8_minimal_root_v1":
+        return False
+    allowed_tiers = metadata.get("allowed_intelligence_tiers")
+    if isinstance(allowed_tiers, (list, tuple, set, frozenset)) and any(
+        tier in {"L2", "L3"} for tier in allowed_tiers
+    ):
+        return False
+    requested = set(request.requested_capabilities or ())
+    return requested.issubset({"text"})
 
 
 class DispatchDenied(RuntimeError):
@@ -121,6 +149,7 @@ class ResourceControlPlane:
             excluded_resource_ids=excluded_resource_ids,
             max_cost_minor=max_cost_minor,
             quality_tier_advisory=quality_tier_advisory_for(request),
+            allow_unqualified_proposal_candidate=unqualified_proposal_candidate_for(request),
         )
 
     def effective_route(
@@ -144,6 +173,7 @@ class ResourceControlPlane:
                 excluded_resource_ids=excluded_resource_ids,
                 max_cost_minor=max_cost_minor,
                 quality_tier_advisory=quality_tier_advisory_for(request),
+                allow_unqualified_proposal_candidate=unqualified_proposal_candidate_for(request),
             )
         except (TypeError, ValueError) as exc:
             raise DispatchDenied("invalid_request", str(exc)) from exc

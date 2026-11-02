@@ -7,8 +7,9 @@ It deliberately does not introduce another runtime or scheduler; the public
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import inspect
+import logging
 from typing import Any, Callable
 
 from .intelligence.coordination import EvaluationCoordinator
@@ -23,6 +24,8 @@ from .resources.model_admission import ModelAdmissionResolver
 from .resources.model_candidates import materialize_provider_bindings
 from .resources.model_catalog import ModelCatalog
 from .resources.model_evidence import ModelEvidenceCatalog
+from .resources.model_evidence_builder import derive_capabilities
+from .resources.provider_policy import requires_qualification
 from .resources.qualification import QualificationResolver
 from .resources.router import ResourceRouter
 from .runtime.controller import Controller
@@ -31,6 +34,38 @@ from .scheduler.worker import WorkerRunner
 from .state.control_repository import OperationControl
 from .state.sqlite_store import SQLiteStateStore
 from .tools.runtime import ToolRuntime
+
+
+_LOGGER = logging.getLogger(__name__)
+
+
+def _current_no_charge_profile(profile: Any) -> bool:
+    return bool(
+        profile is not None
+        and getattr(profile, "no_charge_guaranteed", False) is True
+        and callable(getattr(profile, "is_current", None))
+        and profile.is_current()
+    )
+
+
+@dataclass(frozen=True)
+class ProviderCandidateAdvisory:
+    """Bounded operator-visible warning tied to one exact configured route."""
+
+    provider_id: str
+    binding_id: str
+    model_id: str
+    warning_category: str
+    blocks_dispatch: bool
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "provider_id": self.provider_id,
+            "binding_id": self.binding_id,
+            "model_id": self.model_id,
+            "warning_category": self.warning_category,
+            "blocks_dispatch": self.blocks_dispatch,
+        }
 
 
 @dataclass(frozen=True)
@@ -48,6 +83,7 @@ class OperationComponents:
     lifecycle: TaskLifecycleCoordinator
     qualification_resolver: QualificationResolver
     model_admission_resolver: ModelAdmissionResolver | None
+    provider_candidate_advisories: tuple[ProviderCandidateAdvisory, ...] = ()
 
 
 def open_components(
@@ -91,12 +127,35 @@ def open_components(
         elif dynamic_discovery_requested:
             # Dynamic configured bindings opt into the reviewed repository
             # catalog for candidate identity only. Discovery still grants no
-            # routing authority: qualification, billing, privacy, quota and
-            # health gates remain mandatory below.
-            model_catalog = ModelEvidenceCatalog.load_default().catalog
+            # routing authority: exact billing, privacy, quota and health
+            # gates remain mandatory; qualification may be advisory only on
+            # proposal-only text requests.
+            model_evidence = ModelEvidenceCatalog.load_default()
+            model_catalog = model_evidence.catalog
+            model_admission_resolver = model_evidence.resolver
         ensure_budget(ledger)
 
         runtime_bindings: list[Any] = []
+        candidate_advisories: dict[tuple[str, str, str, str], ProviderCandidateAdvisory] = {}
+
+        def record_candidate_advisory(
+            provider_id: str,
+            binding_id: str,
+            model_id: str,
+            warning_category: str,
+            *,
+            blocks_dispatch: bool,
+        ) -> None:
+            key = (provider_id, binding_id, model_id, warning_category)
+            candidate_advisories[key] = ProviderCandidateAdvisory(
+                provider_id=provider_id,
+                binding_id=binding_id,
+                model_id=model_id,
+                warning_category=warning_category,
+                blocks_dispatch=blocks_dispatch,
+            )
+
+        proposal_candidate_identities: set[tuple[str, str, str]] = set()
         for binding in configured_bindings:
             requires_current_discovery = bool(
                 getattr(binding, "require_current_model_discovery", False)
@@ -105,30 +164,72 @@ def open_components(
                 getattr(binding, "expand_discovered_models", False)
             )
             if not requires_current_discovery and not expands_discovered_models:
-                runtime_bindings.append(binding)
-                continue
+                # An unqualified remote route may be retained as a bounded
+                # proposal candidate only after the exact model identity is
+                # confirmed by current inventory. A configured pin alone is
+                # not model-discovery evidence.
+                qualification = qualification_resolver.resolve(
+                    binding.provider_id,
+                    binding.credential_binding_id,
+                    binding.model,
+                )
+                profile = resource_profile(
+                    binding.provider_id,
+                    binding.credential_binding_id,
+                    binding.model,
+                )
+                needs_proposal_inventory = bool(
+                    requires_qualification(binding.provider_id)
+                    and qualification is None
+                    and _current_no_charge_profile(profile)
+                )
+                if not needs_proposal_inventory:
+                    runtime_bindings.append(binding)
+                    continue
+                if model_admission_resolver is None:
+                    try:
+                        model_admission_resolver = ModelEvidenceCatalog.load_default().resolver
+                    except Exception:
+                        # Live inventory and provider metadata still establish
+                        # exact identity/capability where available. A missing
+                        # optional snapshot is represented by the bounded
+                        # advisory below, never by an inferred capability.
+                        pass
+                requires_current_discovery = True
 
             candidate_catalog = model_catalog
-            discovery_succeeded = False
             # Refresh the factual candidate set at Operation startup through
             # the common discovery contract. A live model list grants no
             # execution authority; every row still passes exact
-            # qualification/billing/quota/health gates below. If the
-            # read-only refresh is unavailable, only the still-current
-            # reviewed catalog may serve as fallback.
+            # qualification/billing/quota/health gates below. A failed
+            # refresh leaves the exact configured identity visible with a
+            # blocking advisory; stale catalog entries cannot substitute.
             try:
                 live = ProviderModelDiscovery().discover(
                     ModelDiscoveryBinding.from_operation_binding(binding)
                 )
                 candidate_catalog = ModelCatalog.from_document(live.to_document())
-                discovery_succeeded = True
             except Exception:
-                # A configured exact pin is valid only when the current
-                # provider inventory confirms it. A stale pin must not fall
-                # back to the reviewed static catalog or direct construction.
-                candidate_catalog = None if requires_current_discovery else model_catalog
-            if requires_current_discovery and not discovery_succeeded:
-                continue
+                # Preserve the exact configured identity for operator
+                # visibility, but do not dispatch it without current
+                # inventory confirmation. Quality uncertainty can be
+                # advisory for bounded proposals; identity uncertainty cannot.
+                candidate_catalog = None
+                record_candidate_advisory(
+                    binding.provider_id,
+                    binding.binding_id,
+                    binding.model,
+                    "MODEL_DISCOVERY_UNVERIFIED",
+                    blocks_dispatch=True,
+                )
+                _LOGGER.warning(
+                    "configured provider candidate retained as non-dispatchable because current model discovery failed",
+                    extra={
+                        "provider_id": binding.provider_id,
+                        "binding_id": binding.binding_id,
+                        "warning_category": "MODEL_DISCOVERY_UNVERIFIED",
+                    },
+                )
             if candidate_catalog is None:
                 continue
             for candidate in materialize_provider_bindings(
@@ -150,27 +251,179 @@ def open_components(
                     catalog_binding_id,
                     candidate.model,
                 )
-                if discovered_candidate is None or not discovered_candidate.is_text_generation_candidate():
+                profile = resource_profile(
+                    candidate.provider_id,
+                    qualification_binding_id,
+                    candidate.model,
+                )
+                if not _current_no_charge_profile(profile):
+                    record_candidate_advisory(
+                        candidate.provider_id,
+                        candidate.binding_id,
+                        candidate.model,
+                        "BILLING_UNVERIFIED",
+                        blocks_dispatch=True,
+                    )
+                    _LOGGER.warning(
+                        "provider model candidate retained in configuration but not dispatchable without exact current no-charge billing evidence",
+                        extra={
+                            "provider_id": candidate.provider_id,
+                            "binding_id": candidate.binding_id,
+                            "model_id": candidate.model,
+                            "warning_category": "BILLING_UNVERIFIED",
+                        },
+                    )
+                    continue
+                if discovered_candidate is not None and not discovered_candidate.is_text_generation_candidate():
+                    record_candidate_advisory(
+                        candidate.provider_id,
+                        candidate.binding_id,
+                        candidate.model,
+                        "UNSUPPORTED_CAPABILITY",
+                        blocks_dispatch=True,
+                    )
+                    continue
+                if discovered_candidate is None:
+                    # A successful inventory that omits an exact configured
+                    # pin is affirmative evidence that the route is stale or
+                    # unavailable. Keep it visible, but fail closed for this
+                    # route instead of guessing or silently substituting.
+                    if candidate.model != binding.model:
+                        continue
+                    record_candidate_advisory(
+                        candidate.provider_id,
+                        candidate.binding_id,
+                        candidate.model,
+                        "MODEL_NOT_IN_CURRENT_INVENTORY",
+                        blocks_dispatch=True,
+                    )
+                    _LOGGER.warning(
+                        "configured exact model is not present in current provider inventory",
+                        extra={
+                            "provider_id": candidate.provider_id,
+                            "binding_id": candidate.binding_id,
+                            "model_id": candidate.model,
+                            "warning_category": "MODEL_NOT_IN_CURRENT_INVENTORY",
+                        },
+                    )
                     continue
                 qualification = qualification_resolver.resolve(
                     candidate.provider_id,
                     qualification_binding_id,
                     candidate.model,
                 )
-                if qualification is None:
-                    continue
-                profile = resource_profile(
-                    candidate.provider_id,
-                    qualification_binding_id,
-                    candidate.model,
-                )
-                if profile is None or not profile.no_charge_guaranteed or not profile.is_current():
-                    continue
+                if qualification is None and requires_qualification(candidate.provider_id):
+                    current_capability = (
+                        model_admission_resolver.capabilities.lookup(
+                            candidate.provider_id,
+                            candidate.model,
+                        )
+                        if model_admission_resolver is not None
+                        else None
+                    )
+                    has_text_capability = bool(
+                        "text" in derive_capabilities(discovered_candidate)
+                        or (
+                            current_capability is not None
+                            and "text" in current_capability.capabilities
+                        )
+                    )
+                    if not has_text_capability:
+                        record_candidate_advisory(
+                            candidate.provider_id,
+                            candidate.binding_id,
+                            candidate.model,
+                            "TEXT_CAPABILITY_UNVERIFIED",
+                            blocks_dispatch=True,
+                        )
+                        continue
+                    candidate = replace(candidate, proposal_only_candidate=True)
+                    proposal_candidate_identities.add(
+                        (candidate.provider_id, candidate.credential_binding_id, candidate.model)
+                    )
+                    record_candidate_advisory(
+                        candidate.provider_id,
+                        candidate.binding_id,
+                        candidate.model,
+                        "QUALIFICATION_UNVERIFIED",
+                        blocks_dispatch=False,
+                    )
+                    _LOGGER.warning(
+                        "provider candidate retained for text proposals with unverified qualification",
+                        extra={
+                            "provider_id": candidate.provider_id,
+                            "binding_id": candidate.binding_id,
+                            "model_id": candidate.model,
+                            "warning_category": "QUALIFICATION_UNVERIFIED",
+                        },
+                    )
                 # Static benchmark/alias/capability snapshots enrich routing
                 # quality and narrow capabilities when current. They do not
                 # duplicate the fresh Provider inventory, exact qualification,
                 # and billing checks above as a second blanket admission gate.
                 runtime_bindings.append(candidate)
+
+        # Exact operator-selected remote pins that do not request dynamic
+        # model discovery use the same low-tier proposal rule. A current exact
+        # no-charge profile remains mandatory; absence of quality evidence is
+        # surfaced as a warning instead of dropping the only candidate.
+        normalized_bindings: list[Any] = []
+        for binding in runtime_bindings:
+            if not requires_qualification(binding.provider_id):
+                normalized_bindings.append(binding)
+                continue
+            profile = resource_profile(
+                binding.provider_id,
+                binding.credential_binding_id,
+                binding.model,
+            )
+            if not _current_no_charge_profile(profile):
+                record_candidate_advisory(
+                    binding.provider_id,
+                    binding.binding_id,
+                    binding.model,
+                    "BILLING_UNVERIFIED",
+                    blocks_dispatch=True,
+                )
+                _LOGGER.warning(
+                    "provider candidate unavailable because exact current no-charge billing evidence is missing",
+                    extra={
+                        "provider_id": binding.provider_id,
+                        "binding_id": binding.binding_id,
+                        "model_id": binding.model,
+                        "warning_category": "BILLING_UNVERIFIED",
+                    },
+                )
+                continue
+            qualification = qualification_resolver.resolve(
+                binding.provider_id,
+                binding.credential_binding_id,
+                binding.model,
+            )
+            if qualification is None and not getattr(binding, "proposal_only_candidate", False):
+                binding = replace(binding, proposal_only_candidate=True)
+                record_candidate_advisory(
+                    binding.provider_id,
+                    binding.binding_id,
+                    binding.model,
+                    "QUALIFICATION_UNVERIFIED",
+                    blocks_dispatch=False,
+                )
+                _LOGGER.warning(
+                    "explicit provider candidate retained for text proposals with unverified qualification",
+                    extra={
+                        "provider_id": binding.provider_id,
+                        "binding_id": binding.binding_id,
+                        "model_id": binding.model,
+                        "warning_category": "QUALIFICATION_UNVERIFIED",
+                    },
+                )
+            normalized_bindings.append(binding)
+            if getattr(binding, "proposal_only_candidate", False):
+                proposal_candidate_identities.add(
+                    (binding.provider_id, binding.credential_binding_id, binding.model)
+                )
+        runtime_bindings = normalized_bindings
 
         providers: list[Any] = []
         trusted_free_binding_present = False
@@ -200,6 +453,7 @@ def open_components(
                 ledger,
                 qualification_resolver=qualification_resolver,
                 model_admission_resolver=model_admission_resolver,
+                proposal_candidate_identities=proposal_candidate_identities,
             ),
             BudgetGovernor(ledger),
         )
@@ -232,6 +486,9 @@ def open_components(
             lifecycle=TaskLifecycleCoordinator(store),
             qualification_resolver=qualification_resolver,
             model_admission_resolver=model_admission_resolver,
+            provider_candidate_advisories=tuple(
+                candidate_advisories[key] for key in sorted(candidate_advisories)
+            ),
         )
     except Exception:
         if control is not None:

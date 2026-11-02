@@ -38,6 +38,8 @@ from tests.v2.test_devfarm_commander import (
     _repo,
 )
 
+pytestmark = pytest.mark.synthetic_no_charge_worker_billing
+
 
 def _parent() -> Task:
     return Task(

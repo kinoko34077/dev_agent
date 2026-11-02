@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from scripts.devfarm_worker import apply_and_verify, run_worker
 from tests.v2.devfarm_test_support import _WorkerProvider, _workspace
+
+pytestmark = pytest.mark.synthetic_no_charge_worker_billing
 
 
 def test_new_file_replacement_is_applied_and_verified_by_host(tmp_path) -> None:

@@ -11,6 +11,7 @@ from scripts.devfarm_resource_pool import (
 )
 from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_verification import validate_host_test_targets
+from src.dev_agent.resources.billing_catalog import TrustedResourceProfile
 
 
 def test_resource_pool_binding_factory_keeps_exact_execution_identity():
@@ -44,7 +45,17 @@ def test_resource_pool_admission_is_role_neutral(monkeypatch):
         routing_capabilities=frozenset({"text"}),
         intelligence_tier="L2",
     )
-    profile = SimpleNamespace(no_charge_guaranteed=True)
+    profile = TrustedResourceProfile(
+        provider_id="fake",
+        provider_binding_id="fake:project-a",
+        model_id="model-a",
+        cost_minor=0,
+        price_currency="JPY",
+        quota_required=False,
+        intelligence_tier="L2",
+        verified_at="2026-09-09T00:00:00+00:00",
+        expires_at="9999-12-31T23:59:59+00:00",
+    )
 
     class Resolver:
         def resolve(self, provider_id, binding_id, model, **kwargs):
@@ -56,7 +67,6 @@ def test_resource_pool_admission_is_role_neutral(monkeypatch):
         "scripts.devfarm_resource_pool.default_profile_for",
         lambda *_args: profile,
     )
-
     admitted = admit_resource_pool((binding,), resolver=Resolver(), required_tier="L2")
 
     assert admitted == ((binding, qualification, profile),)

@@ -14,6 +14,9 @@ from scripts.devfarm_worker_output import (
 from tests.v2.devfarm_test_support import _WorkerProvider, _workspace
 
 
+pytestmark = pytest.mark.synthetic_no_charge_worker_billing
+
+
 def _manifest() -> dict[str, object]:
     return {
         "task_id": "localized-edit-task",

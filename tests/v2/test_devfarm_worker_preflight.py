@@ -14,6 +14,8 @@ from scripts.devfarm_worker_output import (
 from src.dev_agent.domain.protocol import ModelResponse
 from tests.v2.devfarm_test_support import _WorkerProvider, _workspace
 
+pytestmark = pytest.mark.synthetic_no_charge_worker_billing
+
 
 def test_worker_output_mode_is_manifest_selectable_and_fail_closed() -> None:
     assert worker_output_mode({"format": "json"}) == "full_result"

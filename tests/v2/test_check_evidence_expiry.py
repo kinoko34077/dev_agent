@@ -132,14 +132,18 @@ def test_report_is_labelled_static_not_runtime(tmp_path):
 
 
 def test_billing_catalog_next_expiry_matches_trusted_profiles():
-    earliest = min(datetime.fromisoformat(profile.expires_at) for profile in TRUSTED_RESOURCE_CATALOG.values())
+    expiring_profiles = [
+        profile for profile in TRUSTED_RESOURCE_CATALOG.values()
+        if not profile.non_expiring_no_charge
+    ]
+    earliest = min(datetime.fromisoformat(profile.expires_at) for profile in expiring_profiles)
     latest_start = max(datetime.fromisoformat(profile.verified_at) for profile in TRUSTED_RESOURCE_CATALOG.values())
     assert latest_start < earliest  # every profile's window overlaps [latest_start, earliest)
 
     inside = check_evidence_expiry.build_report(now=latest_start, horizon_hours=1)
     before = check_evidence_expiry.build_report(now=latest_start - timedelta(days=365), horizon_hours=1)
 
-    assert inside["sources"]["billing_catalog"]["next_expiry"] == earliest.isoformat()
+    assert datetime.fromisoformat(inside["sources"]["billing_catalog"]["next_expiry"]) == earliest
     assert inside["sources"]["billing_catalog"]["current"] == len(TRUSTED_RESOURCE_CATALOG)
     assert before["sources"]["billing_catalog"]["current"] == 0  # not yet verified
 
@@ -238,21 +242,28 @@ def test_future_observed_evidence_is_not_current_nor_exhausted(tmp_path):
     assert report["static_eligible_now"] == 0  # consistent with the resolver's own window check
 
 
-def test_expired_billing_catalog_is_explicitly_reported_even_with_fresh_models(tmp_path):
-    # Model evidence may remain current after every billing authority expires.
-    # This must not appear as a successful preflight.
+def test_expired_remote_billing_entries_are_reported_even_with_fresh_models(tmp_path):
+    # Local deterministic profiles have no provider billing clock. Once every
+    # expiring remote fact lapses, those local rows remain current but cannot
+    # make the expired remote rows appear current.
     fresh_models = _evidence_expiring_at(tmp_path, _NOW + timedelta(days=120))
+    expiring_profiles = [
+        profile for profile in TRUSTED_RESOURCE_CATALOG.values()
+        if not profile.non_expiring_no_charge
+    ]
     after_billing_expiry = max(
-        datetime.fromisoformat(profile.expires_at) for profile in TRUSTED_RESOURCE_CATALOG.values()
+        datetime.fromisoformat(profile.expires_at) for profile in expiring_profiles
     ) + timedelta(minutes=1)
     report = _report(fresh_models, now=after_billing_expiry, horizon_hours=48, identities=())
 
     assert report["static_eligible_now"] > 0
-    assert report["sources"]["billing_catalog"]["current"] == 0
-    assert "billing_catalog_no_current_facts" in report["failures"]
-    assert "billing_catalog_no_current_facts_at_horizon" in report["failures"]
-    assert all(not row["fact_current_now"] for row in report["billing_profiles"])
-    assert all(not row["trusted_no_charge_now"] for row in report["billing_profiles"])
+    assert report["sources"]["billing_catalog"]["current"] == len(TRUSTED_RESOURCE_CATALOG) - len(expiring_profiles)
+    assert "billing_catalog_no_current_facts" not in report["failures"]
+    assert "billing_catalog_no_current_facts_at_horizon" not in report["failures"]
+    expiring_rows = [row for row in report["billing_profiles"] if row["expires_at"] is not None]
+    permanent_rows = [row for row in report["billing_profiles"] if row["expires_at"] is None]
+    assert expiring_rows and all(not row["fact_current_now"] for row in expiring_rows)
+    assert permanent_rows and all(row["fact_current_now"] and row["trusted_no_charge_now"] for row in permanent_rows)
 
 
 def test_billing_diagnostic_keeps_exact_identity_and_separates_future_expiry(monkeypatch):
