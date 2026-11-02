@@ -379,15 +379,17 @@ def _materialize_file_replacements(
                 raise DevFarmError(f"file replacement has too many lines: {normalized_path}")
             if any(not isinstance(line, str) for line in replacement):
                 raise DevFarmError(f"file replacement lines must be strings: {normalized_path}")
-            if require_single_line_items and any("\r" in line or "\n" in line for line in replacement):
-                raise DevFarmError(
-                    "minimal Worker line-array items must not contain newlines: "
-                    f"{normalized_path}"
-                )
             # Models commonly serialize the final newline as an extra empty
             # line.  Canonicalize that transport artifact before generating a
             # patch; git's whitespace=error must still reject real blank
             # lines before EOF, but a single final newline is always valid.
+            # The structured schema asks for one source line per item, but a
+            # few local providers return a complete multiline fragment in one
+            # array element.  Splitting only explicit CR/LF separators is a
+            # meaning-preserving transport normalization; the resulting Host
+            # patch remains subject to the same scope, secret, NUL, size and
+            # independent verification checks.  Do not infer anchors or
+            # source content here.
             replacement = list(replacement)
             if any("\r" in line or "\n" in line for line in replacement):
                 # Some structured-output implementations still return a

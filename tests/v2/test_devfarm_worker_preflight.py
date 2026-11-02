@@ -177,7 +177,7 @@ def test_minimal_worker_contract_rejects_text_replacement_and_emits_line_array_r
     assert "array of complete source-line strings" in result["repair_directive"]["required_action"]
 
 
-def test_minimal_worker_contract_rejects_embedded_newline_in_line_array_item(tmp_path) -> None:
+def test_minimal_worker_contract_normalizes_embedded_newline_in_line_array_item(tmp_path) -> None:
     root, manifest_path = _workspace(tmp_path, prepare=False)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["output_contract"] = {
@@ -198,13 +198,12 @@ def test_minimal_worker_contract_rejects_embedded_newline_in_line_array_item(tmp
 
     result = run_worker(root, manifest_path, provider=provider)
 
-    assert result["status"] == "failed"
-    assert result["worker_metrics"]["proposal_preflight"]["error_code"] == "WORKER_OUTPUT_LINE_SHAPE"
-    assert result["failure_spec"]["expected"] == "one source line per array element"
-    assert result["failure_spec"]["acceptance_checks"] == [
-        "each replacement line contains no LF or CR"
+    assert result["status"] == "completed"
+    assert result["changed_files"] == ["tests/v2/test_target.py"]
+    assert result["worker_metrics"]["host_generated_patch"] == "file_replacements"
+    assert result["worker_metrics"]["canonicalization"]["rules"] == [
+        "line_array_embedded_newline_split"
     ]
-    assert "split multiline content" in result["repair_directive"]["required_action"]
 
 
 @pytest.mark.parametrize("extra_field, extra_value", [("status", "completed"), ("notes", "optional commentary")])
