@@ -34,6 +34,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.dev_agent.resources.billing_catalog import TRUSTED_RESOURCE_CATALOG  # noqa: E402
+from src.dev_agent.resources.model_catalog import ModelCatalog, ModelCatalogError  # noqa: E402
 from src.dev_agent.resources.model_evidence import DEFAULT_MODEL_EVIDENCE_DIRECTORY, ModelEvidenceCatalog  # noqa: E402
 
 QUALIFICATION_MATRIX = ROOT / "spec" / "v2" / "PROVIDER_CAPABILITY_MATRIX.json"
@@ -118,11 +119,71 @@ def _status(evidence: ModelEvidenceCatalog, identity: tuple[str, str, str], at: 
     return evidence.resolver.diagnose(*identity, now=at).result
 
 
+def _staged_discovery_inventory(directory: Path, now: datetime) -> dict[str, Any]:
+    """Report the newest staged discovery snapshot without granting admission."""
+
+    snapshots: list[tuple[datetime, Path, ModelCatalog]] = []
+    invalid_snapshot_count = 0
+    for path in Path(directory).glob("model-catalog-refresh-*.json"):
+        try:
+            document = json.loads(path.read_text(encoding="utf-8"))
+            catalog = ModelCatalog.from_document(document)
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, ModelCatalogError):
+            invalid_snapshot_count += 1
+            continue
+        entries = catalog.all_entries()
+        if not entries:
+            snapshots.append((datetime.min.replace(tzinfo=timezone.utc), path, catalog))
+            continue
+        latest_observation = max(_parse(entry.observed_at) for entry in entries)
+        if latest_observation is not None:
+            snapshots.append((latest_observation, path, catalog))
+
+    if not snapshots:
+        return {
+            "status": "INVALID" if invalid_snapshot_count else "NOT_FOUND",
+            "scope": "discovery_only_not_formal_admission",
+            "snapshot_count": 0,
+            "invalid_snapshot_count": invalid_snapshot_count,
+            "stored_count": 0,
+            "current_count": 0,
+            "stale_or_expired_count": 0,
+            "next_expiry": None,
+        }
+
+    _, path, catalog = max(snapshots, key=lambda item: (item[0], item[1].name))
+    stored = catalog.all_entries()
+    current = tuple(entry for entry in stored if entry.is_current(now=now))
+    observed_values = tuple(
+        observed
+        for entry in stored
+        if (observed := _parse(entry.observed_at)) is not None
+    )
+    expiry_values = tuple(
+        expires
+        for entry in current
+        if (expires := _parse(entry.expires_at)) is not None
+    )
+    return {
+        "status": "NOT_PROMOTED",
+        "scope": "discovery_only_not_formal_admission",
+        "snapshot": path.name,
+        "snapshot_count": len(snapshots),
+        "invalid_snapshot_count": invalid_snapshot_count,
+        "stored_count": len(stored),
+        "current_count": len(current),
+        "stale_or_expired_count": len(stored) - len(current),
+        "latest_observed_at": max(observed_values).isoformat() if observed_values else None,
+        "next_expiry": min(expiry_values).isoformat() if expiry_values else None,
+    }
+
+
 def build_report(
     *,
     now: datetime,
     horizon_hours: float,
     evidence_directory: Path = DEFAULT_MODEL_EVIDENCE_DIRECTORY,
+    candidate_directory: Path = ROOT / "spec" / "v2" / "evidence",
     required_identities: tuple[tuple[str, str, str], ...] = (),
 ) -> dict[str, Any]:
     if now.tzinfo is None:
@@ -206,6 +267,10 @@ def build_report(
         "static_eligible_now": eligible_now,
         "static_eligible_at_horizon": eligible_at_horizon,
         "sources": sources,
+        # Staged discovery is shown to prevent an expired canonical snapshot
+        # from being mistaken for an empty operational candidate inventory.
+        # It is deliberately excluded from static eligibility and failures.
+        "staged_discovery_inventory": _staged_discovery_inventory(candidate_directory, now),
         "billing_profiles": billing_profiles,
         "sources_exhausted_at_horizon": exhausted,
         "required_identities": identities,

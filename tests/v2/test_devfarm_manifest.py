@@ -89,7 +89,7 @@ def test_devfarm_provider_uses_factory_and_explicit_activation_allowlist():
     assert gemini.provider_binding_id == "gemini:worker"
     assert gemini.intelligence_tier == "L1"
 
-    with pytest.raises(DevFarmError, match="not active"):
+    with pytest.raises(DevFarmError, match="proposal_binding_required"):
         _provider("mistral", "mistral-small-latest", 4)
 
 

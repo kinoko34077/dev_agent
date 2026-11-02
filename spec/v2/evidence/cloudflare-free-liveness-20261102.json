@@ -1,0 +1,66 @@
+{
+  "status": "completed",
+  "provider": "cloudflare",
+  "provider_binding_id": "cloudflare:account",
+  "model": "@cf/zai-org/glm-4.7-flash",
+  "checked_at": "2026-11-02T07:49:38.049765+00:00",
+  "event_types": [
+    "model.requested",
+    "model.responded",
+    "tool.completed",
+    "model.requested",
+    "model.responded",
+    "task.completed"
+  ],
+  "tool_result_count": 1,
+  "provider_audit_count": 2,
+  "effect_intents": [
+    {
+      "idempotency_key": "provider:9a6b1e05-eebf-4f9f-86db-e51656c25096:cloudflare-free",
+      "status": "succeeded"
+    },
+    {
+      "idempotency_key": "provider:b2fc5014-fbb0-4a36-8936-cf035982d4f8:cloudflare-free",
+      "status": "succeeded"
+    }
+  ],
+  "quota_observation": {
+    "resource_id": "cloudflare-free",
+    "quota_domain": "cloudflare:account",
+    "unit": "neurons",
+    "authority": "derived_conservative",
+    "metric": "workers_ai_neurons",
+    "window": "day",
+    "reset_source": "cloudflare_daily_utc",
+    "blocked_until": null,
+    "block_reason": null,
+    "request_limit": null,
+    "request_remaining": null,
+    "token_limit": null,
+    "token_remaining": null,
+    "reset_at": "2026-11-03T00:00:00+00:00",
+    "daily_remaining": null,
+    "concurrency_limit": null,
+    "confidence": 1.0,
+    "observed_at": "2026-11-02T07:49:38.037765+00:00",
+    "source": "cloudflare-provider-neurons",
+    "limit": 10000.0,
+    "remaining": 9987.0,
+    "consumed": 13.0
+  },
+  "quota_status": "observed",
+  "billing_authority": "trusted_catalog",
+  "qualification_scope": "text_tool_roundtrip",
+  "gemini_transcript": null,
+  "budget": {
+    "normal_committed_minor": 0,
+    "recovery_committed_minor": 0,
+    "active_reservations": 0,
+    "hard_cap_minor": 100,
+    "recovery_reserve_minor": 10,
+    "normal_available_minor": 90,
+    "recovery_available_minor": 10,
+    "currency": "JPY",
+    "period_id": "2026-11"
+  }
+}

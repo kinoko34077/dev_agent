@@ -1,0 +1,18 @@
+{
+  "status": "partial",
+  "provider": "mistral",
+  "provider_binding_id": "mistral:account",
+  "model": "ministral-3b-latest",
+  "preflight": {
+    "status": "responded",
+    "scope": "bounded text generation",
+    "raw_response_retained": false
+  },
+  "controller_qualification": {
+    "status": "failed",
+    "failure_category": "limits_exceeded",
+    "qualification_scope": "tool_call_roundtrip_not_verified"
+  },
+  "provider_unavailable": false,
+  "formal_admission": "NOT_ESTABLISHED"
+}

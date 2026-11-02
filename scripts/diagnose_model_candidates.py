@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+from dataclasses import replace
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -20,6 +21,7 @@ from src.dev_agent.resources.model_admission import (
     STATIC_MODEL_UNSUPPORTED,
 )
 from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
+from src.dev_agent.resources.model_catalog import ModelCatalog
 from src.dev_agent.resources.model_funnel import build_funnel_report
 from src.dev_agent.resources.model_runtime import (
     RUNTIME_BOOTSTRAP_ADMITTED,
@@ -29,7 +31,9 @@ from src.dev_agent.resources.model_runtime import (
     RUNTIME_UNKNOWN,
     RuntimeAdmissionSnapshot,
 )
+from src.dev_agent.resources.provider_policy import is_local_provider
 from src.dev_agent.resources.qualification import QualificationResolver
+from scripts.devfarm_worker_admission import DevFarmActivationPolicy
 
 
 MAX_DIAGNOSTIC_ROWS = 5000
@@ -228,6 +232,134 @@ def catalog_coverage(evidence: ModelEvidenceCatalog, *, now: datetime | None = N
     }
 
 
+def summarize_catalog_sources(
+    canonical_catalog: ModelCatalog,
+    staged_candidate_catalog: ModelCatalog | None,
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Keep accepted inventory freshness distinct from an unpromoted refresh."""
+
+    def counts(catalog: ModelCatalog) -> dict[str, int]:
+        stored = catalog.all_entries()
+        current = catalog.entries(now=now)
+        return {
+            "stored_count": len(stored),
+            "current_count": len(current),
+            "stale_or_expired_count": len(stored) - len(current),
+        }
+
+    result: dict[str, Any] = {"canonical": counts(canonical_catalog)}
+    if staged_candidate_catalog is None:
+        result["staged_candidate"] = {"status": "NOT_PROVIDED"}
+    else:
+        result["staged_candidate"] = {
+            "status": "NOT_PROMOTED",
+            **counts(staged_candidate_catalog),
+        }
+    return result
+
+
+def summarize_proposal_only_candidates(
+    canonical_catalog: ModelCatalog,
+    staged_candidate_catalog: ModelCatalog | None = None,
+    *,
+    provider_id: str | None = None,
+    provider_binding_id: str | None = None,
+    model_id: str | None = None,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Expose exact no-charge Worker proposals separately from formal admission.
+
+    This deliberately reuses DevFarm's existing proposal admission instead of
+    duplicating billing or provider activation policy in the diagnostic CLI.
+    A stale discovery identity remains advisory only when the exact current
+    binding/model still has trusted no-charge billing. A positive count means
+    bounded proposal-only work may be attempted through the existing Worker
+    path; it does not imply current capability, quota, runtime liveness, or
+    formal Phase 8 eligibility.
+    """
+
+    policy = DevFarmActivationPolicy(now=now)
+    counts: Counter[str] = Counter()
+    stale_counts: Counter[str] = Counter()
+    billing_unknown_counts: Counter[str] = Counter()
+    billing_expired_counts: Counter[str] = Counter()
+    inactive_counts: Counter[str] = Counter()
+    local_route_counts: Counter[str] = Counter()
+    selected: dict[tuple[str, str, str], tuple[Any, bool, int]] = {}
+    catalogs = [(canonical_catalog, False)]
+    if staged_candidate_catalog is not None:
+        catalogs.append((staged_candidate_catalog, True))
+    for catalog, is_staged in catalogs:
+        for entry in catalog.all_entries():
+            current = entry.is_current(now=now)
+            existing = selected.get(entry.identity)
+            observed = _parse_diagnostic_now(entry.observed_at) or datetime(1970, 1, 1, tzinfo=timezone.utc)
+            source_rank = 1 if is_staged else 0
+            rank = (current, observed, source_rank)
+            if existing is None:
+                selected[entry.identity] = (entry, current, source_rank)
+                continue
+            old_entry, old_current, old_source_rank = existing
+            old_observed = _parse_diagnostic_now(old_entry.observed_at) or datetime(1970, 1, 1, tzinfo=timezone.utc)
+            old_rank = (old_current, old_observed, old_source_rank)
+            if rank > old_rank:
+                selected[entry.identity] = (entry, current, source_rank)
+
+    for entry, is_current, _source_rank in selected.values():
+        if provider_id is not None and entry.provider_id != provider_id:
+            continue
+        if provider_binding_id is not None and entry.provider_binding_id != provider_binding_id:
+            continue
+        if model_id is not None and entry.model_id != model_id:
+            continue
+        if not entry.is_text_generation_candidate():
+            continue
+        if is_local_provider(entry.provider_id):
+            local_route_counts[entry.provider_id] += 1
+            continue
+        if policy.eligibility_for(
+            entry.provider_id,
+            entry.model_id,
+            provider_binding_id=entry.provider_binding_id,
+        ).eligible:
+            continue
+        proposal = policy.proposal_eligibility_for(
+            entry.provider_id,
+            entry.model_id,
+            provider_binding_id=entry.provider_binding_id,
+        )
+        if proposal.eligible and proposal.reason == "proposal_only_candidate":
+            counts[entry.provider_id] += 1
+            if not is_current:
+                stale_counts[entry.provider_id] += 1
+        elif proposal.reason == "billing_unknown":
+            billing_unknown_counts[entry.provider_id] += 1
+        elif proposal.reason == "billing_expired_or_not_no_charge":
+            billing_expired_counts[entry.provider_id] += 1
+        elif proposal.reason == "operator_inactive":
+            inactive_counts[entry.provider_id] += 1
+    return {
+        "scope": "text_generation_rows_with_exact_current_no_charge_proposal_admission",
+        "binding_model_row_count": sum(counts.values()),
+        "current_binding_model_row_count": sum(counts.values()) - sum(stale_counts.values()),
+        "stale_advisory_binding_model_row_count": sum(stale_counts.values()),
+        "provider_counts": dict(sorted(counts.items())),
+        "stale_provider_counts": dict(sorted(stale_counts.items())),
+        "billing_unknown_binding_model_row_count": sum(billing_unknown_counts.values()),
+        "billing_unknown_provider_counts": dict(sorted(billing_unknown_counts.items())),
+        "billing_expired_or_not_no_charge_binding_model_row_count": sum(billing_expired_counts.values()),
+        "billing_expired_or_not_no_charge_provider_counts": dict(sorted(billing_expired_counts.items())),
+        "inactive_provider_binding_model_row_count": sum(inactive_counts.values()),
+        "inactive_provider_counts": dict(sorted(inactive_counts.items())),
+        "local_route_binding_model_row_count": sum(local_route_counts.values()),
+        "local_route_provider_counts": dict(sorted(local_route_counts.items())),
+        "requires_host_verification": True,
+        "formal_runtime_eligibility_asserted": False,
+    }
+
+
 def summarize_candidate_evidence(document: Mapping[str, Any]) -> dict[str, Any]:
     """Project why an external discovery candidate was not promoted."""
 
@@ -323,6 +455,14 @@ def main(argv: list[str] | None = None) -> int:
         help="optional discovery candidate evidence used to report explicit promotion blockers",
     )
     parser.add_argument(
+        "--candidate-catalog",
+        type=Path,
+        help=(
+            "optional staged model inventory used for candidate diagnostics only; "
+            "it is never promoted by this command"
+        ),
+    )
+    parser.add_argument(
         "--now",
         help=(
             "optional timezone-aware ISO-8601 observation time for reproducible "
@@ -356,7 +496,22 @@ def main(argv: list[str] | None = None) -> int:
         else:
             limit = 200
         diagnostic_now = _parse_diagnostic_now(args.now)
-        evidence = ModelEvidenceCatalog.load(args.evidence_dir)
+        canonical_evidence = ModelEvidenceCatalog.load(args.evidence_dir)
+        candidate_catalog = (
+            ModelCatalog.from_document(_load_json_document(args.candidate_catalog))
+            if args.candidate_catalog is not None
+            else None
+        )
+        evidence = (
+            replace(canonical_evidence, catalog=candidate_catalog)
+            if candidate_catalog is not None
+            else canonical_evidence
+        )
+        catalog_sources = summarize_catalog_sources(
+            canonical_evidence.catalog,
+            candidate_catalog,
+            now=diagnostic_now,
+        )
         runtime_snapshot = RuntimeAdmissionSnapshot.empty()
         if args.runtime_evidence is not None:
             runtime_snapshot = RuntimeAdmissionSnapshot.from_document(
@@ -385,6 +540,21 @@ def main(argv: list[str] | None = None) -> int:
                 else {"status": "NOT_PROVIDED", "reasons": []}
             ),
         )
+        summary["catalog_sources"] = catalog_sources
+        proposal_summary = summarize_proposal_only_candidates(
+            canonical_evidence.catalog,
+            candidate_catalog,
+            provider_id=args.provider,
+            provider_binding_id=args.binding,
+            model_id=args.model,
+            now=diagnostic_now,
+        )
+        proposal_summary["inventory_source"] = (
+            "staged_plus_canonical_advisory_not_promoted"
+            if candidate_catalog is not None
+            else "canonical"
+        )
+        summary["proposal_only_candidates"] = proposal_summary
         funnel = build_funnel_report(
             evidence,
             runtime_snapshot=runtime_snapshot,
@@ -420,11 +590,32 @@ def main(argv: list[str] | None = None) -> int:
             print(f"runtime_unavailable\t{summary['runtime_unavailable_count']}")
             print(f"funnel_formal_supply\t{summary['funnel']['coverage']['overall']['formal_supply_count']}")
             print(f"qualification_candidates\t{summary['funnel']['coverage']['qualification_candidate_count']}")
+            print(f"canonical_current_catalog_count\t{catalog_sources['canonical']['current_count']}")
+            print(f"staged_candidate_status\t{catalog_sources['staged_candidate']['status']}")
+            if "current_count" in catalog_sources["staged_candidate"]:
+                print(f"staged_candidate_current_catalog_count\t{catalog_sources['staged_candidate']['current_count']}")
+            print(
+                "proposal_only_candidate_count\t"
+                f"{proposal_summary['binding_model_row_count']}"
+                f" (current={proposal_summary['current_binding_model_row_count']}, "
+                f"stale_advisory={proposal_summary['stale_advisory_binding_model_row_count']})"
+                " (no-charge proposal path; Host Verification required; no formal runtime eligibility asserted)"
+            )
+            print(
+                "proposal_only_candidate_provider_counts\t"
+                + json.dumps(proposal_summary["provider_counts"], ensure_ascii=False, sort_keys=True)
+            )
             print("result_counts\t" + json.dumps(summary["result_counts"], ensure_ascii=False, sort_keys=True))
             print("provider_counts\t" + json.dumps(summary["provider_counts"], ensure_ascii=False, sort_keys=True))
     elif args.as_json:
-        print(json.dumps({"status": "ok", "rows": rows}, ensure_ascii=False, indent=2))
+        print(json.dumps({"status": "ok", "catalog_sources": catalog_sources, "rows": rows}, ensure_ascii=False, indent=2))
     else:
+        if candidate_catalog is not None:
+            print(
+                "# inventory_source=staged_candidate_not_promoted"
+                f" canonical_current={catalog_sources['canonical']['current_count']}"
+                f" staged_candidate_current={catalog_sources['staged_candidate']['current_count']}"
+            )
         headers = ("provider", "binding", "model", "discovery", "benchmark", "capability", "billing", "qualification", "runtime", "gate_reason", "result")
         print("\t".join(headers))
         for row in rows:

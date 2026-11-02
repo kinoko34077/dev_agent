@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+import scripts.diagnose_model_candidates as diagnostics
 from scripts.diagnose_model_candidates import (
     MAX_DIAGNOSTIC_ROWS,
     catalog_coverage,
@@ -233,6 +234,52 @@ def test_catalog_coverage_reports_stale_storage_separately(model_evidence):
     assert isinstance(coverage["stale_or_expired_provider_binding_counts"], dict)
 
 
+def test_catalog_sources_show_fresh_staged_rows_separately_from_expired_canonical_rows():
+    now = datetime(2026, 11, 2, 0, 0, tzinfo=timezone.utc)
+    canonical = ModelCatalog.from_document(
+        {
+            "schema_version": 1,
+            "entries": [
+                {
+                    "provider_id": "cloudflare",
+                    "provider_binding_id": "cloudflare:account",
+                    "model_id": "@cf/zai-org/glm-4.7-flash",
+                    "source": "models.list",
+                    "observed_at": "2026-10-04T00:00:00+00:00",
+                    "expires_at": "2026-10-11T00:00:00+00:00",
+                }
+            ],
+        }
+    )
+    staged = ModelCatalog.from_document(
+        {
+            "schema_version": 1,
+            "entries": [
+                {
+                    "provider_id": "cloudflare",
+                    "provider_binding_id": "cloudflare:account",
+                    "model_id": "@cf/zai-org/glm-4.7-flash",
+                    "source": "models.list",
+                    "observed_at": "2026-11-01T15:49:15+00:00",
+                    "expires_at": "2026-11-08T15:49:15+00:00",
+                }
+            ],
+        }
+    )
+
+    summary = diagnostics.summarize_catalog_sources(canonical, staged, now=now)
+
+    assert summary == {
+        "canonical": {"stored_count": 1, "current_count": 0, "stale_or_expired_count": 1},
+        "staged_candidate": {
+            "status": "NOT_PROMOTED",
+            "stored_count": 1,
+            "current_count": 1,
+            "stale_or_expired_count": 0,
+        },
+    }
+
+
 def test_main_tabular_output_exposes_runtime_and_gate_reason(model_evidence, capsys):
     assert main(["--limit", "1", "--now", DIAGNOSTIC_NOW.isoformat()]) == 0
 
@@ -373,3 +420,184 @@ def test_main_accepts_multi_binding_runtime_snapshot(tmp_path, capsys):
 
     output = capsys.readouterr().out
     assert '"runtime_unavailable_count": 1' in output
+
+
+@pytest.mark.current_billing_catalog
+def test_summary_keeps_no_charge_proposal_candidates_visible_when_formal_evidence_is_expired(
+    tmp_path,
+    capsys,
+):
+    candidate_catalog = tmp_path / "staged-candidates.json"
+    candidate_catalog.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "entries": [
+                    {
+                        "provider_id": "gemini",
+                        "provider_binding_id": "gemini:worker:free-3",
+                        "model_id": "gemini-3.6-flash",
+                        "source": "staged.models.list",
+                        "observed_at": "2026-11-02T09:00:00+00:00",
+                        "expires_at": "2026-11-09T09:00:00+00:00",
+                    },
+                    {
+                        "provider_id": "openrouter",
+                        "provider_binding_id": "openrouter:account",
+                        "model_id": "google/gemma-4-26b-a4b-it:free",
+                        "source": "staged.models.list",
+                        "observed_at": "2026-11-02T09:00:00+00:00",
+                        "expires_at": "2026-11-09T09:00:00+00:00",
+                    },
+                    {
+                        "provider_id": "ollama_cloud",
+                        "provider_binding_id": "ollama_cloud:account",
+                        "model_id": "deepseek-v4.1-flash",
+                        "source": "staged.models.list",
+                        "observed_at": "2026-11-02T09:00:00+00:00",
+                        "expires_at": "2026-11-09T09:00:00+00:00",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert main(
+        [
+            "--summary",
+            "--json",
+            "--candidate-catalog",
+            str(candidate_catalog),
+            "--now",
+            "2026-11-02T10:00:00+00:00",
+        ]
+    ) == 0
+
+    summary = json.loads(capsys.readouterr().out)["summary"]
+    assert summary["eligible_count"] == 0
+    proposal = summary["proposal_only_candidates"]
+    assert proposal["inventory_source"] == "staged_plus_canonical_advisory_not_promoted"
+    assert proposal["binding_model_row_count"] >= 2
+    assert proposal["current_binding_model_row_count"] >= 2
+    assert {"gemini", "openrouter"} <= set(proposal["provider_counts"])
+    assert "ollama_cloud" not in proposal["provider_counts"]
+    assert proposal["scope"] == "text_generation_rows_with_exact_current_no_charge_proposal_admission"
+    assert proposal["requires_host_verification"] is True
+    assert proposal["formal_runtime_eligibility_asserted"] is False
+
+
+@pytest.mark.current_billing_catalog
+def test_stale_discovery_identity_remains_advisory_only_when_exact_billing_is_current():
+    canonical = ModelCatalog.from_document(
+        {
+            "schema_version": 1,
+            "entries": [
+                {
+                    "provider_id": "groq",
+                    "provider_binding_id": "groq:account",
+                    "model_id": "llama-3.3-70b-versatile",
+                    "source": "prior.models.list",
+                    "observed_at": "2026-10-01T00:00:00+00:00",
+                    "expires_at": "2026-10-08T00:00:00+00:00",
+                }
+            ],
+        }
+    )
+    staged = ModelCatalog.from_document(
+        {
+            "schema_version": 1,
+            "entries": [
+                {
+                    "provider_id": "gemini",
+                    "provider_binding_id": "gemini:worker:free-3",
+                    "model_id": "gemini-3.6-flash",
+                    "source": "staged.models.list",
+                    "observed_at": "2026-11-02T09:00:00+00:00",
+                    "expires_at": "2026-11-09T09:00:00+00:00",
+                }
+            ],
+        }
+    )
+
+    summary = diagnostics.summarize_proposal_only_candidates(
+        canonical,
+        staged,
+        now=datetime(2026, 11, 2, 10, 0, tzinfo=timezone.utc),
+    )
+
+    assert summary["binding_model_row_count"] == 2
+    assert summary["current_binding_model_row_count"] == 1
+    assert summary["stale_advisory_binding_model_row_count"] == 1
+    assert summary["provider_counts"] == {"gemini": 1, "groq": 1}
+    assert summary["stale_provider_counts"] == {"groq": 1}
+    assert summary["formal_runtime_eligibility_asserted"] is False
+
+
+@pytest.mark.current_billing_catalog
+def test_vercel_paid_discovery_remains_visible_with_billing_warning_but_not_dispatchable():
+    staged = ModelCatalog.from_document(
+        {
+            "schema_version": 1,
+            "entries": [
+                {
+                    "provider_id": "vercel",
+                    "provider_binding_id": "vercel:account",
+                    "model_id": "inclusionai/ling-3.1-flash-1019",
+                    "source": "staged.models.list",
+                    "observed_at": "2026-11-02T09:00:00+00:00",
+                    "expires_at": "2026-11-09T09:00:00+00:00",
+                },
+                {
+                    "provider_id": "vercel",
+                    "provider_binding_id": "vercel:account",
+                    "model_id": "google/gemini-3.8-flash",
+                    "source": "staged.models.list",
+                    "observed_at": "2026-11-02T09:00:00+00:00",
+                    "expires_at": "2026-11-09T09:00:00+00:00",
+                },
+            ],
+        }
+    )
+
+    summary = diagnostics.summarize_proposal_only_candidates(
+        ModelCatalog.from_document({"schema_version": 1, "entries": []}),
+        staged,
+        now=datetime(2026, 11, 2, 10, 0, tzinfo=timezone.utc),
+    )
+
+    assert summary["binding_model_row_count"] == 1
+    assert summary["provider_counts"] == {"vercel": 1}
+    assert summary["billing_unknown_binding_model_row_count"] == 1
+    assert summary["billing_unknown_provider_counts"] == {"vercel": 1}
+    assert summary["formal_runtime_eligibility_asserted"] is False
+
+
+@pytest.mark.current_billing_catalog
+def test_local_ollama_inventory_is_reported_separately_from_remote_proposal_routes():
+    local = ModelCatalog.from_document(
+        {
+            "schema_version": 1,
+            "entries": [
+                {
+                    "provider_id": "ollama",
+                    "provider_binding_id": "ollama:local",
+                    "model_id": "qwen3.5:9b",
+                    "source": "staged.models.list",
+                    "observed_at": "2026-11-02T09:00:00+00:00",
+                    "expires_at": "2026-11-09T09:00:00+00:00",
+                }
+            ],
+        }
+    )
+
+    summary = diagnostics.summarize_proposal_only_candidates(
+        ModelCatalog.from_document({"schema_version": 1, "entries": []}),
+        local,
+        now=datetime(2026, 11, 2, 10, 0, tzinfo=timezone.utc),
+    )
+
+    assert summary["binding_model_row_count"] == 0
+    assert summary["local_route_binding_model_row_count"] == 1
+    assert summary["local_route_provider_counts"] == {"ollama": 1}
+    assert summary["inactive_provider_binding_model_row_count"] == 0

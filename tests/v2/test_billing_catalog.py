@@ -127,6 +127,114 @@ def test_gemini_additional_binding_profiles_are_allowance_backed_not_fixed_free(
     assert profile.allowance_period == "daily"
 
 
+@pytest.mark.current_billing_catalog
+@pytest.mark.parametrize(
+    ("provider_id", "binding_id", "model_id"),
+    (
+        # Groq inventory refresh is currently unavailable; this checks that
+        # future exact-account discoveries use the explicitly reviewed Free
+        # binding without claiming that this synthetic model was discovered.
+        ("groq", "groq:account", "future-discovered-model"),
+        ("mistral", "mistral:account", "ministral-3b-latest"),
+    ),
+)
+def test_user_confirmed_free_provider_bindings_use_hard_stop_profiles(provider_id, binding_id, model_id):
+    profile = profile_for(provider_id, binding_id, model_id)
+
+    assert profile is not None
+    assert profile.cost_minor == 0
+    assert profile.billing_mode == "recurring_allowance"
+    assert profile.overage_policy == "hard_stop"
+    assert profile.no_charge_guaranteed is True
+    assert profile.is_current()
+    assert profile_for(provider_id, f"{provider_id}:other", model_id) is None
+
+
+@pytest.mark.current_billing_catalog
+def test_openrouter_free_model_variant_is_no_charge_only_on_configured_account_binding():
+    model_id = "google/gemma-4-26b-a4b-it:free"
+
+    profile = profile_for("openrouter", "openrouter:account", model_id)
+
+    assert profile is not None
+    assert profile.model_id == model_id
+    assert profile.cost_minor == 0
+    assert profile.billing_mode == "recurring_allowance"
+    assert profile.overage_policy == "hard_stop"
+    assert profile.no_charge_guaranteed is True
+    assert profile_for("openrouter", "openrouter:account", "google/gemma-4-26b-a4b-it") is None
+    assert profile_for("openrouter", "openrouter:qualification", model_id) is None
+    from src.dev_agent.resources.billing_catalog import default_binding_id
+
+    assert default_binding_id("openrouter", model_id) == "openrouter:account"
+
+
+@pytest.mark.current_billing_catalog
+@pytest.mark.parametrize(
+    ("provider_id", "binding_id", "model_id"),
+    (
+        (
+            "vercel",
+            "vercel:account",
+            "inclusionai/ling-3.1-flash-1019",
+        ),
+        (
+            "vercel",
+            "vercel:account",
+            "reflection/beam-free",
+        ),
+        (
+            "vercel",
+            "vercel:account",
+            "nvidia/nemotron-3.5-lightning-free",
+        ),
+        (
+            "vercel",
+            "vercel:account",
+            "stealth/glyph-cluster",
+        ),
+    ),
+)
+def test_vercel_explicit_zero_price_models_are_no_charge_candidates(provider_id, binding_id, model_id):
+    profile = profile_for(provider_id, binding_id, model_id)
+
+    assert profile is not None
+    assert profile.model_id == model_id
+    assert profile.cost_minor == 0
+    assert profile.billing_mode == "free_fixed"
+    assert profile.overage_policy == "hard_stop"
+    assert profile.no_charge_guaranteed is True
+    assert profile_for(provider_id, "vercel:unreviewed", model_id) is None
+
+
+@pytest.mark.current_billing_catalog
+@pytest.mark.parametrize(
+    "model_id",
+    ("google/gemini-3.8-flash", "anthropic/claude-sonnet-5.5", "unlisted/model"),
+)
+def test_vercel_paid_or_unlisted_models_do_not_inherit_free_tier(model_id):
+    assert profile_for("vercel", "vercel:account", model_id) is None
+
+
+@pytest.mark.current_billing_catalog
+def test_gemini_free_projects_admit_only_explicitly_reviewed_models():
+    profile = profile_for("gemini", "gemini:worker:free-4", "gemini-3.8-flash")
+
+    assert profile is not None
+    assert profile.model_id == "gemini-3.8-flash"
+    assert profile.no_charge_guaranteed is True
+    assert profile_for("gemini", "gemini:worker:free-4", "gemini-exp-unlisted") is None
+
+
+def test_sambanova_purchase_required_route_is_not_marked_free():
+    assert profile_for("sambanova", "sambanova:account", "Meta-Llama-3.3-70B-Instruct") is None
+
+
+@pytest.mark.current_billing_catalog
+def test_ollama_cloud_paid_models_are_not_admitted_from_undifferentiated_free_plan():
+    assert profile_for("ollama_cloud", "ollama_cloud:account", "deepseek-v4.1-flash") is None
+
+
 @pytest.mark.parametrize(
     ("binding_id", "model_id"),
     (
@@ -159,6 +267,16 @@ def test_loopback_ollama_fixed_zero_cost_profile_does_not_expire():
     )
 
     assert profile.is_current(now=datetime(2026, 11, 2, tzinfo=timezone.utc)) is True
+
+
+def test_discovered_loopback_ollama_models_match_the_local_no_charge_binding():
+    profile = profile_for("ollama", "ollama:local", "qwen3.5:9b")
+
+    assert profile is not None
+    assert profile.cost_minor == 0
+    assert profile.billing_mode == "free_fixed"
+    assert profile.no_charge_guaranteed is True
+    assert profile_for("ollama", "ollama:remote", "qwen3.5:9b") is None
 
 
 
