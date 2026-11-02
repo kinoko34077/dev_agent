@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from scripts.devfarm_artifacts import attempt_id as normalize_attempt_id
 from scripts.devfarm_errors import DevFarmError
 
 
@@ -22,9 +23,10 @@ def result_reference(task_id: str, attempt_id: str | None = None) -> str:
     normalized_task_id = task_id.strip()
     if attempt_id is None:
         return f".devfarm/results/{normalized_task_id}/result.json"
-    if not isinstance(attempt_id, str) or not attempt_id.strip() or len(attempt_id.strip()) > 101:
-        raise DevFarmError("attempt_id must be a bounded non-empty string")
-    return f".devfarm/results/{normalized_task_id}/attempts/{attempt_id.strip()}/result.json"
+    normalized_attempt_id = normalize_attempt_id(attempt_id)
+    if normalized_attempt_id != attempt_id:
+        raise DevFarmError("attempt_id must use its canonical safe identifier")
+    return f".devfarm/results/{normalized_task_id}/attempts/{normalized_attempt_id}/result.json"
 
 
 def require_task(plan: Mapping[str, Any], task_id: str) -> Mapping[str, Any]:

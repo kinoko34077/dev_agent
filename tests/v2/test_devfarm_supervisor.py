@@ -9,6 +9,7 @@ import pytest
 
 from scripts.devfarm import write_manifest
 from scripts.devfarm_commander import validate_plan
+from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_supervisor_protocol import (
     advance_heartbeat,
     normalize_supervisor_metadata,
@@ -363,8 +364,17 @@ def _reframe_test_manifest(task_id="worker-task", *, test_commands=None):
     }
 
 
-def _write_feasibility_result(tmp_path, *, task_id, attempt_id, manifest, status, manifest_sha256=None):
-    result_ref = result_reference(task_id, attempt_id)
+def _write_feasibility_result(
+    tmp_path,
+    *,
+    task_id,
+    attempt_id,
+    manifest,
+    status,
+    manifest_sha256=None,
+    result_ref=None,
+):
+    result_ref = result_ref or result_reference(task_id, attempt_id)
     result_path = tmp_path / result_ref
     result_path.parent.mkdir(parents=True, exist_ok=True)
     recommended_action = "split_input_scope" if status == "reframe_required" else "repair_manifest_acceptance"
@@ -472,6 +482,43 @@ def test_supervisor_reframe_handoff_binds_exact_manifest_and_bounded_constraints
     } == set(handoff["constraints"])
     assert "Make one bounded" not in json.dumps(handoff)
     assert "secret-shaped" not in json.dumps(handoff)
+
+
+def test_result_reference_rejects_path_separator_in_attempt_id():
+    with pytest.raises(DevFarmError, match="safe identifier characters"):
+        result_reference("worker-task", "attempt/nested")
+
+
+def test_supervisor_reframe_handoff_fails_closed_for_nested_attempt_id(tmp_path):
+    task_id = "worker-task"
+    attempt_id = "attempt/nested"
+    manifest = _reframe_test_manifest(task_id)
+    manifest_path = write_manifest(tmp_path, manifest)
+    normalized_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest_ref = manifest_path.relative_to(tmp_path).as_posix()
+    # Simulate a malformed plan plus a matching nested artifact. Repository
+    # containment alone permits this path, so the attempt ID must be checked
+    # against the canonical artifact identity rules before resolving it.
+    result_ref = f".devfarm/results/{task_id}/attempts/{attempt_id}/result.json"
+    _write_feasibility_result(
+        tmp_path,
+        task_id=task_id,
+        attempt_id=attempt_id,
+        manifest=normalized_manifest,
+        status="reframe_required",
+        manifest_sha256=canonical_digest(normalized_manifest),
+        result_ref=result_ref,
+    )
+
+    projected = CodexSupervisedCommanderRun(tmp_path, "supervisor-test-001")._step(
+        _reframe_projection_plan(
+            result_ref=result_ref,
+            attempt_id=attempt_id,
+            manifest_ref=manifest_ref,
+        )
+    ).to_dict()["worker_feasibility"]
+
+    assert projected == []
 
 
 @pytest.mark.parametrize("manifest_digest", [None, "0" * 64])
