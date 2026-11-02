@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "evidence_id": "devfarm-json-repair-contract-20261102",
+  "observed_at": "2026-11-02",
+  "branch": "v2/bootstrap",
+  "commit": "12685be",
+  "scope": "development-worker JSON envelope and bounded correction path",
+  "implementation": [
+    {
+      "area": "provider_response_schema",
+      "fact": "Full-result Worker requests now carry a provider-facing schema that declares the durable result fields and binds file_replacements to Host-authorized paths when structured output is supported."
+    },
+    {
+      "area": "repair_prompt",
+      "fact": "A fresh rework manifest produces a short Host-directed system instruction in addition to the sanitized user-prompt handoff; raw diagnostics remain Host-local."
+    },
+    {
+      "area": "failure_diagnosis",
+      "fact": "Missing full-result fields receive a concrete bounded repair directive with field names, safe empty-array defaults, and Host acceptance checks."
+    }
+  ],
+  "verification": {
+    "focused_command": "python -m pytest tests/v2/test_devfarm_worker_output.py tests/v2/test_devfarm_refinement.py tests/v2/test_devfarm_worker_prompt.py tests/v2/test_devfarm_worker_preflight.py tests/v2/test_devfarm_manifest.py -q",
+    "focused_result": "88 passed",
+    "regression_command": "python -m pytest tests/v2 -q",
+    "regression_result": "2166 passed, 1 skipped",
+    "skip_reason": "Windows ACL deployment-owned test",
+    "architecture": "ARCHITECTURE_PASS",
+    "semantic_coherence": "PASS",
+    "compileall": "PASS",
+    "diff_check": "PASS",
+    "exact_head_ci": {
+      "v2_core": {
+        "run_id": "41372075613",
+        "conclusion": "success"
+      },
+      "v2_provider_smoke": {
+        "run_id": "41372075620",
+        "conclusion": "success"
+      }
+    }
+  },
+  "evidence_boundary": {
+    "real_provider_generation": false,
+    "cost": 0,
+    "automatic_unbounded_retry": false,
+    "routing_authority_changed": false,
+    "host_validation_remains_authoritative": true,
+    "phase8_gate_changed": false,
+    "worker_success_claim": false,
+    "note": "This is an offline contract hardening slice. A real Worker remeasurement is still a separate bounded operation and must not rewrite historical failures."
+  }
+}
