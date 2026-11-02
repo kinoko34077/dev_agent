@@ -10,10 +10,10 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 | Field | Current fact |
 | --- | --- |
 | Accepted branch | `v2/bootstrap` |
-| Accepted remote head at latest integrated implementation/evidence | `b1c3c87f1f97b1cee1ef98d65a7902f32b8231f1` (`v2/bootstrap`; direct missing-JSON-field → bounded repair regression on top of Worker schema/instruction hardening; exact-head Core/Provider Smoke CI passed in runs `41372602828`/`41372602882`). |
-| Latest integrated implementation/evidence baseline | `9742c29` adds Host pre-dispatch feasibility with explicit input/context/output budgets, W0 synthetic inventory, and FEASIBILITY failure classification; `9742c29` binds localized compensation to an effective output contract and exposes its change budget in the repair prompt. Two bounded real Worker → Host Verification → review → integration slices are accepted (#97 and #127 R5/#134); the full R5/V1–V4 useful-work and continuity acceptance remains unaccepted. The existing finite refinement policy remains authoritative; Host normalization, same-L1 repair, L1 Critic, alternate L1, upper reframe, reconciliation, and Human paths are explicit. Unknown handoff fields and raw diagnostics are excluded from model input. |
-| Latest implementation baseline | `04a1290` adds `scripts/devfarm_feasibility.py` pre-dispatch assignment checks, `scripts/devfarm_worker.py` Host-owned feasibility recording, the W0 inventory artifact, and baseline FEASIBILITY classification; `9742c29` requires an explicit localized change budget, applies the effective compensated contract before Provider dispatch, and renders the bounded budget in `scripts/devfarm_worker_prompt.py`; `fba3aa7` makes the JSON envelope explicit for localized/minimal/full Worker prompts and adds prompt regressions; `9399755` makes Host multiline line-array splitting reachable for minimal replacements and records the normalization; `12685be` adds a full-result provider schema, Host-directed system repair instruction, and field-specific missing-envelope correction; `b1c3c87` adds a direct `run_worker` regression for an omitted JSON field. Commit `537972c` migrates maintained Actions to Node 24-compatible majors and changes only future model-discovery/benchmark candidate TTL defaults to 30 days with a 31-day hard ceiling. No Provider generation, budget, Recovery authority, billing, admission, or Gate boundary changed. |
-| Latest evidence baseline | #127/#146 evidence is bounded and non-Gate: W0/W1 focused feasibility/baseline/preflight scope is `28 passed`; localized compensation/prompt scope is `52 passed`; the `9399755` focused Host/patch/prompt scope is `60 passed`; the combined JSON-repair focused scope at `b1c3c87` is `89 passed`; the last full local `tests/v2` regression before the one-test addition was `2166 passed, 1 skipped` (Windows ACL deployment-owned). Exact-head Core/Provider Smoke for `b1c3c87` passed (`41372602828`/`41372602882`). Fresh approved no-cost Gemma and Qwen Worker attempts remain historical failures before Host Verification (stale localized anchor, no-op replacement, feasibility oversize, incomplete line-shape, and embedded newline in minimal replacement); no patch or integration occurred. The last failure now has a deterministic Host normalization path for future attempts, but the historical result is not rewritten and no Worker success or routing qualification is claimed. The dated OpenRouter snapshot remains `non_authoritative_observation_only`; no capability, benchmark, billing, quota, health, runtime admission, or Gate layer was renewed. Real-model V1 learned-choice, real-provider V2 mixed continuity, V3 measured improvement, V4 sustained live sequence, and Formal Phase 8 remain unaccepted. |
+| Accepted remote head at latest integrated implementation/evidence | `dd04f24b8ecdbb31ae0aac19914c796857fe4f21` (`v2/bootstrap`; canonical DeepSeek direct-billing peak-window guard plus Worker JSON-repair contract hardening; exact-head Core/Provider Smoke CI passed in runs `41374453232`/`41374453312`). |
+| Latest integrated implementation/evidence baseline | `dd04f24` adds the fail-closed DeepSeek direct-billing pricing-window guard at the Resource/Provider dispatch boundary, while preserving the existing bounded Worker JSON/schema repair path. Two bounded real Worker → Host Verification → review → integration slices are accepted (#97 and #127 R5/#134); the full R5/V1–V4 useful-work and continuity acceptance remains unaccepted. The existing finite refinement policy remains authoritative; Host normalization, same-L1 repair, L1 Critic, alternate L1, upper reframe, reconciliation, and Human paths are explicit. Unknown handoff fields and raw diagnostics are excluded from model input. |
+| Latest implementation baseline | `04a1290` adds Host feasibility checks; `9742c29` binds localized compensation budgets; `fba3aa7`/`12685be`/`b1c3c87` harden the JSON envelope, provider-facing schema, Host-directed repair instruction, and omitted-field regression; `dd04f24` adds the DeepSeek pricing guard, package exports, and canonical-dispatch ordering tests. Commit `537972c` migrates maintained Actions to Node 24-compatible majors and changes only future model-discovery/benchmark candidate TTL defaults to 30 days with a 31-day hard ceiling. No Provider generation, budget, Recovery authority, billing account, credential, or Formal Gate state changed. |
+| Latest evidence baseline | #127/#146 evidence is bounded and non-Gate: the existing JSON-repair focused scope remains `89 passed`; the new DeepSeek guard/dispatch boundary scope is `12 passed`; exact-head Core/Provider Smoke for `dd04f24` passed (`41374453232`/`41374453312`). Fresh approved no-cost Gemma and Qwen Worker attempts remain historical failures before Host Verification (stale localized anchor, no-op replacement, feasibility oversize, incomplete line-shape, and embedded newline in minimal replacement); no patch or integration occurred. The last failure now has a deterministic Host normalization path for future attempts, but the historical result is not rewritten and no Worker success or routing qualification is claimed. The dated OpenRouter snapshot remains `non_authoritative_observation_only`; no capability, benchmark, billing, quota, health, runtime admission, or Gate layer was renewed. Real-model V1 learned-choice, real-provider V2 mixed continuity, V3 measured improvement, V4 sustained live sequence, and Formal Phase 8 remain unaccepted. |
 | Latest bounded-operation slice | #97 and #127 R5/#134 each demonstrate a bounded local Worker proposal reaching Host Verification, review, and deterministic integration on a docs-only task. These are two accepted useful slices, not the full Runtime/Claim/Lease autonomous cycle; they do not by themselves satisfy V1 learned-choice, V2 mixed continuity, V3 measured improvement, V4 sustained interruption/restart, or Formal Phase 8. Detailed attempt evidence is in #97 and #134. |
 | Local synchronization | The live `v2/bootstrap` ref is authoritative; refresh any local checkout from its current head before making further changes. The requirements index links to `docs/DECISION_TRANSFER_M1.md`. |
 | Formal Gate | `D9_DOGFOOD=VERIFIED`; `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`; `PHASE8_PREPARATION=PREPARATION_ONLY`; `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` |
@@ -47,6 +47,35 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 - Focused TTL/expiry/contract tests are `70 passed`; architecture, compile,
   workflow-YAML, and diff checks passed. Formal Phase 8 and protected Gate
   state are unchanged.
+
+### 2026-11-02 #124 DeepSeek direct-billing peak-window guard
+
+- Commit `dd04f24` adds `DeepSeekPricingCalendar`, `DeepSeekPricingGuard`, and
+  the `ResourceControlPlane.ensure_selection_allowed()` boundary. The canonical
+  `ProviderDispatcher` invokes that boundary immediately before budget/capacity
+  reservation, so a direct DeepSeek billable request cannot begin during the
+  official weekday peak windows `[01:00,04:00)` and `[06:00,10:00)` UTC.
+- Missing or stale official-calendar evidence, an untrusted clock, an unknown
+  request-duration bound, and a possible overlap with a peak window fail closed
+  with a bounded reason and next-safe wake time. Holiday exemptions are not
+  inferred. Existing `free_fixed`/explicit no-charge resources remain governed
+  by their own billing authority; this guard does not grant paid admission.
+- Focused guard/resource/dispatcher coverage is `12 passed`. Exact-head Core and
+  Provider Smoke passed for `dd04f24` in runs `41374453232` and `41374453312`.
+  No DeepSeek generation, account-key validation, billing/quota change, or
+  runtime qualification was performed. Formal Phase 8 status is unchanged.
+
+### 2026-11-02 Evidence-expiry readout after `dd04f24`
+
+- Read-only `check_evidence_expiry.py --preflight --horizon-hours 48` at
+  `2026-11-02T01:50:07Z` reports catalog `0/1385`, capability `0/500`,
+  benchmark `0/87`, and billing `0/26` current; qualification is `3/13`
+  current now and `0/13` at the horizon, with the next current qualification
+  expiry at `2026-11-02T09:29:25Z`.
+- The 30-day/31-day policy applies only to future catalog/benchmark candidates;
+  no old evidence was extended or rewritten. Local Ollama remains usable only
+  through an explicit bounded local-trial path; static runtime eligibility is
+  still `0` and no stale evidence is promoted.
 
 ### 2026-11-02 #146 Worker JSON repair contract hardening
 
