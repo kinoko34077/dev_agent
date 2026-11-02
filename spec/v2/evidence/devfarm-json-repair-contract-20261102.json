@@ -3,7 +3,7 @@
   "evidence_id": "devfarm-json-repair-contract-20261102",
   "observed_at": "2026-11-02",
   "branch": "v2/bootstrap",
-  "commit": "12685be",
+  "commit": "b1c3c87",
   "scope": "development-worker JSON envelope and bounded correction path",
   "implementation": [
     {
@@ -21,7 +21,7 @@
   ],
   "verification": {
     "focused_command": "python -m pytest tests/v2/test_devfarm_worker_output.py tests/v2/test_devfarm_refinement.py tests/v2/test_devfarm_worker_prompt.py tests/v2/test_devfarm_worker_preflight.py tests/v2/test_devfarm_manifest.py -q",
-    "focused_result": "88 passed",
+    "focused_result": "89 passed",
     "regression_command": "python -m pytest tests/v2 -q",
     "regression_result": "2166 passed, 1 skipped",
     "skip_reason": "Windows ACL deployment-owned test",
@@ -31,11 +31,11 @@
     "diff_check": "PASS",
     "exact_head_ci": {
       "v2_core": {
-        "run_id": "41372075613",
+        "run_id": "41372602828",
         "conclusion": "success"
       },
       "v2_provider_smoke": {
-        "run_id": "41372075620",
+        "run_id": "41372602882",
         "conclusion": "success"
       }
     }
