@@ -38,6 +38,35 @@ def test_provider_dispatch_journal_persists_prepared_intent(tmp_path):
     ledger.close()
 
 
+def test_dispatcher_runs_selection_guard_before_budget_reservation(tmp_path, monkeypatch):
+    ledger, control = _free_control(tmp_path)
+    calls = []
+
+    provider = FakeProvider()
+    provider.provider_id = "groq"
+    provider.provider_binding_id = "groq"
+
+    def guard(request, selection):
+        calls.append((request.task_id, selection.resource_id))
+
+    def reserve(*_args, **_kwargs):
+        raise AssertionError("budget reservation must follow the selection guard")
+
+    monkeypatch.setattr(control, "ensure_selection_allowed", guard)
+    monkeypatch.setattr(control, "reserve_selection", reserve)
+
+    dispatcher = ProviderDispatcher(ProviderRegistry([provider]), control)
+    request = ModelRequest(task_id="00000000-0000-0000-0000-000000000002", messages=[{"role": "user", "content": "guard"}])
+    selection = RouteSelection("groq-free", "groq", "request", 0, None, provider_binding_id="groq", model_id="free")
+    monkeypatch.setattr(dispatcher, "_selection", lambda _request, _excluded: selection)
+
+    with pytest.raises(AssertionError, match="selection guard"):
+        dispatcher.request(request)
+
+    assert calls and calls[0][0] == request.task_id
+    ledger.close()
+
+
 def _free_control(tmp_path):
     ledger = ResourceLedger(tmp_path / "free-routing.sqlite3")
     for resource_id, provider_id in (("gemini-free", "gemini"), ("groq-free", "groq")):

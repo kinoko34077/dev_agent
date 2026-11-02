@@ -365,6 +365,9 @@ class ProviderDispatcher(ModelProvider):
                 self._record_audit(request, selection, "durable_replay", intent_key)
                 return cached
             try:
+                ensure_selection_allowed = getattr(self.control, "ensure_selection_allowed", None)
+                if callable(ensure_selection_allowed):
+                    ensure_selection_allowed(request, selection)
                 reservation = self.control.reserve_selection(request.task_id, selection, intent_key=intent_key)
             except DispatchDenied as exc:
                 if exc.category == "quota_unknown":

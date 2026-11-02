@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from uuid import uuid4
 
 import pytest
@@ -5,8 +6,9 @@ import pytest
 from src.dev_agent.domain.protocol import ModelRequest
 from src.dev_agent.resources.budget import BudgetAuthority, BudgetGovernor, BudgetPolicy
 from src.dev_agent.resources.control import DispatchDenied, ResourceControlPlane
+from src.dev_agent.resources.deepseek_pricing import DeepSeekPricingCalendar, DeepSeekPricingGuard
 from src.dev_agent.resources.ledger import ResourceLedger, unknown_quota_wake_reason
-from src.dev_agent.resources.router import ResourceRouter
+from src.dev_agent.resources.router import ResourceRouter, RouteSelection
 
 
 def _control(tmp_path):
@@ -144,5 +146,61 @@ def test_recurring_allowance_without_no_charge_authority_cannot_settle_missing_c
         )
         with pytest.raises(DispatchDenied, match="no eligible resource"):
             control.reserve_for_provider(request.task_id, "cloud", request)
+    finally:
+        ledger.close()
+
+
+def test_deepseek_peak_pricing_guard_blocks_before_budget_reservation(tmp_path):
+    ledger = ResourceLedger(tmp_path / "deepseek-peak.sqlite3")
+    try:
+        ledger.register_resource(
+            "deepseek-account",
+            provider_id="deepseek",
+            provider_binding_id="deepseek:account",
+            native_unit="request",
+            capacity=1,
+            capabilities=["text"],
+            cost_minor=1,
+            price_currency="USD",
+            metadata={
+                "billing_authority": "trusted_catalog",
+                "billing_mode": "recurring_allowance",
+                "overage_policy": "hard_stop",
+                "no_charge_guaranteed": False,
+                "model_id": "deepseek-chat",
+                "billing_expires_at": "2026-11-09T00:00:00+00:00",
+            },
+        )
+        ledger.observe("deepseek-account", available=1, health="healthy")
+        BudgetAuthority.configure(ledger, BudgetPolicy(hard_cap_minor=100, recovery_reserve_minor=0))
+        guard = DeepSeekPricingGuard(
+            DeepSeekPricingCalendar(
+                source_url="https://api-docs.deepseek.com/quick_start/pricing/",
+                observed_at=datetime(2026, 11, 2, tzinfo=timezone.utc),
+                expires_at=datetime(2026, 11, 9, tzinfo=timezone.utc),
+            ),
+            now=lambda: datetime(2026, 11, 2, 1, 30, tzinfo=timezone.utc),
+        )
+        control = ResourceControlPlane(ResourceRouter(ledger), BudgetGovernor(ledger), deepseek_pricing_guard=guard)
+        request = ModelRequest(
+            task_id=str(uuid4()),
+            messages=[{"role": "user", "content": "bounded direct DeepSeek request"}],
+            metadata={"deepseek_request_window_seconds": 30},
+        )
+
+        selection = RouteSelection(
+            resource_id="deepseek-account",
+            provider_id="deepseek",
+            native_unit="request",
+            estimated_cost_minor=1,
+            price_currency="USD",
+            provider_binding_id="deepseek:account",
+            model_id="deepseek-chat",
+        )
+        with pytest.raises(DispatchDenied, match="peak_pricing") as denied:
+            control.ensure_selection_allowed(request, selection)
+
+        assert denied.value.category == "deepseek_peak_pricing_blocked"
+        assert ledger.reservation_totals()["active_reservations"] == 0
     finally:
         ledger.close()

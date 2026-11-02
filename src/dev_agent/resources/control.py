@@ -12,6 +12,7 @@ from .ledger import MoneyAmount
 from .router import EffectiveRouteDecision, NoRoute, ResourceRouter, RouteRequest, RouteSelection
 from .quota_policy import classify_provider_error
 from .ledger import unknown_quota_wake_reason
+from .deepseek_pricing import DeepSeekPricingGuard
 
 
 def quality_tier_advisory_for(request: ModelRequest) -> bool:
@@ -63,10 +64,17 @@ class ResourcePolicy(Protocol):
 
 
 class ResourceControlPlane:
-    def __init__(self, router: ResourceRouter, governor: BudgetGovernor) -> None:
+    def __init__(
+        self,
+        router: ResourceRouter,
+        governor: BudgetGovernor,
+        *,
+        deepseek_pricing_guard: DeepSeekPricingGuard | None = None,
+    ) -> None:
         self.router = router
         self.governor = governor
         self._maintenance = False
+        self._deepseek_pricing_guard = deepseek_pricing_guard
 
     def set_maintenance(self, enabled: bool) -> None:
         self._maintenance = bool(enabled)
@@ -175,9 +183,44 @@ class ResourceControlPlane:
         self._ensure_dispatch_allowed()
         try:
             selection = self.effective_route(request, provider_id=provider_id).require_selection()
+            self.ensure_selection_allowed(request, selection)
             return self.reserve_selection(task_id, selection, intent_key=intent_key)
         except NoRoute as exc:
             raise DispatchDenied("no_route", str(exc)) from exc
+
+    def ensure_selection_allowed(self, request: ModelRequest, selection: RouteSelection) -> None:
+        """Apply provider-specific timing fences before any budget reservation."""
+
+        if not isinstance(request, ModelRequest):
+            raise TypeError("request must be a ModelRequest")
+        if not isinstance(selection, RouteSelection):
+            raise TypeError("selection must be a RouteSelection")
+        if selection.provider_id != "deepseek":
+            return
+        resource = self.governor.ledger.get_resource(selection.resource_id)
+        metadata = resource.get("metadata") if isinstance(resource.get("metadata"), dict) else {}
+        billing_mode = metadata.get("billing_mode")
+        if billing_mode == "free_fixed" or metadata.get("no_charge_guaranteed") is True:
+            return
+        guard = self._deepseek_pricing_guard
+        if guard is None:
+            raise DispatchDenied(
+                "deepseek_pricing_calendar_unavailable",
+                "DeepSeek direct billing calendar is unavailable; dispatch is blocked",
+                wake_reason="deepseek_pricing_calendar_unavailable",
+            )
+        decision = guard.evaluate(
+            started_at=guard.current_time(),
+            duration_seconds=request.metadata.get("deepseek_request_window_seconds"),
+        )
+        if not decision.allowed:
+            wake_at = decision.next_safe_at.timestamp() if decision.next_safe_at is not None else None
+            raise DispatchDenied(
+                decision.reason_code,
+                f"DeepSeek direct billing dispatch blocked: {decision.reason_code}",
+                wake_at=wake_at,
+                wake_reason=decision.reason_code,
+            )
 
     def reserve_selection(self, task_id: str, selection: RouteSelection, *, intent_key: str | None = None) -> DispatchReservation:
         self._ensure_dispatch_allowed()
