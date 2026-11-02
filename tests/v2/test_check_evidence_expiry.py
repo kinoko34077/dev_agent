@@ -131,6 +131,52 @@ def test_report_is_labelled_static_not_runtime(tmp_path):
     assert "NOT runtime admission" in check_evidence_expiry.__doc__
 
 
+def test_fresh_staged_catalog_is_visible_without_changing_formal_admission(tmp_path):
+    canonical = _evidence_expiring_at(tmp_path / "canonical", _NOW + timedelta(days=30))
+    for name in _MODEL_FILES:
+        path = canonical / name
+        document = json.loads(path.read_text(encoding="utf-8"))
+        _rewrite_key(document, "observed_at", (_NOW - timedelta(days=2)).isoformat())
+        _rewrite_expiries(document, (_NOW - timedelta(hours=1)).isoformat())
+        path.write_text(json.dumps(document), encoding="utf-8")
+    staged_dir = tmp_path / "staged"
+    staged_dir.mkdir()
+    (staged_dir / "model-catalog-refresh-20261102.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "entries": [
+                    {
+                        "provider_id": "cloudflare",
+                        "provider_binding_id": "cloudflare:account",
+                        "model_id": "@cf/example/text-model",
+                        "source": "models.list",
+                        "observed_at": (_NOW - timedelta(hours=1)).isoformat(),
+                        "expires_at": (_NOW + timedelta(days=6)).isoformat(),
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = check_evidence_expiry.build_report(
+        now=_NOW,
+        horizon_hours=48,
+        evidence_directory=canonical,
+        candidate_directory=staged_dir,
+        required_identities=(),
+    )
+
+    staged = report["staged_discovery_inventory"]
+    assert staged["status"] == "NOT_PROMOTED"
+    assert staged["stored_count"] == 1
+    assert staged["current_count"] == 1
+    assert staged["next_expiry"] == (_NOW + timedelta(days=6)).isoformat()
+    assert report["static_eligible_now"] == 0
+    assert "no_static_eligible_at_horizon" in report["failures"]
+
+
 def test_billing_catalog_next_expiry_matches_trusted_profiles():
     expiring_profiles = [
         profile for profile in TRUSTED_RESOURCE_CATALOG.values()

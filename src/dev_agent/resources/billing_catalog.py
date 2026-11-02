@@ -2,8 +2,9 @@
 
 Provider names are not billing identities.  A normal runtime may treat a
 resource as free only when its concrete provider binding and model are present
-in this catalog.  Qualification fixtures may add an exact, temporary entry in
-their own test process; production code has no wildcard provider entry.
+in this catalog, including an explicitly reviewed binding-scoped policy.
+Qualification fixtures may add an exact, temporary entry in their own test
+process; production code has no provider-wide wildcard entry.
 """
 
 from __future__ import annotations
@@ -136,6 +137,12 @@ class TrustedResourceProfile:
         return self.cost_minor == 0 and (
             self.billing_mode == "free_fixed"
             or (self.billing_mode == "recurring_allowance" and self.overage_policy == "hard_stop")
+            or (
+                self.billing_mode == "recurring_credit"
+                and self.allowance_amount is not None
+                and self.allowance_amount > 0
+                and self.overage_policy == "hard_stop"
+            )
         )
 
 
@@ -171,6 +178,36 @@ _TRUSTED_RESOURCE_CATALOG: dict[tuple[str, str, str], TrustedResourceProfile] = 
         expires_at=_CLOUDFLARE_FREE_POLICY_EXPIRES_AT,
         billing_mode="recurring_allowance",
         allowance_period="daily",
+        overage_policy="hard_stop",
+    ),
+    # The operator confirmed these configured account lanes are currently on
+    # non-paid plans. Vendor Free-mode policy is binding-scoped and reviewed
+    # for this 30-day window; it does not apply to another binding or override
+    # discovery, capability, quota, privacy, health, or runtime admission.
+    ("mistral", "mistral:account", "*"): TrustedResourceProfile(
+        "mistral",
+        "mistral:account",
+        "*",
+        0,
+        "JPY",
+        True,
+        None,
+        source="mistral_studio_free_mode_operator_confirmed_2026-11-02",
+        billing_mode="recurring_allowance",
+        allowance_period="provider_rate_limits",
+        overage_policy="hard_stop",
+    ),
+    ("groq", "groq:account", "*"): TrustedResourceProfile(
+        "groq",
+        "groq:account",
+        "*",
+        0,
+        "JPY",
+        True,
+        None,
+        source="groq_free_tier_operator_confirmed_2026-11-02",
+        billing_mode="recurring_allowance",
+        allowance_period="provider_rate_limits",
         overage_policy="hard_stop",
     ),
     ("openrouter", "openrouter:free", "openrouter/free"): TrustedResourceProfile(
@@ -213,6 +250,23 @@ _TRUSTED_RESOURCE_CATALOG: dict[tuple[str, str, str], TrustedResourceProfile] = 
         "ollama", "ollama", "qwen3:8b", 0, "JPY", False, None,
         verified_at=_LOCAL_FIXED_VERIFIED_AT, expires_at=_LOCAL_FIXED_EXPIRES_AT, billing_mode="free_fixed"
     ),
+    # Discovery uses the generic loopback binding, while execution may derive
+    # a model-specific local resource binding.  This binding-scoped fixed-free
+    # profile lets the diagnostic/admission layer recognize installed local
+    # models without changing which model is selected by routing policy.
+    ("ollama", "ollama:local", "*"): TrustedResourceProfile(
+        "ollama",
+        "ollama:local",
+        "*",
+        0,
+        "JPY",
+        False,
+        None,
+        source="reviewed_code_catalog",
+        verified_at=_LOCAL_FIXED_VERIFIED_AT,
+        expires_at=_LOCAL_FIXED_EXPIRES_AT,
+        billing_mode="free_fixed",
+    ),
     ("ollama", "ollama:local:qwen3.5-9b", "qwen3.5:9b"): TrustedResourceProfile(
         "ollama", "ollama:local:qwen3.5-9b", "qwen3.5:9b", 0, "JPY", False, None,
         verified_at=_LOCAL_FIXED_VERIFIED_AT, expires_at=_LOCAL_FIXED_EXPIRES_AT, billing_mode="free_fixed"
@@ -226,6 +280,28 @@ _TRUSTED_RESOURCE_CATALOG: dict[tuple[str, str, str], TrustedResourceProfile] = 
         verified_at=_LOCAL_FIXED_VERIFIED_AT, expires_at=_LOCAL_FIXED_EXPIRES_AT, billing_mode="free_fixed"
     ),
 }
+
+# Vercel's free-tier model directory explicitly labels these exact model IDs
+# as Free.  The $5 monthly AI Gateway credit is a different billing mechanism
+# and must not turn the provider's paid catalog into a no-charge wildcard.
+for _model in (
+    "inclusionai/ling-3.1-flash-1019",
+    "nvidia/nemotron-3.5-lightning-free",
+    "reflection/beam-free",
+    "stealth/glyph-cluster",
+):
+    _TRUSTED_RESOURCE_CATALOG[("vercel", "vercel:account", _model)] = TrustedResourceProfile(
+        "vercel",
+        "vercel:account",
+        _model,
+        0,
+        "USD",
+        True,
+        "L1",
+        source="vercel_ai_gateway_free_model_catalog_2026-11-02",
+        billing_mode="free_fixed",
+        overage_policy="hard_stop",
+    )
 
 for _slot in ("2", "3", "4", "5"):
     _TRUSTED_RESOURCE_CATALOG[("gemini", f"gemini:worker:free-{_slot}", "gemini-3.5-flash-lite")] = TrustedResourceProfile(
@@ -308,6 +384,31 @@ class BillingResolver:
         ):
             return None
         profile = self._catalog.get((provider_id, provider_binding_id, model_id))
+        if (
+            profile is None
+            and self._catalog is TRUSTED_RESOURCE_CATALOG
+            and provider_id == "openrouter"
+            and provider_binding_id == "openrouter:account"
+            and model_id.endswith(":free")
+        ):
+            # OpenRouter's explicit :free variant denotes a zero-priced model
+            # on its free account lane.  Keep the exact discovered model ID in
+            # the returned profile and stop at the account's free request cap.
+            # The staged/current model inventory and all non-billing admission
+            # checks remain independent.
+            profile = TrustedResourceProfile(
+                "openrouter",
+                "openrouter:account",
+                model_id,
+                0,
+                "JPY",
+                True,
+                None,
+                source="openrouter_free_models_router_pricing_2026-11-02",
+                billing_mode="recurring_allowance",
+                allowance_period="free_account_request_limits",
+                overage_policy="hard_stop",
+            )
         if profile is None:
             # A wildcard is an explicit binding-level billing policy, never a
             # provider-wide or model-name inference. Qualification and model
@@ -319,6 +420,8 @@ class BillingResolver:
     def default_binding_id(self, provider_id: str, model_id: str) -> str:
         """Return a catalog binding for an exact model, or a non-free fallback."""
 
+        if provider_id == "openrouter" and model_id.endswith(":free"):
+            return "openrouter:account"
         for provider, binding, model in self._catalog:
             if provider == provider_id and model == model_id and model != "*" and ":qualification" not in binding:
                 return binding

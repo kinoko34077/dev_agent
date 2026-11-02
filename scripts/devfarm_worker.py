@@ -39,6 +39,7 @@ from src.dev_agent.providers.host_dispatch import HostProviderDispatch, route_th
 from scripts.devfarm_worker_admission import (
     DevFarmActivationPolicy,
     DevFarmWorkerEligibility,
+    WORKER_PROVIDER_CHOICES,
     validate_worker_provider as shared_validate_worker_provider,
 )
 from scripts.devfarm_provider_runtime import build_worker_provider
@@ -1591,7 +1592,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path.cwd())
     parser.add_argument("--manifest", type=Path, required=True)
-    parser.add_argument("--provider", choices=("cloudflare", "gemini", "openrouter", "ollama"))
+    parser.add_argument("--provider", choices=WORKER_PROVIDER_CHOICES)
     parser.add_argument("--model")
     parser.add_argument("--provider-binding-id")
     parser.add_argument("--timeout-seconds", type=float, default=30.0)

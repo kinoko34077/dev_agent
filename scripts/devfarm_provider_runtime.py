@@ -58,7 +58,13 @@ def build_worker_provider(
                 provider_binding_id=provider_binding_id,
             )
             if not proposal.eligible:
-                policy.ensure_active(name, model, provider_binding_id=provider_binding_id)
+                if not proposal.operator_activated:
+                    policy.ensure_active(name, model, provider_binding_id=provider_binding_id)
+                raise DevFarmError(
+                    "development worker provider route is not dispatchable: "
+                    f"{name}/{proposal.provider_binding_id or 'unbound'}/{model} "
+                    f"({proposal.reason})"
+                )
             binding_id = proposal.provider_binding_id
             intelligence_tier = proposal.intelligence_tier
             proposal_only_candidate = True

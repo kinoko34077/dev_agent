@@ -42,7 +42,21 @@ class DevFarmWorkerEligibility:
 class DevFarmActivationPolicy:
     """Resolve the Host-owned activation/qualification/billing boundary."""
 
-    DEFAULT_ACTIVE_PROVIDER_IDS = frozenset({"cloudflare", "gemini", "openrouter"})
+    # User-authorized no-paid account lanes remain candidates. Their exact
+    # binding/model billing profile still has to prove hard-stop no-charge
+    # behavior; unknown or billable identities remain non-dispatchable.
+    DEFAULT_ACTIVE_PROVIDER_IDS = frozenset(
+        {
+            "cloudflare",
+            "gemini",
+            "groq",
+            "mistral",
+            "ollama_cloud",
+            "openrouter",
+            "sambanova",
+            "vercel",
+        }
+    )
 
     def __init__(
         self,
@@ -269,6 +283,11 @@ class DevFarmActivationPolicy:
         if eligibility.provider_binding_id is None:
             raise DevFarmError(f"development worker qualification is unavailable: {provider_id}/{model_id}")
         return eligibility.provider_binding_id, eligibility.intelligence_tier
+
+
+WORKER_PROVIDER_CHOICES = tuple(
+    sorted(DevFarmActivationPolicy.DEFAULT_ACTIVE_PROVIDER_IDS | frozenset({"ollama"}))
+)
 
 
 def validate_worker_provider(

@@ -3,7 +3,11 @@ from __future__ import annotations
 import pytest
 
 from scripts.devfarm import DevFarmError
-from scripts.devfarm_worker_admission import validate_worker_provider
+from scripts.devfarm_worker_admission import (
+    DevFarmActivationPolicy,
+    WORKER_PROVIDER_CHOICES,
+    validate_worker_provider,
+)
 from scripts.devfarm_provider_runtime import build_assigned_providers, build_worker_provider
 from src.dev_agent.providers.ollama import OllamaProvider
 
@@ -134,8 +138,121 @@ def test_build_worker_provider_admits_exact_current_free_gemini_as_proposal_cand
 
 
 @pytest.mark.current_billing_catalog
+def test_build_worker_provider_admits_openrouter_free_variant_as_proposal_candidate() -> None:
+    provider = build_worker_provider(
+        "openrouter",
+        "google/gemma-4-26b-a4b-it:free",
+        30.0,
+        "openrouter:account",
+    )
+
+    provider_id, model_id, binding_id, tier, eligibility = validate_worker_provider(provider)
+
+    assert (provider_id, model_id, binding_id) == (
+        "openrouter",
+        "google/gemma-4-26b-a4b-it:free",
+        "openrouter:account",
+    )
+    assert tier == "L1"
+    assert provider.proposal_only_candidate is True
+    assert eligibility.capability_qualified is False
+    assert eligibility.billing_admitted is True
+    assert eligibility.reason == "proposal_only_candidate"
+
+
+@pytest.mark.current_billing_catalog
+@pytest.mark.parametrize(
+    ("provider_id", "model_id", "binding_id"),
+    (
+        ("mistral", "ministral-3b-latest", "mistral:account"),
+        ("vercel", "nvidia/nemotron-3.5-lightning-free", "vercel:account"),
+    ),
+)
+def test_free_remote_worker_providers_remain_proposal_candidates(provider_id, model_id, binding_id):
+    eligibility = DevFarmActivationPolicy().proposal_eligibility_for(
+        provider_id,
+        model_id,
+        provider_binding_id=binding_id,
+    )
+
+    assert eligibility.operator_activated is True
+    assert eligibility.billing_admitted is True
+    assert eligibility.eligible is True
+    assert eligibility.reason == "proposal_only_candidate"
+
+
+@pytest.mark.current_billing_catalog
+def test_ollama_cloud_model_remains_visible_but_blocked_without_exact_free_entitlement():
+    eligibility = DevFarmActivationPolicy().proposal_eligibility_for(
+        "ollama_cloud",
+        "deepseek-v4.1-flash",
+        provider_binding_id="ollama_cloud:account",
+    )
+
+    assert eligibility.operator_activated is True
+    assert eligibility.billing_admitted is False
+    assert eligibility.eligible is False
+    assert eligibility.reason == "billing_unknown"
+
+    with pytest.raises(DevFarmError, match="billing_unknown"):
+        build_worker_provider(
+            "ollama_cloud",
+            "deepseek-v4.1-flash",
+            30.0,
+            "ollama_cloud:account",
+        )
+
+
+@pytest.mark.current_billing_catalog
+def test_vercel_paid_catalog_model_is_not_admitted_by_free_plan_credit():
+    eligibility = DevFarmActivationPolicy().proposal_eligibility_for(
+        "vercel",
+        "google/gemini-3.8-flash",
+        provider_binding_id="vercel:account",
+    )
+
+    assert eligibility.operator_activated is True
+    assert eligibility.billing_admitted is False
+    assert eligibility.reason == "billing_unknown"
+    with pytest.raises(DevFarmError, match="billing_unknown"):
+        build_worker_provider(
+            "vercel",
+            "google/gemini-3.8-flash",
+            30.0,
+            "vercel:account",
+        )
+
+
+@pytest.mark.current_billing_catalog
+def test_sambanova_stays_selectable_but_not_dispatchable_without_no_charge_evidence():
+    eligibility = DevFarmActivationPolicy().proposal_eligibility_for(
+        "sambanova",
+        "Meta-Llama-3.3-70B-Instruct",
+        provider_binding_id="sambanova:account",
+    )
+
+    assert eligibility.operator_activated is True
+    assert eligibility.billing_admitted is False
+    assert eligibility.reason == "billing_unknown"
+    with pytest.raises(DevFarmError, match="billing_unknown"):
+        build_worker_provider(
+            "sambanova",
+            "Meta-Llama-3.3-70B-Instruct",
+            30.0,
+            "sambanova:account",
+        )
+
+
+def test_worker_cli_exposes_only_the_active_free_remote_providers_and_local_trial():
+    assert {"cloudflare", "gemini", "groq", "mistral", "ollama_cloud", "openrouter", "sambanova", "vercel", "ollama"} <= set(
+        WORKER_PROVIDER_CHOICES
+    )
+    assert "deepseek" not in WORKER_PROVIDER_CHOICES
+
+
+@pytest.mark.current_billing_catalog
 def test_build_worker_provider_rejects_unlisted_free_candidate() -> None:
-    with pytest.raises(DevFarmError, match="not active"):
+    with pytest.raises(DevFarmError, match="not dispatchable.*billing_unknown"):
         build_worker_provider(
             "gemini",
             "gemini-not-in-reviewed-catalog",
