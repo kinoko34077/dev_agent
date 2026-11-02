@@ -168,6 +168,71 @@ class DevFarmActivationPolicy:
             capability_expiry, True, profile.source, profile.expires_at, True, "eligible",
         )
 
+    def proposal_eligibility_for(
+        self,
+        provider_id: str,
+        model_id: str,
+        *,
+        provider_binding_id: str | None = None,
+    ) -> DevFarmWorkerEligibility:
+        """Admit one exact current no-charge identity for proposal-only work.
+
+        Missing or expired qualification never becomes a formal Worker
+        activation. This narrower route requires an explicit binding and an
+        exact current billing profile whose no-charge guarantee is reviewed.
+        The caller must keep the request proposal-only and require Host
+        verification before any integration.
+        """
+
+        normalized_provider = provider_id.strip() if isinstance(provider_id, str) else ""
+        normalized_model = model_id.strip() if isinstance(model_id, str) else ""
+        if not normalized_provider or not normalized_model:
+            return DevFarmWorkerEligibility(
+                normalized_provider, normalized_model, None, None, False, False,
+                None, False, None, None, False, "operator_inactive",
+            )
+        if normalized_provider not in self._active_provider_ids or _is_local_provider(normalized_provider):
+            return DevFarmWorkerEligibility(
+                normalized_provider, normalized_model, None, None, False, False,
+                None, False, None, None, False, "operator_inactive",
+            )
+        if not isinstance(provider_binding_id, str) or not provider_binding_id.strip():
+            return DevFarmWorkerEligibility(
+                normalized_provider, normalized_model, None, None, True, False,
+                None, False, None, None, False, "proposal_binding_required",
+            )
+        binding_id = provider_binding_id.strip()
+        profile = trusted_billing_profile_for(normalized_provider, binding_id, normalized_model)
+        if profile is None or not profile.no_charge_guaranteed or not profile.is_current(now=self._now):
+            return DevFarmWorkerEligibility(
+                normalized_provider,
+                normalized_model,
+                binding_id,
+                None,
+                True,
+                False,
+                None,
+                False,
+                None if profile is None else profile.source,
+                None if profile is None else profile.expires_at,
+                False,
+                "billing_unknown" if profile is None else "billing_expired_or_not_no_charge",
+            )
+        return DevFarmWorkerEligibility(
+            normalized_provider,
+            normalized_model,
+            binding_id,
+            "L1",
+            True,
+            False,
+            None,
+            True,
+            profile.source,
+            profile.expires_at,
+            True,
+            "proposal_only_candidate",
+        )
+
     def is_active(self, provider_id: str, model_id: str | None = None) -> bool:
         if not isinstance(model_id, str) or not model_id.strip():
             return False
@@ -278,6 +343,24 @@ def validate_worker_provider(
         normalized_model,
         provider_binding_id=normalized_binding,
     )
+    if not eligibility.eligible and getattr(provider, "proposal_only_candidate", False) is True:
+        proposal = DevFarmActivationPolicy().proposal_eligibility_for(
+            normalized_provider,
+            normalized_model,
+            provider_binding_id=normalized_binding,
+        )
+        if proposal.eligible:
+            if normalized_tier != "L1":
+                raise DevFarmError(
+                    "proposal-only Worker candidate must use the bounded L1 tier"
+                )
+            return (
+                normalized_provider,
+                normalized_model,
+                normalized_binding,
+                normalized_tier,
+                proposal,
+            )
     if not eligibility.eligible:
         raise DevFarmError(
             "worker provider is not eligible for external development work: "

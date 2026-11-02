@@ -103,3 +103,42 @@ def test_build_worker_provider_requires_explicit_local_trial_opt_in() -> None:
     assert provider.intelligence_tier == "L1"
     assert provider.think is False
     assert provider.keep_alive == "10m"
+
+
+@pytest.mark.current_billing_catalog
+def test_build_worker_provider_admits_exact_current_free_gemini_as_proposal_candidate() -> None:
+    provider = build_worker_provider(
+        "gemini",
+        "gemini-3.6-flash",
+        30.0,
+        "gemini:worker:free-3",
+    )
+
+    assert provider.provider_id == "gemini"
+    assert provider.model_id == "gemini-3.6-flash"
+    assert provider.provider_binding_id == "gemini:worker:free-3"
+    assert provider.intelligence_tier == "L1"
+    assert provider.proposal_only_candidate is True
+
+    provider_id, model_id, binding_id, tier, eligibility = validate_worker_provider(provider)
+
+    assert (provider_id, model_id, binding_id, tier) == (
+        "gemini",
+        "gemini-3.6-flash",
+        "gemini:worker:free-3",
+        "L1",
+    )
+    assert eligibility.capability_qualified is False
+    assert eligibility.billing_admitted is True
+    assert eligibility.reason == "proposal_only_candidate"
+
+
+@pytest.mark.current_billing_catalog
+def test_build_worker_provider_rejects_unlisted_free_candidate() -> None:
+    with pytest.raises(DevFarmError, match="not active"):
+        build_worker_provider(
+            "gemini",
+            "gemini-not-in-reviewed-catalog",
+            30.0,
+            "gemini:worker:free-3",
+        )

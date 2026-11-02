@@ -31,6 +31,7 @@ def build_worker_provider(
     """Construct one already-admitted development Provider identity."""
 
     policy = DevFarmActivationPolicy()
+    proposal_only_candidate = False
     if is_local_provider(name):
         if allow_local is not True:
             policy.ensure_active(name, model, provider_binding_id=provider_binding_id)
@@ -42,12 +43,29 @@ def build_worker_provider(
         # qualification or Phase 8 Gate grant.
         intelligence_tier = "L1"
     else:
-        policy.ensure_active(name, model, provider_binding_id=provider_binding_id)
-        binding_id, intelligence_tier = policy.binding_for(
+        eligibility = policy.eligibility_for(
             name,
             model,
             provider_binding_id=provider_binding_id,
         )
+        if eligibility.eligible:
+            binding_id = eligibility.provider_binding_id
+            intelligence_tier = eligibility.intelligence_tier
+        else:
+            proposal = policy.proposal_eligibility_for(
+                name,
+                model,
+                provider_binding_id=provider_binding_id,
+            )
+            if not proposal.eligible:
+                policy.ensure_active(name, model, provider_binding_id=provider_binding_id)
+            binding_id = proposal.provider_binding_id
+            intelligence_tier = proposal.intelligence_tier
+            proposal_only_candidate = True
+        if binding_id is None or intelligence_tier is None:
+            raise DevFarmError(
+                "development worker provider admission did not produce a concrete binding and tier"
+            )
     try:
         definition_values = {
             "provider_id": name,
@@ -63,7 +81,9 @@ def build_worker_provider(
             # bindings.  This does not change tier/admission or make the local
             # route a formal Phase 8 L2 qualification.
             definition_values.update({"keep_alive": "10m", "think": False})
-        return ProviderFactory().create(ProviderDefinition(**definition_values))
+        provider = ProviderFactory().create(ProviderDefinition(**definition_values))
+        setattr(provider, "proposal_only_candidate", proposal_only_candidate)
+        return provider
     except (TypeError, ValueError) as exc:
         raise DevFarmError(f"unsupported development worker provider: {name}") from exc
 
