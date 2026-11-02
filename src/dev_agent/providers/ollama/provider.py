@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import json
+import math
 from urllib.error import HTTPError, URLError
 from urllib.request import Request
 from typing import TYPE_CHECKING
@@ -46,6 +48,27 @@ class OllamaProvider(ModelProvider):
             "tools": [{"type": "function", "function": definition} for definition in request.tool_definitions],
             "keep_alive": self.keep_alive,
         }
+        controls = request.metadata.get("worker_generation_controls")
+        if controls is not None:
+            if not isinstance(controls, Mapping) or set(controls) - {"temperature"}:
+                raise ProviderError(
+                    "ollama worker generation controls are unsupported",
+                    category="provider_context",
+                    retryable=False,
+                )
+            temperature = controls.get("temperature")
+            if (
+                isinstance(temperature, bool)
+                or not isinstance(temperature, (int, float))
+                or not math.isfinite(float(temperature))
+                or not 0 <= float(temperature) <= 2
+            ):
+                raise ProviderError(
+                    "ollama worker temperature is outside the bounded range",
+                    category="provider_context",
+                    retryable=False,
+                )
+            payload["options"]["temperature"] = temperature
         if request.response_schema is not None:
             # Ollama accepts a JSON schema in ``format``.  Keep the schema
             # host-owned: the adapter only forwards the already validated

@@ -1253,6 +1253,11 @@ def run_worker(
             "authority": "host_validation_required",
             "intelligence_routing": "bounded",
             "allowed_intelligence_tiers": [worker_tier],
+            **(
+                {"worker_generation_controls": {"temperature": 0}}
+                if provider_id == "ollama"
+                else {}
+            ),
             **({"worker_compensation": compensation} if compensation is not None else {}),
             **({"allow_unknown_quota": True} if _eligibility.billing_admitted else {}),
         },

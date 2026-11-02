@@ -345,6 +345,7 @@ def test_run_worker_requests_bounded_json_schema_for_local_ollama(tmp_path, monk
     assert requests[0].response_schema["properties"]["file_replacements"]["maxProperties"] == 1
     assert requests[0].response_schema["required"] == ["file_replacements"]
     assert requests[0].response_schema["additionalProperties"] is False
+    assert requests[0].metadata["worker_generation_controls"] == {"temperature": 0}
     assert "only required output key is file_replacements" in requests[0].messages[1]["content"]
     assert requests[0].messages[2]["role"] == "user"
 

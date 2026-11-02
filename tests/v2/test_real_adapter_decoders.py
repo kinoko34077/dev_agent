@@ -51,6 +51,29 @@ def test_ollama_payload_requests_json_mode_for_structured_output():
     assert provider._payload(request)["format"] == {"type": "object"}
 
 
+def test_ollama_payload_applies_only_bounded_host_generation_controls():
+    request = ModelRequest(
+        task_id=_id(),
+        messages=[{"role": "user", "content": "x"}],
+        metadata={"worker_generation_controls": {"temperature": 0}},
+    )
+
+    payload = OllamaProvider(model="local-test")._payload(request)
+
+    assert payload["options"]["temperature"] == 0
+
+
+def test_ollama_payload_rejects_unbounded_worker_generation_controls():
+    request = ModelRequest(
+        task_id=_id(),
+        messages=[{"role": "user", "content": "x"}],
+        metadata={"worker_generation_controls": {"temperature": 3}},
+    )
+
+    with pytest.raises(ProviderError, match="outside the bounded range"):
+        OllamaProvider(model="local-test")._payload(request)
+
+
 def test_ollama_response_records_explicit_zero_local_cost(monkeypatch):
     class Response:
         def __enter__(self):
