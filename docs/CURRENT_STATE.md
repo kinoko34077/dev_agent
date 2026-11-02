@@ -10,10 +10,10 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 | Field | Current fact |
 | --- | --- |
 | Accepted branch | `v2/bootstrap` |
-| Accepted remote head at latest integrated implementation/evidence | `3e37b9ff486bf3d646115a73ff154b94b1252329` (`v2/bootstrap`; explicit read-only W0 observed-baseline report added after the DeepSeek guard; exact-head CI is pending for this new head). |
-| Latest integrated implementation/evidence baseline | `3e37b9f` adds a reproducible W0 report boundary over explicitly selected fresh Worker attempts, preserving the existing bounded Worker JSON/schema repair path and DeepSeek pricing guard. Two bounded real Worker → Host Verification → review → integration slices are accepted (#97 and #127 R5/#134); the full R5/V1–V4 useful-work and continuity acceptance remains unaccepted. The existing finite refinement policy remains authoritative; Host normalization, same-L1 repair, L1 Critic, alternate L1, upper reframe, reconciliation, and Human paths are explicit. Unknown handoff fields and raw diagnostics are excluded from model input. |
-| Latest implementation baseline | `04a1290` adds Host feasibility checks; `9742c29` binds localized compensation budgets; `fba3aa7`/`12685be`/`b1c3c87` harden the JSON envelope, provider-facing schema, Host-directed repair instruction, and omitted-field regression; `dd04f24` adds the DeepSeek pricing guard, package exports, and canonical-dispatch ordering tests; `3e37b9f` adds explicit W0 observation selection/reporting. Commit `537972c` migrates maintained Actions to Node 24-compatible majors and changes only future model-discovery/benchmark candidate TTL defaults to 30 days with a 31-day hard ceiling. No Provider generation, budget, Recovery authority, billing account, credential, or Formal Gate state changed. |
-| Latest evidence baseline | #127/#146 evidence is bounded and non-Gate: the explicit W0 report records four fresh no-charge local attempts at base `331b483`, with `accepted=0/4`, `proposal_parsed=0/4`, `host_verified=0/4`, and four pre-Host failures (three `FORMAT_PATCH`, one `FEASIBILITY`) at total cost `0`; the existing JSON-repair focused scope remains `89 passed`; the DeepSeek guard/dispatch boundary scope is `12 passed`. Exact-head Core/Provider Smoke for `3e37b9f` is pending. No patch or integration occurred in the W0 cohort and no Worker success or routing qualification is claimed. The dated OpenRouter snapshot remains `non_authoritative_observation_only`; no capability, benchmark, billing, quota, health, runtime admission, or Gate layer was renewed. Real-model V1 learned-choice, real-provider V2 mixed continuity, V3 measured improvement, V4 sustained live sequence, and Formal Phase 8 remain unaccepted. |
+| Accepted remote head at latest integrated implementation/evidence | `7c5b5e9` (`v2/bootstrap`; W0 report plus bounded Ollama generation controls and W1 feasibility projection; exact-head CI is pending for this new head). |
+| Latest integrated implementation/evidence baseline | `7c5b5e9` extends the reproducible W0 report with allowlisted feasibility facts; `35ec071` makes Host-created local Ollama Worker requests use bounded temperature-zero generation controls. The existing bounded Worker JSON/schema repair path and DeepSeek pricing guard remain unchanged. Two bounded real Worker → Host Verification → review → integration slices are accepted (#97 and #127 R5/#134); the full R5/V1–V4 useful-work and continuity acceptance remains unaccepted. The existing finite refinement policy remains authoritative; Host normalization, same-L1 repair, L1 Critic, alternate L1, upper reframe, reconciliation, and Human paths are explicit. Unknown handoff fields and raw diagnostics are excluded from model input. |
+| Latest implementation baseline | `04a1290` adds Host feasibility checks; `9742c29` binds localized compensation budgets; `fba3aa7`/`12685be`/`b1c3c87` harden the JSON envelope, provider-facing schema, Host-directed repair instruction, and omitted-field regression; `dd04f24` adds the DeepSeek pricing guard, package exports, and canonical-dispatch ordering tests; `3e37b9f` adds explicit W0 observation selection/reporting; `35ec071`/`7c5b5e9` add bounded generation controls and W1 metric projection. Commit `537972c` migrates maintained Actions to Node 24-compatible majors and changes only future model-discovery/benchmark candidate TTL defaults to 30 days with a 31-day hard ceiling. No Provider admission, budget, Recovery authority, billing account, credential, or Formal Gate state changed. |
+| Latest evidence baseline | #127/#146 evidence is bounded and non-Gate: the explicit W0 report records four fresh no-charge local attempts at base `331b483`, with `accepted=0/4`, `proposal_parsed=0/4`, `host_verified=0/4`, and four pre-Host failures (three `FORMAT_PATCH`, one `FEASIBILITY`) at total cost `0`; the feasibility projection retains one pre-provider `invalid_acceptance` with input `221838` bytes, context `331067` bytes, output capacity `16384` chars, and reasons `test_commands_missing`/`input_file_too_large`. The existing JSON-repair focused scope remains `89 passed`; the DeepSeek guard/dispatch boundary scope is `12 passed`. Exact-head Core/Provider Smoke for `7c5b5e9` is pending. No patch or integration occurred in the W0 cohort and no Worker success or routing qualification is claimed. The dated OpenRouter snapshot remains `non_authoritative_observation_only`; no capability, benchmark, billing, quota, health, runtime admission, or Gate layer was renewed. Real-model V1 learned-choice, real-provider V2 mixed continuity, V3 measured improvement, V4 sustained live sequence, and Formal Phase 8 remain unaccepted. |
 | Latest bounded-operation slice | #97 and #127 R5/#134 each demonstrate a bounded local Worker proposal reaching Host Verification, review, and deterministic integration on a docs-only task. These are two accepted useful slices, not the full Runtime/Claim/Lease autonomous cycle; they do not by themselves satisfy V1 learned-choice, V2 mixed continuity, V3 measured improvement, V4 sustained interruption/restart, or Formal Phase 8. Detailed attempt evidence is in #97 and #134. |
 | Local synchronization | The live `v2/bootstrap` ref is authoritative; refresh any local checkout from its current head before making further changes. The requirements index links to `docs/DECISION_TRANSFER_M1.md`. |
 | Formal Gate | `D9_DOGFOOD=VERIFIED`; `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`; `PHASE8_PREPARATION=PREPARATION_ONLY`; `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` |
@@ -239,6 +239,25 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
   first machine-readable W0 observed denominator; it does not establish W6
   useful-work improvement or renew model capability, benchmark, billing,
   quota, health, runtime admission, or Formal Phase 8 evidence.
+
+### 2026-11-02 #146 W1 feasibility projection and Worker generation controls
+
+- Commit `35ec071` binds Host-created local Ollama Worker requests to a
+  bounded `temperature=0` generation control. The Ollama adapter accepts only
+  that allowlisted control and the range `0..2`; unknown controls and invalid
+  values fail closed as `provider_context`. This changes request determinism,
+  not Provider qualification, billing, retry, routing, or acceptance authority.
+- Commit `7c5b5e9` retains allowlisted W1 facts in each baseline observation:
+  feasibility status, input/context bytes, output capacity, and bounded reason
+  codes. The four-attempt fresh cohort is unchanged (`accepted=0/4`,
+  `proposal_parsed=0/4`, `host_verified=0/4`, `pre_host_failures=4`, cost
+  `0`); its one pre-provider feasibility block is now explicit:
+  `invalid_acceptance`, input `221838` bytes, context `331067` bytes, output
+  capacity `16384` chars, reasons `test_commands_missing` and
+  `input_file_too_large`.
+- Focused baseline/report and generation-control tests pass; this remains
+  non-Gate measurement/contract evidence. No real-model improvement, routing
+  promotion, or Phase 8 acceptance is claimed.
 
 ### 2026-11-01 #127 CONT-V0 evidence boundary and metrics hardening
 
