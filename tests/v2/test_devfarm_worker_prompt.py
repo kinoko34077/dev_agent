@@ -193,6 +193,7 @@ def test_local_ollama_prompt_treats_requirements_as_literal_contract() -> None:
 
     assert "REQUIREMENTS ARE EXECUTABLE CONSTRAINTS" in prompt
     assert "Do not invent or simplify callable signatures" in prompt
+    assert "Do not emit trailing whitespace" in prompt
 
 
 def test_rework_prompt_puts_concrete_repair_directive_before_general_contract() -> None:

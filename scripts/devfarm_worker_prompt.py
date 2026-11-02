@@ -387,7 +387,7 @@ def build_worker_prompt(
             "callable signatures, argument order, or object attributes. Make the smallest "
             "requested change and never request credentials, run commands, or claim "
             "tests you did not run. file_replacements is REQUIRED; it is the only required "
-            "output key. "
+            "output key. Do not emit trailing whitespace in any replacement line. "
             "Do not emit status, changed_files, tests, "
             "known_issues, assumptions, patch, files, diff, reason, or commit_message; "
             "the Host derives those facts. file_replacements MUST contain exactly one "
