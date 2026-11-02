@@ -25,6 +25,14 @@ class FeasibilityError(DevFarmError):
 
 _OUTPUT_MODES = frozenset({"full_result", "minimal_file_replacement", "localized_file_edit"})
 _STATUS = frozenset({"fits", "reframe_required", "invalid_acceptance"})
+_PLAN_BLOCK_REASON_BY_STATUS = {
+    "reframe_required": "worker_feasibility_reframe_required",
+    "invalid_acceptance": "worker_feasibility_invalid_acceptance",
+}
+_PLAN_NEXT_ACTION_BY_BLOCK_REASON = {
+    "worker_feasibility_reframe_required": "reframe_worker_task",
+    "worker_feasibility_invalid_acceptance": "repair_worker_manifest",
+}
 _DEFAULT_OUTPUT_TOKENS = {
     "full_result": 4096,
     "minimal_file_replacement": 8192,
@@ -124,6 +132,22 @@ class WorkerFeasibility:
             "reasons": list(self.reasons),
             "recommended_action": self.recommended_action,
         }
+
+
+def plan_block_reason(status: str) -> str | None:
+    """Map a deterministic feasibility result to its durable Commander blocker."""
+
+    if not isinstance(status, str):
+        return None
+    return _PLAN_BLOCK_REASON_BY_STATUS.get(status)
+
+
+def plan_next_action(block_reason: str | None) -> str | None:
+    """Return the existing Supervisor's concrete action for a feasibility blocker."""
+
+    if not isinstance(block_reason, str):
+        return None
+    return _PLAN_NEXT_ACTION_BY_BLOCK_REASON.get(block_reason)
 
 
 def _output_capacity(manifest: Mapping[str, Any], output_mode: str, max_output_tokens: int | None) -> int:
@@ -312,4 +336,10 @@ def assess_worker_feasibility(
     )
 
 
-__all__ = ["FeasibilityError", "WorkerFeasibility", "assess_worker_feasibility"]
+__all__ = [
+    "FeasibilityError",
+    "WorkerFeasibility",
+    "assess_worker_feasibility",
+    "plan_block_reason",
+    "plan_next_action",
+]

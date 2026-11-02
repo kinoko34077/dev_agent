@@ -27,6 +27,7 @@ from scripts.devfarm_integration import (
     integrate_worker as host_record_integration,
 )
 from scripts.devfarm_manifests import load_worker_manifest
+from scripts.devfarm_feasibility import plan_next_action
 from scripts.devfarm_review_packet import build_review_packet
 from scripts.devfarm_commander import (
     collect_plan,
@@ -130,6 +131,8 @@ def _canonical_supervisor_action(plan: Mapping[str, Any]) -> tuple[str, str]:
     if not isinstance(decisions, Sequence) or isinstance(decisions, (str, bytes)):
         raise DevFarmError("Commander review decisions are unavailable")
 
+    feasibility_action = _feasibility_next_action(plan)
+
     # Plans written before the canonical lifecycle field was introduced still
     # rely on their durable supervisor projection. Preserve that compatibility
     # boundary; only a plan carrying canonical facts can be reconstructed from
@@ -138,6 +141,8 @@ def _canonical_supervisor_action(plan: Mapping[str, Any]) -> tuple[str, str]:
         isinstance(task, Mapping) and isinstance(task.get("canonical_execution"), Mapping)
         for task in tasks
     ):
+        if feasibility_action is not None:
+            return "BLOCKED", feasibility_action
         metadata = normalize_supervisor_metadata(plan.get("supervisor"))
         return str(metadata["status"]), str(metadata["next_action"])
 
@@ -191,8 +196,34 @@ def _canonical_supervisor_action(plan: Mapping[str, Any]) -> tuple[str, str]:
     ):
         return "ACTIVE", "execute_codex_task"
     if plan.get("status") in {"BLOCKED", "REJECTED"}:
-        return "BLOCKED", "resolve_blocker"
+        return "BLOCKED", feasibility_action or "resolve_blocker"
     return "ACTIVE", "advance"
+
+
+def _feasibility_next_action(plan: Mapping[str, Any]) -> str | None:
+    """Project a specific next step only when all blocked tasks are classified."""
+
+    if plan.get("status") not in {"BLOCKED", "REJECTED"}:
+        return None
+    tasks = plan.get("tasks", [])
+    if not isinstance(tasks, Sequence) or isinstance(tasks, (str, bytes)):
+        return None
+    if any(
+        isinstance(task, Mapping)
+        and task.get("status") in {"PLANNED", "READY", "ACTIVE", "DISPATCHED", "PROPOSED", "HOST_VERIFIED"}
+        for task in tasks
+    ):
+        return None
+    blocked = [
+        task for task in tasks
+        if isinstance(task, Mapping) and task.get("status") in {"BLOCKED", "REJECTED"}
+    ]
+    if not blocked or any(task.get("owner") != "worker" for task in blocked):
+        return None
+    actions = [plan_next_action(task.get("block_reason")) for task in blocked]
+    if any(action is None for action in actions) or len(set(actions)) != 1:
+        return None
+    return actions[0]
 
 
 class CodexSupervisedCommanderRun:
@@ -665,7 +696,7 @@ class CodexSupervisedCommanderRun:
             metadata["next_action"] = "execute_codex_task"
         elif plan["status"] in {"BLOCKED", "REJECTED"}:
             metadata["status"] = "BLOCKED"
-            metadata["next_action"] = "resolve_blocker"
+            metadata["next_action"] = _feasibility_next_action(plan) or "resolve_blocker"
         else:
             metadata["status"] = "ACTIVE"
             metadata["next_action"] = "advance"
