@@ -347,6 +347,25 @@ def build_worker_prompt(
         )
     if local_ollama or minimal_proposal:
         mode_label = "local Ollama trial" if local_ollama else "bounded change-proposal mode"
+        compact_handoff: dict[str, Any] = {
+            key: handoff[key]
+            for key in (
+                "task_id",
+                "task_type",
+                "objective",
+                "allowed_files",
+                "outbound_files",
+                "new_files",
+                "requirements",
+                "acceptance",
+                "output_contract",
+            )
+            if key in handoff
+        }
+        if "rework_handoff" in handoff:
+            compact_handoff["rework_handoff"] = handoff["rework_handoff"]
+        if "transfer_authorization" in handoff:
+            compact_handoff["transfer_authorization"] = handoff["transfer_authorization"]
         output_paths = tuple(
             dict.fromkeys(
                 [
@@ -389,7 +408,7 @@ def build_worker_prompt(
             "decide whether it can be integrated.\n\n"
             "HOST-OWNED RESPONSE JSON SCHEMA (follow this exact shape):\n"
             f"{json.dumps(response_schema, ensure_ascii=False, sort_keys=True)}\n\n"
-            f"MANIFEST:\n{json.dumps(handoff, ensure_ascii=False, indent=2)}\n"
+            f"MANIFEST:\n{json.dumps(compact_handoff, ensure_ascii=False, indent=2)}\n"
             f"INPUT FILES:\n{inputs}"
         )
     return (

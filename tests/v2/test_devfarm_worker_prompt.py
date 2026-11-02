@@ -144,6 +144,31 @@ def test_local_ollama_prompt_contains_the_exact_host_owned_output_schema() -> No
     assert json.dumps(schema, ensure_ascii=False, sort_keys=True) in prompt
 
 
+def test_local_ollama_prompt_uses_compact_manifest_projection() -> None:
+    manifest = {
+        "task_id": "task-local-compact-1",
+        "task_type": "test",
+        "objective": "add one tiny regression test",
+        "base_revision": "abc123",
+        "allowed_files": ["tests/v2/test_target.py"],
+        "forbidden_files": [".env", "spec/v2/GATE_STATUS.json", "scripts/devfarm_worker.py"],
+        "external_provider_allowed": True,
+        "approved_provider_ids": ["ollama"],
+        "outbound_files": [],
+        "new_files": ["tests/v2/test_target.py"],
+        "requirements": ["keep the file tiny"],
+        "acceptance": ["the focused test passes"],
+        "test_commands": ["python -m pytest tests/v2/test_target.py -q"],
+        "output_contract": {"mode": "minimal_file_replacement"},
+    }
+
+    prompt = build_worker_prompt(manifest, "INPUT FILES", local_ollama=True)
+
+    assert '"task_id": "task-local-compact-1"' in prompt
+    assert '"forbidden_files"' not in prompt
+    assert '"test_commands"' not in prompt
+
+
 def test_rework_prompt_puts_concrete_repair_directive_before_general_contract() -> None:
     manifest = {
         "task_id": "task-rework-1",
