@@ -29,6 +29,7 @@ from scripts.devfarm_integration import (
     integrate_worker as host_record_integration,
 )
 from scripts.devfarm_manifests import load_worker_manifest
+from scripts.devfarm_contracts import canonical_digest
 from scripts.devfarm_feasibility import plan_next_action
 from scripts.devfarm_review_packet import build_review_packet
 from scripts.devfarm_commander import (
@@ -87,6 +88,68 @@ _FEASIBILITY_MEASUREMENTS = (
 _FEASIBILITY_RECOMMENDED_ACTIONS = frozenset(
     {"split_input_scope", "declare_output_budget", "repair_manifest_acceptance"}
 )
+_REFRAME_HANDOFF_CONSTRAINTS = (
+    "preserve_base_revision",
+    "candidate_scope_subset_of_source",
+    "preserve_acceptance_and_test_obligations",
+    "disjoint_active_task_ownership",
+    "fresh_task_and_attempt_identity",
+    "do_not_retry_blocked_task",
+    "host_planning_validation_required",
+)
+
+
+def _reframe_handoff_context(
+    root: Path,
+    plan: Mapping[str, Any],
+    task: Mapping[str, Any],
+    result: Mapping[str, Any],
+    *,
+    task_id: str,
+    attempt_id: str,
+    result_ref: str,
+) -> Mapping[str, Any] | None:
+    """Build a reference-first handoff only for the exact source manifest."""
+
+    try:
+        manifest_path, manifest = load_worker_manifest(root, task)
+    except (DevFarmError, OSError, TypeError, ValueError):
+        return None
+    metrics = result.get("worker_metrics")
+    if not isinstance(metrics, Mapping):
+        return None
+    manifest_digest = metrics.get("manifest_sha256")
+    current_digest = canonical_digest(manifest)
+    base_revision = plan.get("base_revision")
+    if (
+        not isinstance(manifest_digest, str)
+        or manifest_digest != current_digest
+        or not isinstance(base_revision, str)
+        or not base_revision
+        or manifest["base_revision"] != base_revision
+        or result.get("base_revision") != base_revision
+        or not manifest["allowed_files"]
+        or not manifest["acceptance"]
+        or not manifest["test_commands"]
+    ):
+        return None
+    try:
+        manifest_ref = manifest_path.relative_to(Path(root).resolve()).as_posix()
+    except ValueError:
+        return None
+    return {
+        "proposal_only": True,
+        "source": {
+            "task_id": task_id,
+            "attempt_id": attempt_id,
+            "result_ref": result_ref,
+            "manifest_ref": manifest_ref,
+            "manifest_sha256": current_digest,
+        },
+        "base_revision": base_revision,
+        "allowed_file_count": len(manifest["allowed_files"]),
+        "constraints": list(_REFRAME_HANDOFF_CONSTRAINTS),
+    }
 
 
 def _worker_feasibility_context(root: Path, plan: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
@@ -227,6 +290,23 @@ def _worker_feasibility_context(root: Path, plan: Mapping[str, Any]) -> tuple[Ma
             "measurements": measurements,
             "reason_codes": reason_codes,
         }
+        if expected_status == "invalid_acceptance":
+            entry["reframe_handoff_status"] = "not_applicable"
+        else:
+            handoff = _reframe_handoff_context(
+                root,
+                plan,
+                task,
+                result,
+                task_id=task_id,
+                attempt_id=attempt_id,
+                result_ref=expected_ref,
+            )
+            if handoff is None:
+                entry["reframe_handoff_status"] = "unavailable"
+            else:
+                entry["reframe_handoff_status"] = "available"
+                entry["reframe_handoff"] = handoff
         projected.append(entry)
     return tuple(projected)
 

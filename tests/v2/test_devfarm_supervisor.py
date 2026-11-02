@@ -21,6 +21,7 @@ from scripts.devfarm_supervisor import CodexSupervisedCommanderRun, main as supe
 from scripts.devfarm_supervisor import _canonical_supervisor_action, _providers_for_resume
 from scripts.devfarm_commander import create_plan
 from scripts.devfarm_plan_queries import result_reference
+from scripts.devfarm_contracts import canonical_digest
 from src.dev_agent.domain.execution import CanonicalExecutionBinding, ExecutionLifecycleStage
 
 
@@ -292,6 +293,7 @@ def test_supervisor_step_exposes_bounded_host_feasibility_context(tmp_path):
                 },
                 "reason_codes": ["input_file_too_large", "output_envelope_too_large"],
             },
+            "reframe_handoff_status": "unavailable",
         }
     ]
     assert "secret-shaped marker" not in json.dumps(projected)
@@ -336,6 +338,256 @@ def test_supervisor_feasibility_context_fails_closed_when_artifact_identity_mism
             "evidence_status": "unavailable",
         }
     ]
+
+
+def _reframe_test_manifest(task_id="worker-task", *, test_commands=None):
+    return {
+        "task_id": task_id,
+        "objective": "Make one bounded, independently verifiable change.",
+        "base_revision": "abc123",
+        "allowed_files": ["tests/v2/worker.py"],
+        "read_files": ["tests/v2/worker.py"],
+        "forbidden_files": [],
+        "external_provider_allowed": False,
+        "approved_provider_ids": [],
+        "outbound_files": [],
+        "requirements": ["Preserve existing behavior outside the requested change."],
+        "acceptance": ["The focused test passes."],
+        "test_commands": (
+            ["python -m pytest tests/v2/worker.py -q"]
+            if test_commands is None
+            else test_commands
+        ),
+        "max_attempts": 1,
+        "output_contract": {"mode": "minimal_file_replacement", "max_output_tokens": 4096},
+    }
+
+
+def _write_feasibility_result(tmp_path, *, task_id, attempt_id, manifest, status, manifest_sha256=None):
+    result_ref = result_reference(task_id, attempt_id)
+    result_path = tmp_path / result_ref
+    result_path.parent.mkdir(parents=True, exist_ok=True)
+    recommended_action = "split_input_scope" if status == "reframe_required" else "repair_manifest_acceptance"
+    result = {
+        "status": "failed",
+        "attempt_id": attempt_id,
+        "base_revision": manifest["base_revision"],
+        "changed_files": [],
+        "tests_run": [],
+        "tests_passed": False,
+        "worker_metrics": {
+            "pre_dispatch_block": "feasibility",
+            "manifest_sha256": manifest_sha256,
+            "proposal_preflight": {
+                "stage": "worker_feasibility",
+                "failure_class": "FEASIBILITY",
+                "fallback_eligible": False,
+                "fallback_disposition": "reframe_before_provider",
+            },
+            "feasibility": {
+                "task_id": task_id,
+                "status": status,
+                "output_mode": "minimal_file_replacement",
+                "input_file_count": 1,
+                "input_bytes": 100,
+                "largest_input_bytes": 100,
+                "context_file_count": 1,
+                "context_bytes": 100,
+                "output_capacity_tokens": 4096,
+                "output_capacity_chars": 16384,
+                "estimated_output_chars": 200,
+                "reasons": ["input_file_too_large"] if status == "reframe_required" else ["test_commands_missing"],
+                "recommended_action": recommended_action,
+            },
+        },
+    }
+    if manifest_sha256 is None:
+        result["worker_metrics"].pop("manifest_sha256")
+    result_path.write_text(json.dumps(result), encoding="utf-8")
+    return result_ref
+
+
+def _reframe_projection_plan(*, result_ref, attempt_id="attempt-reframe", manifest_ref=".devfarm/tasks/worker-task.json", block_reason="worker_feasibility_reframe_required", task_id="worker-task"):
+    return {
+        "run_id": "supervisor-test-001",
+        "plan_revision": 2,
+        "base_revision": "abc123",
+        "status": "BLOCKED",
+        "tasks": [{
+            "task_id": task_id,
+            "owner": "worker",
+            "status": "BLOCKED",
+            "block_reason": block_reason,
+            "last_attempt_id": attempt_id,
+            "result_ref": result_ref,
+            "manifest_path": manifest_ref,
+            "ownership": ["tests/v2/worker.py"],
+        }],
+        "review_decisions": [],
+        "supervisor": {"status": "BLOCKED", "next_action": "reframe_worker_task"},
+    }
+
+
+def test_supervisor_reframe_handoff_binds_exact_manifest_and_bounded_constraints(tmp_path):
+    task_id = "worker-task"
+    attempt_id = "attempt-reframe"
+    manifest = _reframe_test_manifest(task_id)
+    manifest_path = write_manifest(tmp_path, manifest)
+    normalized_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest_ref = manifest_path.relative_to(tmp_path).as_posix()
+    result_ref = _write_feasibility_result(
+        tmp_path,
+        task_id=task_id,
+        attempt_id=attempt_id,
+        manifest=normalized_manifest,
+        status="reframe_required",
+        manifest_sha256=canonical_digest(normalized_manifest),
+    )
+
+    projected = CodexSupervisedCommanderRun(tmp_path, "supervisor-test-001")._step(
+        _reframe_projection_plan(result_ref=result_ref, manifest_ref=manifest_ref)
+    ).to_dict()["worker_feasibility"][0]
+
+    handoff = projected["reframe_handoff"]
+    assert projected["evidence_status"] == "available"
+    assert projected["reframe_handoff_status"] == "available"
+    assert handoff["proposal_only"] is True
+    assert handoff["source"] == {
+        "task_id": task_id,
+        "attempt_id": attempt_id,
+        "result_ref": result_ref,
+        "manifest_ref": manifest_ref,
+        "manifest_sha256": canonical_digest(normalized_manifest),
+    }
+    assert handoff["base_revision"] == "abc123"
+    assert handoff["allowed_file_count"] == 1
+    assert {
+        "preserve_base_revision",
+        "candidate_scope_subset_of_source",
+        "preserve_acceptance_and_test_obligations",
+        "disjoint_active_task_ownership",
+        "fresh_task_and_attempt_identity",
+        "do_not_retry_blocked_task",
+        "host_planning_validation_required",
+    } == set(handoff["constraints"])
+    assert "Make one bounded" not in json.dumps(handoff)
+    assert "secret-shaped" not in json.dumps(handoff)
+
+
+@pytest.mark.parametrize("manifest_digest", [None, "0" * 64])
+def test_supervisor_reframe_handoff_fails_closed_without_exact_manifest_digest(tmp_path, manifest_digest):
+    task_id = "worker-task"
+    attempt_id = "attempt-reframe"
+    manifest = _reframe_test_manifest(task_id)
+    manifest_path = write_manifest(tmp_path, manifest)
+    normalized_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest_ref = manifest_path.relative_to(tmp_path).as_posix()
+    result_ref = _write_feasibility_result(
+        tmp_path,
+        task_id=task_id,
+        attempt_id=attempt_id,
+        manifest=normalized_manifest,
+        status="reframe_required",
+        manifest_sha256=manifest_digest,
+    )
+
+    projected = CodexSupervisedCommanderRun(tmp_path, "supervisor-test-001")._step(
+        _reframe_projection_plan(result_ref=result_ref, manifest_ref=manifest_ref)
+    ).to_dict()["worker_feasibility"][0]
+
+    assert projected["evidence_status"] == "available"
+    assert projected["reframe_handoff_status"] == "unavailable"
+    assert "reframe_handoff" not in projected
+
+
+def test_supervisor_reframe_handoff_fails_closed_for_manifest_task_mismatch(tmp_path):
+    task_id = "worker-task"
+    attempt_id = "attempt-reframe"
+    manifest = _reframe_test_manifest("different-task")
+    manifest_path = write_manifest(tmp_path, manifest)
+    normalized_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest_ref = manifest_path.relative_to(tmp_path).as_posix()
+    result_ref = _write_feasibility_result(
+        tmp_path,
+        task_id=task_id,
+        attempt_id=attempt_id,
+        manifest=normalized_manifest,
+        status="reframe_required",
+        manifest_sha256=canonical_digest(normalized_manifest),
+    )
+
+    projected = CodexSupervisedCommanderRun(tmp_path, "supervisor-test-001")._step(
+        _reframe_projection_plan(result_ref=result_ref, manifest_ref=manifest_ref)
+    ).to_dict()["worker_feasibility"][0]
+
+    assert projected["evidence_status"] == "available"
+    assert projected["reframe_handoff_status"] == "unavailable"
+    assert "reframe_handoff" not in projected
+
+
+@pytest.mark.parametrize("revision_source", ["plan", "result"])
+def test_supervisor_reframe_handoff_fails_closed_for_stale_base_revision(tmp_path, revision_source):
+    task_id = "worker-task"
+    attempt_id = "attempt-reframe"
+    manifest = _reframe_test_manifest(task_id)
+    manifest_path = write_manifest(tmp_path, manifest)
+    normalized_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest_ref = manifest_path.relative_to(tmp_path).as_posix()
+    result_ref = _write_feasibility_result(
+        tmp_path,
+        task_id=task_id,
+        attempt_id=attempt_id,
+        manifest=normalized_manifest,
+        status="reframe_required",
+        manifest_sha256=canonical_digest(normalized_manifest),
+    )
+    plan = _reframe_projection_plan(result_ref=result_ref, manifest_ref=manifest_ref)
+    if revision_source == "plan":
+        plan["base_revision"] = "stale-plan-revision"
+    else:
+        result_path = tmp_path / result_ref
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        result["base_revision"] = "stale-result-revision"
+        result_path.write_text(json.dumps(result), encoding="utf-8")
+
+    projected = CodexSupervisedCommanderRun(tmp_path, "supervisor-test-001")._step(plan).to_dict()[
+        "worker_feasibility"
+    ][0]
+
+    assert projected["evidence_status"] == "available"
+    assert projected["reframe_handoff_status"] == "unavailable"
+    assert "reframe_handoff" not in projected
+
+
+def test_supervisor_does_not_offer_reframe_handoff_for_invalid_acceptance(tmp_path):
+    task_id = "worker-task"
+    attempt_id = "attempt-invalid-acceptance"
+    manifest = _reframe_test_manifest(task_id, test_commands=[])
+    manifest_path = write_manifest(tmp_path, manifest)
+    normalized_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest_ref = manifest_path.relative_to(tmp_path).as_posix()
+    result_ref = _write_feasibility_result(
+        tmp_path,
+        task_id=task_id,
+        attempt_id=attempt_id,
+        manifest=normalized_manifest,
+        status="invalid_acceptance",
+        manifest_sha256=canonical_digest(normalized_manifest),
+    )
+    plan = _reframe_projection_plan(
+        result_ref=result_ref,
+        attempt_id=attempt_id,
+        manifest_ref=manifest_ref,
+        block_reason="worker_feasibility_invalid_acceptance",
+    )
+
+    projected = CodexSupervisedCommanderRun(tmp_path, "supervisor-test-001")._step(plan).to_dict()[
+        "worker_feasibility"
+    ][0]
+
+    assert projected["details"]["status"] == "invalid_acceptance"
+    assert projected["reframe_handoff_status"] == "not_applicable"
+    assert "reframe_handoff" not in projected
 
 
 @pytest.mark.parametrize(

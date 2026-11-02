@@ -5,6 +5,7 @@ import json
 import pytest
 
 from scripts.devfarm import DevFarmError, validate_manifest
+from scripts.devfarm_contracts import canonical_digest
 from scripts.devfarm_worker import run_worker
 from scripts.devfarm_worker_output import (
     MINIMAL_WORKER_OUTPUT_KEYS,
@@ -114,6 +115,7 @@ def test_worker_feasibility_blocks_oversized_input_before_provider_request(tmp_p
     assert result["worker_metrics"]["pre_dispatch_block"] == "feasibility"
     assert result["worker_metrics"]["feasibility"]["status"] == "reframe_required"
     assert "input_file_too_large" in result["worker_metrics"]["feasibility"]["reasons"]
+    assert result["worker_metrics"]["manifest_sha256"] == canonical_digest(validate_manifest(manifest))
 
 
 def test_manifest_rejects_unknown_worker_output_mode(tmp_path) -> None:
