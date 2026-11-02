@@ -83,6 +83,34 @@ def test_local_ollama_prompt_uses_only_the_complete_replacement_contract() -> No
     assert "exact allowed output paths" in prompt
     assert "never shorten it to a basename" in prompt
     assert "Escape source quotes and backslashes" in prompt
+    assert "no Markdown fence, prose, trailing characters, or second JSON value" in prompt
+
+
+def test_localized_prompt_explicitly_forbids_trailing_json_or_prose() -> None:
+    manifest = {
+        "task_id": "task-localized-envelope-1",
+        "task_type": "implementation",
+        "objective": "make one bounded existing-file change",
+        "base_revision": "abc123",
+        "allowed_files": ["src/example.py"],
+        "forbidden_files": [".env"],
+        "external_provider_allowed": True,
+        "approved_provider_ids": ["ollama"],
+        "outbound_files": ["src/example.py"],
+        "requirements": ["preserve behavior"],
+        "acceptance": ["focused test passes"],
+        "test_commands": ["python -m compileall -q src/example.py"],
+        "output_contract": {"format": "json"},
+    }
+
+    prompt = build_worker_prompt(
+        manifest,
+        "--- BEGIN FILE src/example.py ---\nvalue = 1\n--- END FILE ---",
+        local_ollama=True,
+        localized_proposal=True,
+    )
+
+    assert "no Markdown fence, prose, trailing characters, or second JSON value" in prompt
 
 
 def test_local_ollama_prompt_contains_the_exact_host_owned_output_schema() -> None:
