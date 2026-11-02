@@ -9,7 +9,10 @@
       "result_ref": ".devfarm/results/issue127-r5-doc-index-20261101-r2/result.json",
       "task_class": "small_new_file_or_docs",
       "source_revision": "7043e9f6726e77744d657dbb4d20b00009f87839",
-      "logical_task_key": "historical-useful-work-doc-index"
+      "logical_task_key": "historical-useful-work-doc-index",
+      "baseline_match_ref": "https://github.com/kinoko34077/dev_agent/pull/134",
+      "review_ref": "https://github.com/kinoko34077/dev_agent/pull/134#pullrequestreview-5726563585",
+      "integration_ref": "https://github.com/kinoko34077/dev_agent/commit/07c9dd27b5fe329afbf894c3bd9a1c207e935d48"
     },
     {
       "task_id": "local-cycle-20260927-worker-minimal-b-gemma",

@@ -12,7 +12,7 @@
   "observations": [
     {
       "attempt_id": "587824df6dce4bde8f9f4feb10944a44",
-      "baseline_match_observed": false,
+      "baseline_match_observed": true,
       "changed_files": [
         "docs/requirements/README.md"
       ],
@@ -22,7 +22,7 @@
       "evidence_class": "historical_replay",
       "host_verified": true,
       "host_verified_test_count": 1,
-      "integration_observed": false,
+      "integration_observed": true,
       "logical_task_key": "historical-useful-work-doc-index",
       "model_id": "gemma4:12b",
       "next_selection_observed": false,
@@ -32,7 +32,7 @@
       "restart_observed": false,
       "result_accepted": true,
       "result_ref": ".devfarm/results/issue127-r5-doc-index-20261101-r2/result.json",
-      "review_observed": false,
+      "review_observed": true,
       "source_revision": "7043e9f6726e77744d657dbb4d20b00009f87839",
       "task_class": "small_new_file_or_docs",
       "task_id": "issue127-r5-doc-index-20261101-r2"
@@ -70,16 +70,16 @@
   "scope_boundary": "This report is read-only measurement evidence. It does not infer review/integration from Worker claims, promote a Provider/model, change routing/admission, replay an UNKNOWN effect, or change a Gate.",
   "status": "NOT_VERIFIED",
   "summary": {
-    "baseline_match_observed": 0,
+    "baseline_match_observed": 1,
     "distinct_source_revisions": 2,
     "distinct_task_units": 2,
     "host_verified": 2,
-    "integration_observed": 0,
+    "integration_observed": 1,
     "next_selection_observed": 0,
     "observations_total": 2,
     "restart_observed": 0,
     "result_accepted": 2,
-    "review_observed": 0,
+    "review_observed": 1,
     "total_completion_tokens": 372,
     "total_cost_minor": 0,
     "total_elapsed_ms": 159796,
