@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "report_id": "weak-model-compensation-w6-historical-20261102",
+  "evidence_class": "historical_replay",
+  "observations": [
+    {
+      "task_id": "issue127-r5-doc-index-20261101-r2",
+      "attempt_id": "587824df6dce4bde8f9f4feb10944a44",
+      "result_ref": ".devfarm/results/issue127-r5-doc-index-20261101-r2/result.json",
+      "task_class": "small_new_file_or_docs",
+      "source_revision": "7043e9f6726e77744d657dbb4d20b00009f87839",
+      "logical_task_key": "historical-useful-work-doc-index"
+    },
+    {
+      "task_id": "local-cycle-20260927-worker-minimal-b-gemma",
+      "attempt_id": "a069eec265f24c9f87b54db0b89592e1",
+      "result_ref": ".devfarm/results/local-cycle-20260927-worker-minimal-b-gemma/result.json",
+      "task_class": "localized_existing_source",
+      "source_revision": "ae78db59e6a886e87ee4cae54282fd7379b1f63f",
+      "logical_task_key": "historical-useful-work-local-provider"
+    }
+  ]
+}

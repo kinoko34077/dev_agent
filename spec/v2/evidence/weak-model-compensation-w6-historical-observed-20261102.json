@@ -1,0 +1,88 @@
+{
+  "evidence_kind": "devfarm_useful_work_acceptance_report",
+  "evidence_status": "observed_host_accepted_artifacts",
+  "missing_acceptance_conditions": [
+    "fresh_runtime_acceptance_missing",
+    "matched_baseline_missing",
+    "review_evidence_missing",
+    "integration_evidence_missing",
+    "next_selection_evidence_missing",
+    "restart_evidence_missing"
+  ],
+  "observations": [
+    {
+      "attempt_id": "587824df6dce4bde8f9f4feb10944a44",
+      "baseline_match_observed": false,
+      "changed_files": [
+        "docs/requirements/README.md"
+      ],
+      "completion_tokens": 372,
+      "cost_minor": 0,
+      "elapsed_ms": 97193,
+      "evidence_class": "historical_replay",
+      "host_verified": true,
+      "host_verified_test_count": 1,
+      "integration_observed": false,
+      "logical_task_key": "historical-useful-work-doc-index",
+      "model_id": "gemma4:12b",
+      "next_selection_observed": false,
+      "prompt_tokens": 2147,
+      "provider_binding_id": "ollama:local:gemma4-12b",
+      "provider_id": "ollama",
+      "restart_observed": false,
+      "result_accepted": true,
+      "result_ref": ".devfarm/results/issue127-r5-doc-index-20261101-r2/result.json",
+      "review_observed": false,
+      "source_revision": "7043e9f6726e77744d657dbb4d20b00009f87839",
+      "task_class": "small_new_file_or_docs",
+      "task_id": "issue127-r5-doc-index-20261101-r2"
+    },
+    {
+      "attempt_id": "a069eec265f24c9f87b54db0b89592e1",
+      "baseline_match_observed": false,
+      "changed_files": [
+        "src/dev_agent/providers/local/__init__.py"
+      ],
+      "completion_tokens": null,
+      "cost_minor": 0,
+      "elapsed_ms": 62603,
+      "evidence_class": "historical_replay",
+      "host_verified": true,
+      "host_verified_test_count": 1,
+      "integration_observed": false,
+      "logical_task_key": "historical-useful-work-local-provider",
+      "model_id": "gemma4:12b",
+      "next_selection_observed": false,
+      "prompt_tokens": null,
+      "provider_binding_id": "ollama:local:gemma4-12b",
+      "provider_id": "ollama",
+      "restart_observed": false,
+      "result_accepted": true,
+      "result_ref": ".devfarm/results/local-cycle-20260927-worker-minimal-b-gemma/result.json",
+      "review_observed": false,
+      "source_revision": "ae78db59e6a886e87ee4cae54282fd7379b1f63f",
+      "task_class": "localized_existing_source",
+      "task_id": "local-cycle-20260927-worker-minimal-b-gemma"
+    }
+  ],
+  "report_id": "weak-model-compensation-w6-historical-20261102",
+  "schema_version": 1,
+  "scope_boundary": "This report is read-only measurement evidence. It does not infer review/integration from Worker claims, promote a Provider/model, change routing/admission, replay an UNKNOWN effect, or change a Gate.",
+  "status": "NOT_VERIFIED",
+  "summary": {
+    "baseline_match_observed": 0,
+    "distinct_source_revisions": 2,
+    "distinct_task_units": 2,
+    "host_verified": 2,
+    "integration_observed": 0,
+    "next_selection_observed": 0,
+    "observations_total": 2,
+    "restart_observed": 0,
+    "result_accepted": 2,
+    "review_observed": 0,
+    "total_completion_tokens": 372,
+    "total_cost_minor": 0,
+    "total_elapsed_ms": 159796,
+    "total_prompt_tokens": 2147
+  }
+}
