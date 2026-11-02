@@ -71,11 +71,15 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
   checks passed. Exact-head Core/Provider Smoke for `9742c29` passed in runs
   [41360980365](https://github.com/kinoko34077/dev_agent/actions/runs/41360980365)
   and [41360980242](https://github.com/kinoko34077/dev_agent/actions/runs/41360980242).
-- The read-only expiry preflight at `2026-11-01T23:13:14Z` with a 48-hour horizon
-  reports catalog `0/1385`, capability `0/500`, benchmark `0/87`, and billing
-  `0/26` current; qualification is `3/13` current now and `0/13` at the horizon.
-  New discovery/benchmark candidates use a 30-day default and 31-day hard cap,
-  but the older 7-day snapshots were not extended. No expired billing,
+- The latest read-only expiry preflight at `2026-11-02T00:06:58Z` with a
+  48-hour horizon reports catalog `0/1385`, capability `0/500`, benchmark
+  `0/87`, and billing `0/26` current; qualification is `3/13` current now
+  and `0/13` at the horizon (the next three qualification facts expire by
+  `2026-11-02T09:29:25Z`). New discovery/benchmark candidates use a 30-day
+  default and 31-day hard cap, but the older 7-day snapshots were not
+  extended. The failures are `billing_catalog_no_current_facts`,
+  `billing_catalog_no_current_facts_at_horizon`, `no_static_eligible_at_horizon`,
+  and `source_exhausted:qualification_matrix`; no expired billing,
   qualification, capability, benchmark or catalog fact is treated as runtime
   admission, and no evidence was silently renewed.
 
