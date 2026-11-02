@@ -10,10 +10,10 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 | Field | Current fact |
 | --- | --- |
 | Accepted branch | `v2/bootstrap` |
-| Accepted remote head at latest integrated implementation/evidence | `9399755a86f0d4103dface861e7641875b50d4f6` (`v2/bootstrap`; Host-side multiline line-array normalization after W2 format failures; local full regression passed, exact-head Core/Provider Smoke CI pending). |
+| Accepted remote head at latest integrated implementation/evidence | `1fd23ca78828942200bd938bfe400d53092071f6` (`v2/bootstrap`; W3 Host-side multiline line-array normalization plus evidence synchronization; exact-head Core/Provider Smoke CI passed in runs `41369830678`/`41369830677`). |
 | Latest integrated implementation/evidence baseline | `9742c29` adds Host pre-dispatch feasibility with explicit input/context/output budgets, W0 synthetic inventory, and FEASIBILITY failure classification; `9742c29` binds localized compensation to an effective output contract and exposes its change budget in the repair prompt. Two bounded real Worker → Host Verification → review → integration slices are accepted (#97 and #127 R5/#134); the full R5/V1–V4 useful-work and continuity acceptance remains unaccepted. The existing finite refinement policy remains authoritative; Host normalization, same-L1 repair, L1 Critic, alternate L1, upper reframe, reconciliation, and Human paths are explicit. Unknown handoff fields and raw diagnostics are excluded from model input. |
 | Latest implementation baseline | `04a1290` adds `scripts/devfarm_feasibility.py` pre-dispatch assignment checks, `scripts/devfarm_worker.py` Host-owned feasibility recording, the W0 inventory artifact, and baseline FEASIBILITY classification; `9742c29` requires an explicit localized change budget, applies the effective compensated contract before Provider dispatch, and renders the bounded budget in `scripts/devfarm_worker_prompt.py`; `fba3aa7` makes the JSON envelope explicit for localized/minimal/full Worker prompts and adds prompt regressions; `9399755` makes Host multiline line-array splitting reachable for minimal replacements and records the normalization. Commit `537972c` migrates maintained Actions to Node 24-compatible majors and changes only future model-discovery/benchmark candidate TTL defaults to 30 days with a 31-day hard ceiling. No Provider generation, budget, Recovery authority, billing, admission, or Gate boundary changed. |
-| Latest evidence baseline | #127/#146 evidence is bounded and non-Gate: W0/W1 focused feasibility/baseline/preflight scope is `28 passed`; localized compensation/prompt scope is `52 passed`; the `9399755` focused Host/patch/prompt scope is `60 passed`; the full local `tests/v2` regression at `9399755` is `2162 passed, 1 skipped` (Windows ACL deployment-owned). Exact-head CI for `9399755` is pending. Fresh approved no-cost Gemma and Qwen Worker attempts remain historical failures before Host Verification (stale localized anchor, no-op replacement, feasibility oversize, incomplete line-shape, and embedded newline in minimal replacement); no patch or integration occurred. The last failure now has a deterministic Host normalization path for future attempts, but the historical result is not rewritten and no Worker success or routing qualification is claimed. The dated OpenRouter snapshot remains `non_authoritative_observation_only`; no capability, benchmark, billing, quota, health, runtime admission, or Gate layer was renewed. Real-model V1 learned-choice, real-provider V2 mixed continuity, V3 measured improvement, V4 sustained live sequence, and Formal Phase 8 remain unaccepted. |
+| Latest evidence baseline | #127/#146 evidence is bounded and non-Gate: W0/W1 focused feasibility/baseline/preflight scope is `28 passed`; localized compensation/prompt scope is `52 passed`; the `9399755` focused Host/patch/prompt scope is `60 passed`; the full local `tests/v2` regression at `9399755` is `2162 passed, 1 skipped` (Windows ACL deployment-owned). Exact-head Core/Provider Smoke CI for the docs-synchronized `1fd23ca` passed (`41369830678`/`41369830677`). Fresh approved no-cost Gemma and Qwen Worker attempts remain historical failures before Host Verification (stale localized anchor, no-op replacement, feasibility oversize, incomplete line-shape, and embedded newline in minimal replacement); no patch or integration occurred. The last failure now has a deterministic Host normalization path for future attempts, but the historical result is not rewritten and no Worker success or routing qualification is claimed. The dated OpenRouter snapshot remains `non_authoritative_observation_only`; no capability, benchmark, billing, quota, health, runtime admission, or Gate layer was renewed. Real-model V1 learned-choice, real-provider V2 mixed continuity, V3 measured improvement, V4 sustained live sequence, and Formal Phase 8 remain unaccepted. |
 | Latest bounded-operation slice | #97 and #127 R5/#134 each demonstrate a bounded local Worker proposal reaching Host Verification, review, and deterministic integration on a docs-only task. These are two accepted useful slices, not the full Runtime/Claim/Lease autonomous cycle; they do not by themselves satisfy V1 learned-choice, V2 mixed continuity, V3 measured improvement, V4 sustained interruption/restart, or Formal Phase 8. Detailed attempt evidence is in #97 and #134. |
 | Local synchronization | The live `v2/bootstrap` ref is authoritative; refresh any local checkout from its current head before making further changes. The requirements index links to `docs/DECISION_TRANSFER_M1.md`. |
 | Formal Gate | `D9_DOGFOOD=VERIFIED`; `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`; `PHASE8_PREPARATION=PREPARATION_ONLY`; `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` |
@@ -143,6 +143,24 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 - Docs-only synchronization commit `ed84667` passed exact-head `v2-core`
   (`41367048712`) and `v2-provider-smoke` (`41367048940`) CI; both workflows
   checked out the pushed `ed84667` revision.
+
+### 2026-11-02 #146 W3 Host line-array compensation
+
+- Commit `9399755` makes the existing Host-side `line_array_embedded_newline_split`
+  normalization reachable for `minimal_file_replacement`; it only splits explicit
+  CR/LF transport fragments and leaves exact-base, scope, secret, NUL, size,
+  no-op, and independent verification checks unchanged. The Worker prompt now
+  describes the normal one-line-per-item contract and this bounded fallback.
+- Focused scope passed `60` tests; the full `tests/v2` regression passed `2162`
+  tests with one Windows ACL deployment-owned skip. Architecture, semantic
+  coherence, compile, and diff checks passed. Exact-head docs-synchronized
+  `1fd23ca` passed v2-core `41369830678` and provider-smoke `41369830677`.
+- The five historical fresh Qwen/Gemma failures remain immutable evidence
+  (`accepted=0/5`, four `FORMAT_PATCH`, one `FEASIBILITY`, cost `0`). This change
+  permits one materially different bounded W2 remeasurement when current task
+  ownership and no-cost local binding are revalidated; it does not retroactively
+  convert those failures into Worker success or routing evidence. Artifact:
+  [`weak-model-compensation-w3-linearray-normalization-20261102.json`](../spec/v2/evidence/weak-model-compensation-w3-linearray-normalization-20261102.json).
 
 ### 2026-11-01 #127 CONT-V0 evidence boundary and metrics hardening
 
