@@ -821,6 +821,7 @@ def _record_feasibility_block(
         "elapsed_ms": 0,
         "usage": {"cost_minor": 0},
         "pre_dispatch_block": "feasibility",
+        "manifest_sha256": _canonical_digest(manifest),
         "feasibility": projected,
         "proposal_preflight": {
             "status": "not_observed",
