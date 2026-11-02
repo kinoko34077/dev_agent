@@ -338,6 +338,90 @@ def test_supervisor_feasibility_context_fails_closed_when_artifact_identity_mism
     ]
 
 
+@pytest.mark.parametrize(
+    ("field", "malformed"),
+    [
+        ("recommended_action", []),
+        ("recommended_action", {"unexpected": "object"}),
+        ("output_mode", []),
+        ("output_mode", {"unexpected": "object"}),
+    ],
+)
+def test_supervisor_feasibility_shape_mismatch_degrades_to_unavailable(tmp_path, field, malformed):
+    task_id = "worker-task"
+    attempt_id = "attempt-malformed-enum"
+    result_ref = result_reference(task_id, attempt_id)
+    result_path = tmp_path / result_ref
+    result_path.parent.mkdir(parents=True)
+    feasibility = {
+        "task_id": task_id,
+        "status": "reframe_required",
+        "output_mode": "minimal_file_replacement",
+        "recommended_action": "split_input_scope",
+        "reasons": ["input_file_too_large"],
+        "input_file_count": 1,
+        "input_bytes": 10,
+        "largest_input_bytes": 10,
+        "context_file_count": 1,
+        "context_bytes": 10,
+        "output_capacity_tokens": 100,
+        "output_capacity_chars": 400,
+        "estimated_output_chars": 200,
+    }
+    feasibility[field] = malformed
+    result_path.write_text(
+        json.dumps(
+            {
+                "status": "failed",
+                "attempt_id": attempt_id,
+                "worker_metrics": {
+                    "pre_dispatch_block": "feasibility",
+                    "proposal_preflight": {
+                        "stage": "worker_feasibility",
+                        "failure_class": "FEASIBILITY",
+                        "fallback_eligible": False,
+                        "fallback_disposition": "reframe_before_provider",
+                    },
+                    "feasibility": feasibility,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    plan = {
+        "run_id": "supervisor-test-001",
+        "plan_revision": 2,
+        "status": "BLOCKED",
+        "tasks": [
+            {
+                "task_id": task_id,
+                "owner": "worker",
+                "status": "BLOCKED",
+                "block_reason": "worker_feasibility_reframe_required",
+                "last_attempt_id": attempt_id,
+                "result_ref": result_ref,
+            }
+        ],
+        "review_decisions": [],
+        "supervisor": {"status": "BLOCKED", "next_action": "reframe_worker_task"},
+    }
+
+    projected = CodexSupervisedCommanderRun(tmp_path, "supervisor-test-001")._step(plan).to_dict()[
+        "worker_feasibility"
+    ]
+
+    assert projected == [
+        {
+            "task_id": task_id,
+            "attempt_id": attempt_id,
+            "block_reason": "worker_feasibility_reframe_required",
+            "next_action": "reframe_worker_task",
+            "result_ref": result_ref,
+            "evidence_status": "unavailable",
+        }
+    ]
+
+
 def test_supervisor_exposes_feasibility_action_for_legacy_plan_projection():
     plan = {
         "status": "BLOCKED",
