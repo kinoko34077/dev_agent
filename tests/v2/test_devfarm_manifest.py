@@ -289,6 +289,26 @@ def test_run_worker_places_host_repair_instruction_in_system_message(tmp_path):
     assert all("must remain Host-local" not in content for content in system_messages)
 
 
+def test_run_worker_projects_missing_json_field_into_bounded_repair_directive(tmp_path):
+    root, manifest_path = _workspace(tmp_path)
+    output = {
+        "status": "completed",
+        "changed_files": ["tests/v2/test_target.py"],
+        "tests_run": [],
+        "tests_passed": False,
+        # known_issues is intentionally omitted to model a format omission.
+        "assumptions": [],
+        "patch": _patch(),
+    }
+
+    result = run_worker(root, manifest_path, provider=_CapturingWorkerProvider(output))
+
+    assert result["status"] == "failed"
+    assert result["worker_metrics"]["proposal_preflight"]["error_code"] == "WORKER_OUTPUT_SCHEMA"
+    assert result["failure_spec"]["location"] == "known_issues"
+    assert "known_issues as a JSON array" in result["repair_directive"]["required_action"]
+
+
 def test_run_worker_requests_bounded_json_schema_for_local_ollama(tmp_path, monkeypatch):
     root, manifest_path = _workspace(tmp_path, prepare=False)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
