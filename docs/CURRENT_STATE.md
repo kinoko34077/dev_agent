@@ -10,10 +10,10 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 | Field | Current fact |
 | --- | --- |
 | Accepted branch | `v2/bootstrap` |
-| Accepted remote head at latest integrated implementation/evidence | `dd04f24b8ecdbb31ae0aac19914c796857fe4f21` (`v2/bootstrap`; canonical DeepSeek direct-billing peak-window guard plus Worker JSON-repair contract hardening; exact-head Core/Provider Smoke CI passed in runs `41374453232`/`41374453312`). |
-| Latest integrated implementation/evidence baseline | `dd04f24` adds the fail-closed DeepSeek direct-billing pricing-window guard at the Resource/Provider dispatch boundary, while preserving the existing bounded Worker JSON/schema repair path. Two bounded real Worker → Host Verification → review → integration slices are accepted (#97 and #127 R5/#134); the full R5/V1–V4 useful-work and continuity acceptance remains unaccepted. The existing finite refinement policy remains authoritative; Host normalization, same-L1 repair, L1 Critic, alternate L1, upper reframe, reconciliation, and Human paths are explicit. Unknown handoff fields and raw diagnostics are excluded from model input. |
-| Latest implementation baseline | `04a1290` adds Host feasibility checks; `9742c29` binds localized compensation budgets; `fba3aa7`/`12685be`/`b1c3c87` harden the JSON envelope, provider-facing schema, Host-directed repair instruction, and omitted-field regression; `dd04f24` adds the DeepSeek pricing guard, package exports, and canonical-dispatch ordering tests. Commit `537972c` migrates maintained Actions to Node 24-compatible majors and changes only future model-discovery/benchmark candidate TTL defaults to 30 days with a 31-day hard ceiling. No Provider generation, budget, Recovery authority, billing account, credential, or Formal Gate state changed. |
-| Latest evidence baseline | #127/#146 evidence is bounded and non-Gate: the existing JSON-repair focused scope remains `89 passed`; the new DeepSeek guard/dispatch boundary scope is `12 passed`; exact-head Core/Provider Smoke for `dd04f24` passed (`41374453232`/`41374453312`). Fresh approved no-cost Gemma and Qwen Worker attempts remain historical failures before Host Verification (stale localized anchor, no-op replacement, feasibility oversize, incomplete line-shape, and embedded newline in minimal replacement); no patch or integration occurred. The last failure now has a deterministic Host normalization path for future attempts, but the historical result is not rewritten and no Worker success or routing qualification is claimed. The dated OpenRouter snapshot remains `non_authoritative_observation_only`; no capability, benchmark, billing, quota, health, runtime admission, or Gate layer was renewed. Real-model V1 learned-choice, real-provider V2 mixed continuity, V3 measured improvement, V4 sustained live sequence, and Formal Phase 8 remain unaccepted. |
+| Accepted remote head at latest integrated implementation/evidence | `3e37b9ff486bf3d646115a73ff154b94b1252329` (`v2/bootstrap`; explicit read-only W0 observed-baseline report added after the DeepSeek guard; exact-head CI is pending for this new head). |
+| Latest integrated implementation/evidence baseline | `3e37b9f` adds a reproducible W0 report boundary over explicitly selected fresh Worker attempts, preserving the existing bounded Worker JSON/schema repair path and DeepSeek pricing guard. Two bounded real Worker → Host Verification → review → integration slices are accepted (#97 and #127 R5/#134); the full R5/V1–V4 useful-work and continuity acceptance remains unaccepted. The existing finite refinement policy remains authoritative; Host normalization, same-L1 repair, L1 Critic, alternate L1, upper reframe, reconciliation, and Human paths are explicit. Unknown handoff fields and raw diagnostics are excluded from model input. |
+| Latest implementation baseline | `04a1290` adds Host feasibility checks; `9742c29` binds localized compensation budgets; `fba3aa7`/`12685be`/`b1c3c87` harden the JSON envelope, provider-facing schema, Host-directed repair instruction, and omitted-field regression; `dd04f24` adds the DeepSeek pricing guard, package exports, and canonical-dispatch ordering tests; `3e37b9f` adds explicit W0 observation selection/reporting. Commit `537972c` migrates maintained Actions to Node 24-compatible majors and changes only future model-discovery/benchmark candidate TTL defaults to 30 days with a 31-day hard ceiling. No Provider generation, budget, Recovery authority, billing account, credential, or Formal Gate state changed. |
+| Latest evidence baseline | #127/#146 evidence is bounded and non-Gate: the explicit W0 report records four fresh no-charge local attempts at base `331b483`, with `accepted=0/4`, `proposal_parsed=0/4`, `host_verified=0/4`, and four pre-Host failures (three `FORMAT_PATCH`, one `FEASIBILITY`) at total cost `0`; the existing JSON-repair focused scope remains `89 passed`; the DeepSeek guard/dispatch boundary scope is `12 passed`. Exact-head Core/Provider Smoke for `3e37b9f` is pending. No patch or integration occurred in the W0 cohort and no Worker success or routing qualification is claimed. The dated OpenRouter snapshot remains `non_authoritative_observation_only`; no capability, benchmark, billing, quota, health, runtime admission, or Gate layer was renewed. Real-model V1 learned-choice, real-provider V2 mixed continuity, V3 measured improvement, V4 sustained live sequence, and Formal Phase 8 remain unaccepted. |
 | Latest bounded-operation slice | #97 and #127 R5/#134 each demonstrate a bounded local Worker proposal reaching Host Verification, review, and deterministic integration on a docs-only task. These are two accepted useful slices, not the full Runtime/Claim/Lease autonomous cycle; they do not by themselves satisfy V1 learned-choice, V2 mixed continuity, V3 measured improvement, V4 sustained interruption/restart, or Formal Phase 8. Detailed attempt evidence is in #97 and #134. |
 | Local synchronization | The live `v2/bootstrap` ref is authoritative; refresh any local checkout from its current head before making further changes. The requirements index links to `docs/DECISION_TRANSFER_M1.md`. |
 | Formal Gate | `D9_DOGFOOD=VERIFIED`; `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`; `PHASE8_PREPARATION=PREPARATION_ONLY`; `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` |
@@ -219,6 +219,26 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
   ownership and no-cost local binding are revalidated; it does not retroactively
   convert those failures into Worker success or routing evidence. Artifact:
   [`weak-model-compensation-w3-linearray-normalization-20261102.json`](../spec/v2/evidence/weak-model-compensation-w3-linearray-normalization-20261102.json).
+
+### 2026-11-02 #146 W0 observed baseline report
+
+- Commit `3e37b9f` adds a read-only baseline-report boundary and CLI. The
+  selection manifest must name every task/attempt, task class, evidence class,
+  and common source revision; missing artifacts, unknown fields, duplicate
+  identities, or revision mismatches fail closed. The report projects bounded
+  metrics only and does not mutate plans, routing, admission, or Gate state.
+- The explicit fresh-runtime selection at base `331b483` contains four
+  approved no-charge local Ollama attempts (three Qwen and one Gemma). The
+  reproducible report records `accepted=0/4`, `proposal_parsed=0/4`,
+  `host_verified=0/4`, and `pre_host_failures=4` (three `FORMAT_PATCH`, one
+  `FEASIBILITY`), with total cost `0`. No patch, review, integration, or
+  runtime-admission claim is made. The selection and rendered report are
+  [`weak-model-compensation-w0-observed-selection-20261102.json`](../spec/v2/evidence/weak-model-compensation-w0-observed-selection-20261102.json)
+  and [`weak-model-compensation-w0-observed-20261102.json`](../spec/v2/evidence/weak-model-compensation-w0-observed-20261102.json).
+- Focused baseline/report tests pass (`16 passed` at this slice). This is the
+  first machine-readable W0 observed denominator; it does not establish W6
+  useful-work improvement or renew model capability, benchmark, billing,
+  quota, health, runtime admission, or Formal Phase 8 evidence.
 
 ### 2026-11-01 #127 CONT-V0 evidence boundary and metrics hardening
 
