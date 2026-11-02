@@ -308,6 +308,20 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
   skip is deployment-owned Windows ACL). Exact-head Core 3.10/3.11 and
   Provider Smoke passed in runs `41389809859` and `41389809963`.
 
+### 2026-11-02 latest read-only evidence-expiry preflight
+
+- `python scripts/check_evidence_expiry.py --preflight --horizon-hours 48`
+  at `2026-11-02T04:51:56Z` remains fail-closed: catalog `0/1385`,
+  capability `0/500`, benchmark `0/87`, billing `0/26`, and qualification
+  `3/13` current now but `0/13` at the horizon. The next current
+  qualification expiry is `2026-11-02T09:29:25Z`.
+- Failures are `billing_catalog_no_current_facts`,
+  `billing_catalog_no_current_facts_at_horizon`, `no_static_eligible_at_horizon`,
+  and `source_exhausted:qualification_matrix`. The 30-day discovery/benchmark
+  defaults with a 31-day hard cap apply only to future candidates; no stale
+  catalog, benchmark, capability, billing, quota, health, qualification,
+  runtime-admission, or Gate fact was extended or promoted.
+
 ### 2026-11-02 #146 W0 observed baseline report
 
 - Commit `3e37b9f` adds a read-only baseline-report boundary and CLI. The
