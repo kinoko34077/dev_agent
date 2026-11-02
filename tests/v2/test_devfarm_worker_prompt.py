@@ -169,6 +169,32 @@ def test_local_ollama_prompt_uses_compact_manifest_projection() -> None:
     assert '"test_commands"' not in prompt
 
 
+def test_local_ollama_prompt_treats_requirements_as_literal_contract() -> None:
+    manifest = {
+        "task_id": "task-local-literal-1",
+        "task_type": "test",
+        "objective": "add one tiny regression test",
+        "base_revision": "abc123",
+        "allowed_files": ["tests/v2/test_target.py"],
+        "forbidden_files": [".env"],
+        "external_provider_allowed": True,
+        "approved_provider_ids": ["ollama"],
+        "outbound_files": [],
+        "new_files": ["tests/v2/test_target.py"],
+        "requirements": [
+            'Call build_worker_provider("gemini", "gemini-3.6-flash", 30.0, "gemini:worker:free-3") exactly.',
+        ],
+        "acceptance": ["the focused test passes"],
+        "test_commands": [],
+        "output_contract": {"mode": "minimal_file_replacement"},
+    }
+
+    prompt = build_worker_prompt(manifest, "INPUT FILES", local_ollama=True)
+
+    assert "REQUIREMENTS ARE EXECUTABLE CONSTRAINTS" in prompt
+    assert "Do not invent or simplify callable signatures" in prompt
+
+
 def test_rework_prompt_puts_concrete_repair_directive_before_general_contract() -> None:
     manifest = {
         "task_id": "task-rework-1",
