@@ -4,6 +4,35 @@
 
 ## [Unreleased] — v2/bootstrap
 
+### 2026-11-02 JST — Worker JSON repair and provider-quality advisory hardening
+
+- `7b2d0f6` distinguishes provider-length-terminated Worker JSON from ordinary
+  malformed JSON as `WORKER_OUTPUT_TRUNCATED`.  The bounded repair path now
+  asks for one complete minimal JSON object, removes prose/metadata, and
+  selects a Host-localized edit for existing files or a bounded reframe for a
+  truncated new-file result; it never replays the same oversized response.
+- `5caa528` parses the Commander `CODE: detail` failure projection so the
+  production composition path preserves the same bounded failure-specific
+  compensation routing as the Worker path.
+- `7d91e3c` adds exact-route `ProviderCandidateAdvisory` records.  Missing
+  quality/qualification evidence may remain visible for proposal-only text
+  requests only when the exact current no-charge, identity, capability, and
+  binding checks hold; dispatch, billing, quota, privacy, health, and formal
+  admission remain fail-closed.  Code-owned fake/Ollama no-charge profiles
+  have an explicit non-expiring billing boundary; remote evidence remains
+  time-bounded and is never renewed by catalog observation.
+- `35b04d6` synchronizes `docs/CURRENT_STATE.md` with the above functional
+  baseline and its exact-head evidence.  Focused repair/advisory/expiry/router
+  regression is `183 passed`; the functional baseline's full `tests/v2` run is
+  `2213 passed, 1 skipped`; exact-head Core/Provider Smoke runs are
+  `41396305725`/`41396305716`.  These are offline or synthetic boundary
+  results and do not claim fresh real-Worker R5/V1–V4 acceptance.
+- The read-only expiry preflight at `2026-11-02T05:51:41Z` reports model
+  catalog/capability/benchmark `0` current, billing `27/27` current now and
+  at the 48-hour horizon, and qualification `3/13` current now and `0/13`
+  at the horizon.  It records `no_static_eligible_at_horizon` and
+  `source_exhausted:qualification_matrix` instead of extending stale evidence.
+
 ### 2026-09-11 JST — Additional cloud provider bindings
 
 - ProviderFactoryへOllama Cloud (`ollama_cloud`) と Vercel AI Gateway (`vercel`)
