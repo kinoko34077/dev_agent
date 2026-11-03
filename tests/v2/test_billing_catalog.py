@@ -349,17 +349,39 @@ def test_security_billing_clock_remains_real():
     assert profile.is_current()
     assert profile.no_charge_guaranteed is True
 
+@pytest.mark.current_billing_catalog
 def test_cloudflare_public_pricing_review_cannot_renew_account_billing_authority():
-    # Independently reading a Free-plan public pricing page cannot prove the
-    # configured Cloudflare account is Free or that paid overage is disabled.
-    from src.dev_agent.resources.billing_catalog import TRUSTED_RESOURCE_CATALOG
+    from src.dev_agent.resources.billing_catalog import BillingResolver, TRUSTED_RESOURCE_CATALOG
 
-    wildcard = TRUSTED_RESOURCE_CATALOG[("cloudflare", "cloudflare:account", "*")]
-    assert wildcard.expires_at == "2026-12-03T00:00:00+09:00"
-    assert wildcard.is_current(now=datetime(2026, 10, 11, tzinfo=timezone.utc)) is False
-    assert wildcard.no_charge_guaranteed is True
-    assert wildcard.billing_mode == "recurring_allowance"
-    assert wildcard.overage_policy == "hard_stop"
+    # Only the reviewed current model identities receive the Workers Free
+    # allowance profile. A binding-wide wildcard would make a newly introduced
+    # or unreviewed paid model inherit that profile by omission.
+    assert ("cloudflare", "cloudflare:account", "*") not in TRUSTED_RESOURCE_CATALOG
+    known_free = profile_for("cloudflare", "cloudflare:account", "@cf/zai-org/glm-4.7-flash")
+    assert known_free is not None
+    assert known_free.is_current()
+    assert known_free.no_charge_guaranteed is True
+    assert known_free.billing_mode == "recurring_allowance"
+    assert known_free.overage_policy == "hard_stop"
+    assert profile_for("cloudflare", "cloudflare:account", "@cf/new-vendor/new-model") is None
+    wildcard_only_resolver = BillingResolver(
+        {
+            ("cloudflare", "cloudflare:account", "*"): TrustedResourceProfile(
+                "cloudflare",
+                "cloudflare:account",
+                "*",
+                0,
+                "JPY",
+                True,
+                verified_at="2026-11-02T00:00:00+09:00",
+                expires_at="2026-12-02T00:00:00+09:00",
+                billing_mode="recurring_allowance",
+                allowance_period="daily",
+                overage_policy="hard_stop",
+            )
+        }
+    )
+    assert wildcard_only_resolver.profile_for("cloudflare", "cloudflare:account", "@cf/new-vendor/new-model") is None
 
 
 @pytest.mark.parametrize(

@@ -169,7 +169,26 @@ def test_local_low_tier_is_admitted_for_bounded_quality_advisory_proposal():
 
 @pytest.mark.current_billing_catalog
 def test_unqualified_current_free_remote_is_retained_for_text_proposal_with_warning():
+    from datetime import timedelta
+
     binding = _binding()
+    now = datetime.now(timezone.utc)
+    catalog = ModelCatalog.from_document(
+        {
+            "schema_version": 1,
+            "entries": [
+                {
+                    "provider_id": binding.provider_id,
+                    "provider_binding_id": binding.credential_binding_id,
+                    "model_id": binding.model,
+                    "source": "openrouter.models.list",
+                    "observed_at": (now - timedelta(minutes=1)).isoformat(),
+                    "expires_at": (now + timedelta(days=1)).isoformat(),
+                    "metadata": {"input_modalities": ["text"], "output_modalities": ["text"]},
+                }
+            ],
+        }
+    )
     admitted = admit_resource_pool(
         (binding,),
         resolver=_MissingQualificationResolver(),
@@ -177,6 +196,7 @@ def test_unqualified_current_free_remote_is_retained_for_text_proposal_with_warn
         quality_tier_advisory=True,
         required_capabilities=("text",),
         model_admission_resolver=_missing_model_evidence_resolver(),
+        model_catalog=catalog,
         profile_resolver=profile_for,
     )
 
@@ -212,6 +232,21 @@ def test_unqualified_current_free_remote_is_retained_for_text_proposal_with_warn
     assert resource["metadata"]["candidate_admission_warning"] == "QUALIFICATION_UNVERIFIED"
     assert selection.provider_id == "openrouter"
     assert selection.admission_warnings == ("QUALIFICATION_UNVERIFIED",)
+
+
+@pytest.mark.current_billing_catalog
+def test_unqualified_free_remote_without_text_capability_evidence_is_not_admitted():
+    admitted = admit_resource_pool(
+        (_binding(),),
+        resolver=_MissingQualificationResolver(),
+        required_tier="L1",
+        quality_tier_advisory=True,
+        required_capabilities=("text",),
+        model_admission_resolver=_missing_model_evidence_resolver(),
+        profile_resolver=profile_for,
+    )
+
+    assert admitted == ()
 
 
 @pytest.mark.current_billing_catalog
@@ -297,7 +332,7 @@ def test_live_discovery_admits_exact_openrouter_free_candidate(monkeypatch):
                 "source": "openrouter.models.list",
                 "observed_at": (now - timedelta(minutes=1)).isoformat(),
                 "expires_at": (now + timedelta(days=1)).isoformat(),
-                "metadata": {"modality": "text->text"},
+                "metadata": {"input_modalities": ["text"], "output_modalities": ["text"]},
             }
             for model_id in ("provider/free-model:free", "provider/paid-model")
         ],

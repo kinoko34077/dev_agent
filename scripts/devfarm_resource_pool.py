@@ -32,6 +32,7 @@ from src.dev_agent.resources.router import ResourceRouter
 from src.dev_agent.resources.qualification import QualificationResolver
 from src.dev_agent.resources.model_admission import ModelAdmissionResolver
 from src.dev_agent.resources.model_catalog import ModelCatalog
+from src.dev_agent.resources.model_evidence_builder import derive_capabilities
 from src.dev_agent.resources.ledger import ResourceLedger
 from src.dev_agent.resources.provider_policy import privacy_profile, requires_qualification
 from src.dev_agent.resources.tier_authority import production_tier_authority
@@ -50,6 +51,36 @@ class _LocalQualification:
 
     intelligence_tier: str | None
     routing_capabilities: frozenset[str]
+
+
+def _has_current_text_capability(
+    binding: OperationProviderBinding,
+    *,
+    discovery_binding_id: str,
+    model_catalog: ModelCatalog | None,
+    model_admission_resolver: ModelAdmissionResolver | None,
+    now: datetime | None,
+) -> bool:
+    """Require current exact text-capability evidence for unqualified proposals."""
+
+    discovered = (
+        model_catalog.lookup(
+            binding.provider_id,
+            discovery_binding_id,
+            binding.model,
+            now=now,
+        )
+        if isinstance(model_catalog, ModelCatalog)
+        else None
+    )
+    if discovered is not None and "text" in derive_capabilities(discovered):
+        return True
+    capability = (
+        model_admission_resolver.capabilities.lookup(binding.provider_id, binding.model, now=now)
+        if model_admission_resolver is not None
+        else None
+    )
+    return capability is not None and "text" in capability.capabilities
 
 
 class ResourcePoolError(DevFarmError):
@@ -212,6 +243,7 @@ def admit_resource_pool(
         raise ResourcePoolError("required_capabilities must contain non-empty strings")
 
     candidate_bindings: list[OperationProviderBinding] = []
+    text_capability_identities: set[tuple[str, str, str]] = set()
     for binding in bindings:
         evidence_catalog = model_catalog
         if evidence_catalog is None and model_admission_resolver is not None:
@@ -255,6 +287,17 @@ def admit_resource_pool(
             )
             if live_model_ids is not None:
                 materialized = tuple(candidate for candidate in materialized if candidate.model in live_model_ids)
+            for candidate in materialized:
+                if _has_current_text_capability(
+                    candidate,
+                    discovery_binding_id=binding.binding_id,
+                    model_catalog=candidate_catalog if isinstance(candidate_catalog, ModelCatalog) else None,
+                    model_admission_resolver=model_admission_resolver,
+                    now=now,
+                ):
+                    text_capability_identities.add(
+                        (candidate.provider_id, candidate.credential_binding_id, candidate.model)
+                    )
             candidate_bindings.extend(materialized)
         except (TypeError, ValueError) as exc:
             raise ResourcePoolError(f"unable to materialize model candidates: {exc}") from exc
@@ -315,6 +358,7 @@ def admit_resource_pool(
                 quality_tier_advisory
                 and required_tier in {"L0", "L1"}
                 and requested_capabilities.issubset({"text"})
+                and (binding.provider_id, binding.credential_binding_id, binding.model) in text_capability_identities
                 and bool(binding.quota_domain)
                 and _current_no_charge_profile(profile, now=now)
             )
