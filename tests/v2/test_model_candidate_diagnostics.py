@@ -143,8 +143,8 @@ def test_explicit_specialized_model_remains_the_diagnostic_gate(monkeypatch):
                         "provider_binding_id": "gemini:worker",
                         "model_id": "gemini-image-1",
                         "source": "fixture.models.list",
-                        "observed_at": "2026-10-01T00:00:00+00:00",
-                        "expires_at": "2026-11-01T00:00:00+00:00",
+                        "observed_at": "2026-11-02T00:00:00+00:00",
+                        "expires_at": "2026-11-09T00:00:00+00:00",
                         "metadata": {"supported_generation_methods": ["embedContent"]},
                     }
                 ],
