@@ -10,51 +10,51 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 | Field | Current fact |
 | --- | --- |
 | Accepted branch | `v2/bootstrap` |
-| Accepted remote head at latest integrated implementation/evidence | `0bb1188c889a765a800dde32a676c8164af95983` (`v2/bootstrap`, after PR #159). |
-| Latest integrated implementation/evidence baseline | `0bb1188` includes the latest accepted #157 Worker output-mode changes. The free-provider runtime/evidence slice is a separate candidate at `ba4b16f` on `codex/issue81-free-provider-runtime-20261104`; it is not yet integrated or accepted. |
-| Latest implementation baseline | Accepted baseline is `0bb1188`. Candidate `ba4b16f` connects exact current no-charge candidates to standard Operation/DevFarm/Host routes and loads reviewed model evidence by default. Missing benchmark/qualification is warning-level only for bounded low-risk L1 proposals; exact billing, text capability, quota, privacy, health, Host validation, and formal Gate rules remain. |
-| Latest evidence baseline | Reviewed inventory has 1,579 rows / 1,440 current; capability 569 / 481 current; external benchmark 101 / 38 current (19 coding/planning rows); billing 34 / 34 current; qualification 0 / 13 current. The configured pool has 76 unique current no-charge remote model identities across Cloudflare (29), Gemini (4), Mistral (27), OpenRouter (13), and Vercel (3). Nine have exact coding/planning benchmark aliases; 67 remain quality-unverified rather than benchmark-blocked. Formal/runtime L2 supply remains 0. Candidate snapshot and source evidence are dated 2026-11-03 under `spec/v2/model_evidence/` and `spec/v2/evidence/`; see Issue #81. |
+| Accepted remote head at latest integrated implementation/evidence | `07004e48bc1323ab6a68599380f4ade268f35fd6` (`v2/bootstrap`, PR #166). |
+| Latest integrated implementation/evidence baseline | `07004e48bc1323ab6a68599380f4ade268f35fd6` (`v2/bootstrap`, PR #166); it includes PR #163 runtime wiring and the exact no-charge admission corrections. |
+| Latest implementation baseline | `07004e48bc1323ab6a68599380f4ade268f35fd6` connects existing Operation, DevFarm, Host dispatch, Planner, and Reviewer paths to exact current no-charge candidates before the 128-row bound and loads reviewed evidence by default. Missing benchmark/qualification does not by itself exclude bounded low-risk L1 proposal work. Exact billing, current text capability, quota, privacy, health, Host Verification, and formal Gate rules remain enforced. |
+| Latest evidence baseline | Reviewed inventory has 1,579 rows / 1,440 current; capability 569 / 481 current; external benchmark 101 / 38 current (19 coding/planning rows); billing 34 / 34 current; qualification 0 / 13 current. The configured pool has 76 unique current no-charge remote identities across Cloudflare (29), Gemini (4), Mistral (27), OpenRouter (13), and Vercel (3). Nine have exact coding/planning benchmark aliases; 67 remain lower-confidence proposals rather than benchmark-blocked. Formal L2 supply remains 0. Candidate snapshot and source evidence are dated 2026-11-03 under `spec/v2/model_evidence/` and `spec/v2/evidence/`; see Issue #81. |
 | Latest bounded-operation slice | `issue127-v2-provider-failure-continuity-r13-20261102` proves one real Provider-unavailable task stops without retry while an independent Gemma task proceeds through Host Verification, review, integration, and push. Separately, one bounded OpenRouter `:free` request completed through the existing Operation route at zero cost with no fallback; it proves only that exact L1 proposal route, not Worker Host Verification or Phase 8. Sanitized record: [`free-provider-operation-smoke-20261104.json`](../spec/v2/evidence/free-provider-operation-smoke-20261104.json). |
-| Local synchronization | Candidate branch `codex/issue81-free-provider-runtime-20261104` is based on `origin/v2/bootstrap@0bb1188`; commit `ba4b16f` is not yet integrated. Intermediate evidence merges remain recoverable locally but are excluded from the reviewed candidate set. |
+| Local synchronization | Implementation PRs #163 and #166 are integrated. The current documentation sync is based on `v2/bootstrap@07004e4`; it does not add another runtime or alter model admission. |
 | Formal Gate | `D9_DOGFOOD=VERIFIED`; `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`; `PHASE8_PREPARATION=PREPARATION_ONLY`; `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` |
-| Current supporting work | PRs #150, #152, #153, and #155 / Issue #146 preserve deterministic Worker-feasibility blockers, expose bounded Host evidence to the upper planner, and provide an exact-source read-only reframe handoff without treating feasibility as a model failure. PR #148 / Issue #81 provides staged-vs-canonical expiry visibility and exact no-charge proposal-only candidates. W1/W6 remain partial/unverified; the wider Phase 8 objective remains owned by #11 and is not advanced by these non-Gate changes. Current operational routing is projected by devflow Control #15 and owning Issues #127/#146. |
+| Current supporting work | PRs #150, #152, #153, and #155 / Issue #146 preserve deterministic Worker-feasibility blockers, expose bounded Host evidence to the upper planner, and provide an exact-source read-only reframe handoff without treating feasibility as a model failure. PRs #163/#166 / Issue #81 connect exact no-charge proposal candidates to the existing runtime and protect billing/capability boundaries. W1/W6 remain partial/unverified; the wider Phase 8 objective remains owned by #11 and is not promoted by these non-Gate changes. Current operational routing is projected by devflow Control #15 and owning Issues #127/#146. |
 | Current source of truth | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json), exact-head CI, owning Issues/PRs, and bounded Evidence files |
 
-### 2026-11-04 #81 no-charge runtime candidate and external benchmark refresh
+### 2026-11-04 #81 no-charge runtime and external benchmark status — integrated
 
-- Candidate `ba4b16f` prioritizes exact current no-charge discovered identities
-  before the existing 128-candidate cap across Operation, DevFarm resource-pool
-  admission, Host dispatch, Planner, and Reviewer paths. Operation's standard
-  environment composition loads the reviewed repository model evidence by
-  default. Actual availability still depends on existing credentials and the
-  Provider's current free quota.
-- Missing benchmark/qualification evidence no longer suppresses a safe L1
-  proposal solely for missing scores. Exact current no-charge billing and text
-  capability remain required. Only bounded low-risk Worker proposals receive
-  this treatment; Host Verification remains mandatory. Formal L2, Phase 8, and
-  `spec/v2/GATE_STATUS.json` are unchanged.
-- External benchmark data was refreshed through the existing OpenRouter
-  Benchmarks API adapter (`openrouter.api.v1.benchmarks:artificial-analysis`).
-  The snapshot has 101 rows, 38 current; 19 current rows include coding or
-  planning task-fit scores. Nine of 76 configured exact no-charge model
-  identities have an exact reviewed score alias. The other 67 stay available
-  as lower-confidence proposals; benchmark scores do not substitute for
-  capability, billing, or qualification evidence.
-- One bounded real OpenRouter free-route request completed through the
-  existing Operation route: `nvidia/nemotron-3-ultra-550b-a55b:free`, one
-  Provider call, zero cost, no fallback, and no reconciliation requirement.
-  Raw request/response and credential values were not retained. This is not a
-  Phase 8 Worker/Host Verification result.
-- Validation at the candidate: focused model/runtime scope passed 301 tests
-  before the final test-expectation corrections; a single full run found
-  `2300 passed, 9 failed, 1 skipped`. The nine affected tests were updated to
-  isolate expired qualification, changed Worker metadata, and current Vercel
-  billing status, then all nine passed. Architecture, compileall, semantic
-  coherence/model funnel, evidence-expiry preflight, and credential-pattern
-  scan passed. Exact-head CI is pending.
-- Vercel Ling remains `billing_mode=unknown` because the live model listing
-  conflicts with the dated billing notice. It is review-visible but remains
-  non-dispatchable until exact no-charge evidence is unambiguous.
+- PR #163 (`04df8aa`) connects exact current no-charge candidates to existing
+  Operation, DevFarm, Host dispatch, Planner, and Reviewer candidate paths,
+  prioritizes them before the existing 128-row bound, and loads reviewed model
+  evidence by default in Operation composition. It does not add a second
+  scheduler or router.
+- PR #166 (`07004e4`) removes Cloudflare's account-wide billing wildcard and
+  uses exact reviewed Workers Free model identities. Unknown/future model IDs
+  cannot inherit no-charge status. The eight model IDs that the current
+  Cloudflare pricing page marks as requiring a paid billing method remain
+  denied. DevFarm also requires current exact text-capability evidence before
+  retaining an unqualified remote proposal candidate.
+- The current configured pool contains 76 unique exact no-charge remote model
+  identities: Cloudflare (29), Gemini (4), Mistral (27), OpenRouter (13), and
+  Vercel (3). Actual execution still depends on each configured credential,
+  provider availability, and that route's current no-charge allowance.
+- The existing OpenRouter Benchmarks adapter refreshed external Artificial
+  Analysis observations: 101 rows / 38 current, including 19 current coding
+  or planning task-fit rows. Nine of the 76 identities have exact score aliases;
+  the other 67 remain lower-confidence bounded L1 proposals rather than being
+  excluded for missing benchmark scores. Benchmark scores are quality inputs,
+  not billing/capability/qualification authority.
+- One bounded OpenRouter `:free` request completed through the existing
+  Operation route: `nvidia/nemotron-3-ultra-550b-a55b:free`, one Provider call,
+  zero cost, no fallback, and no reconciliation requirement. Sanitized evidence
+  is [`free-provider-operation-smoke-20261104.json`](../spec/v2/evidence/free-provider-operation-smoke-20261104.json).
+  This proves that exact L1 route only, not Worker Host Verification or Phase 8.
+- PR #166 exact head passed 68 focused affected tests, `v2-core` for Python
+  3.10 and 3.11, and `v2-provider-smoke`; architecture, semantic coherence, and
+  compile passed in the Python 3.11 job. Formal L2 supply remains 0 and
+  `spec/v2/GATE_STATUS.json` / Phase 8 are unchanged.
+- Vercel Ling remains `billing_mode=unknown` because its live model listing
+  conflicts with the dated billing notice. It remains non-dispatchable until
+  exact no-charge evidence is unambiguous.
 
 ### 2026-11-02 README evidence-boundary synchronization
 
