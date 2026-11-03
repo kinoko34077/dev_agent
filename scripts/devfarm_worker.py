@@ -22,6 +22,7 @@ if str(ROOT) not in sys.path:
 
 from scripts.devfarm_contracts import (
     VERIFICATION_TRUST_LEVELS,
+    WORKER_OUTPUT_MODES,
     canonical_digest,
     normalize_patch_hunk_counts,
     parse_host_test_command,
@@ -584,7 +585,7 @@ def _rework_compensation(manifest: Mapping[str, Any]) -> dict[str, Any] | None:
             "stop_model_repair",
         }:
             raise DevFarmError("rework compensation action is unsupported")
-        if mode is not None and mode not in {"full_result", "minimal_file_replacement", LOCALIZED_FILE_EDIT_MODE}:
+        if mode is not None and mode not in WORKER_OUTPUT_MODES:
             raise DevFarmError("rework compensation output mode is unsupported")
         decision = dict(value)
         prompt_contract = decision.get("prompt_contract")
