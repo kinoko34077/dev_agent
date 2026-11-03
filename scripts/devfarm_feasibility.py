@@ -23,7 +23,7 @@ class FeasibilityError(DevFarmError):
     """The feasibility input cannot be safely classified."""
 
 
-_OUTPUT_MODES = frozenset({"full_result", "minimal_file_replacement", "localized_file_edit"})
+FEASIBILITY_OUTPUT_MODES = frozenset({"full_result", "minimal_file_replacement", "localized_file_edit"})
 _STATUS = frozenset({"fits", "reframe_required", "invalid_acceptance"})
 _PLAN_BLOCK_REASON_BY_STATUS = {
     "reframe_required": "worker_feasibility_reframe_required",
@@ -33,6 +33,27 @@ _PLAN_NEXT_ACTION_BY_BLOCK_REASON = {
     "worker_feasibility_reframe_required": "reframe_worker_task",
     "worker_feasibility_invalid_acceptance": "repair_worker_manifest",
 }
+# Canonical vocabulary for Host feasibility evidence. Consumer projections may
+# restrict what they expose, but must not maintain their own semantic copies.
+FEASIBILITY_REASON_CODES = frozenset({
+    "acceptance_missing",
+    "test_commands_missing",
+    "test_command_invalid",
+    "output_scope_invalid",
+    "new_file_overlaps_input",
+    "input_not_utf8",
+    "input_contains_nul",
+    "input_file_too_large",
+    "input_scope_too_large",
+    "context_scope_too_large",
+    "localized_output_budget_missing",
+    "output_envelope_too_large",
+})
+_FEASIBILITY_ACTIONS_BY_STATUS = {
+    "reframe_required": frozenset({"split_input_scope", "declare_output_budget"}),
+    "invalid_acceptance": frozenset({"repair_manifest_acceptance"}),
+}
+
 _DEFAULT_OUTPUT_TOKENS = {
     "full_result": 4096,
     "minimal_file_replacement": 8192,
@@ -95,7 +116,7 @@ class WorkerFeasibility:
     def __post_init__(self) -> None:
         if self.status not in _STATUS:
             raise FeasibilityError("feasibility status is unsupported")
-        if self.output_mode not in _OUTPUT_MODES:
+        if self.output_mode not in FEASIBILITY_OUTPUT_MODES:
             raise FeasibilityError("feasibility output mode is unsupported")
         if self.output_capacity_tokens <= 0 or self.output_capacity_tokens > _MAX_OUTPUT_TOKENS:
             raise FeasibilityError("feasibility output capacity is out of bounds")
@@ -150,6 +171,25 @@ def plan_next_action(block_reason: str | None) -> str | None:
     return _PLAN_NEXT_ACTION_BY_BLOCK_REASON.get(block_reason)
 
 
+def plan_status_for_block_reason(block_reason: str | None) -> str | None:
+    """Resolve the canonical feasibility status from a durable Commander blocker."""
+    if not isinstance(block_reason, str):
+        return None
+    for status, reason in _PLAN_BLOCK_REASON_BY_STATUS.items():
+        if reason == block_reason:
+            return status
+    return None
+
+
+def is_feasibility_action_for_status(status: str, action: str) -> bool:
+    """Validate an evidence action against its owning feasibility status."""
+    return (
+        isinstance(status, str)
+        and isinstance(action, str)
+        and action in _FEASIBILITY_ACTIONS_BY_STATUS.get(status, frozenset())
+    )
+
+
 def _output_capacity(manifest: Mapping[str, Any], output_mode: str, max_output_tokens: int | None) -> int:
     if max_output_tokens is None:
         configured = _DEFAULT_OUTPUT_TOKENS[output_mode]
@@ -199,7 +239,7 @@ def assess_worker_feasibility(
     if not isinstance(output_contract, Mapping):
         raise FeasibilityError("output_contract must be an object")
     output_mode = output_contract.get("mode", "full_result")
-    if output_mode not in _OUTPUT_MODES:
+    if output_mode not in FEASIBILITY_OUTPUT_MODES:
         raise FeasibilityError("output_contract.mode is unsupported")
     output_mode = str(output_mode)
     capacity_tokens = _output_capacity(manifest, output_mode, max_output_tokens)
@@ -339,7 +379,11 @@ def assess_worker_feasibility(
 __all__ = [
     "FeasibilityError",
     "WorkerFeasibility",
+    "FEASIBILITY_OUTPUT_MODES",
+    "FEASIBILITY_REASON_CODES",
     "assess_worker_feasibility",
     "plan_block_reason",
+    "plan_status_for_block_reason",
     "plan_next_action",
+    "is_feasibility_action_for_status",
 ]
