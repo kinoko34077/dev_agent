@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import ast
+import inspect
+
 import pytest
 
 import scripts.devfarm_feasibility as feasibility_module
-from scripts.devfarm_contracts import WORKER_OUTPUT_MODES
+from scripts.devfarm_contracts import MAX_OUTBOUND_BYTES, WORKER_OUTPUT_MODES
+from scripts.devfarm_worker_input import MAX_INPUT_FILE_BYTES
 from scripts.devfarm_worker_output import (
     FULL_WORKER_OUTPUT_MODE,
     MINIMAL_WORKER_OUTPUT_MODE,
@@ -175,3 +179,72 @@ def test_default_output_capacity_covers_every_canonical_mode(monkeypatch: pytest
     monkeypatch.delitem(feasibility_module._DEFAULT_OUTPUT_TOKENS, "full_result")
     with pytest.raises(feasibility_module.FeasibilityError, match="default token capacity"):
         assess_worker_feasibility(_manifest(mode="full_result"), {"src/example.py": "x = 1\n"})
+
+def test_feasibility_static_reason_vocabulary_matches_producer_emissions() -> None:
+    # The producer owns static reason semantics. Reject newly emitted literals
+    # that were not also added to the Supervisor-facing canonical vocabulary.
+    source = ast.parse(inspect.getsource(assess_worker_feasibility))
+    emitted = {
+        node.args[0].value
+        for node in ast.walk(source)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "reasons"
+        and node.func.attr == "append"
+        and len(node.args) == 1
+        and isinstance(node.args[0], ast.Constant)
+        and isinstance(node.args[0].value, str)
+    }
+    assert emitted == FEASIBILITY_REASON_CODES
+
+
+def test_every_declared_static_feasibility_reason_is_actually_reachable() -> None:
+    basic = {"src/example.py": b"x = 1\n"}
+    many_paths = [f"src/file_{index}.py" for index in range(9)]
+    many_files = {path: b"x" * MAX_INPUT_FILE_BYTES for path in many_paths}
+    cases = [
+        ("acceptance_missing", {"acceptance": []}, basic, {}),
+        ("test_commands_missing", {"test_commands": []}, basic, {}),
+        ("test_command_invalid", {"test_commands": ["not-a-supported-host-command"]}, basic, {}),
+        ("output_scope_invalid", {"outbound_files": []}, {}, {}),
+        ("new_file_overlaps_input", {"new_files": ["src/example.py"]}, basic, {}),
+        ("input_not_utf8", {}, {"src/example.py": b"\xff"}, {}),
+        ("input_contains_nul", {}, {"src/example.py": b"\x00"}, {}),
+        ("input_file_too_large", {}, {"src/example.py": b"x" * (MAX_INPUT_FILE_BYTES + 1)}, {}),
+        (
+            "input_scope_too_large",
+            {"allowed_files": many_paths, "outbound_files": many_paths},
+            many_files,
+            {},
+        ),
+        (
+            "context_scope_too_large",
+            {"read_files": ["src/context.py"]},
+            {**basic, "src/context.py": b"x" * (MAX_OUTBOUND_BYTES + 1)},
+            {},
+        ),
+        ("localized_output_budget_missing", {"output_contract": {"mode": "localized_file_edit"}}, basic, {}),
+        (
+            "output_envelope_too_large",
+            {"output_contract": {"mode": "minimal_file_replacement", "expected_output_chars": 4096}},
+            basic,
+            {"max_output_tokens": 256},
+        ),
+    ]
+    observed: set[str] = set()
+    for expected, changes, files, kwargs in cases:
+        manifest = _manifest()
+        manifest.update(changes)
+        result = assess_worker_feasibility(manifest, files, **kwargs)
+        assert expected in result.reasons
+        observed.update(reason for reason in result.reasons if ":" not in reason)
+
+    assert observed == FEASIBILITY_REASON_CODES
+
+    # Path-specific reasons are deliberately not enumerable static codes;
+    # the Supervisor projects these two bounded prefixes independently.
+    assert "missing_input:src/example.py" in assess_worker_feasibility(_manifest(), {}).reasons
+    manifest = _manifest()
+    manifest["read_files"] = ["src/missing.py"]
+    assert "missing_context:src/missing.py" in assess_worker_feasibility(manifest, basic).reasons
