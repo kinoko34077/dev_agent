@@ -29,9 +29,8 @@ from scripts.devfarm_integration import (
     integrate_worker as host_record_integration,
 )
 from scripts.devfarm_manifests import load_worker_manifest
-from scripts.devfarm_contracts import canonical_digest
+from scripts.devfarm_contracts import WORKER_OUTPUT_MODES, canonical_digest
 from scripts.devfarm_feasibility import (
-    FEASIBILITY_OUTPUT_MODES,
     FEASIBILITY_REASON_CODES,
     is_feasibility_action_for_status,
     plan_next_action,
@@ -213,7 +212,7 @@ def _worker_feasibility_context(root: Path, plan: Mapping[str, Any]) -> tuple[Ma
         reasons = feasibility.get("reasons")
         if (
             not isinstance(output_mode, str)
-            or output_mode not in FEASIBILITY_OUTPUT_MODES
+            or output_mode not in WORKER_OUTPUT_MODES
             or not isinstance(reasons, list)
             or len(reasons) > 32
         ):
