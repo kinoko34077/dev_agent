@@ -10,15 +10,51 @@ Gate authority; durable historical evidence remains in Issues, PRs, CI, and
 | Field | Current fact |
 | --- | --- |
 | Accepted branch | `v2/bootstrap` |
-| Accepted remote head at latest integrated implementation/evidence | `c7d2fe8` (`v2/bootstrap`, squash merge of PR #155; exact merge-head CI passed). |
-| Latest integrated implementation/evidence baseline | `c7d2fe8` includes PRs #152/#153 and #155. Supervisor exposes attempt-bound feasibility facts; the reframe handoff is bound to the exact task, attempt, immutable result, normalized-manifest digest, and base revision. Unsafe/noncanonical attempt IDs are rejected before result-path construction. W1 remains partial until a smaller candidate passes the existing PlanningBridge/Host validation. |
-| Latest implementation baseline | `c7d2fe8` (PR #155). The handoff is read-only and proposal-only; it does not persist a candidate, write `.devfarm`, dispatch a Worker, or call a Provider. No admission, billing, routing, or Gate authority changed. Raw Worker prose remains excluded. |
-| Latest evidence baseline | The staged 2026-11-02 discovery snapshot has 1,442/1,442 current identities (13/15 bindings refreshed) and remains `NOT_PROMOTED`. Candidate diagnostics report 115 current no-charge proposal-only remote rows plus 7 stale-inventory advisories, 8 local Ollama rows, and 1,122 billing-unknown rows. Canonical accepted evidence remains expired (model 0/1,385; capability 0/500; benchmark 0/87; qualification 0/13 current); formal/runtime eligible supply is 0. PRs #152/#153 change none of these Provider/admission evidence states. See Issue #81 and the dated evidence files under `spec/v2/evidence/`. |
-| Latest bounded-operation slice | `issue127-v2-provider-failure-continuity-r13-20261102` proves one real Provider-unavailable task stops without retry while an independent Gemma task proceeds through Host Verification, review, integration, and push. This is a real V2 continuity slice, not a restart/recovery or Claim/Lease proof. Full local `tests/v2` at `9764320` is green (`2219 passed, 1 skipped`); the one skip remains deployment-owned Windows ACL coverage. |
-| Local synchronization | This docs-only follow-up is based on `origin/v2/bootstrap@c7d2fe8`; the canonical checkout is a separate worktree and was not modified. The requirements index continues to link to `docs/DECISION_TRANSFER_M1.md`. |
+| Accepted remote head at latest integrated implementation/evidence | `0bb1188c889a765a800dde32a676c8164af95983` (`v2/bootstrap`, after PR #159). |
+| Latest integrated implementation/evidence baseline | `0bb1188` includes the latest accepted #157 Worker output-mode changes. The free-provider runtime/evidence slice is a separate candidate at `ba4b16f` on `codex/issue81-free-provider-runtime-20261104`; it is not yet integrated or accepted. |
+| Latest implementation baseline | Accepted baseline is `0bb1188`. Candidate `ba4b16f` connects exact current no-charge candidates to standard Operation/DevFarm/Host routes and loads reviewed model evidence by default. Missing benchmark/qualification is warning-level only for bounded low-risk L1 proposals; exact billing, text capability, quota, privacy, health, Host validation, and formal Gate rules remain. |
+| Latest evidence baseline | Reviewed inventory has 1,579 rows / 1,440 current; capability 569 / 481 current; external benchmark 101 / 38 current (19 coding/planning rows); billing 34 / 34 current; qualification 0 / 13 current. The configured pool has 76 unique current no-charge remote model identities across Cloudflare (29), Gemini (4), Mistral (27), OpenRouter (13), and Vercel (3). Nine have exact coding/planning benchmark aliases; 67 remain quality-unverified rather than benchmark-blocked. Formal/runtime L2 supply remains 0. Candidate snapshot and source evidence are dated 2026-11-03 under `spec/v2/model_evidence/` and `spec/v2/evidence/`; see Issue #81. |
+| Latest bounded-operation slice | `issue127-v2-provider-failure-continuity-r13-20261102` proves one real Provider-unavailable task stops without retry while an independent Gemma task proceeds through Host Verification, review, integration, and push. Separately, one bounded OpenRouter `:free` request completed through the existing Operation route at zero cost with no fallback; it proves only that exact L1 proposal route, not Worker Host Verification or Phase 8. Sanitized record: [`free-provider-operation-smoke-20261104.json`](../spec/v2/evidence/free-provider-operation-smoke-20261104.json). |
+| Local synchronization | Candidate branch `codex/issue81-free-provider-runtime-20261104` is based on `origin/v2/bootstrap@0bb1188`; commit `ba4b16f` is not yet integrated. Intermediate evidence merges remain recoverable locally but are excluded from the reviewed candidate set. |
 | Formal Gate | `D9_DOGFOOD=VERIFIED`; `D9_PRODUCTION_DEPLOYMENT=DEFERRED_NOT_READY`; `PHASE8_PREPARATION=PREPARATION_ONLY`; `PHASE8_LIVE_ACTIVATION=NOT_VERIFIED` |
 | Current supporting work | PRs #150, #152, #153, and #155 / Issue #146 preserve deterministic Worker-feasibility blockers, expose bounded Host evidence to the upper planner, and provide an exact-source read-only reframe handoff without treating feasibility as a model failure. PR #148 / Issue #81 provides staged-vs-canonical expiry visibility and exact no-charge proposal-only candidates. W1/W6 remain partial/unverified; the wider Phase 8 objective remains owned by #11 and is not advanced by these non-Gate changes. Current operational routing is projected by devflow Control #15 and owning Issues #127/#146. |
 | Current source of truth | [`spec/v2/GATE_STATUS.json`](../spec/v2/GATE_STATUS.json), exact-head CI, owning Issues/PRs, and bounded Evidence files |
+
+### 2026-11-04 #81 no-charge runtime candidate and external benchmark refresh
+
+- Candidate `ba4b16f` prioritizes exact current no-charge discovered identities
+  before the existing 128-candidate cap across Operation, DevFarm resource-pool
+  admission, Host dispatch, Planner, and Reviewer paths. Operation's standard
+  environment composition loads the reviewed repository model evidence by
+  default. Actual availability still depends on existing credentials and the
+  Provider's current free quota.
+- Missing benchmark/qualification evidence no longer suppresses a safe L1
+  proposal solely for missing scores. Exact current no-charge billing and text
+  capability remain required. Only bounded low-risk Worker proposals receive
+  this treatment; Host Verification remains mandatory. Formal L2, Phase 8, and
+  `spec/v2/GATE_STATUS.json` are unchanged.
+- External benchmark data was refreshed through the existing OpenRouter
+  Benchmarks API adapter (`openrouter.api.v1.benchmarks:artificial-analysis`).
+  The snapshot has 101 rows, 38 current; 19 current rows include coding or
+  planning task-fit scores. Nine of 76 configured exact no-charge model
+  identities have an exact reviewed score alias. The other 67 stay available
+  as lower-confidence proposals; benchmark scores do not substitute for
+  capability, billing, or qualification evidence.
+- One bounded real OpenRouter free-route request completed through the
+  existing Operation route: `nvidia/nemotron-3-ultra-550b-a55b:free`, one
+  Provider call, zero cost, no fallback, and no reconciliation requirement.
+  Raw request/response and credential values were not retained. This is not a
+  Phase 8 Worker/Host Verification result.
+- Validation at the candidate: focused model/runtime scope passed 301 tests
+  before the final test-expectation corrections; a single full run found
+  `2300 passed, 9 failed, 1 skipped`. The nine affected tests were updated to
+  isolate expired qualification, changed Worker metadata, and current Vercel
+  billing status, then all nine passed. Architecture, compileall, semantic
+  coherence/model funnel, evidence-expiry preflight, and credential-pattern
+  scan passed. Exact-head CI is pending.
+- Vercel Ling remains `billing_mode=unknown` because the live model listing
+  conflicts with the dated billing notice. It is review-visible but remains
+  non-dispatchable until exact no-charge evidence is unambiguous.
 
 ### 2026-11-02 README evidence-boundary synchronization
 
