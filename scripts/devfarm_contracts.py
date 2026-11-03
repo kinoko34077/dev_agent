@@ -34,6 +34,16 @@ def canonical_digest(value: Any) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+# Shared output modes belong to the manifest/output contract, not feasibility.
+FULL_WORKER_OUTPUT_MODE = "full_result"
+MINIMAL_WORKER_OUTPUT_MODE = "minimal_file_replacement"
+LOCALIZED_FILE_EDIT_MODE = "localized_file_edit"
+WORKER_OUTPUT_MODES = frozenset({
+    FULL_WORKER_OUTPUT_MODE,
+    MINIMAL_WORKER_OUTPUT_MODE,
+    LOCALIZED_FILE_EDIT_MODE,
+})
+
 _TASK_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,100}$")
 _STATUSES = {"pending", "running", "completed", "failed", "blocked_external"}
 _PROTECTED_FILES = PROTECTED_AUTHORITY_PATHS
@@ -253,11 +263,7 @@ def validate_manifest(value: Mapping[str, Any]) -> dict[str, Any]:
         raise DevFarmError("output_contract must be an object")
     output_contract = dict(value["output_contract"])
     output_mode = output_contract.get("mode")
-    if output_mode is not None and output_mode not in {
-        "full_result",
-        "minimal_file_replacement",
-        "localized_file_edit",
-    }:
+    if output_mode is not None and output_mode not in WORKER_OUTPUT_MODES:
         raise DevFarmError(
             "output_contract.mode must be full_result, minimal_file_replacement, or localized_file_edit"
         )

@@ -29,8 +29,13 @@ from scripts.devfarm_integration import (
     integrate_worker as host_record_integration,
 )
 from scripts.devfarm_manifests import load_worker_manifest
-from scripts.devfarm_contracts import canonical_digest
-from scripts.devfarm_feasibility import plan_next_action
+from scripts.devfarm_contracts import WORKER_OUTPUT_MODES, canonical_digest
+from scripts.devfarm_feasibility import (
+    FEASIBILITY_REASON_CODES,
+    is_feasibility_action_for_status,
+    plan_next_action,
+    plan_status_for_block_reason,
+)
 from scripts.devfarm_review_packet import build_review_packet
 from scripts.devfarm_commander import (
     collect_plan,
@@ -55,26 +60,6 @@ from src.dev_agent.handoff import ExternalTextReference, HandoffEnvelope, rework
 from src.dev_agent.intelligence.codexless import CodexLessEvaluation, CodexLessPolicy
 
 
-_FEASIBILITY_STATUS_BY_BLOCK_REASON = {
-    "worker_feasibility_reframe_required": "reframe_required",
-    "worker_feasibility_invalid_acceptance": "invalid_acceptance",
-}
-_FEASIBILITY_REASON_CODES = frozenset(
-    {
-        "acceptance_missing",
-        "test_commands_missing",
-        "test_command_invalid",
-        "output_scope_invalid",
-        "new_file_overlaps_input",
-        "input_not_utf8",
-        "input_contains_nul",
-        "input_file_too_large",
-        "input_scope_too_large",
-        "context_scope_too_large",
-        "localized_output_budget_missing",
-        "output_envelope_too_large",
-    }
-)
 _FEASIBILITY_MEASUREMENTS = (
     "input_file_count",
     "input_bytes",
@@ -84,9 +69,6 @@ _FEASIBILITY_MEASUREMENTS = (
     "output_capacity_tokens",
     "output_capacity_chars",
     "estimated_output_chars",
-)
-_FEASIBILITY_RECOMMENDED_ACTIONS = frozenset(
-    {"split_input_scope", "declare_output_budget", "repair_manifest_acceptance"}
 )
 _REFRAME_HANDOFF_CONSTRAINTS = (
     "preserve_base_revision",
@@ -167,7 +149,7 @@ def _worker_feasibility_context(root: Path, plan: Mapping[str, Any]) -> tuple[Ma
         if not isinstance(task, Mapping):
             continue
         block_reason = task.get("block_reason")
-        expected_status = _FEASIBILITY_STATUS_BY_BLOCK_REASON.get(block_reason)
+        expected_status = plan_status_for_block_reason(block_reason)
         action = plan_next_action(block_reason)
         if (
             expected_status is None
@@ -223,26 +205,14 @@ def _worker_feasibility_context(root: Path, plan: Mapping[str, Any]) -> tuple[Ma
             projected.append(entry)
             continue
         recommended_action = feasibility.get("recommended_action")
-        if (
-            not isinstance(recommended_action, str)
-            or recommended_action not in _FEASIBILITY_RECOMMENDED_ACTIONS
-        ):
-            projected.append(entry)
-            continue
-        if (
-            expected_status == "invalid_acceptance"
-            and recommended_action != "repair_manifest_acceptance"
-        ) or (
-            expected_status == "reframe_required"
-            and recommended_action not in {"split_input_scope", "declare_output_budget"}
-        ):
+        if not is_feasibility_action_for_status(expected_status, recommended_action):
             projected.append(entry)
             continue
         output_mode = feasibility.get("output_mode")
         reasons = feasibility.get("reasons")
         if (
             not isinstance(output_mode, str)
-            or output_mode not in {"full_result", "minimal_file_replacement", "localized_file_edit"}
+            or output_mode not in WORKER_OUTPUT_MODES
             or not isinstance(reasons, list)
             or len(reasons) > 32
         ):
@@ -254,7 +224,7 @@ def _worker_feasibility_context(root: Path, plan: Mapping[str, Any]) -> tuple[Ma
             if not isinstance(reason, str) or len(reason) > 512:
                 reasons_valid = False
                 break
-            if reason in _FEASIBILITY_REASON_CODES:
+            if reason in FEASIBILITY_REASON_CODES:
                 code = reason
             elif reason.startswith("missing_input:"):
                 code = "missing_input"
