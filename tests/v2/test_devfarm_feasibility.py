@@ -1,6 +1,13 @@
 from __future__ import annotations
 
-from scripts.devfarm_feasibility import assess_worker_feasibility
+from scripts.devfarm_feasibility import (
+    FEASIBILITY_OUTPUT_MODES,
+    FEASIBILITY_REASON_CODES,
+    assess_worker_feasibility,
+    is_feasibility_action_for_status,
+    plan_block_reason,
+    plan_status_for_block_reason,
+)
 
 
 def _manifest(*, mode: str = "minimal_file_replacement") -> dict[str, object]:
@@ -118,3 +125,24 @@ def test_localized_output_without_change_budget_requires_reframing() -> None:
     assert result.status == "reframe_required"
     assert "localized_output_budget_missing" in result.reasons
     assert result.recommended_action == "declare_output_budget"
+
+
+def test_feasibility_consumer_contract_is_owned_by_producer() -> None:
+    # The Supervisor must not maintain another inverse status/action vocabulary.
+    for status in ("reframe_required", "invalid_acceptance"):
+        block_reason = plan_block_reason(status)
+        assert plan_status_for_block_reason(block_reason) == status
+    assert plan_status_for_block_reason("unknown") is None
+    assert plan_status_for_block_reason(None) is None
+
+    assert is_feasibility_action_for_status("reframe_required", "split_input_scope")
+    assert is_feasibility_action_for_status("reframe_required", "declare_output_budget")
+    assert is_feasibility_action_for_status("invalid_acceptance", "repair_manifest_acceptance")
+    assert not is_feasibility_action_for_status("reframe_required", "repair_manifest_acceptance")
+    assert not is_feasibility_action_for_status("invalid_acceptance", "split_input_scope")
+    assert not is_feasibility_action_for_status("reframe_required", [])
+
+    valid = assess_worker_feasibility(_manifest(), {"src/example.py": "x = 1\n"})
+    assert valid.output_mode in FEASIBILITY_OUTPUT_MODES
+    assert set(valid.reasons) <= FEASIBILITY_REASON_CODES
+    assert "output_envelope_too_large" in FEASIBILITY_REASON_CODES
