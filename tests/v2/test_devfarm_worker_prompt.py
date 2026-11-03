@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import json
 
-from scripts.devfarm_worker_prompt import build_worker_prompt, repair_system_instruction
+from scripts.devfarm_contracts import WORKER_OUTPUT_MODES
+from scripts.devfarm_worker_prompt import (
+    _bounded_rework_handoff,
+    _compensation_prefix,
+    build_worker_prompt,
+    repair_system_instruction,
+)
 from scripts.devfarm_worker_output import minimal_worker_output_schema
 
 
@@ -310,3 +316,33 @@ def test_rework_prompt_includes_only_host_selected_compensation_contract() -> No
     assert "MAX CHANGE BUDGET (characters): 4096" in prompt
     assert "BOUNDED CONTEXT HINTS: exact_line_anchor, expected_lines" in prompt
     assert "must never be copied" not in prompt
+
+
+def test_host_compensation_output_modes_follow_manifest_contract() -> None:
+    for mode in sorted(WORKER_OUTPUT_MODES):
+        context = {
+            "compensation": {
+                "authority": "host_policy",
+                "action": "switch_output_mode",
+                "prompt_contract": "host-localized-edit",
+                "output_mode": mode,
+                "context_hints": [],
+            }
+        }
+        assert f"OUTPUT MODE: {mode}" in _compensation_prefix(context)
+        bounded = _bounded_rework_handoff({"rework_handoff": {"repair_context": context}})
+        assert bounded is not None
+        assert bounded["repair_context"]["compensation"]["output_mode"] == mode
+
+    for unsupported in ("unknown_mode", 123):
+        context = {
+            "compensation": {
+                "authority": "host_policy",
+                "action": "switch_output_mode",
+                "prompt_contract": "host-localized-edit",
+                "output_mode": unsupported,
+                "context_hints": [],
+            }
+        }
+        assert _compensation_prefix(context) == ""
+        assert _bounded_rework_handoff({"rework_handoff": {"repair_context": context}}) is None

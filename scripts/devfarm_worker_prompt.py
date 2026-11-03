@@ -12,6 +12,7 @@ import json
 from collections.abc import Mapping
 from typing import Any
 
+from scripts.devfarm_contracts import WORKER_OUTPUT_MODES
 from scripts.devfarm_worker_output import localized_worker_output_schema, minimal_worker_output_schema
 
 
@@ -76,10 +77,9 @@ def _compensation_prefix(context: Mapping[str, Any]) -> str:
         "upper-reframe",
         "no-model-replay",
     }
-    allowed_modes = {"full_result", "minimal_file_replacement", "localized_file_edit"}
     if action not in allowed_actions or prompt_contract not in allowed_contracts:
         return ""
-    if output_mode is not None and output_mode not in allowed_modes:
+    if output_mode is not None and output_mode not in WORKER_OUTPUT_MODES:
         return ""
     expected_output_chars = value.get("expected_output_chars")
     if expected_output_chars is not None and (
@@ -187,7 +187,7 @@ def _bounded_rework_handoff(manifest: Mapping[str, Any]) -> dict[str, Any] | Non
                     "upper-reframe",
                     "no-model-replay",
                 }
-                and (mode is None or mode in {"full_result", "minimal_file_replacement", "localized_file_edit"})
+                and (mode is None or mode in WORKER_OUTPUT_MODES)
                 and isinstance(hints, (list, tuple))
             ):
                 projected_compensation = {
