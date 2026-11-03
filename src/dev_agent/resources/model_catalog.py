@@ -26,6 +26,7 @@ _ALLOWED_METADATA_KEYS = frozenset(
         "version",
         "base_model_id",
         "supported_generation_methods",
+        "chat_completion_supported",
         "input_token_limit",
         "output_token_limit",
         "thinking_supported",
@@ -141,40 +142,52 @@ class ModelCatalogEntry:
     def is_text_generation_candidate(self, *, min_input_token_limit: int = 0) -> bool:
         """Apply only conservative discovery metadata filters.
 
-        An empty metadata object is a legacy snapshot and remains eligible for
-        the downstream evidence layers.  Metadata never grants capabilities;
-        it only excludes explicitly non-text, deprecated, or undersized rows.
+        An empty metadata object remains eligible for downstream evidence
+        layers unless its bounded model identity clearly names a specialized
+        API such as embeddings. Metadata never grants capabilities; it only
+        excludes explicitly non-text, deprecated, or undersized rows.
         """
 
         if not isinstance(min_input_token_limit, int) or isinstance(min_input_token_limit, bool) or min_input_token_limit < 0:
             raise ValueError("min_input_token_limit must be a non-negative integer")
-        if not self.metadata:
-            return True
-        if self.metadata.get("deprecated") is True or not self.supports_generation_method("generateContent"):
-            return False
-        if self.provider_id == "cloudflare":
-            task_name = self.metadata.get("task_name")
-            if isinstance(task_name, str) and task_name.strip() != "Text Generation":
+        if self.metadata:
+            if self.metadata.get("deprecated") is True or not self.supports_generation_method("generateContent"):
                 return False
-            tags = self.metadata.get("tags")
-            if isinstance(tags, list):
-                blocked_tags = {"moderation", "safety", "content-filtering", "guardrails"}
-                if any(isinstance(tag, str) and tag.strip().lower() in blocked_tags for tag in tags):
+            if self.provider_id == "mistral" and self.metadata.get("chat_completion_supported") is False:
+                return False
+            if self.provider_id == "cloudflare":
+                task_name = self.metadata.get("task_name")
+                if isinstance(task_name, str) and task_name.strip() != "Text Generation":
                     return False
-        if self.provider_id == "openrouter":
-            for field_name in ("input_modalities", "output_modalities"):
-                modalities = self.metadata.get(field_name)
-                if isinstance(modalities, list) and "text" not in modalities:
-                    return False
-        input_limit = self.metadata.get("input_token_limit") or self.metadata.get("context_length")
-        if isinstance(input_limit, int) and input_limit < min_input_token_limit:
-            return False
+                tags = self.metadata.get("tags")
+                if isinstance(tags, list):
+                    blocked_tags = {"moderation", "safety", "content-filtering", "guardrails"}
+                    if any(isinstance(tag, str) and tag.strip().lower() in blocked_tags for tag in tags):
+                        return False
+            if self.provider_id == "openrouter":
+                for field_name in ("input_modalities", "output_modalities"):
+                    modalities = self.metadata.get(field_name)
+                    if isinstance(modalities, list) and "text" not in modalities:
+                        return False
+            input_limit = self.metadata.get("input_token_limit") or self.metadata.get("context_length")
+            if isinstance(input_limit, int) and input_limit < min_input_token_limit:
+                return False
         labels = " ".join(
             str(self.metadata.get(name, ""))
             for name in ("display_name", "base_model_id", "version")
         ).lower()
         model_label = f"{self.model_id.lower()} {labels}"
         specialized_markers = (
+            "-embed",
+            "embed-",
+            "/embed",
+            "embedding",
+            "-ocr",
+            " ocr",
+            "voxtral",
+            "moderation",
+            "content-safety",
+            "content safety",
             "-tts",
             " tts",
             "-image",

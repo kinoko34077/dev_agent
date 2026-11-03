@@ -329,7 +329,10 @@ class ResourceControlPlane:
             # default: their missing cost observation is an unresolved
             # external accounting outcome.
             if reservation.budget.estimated_cost_minor == 0 and reservation.no_charge_guaranteed:
-                self.governor.reconcile(reservation.budget.reservation_id, actual_cost_minor=0)
+                self.governor.reconcile(
+                    reservation.budget.reservation_id,
+                    actual_cost=MoneyAmount(reservation.budget.estimated_cost.currency, 0),
+                )
                 return
             self.governor.mark_unknown(reservation.budget.reservation_id)
             raise BudgetReconciliationRequired(

@@ -3,11 +3,11 @@ from uuid import uuid4
 
 import pytest
 
-from src.dev_agent.domain.protocol import ModelRequest
+from src.dev_agent.domain.protocol import ModelRequest, ModelResponse
 from src.dev_agent.resources.budget import BudgetAuthority, BudgetGovernor, BudgetPolicy
 from src.dev_agent.resources.control import DispatchDenied, ResourceControlPlane
 from src.dev_agent.resources.deepseek_pricing import DeepSeekPricingCalendar, DeepSeekPricingGuard
-from src.dev_agent.resources.ledger import ResourceLedger, unknown_quota_wake_reason
+from src.dev_agent.resources.ledger import MoneyAmount, ResourceLedger, unknown_quota_wake_reason
 from src.dev_agent.resources.router import ResourceRouter, RouteSelection
 
 
@@ -136,6 +136,57 @@ def test_legacy_resource_reservation_can_use_explicit_unknown_quota_bootstrap(tm
         with pytest.raises(DispatchDenied, match="unknown quota admission") as denied:
             control.reserve_for_provider(str(uuid4()), "gemini", request)
         assert denied.value.category == "quota_unknown"
+    finally:
+        ledger.close()
+
+
+@pytest.mark.current_billing_catalog
+def test_exact_no_charge_zero_price_is_currency_neutral_under_free_only_budget(tmp_path):
+    ledger, control = _control(tmp_path)
+    try:
+        ledger.register_resource(
+            "vercel-free-usd",
+            provider_id="vercel",
+            provider_binding_id="vercel:account",
+            native_unit="request",
+            capacity=1,
+            capabilities=["text"],
+            cost_minor=0,
+            price_currency="USD",
+            quota_domain="vercel:account",
+            metadata={
+                "billing_authority": "trusted_catalog",
+                "billing_mode": "free_fixed",
+                "overage_policy": "hard_stop",
+                "no_charge_guaranteed": True,
+                "model_id": "reflection/beam-free",
+                "billing_expires_at": "2099-01-01T00:00:00+00:00",
+            },
+        )
+        ledger.observe("vercel-free-usd", available=1, health="degraded")
+        selection = RouteSelection(
+            resource_id="vercel-free-usd",
+            provider_id="vercel",
+            native_unit="request",
+            estimated_cost_minor=0,
+            price_currency="USD",
+            provider_binding_id="vercel:account",
+            model_id="reflection/beam-free",
+        )
+
+        assert control.governor._is_exact_current_zero_price("vercel-free-usd", MoneyAmount("USD", 0)) is True
+        reservation = control.reserve_selection("free-task", selection)
+
+        assert reservation.budget.estimated_cost.minor_units == 0
+        assert reservation.budget.estimated_cost.currency == "USD"
+        assert reservation.no_charge_guaranteed is True
+        control.mark_dispatching(reservation)
+        control.reconcile_response(
+            reservation,
+            ModelResponse(provider="vercel", model="reflection/beam-free", usage={"cost_minor": 0}),
+        )
+        assert ledger.reservation_row(reservation.budget.reservation_id)["status"] == "reconciled"
+        assert ledger.budget_config()["hard_cap_minor"] == 0
     finally:
         ledger.close()
 

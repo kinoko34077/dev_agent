@@ -220,7 +220,6 @@ def test_current_free_models_survive_candidate_bound_and_reach_admission():
     current = now.isoformat()
     expires = (now.replace(year=now.year + 1)).isoformat()
     free_models = (
-        "inclusionai/ling-3.1-flash-1019",
         "nvidia/nemotron-3.5-lightning-free",
         "reflection/beam-free",
         "stealth/glyph-cluster",

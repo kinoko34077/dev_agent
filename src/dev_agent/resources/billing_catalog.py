@@ -22,8 +22,8 @@ _LOCAL_FIXED_EXPIRES_AT = "9999-12-31T23:59:59+00:00"
 _BILLING_MODES = frozenset({"free_fixed", "recurring_allowance", "recurring_credit", "paid", "unknown"})
 _OVERAGE_POLICIES = frozenset({"hard_stop", "billable", "unknown"})
 
-# Current Cloudflare Workers AI pricing policy (reviewed 2026-10-03 against
-# the provider's 2026-10-01 pricing page). Workers Free receives the shared
+# Current Cloudflare Workers AI pricing policy (reviewed 2026-11-03 against
+# the provider's pricing page and model-specific paid-access page). Workers Free receives the shared
 # 10,000 Neuron/day allowance, but these exact frontier models require a paid
 # billing method and must never inherit the free binding-level wildcard.
 _CLOUDFLARE_PAID_BILLING_REQUIRED_MODELS = frozenset({
@@ -33,10 +33,14 @@ _CLOUDFLARE_PAID_BILLING_REQUIRED_MODELS = frozenset({
     "@cf/zai-org/glm-5.3",
     "@cf/zai-org/glm-5.3-flash",
     "@cf/deepseek-ai/deepseek-v4-flash-0731",
+    "@cf/deepseek-ai/deepseek-v4.1-flash-1017",
     "@cf/deepseek-ai/deepseek-v4-pro-0813",
 })
-_CLOUDFLARE_FREE_POLICY_VERIFIED_AT = "2026-11-02T00:00:00+09:00"
-_CLOUDFLARE_FREE_POLICY_EXPIRES_AT = "2026-12-02T00:00:00+09:00"
+_CLOUDFLARE_FREE_POLICY_VERIFIED_AT = "2026-11-03T00:00:00+09:00"
+_CLOUDFLARE_FREE_POLICY_EXPIRES_AT = "2026-12-03T00:00:00+09:00"
+_VERCEL_FREE_POLICY_VERIFIED_AT = "2026-11-03T00:00:00+09:00"
+_VERCEL_FREE_POLICY_EXPIRES_AT = "2026-12-03T00:00:00+09:00"
+_VERCEL_UNRESOLVED_POLICY_EXPIRES_AT = "2026-12-03T00:00:00+09:00"
 
 
 @dataclass(frozen=True)
@@ -281,11 +285,10 @@ _TRUSTED_RESOURCE_CATALOG: dict[tuple[str, str, str], TrustedResourceProfile] = 
     ),
 }
 
-# Vercel's free-tier model directory explicitly labels these exact model IDs
-# as Free.  The $5 monthly AI Gateway credit is a different billing mechanism
-# and must not turn the provider's paid catalog into a no-charge wildcard.
+# Vercel's current AI Gateway model list marks these exact model identities as
+# Free for both input and output (reviewed 2026-11-03). This is an exact-model
+# allowance only: the monthly AI Gateway credit does not make paid models free.
 for _model in (
-    "inclusionai/ling-3.1-flash-1019",
     "nvidia/nemotron-3.5-lightning-free",
     "reflection/beam-free",
     "stealth/glyph-cluster",
@@ -298,10 +301,33 @@ for _model in (
         "USD",
         True,
         "L1",
-        source="vercel_ai_gateway_free_model_catalog_2026-11-02",
+        source="vercel_ai_gateway_current_model_specific_free_price_2026-11-03",
+        verified_at=_VERCEL_FREE_POLICY_VERIFIED_AT,
+        expires_at=_VERCEL_FREE_POLICY_EXPIRES_AT,
         billing_mode="free_fixed",
         overage_policy="hard_stop",
     )
+
+# The live model directory still labels Ling as Free, while Vercel's dated
+# launch notice says requests become billable on 2026-11-03. Until the current
+# account/model price is unambiguous, keep this exact model visible but do not
+# grant the no-charge admission needed for dispatch. Keep the unresolved
+# billing fact visible through the same review window as the source check so
+# candidate diagnostics do not silently lose the warning the next day.
+_TRUSTED_RESOURCE_CATALOG[("vercel", "vercel:account", "inclusionai/ling-3.1-flash-1019")] = TrustedResourceProfile(
+    "vercel",
+    "vercel:account",
+    "inclusionai/ling-3.1-flash-1019",
+    None,
+    "USD",
+    True,
+    "L1",
+    source="vercel_ling_1019_free_listing_conflicts_with_2026-11-03_billing_notice",
+    verified_at="2026-11-03T00:00:00+09:00",
+    expires_at=_VERCEL_UNRESOLVED_POLICY_EXPIRES_AT,
+    billing_mode="unknown",
+    overage_policy="unknown",
+)
 
 for _slot in ("2", "3", "4", "5"):
     _TRUSTED_RESOURCE_CATALOG[("gemini", f"gemini:worker:free-{_slot}", "gemini-3.5-flash-lite")] = TrustedResourceProfile(

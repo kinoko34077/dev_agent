@@ -1254,6 +1254,7 @@ def run_worker(
             "devfarm_task_id": manifest["task_id"],
             "egress_manifest_sha256": egress_manifest.manifest_sha256,
             "execution_role": "worker",
+            "task_fit": "coding",
             "proposal_only": True,
             "quality_tier_advisory": True,
             "authority": "host_validation_required",

@@ -8,6 +8,11 @@
     },
     {
       "provider_id": "cloudflare",
+      "model_id": "@cf/cloudflare/clairic",
+      "canonical_model_id": "cloudflare/@cf/cloudflare/clairic"
+    },
+    {
+      "provider_id": "cloudflare",
       "model_id": "@cf/cloudflare/clef",
       "canonical_model_id": "cloudflare/@cf/cloudflare/clef"
     },
@@ -15,6 +20,11 @@
       "provider_id": "cloudflare",
       "model_id": "@cf/cloudflare/clef-flash",
       "canonical_model_id": "cloudflare/@cf/cloudflare/clef-flash"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "@cf/daily-co/phonellm-mini-alpha-2",
+      "canonical_model_id": "cloudflare/@cf/daily-co/phonellm-mini-alpha-2"
     },
     {
       "provider_id": "cloudflare",
@@ -30,6 +40,11 @@
       "provider_id": "cloudflare",
       "model_id": "@cf/deepseek-ai/deepseek-v4-pro-0813",
       "canonical_model_id": "cloudflare/@cf/deepseek-ai/deepseek-v4-pro-0813"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "@cf/deepseek-ai/deepseek-v4.1-flash-1017",
+      "canonical_model_id": "cloudflare/@cf/deepseek-ai/deepseek-v4.1-flash-1017"
     },
     {
       "provider_id": "cloudflare",
@@ -233,6 +248,11 @@
     },
     {
       "provider_id": "gemini",
+      "model_id": "gemini-4-argon",
+      "canonical_model_id": "google/gemini-4-argon"
+    },
+    {
+      "provider_id": "gemini",
       "model_id": "gemini-flash-latest",
       "canonical_model_id": "google/gemini-flash-latest"
     },
@@ -348,6 +368,16 @@
     },
     {
       "provider_id": "mistral",
+      "model_id": "mistral-large-4",
+      "canonical_model_id": "mistral/mistral-large-4"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-large-4-0",
+      "canonical_model_id": "mistralai/mistral-large-4-0"
+    },
+    {
+      "provider_id": "mistral",
       "model_id": "mistral-medium",
       "canonical_model_id": "mistral/mistral-medium"
     },
@@ -419,7 +449,7 @@
     {
       "provider_id": "mistral",
       "model_id": "mistral-small-2603",
-      "canonical_model_id": "mistral/mistral-small-2603"
+      "canonical_model_id": "mistralai/mistral-small-2603"
     },
     {
       "provider_id": "mistral",
@@ -463,13 +493,43 @@
     },
     {
       "provider_id": "mistral",
+      "model_id": "voxtral-mini-transcribe-3",
+      "canonical_model_id": "mistral/voxtral-mini-transcribe-3"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "voxtral-mini-transcribe-3-0",
+      "canonical_model_id": "mistral/voxtral-mini-transcribe-3-0"
+    },
+    {
+      "provider_id": "mistral",
       "model_id": "voxtral-mini-transcribe-realtime-2602",
       "canonical_model_id": "mistral/voxtral-mini-transcribe-realtime-2602"
     },
     {
       "provider_id": "mistral",
+      "model_id": "voxtral-mini-transcribe-realtime-3",
+      "canonical_model_id": "mistral/voxtral-mini-transcribe-realtime-3"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "voxtral-mini-transcribe-realtime-3-0",
+      "canonical_model_id": "mistral/voxtral-mini-transcribe-realtime-3-0"
+    },
+    {
+      "provider_id": "mistral",
       "model_id": "voxtral-mini-tts-2603",
       "canonical_model_id": "mistral/voxtral-mini-tts-2603"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "voxtral-mini-tts-3",
+      "canonical_model_id": "mistral/voxtral-mini-tts-3"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "voxtral-mini-tts-3-0",
+      "canonical_model_id": "mistral/voxtral-mini-tts-3-0"
     },
     {
       "provider_id": "mistral",
@@ -485,6 +545,16 @@
       "provider_id": "mistral",
       "model_id": "voxtral-small-latest",
       "canonical_model_id": "mistral/voxtral-small-latest"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "voxtral-small-transcribe-3",
+      "canonical_model_id": "mistral/voxtral-small-transcribe-3"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "voxtral-small-transcribe-3-0",
+      "canonical_model_id": "mistral/voxtral-small-transcribe-3-0"
     },
     {
       "provider_id": "ollama",
@@ -528,6 +598,16 @@
     },
     {
       "provider_id": "ollama_cloud",
+      "model_id": "beam",
+      "canonical_model_id": "ollama_cloud/beam"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "model_id": "clef:27b",
+      "canonical_model_id": "ollama_cloud/clef:27b"
+    },
+    {
+      "provider_id": "ollama_cloud",
       "model_id": "deepseek-v4-pro:0813",
       "canonical_model_id": "ollama_cloud/deepseek-v4-pro:0813"
     },
@@ -535,6 +615,11 @@
       "provider_id": "ollama_cloud",
       "model_id": "deepseek-v4.1-flash",
       "canonical_model_id": "ollama_cloud/deepseek-v4.1-flash"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "model_id": "deepseek-v4.1-flash:1017",
+      "canonical_model_id": "ollama_cloud/deepseek-v4.1-flash:1017"
     },
     {
       "provider_id": "ollama_cloud",
@@ -583,6 +668,16 @@
     },
     {
       "provider_id": "ollama_cloud",
+      "model_id": "mimo-v2.6-flash",
+      "canonical_model_id": "ollama_cloud/mimo-v2.6-flash"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "model_id": "mimo-v2.6-pro",
+      "canonical_model_id": "ollama_cloud/mimo-v2.6-pro"
+    },
+    {
+      "provider_id": "ollama_cloud",
       "model_id": "minimax-m2.7",
       "canonical_model_id": "ollama_cloud/minimax-m2.7"
     },
@@ -593,8 +688,23 @@
     },
     {
       "provider_id": "ollama_cloud",
+      "model_id": "minimax-m3.1-flash",
+      "canonical_model_id": "ollama_cloud/minimax-m3.1-flash"
+    },
+    {
+      "provider_id": "ollama_cloud",
       "model_id": "mistral-large-3:675b",
       "canonical_model_id": "ollama_cloud/mistral-large-3:675b"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "model_id": "mistral-large-4",
+      "canonical_model_id": "ollama_cloud/mistral-large-4"
+    },
+    {
+      "provider_id": "ollama_cloud",
+      "model_id": "muse-spark-open",
+      "canonical_model_id": "ollama_cloud/muse-spark-open"
     },
     {
       "provider_id": "ollama_cloud",
@@ -700,6 +810,16 @@
       "provider_id": "openrouter",
       "model_id": "anthropic/claude-haiku-4.5:batch",
       "canonical_model_id": "anthropic/claude-haiku-4.5:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-haiku-5.5",
+      "canonical_model_id": "anthropic/claude-haiku-5.5"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-haiku-5.5:batch",
+      "canonical_model_id": "anthropic/claude-haiku-5.5:batch"
     },
     {
       "provider_id": "openrouter",
@@ -973,6 +1093,11 @@
     },
     {
       "provider_id": "openrouter",
+      "model_id": "deepseek/deepseek-v4.1-flash-1017",
+      "canonical_model_id": "deepseek/deepseek-v4.1-flash-1017"
+    },
+    {
+      "provider_id": "openrouter",
       "model_id": "deepseek/deepseek-v4.1-flash:batch",
       "canonical_model_id": "deepseek/deepseek-v4.1-flash:batch"
     },
@@ -980,6 +1105,11 @@
       "provider_id": "openrouter",
       "model_id": "dots-studio/dots-3-note-preview:free",
       "canonical_model_id": "dots-studio/dots-3-note-preview:free"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "elorian/glimpse",
+      "canonical_model_id": "elorian/glimpse"
     },
     {
       "provider_id": "openrouter",
@@ -1108,6 +1238,16 @@
     },
     {
       "provider_id": "openrouter",
+      "model_id": "google/gemini-4-argon",
+      "canonical_model_id": "google/gemini-4-argon"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-4-argon:batch",
+      "canonical_model_id": "google/gemini-4-argon:batch"
+    },
+    {
+      "provider_id": "openrouter",
       "model_id": "google/gemma-2-27b-it",
       "canonical_model_id": "google/gemma-2-27b-it"
     },
@@ -1173,6 +1313,11 @@
     },
     {
       "provider_id": "openrouter",
+      "model_id": "inception/mercury-3",
+      "canonical_model_id": "inception/mercury-3"
+    },
+    {
+      "provider_id": "openrouter",
       "model_id": "inclusionai/ling-3.0-flash",
       "canonical_model_id": "inclusionai/ling-3.0-flash"
     },
@@ -1215,6 +1360,11 @@
       "provider_id": "openrouter",
       "model_id": "liquid/lfm-2.5-2.6b:free",
       "canonical_model_id": "liquid/lfm-2.5-2.6b:free"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "liquid/lfm-2.5-24b-a2b",
+      "canonical_model_id": "liquid/lfm-2.5-24b-a2b"
     },
     {
       "provider_id": "openrouter",
@@ -1298,6 +1448,16 @@
     },
     {
       "provider_id": "openrouter",
+      "model_id": "meta/muse-spark-open",
+      "canonical_model_id": "meta/muse-spark-open"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "meta/muse-wonder",
+      "canonical_model_id": "meta/muse-wonder"
+    },
+    {
+      "provider_id": "openrouter",
       "model_id": "microsoft/phi-4",
       "canonical_model_id": "microsoft/phi-4"
     },
@@ -1345,6 +1505,11 @@
       "provider_id": "openrouter",
       "model_id": "minimax/minimax-m3",
       "canonical_model_id": "minimax/minimax-m3"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "minimax/minimax-m3.1-flash",
+      "canonical_model_id": "minimax/minimax-m3.1-flash"
     },
     {
       "provider_id": "openrouter",
@@ -1400,6 +1565,11 @@
       "provider_id": "openrouter",
       "model_id": "mistralai/mistral-large-2512:batch",
       "canonical_model_id": "mistralai/mistral-large-2512:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "mistralai/mistral-large-4-0",
+      "canonical_model_id": "mistralai/mistral-large-4-0"
     },
     {
       "provider_id": "openrouter",
@@ -1473,6 +1643,16 @@
     },
     {
       "provider_id": "openrouter",
+      "model_id": "moondream/moondream3-preview",
+      "canonical_model_id": "moondream/moondream3-preview"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "moondream/moondream3.1-9b-a2b",
+      "canonical_model_id": "moondream/moondream3.1-9b-a2b"
+    },
+    {
+      "provider_id": "openrouter",
       "model_id": "moonshotai/kimi-k2",
       "canonical_model_id": "moonshotai/kimi-k2"
     },
@@ -1505,6 +1685,11 @@
       "provider_id": "openrouter",
       "model_id": "moonshotai/kimi-k3",
       "canonical_model_id": "moonshotai/kimi-k3"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "moonshotai/kimi-k3.1-pro",
+      "canonical_model_id": "moonshotai/kimi-k3.1-pro"
     },
     {
       "provider_id": "openrouter",
@@ -1569,7 +1754,7 @@
     {
       "provider_id": "openrouter",
       "model_id": "nvidia/nemotron-3-ultra-550b-a55b:free",
-      "canonical_model_id": "nvidia/nemotron-3-ultra-550b-a55b:free"
+      "canonical_model_id": "nvidia/nemotron-3-ultra-550b-a55b"
     },
     {
       "provider_id": "openrouter",
@@ -1589,7 +1774,17 @@
     {
       "provider_id": "openrouter",
       "model_id": "nvidia/nemotron-3.5-lightning:free",
-      "canonical_model_id": "nvidia/nemotron-3.5-lightning:free"
+      "canonical_model_id": "nvidia/nemotron-3.5-lightning"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "nvidia/nemotron-3.5-super-vl",
+      "canonical_model_id": "nvidia/nemotron-3.5-super-vl"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "nvidia/nemotron-3.5-super-vl:free",
+      "canonical_model_id": "nvidia/nemotron-3.5-super-vl"
     },
     {
       "provider_id": "openrouter",
@@ -1998,6 +2193,36 @@
     },
     {
       "provider_id": "openrouter",
+      "model_id": "openai/gpt-6.1-sol-pro:batch",
+      "canonical_model_id": "openai/gpt-6.1-sol-pro:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-6.1-sol:batch",
+      "canonical_model_id": "openai/gpt-6.1-sol:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-6.1-terra",
+      "canonical_model_id": "openai/gpt-6.1-terra"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-6.1-terra-pro",
+      "canonical_model_id": "openai/gpt-6.1-terra-pro"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-6.1-terra-pro:batch",
+      "canonical_model_id": "openai/gpt-6.1-terra-pro:batch"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-6.1-terra:batch",
+      "canonical_model_id": "openai/gpt-6.1-terra:batch"
+    },
+    {
+      "provider_id": "openrouter",
       "model_id": "openai/gpt-chat-latest",
       "canonical_model_id": "openai/gpt-chat-latest"
     },
@@ -2113,6 +2338,11 @@
     },
     {
       "provider_id": "openrouter",
+      "model_id": "particle-ai/particle-1",
+      "canonical_model_id": "particle-ai/particle-1"
+    },
+    {
+      "provider_id": "openrouter",
       "model_id": "perceptron/perceptron-mk1",
       "canonical_model_id": "perceptron/perceptron-mk1"
     },
@@ -2165,6 +2395,11 @@
       "provider_id": "openrouter",
       "model_id": "prism-ml/ternary-bonsai-2-27b",
       "canonical_model_id": "prism-ml/ternary-bonsai-2-27b"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "prism-ml/ternary-bonsai-2-9b",
+      "canonical_model_id": "prism-ml/ternary-bonsai-2-9b"
     },
     {
       "provider_id": "openrouter",
@@ -2403,6 +2638,11 @@
     },
     {
       "provider_id": "openrouter",
+      "model_id": "qwen/qwen3.7-plus:batch",
+      "canonical_model_id": "qwen/qwen3.7-plus:batch"
+    },
+    {
+      "provider_id": "openrouter",
       "model_id": "qwen/qwen3.8-2.4t-a95b",
       "canonical_model_id": "qwen/qwen3.8-2.4t-a95b"
     },
@@ -2430,6 +2670,16 @@
       "provider_id": "openrouter",
       "model_id": "qwen/qwen3.8-max-prime",
       "canonical_model_id": "qwen/qwen3.8-max-prime"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "recursive/flint-v1.0:free",
+      "canonical_model_id": "recursive/flint-v1.0:free"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "reflection/beam-1.0-501b-a23b",
+      "canonical_model_id": "reflection/beam-1.0-501b-a23b"
     },
     {
       "provider_id": "openrouter",
@@ -2488,6 +2738,16 @@
     },
     {
       "provider_id": "openrouter",
+      "model_id": "scaledown/extract",
+      "canonical_model_id": "scaledown/extract"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "scaledown/summarize",
+      "canonical_model_id": "scaledown/summarize"
+    },
+    {
+      "provider_id": "openrouter",
       "model_id": "stealth/space-bunny-alpha",
       "canonical_model_id": "stealth/space-bunny-alpha"
     },
@@ -2500,6 +2760,11 @@
       "provider_id": "openrouter",
       "model_id": "stepfun/step-3.7-flash",
       "canonical_model_id": "stepfun/step-3.7-flash"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "stepfun/step-5-preview",
+      "canonical_model_id": "stepfun/step-5-preview"
     },
     {
       "provider_id": "openrouter",
@@ -2564,12 +2829,12 @@
     {
       "provider_id": "openrouter",
       "model_id": "thinkingmachines/inkling-small:free",
-      "canonical_model_id": "thinkingmachines/inkling-small:free"
+      "canonical_model_id": "thinkingmachines/inkling-small"
     },
     {
       "provider_id": "openrouter",
       "model_id": "thinkingmachines/inkling:free",
-      "canonical_model_id": "thinkingmachines/inkling:free"
+      "canonical_model_id": "thinkingmachines/inkling"
     },
     {
       "provider_id": "openrouter",
@@ -2583,8 +2848,18 @@
     },
     {
       "provider_id": "openrouter",
+      "model_id": "unbiased/pareto-26.10",
+      "canonical_model_id": "unbiased/pareto-26.10"
+    },
+    {
+      "provider_id": "openrouter",
       "model_id": "unbiased/pareto-26.10-preview",
       "canonical_model_id": "unbiased/pareto-26.10-preview"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "unbiased/pareto-26.9",
+      "canonical_model_id": "unbiased/pareto-26.9"
     },
     {
       "provider_id": "openrouter",
@@ -2678,6 +2953,11 @@
     },
     {
       "provider_id": "openrouter",
+      "model_id": "xingchen-agi/xing4.0-29b-a4b:free",
+      "canonical_model_id": "xingchen-agi/xing4.0-29b-a4b:free"
+    },
+    {
+      "provider_id": "openrouter",
       "model_id": "z-ai/glm-4.5",
       "canonical_model_id": "z-ai/glm-4.5"
     },
@@ -2750,6 +3030,11 @@
       "provider_id": "openrouter",
       "model_id": "z-ai/glm-5.3-flashx",
       "canonical_model_id": "z-ai/glm-5.3-flashx"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "z-ai/glm-5.3-flashx-legal",
+      "canonical_model_id": "z-ai/glm-5.3-flashx-legal"
     },
     {
       "provider_id": "openrouter",
@@ -2843,6 +3128,11 @@
     },
     {
       "provider_id": "openrouter",
+      "model_id": "~unbiased/pareto-latest",
+      "canonical_model_id": "~unbiased/pareto-latest"
+    },
+    {
+      "provider_id": "openrouter",
       "model_id": "~x-ai/grok-latest",
       "canonical_model_id": "~x-ai/grok-latest"
     },
@@ -2878,6 +3168,11 @@
     },
     {
       "provider_id": "sambanova",
+      "model_id": "MiniMax-M3.1-Flash",
+      "canonical_model_id": "sambanova/MiniMax-M3.1-Flash"
+    },
+    {
+      "provider_id": "sambanova",
       "model_id": "gemma-4-31B-it",
       "canonical_model_id": "sambanova/gemma-4-31B-it"
     },
@@ -2885,6 +3180,11 @@
       "provider_id": "sambanova",
       "model_id": "gpt-oss-120b",
       "canonical_model_id": "sambanova/gpt-oss-120b"
+    },
+    {
+      "provider_id": "sambanova",
+      "model_id": "spec-prefill-8b",
+      "canonical_model_id": "sambanova/spec-prefill-8b"
     },
     {
       "provider_id": "vercel",
@@ -3148,13 +3448,38 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "anthropic/claude-fable-5-batch",
+      "canonical_model_id": "anthropic/claude-fable-5-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "anthropic/claude-fable-5.1",
       "canonical_model_id": "anthropic/claude-fable-5.1"
     },
     {
       "provider_id": "vercel",
+      "model_id": "anthropic/claude-fable-5.1-batch",
+      "canonical_model_id": "anthropic/claude-fable-5.1-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "anthropic/claude-haiku-4.5",
       "canonical_model_id": "anthropic/claude-haiku-4.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "anthropic/claude-haiku-4.5-batch",
+      "canonical_model_id": "anthropic/claude-haiku-4.5-batch"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "anthropic/claude-haiku-5.5",
+      "canonical_model_id": "anthropic/claude-haiku-5.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "anthropic/claude-haiku-5.5-batch",
+      "canonical_model_id": "anthropic/claude-haiku-5.5-batch"
     },
     {
       "provider_id": "vercel",
@@ -3168,8 +3493,18 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "anthropic/claude-opus-4.5-batch",
+      "canonical_model_id": "anthropic/claude-opus-4.5-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "anthropic/claude-opus-4.6",
       "canonical_model_id": "anthropic/claude-opus-4.6"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "anthropic/claude-opus-4.6-batch",
+      "canonical_model_id": "anthropic/claude-opus-4.6-batch"
     },
     {
       "provider_id": "vercel",
@@ -3178,8 +3513,18 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "anthropic/claude-opus-4.7-batch",
+      "canonical_model_id": "anthropic/claude-opus-4.7-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "anthropic/claude-opus-4.8",
       "canonical_model_id": "anthropic/claude-opus-4.8"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "anthropic/claude-opus-4.8-batch",
+      "canonical_model_id": "anthropic/claude-opus-4.8-batch"
     },
     {
       "provider_id": "vercel",
@@ -3193,6 +3538,11 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "anthropic/claude-opus-5-batch",
+      "canonical_model_id": "anthropic/claude-opus-5-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "anthropic/claude-opus-5-fast",
       "canonical_model_id": "anthropic/claude-opus-5-fast"
     },
@@ -3200,6 +3550,11 @@
       "provider_id": "vercel",
       "model_id": "anthropic/claude-opus-5.5",
       "canonical_model_id": "anthropic/claude-opus-5.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "anthropic/claude-opus-5.5-batch",
+      "canonical_model_id": "anthropic/claude-opus-5.5-batch"
     },
     {
       "provider_id": "vercel",
@@ -3218,8 +3573,18 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "anthropic/claude-sonnet-4.5-batch",
+      "canonical_model_id": "anthropic/claude-sonnet-4.5-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "anthropic/claude-sonnet-4.6",
       "canonical_model_id": "anthropic/claude-sonnet-4.6"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "anthropic/claude-sonnet-4.6-batch",
+      "canonical_model_id": "anthropic/claude-sonnet-4.6-batch"
     },
     {
       "provider_id": "vercel",
@@ -3228,13 +3593,38 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "anthropic/claude-sonnet-5-batch",
+      "canonical_model_id": "anthropic/claude-sonnet-5-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "anthropic/claude-sonnet-5.5",
       "canonical_model_id": "anthropic/claude-sonnet-5.5"
     },
     {
       "provider_id": "vercel",
+      "model_id": "anthropic/claude-sonnet-5.5-batch",
+      "canonical_model_id": "anthropic/claude-sonnet-5.5-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "arcee-ai/trinity-large-thinking",
       "canonical_model_id": "arcee-ai/trinity-large-thinking"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "baseten/elephant-1",
+      "canonical_model_id": "baseten/elephant-1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "baseten/joey-1",
+      "canonical_model_id": "baseten/joey-1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "baseten/mammoth-1",
+      "canonical_model_id": "baseten/mammoth-1"
     },
     {
       "provider_id": "vercel",
@@ -3260,6 +3650,16 @@
       "provider_id": "vercel",
       "model_id": "bfl/flux-2-pro",
       "canonical_model_id": "bfl/flux-2-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bfl/flux-3-image",
+      "canonical_model_id": "bfl/flux-3-image"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "bfl/flux-3-image-klein",
+      "canonical_model_id": "bfl/flux-3-image-klein"
     },
     {
       "provider_id": "vercel",
@@ -3363,6 +3763,11 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "callstack/apex",
+      "canonical_model_id": "callstack/apex"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "cohere/command-a",
       "canonical_model_id": "cohere/command-a"
     },
@@ -3370,6 +3775,16 @@
       "provider_id": "vercel",
       "model_id": "cohere/embed-v4.0",
       "canonical_model_id": "cohere/embed-v4.0"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "cohere/embed-v5.0-fast",
+      "canonical_model_id": "cohere/embed-v5.0-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "cohere/embed-v5.0-pro",
+      "canonical_model_id": "cohere/embed-v5.0-pro"
     },
     {
       "provider_id": "vercel",
@@ -3385,6 +3800,16 @@
       "provider_id": "vercel",
       "model_id": "cohere/rerank-v4-pro",
       "canonical_model_id": "cohere/rerank-v4-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "cohere/rerank-v5-fast",
+      "canonical_model_id": "cohere/rerank-v5-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "cohere/rerank-v5-pro",
+      "canonical_model_id": "cohere/rerank-v5-pro"
     },
     {
       "provider_id": "vercel",
@@ -3453,13 +3878,103 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "deepseek/deepseek-v4.1-flash-1017",
+      "canonical_model_id": "deepseek/deepseek-v4.1-flash-1017"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "deepseek/deepseek-v4.1-flash-1017-fast",
+      "canonical_model_id": "deepseek/deepseek-v4.1-flash-1017-fast"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "deepseek/deepseek-v4.1-flash-fast",
       "canonical_model_id": "deepseek/deepseek-v4.1-flash-fast"
     },
     {
       "provider_id": "vercel",
+      "model_id": "elevenlabs/eleven-flash-v2",
+      "canonical_model_id": "elevenlabs/eleven-flash-v2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "elevenlabs/eleven-flash-v2.5",
+      "canonical_model_id": "elevenlabs/eleven-flash-v2.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "elevenlabs/eleven-multilingual-v2",
+      "canonical_model_id": "elevenlabs/eleven-multilingual-v2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "elevenlabs/eleven-realtime-v1-max",
+      "canonical_model_id": "elevenlabs/eleven-realtime-v1-max"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "elevenlabs/eleven-realtime-v1-mini",
+      "canonical_model_id": "elevenlabs/eleven-realtime-v1-mini"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "elevenlabs/eleven-v3",
+      "canonical_model_id": "elevenlabs/eleven-v3"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "elevenlabs/eleven-v3-conversational",
+      "canonical_model_id": "elevenlabs/eleven-v3-conversational"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "elevenlabs/eleven-v4",
+      "canonical_model_id": "elevenlabs/eleven-v4"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "elevenlabs/eleven-v4-turbo",
+      "canonical_model_id": "elevenlabs/eleven-v4-turbo"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "elevenlabs/music-v2",
+      "canonical_model_id": "elevenlabs/music-v2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "elevenlabs/music-v2.5",
+      "canonical_model_id": "elevenlabs/music-v2.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "elevenlabs/scribe-v2",
+      "canonical_model_id": "elevenlabs/scribe-v2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "elevenlabs/scribe-v2-realtime",
+      "canonical_model_id": "elevenlabs/scribe-v2-realtime"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "elevenlabs/sound-effects-v2",
+      "canonical_model_id": "elevenlabs/sound-effects-v2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "elorian/glimpse",
+      "canonical_model_id": "elorian/glimpse"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "fireworks/ember-1",
       "canonical_model_id": "fireworks/ember-1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "fish-audio/drama-3",
+      "canonical_model_id": "fish-audio/drama-3"
     },
     {
       "provider_id": "vercel",
@@ -3488,6 +4003,11 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "google/gemini-2.5-flash-batch",
+      "canonical_model_id": "google/gemini-2.5-flash-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "google/gemini-2.5-flash-image",
       "canonical_model_id": "google/gemini-2.5-flash-image"
     },
@@ -3498,13 +4018,28 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "google/gemini-2.5-flash-lite-batch",
+      "canonical_model_id": "google/gemini-2.5-flash-lite-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "google/gemini-2.5-pro",
       "canonical_model_id": "google/gemini-2.5-pro"
     },
     {
       "provider_id": "vercel",
+      "model_id": "google/gemini-2.5-pro-batch",
+      "canonical_model_id": "google/gemini-2.5-pro-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "google/gemini-3-flash",
       "canonical_model_id": "google/gemini-3-flash"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemini-3-flash-batch",
+      "canonical_model_id": "google/gemini-3-flash-batch"
     },
     {
       "provider_id": "vercel",
@@ -3528,6 +4063,11 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "google/gemini-3.1-flash-lite-batch",
+      "canonical_model_id": "google/gemini-3.1-flash-lite-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "google/gemini-3.1-flash-lite-image",
       "canonical_model_id": "google/gemini-3.1-flash-lite-image"
     },
@@ -3538,13 +4078,28 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "google/gemini-3.1-pro-preview-batch",
+      "canonical_model_id": "google/gemini-3.1-pro-preview-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "google/gemini-3.5-flash",
       "canonical_model_id": "google/gemini-3.5-flash"
     },
     {
       "provider_id": "vercel",
+      "model_id": "google/gemini-3.5-flash-batch",
+      "canonical_model_id": "google/gemini-3.5-flash-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "google/gemini-3.5-flash-lite",
       "canonical_model_id": "google/gemini-3.5-flash-lite"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemini-3.5-flash-lite-batch",
+      "canonical_model_id": "google/gemini-3.5-flash-lite-batch"
     },
     {
       "provider_id": "vercel",
@@ -3563,8 +4118,18 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "google/gemini-3.6-flash-batch",
+      "canonical_model_id": "google/gemini-3.6-flash-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "google/gemini-3.7-flash",
       "canonical_model_id": "google/gemini-3.7-flash"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemini-3.7-flash-batch",
+      "canonical_model_id": "google/gemini-3.7-flash-batch"
     },
     {
       "provider_id": "vercel",
@@ -3593,6 +4158,11 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "google/gemini-4-argon",
+      "canonical_model_id": "google/gemini-4-argon"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "google/gemini-embedding-001",
       "canonical_model_id": "google/gemini-embedding-001"
     },
@@ -3600,6 +4170,11 @@
       "provider_id": "vercel",
       "model_id": "google/gemini-embedding-2",
       "canonical_model_id": "google/gemini-embedding-2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "google/gemini-nano-banana-2.1",
+      "canonical_model_id": "google/gemini-nano-banana-2.1"
     },
     {
       "provider_id": "vercel",
@@ -3653,6 +4228,11 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "heygen/heygen-video-1",
+      "canonical_model_id": "heygen/heygen-video-1"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "inception/mercury-2",
       "canonical_model_id": "inception/mercury-2"
     },
@@ -3660,6 +4240,11 @@
       "provider_id": "vercel",
       "model_id": "inception/mercury-2.5",
       "canonical_model_id": "inception/mercury-2.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "inception/mercury-3",
+      "canonical_model_id": "inception/mercury-3"
     },
     {
       "provider_id": "vercel",
@@ -3695,6 +4280,11 @@
       "provider_id": "vercel",
       "model_id": "inclusionai/ling-3.1-flash",
       "canonical_model_id": "inclusionai/ling-3.1-flash"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "inclusionai/ling-3.1-flash-1019",
+      "canonical_model_id": "inclusionai/ling-3.1-flash-1019"
     },
     {
       "provider_id": "vercel",
@@ -3763,6 +4353,21 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "liquid/d1-ultra",
+      "canonical_model_id": "liquid/d1-ultra"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "liquid/lfm2.5-24b-a2b",
+      "canonical_model_id": "liquid/lfm2.5-24b-a2b"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "meituan/longcat-2.5",
+      "canonical_model_id": "meituan/longcat-2.5"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "meituan/longcat-2.5-preview",
       "canonical_model_id": "meituan/longcat-2.5-preview"
     },
@@ -3828,6 +4433,26 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "meta/muse-spark-open",
+      "canonical_model_id": "meta/muse-spark-open"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "meta/muse-wonder-1.0",
+      "canonical_model_id": "meta/muse-wonder-1.0"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "microsoft/mai-image-2.6",
+      "canonical_model_id": "microsoft/mai-image-2.6"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "microsoft/mai-image-2.6-flash",
+      "canonical_model_id": "microsoft/mai-image-2.6-flash"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "microsoft/mai-transcribe-1.5",
       "canonical_model_id": "microsoft/mai-transcribe-1.5"
     },
@@ -3860,6 +4485,11 @@
       "provider_id": "vercel",
       "model_id": "microsoft/mai-voice-2.1-flash",
       "canonical_model_id": "microsoft/mai-voice-2.1-flash"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "microsoft/microsoft-decision-1",
+      "canonical_model_id": "microsoft/microsoft-decision-1"
     },
     {
       "provider_id": "vercel",
@@ -3913,6 +4543,11 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "minimax/minimax-m3.1-flash",
+      "canonical_model_id": "minimax/minimax-m3.1-flash"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "mistral/codestral",
       "canonical_model_id": "mistral/codestral"
     },
@@ -3948,6 +4583,11 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "mistral/mistral-large-4",
+      "canonical_model_id": "mistral/mistral-large-4"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "mistral/mistral-medium-3.5",
       "canonical_model_id": "mistral/mistral-medium-3.5"
     },
@@ -3960,6 +4600,21 @@
       "provider_id": "vercel",
       "model_id": "mistral/mistral-small",
       "canonical_model_id": "mistral/mistral-small"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "mistral/voxtral-mini-transcribe-3",
+      "canonical_model_id": "mistral/voxtral-mini-transcribe-3"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "mistral/voxtral-mini-tts-3",
+      "canonical_model_id": "mistral/voxtral-mini-tts-3"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "mistral/voxtral-small-transcribe-3",
+      "canonical_model_id": "mistral/voxtral-small-transcribe-3"
     },
     {
       "provider_id": "vercel",
@@ -4008,6 +4663,16 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "moonshotai/kimi-k3.1-pro",
+      "canonical_model_id": "moonshotai/kimi-k3.1-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "moonshotai/kimi-k3.1-pro-highspeed",
+      "canonical_model_id": "moonshotai/kimi-k3.1-pro-highspeed"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "morph/morph-v3-fast",
       "canonical_model_id": "morph/morph-v3-fast"
     },
@@ -4038,6 +4703,16 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "nvidia/nemotron-3.5-lightning-free",
+      "canonical_model_id": "nvidia/nemotron-3.5-lightning-free"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "nvidia/nemotron-3.5-super-vl",
+      "canonical_model_id": "nvidia/nemotron-3.5-super-vl"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "nvidia/nemotron-nano-12b-v2-vl",
       "canonical_model_id": "nvidia/nemotron-nano-12b-v2-vl"
     },
@@ -4063,6 +4738,11 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "openai/gpt-4.1-batch",
+      "canonical_model_id": "openai/gpt-4.1-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "openai/gpt-4.1-fast",
       "canonical_model_id": "openai/gpt-4.1-fast"
     },
@@ -4070,6 +4750,11 @@
       "provider_id": "vercel",
       "model_id": "openai/gpt-4.1-mini",
       "canonical_model_id": "openai/gpt-4.1-mini"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-4.1-mini-batch",
+      "canonical_model_id": "openai/gpt-4.1-mini-batch"
     },
     {
       "provider_id": "vercel",
@@ -4093,6 +4778,11 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "openai/gpt-4o-batch",
+      "canonical_model_id": "openai/gpt-4o-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "openai/gpt-4o-fast",
       "canonical_model_id": "openai/gpt-4o-fast"
     },
@@ -4100,6 +4790,11 @@
       "provider_id": "vercel",
       "model_id": "openai/gpt-4o-mini",
       "canonical_model_id": "openai/gpt-4o-mini"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-4o-mini-batch",
+      "canonical_model_id": "openai/gpt-4o-mini-batch"
     },
     {
       "provider_id": "vercel",
@@ -4123,6 +4818,11 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "openai/gpt-5-batch",
+      "canonical_model_id": "openai/gpt-5-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "openai/gpt-5-codex",
       "canonical_model_id": "openai/gpt-5-codex"
     },
@@ -4138,6 +4838,11 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "openai/gpt-5-mini-batch",
+      "canonical_model_id": "openai/gpt-5-mini-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "openai/gpt-5-mini-fast",
       "canonical_model_id": "openai/gpt-5-mini-fast"
     },
@@ -4148,8 +4853,18 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "openai/gpt-5-nano-batch",
+      "canonical_model_id": "openai/gpt-5-nano-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "openai/gpt-5-pro",
       "canonical_model_id": "openai/gpt-5-pro"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5-pro-batch",
+      "canonical_model_id": "openai/gpt-5-pro-batch"
     },
     {
       "provider_id": "vercel",
@@ -4183,6 +4898,11 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "openai/gpt-5.2-batch",
+      "canonical_model_id": "openai/gpt-5.2-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "openai/gpt-5.2-codex",
       "canonical_model_id": "openai/gpt-5.2-codex"
     },
@@ -4213,6 +4933,11 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "openai/gpt-5.4-batch",
+      "canonical_model_id": "openai/gpt-5.4-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "openai/gpt-5.4-fast",
       "canonical_model_id": "openai/gpt-5.4-fast"
     },
@@ -4220,6 +4945,11 @@
       "provider_id": "vercel",
       "model_id": "openai/gpt-5.4-mini",
       "canonical_model_id": "openai/gpt-5.4-mini"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.4-mini-batch",
+      "canonical_model_id": "openai/gpt-5.4-mini-batch"
     },
     {
       "provider_id": "vercel",
@@ -4233,6 +4963,11 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "openai/gpt-5.4-nano-batch",
+      "canonical_model_id": "openai/gpt-5.4-nano-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "openai/gpt-5.4-pro",
       "canonical_model_id": "openai/gpt-5.4-pro"
     },
@@ -4240,6 +4975,11 @@
       "provider_id": "vercel",
       "model_id": "openai/gpt-5.5",
       "canonical_model_id": "openai/gpt-5.5"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.5-batch",
+      "canonical_model_id": "openai/gpt-5.5-batch"
     },
     {
       "provider_id": "vercel",
@@ -4253,8 +4993,18 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "openai/gpt-5.5-pro-batch",
+      "canonical_model_id": "openai/gpt-5.5-pro-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "openai/gpt-5.6-luna",
       "canonical_model_id": "openai/gpt-5.6-luna"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.6-luna-batch",
+      "canonical_model_id": "openai/gpt-5.6-luna-batch"
     },
     {
       "provider_id": "vercel",
@@ -4268,6 +5018,11 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "openai/gpt-5.6-sol-batch",
+      "canonical_model_id": "openai/gpt-5.6-sol-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "openai/gpt-5.6-sol-fast",
       "canonical_model_id": "openai/gpt-5.6-sol-fast"
     },
@@ -4275,6 +5030,11 @@
       "provider_id": "vercel",
       "model_id": "openai/gpt-5.6-terra",
       "canonical_model_id": "openai/gpt-5.6-terra"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-5.6-terra-batch",
+      "canonical_model_id": "openai/gpt-5.6-terra-batch"
     },
     {
       "provider_id": "vercel",
@@ -4288,6 +5048,11 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "openai/gpt-6-astra-batch",
+      "canonical_model_id": "openai/gpt-6-astra-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "openai/gpt-6-astra-fast",
       "canonical_model_id": "openai/gpt-6-astra-fast"
     },
@@ -4295,6 +5060,16 @@
       "provider_id": "vercel",
       "model_id": "openai/gpt-6-luna",
       "canonical_model_id": "openai/gpt-6-luna"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-6-luna-batch",
+      "canonical_model_id": "openai/gpt-6-luna-batch"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-6-luna-decisions",
+      "canonical_model_id": "openai/gpt-6-luna-decisions"
     },
     {
       "provider_id": "vercel",
@@ -4308,6 +5083,11 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "openai/gpt-6-sol-batch",
+      "canonical_model_id": "openai/gpt-6-sol-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "openai/gpt-6-sol-fast",
       "canonical_model_id": "openai/gpt-6-sol-fast"
     },
@@ -4318,8 +5098,23 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "openai/gpt-6.1-sol-batch",
+      "canonical_model_id": "openai/gpt-6.1-sol-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "openai/gpt-6.1-sol-fast",
       "canonical_model_id": "openai/gpt-6.1-sol-fast"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-6.1-terra",
+      "canonical_model_id": "openai/gpt-6.1-terra"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-6.1-terra-fast",
+      "canonical_model_id": "openai/gpt-6.1-terra-fast"
     },
     {
       "provider_id": "vercel",
@@ -4355,6 +5150,11 @@
       "provider_id": "vercel",
       "model_id": "openai/gpt-live-1",
       "canonical_model_id": "openai/gpt-live-1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-live-transcribe",
+      "canonical_model_id": "openai/gpt-live-transcribe"
     },
     {
       "provider_id": "vercel",
@@ -4400,6 +5200,11 @@
       "provider_id": "vercel",
       "model_id": "openai/gpt-realtime-whisper",
       "canonical_model_id": "openai/gpt-realtime-whisper"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "openai/gpt-transcribe",
+      "canonical_model_id": "openai/gpt-transcribe"
     },
     {
       "provider_id": "vercel",
@@ -4465,6 +5270,21 @@
       "provider_id": "vercel",
       "model_id": "openai/whisper-1",
       "canonical_model_id": "openai/whisper-1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "particle/particle-1",
+      "canonical_model_id": "particle/particle-1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "perplexity/pplx-decider-flash-v1.2",
+      "canonical_model_id": "perplexity/pplx-decider-flash-v1.2"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "perplexity/pplx-decider-v1.2",
+      "canonical_model_id": "perplexity/pplx-decider-v1.2"
     },
     {
       "provider_id": "vercel",
@@ -4558,6 +5378,16 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "reflection/beam",
+      "canonical_model_id": "reflection/beam"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "reflection/beam-free",
+      "canonical_model_id": "reflection/beam-free"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "sakana/fugu-max",
       "canonical_model_id": "sakana/fugu-max"
     },
@@ -4578,6 +5408,21 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "scaledown/scaledown-classify-1",
+      "canonical_model_id": "scaledown/scaledown-classify-1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "scaledown/scaledown-extract-1",
+      "canonical_model_id": "scaledown/scaledown-extract-1"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "scaledown/scaledown-summarize-1",
+      "canonical_model_id": "scaledown/scaledown-summarize-1"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "spacexai/grok-4.1-fast-non-reasoning",
       "canonical_model_id": "spacexai/grok-4.1-fast-non-reasoning"
     },
@@ -4593,6 +5438,11 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "spacexai/grok-4.20-multi-agent-batch",
+      "canonical_model_id": "spacexai/grok-4.20-multi-agent-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "spacexai/grok-4.20-multi-agent-beta",
       "canonical_model_id": "spacexai/grok-4.20-multi-agent-beta"
     },
@@ -4600,6 +5450,11 @@
       "provider_id": "vercel",
       "model_id": "spacexai/grok-4.20-non-reasoning",
       "canonical_model_id": "spacexai/grok-4.20-non-reasoning"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "spacexai/grok-4.20-non-reasoning-batch",
+      "canonical_model_id": "spacexai/grok-4.20-non-reasoning-batch"
     },
     {
       "provider_id": "vercel",
@@ -4613,6 +5468,11 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "spacexai/grok-4.20-reasoning-batch",
+      "canonical_model_id": "spacexai/grok-4.20-reasoning-batch"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "spacexai/grok-4.20-reasoning-beta",
       "canonical_model_id": "spacexai/grok-4.20-reasoning-beta"
     },
@@ -4620,6 +5480,11 @@
       "provider_id": "vercel",
       "model_id": "spacexai/grok-4.3",
       "canonical_model_id": "spacexai/grok-4.3"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "spacexai/grok-4.3-batch",
+      "canonical_model_id": "spacexai/grok-4.3-batch"
     },
     {
       "provider_id": "vercel",
@@ -4678,6 +5543,11 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "spacexai/grok-voice-3.0",
+      "canonical_model_id": "spacexai/grok-voice-3.0"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "spacexai/grok-voice-think-fast-1.0",
       "canonical_model_id": "spacexai/grok-voice-think-fast-1.0"
     },
@@ -4685,6 +5555,11 @@
       "provider_id": "vercel",
       "model_id": "spacexai/grok-voice-think-fast-2.0",
       "canonical_model_id": "spacexai/grok-voice-think-fast-2.0"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "stealth/glyph-cluster",
+      "canonical_model_id": "stealth/glyph-cluster"
     },
     {
       "provider_id": "vercel",
@@ -4738,8 +5613,33 @@
     },
     {
       "provider_id": "vercel",
+      "model_id": "topaz/proteus",
+      "canonical_model_id": "topaz/proteus"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "topaz/starlight-precise-2.6",
+      "canonical_model_id": "topaz/starlight-precise-2.6"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "topaz/wonder-3.5",
+      "canonical_model_id": "topaz/wonder-3.5"
+    },
+    {
+      "provider_id": "vercel",
       "model_id": "typesafe-ai/jev",
       "canonical_model_id": "typesafe-ai/jev"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "typesafe-ai/jev-1.13.0",
+      "canonical_model_id": "typesafe-ai/jev-1.13.0"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "typesafe-ai/jev-1.14.0",
+      "canonical_model_id": "typesafe-ai/jev-1.14.0"
     },
     {
       "provider_id": "vercel",
@@ -4915,6 +5815,11 @@
       "provider_id": "vercel",
       "model_id": "zai/glm-5.3-flashx",
       "canonical_model_id": "zai/glm-5.3-flashx"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "zai/glm-5.3-flashx-legal",
+      "canonical_model_id": "zai/glm-5.3-flashx-legal"
     },
     {
       "provider_id": "vercel",

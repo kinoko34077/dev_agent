@@ -16,6 +16,7 @@ from .model_admission import (
     ModelAdmissionResolver,
     QUALITY_UNVERIFIED,
     STATIC_CAPABILITY_UNSUPPORTED,
+    STATIC_EVIDENCE_MISSING,
     STATIC_MODEL_UNSUPPORTED,
 )
 from .model_benchmarks import CANONICAL_TASK_FITS
@@ -386,6 +387,15 @@ class ResourceRouter:
                         )
                         if diagnostic.result in {STATIC_MODEL_UNSUPPORTED, STATIC_CAPABILITY_UNSUPPORTED}:
                             return qualification, None, None
+                        if diagnostic.result == STATIC_EVIDENCE_MISSING:
+                            # A binding-specific inventory miss must not erase
+                            # an explicitly reviewed benchmark-only alias.
+                            # This path carries ranking data only; it never
+                            # supplies capabilities or route authority.
+                            model_admission = self._model_admission_resolver.resolve_quality(
+                                provider_id,
+                                model_id.strip(),
+                            )
                 except (TypeError, ValueError):
                     # Static evidence failure is not a feature grant or a
                     # routing prohibition. Existing Host-owned capability

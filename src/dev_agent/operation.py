@@ -42,6 +42,7 @@ from .resources.billing_catalog import (
 )
 from .resources.ledger import ResourceLedger, unknown_quota_wake_reason
 from .resources.model_admission import ModelAdmissionResolver
+from .resources.model_evidence import DEFAULT_MODEL_EVIDENCE_DIRECTORY
 from .resources.provider_policy import is_local_provider as _is_local_provider, max_sensitivity as _provider_max_sensitivity, privacy_profile as _provider_privacy_profile, requires_qualification as _requires_qualification
 from .resources.qualification import QualificationResolver
 from .resources.tier_authority import production_tier_authority
@@ -483,9 +484,12 @@ class OperationConfig:
     ``DEV_AGENT_DISABLE_CONFIGURED_POOL``.
     An explicit single route takes precedence. Exact billing, privacy, quota,
     health, and capability policies remain owned by Host admission. The independent
-    model-evidence snapshots are also opt-in through
-    ``DEV_AGENT_MODEL_EVIDENCE_DIR``; leaving it unset preserves the legacy
-    Operation routing view while Planner composition can opt in explicitly.
+    model-evidence snapshots are loaded from the repository's reviewed
+    ``spec/v2/model_evidence`` directory by the standard environment
+    composition when the complete snapshot set is present. Operators may
+    override the directory with ``DEV_AGENT_MODEL_EVIDENCE_DIR``. Missing or
+    expired benchmark rows remain quality warnings; they do not grant or deny
+    billing, quota, privacy, capability, or runtime authority.
     """
 
     data_dir: Path = field(default_factory=lambda: Path(".dev_agent"))
@@ -651,6 +655,20 @@ class OperationConfig:
             if force_configured_pool or (not explicit_single_route and (configured_credentials or explicit_local_configuration)):
                 provider_pool_value = configured_pool or None
 
+        evidence_directory = model_evidence_directory or env("DEV_AGENT_MODEL_EVIDENCE_DIR")
+        if evidence_directory is None:
+            default_evidence = DEFAULT_MODEL_EVIDENCE_DIRECTORY
+            required_snapshots = (
+                "model_catalog_snapshot.json",
+                "model_alias_catalog.json",
+                "model_benchmark_snapshot.json",
+                "model_capability_snapshot.json",
+            )
+            if default_evidence.is_dir() and all(
+                (default_evidence / name).is_file() for name in required_snapshots
+            ):
+                evidence_directory = default_evidence
+
         return cls(
             data_dir=Path(data_dir or env("DEV_AGENT_DATA_DIR") or ".dev_agent"),
             provider_id=provider_id or env("DEV_AGENT_PROVIDER") or "fake",
@@ -660,7 +678,7 @@ class OperationConfig:
             quota_domain=quota_domain or env("DEV_AGENT_QUOTA_DOMAIN"),
             intelligence_tier=intelligence_tier or env("DEV_AGENT_INTELLIGENCE_TIER"),
             provider_pool=provider_pool_value,
-            model_evidence_directory=model_evidence_directory or env("DEV_AGENT_MODEL_EVIDENCE_DIR"),
+            model_evidence_directory=evidence_directory,
             worker_id=worker_id or env("DEV_AGENT_WORKER_ID") or f"operation-{os.getpid()}",
             lease_seconds=lease_seconds if lease_seconds is not None else env_float("DEV_AGENT_LEASE_SECONDS", 30.0),
             idle_sleep_seconds=idle_sleep_seconds if idle_sleep_seconds is not None else env_float("DEV_AGENT_IDLE_SLEEP_SECONDS", 1.0),

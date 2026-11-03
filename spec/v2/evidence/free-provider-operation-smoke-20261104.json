@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "evidence_type": "bounded_no_charge_operation_route_smoke",
+  "observed_date": "2026-11-04",
+  "time_precision": "date_only",
+  "observation_basis": "bounded live Operation-path smoke observed in the current work session; raw request and response intentionally omitted",
+  "route": {
+    "provider_id": "openrouter",
+    "qualification_binding_id": "openrouter:free",
+    "model_id": "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "route_class": "L1_PROPOSAL_ONLY"
+  },
+  "outcome": {
+    "provider_calls": 1,
+    "response_received": true,
+    "task_completed": true,
+    "cost_minor": 0,
+    "budget_reconciled": true,
+    "fallback_used": false,
+    "paid_provider_used": false,
+    "reconciliation_required": false
+  },
+  "redaction": {
+    "credential_values_retained": false,
+    "raw_request_retained": false,
+    "raw_response_retained": false
+  },
+  "formal_gate_impact": "UNCHANGED",
+  "does_not_establish": [
+    "Phase 8 L2 qualification",
+    "runtime eligibility for other models or bindings",
+    "Worker Host Verification or integration success"
+  ]
+}

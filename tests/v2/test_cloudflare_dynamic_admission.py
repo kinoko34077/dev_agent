@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+from scripts.devfarm_resource_pool import admit_resource_pool
 from src.dev_agent.domain.protocol import ModelRequest
 from src.dev_agent.operation import configured_provider_pool_from_environment
 from src.dev_agent.providers.cloudflare.provider import CloudflareWorkersAIHttpProvider
@@ -14,10 +15,9 @@ from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
 from src.dev_agent.resources.qualification import QualificationResolver
 
 
-# Keep catalog/admission assertions inside the current reviewed evidence
-# window.  The canonical catalog is refreshed with bounded expiry, so a test
-# clock before that refresh would incorrectly make every exact candidate stale.
-NOW = datetime(2026, 10, 5, 0, 0, tzinfo=timezone.utc)
+# Keep the canonical inventory and reviewed no-charge facts current, while the
+# old qualification rows remain expired so proposal-only admission is tested.
+NOW = datetime(2026, 11, 4, 0, 0, tzinfo=timezone.utc)
 
 
 def test_cloudflare_discovery_preserves_bounded_task_and_tags():
@@ -291,7 +291,7 @@ def test_provider_reported_cloudflare_neurons_project_conservative_remaining(tmp
 
 
 @pytest.mark.current_billing_catalog
-def test_current_canonical_cloudflare_catalog_materializes_only_exact_qualified_free_candidates():
+def test_current_canonical_cloudflare_free_models_reach_proposal_admission_after_qualification_expires():
     binding = next(
         item
         for item in configured_provider_pool_from_environment(
@@ -304,30 +304,27 @@ def test_current_canonical_cloudflare_catalog_materializes_only_exact_qualified_
     )
     catalog = ModelEvidenceCatalog.load_default().catalog
     qualification = QualificationResolver()
-    admitted = []
-    for candidate in materialize_provider_bindings(
-        binding,
-        catalog,
+    admitted = admit_resource_pool(
+        (binding,),
+        resolver=qualification,
+        required_tier="L1",
+        quality_tier_advisory=True,
+        required_capabilities=("text",),
+        no_charge_required=True,
+        model_catalog=catalog,
         expand_discovered_models=True,
         now=NOW,
-    ):
-        evidence_binding = candidate.credential_binding_id
-        if catalog.lookup(candidate.provider_id, evidence_binding, candidate.model, now=NOW) is None:
-            continue
-        if qualification.resolve(
-            candidate.provider_id,
-            evidence_binding,
-            candidate.model,
-            now=NOW,
-        ) is None:
-            continue
-        profile = profile_for(candidate.provider_id, evidence_binding, candidate.model)
-        if profile is None or not profile.no_charge_guaranteed:
-            continue
-        admitted.append(candidate.model)
-
-    assert set(admitted) == {
+        profile_resolver=profile_for,
+    )
+    admitted_by_model = {candidate.model: (candidate, resolved, profile) for candidate, resolved, profile in admitted}
+    expected_free_models = {
         "@cf/zai-org/glm-4.7-flash",
         "@cf/google/gemma-4-26b-a4b-it",
         "@cf/nvidia/nemotron-3-120b-a12b",
     }
+    assert expected_free_models <= set(admitted_by_model)
+    for candidate, resolved, profile in admitted_by_model.values():
+        assert candidate.proposal_only_candidate is True
+        assert resolved is None
+        assert profile.no_charge_guaranteed is True
+    assert "@cf/deepseek-ai/deepseek-v4.1-flash-1017" not in admitted_by_model

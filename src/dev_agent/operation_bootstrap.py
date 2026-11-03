@@ -425,10 +425,6 @@ def open_components(
                     },
                 )
             normalized_bindings.append(binding)
-            if getattr(binding, "proposal_only_candidate", False):
-                proposal_candidate_identities.add(
-                    (binding.provider_id, binding.credential_binding_id, binding.model)
-                )
         runtime_bindings = normalized_bindings
 
         providers: list[Any] = []

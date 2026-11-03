@@ -145,6 +145,14 @@ def _metadata_for(provider_id: str, raw_model: Mapping[str, Any]) -> Mapping[str
             values = _bounded_string_list(raw_model.get(field_name))
             if values is not None:
                 metadata[field_name] = values
+    elif provider_id == "mistral":
+        capabilities = raw_model.get("capabilities")
+        capabilities = capabilities if isinstance(capabilities, Mapping) else {}
+        if isinstance(capabilities.get("completion_chat"), bool):
+            metadata["chat_completion_supported"] = capabilities["completion_chat"]
+        context_length = _bounded_positive_int(raw_model.get("max_context_length"))
+        if context_length is not None:
+            metadata["context_length"] = context_length
     elif provider_id == "openrouter":
         context_length = _bounded_positive_int(raw_model.get("context_length"))
         if context_length is not None:

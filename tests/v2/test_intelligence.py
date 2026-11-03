@@ -172,6 +172,8 @@ def test_controller_carries_task_profile_to_model_request_without_trusting_metad
     request = provider.requests[0]
     assert request.requested_capabilities == ["text"]
     assert request.metadata == {
+        "execution_role": "worker",
+        "task_fit": "coding",
         "task_type": "worker",
         "risk": "normal",
         "minimum_intelligence_tier": "L1",

@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "tier_thresholds": {
-    "L1": 0,
-    "L2": 30,
-    "L3": 60
+    "L1": 0.0,
+    "L2": 30.0,
+    "L3": 60.0
   },
   "entries": [
     {
@@ -12,14 +12,29 @@
       "benchmark_version": "openrouter-benchmarks-v1",
       "model_version": "anthropic/claude-fable-5.1-20260831",
       "source": "openrouter.api.v1.benchmarks:artificial-analysis",
-      "observed_at": "2026-10-04T16:58:13.777327+00:00",
-      "expires_at": "2026-10-11T16:58:13.777327+00:00",
-      "raw_score": 53.4,
-      "normalized_score": 53.4,
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 49.7,
+      "normalized_score": 49.7,
       "confidence": "medium",
       "task_fit": {
-        "planning": 57.9,
-        "coding": 81.6
+        "planning": 57.2,
+        "coding": 80.7
+      }
+    },
+    {
+      "canonical_model_id": "anthropic/claude-haiku-5.5",
+      "benchmark": "artificial_analysis_intelligence_index",
+      "benchmark_version": "openrouter-benchmarks-v1",
+      "model_version": "anthropic/claude-haiku-5.5-20261007",
+      "source": "openrouter.api.v1.benchmarks:artificial-analysis",
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 36.2,
+      "normalized_score": 36.2,
+      "confidence": "medium",
+      "task_fit": {
+        "writing": 36.2
       }
     },
     {
@@ -44,13 +59,13 @@
       "benchmark_version": "openrouter-benchmarks-v1",
       "model_version": "anthropic/claude-opus-5.5-20260921",
       "source": "openrouter.api.v1.benchmarks:artificial-analysis",
-      "observed_at": "2026-10-04T16:58:13.777327+00:00",
-      "expires_at": "2026-10-11T16:58:13.777327+00:00",
-      "raw_score": 57.6,
-      "normalized_score": 57.6,
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 58.4,
+      "normalized_score": 58.4,
       "confidence": "medium",
       "task_fit": {
-        "writing": 57.6
+        "writing": 58.4
       }
     },
     {
@@ -75,13 +90,13 @@
       "benchmark_version": "openrouter-benchmarks-v1",
       "model_version": "anthropic/claude-sonnet-5.5-20260928",
       "source": "openrouter.api.v1.benchmarks:artificial-analysis",
-      "observed_at": "2026-10-04T16:58:13.777327+00:00",
-      "expires_at": "2026-10-11T16:58:13.777327+00:00",
-      "raw_score": 56.0,
-      "normalized_score": 56.0,
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 54.2,
+      "normalized_score": 54.2,
       "confidence": "medium",
       "task_fit": {
-        "writing": 56.0
+        "writing": 54.2
       }
     },
     {
@@ -186,10 +201,10 @@
       "benchmark_version": "openrouter-benchmarks-v1",
       "model_version": "deepseek/deepseek-v4-pro-20260813",
       "source": "openrouter.api.v1.benchmarks:artificial-analysis",
-      "observed_at": "2026-10-04T16:58:13.777327+00:00",
-      "expires_at": "2026-10-11T16:58:13.777327+00:00",
-      "raw_score": 36.0,
-      "normalized_score": 36.0,
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 23.1,
+      "normalized_score": 23.1,
       "confidence": "medium",
       "task_fit": {
         "planning": 41.3,
@@ -200,15 +215,15 @@
       "canonical_model_id": "deepseek/deepseek-v4.1-flash",
       "benchmark": "artificial_analysis_intelligence_index",
       "benchmark_version": "openrouter-benchmarks-v1",
-      "model_version": "deepseek/deepseek-v4.1-flash-20260910",
+      "model_version": "deepseek/deepseek-v4.1-flash-20261017",
       "source": "openrouter.api.v1.benchmarks:artificial-analysis",
-      "observed_at": "2026-10-04T16:58:13.777327+00:00",
-      "expires_at": "2026-10-11T16:58:13.777327+00:00",
-      "raw_score": 39.5,
-      "normalized_score": 39.5,
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 28.5,
+      "normalized_score": 28.5,
       "confidence": "medium",
       "task_fit": {
-        "writing": 39.5
+        "writing": 28.5
       }
     },
     {
@@ -281,10 +296,10 @@
       "benchmark_version": "openrouter-benchmarks-v1",
       "model_version": "google/gemini-3.5-flash-lite-20260721",
       "source": "openrouter.api.v1.benchmarks:artificial-analysis",
-      "observed_at": "2026-10-04T16:58:13.777327+00:00",
-      "expires_at": "2026-10-11T16:58:13.777327+00:00",
-      "raw_score": 22.2,
-      "normalized_score": 22.2,
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 11.7,
+      "normalized_score": 11.7,
       "confidence": "medium",
       "task_fit": {
         "planning": 14.3,
@@ -329,14 +344,29 @@
       "benchmark_version": "openrouter-benchmarks-v1",
       "model_version": "google/gemini-3.8-flash-20260902",
       "source": "openrouter.api.v1.benchmarks:artificial-analysis",
-      "observed_at": "2026-10-04T16:58:13.777327+00:00",
-      "expires_at": "2026-10-11T16:58:13.777327+00:00",
-      "raw_score": 40.9,
-      "normalized_score": 40.9,
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 30.5,
+      "normalized_score": 30.5,
       "confidence": "medium",
       "task_fit": {
         "planning": 40.2,
         "coding": 76.3
+      }
+    },
+    {
+      "canonical_model_id": "google/gemini-4-argon",
+      "benchmark": "artificial_analysis_intelligence_index",
+      "benchmark_version": "openrouter-benchmarks-v1",
+      "model_version": "google/gemini-4-argon-20261013",
+      "source": "openrouter.api.v1.benchmarks:artificial-analysis",
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 50.4,
+      "normalized_score": 50.4,
+      "confidence": "medium",
+      "task_fit": {
+        "writing": 50.4
       }
     },
     {
@@ -393,10 +423,10 @@
       "benchmark_version": "openrouter-benchmarks-v1",
       "model_version": "ibm-granite/granite-4.2-8b-20260831",
       "source": "openrouter.api.v1.benchmarks:artificial-analysis",
-      "observed_at": "2026-10-04T16:58:13.777327+00:00",
-      "expires_at": "2026-10-11T16:58:13.777327+00:00",
-      "raw_score": 11.1,
-      "normalized_score": 11.1,
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 5.1,
+      "normalized_score": 5.1,
       "confidence": "medium",
       "task_fit": {
         "planning": 1.3,
@@ -483,6 +513,22 @@
       }
     },
     {
+      "canonical_model_id": "meta/muse-glimmer-30b",
+      "benchmark": "artificial_analysis_intelligence_index",
+      "benchmark_version": "openrouter-benchmarks-v1",
+      "model_version": "meta/muse-glimmer-30b-20260810",
+      "source": "openrouter.api.v1.benchmarks:artificial-analysis",
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 6.3,
+      "normalized_score": 6.3,
+      "confidence": "medium",
+      "task_fit": {
+        "planning": 8.5,
+        "coding": 49.0
+      }
+    },
+    {
       "canonical_model_id": "meta/muse-spark-1.1",
       "benchmark": "artificial_analysis_intelligence_index",
       "benchmark_version": "openrouter-benchmarks-v1",
@@ -515,6 +561,52 @@
       }
     },
     {
+      "canonical_model_id": "meta/muse-spark-1.3",
+      "benchmark": "artificial_analysis_intelligence_index",
+      "benchmark_version": "openrouter-benchmarks-v1",
+      "model_version": "meta/muse-spark-1.3-20260902",
+      "source": "openrouter.api.v1.benchmarks:artificial-analysis",
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 36.4,
+      "normalized_score": 36.4,
+      "confidence": "medium",
+      "task_fit": {
+        "planning": 55.5,
+        "coding": 75.8
+      }
+    },
+    {
+      "canonical_model_id": "meta/muse-spark-open",
+      "benchmark": "artificial_analysis_intelligence_index",
+      "benchmark_version": "openrouter-benchmarks-v1",
+      "model_version": "meta/muse-spark-open-20261015",
+      "source": "openrouter.api.v1.benchmarks:artificial-analysis",
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 24.7,
+      "normalized_score": 24.7,
+      "confidence": "medium",
+      "task_fit": {
+        "writing": 24.7
+      }
+    },
+    {
+      "canonical_model_id": "meta/muse-wonder",
+      "benchmark": "artificial_analysis_intelligence_index",
+      "benchmark_version": "openrouter-benchmarks-v1",
+      "model_version": "meta/muse-wonder-20261012",
+      "source": "openrouter.api.v1.benchmarks:artificial-analysis",
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 43.3,
+      "normalized_score": 43.3,
+      "confidence": "medium",
+      "task_fit": {
+        "writing": 43.3
+      }
+    },
+    {
       "canonical_model_id": "minimax/minimax-m2.7",
       "benchmark": "artificial_analysis_intelligence_index",
       "benchmark_version": "openrouter-benchmarks-v1",
@@ -536,14 +628,29 @@
       "benchmark_version": "openrouter-benchmarks-v1",
       "model_version": "minimax/minimax-m3-20260531",
       "source": "openrouter.api.v1.benchmarks:artificial-analysis",
-      "observed_at": "2026-10-04T16:58:13.777327+00:00",
-      "expires_at": "2026-10-11T16:58:13.777327+00:00",
-      "raw_score": 29.2,
-      "normalized_score": 29.2,
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 18.7,
+      "normalized_score": 18.7,
       "confidence": "medium",
       "task_fit": {
         "planning": 29.5,
         "coding": 58.6
+      }
+    },
+    {
+      "canonical_model_id": "minimax/minimax-m3.1-flash",
+      "benchmark": "artificial_analysis_intelligence_index",
+      "benchmark_version": "openrouter-benchmarks-v1",
+      "model_version": "minimax/minimax-m3.1-flash-20261019",
+      "source": "openrouter.api.v1.benchmarks:artificial-analysis",
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 28.9,
+      "normalized_score": 28.9,
+      "confidence": "medium",
+      "task_fit": {
+        "writing": 28.9
       }
     },
     {
@@ -627,6 +734,21 @@
       }
     },
     {
+      "canonical_model_id": "mistralai/mistral-large-4-0",
+      "benchmark": "artificial_analysis_intelligence_index",
+      "benchmark_version": "openrouter-benchmarks-v1",
+      "model_version": "mistralai/mistral-large-4-0-20261006",
+      "source": "openrouter.api.v1.benchmarks:artificial-analysis",
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 26.0,
+      "normalized_score": 26.0,
+      "confidence": "medium",
+      "task_fit": {
+        "writing": 26.0
+      }
+    },
+    {
       "canonical_model_id": "mistralai/mistral-medium-3.1",
       "benchmark": "artificial_analysis_intelligence_index",
       "benchmark_version": "openrouter-benchmarks-v1",
@@ -648,10 +770,10 @@
       "benchmark_version": "openrouter-benchmarks-v1",
       "model_version": "mistralai/mistral-small-2603",
       "source": "openrouter.api.v1.benchmarks:artificial-analysis",
-      "observed_at": "2026-10-04T16:58:13.777327+00:00",
-      "expires_at": "2026-10-11T16:58:13.777327+00:00",
-      "raw_score": 11.3,
-      "normalized_score": 11.3,
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 4.3,
+      "normalized_score": 4.3,
       "confidence": "medium",
       "task_fit": {
         "planning": 0.8,
@@ -696,14 +818,29 @@
       "benchmark_version": "openrouter-benchmarks-v1",
       "model_version": "moonshotai/kimi-k3-20260715",
       "source": "openrouter.api.v1.benchmarks:artificial-analysis",
-      "observed_at": "2026-10-04T16:58:13.777327+00:00",
-      "expires_at": "2026-10-11T16:58:13.777327+00:00",
-      "raw_score": 43.6,
-      "normalized_score": 43.6,
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 17.4,
+      "normalized_score": 17.4,
       "confidence": "medium",
       "task_fit": {
-        "planning": 50.0,
-        "coding": 76.2
+        "planning": 29.3,
+        "coding": 72.0
+      }
+    },
+    {
+      "canonical_model_id": "moonshotai/kimi-k3.1-pro",
+      "benchmark": "artificial_analysis_intelligence_index",
+      "benchmark_version": "openrouter-benchmarks-v1",
+      "model_version": "moonshotai/kimi-k3.1-pro-20261023",
+      "source": "openrouter.api.v1.benchmarks:artificial-analysis",
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 46.0,
+      "normalized_score": 46.0,
+      "confidence": "medium",
+      "task_fit": {
+        "writing": 46.0
       }
     },
     {
@@ -744,10 +881,10 @@
       "benchmark_version": "openrouter-benchmarks-v1",
       "model_version": "nvidia/nemotron-3-ultra-550b-a55b-20260604",
       "source": "openrouter.api.v1.benchmarks:artificial-analysis",
-      "observed_at": "2026-10-04T16:58:13.777327+00:00",
-      "expires_at": "2026-10-11T16:58:13.777327+00:00",
-      "raw_score": 22.9,
-      "normalized_score": 22.9,
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 11.8,
+      "normalized_score": 11.8,
       "confidence": "medium",
       "task_fit": {
         "planning": 20.1,
@@ -760,14 +897,29 @@
       "benchmark_version": "openrouter-benchmarks-v1",
       "model_version": "nvidia/nemotron-3.5-lightning-20260807",
       "source": "openrouter.api.v1.benchmarks:artificial-analysis",
-      "observed_at": "2026-10-04T16:58:13.777327+00:00",
-      "expires_at": "2026-10-11T16:58:13.777327+00:00",
-      "raw_score": 12.9,
-      "normalized_score": 12.9,
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 5.5,
+      "normalized_score": 5.5,
       "confidence": "medium",
       "task_fit": {
         "planning": 3.5,
         "coding": 26.8
+      }
+    },
+    {
+      "canonical_model_id": "nvidia/nemotron-3.5-super-vl",
+      "benchmark": "artificial_analysis_intelligence_index",
+      "benchmark_version": "openrouter-benchmarks-v1",
+      "model_version": "nvidia/nemotron-3.5-super-vl-20261015",
+      "source": "openrouter.api.v1.benchmarks:artificial-analysis",
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 13.6,
+      "normalized_score": 13.6,
+      "confidence": "medium",
+      "task_fit": {
+        "writing": 13.6
       }
     },
     {
@@ -872,10 +1024,10 @@
       "benchmark_version": "openrouter-benchmarks-v1",
       "model_version": "openai/gpt-6-astra-20260903",
       "source": "openrouter.api.v1.benchmarks:artificial-analysis",
-      "observed_at": "2026-10-04T16:58:13.777327+00:00",
-      "expires_at": "2026-10-11T16:58:13.777327+00:00",
-      "raw_score": 52.7,
-      "normalized_score": 52.7,
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 56.9,
+      "normalized_score": 56.9,
       "confidence": "medium",
       "task_fit": {
         "planning": 51.0,
@@ -888,13 +1040,13 @@
       "benchmark_version": "openrouter-benchmarks-v1",
       "model_version": "openai/gpt-6-luna-20260922",
       "source": "openrouter.api.v1.benchmarks:artificial-analysis",
-      "observed_at": "2026-10-04T16:58:13.777327+00:00",
-      "expires_at": "2026-10-11T16:58:13.777327+00:00",
-      "raw_score": 38.1,
-      "normalized_score": 38.1,
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 27.8,
+      "normalized_score": 27.8,
       "confidence": "medium",
       "task_fit": {
-        "writing": 38.1
+        "writing": 27.8
       }
     },
     {
@@ -918,13 +1070,28 @@
       "benchmark_version": "openrouter-benchmarks-v1",
       "model_version": "openai/gpt-6.1-sol-20260929",
       "source": "openrouter.api.v1.benchmarks:artificial-analysis",
-      "observed_at": "2026-10-04T16:58:13.777327+00:00",
-      "expires_at": "2026-10-11T16:58:13.777327+00:00",
-      "raw_score": 51.8,
-      "normalized_score": 51.8,
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 54.5,
+      "normalized_score": 54.5,
       "confidence": "medium",
       "task_fit": {
-        "writing": 51.8
+        "writing": 54.5
+      }
+    },
+    {
+      "canonical_model_id": "openai/gpt-6.1-terra",
+      "benchmark": "artificial_analysis_intelligence_index",
+      "benchmark_version": "openrouter-benchmarks-v1",
+      "model_version": "openai/gpt-6.1-terra-20261026",
+      "source": "openrouter.api.v1.benchmarks:artificial-analysis",
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 51.0,
+      "normalized_score": 51.0,
+      "confidence": "medium",
+      "task_fit": {
+        "writing": 51.0
       }
     },
     {
@@ -1125,14 +1292,44 @@
       "benchmark_version": "openrouter-benchmarks-v1",
       "model_version": "qwen/qwen3.8-27b-20260814",
       "source": "openrouter.api.v1.benchmarks:artificial-analysis",
-      "observed_at": "2026-10-04T16:58:13.777327+00:00",
-      "expires_at": "2026-10-11T16:58:13.777327+00:00",
-      "raw_score": 33.7,
-      "normalized_score": 33.7,
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 20.1,
+      "normalized_score": 20.1,
       "confidence": "medium",
       "task_fit": {
         "planning": 45.8,
         "coding": 68.1
+      }
+    },
+    {
+      "canonical_model_id": "reflection/beam-1.0-501b-a23b",
+      "benchmark": "artificial_analysis_intelligence_index",
+      "benchmark_version": "openrouter-benchmarks-v1",
+      "model_version": "reflection/beam-1.0-501b-a23b-20261016",
+      "source": "openrouter.api.v1.benchmarks:artificial-analysis",
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 17.7,
+      "normalized_score": 17.7,
+      "confidence": "medium",
+      "task_fit": {
+        "writing": 17.7
+      }
+    },
+    {
+      "canonical_model_id": "stepfun/step-5-preview",
+      "benchmark": "artificial_analysis_intelligence_index",
+      "benchmark_version": "openrouter-benchmarks-v1",
+      "model_version": "stepfun/step-5-preview-20261008",
+      "source": "openrouter.api.v1.benchmarks:artificial-analysis",
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 28.5,
+      "normalized_score": 28.5,
+      "confidence": "medium",
+      "task_fit": {
+        "writing": 28.5
       }
     },
     {
@@ -1157,10 +1354,10 @@
       "benchmark_version": "openrouter-benchmarks-v1",
       "model_version": "thinkingmachines/inkling-20260715",
       "source": "openrouter.api.v1.benchmarks:artificial-analysis",
-      "observed_at": "2026-10-04T16:58:13.777327+00:00",
-      "expires_at": "2026-10-11T16:58:13.777327+00:00",
-      "raw_score": 25.0,
-      "normalized_score": 25.0,
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 12.5,
+      "normalized_score": 12.5,
       "confidence": "medium",
       "task_fit": {
         "planning": 22.5,
@@ -1173,10 +1370,10 @@
       "benchmark_version": "openrouter-benchmarks-v1",
       "model_version": "thinkingmachines/inkling-small-20260730",
       "source": "openrouter.api.v1.benchmarks:artificial-analysis",
-      "observed_at": "2026-10-04T16:58:13.777327+00:00",
-      "expires_at": "2026-10-11T16:58:13.777327+00:00",
-      "raw_score": 25.7,
-      "normalized_score": 25.7,
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 12.9,
+      "normalized_score": 12.9,
       "confidence": "medium",
       "task_fit": {
         "planning": 23.5,
@@ -1212,6 +1409,21 @@
       "task_fit": {
         "planning": 1.4,
         "coding": 16.2
+      }
+    },
+    {
+      "canonical_model_id": "upstage/solar-pro4",
+      "benchmark": "artificial_analysis_intelligence_index",
+      "benchmark_version": "openrouter-benchmarks-v1",
+      "model_version": "upstage/solar-pro4-20260810",
+      "source": "openrouter.api.v1.benchmarks:artificial-analysis",
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 28.2,
+      "normalized_score": 28.2,
+      "confidence": "medium",
+      "task_fit": {
+        "coding": 52.7
       }
     },
     {
@@ -1268,13 +1480,13 @@
       "benchmark_version": "openrouter-benchmarks-v1",
       "model_version": "x-ai/grok-4.7-20260916",
       "source": "openrouter.api.v1.benchmarks:artificial-analysis",
-      "observed_at": "2026-10-04T16:58:13.777327+00:00",
-      "expires_at": "2026-10-11T16:58:13.777327+00:00",
-      "raw_score": 46.4,
-      "normalized_score": 46.4,
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 35.0,
+      "normalized_score": 35.0,
       "confidence": "medium",
       "task_fit": {
-        "writing": 46.4
+        "writing": 35.0
       }
     },
     {
@@ -1299,13 +1511,13 @@
       "benchmark_version": "openrouter-benchmarks-v1",
       "model_version": "xiaomi/mimo-v2.6-flash-20260921",
       "source": "openrouter.api.v1.benchmarks:artificial-analysis",
-      "observed_at": "2026-10-04T16:58:13.777327+00:00",
-      "expires_at": "2026-10-11T16:58:13.777327+00:00",
-      "raw_score": 37.9,
-      "normalized_score": 37.9,
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 26.7,
+      "normalized_score": 26.7,
       "confidence": "medium",
       "task_fit": {
-        "writing": 37.9
+        "writing": 26.7
       }
     },
     {
@@ -1314,13 +1526,13 @@
       "benchmark_version": "openrouter-benchmarks-v1",
       "model_version": "xiaomi/mimo-v2.6-pro-20260921",
       "source": "openrouter.api.v1.benchmarks:artificial-analysis",
-      "observed_at": "2026-10-04T16:58:13.777327+00:00",
-      "expires_at": "2026-10-11T16:58:13.777327+00:00",
-      "raw_score": 46.3,
-      "normalized_score": 46.3,
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 29.9,
+      "normalized_score": 29.9,
       "confidence": "medium",
       "task_fit": {
-        "writing": 46.3
+        "writing": 29.9
       }
     },
     {
@@ -1361,10 +1573,10 @@
       "benchmark_version": "openrouter-benchmarks-v1",
       "model_version": "z-ai/glm-5.3-20260816",
       "source": "openrouter.api.v1.benchmarks:artificial-analysis",
-      "observed_at": "2026-10-04T16:58:13.777327+00:00",
-      "expires_at": "2026-10-11T16:58:13.777327+00:00",
-      "raw_score": 44.8,
-      "normalized_score": 44.8,
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 31.7,
+      "normalized_score": 31.7,
       "confidence": "medium",
       "task_fit": {
         "planning": 53.1,
@@ -1377,10 +1589,10 @@
       "benchmark_version": "openrouter-benchmarks-v1",
       "model_version": "z-ai/glm-5.3-flash-20260826",
       "source": "openrouter.api.v1.benchmarks:artificial-analysis",
-      "observed_at": "2026-10-04T16:58:13.777327+00:00",
-      "expires_at": "2026-10-11T16:58:13.777327+00:00",
-      "raw_score": 41.8,
-      "normalized_score": 41.8,
+      "observed_at": "2026-11-03T12:07:06.368606+00:00",
+      "expires_at": "2026-12-03T12:07:06.368606+00:00",
+      "raw_score": 27.8,
+      "normalized_score": 27.8,
       "confidence": "medium",
       "task_fit": {
         "planning": 50.9,

@@ -13,13 +13,59 @@ from src.dev_agent.resources.model_admission import ModelAdmissionResolver
 from src.dev_agent.resources.model_evidence_builder import (
     build_alias_document,
     build_capability_document,
+    derive_capabilities,
 )
-from src.dev_agent.resources.model_catalog import ModelCatalog, ModelCatalogError
+from src.dev_agent.resources.model_catalog import ModelCatalog, ModelCatalogEntry, ModelCatalogError
 from src.dev_agent.resources.router import ResourceRouter, RouteRequest
 from src.dev_agent.resources.ledger import ResourceLedger
 
 
 NOW = datetime(2026, 9, 14, 12, tzinfo=timezone.utc)
+
+
+@pytest.mark.parametrize(
+    ("provider_id", "model_id"),
+    [
+        ("mistral", "codestral-embed"),
+        ("cohere", "cohere/embed-v4.0"),
+        ("openai", "openai/text-embedding-3-small"),
+    ],
+)
+def test_embedding_catalog_entries_are_not_worker_text_generation_candidates(provider_id, model_id):
+    entry = ModelCatalogEntry(
+        provider_id=provider_id,
+        provider_binding_id=f"{provider_id}:account",
+        model_id=model_id,
+        source="provider.models.list",
+        observed_at="2026-09-14T00:00:00+00:00",
+        expires_at="2026-09-21T00:00:00+00:00",
+        metadata={},
+    )
+
+    assert not entry.is_text_generation_candidate()
+
+
+@pytest.mark.parametrize(
+    ("provider_id", "model_id"),
+    [
+        ("mistral", "mistral-ocr-latest"),
+        ("mistral", "voxtral-mini-latest"),
+        ("mistral", "mistral-moderation-2603"),
+        ("openrouter", "nvidia/nemotron-3.5-content-safety:free"),
+    ],
+)
+def test_specialized_catalog_entries_are_not_worker_text_generation_candidates(provider_id, model_id):
+    entry = ModelCatalogEntry(
+        provider_id=provider_id,
+        provider_binding_id=f"{provider_id}:account",
+        model_id=model_id,
+        source="provider.models.list",
+        observed_at="2026-11-03T00:00:00+00:00",
+        expires_at="2026-11-10T00:00:00+00:00",
+        metadata={},
+    )
+
+    assert not entry.is_text_generation_candidate()
 
 
 def _catalog_document():
@@ -224,6 +270,124 @@ def test_model_evidence_builder_expands_aliases_and_derives_only_safe_capabiliti
     assert by_model["gemini-2.5-flash"]["capabilities"] == ["long_context", "text"]
     assert "structured_output" not in by_model["gemini-3.7-flash"]["capabilities"]
     assert "gemini-2.5-flash-tts" not in by_model
+
+
+@pytest.mark.parametrize(
+    ("chat_completion_supported", "expected"),
+    ((True, frozenset({"text", "long_context"})), (False, frozenset()), (None, frozenset())),
+)
+def test_mistral_text_capability_requires_exact_discovery_fact(chat_completion_supported, expected):
+    metadata = {"chat_completion_supported": chat_completion_supported} if chat_completion_supported is not None else {}
+    entry = ModelCatalogEntry(
+        provider_id="mistral",
+        provider_binding_id="mistral:account",
+        model_id="mistral-small-latest",
+        source="mistral.models.list",
+        observed_at="2026-09-14T00:00:00+00:00",
+        expires_at="2026-09-15T00:00:00+00:00",
+        metadata={**metadata, "context_length": 131072},
+    )
+
+    assert derive_capabilities(entry) == expected
+    assert entry.is_text_generation_candidate() is (chat_completion_supported is not False)
+
+
+@pytest.mark.parametrize(
+    ("provider_id", "model_id", "expected_benchmark_model_id"),
+    [
+        ("mistral", "mistral-large-4-0", "mistralai/mistral-large-4-0"),
+        ("mistral", "mistral-small-2603", "mistralai/mistral-small-2603"),
+        ("openrouter", "nvidia/nemotron-3-ultra-550b-a55b:free", "nvidia/nemotron-3-ultra-550b-a55b"),
+        ("openrouter", "nvidia/nemotron-3.5-lightning:free", "nvidia/nemotron-3.5-lightning"),
+        ("openrouter", "nvidia/nemotron-3.5-super-vl:free", "nvidia/nemotron-3.5-super-vl"),
+        ("openrouter", "thinkingmachines/inkling-small:free", "thinkingmachines/inkling-small"),
+        ("openrouter", "thinkingmachines/inkling:free", "thinkingmachines/inkling"),
+    ],
+)
+def test_exact_provider_variants_map_only_benchmark_identity(provider_id, model_id, expected_benchmark_model_id):
+    from src.dev_agent.resources.model_evidence_builder import canonical_model_id_for
+
+    assert canonical_model_id_for(provider_id, model_id) == expected_benchmark_model_id
+
+
+def test_unknown_free_variant_does_not_get_fuzzy_benchmark_alias():
+    from src.dev_agent.resources.model_evidence_builder import canonical_model_id_for
+
+    model_id = "cohere/north-mini-code:free"
+    assert canonical_model_id_for("openrouter", model_id) == model_id
+
+
+def test_free_variant_benchmark_alias_does_not_replace_exact_capability_identity():
+    from src.dev_agent.resources.model_admission import ModelAdmissionResolver
+    from src.dev_agent.resources.model_benchmarks import BenchmarkCatalog
+    from src.dev_agent.resources.model_capabilities import ModelCapabilityCatalog
+    from src.dev_agent.resources.model_catalog import ModelAliasCatalog
+
+    evidence_now = datetime(2026, 11, 4, 12, tzinfo=timezone.utc)
+    model_id = "nvidia/nemotron-3.5-lightning:free"
+    catalog = ModelCatalog.from_document(
+        {
+            "schema_version": 1,
+            "entries": [
+                {
+                    "provider_id": "openrouter",
+                    "provider_binding_id": "openrouter:account",
+                    "model_id": model_id,
+                    "source": "openrouter.models.list",
+                    "observed_at": "2026-11-03T00:00:00+00:00",
+                    "expires_at": "2026-12-03T00:00:00+00:00",
+                    "metadata": {
+                        "input_modalities": ["text"],
+                        "output_modalities": ["text"],
+                    },
+                }
+            ],
+        }
+    )
+    aliases = ModelAliasCatalog.from_document(build_alias_document(catalog, now=evidence_now))
+    benchmarks = BenchmarkCatalog.from_document(
+        {
+            "schema_version": 1,
+            "tier_thresholds": {"L1": 0, "L2": 30, "L3": 60},
+            "entries": [
+                {
+                    "canonical_model_id": "nvidia/nemotron-3.5-lightning",
+                    "benchmark": "artificial_analysis_intelligence_index",
+                    "benchmark_version": "openrouter-benchmarks-v1",
+                    "model_version": "nvidia/nemotron-3.5-lightning-20260807",
+                    "source": "openrouter.api.v1.benchmarks:artificial-analysis",
+                    "observed_at": "2026-11-03T00:00:00+00:00",
+                    "expires_at": "2026-12-03T00:00:00+00:00",
+                    "raw_score": 27.0,
+                    "normalized_score": 27.0,
+                    "confidence": "medium",
+                    "task_fit": {"coding": 26.8},
+                }
+            ],
+        }
+    )
+    capabilities = ModelCapabilityCatalog.from_document(
+        {
+            "schema_version": 1,
+            "entries": [
+                {
+                    "provider_id": "openrouter",
+                    "model_id": model_id,
+                    "capabilities": ["text"],
+                    "source": "exact-provider-model-evidence",
+                    "observed_at": "2026-11-03T00:00:00+00:00",
+                    "expires_at": "2026-12-03T00:00:00+00:00",
+                }
+            ],
+        }
+    )
+    resolver = ModelAdmissionResolver(catalog, aliases, benchmarks, capabilities)
+
+    result = resolver.diagnose("openrouter", "openrouter:account", model_id, now=evidence_now)
+
+    assert result.benchmark == "PASS"
+    assert result.capability == "PASS"
+    assert result.canonical_model_id == "nvidia/nemotron-3.5-lightning"
 
 
 def test_discovery_expansion_materializes_distinct_execution_bindings_for_one_credential():

@@ -14,8 +14,23 @@ from typing import Any, Mapping
 from .model_catalog import ModelCatalog, ModelCatalogEntry, ModelCatalogError
 
 
+# Exact cross-provider/variant identities observed in the external benchmark
+# source. These aliases are used only to look up quality scores; capability
+# evidence remains keyed by the exact Provider/model ID. Do not generalize by
+# stripping suffixes or comparing similar names.
+_BENCHMARK_IDENTITY_OVERRIDES = {
+    ("mistral", "mistral-large-4-0"): "mistralai/mistral-large-4-0",
+    ("mistral", "mistral-small-2603"): "mistralai/mistral-small-2603",
+    ("openrouter", "nvidia/nemotron-3-ultra-550b-a55b:free"): "nvidia/nemotron-3-ultra-550b-a55b",
+    ("openrouter", "nvidia/nemotron-3.5-lightning:free"): "nvidia/nemotron-3.5-lightning",
+    ("openrouter", "nvidia/nemotron-3.5-super-vl:free"): "nvidia/nemotron-3.5-super-vl",
+    ("openrouter", "thinkingmachines/inkling-small:free"): "thinkingmachines/inkling-small",
+    ("openrouter", "thinkingmachines/inkling:free"): "thinkingmachines/inkling",
+}
+
+
 def canonical_model_id_for(provider_id: str, model_id: str) -> str:
-    """Return a deterministic namespace, never a similarity-based alias."""
+    """Return an exact reviewed benchmark identity, never a fuzzy alias."""
 
     if not isinstance(provider_id, str) or not provider_id.strip():
         raise ModelCatalogError("provider_id must be a non-empty string")
@@ -23,6 +38,9 @@ def canonical_model_id_for(provider_id: str, model_id: str) -> str:
         raise ModelCatalogError("model_id must be a non-empty string")
     provider = provider_id.strip().lower()
     model = model_id.strip()
+    override = _BENCHMARK_IDENTITY_OVERRIDES.get((provider, model))
+    if override is not None:
+        return override
     if provider == "gemini":
         return f"google/{model}"
     if provider in {"openrouter", "vercel"} and "/" in model:
@@ -68,6 +86,8 @@ def derive_capabilities(entry: ModelCatalogEntry, *, min_long_context_tokens: in
     if isinstance(min_long_context_tokens, bool) or not isinstance(min_long_context_tokens, int) or min_long_context_tokens < 0:
         raise ValueError("min_long_context_tokens must be a non-negative integer")
     if not entry.metadata or not entry.supports_generation_method("generateContent"):
+        return frozenset()
+    if entry.provider_id == "mistral" and entry.metadata.get("chat_completion_supported") is not True:
         return frozenset()
     if entry.provider_id == "openrouter":
         input_modalities = entry.metadata.get("input_modalities")
