@@ -4,6 +4,8 @@ import pytest
 
 from scripts.devfarm_compensation import select_worker_compensation
 from scripts.devfarm_errors import DevFarmError
+from scripts.devfarm_contracts import WORKER_OUTPUT_MODES
+from scripts.devfarm_worker import _rework_compensation
 
 
 def _manifest(*, mode: str = "minimal_file_replacement", new_files: list[str] | None = None) -> dict[str, object]:
@@ -118,3 +120,45 @@ def test_compensation_rejects_unbounded_output_budget() -> None:
             output_mode="localized_file_edit",
             expected_output_chars="unbounded",  # type: ignore[arg-type]
         )
+
+def test_worker_rework_compensation_accepts_every_canonical_output_mode() -> None:
+    for mode in WORKER_OUTPUT_MODES:
+        decision = _rework_compensation({
+            "rework_handoff": {
+                "repair_context": {
+                    "compensation": {
+                        "authority": "host_policy",
+                        "action": "switch_output_mode",
+                        "prompt_contract": "host-localized-edit",
+                        "output_mode": mode,
+                    },
+                },
+            },
+        })
+        assert decision is not None
+        assert decision["output_mode"] == mode
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid"),
+    [
+        ("action", []),
+        ("action", {"x": "y"}),
+        ("prompt_contract", ["host-localized-edit"]),
+        ("output_mode", ["localized_file_edit"]),
+        ("output_mode", {"mode": "localized_file_edit"}),
+        ("output_mode", 123),
+    ],
+)
+def test_worker_rework_compensation_rejects_malformed_route_types(
+    field: str, invalid: object
+) -> None:
+    compensation: dict[str, object] = {
+        "authority": "host_policy",
+        "action": "switch_output_mode",
+        "prompt_contract": "host-localized-edit",
+        "output_mode": "localized_file_edit",
+    }
+    compensation[field] = invalid
+    with pytest.raises(DevFarmError, match="unsupported"):
+        _rework_compensation({"rework_handoff": {"repair_context": {"compensation": compensation}}})
