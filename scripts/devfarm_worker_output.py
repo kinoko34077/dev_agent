@@ -40,7 +40,7 @@ def worker_output_mode(
     configured = output_contract.get("mode", FULL_WORKER_OUTPUT_MODE)
     if not isinstance(configured, str) or configured not in WORKER_OUTPUT_MODES:
         raise DevFarmError(
-            "output_contract.mode must be full_result, minimal_file_replacement, or localized_file_edit"
+            f"output_contract.mode must be one of: {', '.join(sorted(WORKER_OUTPUT_MODES))}"
         )
     if local_ollama and "mode" not in output_contract:
         return MINIMAL_WORKER_OUTPUT_MODE
