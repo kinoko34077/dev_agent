@@ -28,6 +28,7 @@ from scripts.devfarm_worker_admission import validate_worker_provider
 from src.dev_agent.domain.protocol import ModelResponse
 from src.dev_agent.operation import OperationProviderBinding, configured_provider_pool_from_environment
 from src.dev_agent.providers.base import ModelProvider, ProviderError, transport_failure_metadata
+from src.dev_agent.providers.model_discovery import ModelDiscoveryBinding, ProviderModelDiscovery
 from src.dev_agent.providers.host_dispatch import (
     HostDispatchEnvelope,
     HostProcessExecutor,
@@ -35,7 +36,9 @@ from src.dev_agent.providers.host_dispatch import (
 )
 from src.dev_agent.resources.qualification import QualificationResolver
 from src.dev_agent.resources.control import DispatchDenied, quality_tier_advisory_for
-from src.dev_agent.resources.model_candidates import materialize_provider_bindings
+from src.dev_agent.resources.billing_catalog import profile_for
+from src.dev_agent.resources.model_candidates import current_no_charge_candidate_ids, materialize_provider_bindings
+from src.dev_agent.resources.model_catalog import ModelCatalog
 from src.dev_agent.resources.model_evidence import ModelEvidenceCatalog
 from src.dev_agent.resources.provider_policy import is_local_provider
 from src.dev_agent.resources.provider_authority_constants import REAL_LOCAL_PROVIDER_IDS
@@ -109,32 +112,72 @@ def _write_response(path: str | Path, payload: dict[str, Any]) -> None:
             pass
 
 
-def _configured_binding(envelope: HostDispatchEnvelope) -> OperationProviderBinding:
-    catalog = ModelEvidenceCatalog.load_default().catalog
-    candidates: list[OperationProviderBinding] = []
+def _configured_binding_with_catalog(
+    envelope: HostDispatchEnvelope,
+) -> tuple[OperationProviderBinding, ModelCatalog]:
+    candidates: list[tuple[OperationProviderBinding, ModelCatalog]] = []
+    local_catalog: ModelCatalog | None = None
+    discovery_failures = 0
     for configured in configured_provider_pool_from_environment():
         if configured.provider_id != envelope.provider_id:
             continue
+        if is_local_provider(configured.provider_id):
+            if local_catalog is None:
+                local_catalog = ModelEvidenceCatalog.load_default().catalog
+            catalog = local_catalog
+        else:
+            try:
+                live = ProviderModelDiscovery().discover(
+                    ModelDiscoveryBinding.from_operation_binding(configured)
+                )
+                catalog = ModelCatalog.from_document(live.to_document())
+            except Exception:
+                # A stale static snapshot must not stand in for a failed live
+                # identity check on a dynamic remote route.
+                discovery_failures += 1
+                continue
+        preferred_model_ids = current_no_charge_candidate_ids(
+            configured,
+            catalog,
+            profile_for,
+        )
         try:
             materialized = materialize_provider_bindings(
                 configured,
                 catalog,
                 expand_discovered_models=True,
+                preferred_model_ids=preferred_model_ids,
             )
         except (TypeError, ValueError) as exc:
             raise HostDispatchRuntimeError("Host configured model catalog is invalid") from exc
-        candidates.extend(
-            binding
-            for binding in materialized
-            if (
+        for binding in materialized:
+            if not (
                 binding.binding_id == envelope.provider_binding_id
                 or binding.qualification_binding_id == envelope.provider_binding_id
-            )
-            and binding.model == envelope.model_id
-        )
+            ) or binding.model != envelope.model_id:
+                continue
+            # Local pinned resources retain the existing configured identity
+            # contract. Remote candidates must still be present in the fresh
+            # provider inventory read above.
+            if not is_local_provider(configured.provider_id) and catalog.lookup(
+                configured.provider_id,
+                configured.binding_id,
+                binding.model,
+            ) is None:
+                continue
+            candidates.append((binding, catalog))
     if len(candidates) != 1:
+        if not candidates and discovery_failures:
+            raise HostDispatchRuntimeError("current provider inventory could not confirm the Host dispatch identity")
         raise HostDispatchRuntimeError("Host dispatch identity is not one configured binding")
     return candidates[0]
+
+
+def _configured_binding(envelope: HostDispatchEnvelope) -> OperationProviderBinding:
+    """Resolve an exact configured route, confirming remote identity live."""
+
+    binding, _catalog = _configured_binding_with_catalog(envelope)
+    return binding
 
 
 def _dispatch_local_trial(envelope: HostDispatchEnvelope, binding: OperationProviderBinding) -> ModelResponse:
@@ -197,7 +240,7 @@ def _dispatch_local_trial(envelope: HostDispatchEnvelope, binding: OperationProv
 def _dispatch_configured(envelope: HostDispatchEnvelope, *, local_trial: bool = False) -> ModelResponse:
     if not isinstance(local_trial, bool):
         raise TypeError("local_trial must be a boolean")
-    binding = _configured_binding(envelope)
+    binding, _current_catalog = _configured_binding_with_catalog(envelope)
     if local_trial and is_local_provider(binding.provider_id):
         if binding.provider_id not in REAL_LOCAL_PROVIDER_IDS:
             raise HostDispatchRuntimeError("local-trial Host dispatch requires a real local Provider")

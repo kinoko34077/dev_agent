@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from src.dev_agent.domain.protocol import ModelResponse, Task, TaskStatus, TaskType
+from src.dev_agent.domain.protocol import ModelResponse, Step, Task, TaskStatus, TaskType
 from src.dev_agent.intelligence.convergence import ConvergenceMetadata
 from src.dev_agent.operation import (
     OperationConfig,
@@ -1060,9 +1060,11 @@ def test_operation_registers_exact_free_remote_candidate_without_qualification(t
 def test_operation_open_keeps_unqualified_free_remote_as_warning_candidate(tmp_path, monkeypatch):
     from types import SimpleNamespace
 
+    from src.dev_agent.resources.model_evidence import DEFAULT_MODEL_EVIDENCE_DIRECTORY
+
     binding = OperationProviderBinding(
         provider_id="openrouter",
-        model="openrouter/free",
+        model="nvidia/nemotron-3-ultra-550b-a55b:free",
         provider_binding_id="openrouter:free",
         quota_domain="openrouter:account",
         api_key_env="OPENROUTER_API_KEY",
@@ -1071,7 +1073,7 @@ def test_operation_open_keeps_unqualified_free_remote_as_warning_candidate(tmp_p
     class CandidateProvider:
         provider_id = "openrouter"
         provider_binding_id = "openrouter:free"
-        model_id = "openrouter/free"
+        model_id = "nvidia/nemotron-3-ultra-550b-a55b:free"
         intelligence_tier = None
 
         def request(self, _request):
@@ -1111,7 +1113,8 @@ def test_operation_open_keeps_unqualified_free_remote_as_warning_candidate(tmp_p
         "src.dev_agent.operation_bootstrap.ProviderModelDiscovery.discover",
         lambda *_args, **_kwargs: SimpleNamespace(to_document=lambda: inventory),
     )
-    config = OperationConfig(
+    monkeypatch.delenv("DEV_AGENT_MODEL_EVIDENCE_DIR", raising=False)
+    config = OperationConfig.from_environment(
         data_dir=tmp_path,
         provider_pool=(binding,),
         worker_id="unqualified-free-candidate-test",
@@ -1120,12 +1123,36 @@ def test_operation_open_keeps_unqualified_free_remote_as_warning_candidate(tmp_p
     with OperationService.open(config) as service:
         resource = service.ledger.get_resource(binding.binding_id)
         router = service.dispatcher.control.router
+        task = Task(objective="bounded free worker proposal", task_type=TaskType.WORKER)
+        request, _ = service.controller._build_model_request(
+            task,
+            {
+                "messages": [{"role": "user", "content": "Return ROUTE_OK."}],
+                "tool_results": [],
+                "next_step_order": 0,
+            },
+            step=Step(task_id=task.task_id, order=0, kind="model"),
+        )
+        route = service.dispatcher.control.effective_route(
+            request,
+            provider_id="openrouter",
+            max_cost_minor=0,
+        )
+        assert config.model_evidence_directory == DEFAULT_MODEL_EVIDENCE_DIRECTORY
+        assert service.model_admission_resolver is not None
 
     assert resource["metadata"]["proposal_only_candidate"] is True
     assert resource["metadata"]["candidate_admission_warning"] == "QUALIFICATION_UNVERIFIED"
     assert router._proposal_candidate_identities == frozenset(
         {(binding.provider_id, binding.credential_binding_id, binding.model)}
     )
+    assert route.eligible is True, route.to_dict()
+    assert route.selection is not None
+    assert route.selection.provider_id == "openrouter"
+    assert route.selection.model_id == "nvidia/nemotron-3-ultra-550b-a55b:free"
+    assert route.selection.quality_state == "QUALITY_ESTIMATED"
+    assert route.selection.task_fit_score == 49.3
+    assert route.selection.estimated_cost_minor == 0
 
 
 @pytest.mark.current_billing_catalog
@@ -1186,6 +1213,7 @@ def test_unqualified_static_remote_pin_without_current_inventory_stays_visible_b
 @pytest.mark.current_billing_catalog
 def test_unqualified_dynamic_remote_without_text_capability_stays_blocked(tmp_path, monkeypatch):
     from types import SimpleNamespace
+    from src.dev_agent.resources.model_capabilities import ModelCapabilityCatalog
 
     binding = OperationProviderBinding(
         provider_id="openrouter",
@@ -1233,6 +1261,10 @@ def test_unqualified_dynamic_remote_without_text_capability_stays_blocked(tmp_pa
         "src.dev_agent.operation_bootstrap.ProviderModelDiscovery.discover",
         lambda *_args, **_kwargs: SimpleNamespace(to_document=lambda: inventory),
     )
+    # The reviewed default snapshot now contains current text evidence for
+    # openrouter/free. This regression specifically exercises the absent-
+    # capability case, so isolate it from that current evidence.
+    monkeypatch.setattr(ModelCapabilityCatalog, "lookup", lambda *_args, **_kwargs: None)
     config = OperationConfig(
         data_dir=tmp_path,
         provider_pool=(binding,),
@@ -1987,6 +2019,21 @@ def test_operation_composes_model_evidence_only_when_explicitly_configured(tmp_p
     )
 
     with OperationService.open(configured) as service:
+        assert service.model_admission_resolver is not None
+
+
+def test_standard_environment_operation_uses_repository_benchmark_evidence(tmp_path, monkeypatch):
+    from src.dev_agent.resources.model_evidence import DEFAULT_MODEL_EVIDENCE_DIRECTORY
+
+    monkeypatch.delenv("DEV_AGENT_MODEL_EVIDENCE_DIR", raising=False)
+    config = OperationConfig.from_environment(
+        data_dir=tmp_path,
+        provider_id="fake",
+        model="deterministic",
+    )
+
+    assert config.model_evidence_directory == DEFAULT_MODEL_EVIDENCE_DIRECTORY
+    with OperationService.open(config) as service:
         assert service.model_admission_resolver is not None
 
 

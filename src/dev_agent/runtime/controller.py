@@ -14,7 +14,7 @@ from typing import Any, Callable
 from uuid import NAMESPACE_URL, uuid5
 
 from ..domain.protocol import Event as ProtocolEvent
-from ..domain.protocol import ModelRequest, ModelResponse, Step, StepStatus, Task, TaskStatus, ToolCall, ToolResult, ToolResultStatus
+from ..domain.protocol import IntelligenceTier, ModelRequest, ModelResponse, RiskLevel, Step, StepStatus, Task, TaskStatus, TaskType, ToolCall, ToolResult, ToolResultStatus
 from ..domain.wait import attach_wait_condition, condition_from_task_metadata
 from ..providers.base import ModelProvider, ProviderError
 from ..security.event_artifacts import EventArtifactStore
@@ -705,10 +705,36 @@ class Controller:
             execution_role = task.metadata.get("execution_role")
             if execution_role:
                 request_metadata["execution_role"] = execution_role
+            if task.task_type is TaskType.WORKER:
+                request_metadata["execution_role"] = "worker"
+                request_metadata["task_fit"] = "coding"
             if self.allow_unknown_quota:
                 request_metadata["allow_unknown_quota"] = True
             if self.intelligence_routing:
                 request_metadata.update(IntelligenceRoutePolicy.metadata_for(intelligence))
+            proposal_safe_worker = (
+                self.intelligence_routing
+                and task.task_type is TaskType.WORKER
+                and intelligence.minimum_tier is IntelligenceTier.L1
+                and intelligence.allowed_tiers == (IntelligenceTier.L1,)
+                and task.risk not in {RiskLevel.HIGH, RiskLevel.CRITICAL}
+                and task.sensitivity in {"public", "normal"}
+                and set(execution_capabilities(task.required_capabilities)).issubset({"text"})
+                and task.metadata.get("planner_contract") != "phase8_minimal_root_v1"
+            )
+            if proposal_safe_worker:
+                # An ordinary L1 Worker response is a proposal; it has no
+                # integration authority. Exact no-charge routes may therefore
+                # serve it without a benchmark/qualification label, while the
+                # existing Router still enforces text capability, current
+                # billing, quota, privacy, and Host-owned route identity.
+                request_metadata.update(
+                    {
+                        "proposal_only": True,
+                        "quality_tier_advisory": True,
+                        "authority": "host_validation_required",
+                    }
+                )
             request = ModelRequest(
                 request_id=state.get("active_request_id") or None,
                 task_id=task.task_id,

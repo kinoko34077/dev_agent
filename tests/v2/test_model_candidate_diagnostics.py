@@ -30,7 +30,14 @@ from src.dev_agent.resources.model_runtime import (
 # window.  The canonical evidence refresh is intentionally time-bounded; a
 # clock before the refresh's observed_at would make every row look expired and
 # hide the runtime-not-probed cases these tests exercise.
-DIAGNOSTIC_NOW = datetime(2026, 10, 5, 0, 0, tzinfo=timezone.utc)
+DIAGNOSTIC_NOW = datetime(2026, 11, 4, 0, 0, tzinfo=timezone.utc)
+
+
+class _CurrentQualification:
+    """Keep diagnostic tests focused on runtime state, independent of expiry."""
+
+    def resolve(self, *_args, **_kwargs):
+        return object()
 
 
 @pytest.fixture(scope="module")
@@ -94,7 +101,12 @@ def test_summarize_entries_separates_static_candidates_from_runtime_unknown():
 
 @pytest.mark.current_billing_catalog
 def test_static_candidate_without_runtime_snapshot_is_not_probed(model_evidence):
-    rows = diagnose_entries(model_evidence, limit=MAX_DIAGNOSTIC_ROWS, now=DIAGNOSTIC_NOW)
+    rows = diagnose_entries(
+        model_evidence,
+        qualification_resolver=_CurrentQualification(),
+        limit=MAX_DIAGNOSTIC_ROWS,
+        now=DIAGNOSTIC_NOW,
+    )
 
     statically_eligible = [row for row in rows if row["static_result"] == "ELIGIBLE"]
     not_probed = [row for row in statically_eligible if row["result"] == RUNTIME_NOT_PROBED]
@@ -104,7 +116,12 @@ def test_static_candidate_without_runtime_snapshot_is_not_probed(model_evidence)
 
 @pytest.mark.current_billing_catalog
 def test_missing_benchmark_does_not_replace_runtime_not_probed_reason(model_evidence):
-    rows = diagnose_entries(model_evidence, limit=MAX_DIAGNOSTIC_ROWS, now=DIAGNOSTIC_NOW)
+    rows = diagnose_entries(
+        model_evidence,
+        qualification_resolver=_CurrentQualification(),
+        limit=MAX_DIAGNOSTIC_ROWS,
+        now=DIAGNOSTIC_NOW,
+    )
 
     row = next(
         row
@@ -126,8 +143,8 @@ def test_explicit_specialized_model_remains_the_diagnostic_gate(monkeypatch):
                         "provider_binding_id": "gemini:worker",
                         "model_id": "gemini-image-1",
                         "source": "fixture.models.list",
-                        "observed_at": "2026-10-01T00:00:00+00:00",
-                        "expires_at": "2026-11-01T00:00:00+00:00",
+                        "observed_at": "2026-11-02T00:00:00+00:00",
+                        "expires_at": "2026-11-09T00:00:00+00:00",
                         "metadata": {"supported_generation_methods": ["embedContent"]},
                     }
                 ],
@@ -160,7 +177,12 @@ def test_explicit_specialized_model_remains_the_diagnostic_gate(monkeypatch):
 def test_explicit_runtime_snapshot_distinguishes_unavailable_from_not_probed(model_evidence):
     candidate = next(
         row
-        for row in diagnose_entries(model_evidence, limit=MAX_DIAGNOSTIC_ROWS, now=DIAGNOSTIC_NOW)
+        for row in diagnose_entries(
+            model_evidence,
+            qualification_resolver=_CurrentQualification(),
+            limit=MAX_DIAGNOSTIC_ROWS,
+            now=DIAGNOSTIC_NOW,
+        )
         if row["result"] == RUNTIME_NOT_PROBED
     )
     snapshot = RuntimeAdmissionSnapshot.from_document(
@@ -178,7 +200,13 @@ def test_explicit_runtime_snapshot_distinguishes_unavailable_from_not_probed(mod
             ],
         }
     )
-    rows = diagnose_entries(model_evidence, runtime_snapshot=snapshot, limit=MAX_DIAGNOSTIC_ROWS, now=DIAGNOSTIC_NOW)
+    rows = diagnose_entries(
+        model_evidence,
+        qualification_resolver=_CurrentQualification(),
+        runtime_snapshot=snapshot,
+        limit=MAX_DIAGNOSTIC_ROWS,
+        now=DIAGNOSTIC_NOW,
+    )
     observed = next(row for row in rows if row["provider_binding_id"] == candidate["provider_binding_id"] and row["model_id"] == candidate["model_id"])
     assert observed["result"] == RUNTIME_UNAVAILABLE
     assert observed["gate_reason"] == "runtime_unavailable"
@@ -535,7 +563,7 @@ def test_stale_discovery_identity_remains_advisory_only_when_exact_billing_is_cu
 
 
 @pytest.mark.current_billing_catalog
-def test_vercel_paid_discovery_remains_visible_with_billing_warning_but_not_dispatchable():
+def test_vercel_conflicting_free_listing_remains_visible_as_billing_unknown():
     staged = ModelCatalog.from_document(
         {
             "schema_version": 1,
@@ -563,13 +591,15 @@ def test_vercel_paid_discovery_remains_visible_with_billing_warning_but_not_disp
     summary = diagnostics.summarize_proposal_only_candidates(
         ModelCatalog.from_document({"schema_version": 1, "entries": []}),
         staged,
-        now=datetime(2026, 11, 2, 10, 0, tzinfo=timezone.utc),
+        now=datetime(2026, 11, 4, 10, 0, tzinfo=timezone.utc),
     )
 
-    assert summary["binding_model_row_count"] == 1
-    assert summary["provider_counts"] == {"vercel": 1}
+    assert summary["binding_model_row_count"] == 0
+    assert summary["provider_counts"] == {}
     assert summary["billing_unknown_binding_model_row_count"] == 1
     assert summary["billing_unknown_provider_counts"] == {"vercel": 1}
+    assert summary["billing_expired_or_not_no_charge_binding_model_row_count"] == 1
+    assert summary["billing_expired_or_not_no_charge_provider_counts"] == {"vercel": 1}
     assert summary["formal_runtime_eligibility_asserted"] is False
 
 

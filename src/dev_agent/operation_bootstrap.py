@@ -21,7 +21,7 @@ from .resources.budget import BudgetGovernor
 from .resources.control import ResourceControlPlane
 from .resources.ledger import ResourceLedger
 from .resources.model_admission import ModelAdmissionResolver
-from .resources.model_candidates import materialize_provider_bindings
+from .resources.model_candidates import current_no_charge_candidate_ids, materialize_provider_bindings
 from .resources.model_catalog import ModelCatalog
 from .resources.model_evidence import ModelEvidenceCatalog
 from .resources.model_evidence_builder import derive_capabilities
@@ -232,10 +232,16 @@ def open_components(
                 )
             if candidate_catalog is None:
                 continue
+            preferred_model_ids = current_no_charge_candidate_ids(
+                binding,
+                candidate_catalog,
+                resource_profile,
+            )
             for candidate in materialize_provider_bindings(
                 binding,
                 candidate_catalog,
                 expand_discovered_models=expands_discovered_models,
+                preferred_model_ids=preferred_model_ids,
             ):
                 # Discovery/static catalog identity may differ from the
                 # qualification/billing lane (for example OpenRouter's
@@ -419,10 +425,6 @@ def open_components(
                     },
                 )
             normalized_bindings.append(binding)
-            if getattr(binding, "proposal_only_candidate", False):
-                proposal_candidate_identities.add(
-                    (binding.provider_id, binding.credential_binding_id, binding.model)
-                )
         runtime_bindings = normalized_bindings
 
         providers: list[Any] = []

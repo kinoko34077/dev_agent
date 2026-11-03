@@ -8,8 +8,18 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "@cf/cloudflare/clairic",
+      "capabilities": [
+        "text"
+      ],
+      "source": "cloudflare.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -18,8 +28,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -28,8 +38,18 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "@cf/daily-co/phonellm-mini-alpha-2",
+      "capabilities": [
+        "text"
+      ],
+      "source": "cloudflare.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -38,8 +58,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -48,8 +68,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -58,8 +78,18 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
+    },
+    {
+      "provider_id": "cloudflare",
+      "model_id": "@cf/deepseek-ai/deepseek-v4.1-flash-1017",
+      "capabilities": [
+        "text"
+      ],
+      "source": "cloudflare.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -68,8 +98,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -78,8 +108,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -88,8 +118,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -98,8 +128,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -108,8 +138,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -118,8 +148,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -128,8 +158,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -138,8 +168,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -148,8 +178,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -158,8 +188,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -168,8 +198,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -178,8 +208,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -188,8 +218,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -198,8 +228,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -208,8 +238,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -218,8 +248,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -228,8 +258,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -238,8 +268,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -248,8 +278,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -258,8 +288,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -268,8 +298,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -278,8 +308,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -288,8 +318,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -298,8 +328,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -308,8 +338,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -318,8 +348,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -328,8 +358,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "cloudflare",
@@ -338,8 +368,8 @@
         "text"
       ],
       "source": "cloudflare.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.375560+00:00",
-      "expires_at": "2026-10-11T12:57:29.375560+00:00"
+      "observed_at": "2026-11-03T12:06:28.960851+00:00",
+      "expires_at": "2026-12-03T12:06:28.960851+00:00"
     },
     {
       "provider_id": "gemini",
@@ -349,8 +379,8 @@
         "text"
       ],
       "source": "gemini.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.168736+00:00",
-      "expires_at": "2026-10-11T12:57:29.168736+00:00"
+      "observed_at": "2026-11-03T12:06:28.672842+00:00",
+      "expires_at": "2026-12-03T12:06:28.672842+00:00"
     },
     {
       "provider_id": "gemini",
@@ -360,8 +390,8 @@
         "text"
       ],
       "source": "gemini.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.168736+00:00",
-      "expires_at": "2026-10-11T12:57:29.168736+00:00"
+      "observed_at": "2026-11-03T12:06:28.672842+00:00",
+      "expires_at": "2026-12-03T12:06:28.672842+00:00"
     },
     {
       "provider_id": "gemini",
@@ -371,8 +401,8 @@
         "text"
       ],
       "source": "gemini.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.168736+00:00",
-      "expires_at": "2026-10-11T12:57:29.168736+00:00"
+      "observed_at": "2026-11-03T12:06:28.672842+00:00",
+      "expires_at": "2026-12-03T12:06:28.672842+00:00"
     },
     {
       "provider_id": "gemini",
@@ -382,8 +412,8 @@
         "text"
       ],
       "source": "gemini.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.168736+00:00",
-      "expires_at": "2026-10-11T12:57:29.168736+00:00"
+      "observed_at": "2026-11-03T12:06:28.672842+00:00",
+      "expires_at": "2026-12-03T12:06:28.672842+00:00"
     },
     {
       "provider_id": "gemini",
@@ -393,8 +423,8 @@
         "text"
       ],
       "source": "gemini.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.168736+00:00",
-      "expires_at": "2026-10-11T12:57:29.168736+00:00"
+      "observed_at": "2026-11-03T12:06:28.672842+00:00",
+      "expires_at": "2026-12-03T12:06:28.672842+00:00"
     },
     {
       "provider_id": "gemini",
@@ -404,8 +434,8 @@
         "text"
       ],
       "source": "gemini.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.168736+00:00",
-      "expires_at": "2026-10-11T12:57:29.168736+00:00"
+      "observed_at": "2026-11-03T12:06:28.672842+00:00",
+      "expires_at": "2026-12-03T12:06:28.672842+00:00"
     },
     {
       "provider_id": "gemini",
@@ -415,8 +445,8 @@
         "text"
       ],
       "source": "gemini.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.168736+00:00",
-      "expires_at": "2026-10-11T12:57:29.168736+00:00"
+      "observed_at": "2026-11-03T12:06:28.672842+00:00",
+      "expires_at": "2026-12-03T12:06:28.672842+00:00"
     },
     {
       "provider_id": "gemini",
@@ -426,8 +456,8 @@
         "text"
       ],
       "source": "gemini.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.168736+00:00",
-      "expires_at": "2026-10-11T12:57:29.168736+00:00"
+      "observed_at": "2026-11-03T12:06:28.672842+00:00",
+      "expires_at": "2026-12-03T12:06:28.672842+00:00"
     },
     {
       "provider_id": "gemini",
@@ -437,8 +467,8 @@
         "text"
       ],
       "source": "gemini.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.168736+00:00",
-      "expires_at": "2026-10-11T12:57:29.168736+00:00"
+      "observed_at": "2026-11-03T12:06:28.672842+00:00",
+      "expires_at": "2026-12-03T12:06:28.672842+00:00"
     },
     {
       "provider_id": "gemini",
@@ -448,8 +478,8 @@
         "text"
       ],
       "source": "gemini.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.168736+00:00",
-      "expires_at": "2026-10-11T12:57:29.168736+00:00"
+      "observed_at": "2026-11-03T12:06:28.672842+00:00",
+      "expires_at": "2026-12-03T12:06:28.672842+00:00"
     },
     {
       "provider_id": "gemini",
@@ -459,8 +489,8 @@
         "text"
       ],
       "source": "gemini.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.168736+00:00",
-      "expires_at": "2026-10-11T12:57:29.168736+00:00"
+      "observed_at": "2026-11-03T12:06:28.672842+00:00",
+      "expires_at": "2026-12-03T12:06:28.672842+00:00"
     },
     {
       "provider_id": "gemini",
@@ -470,8 +500,19 @@
         "text"
       ],
       "source": "gemini.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.168736+00:00",
-      "expires_at": "2026-10-11T12:57:29.168736+00:00"
+      "observed_at": "2026-11-03T12:06:28.672842+00:00",
+      "expires_at": "2026-12-03T12:06:28.672842+00:00"
+    },
+    {
+      "provider_id": "gemini",
+      "model_id": "gemini-4-argon",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "gemini.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:28.672842+00:00",
+      "expires_at": "2026-12-03T12:06:28.672842+00:00"
     },
     {
       "provider_id": "gemini",
@@ -481,8 +522,8 @@
         "text"
       ],
       "source": "gemini.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.168736+00:00",
-      "expires_at": "2026-10-11T12:57:29.168736+00:00"
+      "observed_at": "2026-11-03T12:06:28.672842+00:00",
+      "expires_at": "2026-12-03T12:06:28.672842+00:00"
     },
     {
       "provider_id": "gemini",
@@ -492,8 +533,8 @@
         "text"
       ],
       "source": "gemini.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.168736+00:00",
-      "expires_at": "2026-10-11T12:57:29.168736+00:00"
+      "observed_at": "2026-11-03T12:06:28.672842+00:00",
+      "expires_at": "2026-12-03T12:06:28.672842+00:00"
     },
     {
       "provider_id": "gemini",
@@ -503,8 +544,8 @@
         "text"
       ],
       "source": "gemini.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.168736+00:00",
-      "expires_at": "2026-10-11T12:57:29.168736+00:00"
+      "observed_at": "2026-11-03T12:06:28.672842+00:00",
+      "expires_at": "2026-12-03T12:06:28.672842+00:00"
     },
     {
       "provider_id": "gemini",
@@ -514,8 +555,8 @@
         "text"
       ],
       "source": "gemini.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.168736+00:00",
-      "expires_at": "2026-10-11T12:57:29.168736+00:00"
+      "observed_at": "2026-11-03T12:06:28.672842+00:00",
+      "expires_at": "2026-12-03T12:06:28.672842+00:00"
     },
     {
       "provider_id": "gemini",
@@ -525,8 +566,305 @@
         "text"
       ],
       "source": "gemini.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:29.168736+00:00",
-      "expires_at": "2026-10-11T12:57:29.168736+00:00"
+      "observed_at": "2026-11-03T12:06:28.672842+00:00",
+      "expires_at": "2026-12-03T12:06:28.672842+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "codestral-2508",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "codestral-latest",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "labs-leanstral-1-5",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "labs-leanstral-1-5-1",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "magistral-medium-latest",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "magistral-small-latest",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "ministral-14b-2512",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "ministral-14b-latest",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "ministral-3b-2512",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "ministral-3b-latest",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "ministral-8b-2512",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "ministral-8b-latest",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-code-fim-latest",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-code-latest",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-large-4",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-large-4-0",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-medium",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-medium-2604",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-medium-3",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-medium-3-5",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-medium-3.5",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-medium-latest",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-small-2603",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-small-latest",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-vibe-cli-fast",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-vibe-cli-latest",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
+    },
+    {
+      "provider_id": "mistral",
+      "model_id": "mistral-vibe-cli-with-tools",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "mistral.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T13:13:55.445811+00:00",
+      "expires_at": "2026-12-03T13:13:55.445811+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -536,8 +874,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -547,8 +885,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -558,8 +896,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -569,8 +907,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -580,8 +918,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -591,8 +929,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -602,8 +940,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -613,8 +951,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -624,8 +962,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -635,8 +973,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -646,8 +984,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -657,8 +995,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -668,8 +1006,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -679,8 +1017,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -690,8 +1028,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -712,8 +1050,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -728,14 +1066,36 @@
     },
     {
       "provider_id": "openrouter",
+      "model_id": "anthropic/claude-haiku-5.5",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "anthropic/claude-haiku-5.5:batch",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
       "model_id": "anthropic/claude-opus-4.1",
       "capabilities": [
         "long_context",
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -756,8 +1116,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -778,8 +1138,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -800,8 +1160,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -822,8 +1182,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -844,8 +1204,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -855,8 +1215,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -866,8 +1226,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -877,8 +1237,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -899,8 +1259,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -921,8 +1281,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -943,8 +1303,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -954,8 +1314,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -965,8 +1325,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1020,8 +1380,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1031,8 +1391,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1042,8 +1402,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1053,8 +1413,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1064,8 +1424,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1075,8 +1435,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1086,8 +1446,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1097,8 +1457,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1108,8 +1468,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1119,8 +1479,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1130,8 +1490,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1141,8 +1501,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1152,8 +1512,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1163,8 +1523,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1174,8 +1534,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1185,8 +1545,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1196,8 +1556,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1218,8 +1578,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1229,8 +1589,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1240,8 +1600,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1251,8 +1611,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1262,8 +1622,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1273,8 +1633,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1284,8 +1644,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1295,8 +1655,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1306,8 +1666,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1317,8 +1677,19 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "deepseek/deepseek-v4.1-flash-1017",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1328,8 +1699,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1339,8 +1710,19 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "elorian/glimpse",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1350,8 +1732,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1361,8 +1743,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1372,8 +1754,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1405,8 +1787,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1416,8 +1798,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1438,8 +1820,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1449,8 +1831,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1460,8 +1842,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1471,8 +1853,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1482,8 +1864,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1493,8 +1875,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1504,8 +1886,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1515,8 +1897,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1526,8 +1908,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1537,8 +1919,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1548,8 +1930,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1559,8 +1941,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1570,8 +1952,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1581,8 +1963,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1592,8 +1974,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1603,8 +1985,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1614,8 +1996,30 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-4-argon",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "google/gemini-4-argon:batch",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1624,8 +2028,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1635,8 +2039,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1646,8 +2050,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1657,8 +2061,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1668,8 +2072,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1679,8 +2083,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1690,8 +2094,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1701,8 +2105,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1711,8 +2115,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1733,8 +2137,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1744,8 +2148,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1755,8 +2159,19 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "inception/mercury-3",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1766,8 +2181,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1799,8 +2214,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1810,8 +2225,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1821,8 +2236,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1832,8 +2247,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1854,8 +2269,19 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "liquid/lfm-2.5-24b-a2b",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1864,8 +2290,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1875,8 +2301,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1886,8 +2312,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1897,8 +2323,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1908,8 +2334,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1919,8 +2345,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1930,8 +2356,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1941,8 +2367,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1952,8 +2378,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1963,8 +2389,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1974,8 +2400,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1985,8 +2411,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -1996,8 +2422,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2018,8 +2444,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2034,13 +2460,35 @@
     },
     {
       "provider_id": "openrouter",
+      "model_id": "meta/muse-spark-open",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "meta/muse-wonder",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
       "model_id": "microsoft/phi-4",
       "capabilities": [
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2061,8 +2509,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2072,8 +2520,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2083,8 +2531,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2094,8 +2542,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2105,8 +2553,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2116,8 +2564,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2127,8 +2575,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2138,8 +2586,19 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "minimax/minimax-m3.1-flash",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2149,8 +2608,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2171,8 +2630,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2182,8 +2641,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2193,8 +2652,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2204,8 +2663,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2226,8 +2685,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2237,8 +2696,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2248,8 +2707,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2264,14 +2723,25 @@
     },
     {
       "provider_id": "openrouter",
+      "model_id": "mistralai/mistral-large-4-0",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
       "model_id": "mistralai/mistral-medium-3",
       "capabilities": [
         "long_context",
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2281,8 +2751,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2292,8 +2762,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2303,8 +2773,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2325,8 +2795,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2336,8 +2806,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2347,8 +2817,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2358,8 +2828,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2380,8 +2850,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2391,8 +2861,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2402,8 +2872,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2413,8 +2883,28 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "moondream/moondream3-preview",
+      "capabilities": [
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "moondream/moondream3.1-9b-a2b",
+      "capabilities": [
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2424,8 +2914,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2435,8 +2925,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2446,8 +2936,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2457,8 +2947,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2468,8 +2958,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2479,8 +2969,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2490,8 +2980,19 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "moonshotai/kimi-k3.1-pro",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2501,8 +3002,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2512,8 +3013,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2523,8 +3024,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2534,8 +3035,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2545,8 +3046,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2578,8 +3079,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2589,8 +3090,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2600,8 +3101,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2622,8 +3123,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2633,8 +3134,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2644,8 +3145,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2655,8 +3156,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2666,8 +3167,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2677,8 +3178,30 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "nvidia/nemotron-3.5-super-vl",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "nvidia/nemotron-3.5-super-vl:free",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2688,8 +3211,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2708,8 +3231,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2718,8 +3241,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2748,8 +3271,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2781,8 +3304,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2792,8 +3315,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2814,8 +3337,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2847,8 +3370,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2858,8 +3381,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2869,8 +3392,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2880,8 +3403,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2891,8 +3414,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2902,8 +3425,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2935,8 +3458,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2946,8 +3469,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2968,8 +3491,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2979,8 +3502,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -2990,8 +3513,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3012,8 +3535,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3023,8 +3546,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3034,8 +3557,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3045,8 +3568,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3067,8 +3590,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3089,8 +3612,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3100,8 +3623,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3133,8 +3656,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3144,8 +3667,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3155,8 +3678,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3177,8 +3700,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3199,8 +3722,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3232,8 +3755,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3243,8 +3766,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3276,8 +3799,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3287,8 +3810,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3298,8 +3821,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3309,8 +3832,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3320,8 +3843,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3331,8 +3854,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3342,8 +3865,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3353,8 +3876,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3364,8 +3887,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3375,8 +3898,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3386,8 +3909,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3397,8 +3920,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3419,8 +3942,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3430,8 +3953,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3441,8 +3964,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3452,8 +3975,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3463,8 +3986,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3474,8 +3997,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3485,8 +4008,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3496,8 +4019,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3507,8 +4030,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3518,8 +4041,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3529,8 +4052,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3540,8 +4063,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3551,8 +4074,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3562,8 +4085,74 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-6.1-sol-pro:batch",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-6.1-sol:batch",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-6.1-terra",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-6.1-terra-pro",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-6.1-terra-pro:batch",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "openai/gpt-6.1-terra:batch",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3573,8 +4162,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3584,8 +4173,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3595,8 +4184,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3606,8 +4195,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3617,8 +4206,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3628,8 +4217,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3661,8 +4250,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3705,8 +4294,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3760,8 +4349,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3771,8 +4360,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3782,8 +4371,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3793,8 +4382,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3804,8 +4393,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3815,8 +4404,19 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "particle-ai/particle-1",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3826,8 +4426,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3837,8 +4437,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3848,8 +4448,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3859,8 +4459,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3870,8 +4470,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3881,8 +4481,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3936,8 +4536,19 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "prism-ml/ternary-bonsai-2-9b",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3947,8 +4558,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3958,8 +4569,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3969,8 +4580,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -3980,8 +4591,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4002,8 +4613,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4013,8 +4624,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4035,8 +4646,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4046,8 +4657,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4057,8 +4668,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4068,8 +4679,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4090,8 +4701,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4112,8 +4723,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4123,8 +4734,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4134,8 +4745,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4145,8 +4756,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4189,8 +4800,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4211,8 +4822,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4233,8 +4844,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4244,8 +4855,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4266,8 +4877,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4288,8 +4899,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4299,8 +4910,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4310,8 +4921,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4321,8 +4932,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4332,8 +4943,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4343,8 +4954,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4354,8 +4965,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4365,8 +4976,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4376,8 +4987,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4387,8 +4998,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4398,8 +5009,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4420,8 +5031,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4431,8 +5042,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4442,8 +5053,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4453,8 +5064,19 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "qwen/qwen3.7-plus:batch",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4464,8 +5086,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4475,8 +5097,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4497,8 +5119,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4508,8 +5130,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4519,8 +5141,30 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "recursive/flint-v1.0:free",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "reflection/beam-1.0-501b-a23b",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4529,8 +5173,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4540,8 +5184,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4551,8 +5195,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4562,8 +5206,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4573,8 +5217,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4584,8 +5228,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4595,8 +5239,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4616,8 +5260,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4627,8 +5271,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4640,6 +5284,28 @@
       "source": "openrouter.models.list+discovery_metadata",
       "observed_at": "2026-10-04T12:57:30.964067+00:00",
       "expires_at": "2026-10-11T12:57:30.964067+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "scaledown/extract",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "scaledown/summarize",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4660,8 +5326,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4671,8 +5337,19 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "stepfun/step-5-preview",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4682,8 +5359,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4692,8 +5369,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4702,8 +5379,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4712,8 +5389,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4723,8 +5400,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4734,8 +5411,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4745,8 +5422,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4756,8 +5433,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4767,8 +5444,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4778,8 +5455,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4789,8 +5466,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4800,8 +5477,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4811,8 +5488,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4822,8 +5499,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4833,8 +5510,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4849,6 +5526,17 @@
     },
     {
       "provider_id": "openrouter",
+      "model_id": "unbiased/pareto-26.10",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
       "model_id": "unbiased/pareto-26.10-preview",
       "capabilities": [
         "long_context",
@@ -4860,13 +5548,24 @@
     },
     {
       "provider_id": "openrouter",
+      "model_id": "unbiased/pareto-26.9",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
       "model_id": "undi95/remm-slerp-l2-13b",
       "capabilities": [
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4876,8 +5575,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4898,8 +5597,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4909,8 +5608,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4920,8 +5619,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4931,8 +5630,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4942,8 +5641,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4953,8 +5652,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4964,8 +5663,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4975,8 +5674,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4986,8 +5685,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -4997,8 +5696,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5008,8 +5707,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5019,8 +5718,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5030,8 +5729,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5041,8 +5740,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5052,8 +5751,19 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "xingchen-agi/xing4.0-29b-a4b:free",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5063,8 +5773,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5074,8 +5784,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5085,8 +5795,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5096,8 +5806,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5107,8 +5817,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5118,8 +5828,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5129,8 +5839,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5140,8 +5850,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5151,8 +5861,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5162,8 +5872,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5173,8 +5883,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5184,8 +5894,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5195,8 +5905,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5206,8 +5916,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5217,8 +5927,19 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "z-ai/glm-5.3-flashx-legal",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5228,8 +5949,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5239,8 +5960,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5250,8 +5971,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5261,8 +5982,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5272,8 +5993,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5283,8 +6004,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5294,8 +6015,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5305,8 +6026,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5316,8 +6037,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5327,8 +6048,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5338,8 +6059,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5349,8 +6070,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5360,8 +6081,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5371,8 +6092,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5382,8 +6103,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5393,8 +6114,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5404,8 +6125,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5415,8 +6136,19 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "openrouter",
+      "model_id": "~unbiased/pareto-latest",
+      "capabilities": [
+        "long_context",
+        "text"
+      ],
+      "source": "openrouter.models.list+discovery_metadata",
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5426,8 +6158,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5437,8 +6169,8 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
     },
     {
       "provider_id": "openrouter",
@@ -5448,8 +6180,28 @@
         "text"
       ],
       "source": "openrouter.models.list+discovery_metadata",
-      "observed_at": "2026-10-04T12:57:30.964067+00:00",
-      "expires_at": "2026-10-11T12:57:30.964067+00:00"
+      "observed_at": "2026-11-03T12:06:30.751696+00:00",
+      "expires_at": "2026-12-03T12:06:30.751696+00:00"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "nvidia/nemotron-3.5-lightning-free",
+      "capabilities": [
+        "text"
+      ],
+      "source": "https://vercel.com/ai-gateway/models/nemotron-3-5-lightning",
+      "observed_at": "2026-11-03T13:25:11+00:00",
+      "expires_at": "2026-12-03T13:25:11+00:00"
+    },
+    {
+      "provider_id": "vercel",
+      "model_id": "reflection/beam-free",
+      "capabilities": [
+        "text"
+      ],
+      "source": "https://vercel.com/ai-gateway/models/beam-free",
+      "observed_at": "2026-11-03T13:25:11+00:00",
+      "expires_at": "2026-12-03T13:25:11+00:00"
     }
   ]
 }

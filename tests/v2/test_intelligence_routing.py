@@ -1,6 +1,6 @@
 import pytest
 
-from src.dev_agent.domain.protocol import IntelligenceTier, ModelResponse, Task, TaskType
+from src.dev_agent.domain.protocol import IntelligenceTier, ModelResponse, Step, Task, TaskType
 from src.dev_agent.intelligence.policy import TaskIntelligencePolicy
 from src.dev_agent.intelligence.routing import IntelligenceRoutePolicy
 from src.dev_agent.providers.base import ModelProvider
@@ -111,6 +111,42 @@ def test_controller_opt_in_uses_policy_tier_to_select_provider_binding(tmp_path)
     assert len(worker.requests) == 1
     assert worker.requests[0].metadata["intelligence_routing"] == "bounded"
     assert worker.requests[0].metadata["allowed_intelligence_tiers"] == ["L1"]
+
+
+def test_controller_marks_only_l1_worker_as_host_validated_proposal(tmp_path):
+    controller = Controller(
+        RecordingProvider("unused", "unused"),
+        ToolRuntime(ToolRegistry()),
+        JsonStateStore(tmp_path / "proposal-metadata.json"),
+        intelligence_routing=True,
+        allow_unknown_quota=True,
+    )
+    state = {
+        "messages": [{"role": "user", "content": "bounded request"}],
+        "tool_results": [],
+        "next_step_order": 0,
+    }
+
+    worker = Task(objective="small bounded worker", task_type=TaskType.WORKER)
+    worker_request, _ = controller._build_model_request(
+        worker,
+        dict(state),
+        step=Step(task_id=worker.task_id, order=0, kind="model"),
+    )
+    assert worker_request.metadata["execution_role"] == "worker"
+    assert worker_request.metadata["task_fit"] == "coding"
+    assert worker_request.metadata["proposal_only"] is True
+    assert worker_request.metadata["quality_tier_advisory"] is True
+    assert worker_request.metadata["authority"] == "host_validation_required"
+
+    reasoning = Task(objective="formal reasoning", task_type=TaskType.REASONING)
+    reasoning_request, _ = controller._build_model_request(
+        reasoning,
+        dict(state),
+        step=Step(task_id=reasoning.task_id, order=0, kind="model"),
+    )
+    assert "proposal_only" not in reasoning_request.metadata
+    assert "quality_tier_advisory" not in reasoning_request.metadata
 
 
 def test_provider_factory_preserves_optional_intelligence_tier_label():

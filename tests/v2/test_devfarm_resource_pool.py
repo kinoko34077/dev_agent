@@ -214,6 +214,119 @@ def test_unqualified_current_free_remote_is_retained_for_text_proposal_with_warn
     assert selection.admission_warnings == ("QUALIFICATION_UNVERIFIED",)
 
 
+@pytest.mark.current_billing_catalog
+def test_current_free_models_survive_candidate_bound_and_reach_admission():
+    now = datetime.now(timezone.utc)
+    current = now.isoformat()
+    expires = (now.replace(year=now.year + 1)).isoformat()
+    free_models = (
+        "nvidia/nemotron-3.5-lightning-free",
+        "reflection/beam-free",
+        "stealth/glyph-cluster",
+    )
+    entries = [
+        {
+            "provider_id": "vercel",
+            "provider_binding_id": "vercel:account",
+            "model_id": f"aaa/model-{index:03d}",
+            "source": "vercel.models.list",
+            "observed_at": current,
+            "expires_at": expires,
+            "metadata": {"modality": "text->text"},
+        }
+        for index in range(140)
+    ]
+    entries.extend(
+        {
+            "provider_id": "vercel",
+            "provider_binding_id": "vercel:account",
+            "model_id": model_id,
+            "source": "vercel.models.list",
+            "observed_at": current,
+            "expires_at": expires,
+            "metadata": {"modality": "text->text"},
+        }
+        for model_id in free_models
+    )
+    catalog = ModelCatalog.from_document({"schema_version": 1, "entries": entries})
+    binding = OperationProviderBinding(
+        provider_id="vercel",
+        provider_binding_id="vercel:account",
+        qualification_binding_id="vercel:account",
+        model="alibaba/qwen-3-14b",
+        api_key_env="AI_GATEWAY_API_KEY",
+        quota_domain="vercel:account",
+    )
+
+    admitted = admit_resource_pool(
+        (binding,),
+        resolver=_QualificationResolver("L1"),
+        required_tier="L1",
+        required_capabilities=("text",),
+        no_charge_required=True,
+        model_catalog=catalog,
+        expand_discovered_models=True,
+        now=now,
+        profile_resolver=profile_for,
+    )
+
+    assert {candidate.model for candidate, _qualification, _profile in admitted} == set(free_models)
+
+
+@pytest.mark.current_billing_catalog
+def test_live_discovery_admits_exact_openrouter_free_candidate(monkeypatch):
+    from datetime import timedelta
+
+    binding = OperationProviderBinding(
+        provider_id="openrouter",
+        provider_binding_id="openrouter:account",
+        qualification_binding_id="openrouter:free",
+        model="openrouter/free",
+        api_key_env="OPENROUTER_API_KEY",
+        quota_domain="openrouter:account",
+        expand_discovered_models=True,
+    )
+    now = datetime.now(timezone.utc)
+    document = {
+        "schema_version": 1,
+        "entries": [
+            {
+                "provider_id": "openrouter",
+                "provider_binding_id": "openrouter:account",
+                "model_id": model_id,
+                "source": "openrouter.models.list",
+                "observed_at": (now - timedelta(minutes=1)).isoformat(),
+                "expires_at": (now + timedelta(days=1)).isoformat(),
+                "metadata": {"modality": "text->text"},
+            }
+            for model_id in ("provider/free-model:free", "provider/paid-model")
+        ],
+    }
+
+    class _Discovery:
+        def discover(self, discovery_binding, *, now=None):
+            assert discovery_binding.provider_binding_id == "openrouter:account"
+            return SimpleNamespace(to_document=lambda: document)
+
+    monkeypatch.setattr("scripts.devfarm_resource_pool.ProviderModelDiscovery", _Discovery)
+    admitted = admit_resource_pool(
+        (binding,),
+        resolver=_MissingQualificationResolver(),
+        required_tier="L1",
+        quality_tier_advisory=True,
+        required_capabilities=("text",),
+        no_charge_required=True,
+        expand_discovered_models=True,
+        refresh_model_discovery=True,
+        now=now,
+        profile_resolver=profile_for,
+    )
+
+    assert [(candidate.model, candidate.proposal_only_candidate) for candidate, _, _ in admitted] == [
+        ("provider/free-model:free", True)
+    ]
+
+
 def test_local_ollama_composition_projects_local_privacy_and_no_qualification():
     binding = OperationProviderBinding(
         provider_id="ollama",

@@ -318,6 +318,44 @@ def test_gemini_http_payload_includes_function_declarations():
     assert provider._payload(request)["tools"][0]["functionDeclarations"][0]["parameters"]["type"] == "object"
 
 
+def test_gemini_function_schema_omits_unsupported_additional_properties_without_mutating_host_contract():
+    provider = GeminiHttpProvider(model="gemini-test", api_key="test-key")
+    schema = {
+        "type": "object",
+        "properties": {
+            "options": {
+                "type": "object",
+                "properties": {"mode": {"type": "string"}},
+                "required": ["mode"],
+                "additionalProperties": False,
+            }
+        },
+        "required": ["options"],
+        "additionalProperties": False,
+    }
+    request = ModelRequest(
+        task_id=_id(),
+        messages=[{"role": "user", "content": "use the tool"}],
+        tool_definitions=[{"name": "bounded", "description": "Bounded tool", "parameters": schema}],
+    )
+
+    payload_schema = provider._payload(request)["tools"][0]["functionDeclarations"][0]["parameters"]
+
+    assert payload_schema == {
+        "type": "object",
+        "properties": {
+            "options": {
+                "type": "object",
+                "properties": {"mode": {"type": "string"}},
+                "required": ["mode"],
+            }
+        },
+        "required": ["options"],
+    }
+    assert request.tool_definitions[0]["parameters"]["additionalProperties"] is False
+    assert request.tool_definitions[0]["parameters"]["properties"]["options"]["additionalProperties"] is False
+
+
 def test_gemini_http_provider_replays_exact_model_parts_and_thought_signature(monkeypatch):
     model_parts = [
         {

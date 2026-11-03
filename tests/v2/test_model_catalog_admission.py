@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 import json
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 
 import pytest
 
@@ -137,6 +137,187 @@ def test_model_admission_requires_an_exact_discovered_alias_and_current_evidence
     assert admitted.capabilities == frozenset({"text", "structured_output", "json", "long_context"})
     assert resolver.resolve("gemini", "gemini:slot-a", "models/gemini-3.8-flash", now=NOW) is None
     assert resolver.resolve("gemini", "gemini:slot-b", "gemini-3.8-flash", now=NOW) is None
+
+
+def test_benchmark_only_alias_can_score_current_free_variant_without_granting_capabilities():
+    free_model = "nvidia/nemotron-3-ultra-550b-a55b:free"
+    catalog = ModelCatalog.from_document(
+        {
+            "schema_version": 1,
+            "entries": [
+                {
+                    "provider_id": "openrouter",
+                    "provider_binding_id": "openrouter:account",
+                    "model_id": "nvidia/nemotron-3-ultra-550b-a55b",
+                    "source": "openrouter.models.list",
+                    "observed_at": "2026-09-14T00:00:00+00:00",
+                    "expires_at": "2026-09-15T00:00:00+00:00",
+                }
+            ],
+        }
+    )
+    aliases = ModelAliasCatalog.from_document(
+        {
+            "schema_version": 1,
+            "entries": [
+                {
+                    "provider_id": "openrouter",
+                    "model_id": free_model,
+                    "canonical_model_id": "nvidia/nemotron-3-ultra-550b-a55b",
+                }
+            ],
+        }
+    )
+    benchmark = BenchmarkCatalog.from_document(
+        {
+            "schema_version": 1,
+            "tier_thresholds": {"L1": 0, "L2": 30, "L3": 60},
+            "entries": [
+                {
+                    "canonical_model_id": "nvidia/nemotron-3-ultra-550b-a55b",
+                    "benchmark": "artificial_analysis_intelligence_index",
+                    "benchmark_version": "openrouter-benchmarks-v1",
+                    "model_version": "nemotron-3-ultra",
+                    "source": "openrouter.api.v1.benchmarks:artificial-analysis",
+                    "observed_at": "2026-09-14T00:00:00+00:00",
+                    "expires_at": "2026-09-21T00:00:00+00:00",
+                    "raw_score": 49.3,
+                    "normalized_score": 49.3,
+                    "confidence": "medium",
+                    "task_fit": {"coding": 49.3},
+                }
+            ],
+        }
+    )
+    resolver = ModelAdmissionResolver(
+        catalog,
+        aliases,
+        benchmark,
+        ModelCapabilityCatalog.from_document({"schema_version": 1, "entries": []}),
+    )
+
+    # The runtime billing/credential lane is different from the inventory lane.
+    # Exact free-variant aliasing may supply a score, but must not create a
+    # discovery or capability grant for that lane.
+    assert resolver.resolve("openrouter", "openrouter:free", free_model, now=NOW) is None
+    quality = resolver.resolve_quality("openrouter", free_model, now=NOW)
+
+    assert quality is not None
+    assert quality.canonical_model_id == "nvidia/nemotron-3-ultra-550b-a55b"
+    assert quality.task_fit["coding"] == 49.3
+    assert quality.quality_state == "QUALITY_ESTIMATED"
+    assert quality.capabilities is None
+
+
+def test_router_uses_benchmark_only_alias_for_task_fit_without_blocking_unscored_routes(tmp_path):
+    scored_model = "scored-model"
+    unscored_model = "unscored-model"
+    catalog = ModelCatalog.from_document(
+        {
+            "schema_version": 1,
+            "entries": [
+                {
+                    "provider_id": "fixture",
+                    "provider_binding_id": "fixture:inventory",
+                    "model_id": scored_model,
+                    "source": "fixture.models.list",
+                    "observed_at": "2026-09-14T00:00:00+00:00",
+                    "expires_at": "2026-09-15T00:00:00+00:00",
+                }
+            ],
+        }
+    )
+    resolver = ModelAdmissionResolver(
+        catalog,
+        ModelAliasCatalog.from_document(
+            {
+                "schema_version": 1,
+                "entries": [
+                    {
+                        "provider_id": "fixture",
+                        "model_id": scored_model,
+                        "canonical_model_id": "fixture/scored-model",
+                    }
+                ],
+            }
+        ),
+        BenchmarkCatalog.from_document(
+            {
+                "schema_version": 1,
+                "tier_thresholds": {"L1": 0, "L2": 30, "L3": 60},
+                "entries": [
+                    {
+                        "canonical_model_id": "fixture/scored-model",
+                        "benchmark": "coding-index",
+                        "benchmark_version": "fixture-v1",
+                        "model_version": "scored-model-v1",
+                        "source": "fixture.external-benchmark",
+                        "observed_at": "2026-09-14T00:00:00+00:00",
+                        "expires_at": "2099-01-01T00:00:00+00:00",
+                        "raw_score": 88,
+                        "normalized_score": 88,
+                        "confidence": "medium",
+                        "task_fit": {"coding": 88},
+                    }
+                ],
+            }
+        ),
+        ModelCapabilityCatalog.from_document({"schema_version": 1, "entries": []}),
+    )
+    qualification = QualificationResolver(
+        entries=[
+            {
+                "provider": "fixture",
+                "provider_binding_id": "fixture:worker",
+                "model": model,
+                "intelligence_tier": "L1",
+                "tested_at": "2026-09-01T00:00:00+00:00",
+                "expires_at": "2099-01-01T00:00:00+00:00",
+                "confidence": "high",
+                "capabilities": ["text"],
+            }
+            for model in (scored_model, unscored_model)
+        ]
+    )
+
+    with ResourceLedger(tmp_path / "benchmark-route.sqlite3") as ledger:
+        for resource_id, model_id in (
+            ("fixture:scored", scored_model),
+            ("fixture:unscored", unscored_model),
+        ):
+            ledger.register_resource(
+                resource_id,
+                provider_id="fixture",
+                provider_binding_id="fixture:worker",
+                native_unit="request",
+                capacity=1,
+                capabilities=["text"],
+                cost_minor=0,
+                intelligence_tier="L1",
+                metadata={"model_id": model_id, "provider_binding_id": "fixture:worker"},
+            )
+            ledger.observe(resource_id, available=1, health="healthy", concurrency_limit=1)
+        router = ResourceRouter(
+            ledger,
+            qualification_resolver=qualification,
+            model_admission_resolver=resolver,
+        )
+
+        selected = router.choose(RouteRequest(capabilities={"text"}, task_fit="coding"))
+        unscored = router.choose(
+            RouteRequest(
+                capabilities={"text"},
+                task_fit="coding",
+                excluded_resource_ids={"fixture:scored"},
+            )
+        )
+
+    assert selected.resource_id == "fixture:scored"
+    assert selected.task_fit_score == 88
+    assert selected.quality_state == "QUALITY_ESTIMATED"
+    assert unscored.resource_id == "fixture:unscored"
+    assert unscored.task_fit_score is None
+    assert unscored.quality_state == "QUALITY_UNVERIFIED"
 
 
 def test_model_admission_fails_closed_for_stale_identity_but_keeps_quality_unverified():
@@ -370,6 +551,33 @@ def test_provider_model_discovery_normalizes_documented_list_shapes_without_prom
     assert captured["timeout_seconds"] > 0
 
 
+def test_mistral_model_list_chat_capability_survives_bounded_discovery():
+    discovery = ProviderModelDiscovery(secret_getter=lambda _name: "test-secret")
+    result = discovery.discover(
+        ModelDiscoveryBinding(
+            provider_id="mistral",
+            provider_binding_id="mistral:account",
+            api_key_env="TEST_KEY",
+        ),
+        now=NOW,
+        http_get=lambda *_args: {
+            "data": [
+                {
+                    "id": "mistral-small-latest",
+                    "capabilities": {"completion_chat": True, "completion_fim": False},
+                    "max_context_length": 128000,
+                    "description": "must not be persisted",
+                }
+            ]
+        },
+    )
+
+    entry = result.entries[0]
+    assert entry.metadata["chat_completion_supported"] is True
+    assert entry.metadata["context_length"] == 128000
+    assert "description" not in entry.metadata
+
+
 def test_provider_model_discovery_default_window_is_operationally_usable():
     discovery = ProviderModelDiscovery(secret_getter=lambda _name: "test-secret")
     result = discovery.discover(
@@ -465,6 +673,41 @@ def test_catalog_refresh_records_a_bounded_sanitized_failure_without_discarding_
         {"provider_id": "bad", "provider_binding_id": "bad:catalog", "category": "RuntimeError"}
     ]
     assert "credential-like" not in json.dumps(document)
+
+
+def test_catalog_refresh_preserves_http_status_without_raw_provider_error_details():
+    class _Discovery:
+        def discover(self, _binding):
+            raise HTTPError(
+                "https://api.groq.com/openai/v1/models",
+                403,
+                "Forbidden; private response details",
+                {},
+                None,
+            )
+
+    document = refresh(
+        (
+            ModelDiscoveryBinding(
+                provider_id="groq",
+                provider_binding_id="groq:account",
+                api_key_env="GROQ_API_KEY",
+            ),
+        ),
+        discovery=_Discovery(),
+    )
+
+    assert document["discovery_failures"] == [
+        {
+            "provider_id": "groq",
+            "provider_binding_id": "groq:account",
+            "category": "HTTPError",
+            "http_status": 403,
+        }
+    ]
+    serialized = json.dumps(document)
+    assert "private response details" not in serialized
+    assert "GROQ_API_KEY" not in serialized
 
 
 def test_catalog_refresh_projects_bounded_transport_diagnostics_for_explicit_boundary():

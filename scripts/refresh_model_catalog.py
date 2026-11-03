@@ -17,6 +17,7 @@ from pathlib import Path
 import sys
 import tempfile
 from typing import Any, Mapping
+from urllib.error import HTTPError
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -97,6 +98,16 @@ def refresh(
                 "provider_binding_id": binding.provider_binding_id,
                 "category": type(exc).__name__,
             }
+            # Preserve only the numeric HTTP status from typed errors.  The
+            # response reason/body, request URL, and headers can contain
+            # provider or account details and must never enter evidence.
+            http_status = exc.code if isinstance(exc, HTTPError) else getattr(exc, "http_status", None)
+            if (
+                isinstance(http_status, int)
+                and not isinstance(http_status, bool)
+                and 100 <= http_status <= 599
+            ):
+                failure["http_status"] = http_status
             if execution_boundary is not None:
                 # The CLI/operator supplies this context; discovery itself
                 # cannot attest that a process is a Host-owned boundary.

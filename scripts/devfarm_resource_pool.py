@@ -21,15 +21,17 @@ from typing import Any
 from scripts.devfarm_errors import DevFarmError
 from src.dev_agent.operation import OperationProviderBinding, configured_provider_pool_from_environment, ollama_local_routing_priority
 from src.dev_agent.providers.base import ModelProvider
+from src.dev_agent.providers.model_discovery import ModelDiscoveryBinding, ProviderModelDiscovery
 from src.dev_agent.providers.dispatch import ProviderDispatcher, ProviderRegistry
 from src.dev_agent.providers.factory import ProviderDefinition, ProviderFactory
 from src.dev_agent.resources.billing_catalog import profile_for as default_profile_for
 from src.dev_agent.resources.budget import BudgetAuthority, BudgetGovernor, BudgetPolicy
 from src.dev_agent.resources.control import ResourceControlPlane
-from src.dev_agent.resources.model_candidates import materialize_provider_bindings
+from src.dev_agent.resources.model_candidates import current_no_charge_candidate_ids, materialize_provider_bindings
 from src.dev_agent.resources.router import ResourceRouter
 from src.dev_agent.resources.qualification import QualificationResolver
 from src.dev_agent.resources.model_admission import ModelAdmissionResolver
+from src.dev_agent.resources.model_catalog import ModelCatalog
 from src.dev_agent.resources.ledger import ResourceLedger
 from src.dev_agent.resources.provider_policy import privacy_profile, requires_qualification
 from src.dev_agent.resources.tier_authority import production_tier_authority
@@ -186,6 +188,7 @@ def admit_resource_pool(
     model_admission_resolver: ModelAdmissionResolver | None = None,
     model_catalog: Any | None = None,
     expand_discovered_models: bool = False,
+    refresh_model_discovery: bool = False,
     now: datetime | None = None,
     profile_resolver: Callable[[str, str, str], Any] | None = None,
 ) -> tuple[tuple[OperationProviderBinding, Any, Any], ...]:
@@ -201,6 +204,8 @@ def admit_resource_pool(
         raise ResourcePoolError("required_tier must be a non-empty string")
     if not isinstance(quality_tier_advisory, bool):
         raise ResourcePoolError("quality_tier_advisory must be a boolean")
+    if not isinstance(refresh_model_discovery, bool):
+        raise ResourcePoolError("refresh_model_discovery must be a boolean")
     profile_lookup = profile_resolver or default_profile_for
     requested_capabilities = frozenset(required_capabilities or ())
     if any(not isinstance(item, str) or not item.strip() for item in requested_capabilities):
@@ -211,15 +216,46 @@ def admit_resource_pool(
         evidence_catalog = model_catalog
         if evidence_catalog is None and model_admission_resolver is not None:
             evidence_catalog = getattr(model_admission_resolver, "catalog", None)
-        try:
-            candidate_bindings.extend(
-                materialize_provider_bindings(
-                    binding,
-                    evidence_catalog,
-                    expand_discovered_models=expand_discovered_models,
+        candidate_catalog = evidence_catalog
+        live_model_ids: set[str] | None = None
+        if refresh_model_discovery and expand_discovered_models:
+            try:
+                live = ProviderModelDiscovery().discover(
+                    ModelDiscoveryBinding.from_operation_binding(binding),
                     now=now,
                 )
+                candidate_catalog = ModelCatalog.from_document(live.to_document())
+                live_model_ids = {
+                    entry.model_id
+                    for entry in candidate_catalog.entries_for_binding(
+                        binding.provider_id,
+                        binding.binding_id,
+                        now=now,
+                    )
+                    if entry.is_text_generation_candidate()
+                }
+            except Exception:
+                # A failed current inventory read excludes this binding only;
+                # unrelated configured Providers remain available.
+                continue
+            if not live_model_ids:
+                continue
+        try:
+            preferred_model_ids = (
+                current_no_charge_candidate_ids(binding, candidate_catalog, profile_lookup, now=now)
+                if isinstance(candidate_catalog, ModelCatalog)
+                else ()
             )
+            materialized = materialize_provider_bindings(
+                binding,
+                candidate_catalog,
+                expand_discovered_models=expand_discovered_models,
+                preferred_model_ids=preferred_model_ids,
+                now=now,
+            )
+            if live_model_ids is not None:
+                materialized = tuple(candidate for candidate in materialized if candidate.model in live_model_ids)
+            candidate_bindings.extend(materialized)
         except (TypeError, ValueError) as exc:
             raise ResourcePoolError(f"unable to materialize model candidates: {exc}") from exc
 

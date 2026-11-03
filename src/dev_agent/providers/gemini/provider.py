@@ -199,6 +199,26 @@ class GeminiHttpProvider(ModelProvider):
             raise ProviderError("gemini_thinking_budget must be a non-negative integer", category="provider_context", retryable=False)
         return {"thinkingConfig": {"thinkingBudget": budget}}
 
+    @staticmethod
+    def _function_declaration_schema(value: Any) -> Any:
+        """Project host JSON Schema into Gemini's supported function subset.
+
+        Gemini's function-declaration schema rejects ``additionalProperties``.
+        The host ToolRuntime remains the schema/authority validator, so this
+        adapter-only projection removes that wire-incompatible keyword while
+        preserving the original request and its stricter host contract.
+        """
+
+        if isinstance(value, Mapping):
+            return {
+                key: GeminiHttpProvider._function_declaration_schema(item)
+                for key, item in value.items()
+                if key != "additionalProperties"
+            }
+        if isinstance(value, list):
+            return [GeminiHttpProvider._function_declaration_schema(item) for item in value]
+        return value
+
     def _payload(self, request: ModelRequest) -> dict[str, Any]:
         generation_config: dict[str, Any] = {"maxOutputTokens": request.max_output_tokens}
         if request.response_schema is not None:
@@ -214,7 +234,14 @@ class GeminiHttpProvider(ModelProvider):
         if thinking_config is not None:
             payload["generationConfig"].update(thinking_config)
         if request.tool_definitions:
-            payload["tools"] = [{"functionDeclarations": request.tool_definitions}]
+            payload["tools"] = [
+                {
+                    "functionDeclarations": [
+                        self._function_declaration_schema(declaration)
+                        for declaration in request.tool_definitions
+                    ]
+                }
+            ]
         return payload
 
     def probe_liveness(self) -> None:

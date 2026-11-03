@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from ..domain.protocol import Task, TaskClass, _RECOVERY_TASK_AUTHORITY
+from .billing_catalog import profile_for
 from .ledger import _BUDGET_ADMIN_TOKEN, BudgetPeriod, MoneyAmount, ResourceLedger
 
 
@@ -266,6 +267,49 @@ class BudgetGovernor:
                 "budget governor period is stale; reopen the governor after rollover"
             )
 
+    def _is_exact_current_zero_price(self, resource_id: str, amount: MoneyAmount) -> bool:
+        """Allow currency-neutral accounting only for an exact trusted zero-price route.
+
+        A free-only budget can have a different display currency from a
+        provider's exact $0 price. Zero is currency-neutral, but this exception
+        must never turn an unknown, expired, or merely low-priced route into a
+        free route.
+        """
+
+        if amount.minor_units != 0:
+            return False
+        try:
+            resource = self.ledger.get_resource(resource_id)
+        except KeyError:
+            return False
+        metadata = resource.get("metadata") if isinstance(resource.get("metadata"), dict) else {}
+        provider_id = resource.get("provider_id")
+        binding_id = (
+            metadata.get("qualification_binding_id")
+            or metadata.get("provider_binding_id")
+            or resource.get("provider_binding_id")
+            or provider_id
+        )
+        model_id = metadata.get("model_id")
+        if (
+            not isinstance(provider_id, str)
+            or not isinstance(binding_id, str)
+            or not isinstance(model_id, str)
+            or resource.get("cost_minor") != 0
+            or resource.get("price_currency") != amount.currency
+            or metadata.get("billing_authority") != "trusted_catalog"
+            or metadata.get("no_charge_guaranteed") is not True
+        ):
+            return False
+        profile = profile_for(provider_id, binding_id, model_id)
+        return bool(
+            profile is not None
+            and profile.cost_minor == 0
+            and profile.price_currency == amount.currency
+            and profile.no_charge_guaranteed
+            and profile.is_current()
+        )
+
     def reserve(self, task_id: str, resource_id: str, *, estimated_cost: MoneyAmount | None = None, estimated_cost_minor: int | None = None, recovery: bool = False, native_units: int | float = 1, intent_key: str | None = None, _authority: object | None = None) -> BudgetReservation:
         self._ensure_current_period()
         if recovery and _authority is not _RECOVERY_RESERVE_TOKEN:
@@ -280,11 +324,12 @@ class BudgetGovernor:
             raise UnknownPrice(f"price is unknown for resource {resource_id}")
         if isinstance(native_units, bool) or not isinstance(native_units, (int, float)) or not math.isfinite(float(native_units)) or native_units <= 0:
             raise ValueError("native_units must be positive")
-        if estimated_cost.currency != self.currency:
-            raise BudgetExceeded(f"currency mismatch: budget={self.currency}, request={estimated_cost.currency}")
         resource = self.ledger.get_resource(resource_id)
+        if estimated_cost.currency != self.currency and not self._is_exact_current_zero_price(resource_id, estimated_cost):
+            raise BudgetExceeded(f"currency mismatch: budget={self.currency}, request={estimated_cost.currency}")
         if resource["cost_minor"] is not None and resource["price_currency"] != self.currency:
-            raise BudgetExceeded(f"currency mismatch: budget={self.currency}, resource={resource['price_currency']}")
+            if not self._is_exact_current_zero_price(resource_id, estimated_cost):
+                raise BudgetExceeded(f"currency mismatch: budget={self.currency}, resource={resource['price_currency']}")
         if resource["health"] == "unhealthy":
             raise BudgetExceeded(f"resource is unhealthy: {resource_id}")
         try:
@@ -308,7 +353,9 @@ class BudgetGovernor:
             self.mark_unknown(reservation_id)
             return self.ledger.reservation_row(reservation_id)
         if actual_cost.currency != self.currency:
-            raise BudgetExceeded(f"currency mismatch: budget={self.currency}, actual={actual_cost.currency}")
+            reservation = self.ledger.reservation_row(reservation_id)
+            if not self._is_exact_current_zero_price(reservation["resource_id"], actual_cost):
+                raise BudgetExceeded(f"currency mismatch: budget={self.currency}, actual={actual_cost.currency}")
         try:
             self.ledger.reconcile_budget(reservation_id, actual=actual_cost, period=self.period, normal_limit_minor=self.policy.hard_cap_minor - self.policy.recovery_reserve_minor, recovery_limit_minor=self.policy.recovery_reserve_minor)
         except ValueError as exc:

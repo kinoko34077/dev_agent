@@ -151,17 +151,24 @@ def test_user_confirmed_free_provider_bindings_use_hard_stop_profiles(provider_i
 
 
 @pytest.mark.current_billing_catalog
-def test_openrouter_free_model_variant_is_no_charge_only_on_configured_account_binding():
+def test_openrouter_free_model_variant_is_no_charge_on_account_and_qualification_lanes_only():
     model_id = "google/gemma-4-26b-a4b-it:free"
 
     profile = profile_for("openrouter", "openrouter:account", model_id)
+    qualification_profile = profile_for("openrouter", "openrouter:free", model_id)
 
     assert profile is not None
+    assert qualification_profile is not None
     assert profile.model_id == model_id
     assert profile.cost_minor == 0
     assert profile.billing_mode == "recurring_allowance"
     assert profile.overage_policy == "hard_stop"
     assert profile.no_charge_guaranteed is True
+    assert qualification_profile.provider_binding_id == "openrouter:free"
+    assert qualification_profile.model_id == model_id
+    assert qualification_profile.cost_minor == 0
+    assert qualification_profile.overage_policy == "hard_stop"
+    assert qualification_profile.no_charge_guaranteed is True
     assert profile_for("openrouter", "openrouter:account", "google/gemma-4-26b-a4b-it") is None
     assert profile_for("openrouter", "openrouter:qualification", model_id) is None
     from src.dev_agent.resources.billing_catalog import default_binding_id
@@ -173,11 +180,6 @@ def test_openrouter_free_model_variant_is_no_charge_only_on_configured_account_b
 @pytest.mark.parametrize(
     ("provider_id", "binding_id", "model_id"),
     (
-        (
-            "vercel",
-            "vercel:account",
-            "inclusionai/ling-3.1-flash-1019",
-        ),
         (
             "vercel",
             "vercel:account",
@@ -205,6 +207,34 @@ def test_vercel_explicit_zero_price_models_are_no_charge_candidates(provider_id,
     assert profile.overage_policy == "hard_stop"
     assert profile.no_charge_guaranteed is True
     assert profile_for(provider_id, "vercel:unreviewed", model_id) is None
+
+
+@pytest.mark.parametrize(
+    "model_id",
+    ("stealth/glyph-cluster",),
+)
+@pytest.mark.current_billing_catalog
+def test_vercel_current_free_directory_models_are_no_charge_for_unpaid_account(model_id):
+    profile = profile_for("vercel", "vercel:account", model_id)
+
+    assert profile is not None
+    assert profile.cost_minor == 0
+    assert profile.no_charge_guaranteed is True
+    assert profile.billing_mode == "free_fixed"
+    assert profile.overage_policy == "hard_stop"
+
+
+@pytest.mark.current_billing_catalog
+def test_vercel_ling_promotion_starting_charge_date_is_not_admitted_as_free():
+    observed_now = datetime(2026, 11, 4, 12, tzinfo=timezone.utc)
+    profile = profile_for("vercel", "vercel:account", "inclusionai/ling-3.1-flash-1019")
+
+    assert profile is not None
+    assert profile.cost_minor is None
+    assert profile.billing_mode == "unknown"
+    assert profile.overage_policy == "unknown"
+    assert profile.no_charge_guaranteed is False
+    assert profile.is_current(now=observed_now)
 
 
 @pytest.mark.current_billing_catalog
@@ -325,7 +355,7 @@ def test_cloudflare_public_pricing_review_cannot_renew_account_billing_authority
     from src.dev_agent.resources.billing_catalog import TRUSTED_RESOURCE_CATALOG
 
     wildcard = TRUSTED_RESOURCE_CATALOG[("cloudflare", "cloudflare:account", "*")]
-    assert wildcard.expires_at == "2026-12-02T00:00:00+09:00"
+    assert wildcard.expires_at == "2026-12-03T00:00:00+09:00"
     assert wildcard.is_current(now=datetime(2026, 10, 11, tzinfo=timezone.utc)) is False
     assert wildcard.no_charge_guaranteed is True
     assert wildcard.billing_mode == "recurring_allowance"
@@ -341,6 +371,7 @@ def test_cloudflare_public_pricing_review_cannot_renew_account_billing_authority
         "@cf/zai-org/glm-5.3",
         "@cf/zai-org/glm-5.3-flash",
         "@cf/deepseek-ai/deepseek-v4-flash-0731",
+        "@cf/deepseek-ai/deepseek-v4.1-flash-1017",
         "@cf/deepseek-ai/deepseek-v4-pro-0813",
     ),
 )

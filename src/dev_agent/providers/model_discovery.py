@@ -145,6 +145,14 @@ def _metadata_for(provider_id: str, raw_model: Mapping[str, Any]) -> Mapping[str
             values = _bounded_string_list(raw_model.get(field_name))
             if values is not None:
                 metadata[field_name] = values
+    elif provider_id == "mistral":
+        capabilities = raw_model.get("capabilities")
+        capabilities = capabilities if isinstance(capabilities, Mapping) else {}
+        if isinstance(capabilities.get("completion_chat"), bool):
+            metadata["chat_completion_supported"] = capabilities["completion_chat"]
+        context_length = _bounded_positive_int(raw_model.get("max_context_length"))
+        if context_length is not None:
+            metadata["context_length"] = context_length
     elif provider_id == "openrouter":
         context_length = _bounded_positive_int(raw_model.get("context_length"))
         if context_length is not None:
@@ -199,15 +207,19 @@ class ModelDiscoveryBinding:
         """
 
         provider_id = _text(getattr(binding, "provider_id", None), "provider_id").lower()
-        credential_binding_id = getattr(binding, "credential_binding_id", None)
-        if not isinstance(credential_binding_id, str) or not credential_binding_id.strip():
-            credential_binding_id = getattr(binding, "binding_id", None)
+        # Discovery/catalog identity belongs to the configured provider lane.
+        # A distinct credential/qualification lane must not rewrite the model
+        # inventory key (for example OpenRouter account discovery vs its free
+        # qualification lane).
+        provider_binding_id = getattr(binding, "binding_id", None)
+        if not isinstance(provider_binding_id, str) or not provider_binding_id.strip():
+            provider_binding_id = getattr(binding, "credential_binding_id", None)
         api_key_env = getattr(binding, "api_key_env", None)
         account_id_env = "CLOUDFLARE_ACCOUNT_ID" if provider_id == "cloudflare" else None
         timeout_seconds = getattr(binding, "timeout_seconds", 20.0)
         return cls(
             provider_id=provider_id,
-            provider_binding_id=_text(credential_binding_id, "credential_binding_id"),
+            provider_binding_id=_text(provider_binding_id, "provider_binding_id"),
             api_key_env=api_key_env,
             account_id_env=account_id_env,
             timeout_seconds=min(float(timeout_seconds), 120.0),

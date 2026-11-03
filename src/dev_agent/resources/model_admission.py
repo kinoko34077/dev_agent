@@ -202,6 +202,40 @@ class ModelAdmissionResolver:
             quality_state=diagnostic.quality_state,
         )
 
+    def resolve_quality(
+        self,
+        provider_id: str,
+        model_id: str,
+        *,
+        now: datetime | None = None,
+    ) -> ModelAdmission | None:
+        """Resolve current benchmark quality through an exact model alias only.
+
+        Some providers expose an account-wide model inventory but use a
+        distinct no-charge credential lane for execution (for example an
+        OpenRouter ``:free`` variant).  In that case, the inventory's binding
+        identity cannot be reused as qualification or billing authority.  An
+        explicit alias may still connect the exact route identity to a
+        benchmark row for ranking.  This method deliberately returns no
+        capabilities and does not establish discovery, billing, qualification,
+        quota, privacy, or runtime eligibility.
+        """
+
+        alias = self._aliases.lookup(provider_id, model_id)
+        if alias is None:
+            return None
+        benchmark = self._benchmarks.lookup(alias.canonical_model_id, now=now)
+        if benchmark is None:
+            return None
+        return ModelAdmission(
+            canonical_model_id=alias.canonical_model_id,
+            benchmark_tier=self._benchmarks.tier_for(benchmark),
+            intelligence_score=benchmark.normalized_score,
+            task_fit=benchmark.task_fit,
+            capabilities=None,
+            quality_state=QUALITY_ESTIMATED,
+        )
+
 
 __all__ = [
     "ModelAdmission",

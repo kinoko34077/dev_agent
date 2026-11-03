@@ -103,8 +103,9 @@ def test_reviewer_proposal_only_does_not_require_codex_decision(monkeypatch):
     monkeypatch.setattr(reviewer_shadow, "ModelReviewAdapter", FakeAdapter)
     admission_calls = {}
 
-    def admit(bindings, **_kwargs):
+    def admit(bindings, **kwargs):
         admission_calls["bindings"] = bindings
+        admission_calls["kwargs"] = kwargs
         return ((
             SimpleNamespace(
                 provider_id="gemini",
@@ -130,6 +131,8 @@ def test_reviewer_proposal_only_does_not_require_codex_decision(monkeypatch):
         timeout_seconds=45.0,
         allow_unknown_quota=True,
         provider_pool=("pool-a", "pool-b"),
+        expand_discovered_models=True,
+        refresh_model_discovery=True,
     )
 
     assert output["status"] == "live_shadow_proposal_only"
@@ -137,6 +140,8 @@ def test_reviewer_proposal_only_does_not_require_codex_decision(monkeypatch):
     assert output["proposal"] == proposal.to_dict()
     assert output["reviewer"]["intelligence_tier"] == "L1"
     assert output["reviewer"]["requested_intelligence_tier"] == "L2"
+    assert admission_calls["kwargs"]["expand_discovered_models"] is True
+    assert admission_calls["kwargs"]["refresh_model_discovery"] is True
     assert "codex_decision" not in output
     assert output["authority"] == {
         "reviewer_mode": "shadow",
@@ -144,3 +149,29 @@ def test_reviewer_proposal_only_does_not_require_codex_decision(monkeypatch):
         "final_authority": ["codexless_policy", "host_policy"],
         "integration_performed_by_shadow": False,
     }
+
+
+def test_reviewer_cli_refreshes_configured_discovery_models(monkeypatch, capsys):
+    binding = SimpleNamespace(expand_discovered_models=True)
+    captured = {}
+
+    monkeypatch.setattr(reviewer_shadow, "resolve_provider_pool", lambda **_kwargs: (binding,))
+    monkeypatch.setattr(
+        reviewer_shadow,
+        "ModelEvidenceCatalog",
+        SimpleNamespace(load_default=lambda: SimpleNamespace(catalog=object(), resolver=object())),
+    )
+
+    def run(**kwargs):
+        captured.update(kwargs)
+        return {"status": "live_shadow_proposal_only"}
+
+    monkeypatch.setattr(reviewer_shadow, "run_proposal_only", run)
+
+    assert reviewer_shadow.main(
+        ["--run-id", "run", "--task-id", "task", "--configured-pool", "--proposal-only"]
+    ) == 0
+    capsys.readouterr()
+
+    assert captured["expand_discovered_models"] is True
+    assert captured["refresh_model_discovery"] is True
