@@ -13,10 +13,16 @@ from dataclasses import dataclass
 from collections.abc import Mapping
 from typing import Any
 
-from scripts.devfarm_contracts import MAX_OUTBOUND_BYTES, WORKER_OUTPUT_MODES
+from scripts.devfarm_contracts import (
+    FULL_WORKER_OUTPUT_MODE,
+    LOCALIZED_FILE_EDIT_MODE,
+    MAX_OUTBOUND_BYTES,
+    MINIMAL_WORKER_OUTPUT_MODE,
+    WORKER_OUTPUT_MODES,
+    parse_host_test_command,
+)
 from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_worker_input import MAX_INPUT_FILE_BYTES
-from scripts.devfarm_contracts import parse_host_test_command
 
 
 class FeasibilityError(DevFarmError):
@@ -54,9 +60,9 @@ _FEASIBILITY_ACTIONS_BY_STATUS = {
 }
 
 _DEFAULT_OUTPUT_TOKENS = {
-    "full_result": 4096,
-    "minimal_file_replacement": 8192,
-    "localized_file_edit": 4096,
+    FULL_WORKER_OUTPUT_MODE: 4096,
+    MINIMAL_WORKER_OUTPUT_MODE: 8192,
+    LOCALIZED_FILE_EDIT_MODE: 4096,
 }
 _MAX_OUTPUT_TOKENS = 32_768
 _CHARS_PER_TOKEN = 4
@@ -191,7 +197,9 @@ def is_feasibility_action_for_status(status: str, action: str) -> bool:
 
 def _output_capacity(manifest: Mapping[str, Any], output_mode: str, max_output_tokens: int | None) -> int:
     if max_output_tokens is None:
-        configured = _DEFAULT_OUTPUT_TOKENS[output_mode]
+        configured = _DEFAULT_OUTPUT_TOKENS.get(output_mode)
+        if configured is None:
+            raise FeasibilityError("output mode has no default token capacity")
     else:
         if isinstance(max_output_tokens, bool) or not isinstance(max_output_tokens, int):
             raise FeasibilityError("max_output_tokens must be an integer")
