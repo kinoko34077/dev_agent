@@ -22,10 +22,10 @@ _LOCAL_FIXED_EXPIRES_AT = "9999-12-31T23:59:59+00:00"
 _BILLING_MODES = frozenset({"free_fixed", "recurring_allowance", "recurring_credit", "paid", "unknown"})
 _OVERAGE_POLICIES = frozenset({"hard_stop", "billable", "unknown"})
 
-# Current Cloudflare Workers AI pricing policy (reviewed 2026-11-03 against
-# the provider's pricing page and model-specific paid-access page). Workers Free receives the shared
-# 10,000 Neuron/day allowance, but these exact frontier models require a paid
-# billing method and must never inherit the free binding-level wildcard.
+# Current Cloudflare Workers AI pricing policy (reviewed 2026-11-04 against
+# the provider pricing page and the accepted 2026-11-03 exact model inventory).
+# Workers Free has a shared daily Neuron allowance. These exact models require
+# a paid billing method and are excluded even if they appear in discovery.
 _CLOUDFLARE_PAID_BILLING_REQUIRED_MODELS = frozenset({
     "@cf/moonshotai/kimi-k2.6",
     "@cf/moonshotai/kimi-k2.7-code",
@@ -36,8 +36,43 @@ _CLOUDFLARE_PAID_BILLING_REQUIRED_MODELS = frozenset({
     "@cf/deepseek-ai/deepseek-v4.1-flash-1017",
     "@cf/deepseek-ai/deepseek-v4-pro-0813",
 })
-_CLOUDFLARE_FREE_POLICY_VERIFIED_AT = "2026-11-03T00:00:00+09:00"
-_CLOUDFLARE_FREE_POLICY_EXPIRES_AT = "2026-12-03T00:00:00+09:00"
+_CLOUDFLARE_FREE_ACCOUNT_MODEL_IDS = frozenset({
+    # Exact current Text Generation model IDs from the reviewed catalog. New
+    # discovery rows do not inherit a no-charge profile until reviewed here.
+    "@cf/aisingapore/gemma-sea-lion-v4-27b-it",
+    "@cf/cloudflare/clairic",
+    "@cf/cloudflare/clef",
+    "@cf/cloudflare/clef-flash",
+    "@cf/cloudflare/clef-omni",
+    "@cf/daily-co/phonellm-mini-alpha-2",
+    "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
+    "@cf/google/gemma-2b-it-lora",
+    "@cf/google/gemma-4-26b-a4b-it",
+    "@cf/google/gemma-7b-it-lora",
+    "@cf/ibm-granite/granite-4.0-h-micro",
+    "@cf/meta-llama/llama-2-7b-chat-hf-lora",
+    "@cf/meta/llama-3.1-8b-instruct-fp8",
+    "@cf/meta/llama-3.2-11b-vision-instruct",
+    "@cf/meta/llama-3.2-1b-instruct",
+    "@cf/meta/llama-3.2-3b-instruct",
+    "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "@cf/meta/llama-4-scout-17b-16e-instruct",
+    "@cf/meta/llama-guard-3-8b",
+    "@cf/mistral/mistral-7b-instruct-v0.2-lora",
+    "@cf/mistralai/mistral-small-3.1-24b-instruct",
+    "@cf/nvidia/nemotron-3-120b-a12b",
+    "@cf/openai/gpt-oss-120b",
+    "@cf/openai/gpt-oss-20b",
+    "@cf/qwen/qwen2.5-coder-32b-instruct",
+    "@cf/qwen/qwen3-30b-a3b-fp8",
+    "@cf/qwen/qwen3.8-27b",
+    "@cf/qwen/qwq-32b",
+    "@cf/swiss-ai/apertus-v1.5-8b",
+    "@cf/utter-project/eurollm-9b-it",
+    "@cf/zai-org/glm-4.7-flash",
+})
+_CLOUDFLARE_FREE_POLICY_VERIFIED_AT = "2026-11-04T00:00:00+09:00"
+_CLOUDFLARE_FREE_POLICY_EXPIRES_AT = "2026-12-04T00:00:00+09:00"
 _VERCEL_FREE_POLICY_VERIFIED_AT = "2026-11-03T00:00:00+09:00"
 _VERCEL_FREE_POLICY_EXPIRES_AT = "2026-12-03T00:00:00+09:00"
 _VERCEL_UNRESOLVED_POLICY_EXPIRES_AT = "2026-12-03T00:00:00+09:00"
@@ -164,25 +199,6 @@ _TRUSTED_RESOURCE_CATALOG: dict[tuple[str, str, str], TrustedResourceProfile] = 
     ),
     ("cloudflare", "cloudflare:qualification", "@cf/meta/llama-3.1-8b-instruct"): TrustedResourceProfile(
         "cloudflare", "cloudflare:qualification", "@cf/meta/llama-3.1-8b-instruct", 0, "JPY", True, "L1", billing_mode="recurring_allowance", allowance_period="daily", overage_policy="hard_stop"
-    ),
-    # Dynamic Cloudflare execution uses the account credential lane.  This
-    # wildcard is a short-lived, reviewed Workers-Free billing fact; the
-    # resolver below denies the provider's explicit paid-only exceptions
-    # before applying it. Discovery alone still grants no routing authority.
-    ("cloudflare", "cloudflare:account", "*"): TrustedResourceProfile(
-        "cloudflare",
-        "cloudflare:account",
-        "*",
-        0,
-        "JPY",
-        True,
-        None,
-        source="cloudflare_workers_ai_pricing_2026-10-01",
-        verified_at=_CLOUDFLARE_FREE_POLICY_VERIFIED_AT,
-        expires_at=_CLOUDFLARE_FREE_POLICY_EXPIRES_AT,
-        billing_mode="recurring_allowance",
-        allowance_period="daily",
-        overage_policy="hard_stop",
     ),
     # The operator confirmed these configured account lanes are currently on
     # non-paid plans. Vendor Free-mode policy is binding-scoped and reviewed
@@ -329,6 +345,26 @@ _TRUSTED_RESOURCE_CATALOG[("vercel", "vercel:account", "inclusionai/ling-3.1-fla
     overage_policy="unknown",
 )
 
+# Workers Free provides 10,000 Neurons/day and stops above the allowance;
+# current exact model identities are admitted only when not in the provider's
+# paid-billing-required list. No binding-wide wildcard is used.
+for _model_id in _CLOUDFLARE_FREE_ACCOUNT_MODEL_IDS:
+    _TRUSTED_RESOURCE_CATALOG[("cloudflare", "cloudflare:account", _model_id)] = TrustedResourceProfile(
+        "cloudflare",
+        "cloudflare:account",
+        _model_id,
+        0,
+        "JPY",
+        True,
+        None,
+        source="cloudflare_workers_ai_pricing_2026-11-04",
+        verified_at=_CLOUDFLARE_FREE_POLICY_VERIFIED_AT,
+        expires_at=_CLOUDFLARE_FREE_POLICY_EXPIRES_AT,
+        billing_mode="recurring_allowance",
+        allowance_period="daily",
+        overage_policy="hard_stop",
+    )
+
 for _slot in ("2", "3", "4", "5"):
     _TRUSTED_RESOURCE_CATALOG[("gemini", f"gemini:worker:free-{_slot}", "gemini-3.5-flash-lite")] = TrustedResourceProfile(
         "gemini",
@@ -410,6 +446,10 @@ class BillingResolver:
         ):
             return None
         profile = self._catalog.get((provider_id, provider_binding_id, model_id))
+        if provider_id == "cloudflare" and provider_binding_id == "cloudflare:account":
+            # Never let a binding wildcard classify a future/unreviewed model
+            # as free, even if one is accidentally reintroduced in a catalog.
+            return profile if profile is not None and profile.is_current() else None
         if (
             profile is None
             and self._catalog is TRUSTED_RESOURCE_CATALOG
