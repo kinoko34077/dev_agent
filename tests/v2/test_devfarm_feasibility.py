@@ -1,7 +1,13 @@
 from __future__ import annotations
 
+from scripts.devfarm_contracts import WORKER_OUTPUT_MODES
+from scripts.devfarm_worker_output import (
+    FULL_WORKER_OUTPUT_MODE,
+    MINIMAL_WORKER_OUTPUT_MODE,
+    LOCALIZED_FILE_EDIT_MODE,
+    worker_output_mode,
+)
 from scripts.devfarm_feasibility import (
-    FEASIBILITY_OUTPUT_MODES,
     FEASIBILITY_REASON_CODES,
     assess_worker_feasibility,
     is_feasibility_action_for_status,
@@ -143,6 +149,14 @@ def test_feasibility_consumer_contract_is_owned_by_producer() -> None:
     assert not is_feasibility_action_for_status("reframe_required", [])
 
     valid = assess_worker_feasibility(_manifest(), {"src/example.py": "x = 1\n"})
-    assert valid.output_mode in FEASIBILITY_OUTPUT_MODES
+    assert valid.output_mode in WORKER_OUTPUT_MODES
     assert set(valid.reasons) <= FEASIBILITY_REASON_CODES
     assert "output_envelope_too_large" in FEASIBILITY_REASON_CODES
+
+    assert WORKER_OUTPUT_MODES == frozenset({
+        FULL_WORKER_OUTPUT_MODE,
+        MINIMAL_WORKER_OUTPUT_MODE,
+        LOCALIZED_FILE_EDIT_MODE,
+    })
+    for output_mode in WORKER_OUTPUT_MODES:
+        assert worker_output_mode({"mode": output_mode}) == output_mode
