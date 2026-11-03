@@ -263,9 +263,9 @@ def validate_manifest(value: Mapping[str, Any]) -> dict[str, Any]:
         raise DevFarmError("output_contract must be an object")
     output_contract = dict(value["output_contract"])
     output_mode = output_contract.get("mode")
-    if output_mode is not None and output_mode not in WORKER_OUTPUT_MODES:
+    if output_mode is not None and (not isinstance(output_mode, str) or output_mode not in WORKER_OUTPUT_MODES):
         raise DevFarmError(
-            "output_contract.mode must be full_result, minimal_file_replacement, or localized_file_edit"
+            f"output_contract.mode must be one of: {', '.join(sorted(WORKER_OUTPUT_MODES))}"
         )
     output_budget = output_contract.get("max_output_tokens")
     if output_budget is not None:

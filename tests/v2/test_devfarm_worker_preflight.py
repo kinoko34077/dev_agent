@@ -5,7 +5,8 @@ import json
 import pytest
 
 from scripts.devfarm import DevFarmError, validate_manifest
-from scripts.devfarm_contracts import canonical_digest
+from scripts.devfarm_contracts import WORKER_OUTPUT_MODES, canonical_digest
+from scripts.devfarm_feasibility import FeasibilityError, assess_worker_feasibility
 from scripts.devfarm_worker import run_worker
 from scripts.devfarm_worker_output import (
     MINIMAL_WORKER_OUTPUT_KEYS,
@@ -264,3 +265,43 @@ def test_minimal_proposal_contract_rejects_extra_fields_without_fallback(
     assert result["failure_spec"]["expected"] == "only file_replacements"
     assert "exactly one JSON object with file_replacements only" in result["repair_directive"]["required_action"]
     assert "optional notes" not in result["repair_directive"]["required_action"]
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        "unknown_future_mode",
+        ["localized_file_edit"],
+        {"mode": "full_result"},
+        123,
+        True,
+    ],
+)
+def test_worker_output_mode_boundaries_reject_untrusted_types_without_typeerror(
+    tmp_path, invalid: object
+) -> None:
+    # Every Host boundary rejects malformed output-mode values with its
+    # declared contract error, not a leaked TypeError from frozenset lookup.
+    output_contract = {"mode": invalid}
+    with pytest.raises(DevFarmError, match="output_contract.mode") as parser_error:
+        worker_output_mode(output_contract)
+    expected_names = ", ".join(sorted(WORKER_OUTPUT_MODES))
+    assert expected_names in str(parser_error.value)
+
+    _root, manifest_path = _workspace(tmp_path, prepare=False)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["output_contract"] = output_contract
+    with pytest.raises(DevFarmError, match="output_contract.mode") as manifest_error:
+        validate_manifest(manifest)
+    assert expected_names in str(manifest_error.value)
+
+    feasibility_manifest = {
+        "task_id": "mode-boundary-test",
+        "allowed_files": ["src/example.py"],
+        "outbound_files": ["src/example.py"],
+        "new_files": [],
+        "acceptance": ["bounded test"],
+        "test_commands": ["python -m compileall -q src/example.py"],
+        "output_contract": output_contract,
+    }
+    with pytest.raises(FeasibilityError, match="output_contract.mode"):
+        assess_worker_feasibility(feasibility_manifest, {"src/example.py": "x = 1\n"})

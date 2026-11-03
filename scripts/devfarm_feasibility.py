@@ -246,7 +246,7 @@ def assess_worker_feasibility(
     if not isinstance(output_contract, Mapping):
         raise FeasibilityError("output_contract must be an object")
     output_mode = output_contract.get("mode", "full_result")
-    if output_mode not in WORKER_OUTPUT_MODES:
+    if not isinstance(output_mode, str) or output_mode not in WORKER_OUTPUT_MODES:
         raise FeasibilityError("output_contract.mode is unsupported")
     output_mode = str(output_mode)
     capacity_tokens = _output_capacity(manifest, output_mode, max_output_tokens)
