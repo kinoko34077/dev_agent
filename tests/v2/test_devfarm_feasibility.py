@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+import scripts.devfarm_feasibility as feasibility_module
 from scripts.devfarm_contracts import WORKER_OUTPUT_MODES
 from scripts.devfarm_worker_output import (
     FULL_WORKER_OUTPUT_MODE,
@@ -160,3 +163,15 @@ def test_feasibility_consumer_contract_is_owned_by_producer() -> None:
     })
     for output_mode in WORKER_OUTPUT_MODES:
         assert worker_output_mode({"mode": output_mode}) == output_mode
+
+
+def test_default_output_capacity_covers_every_canonical_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert set(feasibility_module._DEFAULT_OUTPUT_TOKENS) == WORKER_OUTPUT_MODES
+    for mode in WORKER_OUTPUT_MODES:
+        result = assess_worker_feasibility(_manifest(mode=mode), {"src/example.py": "x = 1\n"})
+        assert result.output_capacity_tokens == feasibility_module._DEFAULT_OUTPUT_TOKENS[mode]
+
+    # Missing future defaults must fail as a bounded feasibility contract error.
+    monkeypatch.delitem(feasibility_module._DEFAULT_OUTPUT_TOKENS, "full_result")
+    with pytest.raises(feasibility_module.FeasibilityError, match="default token capacity"):
+        assess_worker_feasibility(_manifest(mode="full_result"), {"src/example.py": "x = 1\n"})
