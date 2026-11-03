@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from collections.abc import Mapping
 from typing import Any
 
-from scripts.devfarm_contracts import MAX_OUTBOUND_BYTES
+from scripts.devfarm_contracts import MAX_OUTBOUND_BYTES, WORKER_OUTPUT_MODES
 from scripts.devfarm_errors import DevFarmError
 from scripts.devfarm_worker_input import MAX_INPUT_FILE_BYTES
 from scripts.devfarm_contracts import parse_host_test_command
@@ -23,7 +23,6 @@ class FeasibilityError(DevFarmError):
     """The feasibility input cannot be safely classified."""
 
 
-FEASIBILITY_OUTPUT_MODES = frozenset({"full_result", "minimal_file_replacement", "localized_file_edit"})
 _STATUS = frozenset({"fits", "reframe_required", "invalid_acceptance"})
 _PLAN_BLOCK_REASON_BY_STATUS = {
     "reframe_required": "worker_feasibility_reframe_required",
@@ -116,7 +115,7 @@ class WorkerFeasibility:
     def __post_init__(self) -> None:
         if self.status not in _STATUS:
             raise FeasibilityError("feasibility status is unsupported")
-        if self.output_mode not in FEASIBILITY_OUTPUT_MODES:
+        if self.output_mode not in WORKER_OUTPUT_MODES:
             raise FeasibilityError("feasibility output mode is unsupported")
         if self.output_capacity_tokens <= 0 or self.output_capacity_tokens > _MAX_OUTPUT_TOKENS:
             raise FeasibilityError("feasibility output capacity is out of bounds")
@@ -239,7 +238,7 @@ def assess_worker_feasibility(
     if not isinstance(output_contract, Mapping):
         raise FeasibilityError("output_contract must be an object")
     output_mode = output_contract.get("mode", "full_result")
-    if output_mode not in FEASIBILITY_OUTPUT_MODES:
+    if output_mode not in WORKER_OUTPUT_MODES:
         raise FeasibilityError("output_contract.mode is unsupported")
     output_mode = str(output_mode)
     capacity_tokens = _output_capacity(manifest, output_mode, max_output_tokens)
@@ -379,7 +378,6 @@ def assess_worker_feasibility(
 __all__ = [
     "FeasibilityError",
     "WorkerFeasibility",
-    "FEASIBILITY_OUTPUT_MODES",
     "FEASIBILITY_REASON_CODES",
     "assess_worker_feasibility",
     "plan_block_reason",
