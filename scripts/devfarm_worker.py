@@ -577,7 +577,7 @@ def _rework_compensation(manifest: Mapping[str, Any]) -> dict[str, Any] | None:
         mode = value.get("output_mode")
         if authority != "host_policy":
             raise DevFarmError("rework compensation authority is not Host-owned")
-        if action not in {
+        if not isinstance(action, str) or action not in {
             "switch_output_mode",
             "repair_same_task",
             "add_minimal_context",
@@ -585,7 +585,7 @@ def _rework_compensation(manifest: Mapping[str, Any]) -> dict[str, Any] | None:
             "stop_model_repair",
         }:
             raise DevFarmError("rework compensation action is unsupported")
-        if mode is not None and mode not in WORKER_OUTPUT_MODES:
+        if mode is not None and (not isinstance(mode, str) or mode not in WORKER_OUTPUT_MODES):
             raise DevFarmError("rework compensation output mode is unsupported")
         decision = dict(value)
         prompt_contract = decision.get("prompt_contract")
@@ -599,7 +599,7 @@ def _rework_compensation(manifest: Mapping[str, Any]) -> dict[str, Any] | None:
             }.get(action)
             if prompt_contract is not None:
                 decision["prompt_contract"] = prompt_contract
-        if prompt_contract not in {
+        if not isinstance(prompt_contract, str) or prompt_contract not in {
             "host-localized-edit",
             "bounded-repair-delta",
             "bounded-category-context",

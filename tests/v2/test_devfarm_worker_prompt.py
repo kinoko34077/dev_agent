@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from scripts.devfarm_contracts import WORKER_OUTPUT_MODES
 from scripts.devfarm_worker_prompt import (
     _bounded_rework_handoff,
@@ -346,3 +348,28 @@ def test_host_compensation_output_modes_follow_manifest_contract() -> None:
         }
         assert _compensation_prefix(context) == ""
         assert _bounded_rework_handoff({"rework_handoff": {"repair_context": context}}) is None
+
+@pytest.mark.parametrize(
+    ("field", "invalid"),
+    [
+        ("action", []),
+        ("action", {"unexpected": "list"}),
+        ("prompt_contract", ["host-localized-edit"]),
+        ("output_mode", ["localized_file_edit"]),
+        ("output_mode", {"mode": "localized_file_edit"}),
+        ("output_mode", 123),
+    ],
+)
+def test_untrusted_host_compensation_fields_fail_closed(field: str, invalid: object) -> None:
+    compensation: dict[str, object] = {
+        "authority": "host_policy",
+        "action": "switch_output_mode",
+        "prompt_contract": "host-localized-edit",
+        "output_mode": "localized_file_edit",
+        "context_hints": [],
+    }
+    compensation[field] = invalid
+    context = {"compensation": compensation}
+
+    assert _compensation_prefix(context) == ""
+    assert _bounded_rework_handoff({"rework_handoff": {"repair_context": context}}) is None

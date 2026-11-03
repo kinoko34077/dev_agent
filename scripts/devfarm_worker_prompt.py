@@ -77,9 +77,16 @@ def _compensation_prefix(context: Mapping[str, Any]) -> str:
         "upper-reframe",
         "no-model-replay",
     }
-    if action not in allowed_actions or prompt_contract not in allowed_contracts:
+    if (
+        not isinstance(action, str)
+        or action not in allowed_actions
+        or not isinstance(prompt_contract, str)
+        or prompt_contract not in allowed_contracts
+    ):
         return ""
-    if output_mode is not None and output_mode not in WORKER_OUTPUT_MODES:
+    if output_mode is not None and (
+        not isinstance(output_mode, str) or output_mode not in WORKER_OUTPUT_MODES
+    ):
         return ""
     expected_output_chars = value.get("expected_output_chars")
     if expected_output_chars is not None and (
@@ -173,13 +180,15 @@ def _bounded_rework_handoff(manifest: Mapping[str, Any]) -> dict[str, Any] | Non
             mode = compensation.get("output_mode")
             hints = compensation.get("context_hints", ())
             if (
-                action in {
+                isinstance(action, str)
+                and action in {
                     "switch_output_mode",
                     "repair_same_task",
                     "add_minimal_context",
                     "reframe_task",
                     "stop_model_repair",
                 }
+                and isinstance(contract, str)
                 and contract in {
                     "host-localized-edit",
                     "bounded-repair-delta",
@@ -187,7 +196,7 @@ def _bounded_rework_handoff(manifest: Mapping[str, Any]) -> dict[str, Any] | Non
                     "upper-reframe",
                     "no-model-replay",
                 }
-                and (mode is None or mode in WORKER_OUTPUT_MODES)
+                and (mode is None or (isinstance(mode, str) and mode in WORKER_OUTPUT_MODES))
                 and isinstance(hints, (list, tuple))
             ):
                 projected_compensation = {
