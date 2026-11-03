@@ -7,14 +7,17 @@ import math
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from scripts.devfarm_contracts import (
+    FULL_WORKER_OUTPUT_MODE,
+    MINIMAL_WORKER_OUTPUT_MODE,
+    LOCALIZED_FILE_EDIT_MODE,
+    WORKER_OUTPUT_MODES,
+)
 from scripts.devfarm_errors import DevFarmError
 from src.dev_agent.domain.protocol import ModelRequest
 from src.dev_agent.providers.base import ModelProvider, transport_failure_metadata
 
 
-FULL_WORKER_OUTPUT_MODE = "full_result"
-MINIMAL_WORKER_OUTPUT_MODE = "minimal_file_replacement"
-LOCALIZED_FILE_EDIT_MODE = "localized_file_edit"
 MINIMAL_WORKER_OUTPUT_KEYS = frozenset({"file_replacements"})
 LOCALIZED_WORKER_OUTPUT_KEYS = frozenset({"file_edits"})
 
@@ -35,11 +38,7 @@ def worker_output_mode(
     if not isinstance(output_contract, Mapping):
         raise DevFarmError("output_contract must be an object")
     configured = output_contract.get("mode", FULL_WORKER_OUTPUT_MODE)
-    if not isinstance(configured, str) or configured not in {
-        FULL_WORKER_OUTPUT_MODE,
-        MINIMAL_WORKER_OUTPUT_MODE,
-        LOCALIZED_FILE_EDIT_MODE,
-    }:
+    if not isinstance(configured, str) or configured not in WORKER_OUTPUT_MODES:
         raise DevFarmError(
             "output_contract.mode must be full_result, minimal_file_replacement, or localized_file_edit"
         )
