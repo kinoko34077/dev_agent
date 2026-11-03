@@ -199,15 +199,19 @@ class ModelDiscoveryBinding:
         """
 
         provider_id = _text(getattr(binding, "provider_id", None), "provider_id").lower()
-        credential_binding_id = getattr(binding, "credential_binding_id", None)
-        if not isinstance(credential_binding_id, str) or not credential_binding_id.strip():
-            credential_binding_id = getattr(binding, "binding_id", None)
+        # Discovery/catalog identity belongs to the configured provider lane.
+        # A distinct credential/qualification lane must not rewrite the model
+        # inventory key (for example OpenRouter account discovery vs its free
+        # qualification lane).
+        provider_binding_id = getattr(binding, "binding_id", None)
+        if not isinstance(provider_binding_id, str) or not provider_binding_id.strip():
+            provider_binding_id = getattr(binding, "credential_binding_id", None)
         api_key_env = getattr(binding, "api_key_env", None)
         account_id_env = "CLOUDFLARE_ACCOUNT_ID" if provider_id == "cloudflare" else None
         timeout_seconds = getattr(binding, "timeout_seconds", 20.0)
         return cls(
             provider_id=provider_id,
-            provider_binding_id=_text(credential_binding_id, "credential_binding_id"),
+            provider_binding_id=_text(provider_binding_id, "provider_binding_id"),
             api_key_env=api_key_env,
             account_id_env=account_id_env,
             timeout_seconds=min(float(timeout_seconds), 120.0),

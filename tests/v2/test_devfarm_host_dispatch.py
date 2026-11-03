@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from contextlib import contextmanager
 import socket
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 import pytest
 
@@ -11,8 +12,29 @@ from src.dev_agent.operation import OperationProviderBinding
 from src.dev_agent.providers.base import ProviderError
 from src.dev_agent.providers.host_dispatch import HostDispatchEnvelope
 from src.dev_agent.resources.control import DispatchDenied
+from src.dev_agent.resources.model_catalog import ModelCatalog
 import scripts.devfarm_host_dispatch as host_dispatch
 from scripts.devfarm_host_dispatch import process_once
+
+
+def _live_discovery_result(provider_id, binding_id, *model_ids):
+    now = datetime.now(timezone.utc)
+    document = {
+        "schema_version": 1,
+        "entries": [
+            {
+                "provider_id": provider_id,
+                "provider_binding_id": binding_id,
+                "model_id": model_id,
+                "source": f"{provider_id}.models.list",
+                "observed_at": (now - timedelta(minutes=1)).isoformat(),
+                "expires_at": (now + timedelta(days=1)).isoformat(),
+                "metadata": {"modality": "text->text"},
+            }
+            for model_id in model_ids
+        ],
+    }
+    return SimpleNamespace(to_document=lambda: document)
 
 
 def test_host_process_executor_keeps_local_trial_opt_in_default_off(tmp_path):
@@ -83,7 +105,11 @@ def test_host_runtime_local_trial_revalidates_exact_l1_local_identity(monkeypatc
         billing_source="local_runtime",
         reason="local_trial",
     )
-    monkeypatch.setattr(host_dispatch, "_configured_binding", lambda _envelope: binding)
+    monkeypatch.setattr(
+        host_dispatch,
+        "_configured_binding_with_catalog",
+        lambda _envelope: (binding, ModelCatalog.from_document({"schema_version": 1, "entries": []})),
+    )
     monkeypatch.setattr(
         host_dispatch,
         "build_worker_provider",
@@ -150,7 +176,11 @@ def test_host_runtime_local_trial_rejects_non_l1_unsupported_capability_or_alias
         ),
         egress_manifest_sha256="f" * 64,
     )
-    monkeypatch.setattr(host_dispatch, "_configured_binding", lambda _envelope: binding)
+    monkeypatch.setattr(
+        host_dispatch,
+        "_configured_binding_with_catalog",
+        lambda _envelope: (binding, ModelCatalog.from_document({"schema_version": 1, "entries": []})),
+    )
     monkeypatch.setattr(
         host_dispatch,
         "build_worker_provider",
@@ -181,7 +211,11 @@ def test_host_runtime_local_trial_rejects_non_hardware_local_provider(monkeypatc
         ),
         egress_manifest_sha256="d" * 64,
     )
-    monkeypatch.setattr(host_dispatch, "_configured_binding", lambda _envelope: binding)
+    monkeypatch.setattr(
+        host_dispatch,
+        "_configured_binding_with_catalog",
+        lambda _envelope: (binding, ModelCatalog.from_document({"schema_version": 1, "entries": []})),
+    )
     monkeypatch.setattr(
         host_dispatch,
         "build_worker_provider",
@@ -224,7 +258,11 @@ def test_host_runtime_local_trial_rejects_tool_fields_even_when_capability_says_
         ),
         egress_manifest_sha256="e" * 64,
     )
-    monkeypatch.setattr(host_dispatch, "_configured_binding", lambda _envelope: binding)
+    monkeypatch.setattr(
+        host_dispatch,
+        "_configured_binding_with_catalog",
+        lambda _envelope: (binding, ModelCatalog.from_document({"schema_version": 1, "entries": []})),
+    )
     monkeypatch.setattr(
         host_dispatch,
         "build_worker_provider",
@@ -408,7 +446,11 @@ def test_host_runtime_local_trial_does_not_bypass_remote_admission(tmp_path, mon
         intelligence_tier="L2",
     )
     request_path.write_text(json.dumps(envelope.to_dict()), encoding="utf-8")
-    monkeypatch.setattr(host_dispatch, "_configured_binding", lambda _envelope: binding)
+    monkeypatch.setattr(
+        host_dispatch,
+        "_configured_binding_with_catalog",
+        lambda _envelope: (binding, ModelCatalog.from_document({"schema_version": 1, "entries": []})),
+    )
     monkeypatch.setattr(
         host_dispatch,
         "ModelEvidenceCatalog",
@@ -435,7 +477,14 @@ def test_host_runtime_projects_empty_current_admission_as_no_route_without_compo
     request_path = tmp_path / "request.json"
     response_path = tmp_path / "response.json"
     request_path.write_text(json.dumps(_envelope().to_dict()), encoding="utf-8")
-    monkeypatch.setattr(host_dispatch, "_configured_binding", lambda _envelope: SimpleNamespace())
+    monkeypatch.setattr(
+        host_dispatch,
+        "_configured_binding_with_catalog",
+        lambda _envelope: (
+            SimpleNamespace(),
+            ModelCatalog.from_document({"schema_version": 1, "entries": []}),
+        ),
+    )
     monkeypatch.setattr(
         host_dispatch,
         "ModelEvidenceCatalog",
@@ -481,8 +530,17 @@ def test_host_runtime_resolves_materialized_discovered_model_from_configured_lan
     monkeypatch.setattr(host_dispatch, "configured_provider_pool_from_environment", lambda: (configured,))
     monkeypatch.setattr(
         host_dispatch,
+        "ProviderModelDiscovery",
+        lambda: SimpleNamespace(
+            discover=lambda discovery_binding: _live_discovery_result(
+                "gemini", discovery_binding.provider_binding_id, expanded.model
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        host_dispatch,
         "materialize_provider_bindings",
-        lambda binding, _catalog, expand_discovered_models: (binding, expanded)
+        lambda binding, _catalog, expand_discovered_models, **_kwargs: (binding, expanded)
         if expand_discovered_models
         else (binding,),
     )
@@ -527,8 +585,17 @@ def test_host_runtime_resolves_expanded_model_from_credential_lane_identity(monk
     monkeypatch.setattr(host_dispatch, "configured_provider_pool_from_environment", lambda: (configured,))
     monkeypatch.setattr(
         host_dispatch,
+        "ProviderModelDiscovery",
+        lambda: SimpleNamespace(
+            discover=lambda discovery_binding: _live_discovery_result(
+                "gemini", discovery_binding.provider_binding_id, expanded.model
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        host_dispatch,
         "materialize_provider_bindings",
-        lambda binding, _catalog, expand_discovered_models: (expanded,)
+        lambda binding, _catalog, expand_discovered_models, **_kwargs: (expanded,)
         if expand_discovered_models
         else (binding,),
     )
@@ -564,7 +631,11 @@ def test_host_dispatch_propagates_model_admission_into_runtime_composition(monke
     )
     evidence = SimpleNamespace(catalog=object(), resolver=object())
     admitted = ((binding, SimpleNamespace(), SimpleNamespace()),)
-    monkeypatch.setattr(host_dispatch, "_configured_binding", lambda _envelope: binding)
+    monkeypatch.setattr(
+        host_dispatch,
+        "_configured_binding_with_catalog",
+        lambda _envelope: (binding, ModelCatalog.from_document({"schema_version": 1, "entries": []})),
+    )
     monkeypatch.setattr(host_dispatch, "ModelEvidenceCatalog", SimpleNamespace(load_default=lambda: evidence))
     monkeypatch.setattr(host_dispatch, "admit_resource_pool", lambda *args, **kwargs: admitted)
 

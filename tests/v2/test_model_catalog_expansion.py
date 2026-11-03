@@ -102,6 +102,20 @@ def test_operation_binding_normalizes_into_provider_neutral_discovery_binding():
     assert discovery_binding.timeout_seconds == 30.0
 
 
+def test_discovery_binding_uses_provider_lane_not_qualification_lane():
+    binding = OperationProviderBinding(
+        provider_id="openrouter",
+        model="openrouter/free",
+        provider_binding_id="openrouter:account",
+        qualification_binding_id="openrouter:free",
+        api_key_env="OPENROUTER_API_KEY",
+    )
+
+    discovery_binding = ModelDiscoveryBinding.from_operation_binding(binding)
+
+    assert discovery_binding.provider_binding_id == "openrouter:account"
+
+
 @pytest.mark.parametrize(
     ("provider_id", "binding_id", "api_key_env", "account_id_env"),
     [
@@ -311,6 +325,54 @@ def test_discovery_expansion_preserves_seed_before_bounded_aggregator_catalog():
 
     assert len(candidates) == 128
     assert candidates[0].model == "openrouter/free"
+
+
+def test_discovery_expansion_prioritizes_exact_preferred_models_within_bound():
+    preferred = tuple(f"free/model-{index:02d}" for index in range(4))
+    entries = [
+        {
+            "provider_id": "vercel",
+            "provider_binding_id": "vercel:account",
+            "model_id": f"aaa/model-{index:03d}",
+            "source": "vercel.models.list",
+            "observed_at": "2026-09-14T00:00:00+00:00",
+            "expires_at": "2026-09-15T00:00:00+00:00",
+            "metadata": {"modality": "text->text"},
+        }
+        for index in range(140)
+    ]
+    entries.extend(
+        {
+            "provider_id": "vercel",
+            "provider_binding_id": "vercel:account",
+            "model_id": model_id,
+            "source": "vercel.models.list",
+            "observed_at": "2026-09-14T00:00:00+00:00",
+            "expires_at": "2026-09-15T00:00:00+00:00",
+            "metadata": {"modality": "text->text"},
+        }
+        for model_id in preferred
+    )
+    catalog = ModelCatalog.from_document({"schema_version": 1, "entries": entries})
+    binding = OperationProviderBinding(
+        provider_id="vercel",
+        provider_binding_id="vercel:account",
+        qualification_binding_id="vercel:account",
+        model="seed/model",
+        api_key_env="AI_GATEWAY_API_KEY",
+    )
+
+    candidates = materialize_provider_bindings(
+        binding,
+        catalog,
+        expand_discovered_models=True,
+        preferred_model_ids=preferred,
+        now=NOW,
+    )
+
+    assert len(candidates) == 128
+    assert candidates[0].model == "seed/model"
+    assert set(preferred).issubset({candidate.model for candidate in candidates})
 
 
 def test_benchmark_discovery_uses_exact_or_date_suffixed_model_identity_only():

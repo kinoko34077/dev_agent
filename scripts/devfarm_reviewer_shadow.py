@@ -92,6 +92,7 @@ def _admit_reviewer_resources(
     model_admission_resolver=None,
     model_catalog=None,
     expand_discovered_models: bool = False,
+    refresh_model_discovery: bool = False,
 ):
     resolver = QualificationResolver()
     evidence = ModelEvidenceCatalog.load_default()
@@ -115,6 +116,7 @@ def _admit_reviewer_resources(
         model_admission_resolver=admission_resolver,
         model_catalog=catalog,
         expand_discovered_models=expand_discovered_models,
+        refresh_model_discovery=refresh_model_discovery,
     )
     if not admitted:
         raise ReviewAdapterError(f"exact current {required_tier} reviewer resource is not admitted")
@@ -213,6 +215,7 @@ def run_shadow(
     model_admission_resolver=None,
     model_catalog=None,
     expand_discovered_models: bool = False,
+    refresh_model_discovery: bool = False,
 ) -> dict[str, object]:
     runner = CodexSupervisedCommanderRun(root, run_id)
     plan = runner.plan()
@@ -251,6 +254,7 @@ def run_shadow(
         "model_admission_resolver": model_admission_resolver,
         "model_catalog": model_catalog,
         "expand_discovered_models": expand_discovered_models,
+        "refresh_model_discovery": refresh_model_discovery,
     }
     if required_tier != "L2":
         admission_kwargs["required_tier"] = required_tier
@@ -317,6 +321,7 @@ def run_proposal_only(
     model_admission_resolver=None,
     model_catalog=None,
     expand_discovered_models: bool = False,
+    refresh_model_discovery: bool = False,
 ) -> dict[str, object]:
     """Request one Free L2 proposal without requiring a Codex decision.
 
@@ -342,6 +347,7 @@ def run_proposal_only(
         "model_admission_resolver": model_admission_resolver,
         "model_catalog": model_catalog,
         "expand_discovered_models": expand_discovered_models,
+        "refresh_model_discovery": refresh_model_discovery,
     }
     if required_tier != "L2":
         admission_kwargs["required_tier"] = required_tier
@@ -435,6 +441,9 @@ def main(argv: list[str] | None = None) -> int:
             pool_json=args.pool_json,
             use_configured_pool=args.configured_pool,
         )
+        expand_discovered_models = args.expand_discovered_models or any(
+            binding.expand_discovered_models for binding in tuple(provider_pool or ())
+        )
         output = runner(
             root=args.root,
             run_id=args.run_id,
@@ -450,7 +459,8 @@ def main(argv: list[str] | None = None) -> int:
             provider_pool=provider_pool,
             model_admission_resolver=model_evidence.resolver,
             model_catalog=model_evidence.catalog,
-            expand_discovered_models=args.expand_discovered_models,
+            expand_discovered_models=expand_discovered_models,
+            refresh_model_discovery=expand_discovered_models,
         )
         code = 0
     except (ReviewAdapterError, DispatchDenied, ProviderPoolExhausted, ProviderError) as exc:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from hashlib import sha256
+from collections.abc import Callable, Iterable
 from typing import Any
 
 from .model_catalog import ModelCatalog
@@ -24,11 +25,50 @@ def execution_binding_id(credential_binding_id: str, model_id: str) -> str:
     return f"{credential_binding_id.strip()}::model::{safe_model[:96]}::{suffix}"
 
 
+def current_no_charge_candidate_ids(
+    binding: Any,
+    catalog: ModelCatalog,
+    profile_resolver: Callable[[str, str, str], Any],
+    *,
+    now=None,
+) -> tuple[str, ...]:
+    """Return exact, current no-charge discovered IDs for bounded prioritization.
+
+    This is only candidate ordering input. It does not admit a model or
+    replace any downstream billing, qualification, capability, quota, or
+    privacy checks.
+    """
+
+    if not isinstance(catalog, ModelCatalog):
+        raise TypeError("catalog must be a ModelCatalog")
+    if not callable(profile_resolver):
+        raise TypeError("profile_resolver must be callable")
+    identities = []
+    for entry in catalog.entries_for_binding(binding.provider_id, binding.binding_id, now=now):
+        if not entry.is_text_generation_candidate():
+            continue
+        profile = profile_resolver(
+            binding.provider_id,
+            binding.credential_binding_id,
+            entry.model_id,
+        )
+        is_current = getattr(profile, "is_current", None)
+        if (
+            profile is not None
+            and getattr(profile, "no_charge_guaranteed", False) is True
+            and callable(is_current)
+            and bool(is_current() if now is None else is_current(now=now))
+        ):
+            identities.append(entry.model_id)
+    return tuple(sorted(set(identities)))
+
+
 def materialize_provider_bindings(
     binding: Any,
     catalog: ModelCatalog | None = None,
     *,
     expand_discovered_models: bool = False,
+    preferred_model_ids: Iterable[str] = (),
     now=None,
     min_input_token_limit: int = 0,
 ) -> tuple[Any, ...]:
@@ -51,6 +91,14 @@ def materialize_provider_bindings(
         raise TypeError("catalog must be a ModelCatalog or None")
     if not isinstance(expand_discovered_models, bool):
         raise ValueError("expand_discovered_models must be a boolean")
+    if isinstance(preferred_model_ids, (str, bytes)):
+        raise ValueError("preferred_model_ids must be a collection of model IDs")
+    try:
+        preferred = tuple(dict.fromkeys(preferred_model_ids))
+    except TypeError as exc:
+        raise ValueError("preferred_model_ids must be an iterable of model IDs") from exc
+    if len(preferred) > 128 or any(not isinstance(model_id, str) or not model_id.strip() for model_id in preferred):
+        raise ValueError("preferred_model_ids must contain at most 128 non-empty strings")
     base_binding_id = binding.credential_binding_id
     models: set[str] = set(binding.candidate_model_ids)
     if expand_discovered_models:
@@ -65,9 +113,13 @@ def materialize_provider_bindings(
     # returns more than the bounded candidate limit.  Downstream admission
     # still decides whether the seed is usable; this only prevents a sorted
     # catalog page from silently evicting it before admission runs.
+    preferred_set = set(preferred)
     ordered_models = (
         binding.model,
-        *sorted(model for model in models if model != binding.model),
+        *sorted(
+            (model for model in models if model != binding.model),
+            key=lambda model: (model not in preferred_set, model),
+        ),
     )[:128]
     if not ordered_models:
         return ()
@@ -87,4 +139,4 @@ def materialize_provider_bindings(
     return tuple(materialized)
 
 
-__all__ = ["execution_binding_id", "materialize_provider_bindings"]
+__all__ = ["current_no_charge_candidate_ids", "execution_binding_id", "materialize_provider_bindings"]

@@ -388,17 +388,17 @@ class BillingResolver:
             profile is None
             and self._catalog is TRUSTED_RESOURCE_CATALOG
             and provider_id == "openrouter"
-            and provider_binding_id == "openrouter:account"
+            and provider_binding_id in {"openrouter:account", "openrouter:free"}
             and model_id.endswith(":free")
         ):
             # OpenRouter's explicit :free variant denotes a zero-priced model
-            # on its free account lane.  Keep the exact discovered model ID in
-            # the returned profile and stop at the account's free request cap.
+            # on its account/free credential lane. Keep the exact discovered
+            # model ID and the caller's billing lane; stop at the free request cap.
             # The staged/current model inventory and all non-billing admission
             # checks remain independent.
             profile = TrustedResourceProfile(
                 "openrouter",
-                "openrouter:account",
+                provider_binding_id,
                 model_id,
                 0,
                 "JPY",

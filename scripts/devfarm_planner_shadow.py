@@ -250,6 +250,7 @@ def admit_planner_pool(
     model_admission_resolver: ModelAdmissionResolver | None = None,
     model_catalog=None,
     expand_discovered_models: bool = False,
+    refresh_model_discovery: bool = False,
     now: datetime | None = None,
 ) -> tuple[tuple[OperationProviderBinding, object, object], ...]:
     """Compatibility wrapper for the role-neutral development admission API."""
@@ -264,6 +265,7 @@ def admit_planner_pool(
             model_admission_resolver=model_admission_resolver,
             model_catalog=model_catalog,
             expand_discovered_models=expand_discovered_models,
+            refresh_model_discovery=refresh_model_discovery,
             now=now,
             profile_resolver=profile_for,
         )
@@ -376,6 +378,7 @@ def run_shadow(
     model_admission_resolver: ModelAdmissionResolver | None = None,
     model_catalog=None,
     expand_discovered_models: bool = False,
+    refresh_model_discovery: bool = False,
     execution_boundary: str = "in_process",
     max_output_tokens: int = 1_024,
     planning_critic_provider=None,
@@ -402,6 +405,7 @@ def run_shadow(
         model_admission_resolver=model_admission_resolver,
         model_catalog=model_catalog,
         expand_discovered_models=expand_discovered_models,
+        refresh_model_discovery=refresh_model_discovery,
     )
     if not admitted:
         raise PlannerShadowBlocked(
@@ -423,6 +427,7 @@ def run_shadow(
             model_admission_resolver=model_admission_resolver,
             model_catalog=model_catalog,
             expand_discovered_models=expand_discovered_models,
+            refresh_model_discovery=refresh_model_discovery,
         )
         _validate_independent_critic_admission(admitted, critic_admitted)
     if execution_boundary not in {"in_process", "host_process"}:
@@ -848,6 +853,9 @@ def main(argv: list[str] | None = None) -> int:
             pool_json=args.planning_critic_pool_json,
             use_configured_pool=args.planning_critic_configured_pool,
         )
+        expand_discovered_models = args.expand_discovered_models or any(
+            binding.expand_discovered_models for binding in (*tuple(provider_pool or ()), *tuple(planning_critic_pool or ()))
+        )
         output = run_shadow(
             objective=args.objective,
             parent_task_id=parent_task_id,
@@ -864,7 +872,8 @@ def main(argv: list[str] | None = None) -> int:
             provider_pool=provider_pool,
             model_admission_resolver=model_admission_resolver,
             model_catalog=model_evidence.catalog,
-            expand_discovered_models=args.expand_discovered_models,
+            expand_discovered_models=expand_discovered_models,
+            refresh_model_discovery=expand_discovered_models,
             execution_boundary=args.execution_boundary,
             max_output_tokens=args.max_output_tokens,
             planning_critic_pool=planning_critic_pool,

@@ -151,17 +151,24 @@ def test_user_confirmed_free_provider_bindings_use_hard_stop_profiles(provider_i
 
 
 @pytest.mark.current_billing_catalog
-def test_openrouter_free_model_variant_is_no_charge_only_on_configured_account_binding():
+def test_openrouter_free_model_variant_is_no_charge_on_account_and_qualification_lanes_only():
     model_id = "google/gemma-4-26b-a4b-it:free"
 
     profile = profile_for("openrouter", "openrouter:account", model_id)
+    qualification_profile = profile_for("openrouter", "openrouter:free", model_id)
 
     assert profile is not None
+    assert qualification_profile is not None
     assert profile.model_id == model_id
     assert profile.cost_minor == 0
     assert profile.billing_mode == "recurring_allowance"
     assert profile.overage_policy == "hard_stop"
     assert profile.no_charge_guaranteed is True
+    assert qualification_profile.provider_binding_id == "openrouter:free"
+    assert qualification_profile.model_id == model_id
+    assert qualification_profile.cost_minor == 0
+    assert qualification_profile.overage_policy == "hard_stop"
+    assert qualification_profile.no_charge_guaranteed is True
     assert profile_for("openrouter", "openrouter:account", "google/gemma-4-26b-a4b-it") is None
     assert profile_for("openrouter", "openrouter:qualification", model_id) is None
     from src.dev_agent.resources.billing_catalog import default_binding_id
