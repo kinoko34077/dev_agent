@@ -1,7 +1,12 @@
 # dev_agent v2 Codex entrypoint
 
-This repository is maintained on `v2/bootstrap`. `main` is the frozen v1
-line and is not a v2 implementation baseline.
+The maintained v2 development line is now `main` (renamed from
+`v2/bootstrap` under [branch migration #171](https://github.com/kinoko34077/dev_agent/issues/171)).
+The former v1 `main` is preserved at `v1/main`, with the prior default-branch
+ref also archived at `legacy/main-before-v2-20261110`. For current development,
+unqualified "v2" refers to `main`; historical exact refs and commit pins remain
+historical. Local checkouts and external consumers may still need migration;
+#171 remains OPEN until those acceptance conditions are met.
 
 ## Read order
 
@@ -104,5 +109,5 @@ reference the establishing Issue/PR/evidence compactly when useful. Keep task
 progress, temporary blockers, commit chronology, branch/reviewer state, and
 individual verification runs in the owning Issue / PR / Actions. Durable
 requirement or design changes still update their owning canonical documents.
-When the scoped slice is verified, commit and push it to `origin/v2/bootstrap`;
-do not rewrite history or promote a Gate from an artifact alone.
+When the scoped slice is verified, use the protected `main` PR/check/review
+path for integration; do not rewrite history or promote a Gate from an artifact alone.
