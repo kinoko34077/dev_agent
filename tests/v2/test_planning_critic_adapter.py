@@ -630,6 +630,31 @@ def test_planner_shadow_projects_critic_failure_without_unbound_exception(monkey
     assert output["reconciliation_required"] is False
 
 
+def test_planner_shadow_cli_defaults_to_main_after_branch_rename(monkeypatch):
+    captured_branches = []
+    monkeypatch.setattr(
+        devfarm_planner_shadow.ModelEvidenceCatalog,
+        "load_default",
+        lambda: SimpleNamespace(resolver=None, catalog=None),
+    )
+    monkeypatch.setattr(
+        devfarm_planner_shadow,
+        "resolve_provider_pool",
+        lambda **_kwargs: None,
+    )
+
+    def stop_before_dispatch(**kwargs):
+        captured_branches.append(kwargs["branch"])
+        raise PlanningCriticAdapterError("test-only stop before provider dispatch")
+
+    monkeypatch.setattr(devfarm_planner_shadow, "run_shadow", stop_before_dispatch)
+
+    code = devfarm_planner_shadow.main(["--objective", "check current default branch"])
+
+    assert code == 2
+    assert captured_branches == ["main"]
+
+
 def test_planner_shadow_projects_critic_observation_on_failure(monkeypatch, capsys):
     critic_request_id = str(uuid4())
     failure = PlanningCriticAdapterError("bounded critic response failure")
