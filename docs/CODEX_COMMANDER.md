@@ -92,7 +92,7 @@ python scripts/devfarm.py verify <run-id> --root .
 python scripts/devfarm.py resume <run-id> --root .
 python scripts/devfarm.py reassign <run-id> <task-id> --provider openrouter --model openrouter/free --root .
 python scripts/devfarm.py mark-integrated <run-id> <task-id> --note "Codex reviewed" \
-  --target-ref v2/bootstrap --integration-revision <commit> \
+  --target-ref main --integration-revision <commit> \
   --source-attempt-id <attempt-id> --verified-patch-digest <sha256> --root .
 ```
 
@@ -102,7 +102,7 @@ ProviderFactory／DevFarm activation policyを経由し、未activate Provider�
 
 `dispatch`はRemote proposalだけを行い、worktreeを作成しない。`verify`が既存の
 Host Verificationを呼び、valid proposalだけを専用worktreeへ適用する。成功しても
-公式`v2/bootstrap`へ自動merge、commit、Gate promotionは行わない。Codexがreview後に
+公式`main`へ自動merge、commit、Gate promotionは行わない。Codexがreview後に
 `mark-integrated`を明示的に記録する。
 
 日常運用では、SupervisorのCLI adapterを使ってreview・rework・integrationを行う。
