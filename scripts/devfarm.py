@@ -2,7 +2,7 @@
 
 This is not a runtime scheduler or a Phase 7 AgentBackend.  It validates
 narrow task/result contracts and prepares an isolated Git worktree only for
-host verification, so a free model never needs write access to ``v2/bootstrap``
+host verification, so a free model never needs write access to ``main``
 or another worker's checkout.
 """
 
