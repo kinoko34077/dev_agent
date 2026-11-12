@@ -89,7 +89,14 @@ def test_default_trusted_source_tracks_renamed_main_without_legacy_ref(tmp_path)
     source, _good, candidate = _repository(tmp_path)
     _git(source, "branch", "main", "HEAD")
     store = RevisionPinnedRuntimeStore(source, tmp_path / "releases")
-    rolling = RollingRestartService(GuardianProcessExecutor((), _Runtime()))
+    candidate_profile = _profile(
+        tmp_path,
+        profile_id="candidate",
+        generation=1,
+        revision=candidate,
+        runtime_root=tmp_path / "releases" / candidate,
+    )
+    rolling = RollingRestartService(GuardianProcessExecutor((candidate_profile,), _Runtime()))
 
     service = SelfUpdateService(store, rolling)
 
