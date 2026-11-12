@@ -86,7 +86,7 @@ class SelfUpdateService:
         release_store: RevisionPinnedRuntimeStore,
         rolling_service: RollingRestartService,
         *,
-        trusted_ref: str = "v2/bootstrap",
+        trusted_ref: str = "main",
     ) -> None:
         if not isinstance(release_store, RevisionPinnedRuntimeStore):
             raise TypeError("release_store must be a RevisionPinnedRuntimeStore")
