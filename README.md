@@ -2,7 +2,7 @@
 
 > ## V2 DEVELOPMENT BRANCH
 >
-> この `v2/bootstrap` は新しい Provider-neutral Kernel の開発ブランチです。v2 の起点・実装状態は [`docs/V2_EXECUTION_PLAN.md`](docs/V2_EXECUTION_PLAN.md) と [`spec/v2/INTEGRATION_HARDENING.md`](spec/v2/INTEGRATION_HARDENING.md) を正とします。以下の Gemini / `core/main.py` 手順は legacy v1 の記録であり、v2 Runtime の起動手順ではありません。
+> この `main` は新しい Provider-neutral Kernel の開発ブランチです。v2 の起点・実装状態は [`docs/V2_EXECUTION_PLAN.md`](docs/V2_EXECUTION_PLAN.md) と [`spec/v2/INTEGRATION_HARDENING.md`](spec/v2/INTEGRATION_HARDENING.md) を正とします。以下の Gemini / `core/main.py` 手順は legacy v1 の記録であり、v2 Runtime の起動手順ではありません。
 
 このブランチでの現在の実行境界は `src/dev_agent`、非secretなv2ポリシー参考ファイルは [`config/v2.yaml`](config/v2.yaml)、復旧操作は `python -m recovery.rescue diagnose --json` です。Operation runtimeは`config/v2.yaml`を自動読込みせず、実行時のResource／Budget設定は永続SQLiteと明示的なoperator／環境設定を正本とします。Phase 6 foundation とG6O2〜G6O6は検証済み、G6O1のみ有償Providerのworst-case実証とdeployment-owned budget設定の外部保護待ちです。Gemini 3.5 Flash-Lite（L1 Worker）とGemini 3.8 Flash（L2 core）、Cloudflare Workers AI、OpenRouter Free、Ollamaには過去のlive qualification／local qualification証跡がありますが、qualificationは期限付きであり、現在の有効性・課金・quota・health・runtime admissionを自動的に意味しません。現行の期限と受入可否は [`docs/CURRENT_STATE.md`](docs/CURRENT_STATE.md) と `python scripts/check_evidence_expiry.py --preflight --horizon-hours 48` で確認します。GroqはHTTP 403、MistralはHTTP 429、SambaNovaはHTTP 429/402で未qualification/inactiveです。Phase 7A〜7Eではbounded tier routing、thinking effort分離、deterministic evaluator、host review、有限escalation dispatch、workflow proposal、明示的な有限Evaluator→dispatch→TaskLifecycle合成まで実装済みです。development-onlyのCommander親Planと既存DevFarmのplan／dispatch／collect／verify／resume入口、hard-filter限定のevidence-based advisory順位付け、ModelProviderと分離したthin AgentBackend contract、既存StateStoreへ接続するAgentBackend dispatcher、CodexExecBackend、transport-neutral MCP adapter、F0〜F2のHost-only Self-Improvement、D9のproposal-only repair candidate境界、local Process Coordination/Guardianの実行境界も実装されています。MCP wire、OS常駐Agent/Guardian、D9実mutatingは未接続です。詳細な現在状態は [`docs/CURRENT_STATE.md`](docs/CURRENT_STATE.md) を参照してください。
 
@@ -68,4 +68,4 @@ Phase 6 の現在地と未完了の外部証跡は [`docs/CURRENT_STATE.md`](doc
 
 ## legacy v1（履歴）
 
-v1の実行資産と履歴は、凍結済みの `legacy/v1-final` branch と `requirements-v1-legacy.txt` に隔離しています。現行 `v2/bootstrap` の runtime、設定、テスト、復旧手順は本書上部と `docs/` / `spec/` を参照してください。
+v1の実行資産と履歴は、保存済みの `v1/main` branch（`legacy/v1-final` は旧時点の保存履歴） と `requirements-v1-legacy.txt` に隔離しています。現行 `main` の runtime、設定、テスト、復旧手順は本書上部と `docs/` / `spec/` を参照してください。
