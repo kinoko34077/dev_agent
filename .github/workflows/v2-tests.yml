@@ -2,7 +2,7 @@ name: v2-provider-smoke
 
 on:
   push:
-    branches: [main, v2/bootstrap]
+    branches: [main]
   pull_request:
 
 permissions:
