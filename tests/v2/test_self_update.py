@@ -85,6 +85,20 @@ def _service(store, profiles):
     ), runtime
 
 
+def test_default_trusted_source_tracks_renamed_main_without_legacy_ref(tmp_path):
+    source, _good, candidate = _repository(tmp_path)
+    _git(source, "branch", "main", "HEAD")
+    store = RevisionPinnedRuntimeStore(source, tmp_path / "releases")
+    rolling = RollingRestartService(GuardianProcessExecutor((), _Runtime()))
+
+    service = SelfUpdateService(store, rolling)
+
+    assert service.trusted_ref == "main"
+    assert service._is_trusted(candidate)
+    assert not store.revision_reachable_from(candidate, "v2/bootstrap")
+    assert SelfUpdateService(store, rolling, trusted_ref="HEAD").trusted_ref == "HEAD"
+
+
 def test_good_candidate_promotes_and_records_active_revision(tmp_path):
     source, good, candidate = _repository(tmp_path)
     store = RevisionPinnedRuntimeStore(source, tmp_path / "releases")
