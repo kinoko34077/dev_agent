@@ -376,7 +376,7 @@ def check_tier_authority_separation() -> dict[str, Any]:
 
 
 _STATE_HEAD_LABELS = {
-    "accepted_head": "Accepted remote head at latest integrated implementation/evidence",
+    "accepted_head": "Historical documentation checkpoint",
     "implementation_head": "Latest implementation baseline",
 }
 _GATE_VALUE_PATHS = {
