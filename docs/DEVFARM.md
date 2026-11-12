@@ -47,7 +47,7 @@ capability qualification, binding/model mapping, and trusted no-charge billing
 catalog. An unqualified, expired, or billing-unknown Provider is rejected.
 The result's `changed_files` is derived from the unified patch, not trusted
 from the model claim. A result must use the same base revision and may list
-only files from `allowed_files`; a Worker cannot modify `v2/bootstrap`, Gate
+only files from `allowed_files`; a Worker cannot modify `main`, Gate
 status, budget authority, Recovery policy, credentials, or another Worker's
 worktree by convention and contract.
 
@@ -294,7 +294,7 @@ The normalized parent-plan contract is
 and its Python validation/transition owner is
 `scripts/devfarm_commander.py`. This layer does not own Production Runtime
 state, Scheduler leases, budget, quota, authority, or Gate promotion. It never
-automatically applies a patch to `v2/bootstrap`.
+automatically applies a patch to `main`.
 
 ## Codex Supervisor
 
