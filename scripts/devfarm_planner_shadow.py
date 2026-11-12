@@ -780,7 +780,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--api-key-env", default="GEMINI_API_KEY")
     parser.add_argument("--quota-domain", default="gemini-core-account")
     parser.add_argument("--repository", default="kinoko34077/dev_agent")
-    parser.add_argument("--branch", default="v2/bootstrap")
+    parser.add_argument("--branch", default="main")
     parser.add_argument(
         "--required-tier",
         choices=("L1", "L2", "L3"),
