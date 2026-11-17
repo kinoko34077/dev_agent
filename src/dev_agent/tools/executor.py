@@ -63,7 +63,19 @@ def terminate_process_tree(process: subprocess.Popen[str]) -> None:
         process.kill()
 
 
-def run_subprocess(handler_ref: str, arguments: dict[str, Any], timeout_seconds: float, cancel_event: Event | None) -> dict[str, Any]:
+# Python subprocess isolation is not an OS sandbox. Restrict the ambient
+# environment when the registered handler is untrusted or model-generated.
+_UNTRUSTED_WORKER_ENV = frozenset({
+    "PATH", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "TMPDIR",
+    "LANG", "LC_ALL", "LC_CTYPE", "PYTHONIOENCODING", "PYTHONUTF8",
+})
+
+
+def _untrusted_worker_environment() -> dict[str, str]:
+    return {key: value for key, value in os.environ.items() if key.upper() in _UNTRUSTED_WORKER_ENV}
+
+
+def run_subprocess(handler_ref: str, arguments: dict[str, Any], timeout_seconds: float, cancel_event: Event | None, *, restrict_environment: bool = False) -> dict[str, Any]:
     worker = Path(__file__).with_name("process_worker.py")
     creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) if os.name == "nt" else 0
     process = subprocess.Popen(
@@ -73,6 +85,7 @@ def run_subprocess(handler_ref: str, arguments: dict[str, Any], timeout_seconds:
         stderr=subprocess.PIPE,
         text=True,
         cwd=str(Path.cwd()),
+        env=_untrusted_worker_environment() if restrict_environment else None,
         start_new_session=os.name != "nt",
         creationflags=creationflags,
     )
@@ -158,7 +171,10 @@ class ToolExecutor:
             reference = handler_reference(spec)
             if reference is None:
                 raise ValueError("isolated tools require an importable top-level handler")
-            return run_subprocess(reference, arguments, spec.timeout_seconds, cancel_event)
+            return run_subprocess(
+                reference, arguments, spec.timeout_seconds, cancel_event,
+                restrict_environment=spec.trust_level in {"untrusted", "generated"},
+            )
         return run_in_process(spec.handler, arguments, spec.timeout_seconds, cancel_event)
 
 
