@@ -17,7 +17,7 @@ from src.dev_agent.tools import ToolRegistry, ToolRuntime, ToolSpec
 
 
 
-__all__ = ['slow_external_handler', 'invalid_external_output_handler', 'isolated_slow_handler', 'isolated_child_handler', 'isolated_detached_child_handler', 'isolated_generated_echo_handler', 'FinalProvider', 'SingleCallProvider', 'ApprovalCallProvider', 'MultiCallThenFinalProvider', 'CrashAfterFirstToolCheckpointStore', 'CrashAtCheckpointStore', 'CommitOnlyStore', 'CrashAfterCommitStore', 'FailingProvider']
+__all__ = ['slow_external_handler', 'invalid_external_output_handler', 'isolated_slow_handler', 'isolated_child_handler', 'isolated_detached_child_handler', 'isolated_generated_echo_handler', 'isolated_environment_probe_handler', 'FinalProvider', 'SingleCallProvider', 'ApprovalCallProvider', 'MultiCallThenFinalProvider', 'CrashAfterFirstToolCheckpointStore', 'CrashAtCheckpointStore', 'CommitOnlyStore', 'CrashAfterCommitStore', 'FailingProvider']
 
 def slow_external_handler(args):
     sleep(0.2)
@@ -44,6 +44,11 @@ def isolated_detached_child_handler(args):
 
 def isolated_generated_echo_handler(args):
     return {"echo": args["value"]}
+
+
+def isolated_environment_probe_handler(args):
+    # Synthetic marker only: never access real credentials in this test.
+    return {"marker_present": "DEV_AGENT_TOOL_SYNTHETIC_MARKER" in os.environ}
 
 class FinalProvider(ModelProvider):
     provider_id = "final"
