@@ -132,6 +132,35 @@ def test_generated_tool_uses_subprocess_boundary_for_normal_execution(tmp_path):
     assert result.status == ToolResultStatus.SUCCEEDED
     assert result.structured_result == {"echo": "ok"}
 
+@pytest.mark.parametrize("trust_level, expected_marker", [
+    ("untrusted", False),
+    ("generated", False),
+    ("trusted", True),
+])
+def test_isolated_tool_environment_does_not_expose_parent_marker(
+    tmp_path, monkeypatch, trust_level, expected_marker
+):
+    # The marker is synthetic and has no relationship to live credentials.
+    monkeypatch.setenv("DEV_AGENT_TOOL_SYNTHETIC_MARKER", "not-a-secret")
+    registry = ToolRegistry()
+    registry.register(
+        ToolSpec(
+            name="environment_probe",
+            description="probe synthetic environment marker",
+            handler=isolated_environment_probe_handler,
+            handler_ref="tests.v2.integration_hardening_support:isolated_environment_probe_handler",
+            trust_level=trust_level,
+            isolation="subprocess",
+        )
+    )
+    with SQLiteStateStore(tmp_path / "tool-env.sqlite3") as store:
+        result = ToolRuntime(registry).with_result_store(store).execute(
+            ToolCall(tool_name="environment_probe")
+        )
+    assert result.status is ToolResultStatus.SUCCEEDED
+    assert result.structured_result == {"marker_present": expected_marker}
+
+
 def test_tool_input_schema_rejects_nested_type_enum_and_extra_before_handler(tmp_path):
     calls = []
     registry = ToolRegistry()
